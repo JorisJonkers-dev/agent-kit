@@ -63,6 +63,12 @@ const SUPERSEDE_LINE =
 /** A line on which a record says it replaces the records it names. */
 const REPLACING_LINE = /\b(?:supersedes|replaces)\b/i
 
+/** A clause in which a record says another record replaced it. */
+const REPLACED_LINE = /\b(?:superseded[ \t]+by|replaced[ \t]+by)\b/i
+
+/** Clauses of a line: a keyword governs only the targets in its own clause, up to a semicolon or the end of a sentence. */
+const CLAUSE_BREAK = /;|\.(?=\s)/
+
 /** An inline link's target, a reference definition's target (never a footnote's `[^1]:`), or an ADR number. */
 const REFERENCE =
   /\]\(<?([^)\s>]+)>?(?:[ \t]+"[^"]*")?\)|^[ \t]*\[(?!\^)[^\]\n]+\]:[ \t]*<?([^\s>]+)>?|\bADR[- ]?(\d{1,5})\b/gim
@@ -81,6 +87,8 @@ interface Reference extends AdrLink {
   readonly number?: number
   /** True on a line where the record says it replaces what it names. */
   readonly replacing: boolean
+  /** True on a clause where the record says another record replaced it. */
+  readonly replaced: boolean
 }
 
 /**
@@ -130,12 +138,20 @@ export function checkAdrLog(
         : [],
     ),
   )
+  const replacedBy = new Set(
+    stated.flatMap((record, n) =>
+      (named[n] ?? []).some((reference) => reference.replaced) ? [record.path] : [],
+    ),
+  )
   const records = stated.map((record) =>
-    replaced.has(record.path) ? { ...record, in_force: false } : record,
+    replaced.has(record.path) || replacedBy.has(record.path)
+      ? { ...record, in_force: false }
+      : record,
   )
   const superseded = new Set([
     ...records.filter((record) => record.status === 'superseded').map((record) => record.path),
     ...replaced,
+    ...replacedBy,
   ])
   return {
     cites_superseded: records.flatMap((record, n) => {
@@ -209,17 +225,25 @@ function references(source: AdrSource): readonly Reference[] {
   return withoutFences(source.text)
     .split('\n')
     .flatMap((line) => {
-      const kind = SUPERSEDE_LINE.test(line) ? 'supersede' : 'link'
-      const replacing = REPLACING_LINE.test(line)
-      return [...line.replace(BARE_URL, ' ').matchAll(REFERENCE)].flatMap((match): Reference[] => {
+      const text = line.replace(BARE_URL, ' ')
+      const breaks = [...text.matchAll(new RegExp(CLAUSE_BREAK, 'g'))].map((found) => found.index)
+      return [...text.matchAll(REFERENCE)].flatMap((match): Reference[] => {
         const [whole, inline, definition, number] = match
         const record = source.path
+        const before = breaks.filter((at) => at < match.index).at(-1) ?? 0
+        const after = breaks.find((at) => at >= match.index) ?? text.length
+        const clause = text.slice(before, after)
+        const kind = SUPERSEDE_LINE.test(clause) ? 'supersede' : 'link'
+        const flags = {
+          replaced: REPLACED_LINE.test(clause),
+          replacing: REPLACING_LINE.test(clause),
+        }
         if (number !== undefined)
-          return [{ kind, number: Number(number), record, replacing, target: whole }]
+          return [{ kind, number: Number(number), record, ...flags, target: whole }]
         const target = inline ?? definition ?? ''
         return NOT_A_FILE.test(target)
           ? []
-          : [{ kind, path: repositoryPath(source.path, target), record, replacing, target }]
+          : [{ kind, path: repositoryPath(source.path, target), record, ...flags, target }]
       })
     })
 }

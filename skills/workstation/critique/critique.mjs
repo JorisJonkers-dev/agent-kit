@@ -5268,6 +5268,8 @@ var STATUSES = ["proposed", "accepted", "rejected", "deprecated", "superseded"];
 var RECORD_NUMBER = /^(?!\d{4}[-_]\d{1,2}[-_]\d{1,2}(?!\d))(\d{1,5})[-_ ]/;
 var SUPERSEDE_LINE = /\b(?:supersedes|superseded[ \t]+by|amends|amended[ \t]+by|replaces|replaced[ \t]+by)\b/i;
 var REPLACING_LINE = /\b(?:supersedes|replaces)\b/i;
+var REPLACED_LINE = /\b(?:superseded[ \t]+by|replaced[ \t]+by)\b/i;
+var CLAUSE_BREAK = /;|\.(?=\s)/;
 var REFERENCE2 = /\]\(<?([^)\s>]+)>?(?:[ \t]+"[^"]*")?\)|^[ \t]*\[(?!\^)[^\]\n]+\]:[ \t]*<?([^\s>]+)>?|\bADR[- ]?(\d{1,5})\b/gim;
 var BARE_URL = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi;
 var NOT_A_FILE = /^(?:[a-z][a-z0-9+.-]*:|#)/i;
@@ -5294,12 +5296,18 @@ function checkAdrLog(sources, existing) {
       (record, n) => record.in_force ? (named[n] ?? []).filter((reference) => reference.replacing).flatMap(recordsOf) : []
     )
   );
+  const replacedBy = new Set(
+    stated.flatMap(
+      (record, n) => (named[n] ?? []).some((reference) => reference.replaced) ? [record.path] : []
+    )
+  );
   const records = stated.map(
-    (record) => replaced.has(record.path) ? { ...record, in_force: false } : record
+    (record) => replaced.has(record.path) || replacedBy.has(record.path) ? { ...record, in_force: false } : record
   );
   const superseded = /* @__PURE__ */ new Set([
     ...records.filter((record) => record.status === "superseded").map((record) => record.path),
-    ...replaced
+    ...replaced,
+    ...replacedBy
   ]);
   return {
     cites_superseded: records.flatMap((record, n) => {
@@ -5358,15 +5366,23 @@ function numbering(records) {
 }
 function references(source) {
   return withoutFences(source.text).split("\n").flatMap((line2) => {
-    const kind = SUPERSEDE_LINE.test(line2) ? "supersede" : "link";
-    const replacing = REPLACING_LINE.test(line2);
-    return [...line2.replace(BARE_URL, " ").matchAll(REFERENCE2)].flatMap((match) => {
+    const text = line2.replace(BARE_URL, " ");
+    const breaks = [...text.matchAll(new RegExp(CLAUSE_BREAK, "g"))].map((found) => found.index);
+    return [...text.matchAll(REFERENCE2)].flatMap((match) => {
       const [whole, inline, definition, number] = match;
       const record = source.path;
+      const before = breaks.filter((at) => at < match.index).at(-1) ?? 0;
+      const after = breaks.find((at) => at >= match.index) ?? text.length;
+      const clause2 = text.slice(before, after);
+      const kind = SUPERSEDE_LINE.test(clause2) ? "supersede" : "link";
+      const flags = {
+        replaced: REPLACED_LINE.test(clause2),
+        replacing: REPLACING_LINE.test(clause2)
+      };
       if (number !== void 0)
-        return [{ kind, number: Number(number), record, replacing, target: whole }];
+        return [{ kind, number: Number(number), record, ...flags, target: whole }];
       const target = inline ?? definition ?? "";
-      return NOT_A_FILE.test(target) ? [] : [{ kind, path: repositoryPath(source.path, target), record, replacing, target }];
+      return NOT_A_FILE.test(target) ? [] : [{ kind, path: repositoryPath(source.path, target), record, ...flags, target }];
     });
   });
 }

@@ -3449,11 +3449,14 @@ The decision-log pre-check (agent-kit#226), the ADR review's counterpart of
   force that cites a superseded one. A file whose name starts with no
   number, such as a README, or with a date such as `2024-01-15` or
   `2024-1-5`, is listed under `numbering.unnumbered` and never fails it.
-- **Supersede links.** A target on a line saying Supersedes, Superseded by,
+- **Supersede links.** A keyword governs only the targets in its own clause
+  (up to a semicolon or the end of a sentence), so an unrelated link beside
+  it keeps its own kind. A target in a clause saying Supersedes, Superseded by,
   Amends, Amended by, Replaces or Replaced by is reported with kind
   `supersede`; any other with kind `link`. A record is superseded when it
-  says so in its status, or when a record in force names it on a
-  Supersedes or Replaces line; a record replaced that way is also out of
+  says so in its status, when it says it was superseded or replaced by a
+  record, or when a record in force names it in a Supersedes or Replaces
+  clause; a record replaced that way is also out of
   force, so what it cites is not reported. Supersede links are not
   citations, so the record that replaces another never counts as citing
   it.

@@ -371,6 +371,43 @@ describe('the root-relative and unnumbered files check-adrs reads', () => {
   })
 })
 
+describe('the clauses of a supersede line', () => {
+  it('lets a link beside a Supersedes clause stay in force and be cited', async () => {
+    const h = await withLog({
+      '0001-a.md': '# A\n\nStatus: accepted\n',
+      '0002-b.md': '# B\n\nStatus: accepted\n',
+      '0003-c.md': '# C\n\nSupersedes [B](0002-b.md); builds on [A](0001-a.md).\n',
+      '0004-d.md': '# D\n\nDepends on [A](0001-a.md).\n',
+    })
+
+    const result = await checked(h)
+
+    expect(result.status).toBe('passed')
+    expect(result.records.map((record) => [record.number, record.in_force])).toEqual([
+      [1, true],
+      [2, false],
+      [3, true],
+      [4, true],
+    ])
+  })
+
+  it('counts a record that says it was superseded as superseded, whatever its status', async () => {
+    const h = await withLog({
+      '0001-a.md': '# A\n\nStatus: accepted\n\nSuperseded by [ADR-0002](0002-b.md).\n',
+      '0002-b.md': '# B\n\nStatus: accepted\n',
+      '0003-c.md': '# C\n\nDepends on [A](0001-a.md).\n',
+    })
+
+    const result = await checked(h)
+
+    expect(result.records[0]?.in_force).toBe(false)
+    expect(result.cites_superseded).toEqual([
+      { cites: 'docs/adr/0001-a.md', record: 'docs/adr/0003-c.md' },
+    ])
+    expect(result.status).toBe('failed')
+  })
+})
+
 describe("check-adrs on agent-kit's own decision log", () => {
   it('passes with no structural error, every record counting as in force', async () => {
     const kit = fileURLToPath(new URL('../../../../../', import.meta.url))

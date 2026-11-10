@@ -308,10 +308,13 @@ def test_critique_adrs_asks_about_two_readings_and_contradicting_records() -> No
 
 
 def test_critique_adrs_documents_the_severity_override_fields() -> None:
-    """#217's format: a check written `- `id` (critical): ...` fixes its severity; the verdict may override it with a reason."""
+    """#217's format: a check written `- `id` (critical): ...` fixes its severity; a verdict may override it."""
     text = _critique_adrs()
     assert "A check written `` - `id` (critical): ... `` in its lens fixes its findings' severity" in text
-    assert "give the verdict `severity` (`critical`, `major` or `minor`) and `severity_reason`, a short slug like a `reason_code`" in text
+    assert (
+        "give the verdict `severity` (`critical`, `major` or `minor`) and `severity_reason`, "
+        "a short slug like a `reason_code`"
+    ) in text
     assert "`reason`, `reason_code`, `answered`, `severity` and `severity_reason` where they apply" in text
 
 
@@ -463,7 +466,14 @@ def test_the_opt_in_names_the_history_permission_and_says_it_is_off_by_default(s
     assert '"history": true' in text, skill
 
 
-REFUTING_SKILLS = ["review-grill", "review-spec", "review-tickets", "review-implementation", "review-pr", "critique-adrs"]
+REFUTING_SKILLS = [
+    "review-grill",
+    "review-spec",
+    "review-tickets",
+    "review-implementation",
+    "review-pr",
+    "critique-adrs",
+]
 
 
 @pytest.mark.parametrize("skill", REFUTING_SKILLS)

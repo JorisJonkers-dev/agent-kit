@@ -478,7 +478,7 @@ council:
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs
-      sha256: 61ffd0a125075e85ed6850b9c04a50efa65b18750787430c238ca123d37b3a03
+      sha256: 1f90eda70b889cd686101bc44ada1ee275915d9f6d53e5e8a8316a7e8a09c8bd
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
       sha256: 4bcf6d9cefbef0eb638d5dac328c84a22f120e7799cd834f677daaa48fcef65c
