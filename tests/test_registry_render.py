@@ -341,7 +341,9 @@ def test_setup_with_no_old_agent_does_nothing(tmp_path: Path) -> None:
     assert result.returncode == 0 and result.stdout == ""
 
 
-def _launcher(tmp_path: Path, context: str, *args: str, user: str = "c-dev-ro", **env: str) -> subprocess.CompletedProcess:
+def _launcher(
+    tmp_path: Path, context: str, *args: str, user: str = "c-dev-ro", **env: str
+) -> subprocess.CompletedProcess:
     """Run the launcher with a stub kubectl and a stub server that records its config."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
