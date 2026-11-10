@@ -693,6 +693,36 @@ run_redacted() {
   "$@"
 }
 
+# On NixOS, Nix installs rustup system-wide, but rustup keeps its default
+# toolchain per user in ~/.rustup: a fresh machine has rustup and no
+# toolchain, so cargo fails. A repository's own rust-toolchain file or a
+# mise pin overrides the default on its own, so an existing default is
+# kept as it is.
+# --- rustup default toolchain
+rustup_default_toolchain() {
+  [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ] || return 0
+  if ! command -v rustup >/dev/null 2>&1; then
+    warn "rustup: not on PATH; on NixOS it comes from nixos-modules' devWorkstation"
+    return 0
+  fi
+  local current
+  if current=$(rustup default 2>/dev/null); then
+    # First line only, in plain bash: the toolchain name comes first.
+    ok "rustup: default toolchain ${current%%$'\n'*} kept"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would run: rustup default stable && rustup component add clippy rustfmt rust-src"
+    return 0
+  fi
+  if run rustup default stable && run rustup component add clippy rustfmt rust-src; then
+    ok "rustup: default toolchain stable with clippy, rustfmt and rust-src"
+  else
+    warn "rustup: setting the default toolchain failed; run rustup default stable"
+  fi
+  return 0
+}
+
 # Sets the given top-level keys in a JSON config under $HOME, keeping
 # every other key. Used for plugins that read a user config file.
 _merge_user_config() {
@@ -2873,6 +2903,10 @@ for install in installs:
       fi
     fi
   fi
+
+  # rust-analyzer's plugin needs a toolchain, and on NixOS rustup arrives
+  # from Nix with no default one: cargo fails until it is set.
+  rustup_default_toolchain
 
   # ---------------------------------------------------------------
   # 5. Language servers: the plugin AND the binary it drives.
