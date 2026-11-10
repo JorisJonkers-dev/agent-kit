@@ -402,3 +402,20 @@ The memory bank that holds employer facts. Only work surfaces reach it: the
 work instance and direct-lane sessions on `nedap` repositories. Shared Memory
 and Private Memory never hold employer facts.
 _Avoid_: work memory, work bank
+
+## Per-repository setup
+
+**Setup file**:
+`docs/agents/setup.yaml` in a repository: its tracker (GitHub issues), label
+vocabulary, the five triage labels and the CI jobs known to be flaky, each with
+a reason and who reviewed it. `scripts/repo_setup.py write` writes it and
+validates it first; consumers (Workflow C, the export wrapper, the CI-wait
+gate) refuse a repository whose file is missing or invalid. It sits beside the
+issue-tracker and triage skills' `docs/agents/` files and uses their five
+triage role names, so a repository holds one machine-readable record.
+_Avoid_: repo config, agent config
+
+**Flaky job**:
+A CI job the setup file lists with a reviewed reason. Only a listed job may be
+rerun, and only once per attempt.
+_Avoid_: known failure
