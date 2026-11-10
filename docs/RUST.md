@@ -152,7 +152,7 @@ How crate-age itself honours a waiver is defined by the standards repo
 
 ## The Gold Band workflow lint
 
-`crates/workflow-lint` is a library plus a CLI (`workflow-lint <FILE>...`;
+`crates/workflow-lint` is a library plus a CLI (`workflow-lint --instance gold-band|gold-band-personal <FILE>...`;
 exit 0 clean, 1 problems, 2 bad usage or an unreadable or invalid file) that
 later tickets call. Its one registry dependency, `serde_json`, is pinned
 exactly at a version older than the cooldown. It reads Gold Band's workflow
@@ -166,7 +166,7 @@ and refuses, one line per problem, `<node>: <rule>: <message>`:
 * `loop-not-unrolled`: the edges contain a cycle, or an edge targets
   `$new-round`; a repair loop is unrolled into fixed nodes (`review-1`,
   `repair-1`, `review-2`);
-* `banned-binding`: a node binds an agent or model containing `codex`.
+* `banned-binding`: in the personal instance only (ADR-0011), a node binds an agent or model containing `codex`; the work instance allows it.
 
 **How a binding declares a memory write.** Gold Band's JSON has no memory
 field, so the lint defines the smallest declaration: an agent id (a worker's

@@ -9,9 +9,11 @@
 //! that. It refuses only a definition that breaks one of these rules, each
 //! reported as one line `<node id or "workflow">: <rule>: <message>`:
 //!
-//! * `banned-binding`: a node binds an agent id or model containing
-//!   `codex` (case-insensitive). OpenRouter and `opencode/` bindings are
-//!   allowed (owner decision, 2026-11-08);
+//! * `banned-binding`: in the **personal** instance (`gold-band-personal`)
+//!   only, a node binds an agent id or model containing `codex`
+//!   (case-insensitive). The work instance (`gold-band`) may bind Codex
+//!   (ADR-0011; its grant check is not this lint's concern). OpenRouter and
+//!   `opencode/` bindings are allowed (owner decision, 2026-11-08);
 //! * `opus-outside-judgment`: a node binds an agent id or model containing
 //!   `opus` (case-insensitive) and its id does not end in `-escalation`,
 //!   `-acceptance` or `-planning`;
@@ -34,7 +36,9 @@
 //! the binding and cannot drift from the node. A binding without the marker
 //! reads memory only.
 //!
-//! Usage: `workflow-lint <FILE>...` lints every file and prefixes its
+//! Usage: `workflow-lint --instance gold-band|gold-band-personal <FILE>...`
+//! (the flag is required; `--instance=NAME` also works) lints every file and
+//! prefixes its
 //! problems with the file path. Exit 0 clean, printing `workflow-lint: ok`;
 //! 1 problems; 2 bad usage or an unreadable or invalid file.
 
@@ -67,6 +71,26 @@ pub const MEMORY_WRITE: &str = "memory-write";
 const OPUS_SUFFIXES: [&str; 3] = ["-escalation", "-acceptance", "-planning"];
 /// Node id suffixes that may write memory.
 const MEMORY_SUFFIXES: [&str; 2] = ["-acceptance", "-escalation"];
+
+/// The Gold Band instance a workflow belongs to (ADR-0011).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Instance {
+    /// `gold-band`, the work instance: Codex is allowed.
+    Work,
+    /// `gold-band-personal`: Codex is banned.
+    Personal,
+}
+
+impl Instance {
+    /// The instance a `--instance` value names.
+    pub fn parse(name: &str) -> Option<Instance> {
+        match name {
+            "gold-band" => Some(Instance::Work),
+            "gold-band-personal" => Some(Instance::Personal),
+            _ => None,
+        }
+    }
+}
 
 /// One problem: the subject, the rule and a message that says what to change.
 type Problem<'a> = (&'a str, &'static str, String);
@@ -145,7 +169,11 @@ fn node_strings<'a>(
 
 /// The rules one node breaks; a node without an id cannot be named, so it
 /// breaks none here (Gold Band's own validator rejects it).
-fn node_problems<'a>(node: &'a Value, bindings: &'a [Value]) -> Vec<Problem<'a>> {
+fn node_problems<'a>(
+    node: &'a Value,
+    bindings: &'a [Value],
+    instance: Instance,
+) -> Vec<Problem<'a>> {
     let Some(id) = str_field(node, "id") else {
         return Vec::new();
     };
@@ -153,11 +181,13 @@ fn node_problems<'a>(node: &'a Value, bindings: &'a [Value]) -> Vec<Problem<'a>>
     let mut models = Vec::new();
     node_strings(node, bindings, &mut agents, &mut models);
     let mut problems = Vec::new();
-    if any_mentions(&agents, BANNED) || any_mentions(&models, BANNED) {
+    if instance == Instance::Personal
+        && (any_mentions(&agents, BANNED) || any_mentions(&models, BANNED))
+    {
         problems.push((
             id,
             BANNED_BINDING,
-            format!("binds a `{BANNED}` agent or model, which no workflow may use"),
+            format!("binds a `{BANNED}` agent or model, which the personal instance may not use (ADR-0011)"),
         ));
     }
     let opus = any_mentions(&agents, OPUS) || any_mentions(&models, OPUS);
@@ -304,14 +334,14 @@ fn loop_problems<'a>(nodes: &'a [Value], edges: &'a [Value]) -> Vec<Problem<'a>>
 /// document order, each node's problems in rule order, the loop rule last);
 /// `Err` when the file is not workflow-shaped JSON. Each line reads
 /// `<subject>: <rule>: <message>`.
-pub fn lint(root: &Value) -> Result<Vec<String>, String> {
+pub fn lint(root: &Value, instance: Instance) -> Result<Vec<String>, String> {
     let def = definition(root)?;
     let nodes = field_array(def, "nodes")?;
     let edges = field_array(def, "edges")?;
     let bound = bindings(root);
     let mut problems: Vec<Problem> = Vec::new();
     for node in nodes {
-        problems.extend(node_problems(node, bound));
+        problems.extend(node_problems(node, bound, instance));
     }
     problems.extend(loop_problems(nodes, edges));
     Ok(problems
@@ -322,7 +352,7 @@ pub fn lint(root: &Value) -> Result<Vec<String>, String> {
 
 /// Lints one file and prints its problems; returns its exit code (0 clean,
 /// 1 problems, 2 unreadable or invalid).
-fn lint_file(path: &Path, shown: &str) -> i32 {
+fn lint_file(path: &Path, shown: &str, instance: Instance) -> i32 {
     let text = match fs::read_to_string(path) {
         Ok(t) => t,
         Err(e) => {
@@ -337,7 +367,7 @@ fn lint_file(path: &Path, shown: &str) -> i32 {
             return 2;
         }
     };
-    let problems = match lint(&root) {
+    let problems = match lint(&root, instance) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("workflow-lint: {shown}: invalid workflow: {e}");
@@ -350,20 +380,42 @@ fn lint_file(path: &Path, shown: &str) -> i32 {
     i32::from(!problems.is_empty())
 }
 
+/// The instance and files a command line names; `None` on bad usage.
+fn parse_args(args: &[OsString]) -> Option<(Instance, Vec<&OsString>)> {
+    let mut instance = None;
+    let mut files = Vec::new();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        let text = arg.to_string_lossy();
+        if text == "--instance" {
+            instance = Instance::parse(&iter.next()?.to_string_lossy());
+            instance?;
+        } else if let Some(name) = text.strip_prefix("--instance=") {
+            instance = Some(Instance::parse(name)?);
+        } else {
+            files.push(arg);
+        }
+    }
+    if files.is_empty() {
+        return None;
+    }
+    Some((instance?, files))
+}
+
 /// Runs one command line and returns its exit code.
 pub fn run<I>(args: I) -> i32
 where
     I: IntoIterator<Item = OsString>,
 {
     let args: Vec<OsString> = args.into_iter().collect();
-    if args.is_empty() {
-        eprintln!("usage: workflow-lint <FILE>...");
+    let Some((instance, files)) = parse_args(&args) else {
+        eprintln!("usage: workflow-lint --instance gold-band|gold-band-personal <FILE>...");
         return 2;
-    }
+    };
     let mut code = 0;
-    for arg in &args {
+    for arg in files {
         let shown = arg.to_string_lossy();
-        code = code.max(lint_file(Path::new(arg), &shown));
+        code = code.max(lint_file(Path::new(arg), &shown, instance));
     }
     if code == 0 {
         println!("workflow-lint: ok");
@@ -383,7 +435,7 @@ mod tests {
 
     fn lint_def(nodes: &str, edges: &str) -> Vec<String> {
         let text = format!(r#"{{"nodes":[{nodes}],"edges":[{edges}]}}"#);
-        lint(&parse(&text)).unwrap()
+        lint(&parse(&text), Instance::Personal).unwrap()
     }
 
     fn lint_nodes(nodes: &str) -> Vec<String> {
@@ -398,6 +450,15 @@ mod tests {
         let path = std::env::temp_dir().join(format!("wf-lint-{tag}-{}", std::process::id()));
         fs::write(&path, text).unwrap();
         path
+    }
+
+    fn go(files: Vec<OsString>) -> i32 {
+        let mut args = vec![
+            OsString::from("--instance"),
+            OsString::from("gold-band-personal"),
+        ];
+        args.extend(files);
+        run(args)
     }
 
     fn rules(problems: &[String]) -> Vec<String> {
@@ -473,7 +534,7 @@ mod tests {
           "modelBindings":{"bindings":[
             {"executionSlotId":"s","agentId":"a+memory-write","modelId":"opus"},
             {"executionSlotId":"u","agentId":"codex"}]}}"#;
-        let found = lint(&parse(text)).unwrap();
+        let found = lint(&parse(text), Instance::Personal).unwrap();
         assert_eq!(
             rules(&found),
             [
@@ -536,7 +597,7 @@ mod tests {
             r#"{{"control":{{"max_attempts":2,"max_rounds":3}},"nodes":[{TWO}],
             "edges":[{{"from":"a","to":"b"}},{{"from":"b","to":"a"}}]}}"#
         );
-        let found = lint(&parse(&text)).unwrap();
+        let found = lint(&parse(&text), Instance::Personal).unwrap();
         assert_eq!(rules(&found), ["a: loop-not-unrolled"]);
     }
 
@@ -575,7 +636,7 @@ mod tests {
 
     #[test]
     fn shapes_the_lint_cannot_read_are_errors() {
-        let err = |text: &str| lint(&parse(text)).unwrap_err();
+        let err = |text: &str| lint(&parse(text), Instance::Work).unwrap_err();
         assert_eq!(err("[]"), "the file is not a JSON object");
         assert_eq!(err(r#"{"workflow":1}"#), "workflow is not a JSON object");
         assert_eq!(err("{}"), "nodes is not an array");
@@ -586,20 +647,20 @@ mod tests {
 
     #[test]
     fn bad_usage_exits_two() {
-        assert_eq!(run(std::iter::empty()), 2);
+        assert_eq!(run(std::iter::empty::<OsString>()), 2);
     }
 
     #[test]
     fn an_unreadable_file_exits_two() {
         let path = std::env::temp_dir().join(format!("wf-lint-absent-{}", std::process::id()));
         let _ = fs::remove_file(&path);
-        assert_eq!(run(vec![path.into_os_string()]), 2);
+        assert_eq!(go(vec![path.into_os_string()]), 2);
     }
 
     #[test]
     fn invalid_json_and_invalid_workflows_exit_two() {
-        assert_eq!(run(vec![tmp("j", "{{").into_os_string()]), 2);
-        assert_eq!(run(vec![tmp("wf", "[]").into_os_string()]), 2);
+        assert_eq!(go(vec![tmp("j", "{{").into_os_string()]), 2);
+        assert_eq!(go(vec![tmp("wf", "[]").into_os_string()]), 2);
     }
 
     #[test]
@@ -608,8 +669,37 @@ mod tests {
         let text = format!(r#"{{"nodes":[{}],"edges":[]}}"#, worker("a", "codex", "m"));
         let wrong = tmp("m-bad", &text).into_os_string();
         let shape = tmp("m-shape", "[]").into_os_string();
-        assert_eq!(run(vec![neat.clone(), neat.clone()]), 0);
-        assert_eq!(run(vec![neat, wrong.clone()]), 1);
-        assert_eq!(run(vec![wrong, shape]), 2);
+        assert_eq!(go(vec![neat.clone(), neat.clone()]), 0);
+        assert_eq!(go(vec![neat, wrong.clone()]), 1);
+        assert_eq!(go(vec![wrong, shape]), 2);
+    }
+
+    #[test]
+    fn codex_is_allowed_in_the_work_instance_and_refused_in_the_personal_one() {
+        let text = format!(
+            r#"{{"nodes":[{}],"edges":[]}}"#,
+            worker("a", "codex", "gpt-5")
+        );
+        let root = parse(&text);
+        assert!(lint(&root, Instance::Work).unwrap().is_empty());
+        let found = lint(&root, Instance::Personal).unwrap();
+        assert_eq!(rules(&found), ["a: banned-binding"]);
+        assert!(found[0].contains("personal instance"));
+    }
+
+    #[test]
+    fn the_instance_flag_is_required_and_must_name_an_instance() {
+        let file = tmp("inst", r#"{"nodes":[],"edges":[]}"#).into_os_string();
+        let flag = |s: &str| OsString::from(s);
+        assert_eq!(run(vec![file.clone()]), 2);
+        assert_eq!(run(vec![flag("--instance")]), 2);
+        assert_eq!(run(vec![flag("--instance"), flag("nope"), file.clone()]), 2);
+        assert_eq!(run(vec![flag("--instance=nope"), file.clone()]), 2);
+        assert_eq!(run(vec![flag("--instance=gold-band")]), 2);
+        assert_eq!(run(vec![flag("--instance=gold-band"), file.clone()]), 0);
+        assert_eq!(
+            run(vec![file, flag("--instance"), flag("gold-band-personal")]),
+            0
+        );
     }
 }

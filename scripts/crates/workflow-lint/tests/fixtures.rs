@@ -5,6 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use serde_json::Value;
+use workflow_lint::Instance;
 
 fn fixture(kind: &str, name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -14,13 +15,25 @@ fn fixture(kind: &str, name: &str) -> PathBuf {
 }
 
 fn problems(kind: &str, name: &str) -> Vec<String> {
+    problems_for(kind, name, Instance::Personal)
+}
+
+fn problems_for(kind: &str, name: &str, instance: Instance) -> Vec<String> {
     let text = fs::read_to_string(fixture(kind, name)).unwrap();
     let root: Value = serde_json::from_str(&text).unwrap();
-    workflow_lint::lint(&root).unwrap()
+    workflow_lint::lint(&root, instance).unwrap()
 }
 
 fn exit_code(kind: &str, name: &str) -> i32 {
-    workflow_lint::run([fixture(kind, name).into_os_string()])
+    run_for(kind, name, "gold-band-personal")
+}
+
+fn run_for(kind: &str, name: &str, instance: &str) -> i32 {
+    workflow_lint::run([
+        "--instance".into(),
+        instance.into(),
+        fixture(kind, name).into_os_string(),
+    ])
 }
 
 #[test]
@@ -73,4 +86,22 @@ fn a_new_round_edge_is_refused() {
     assert_eq!(found.len(), 1);
     assert!(found[0].starts_with("dev-build: loop-not-unrolled: has an edge to `$new-round`"));
     assert_eq!(exit_code("refused", "new-round"), 1);
+}
+
+#[test]
+fn codex_passes_in_the_work_instance() {
+    assert!(problems_for("valid", "work-codex", Instance::Work).is_empty());
+    assert_eq!(run_for("valid", "work-codex", "gold-band"), 0);
+}
+
+#[test]
+fn codex_is_refused_in_the_personal_instance() {
+    let found = problems("refused", "personal-codex");
+    assert_eq!(found.len(), 1);
+    assert!(found[0].starts_with("dev-build: banned-binding"));
+    assert_eq!(
+        run_for("refused", "personal-codex", "gold-band-personal"),
+        1
+    );
+    assert_eq!(run_for("valid", "work-codex", "gold-band-personal"), 1);
 }
