@@ -5,7 +5,7 @@
 use crate::body::{body, labels, normalize, ranges, title};
 use crate::client::*;
 use crate::model::{stories, Model, Result, SPEC_KEY};
-use crate::plan::{apply, plan, Action};
+use crate::plan::{apply, plan, Action, Applied};
 use crate::{parse_args, record_numbers, run, sync, Options};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -275,7 +275,8 @@ fn applying_converges_and_the_next_plan_is_empty() {
     f.deps.entry(13).or_default().push(10);
     let st = stories_map();
     let p = plan(&m, &st, &mut f).unwrap();
-    let done = apply(&p, &mut m, &st, &mut f, true).unwrap();
+    let mut done = Applied::default();
+    apply(&p, &mut m, &st, &mut f, true, &mut done).unwrap();
     assert_eq!(done.created, vec![("B1".to_string(), 101), ("B1-01".to_string(), 102)]);
     assert_eq!(done.closed, vec![50]);
     assert_eq!(done.skipped_closes, 0);
@@ -293,7 +294,8 @@ fn a_close_waits_for_approval() {
     let mut m = m;
     let st = stories_map();
     let p = plan(&m, &st, &mut f).unwrap();
-    let done = apply(&p, &mut m, &st, &mut f, false).unwrap();
+    let mut done = Applied::default();
+    apply(&p, &mut m, &st, &mut f, false, &mut done).unwrap();
     assert_eq!((done.closed.len(), done.skipped_closes), (0, 1));
     assert!(f.issues[&50].open);
 }
@@ -318,13 +320,13 @@ fn errors_from_github_stop_the_plan_and_the_apply() {
         f.deps.get_mut(&13).unwrap().retain(|n| *n != 11);
         let p = plan(&m, &st, &mut f).unwrap();
         f.fail_on = Some(op);
-        assert_eq!(apply(&p, &mut m, &st, &mut f, true).unwrap_err(), format!("{op} failed"), "{op}");
+        assert_eq!(apply(&p, &mut m, &st, &mut f, true, &mut Applied::default()).unwrap_err(), format!("{op} failed"), "{op}");
     }
     // The spec issue itself must exist.
     let (mut m, mut f) = full_published();
     f.issues.remove(&1);
     assert!(plan(&m, &stories_map(), &mut f).is_err());
-    assert!(apply(&Default::default(), &mut m, &st, &mut f, false).is_err());
+    assert!(apply(&Default::default(), &mut m, &st, &mut f, false, &mut Applied::default()).is_err());
 }
 
 #[test]
@@ -352,7 +354,7 @@ fn bodies_follow_the_published_template() {
     assert_eq!(title(&m, "nope"), "");
     assert_eq!(labels(&m, "B0"), vec!["area: agents", "type: feature"]);
     assert_eq!(labels(&m, "B0-01"), vec!["ready-for-agent", "area: agents", "type: feature"]);
-    assert_eq!(ranges(&[5, 1, 2, 3, 7, 8]), "1-3, 5, 7-8");
+    assert_eq!(ranges(&[5, 1, 2, 3, 7, 8, 1]), "1-3, 5, 7-8");
     assert_eq!(ranges(&[]), "");
     assert_eq!(normalize("a\r\nb  \n\n"), "a\nb");
 }
@@ -378,10 +380,11 @@ fn the_graph_is_validated() {
 
 #[test]
 fn issue_numbers_are_written_back_with_line_edits() {
-    let out = record_numbers(YAML, &[("B1".into(), 12), ("B0-02".into(), 13), ("ghost".into(), 99)]);
+    let out = record_numbers(YAML, &[("B1".into(), 12), ("B0-02".into(), 13)]).unwrap();
     let m = Model::parse(&out).unwrap();
     assert_eq!((m.number("B1"), m.number("B0-02")), (Some(12), Some(13)));
     assert_eq!(out.lines().count(), YAML.lines().count() + 2);
+    assert!(record_numbers(YAML, &[("ghost".into(), 99)]).unwrap_err().contains("ghost"));
 }
 
 fn s(a: &[&str]) -> Vec<OsString> {
@@ -454,7 +457,8 @@ fn the_gh_client_sends_the_documented_requests() {
     assert_eq!(last(&calls), "api -X DELETE repos/o/r/issues/1/dependencies/blocked_by/2 | ");
     c.close(1, "bye").unwrap();
     assert_eq!(calls.borrow().len(), 7 + 1);
-    assert_eq!(last(&calls), "api -X PATCH repos/o/r/issues/1 --input - | {\"state\":\"closed\",\"state_reason\":\"not_planned\"}");
+    assert_eq!(calls.borrow()[calls.borrow().len() - 2].1.as_deref(), Some("{\"state\":\"closed\",\"state_reason\":\"not_planned\"}"));
+    assert_eq!(last(&calls), "api -X POST repos/o/r/issues/1/comments --input - | {\"body\":\"bye\"}");
 }
 
 #[test]
@@ -614,14 +618,14 @@ fn story_and_lookup_failures_surface_from_plan_and_apply() {
     m2.set_number("B0-02", 13);
     let mut f2 = Fake::published(&m2);
     let p = plan(&m2, &less, &mut f2).unwrap();
-    assert!(apply(&p, &mut m2, &less, &mut f2, true).unwrap_err().contains("story 4"));
+    assert!(apply(&p, &mut m2, &less, &mut f2, true, &mut Applied::default()).unwrap_err().contains("story 4"));
     // Apply: the rebody of a branch whose story is missing.
     let (mut m3, mut f3) = full_published();
     f3.issues.get_mut(&10).unwrap().body = "stale".into();
     let p = plan(&m3, &st, &mut f3).unwrap();
     let mut no1 = st.clone();
     no1.remove(&1);
-    assert!(apply(&p, &mut m3, &no1, &mut f3, true).unwrap_err().contains("story 1"));
+    assert!(apply(&p, &mut m3, &no1, &mut f3, true, &mut Applied::default()).unwrap_err().contains("story 1"));
     // Plan: the superseded issue cannot be read.
     let (m4, mut f4) = full_published();
     f4.issues.remove(&50);
@@ -630,7 +634,7 @@ fn story_and_lookup_failures_surface_from_plan_and_apply() {
     let (mut m5, mut f5) = full_published();
     let p = plan(&m5, &st, &mut f5).unwrap();
     f5.issues.remove(&13);
-    assert!(apply(&p, &mut m5, &st, &mut f5, true).unwrap_err().contains("no issue 13"));
+    assert!(apply(&p, &mut m5, &st, &mut f5, true, &mut Applied::default()).unwrap_err().contains("no issue 13"));
 }
 
 #[test]
@@ -638,6 +642,8 @@ fn the_client_reports_failed_posts() {
     let (mut c, _) = gh(vec![Err("no create".into())]);
     assert_eq!(c.create("t", "b", &[]).unwrap_err(), "no create");
     let (mut c, _) = gh(vec![Err("no comment".into())]);
+    assert_eq!(c.close(1, "x").unwrap_err(), "no comment");
+    let (mut c, _) = gh(vec![Ok("{}".into()), Err("no comment".into())]);
     assert_eq!(c.close(1, "x").unwrap_err(), "no comment");
 }
 
@@ -661,6 +667,20 @@ esac"#,
     let args = ["--repo", "o/r", "--tickets", t.to_str().unwrap(), "--spec", sp.to_str().unwrap(), "--apply"];
     let (code, _, err) = go(&args, &gh);
     assert!(code == 1 && err.contains("refused"), "{err}");
+    // A create that succeeded is recorded even though a later step failed.
+    std::fs::write(&t, "spec: 1\nlabels: []\nbranches:\n  B0:\n    title: T\n    what: w\ntickets: []\n").unwrap();
+    let half = script(
+        &d,
+        r#"case "$*" in
+*"-X GET repos/o/r/issues/1") echo '{"number":1,"id":1001,"title":"S","body":"b","state":"open"}';;
+*"-X POST repos/o/r/issues --input -") cat >/dev/null; echo '{"number":9,"id":1009,"title":"T","body":"b","state":"open"}';;
+*"--paginate"*) echo '[]';;
+*) cat >/dev/null; echo refused >&2; exit 1;;
+esac"#,
+    );
+    let (code, _, err) = go(&args, &half);
+    assert!(code == 1 && err.contains("refused"), "{err}");
+    assert!(std::fs::read_to_string(&t).unwrap().contains("    issue: 9\n"));
     // Usage that cannot be written.
     let mut err = Vec::new();
     assert_eq!(run(s(&["--help"]), "gh", &mut Broken, &mut err), 1);

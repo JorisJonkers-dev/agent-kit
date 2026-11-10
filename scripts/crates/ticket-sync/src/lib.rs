@@ -59,7 +59,7 @@ pub fn parse_args(args: impl IntoIterator<Item = OsString>) -> Result<Option<Opt
 
 /// Record created issue numbers in the tickets file with line edits, so the
 /// rest of the file (order, quoting) is left exactly as it was.
-pub fn record_numbers(text: &str, created: &[(String, u64)]) -> String {
+pub fn record_numbers(text: &str, created: &[(String, u64)]) -> Result<String> {
     let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
     for (key, n) in created {
         let ticket = format!("- key: {key}");
@@ -68,16 +68,18 @@ pub fn record_numbers(text: &str, created: &[(String, u64)]) -> String {
             lines.insert(i + 1, format!("  issue: {n}"));
         } else if let Some(i) = lines.iter().position(|l| *l == branch) {
             lines.insert(i + 2, format!("    issue: {n}"));
+        } else {
+            return Err(format!("cannot record #{n} for {key}: not found in the tickets file"));
         }
     }
-    lines.join("\n") + "\n"
+    Ok(lines.join("\n") + "\n")
 }
 
 fn write_back(o: &Options, text: &str, created: &[(String, u64)]) -> Result<()> {
     if created.is_empty() {
         return Ok(());
     }
-    std::fs::write(&o.tickets, record_numbers(text, created)).map_err(|e| format!("{}: {e}", o.tickets))
+    std::fs::write(&o.tickets, record_numbers(text, created)?).map_err(|e| format!("{}: {e}", o.tickets))
 }
 
 /// Sync with an injected client; `run` builds the real one.
@@ -92,8 +94,13 @@ pub fn sync(o: &Options, client: &mut dyn Client, out: &mut dyn Write) -> Result
     if !o.apply {
         return say(out, "dry run: nothing was written\n");
     }
-    let done = plan::apply(&p, &mut model, &stories, client, o.approve_close)?;
-    write_back(o, &text, &done.created)?;
+    let mut done = plan::Applied::default();
+    let result = plan::apply(&p, &mut model, &stories, client, o.approve_close, &mut done);
+    // Record what was created even when a later step failed, or a retry would
+    // create the same issues again.
+    let written = write_back(o, &text, &done.created);
+    result?;
+    written?;
     say(
         out,
         &format!(

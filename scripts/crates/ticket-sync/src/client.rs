@@ -178,7 +178,7 @@ impl Client for GhClient {
     }
 
     fn close(&mut self, number: u64, comment: &str) -> Result<()> {
-        self.call("POST", &format!("issues/{number}/comments"), Some(serde_json::json!({"body": comment})))?;
-        self.call("PATCH", &format!("issues/{number}"), Some(serde_json::json!({"state": "closed", "state_reason": "not_planned"}))).map(drop)
+        self.call("PATCH", &format!("issues/{number}"), Some(serde_json::json!({"state": "closed", "state_reason": "not_planned"})))?;
+        self.call("POST", &format!("issues/{number}/comments"), Some(serde_json::json!({"body": comment}))).map(drop)
     }
 }

@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 pub fn ranges(stories: &[u64]) -> String {
     let mut v = stories.to_vec();
     v.sort_unstable();
+    v.dedup();
     let mut out: Vec<String> = Vec::new();
     let mut i = 0;
     while i < v.len() {

@@ -1,6 +1,6 @@
 //! Compare the graph with the live issues and list what would change; then
 //! carry the list out. Planning only reads. Applying runs the actions in a
-//! fixed order: creates, edits, unlinks, links, and last the closes.
+//! fixed order: creates, edits, unlinks, unblocks, links, blocks, and last the closes.
 
 use crate::body::{body, labels, normalize, title};
 use crate::client::{Client, Link};
@@ -72,14 +72,12 @@ impl Plan {
 pub fn plan(model: &Model, stories: &BTreeMap<u64, String>, client: &mut dyn Client) -> Result<Plan> {
     let keys = model.keys();
     // Live ids of every graph issue that exists, and the reverse lookup.
-    let mut ids: BTreeMap<String, u64> = BTreeMap::new();
     let mut by_number: BTreeMap<u64, String> = BTreeMap::new();
     let mut p = Plan::default();
     let mut live = BTreeMap::new();
     for key in std::iter::once(SPEC_KEY.to_string()).chain(keys.iter().cloned()) {
         if let Some(number) = model.number(&key) {
             let issue = client.issue(number)?;
-            ids.insert(key.clone(), issue.id);
             by_number.insert(number, key.clone());
             live.insert(key, issue);
         }
@@ -168,7 +166,8 @@ pub struct Applied {
     pub skipped_closes: usize,
 }
 
-/// Carry out a plan. `model` gains the numbers of created issues as it goes,
+/// Carry out a plan. `done` is filled as it goes, so the issues created before
+/// a failure are still known to the caller. `model` gains the numbers of created issues as it goes,
 /// so later bodies and links can name them. Closes run only when approved.
 pub fn apply(
     plan: &Plan,
@@ -176,7 +175,8 @@ pub fn apply(
     stories: &BTreeMap<u64, String>,
     client: &mut dyn Client,
     close_approved: bool,
-) -> Result<Applied> {
+    done: &mut Applied,
+) -> Result<()> {
     let mut ids: BTreeMap<String, u64> = BTreeMap::new();
     ids.insert(SPEC_KEY.to_string(), client.issue(model.spec)?.id);
     for key in model.keys() {
@@ -184,7 +184,6 @@ pub fn apply(
             ids.insert(key, client.issue(n)?.id);
         }
     }
-    let mut done = Applied::default();
     for action in &plan.actions {
         match action {
             Action::Create { key } => {
@@ -210,5 +209,5 @@ pub fn apply(
             }
         }
     }
-    Ok(done)
+    Ok(())
 }
