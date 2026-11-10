@@ -9,6 +9,7 @@ below is generated from it:
 * ``registry/generated/hermes/skills-sources.conf`` -- Hermes ``sources.conf``
 * ``registry/generated/hermes/mcp-servers.yaml``    -- Hermes ``mcp_servers:`` (gateway)
 * ``registry/generated/hermes/mcp-servers.local.yaml`` -- local Hermes ``mcp_servers:``
+* ``registry/generated/nixos/packages.nix``   -- the NixOS workstation package list
 
 ``--check`` renders into memory and compares, so CI fails on a hand edit to a
 generated file or on a registry change that was never rendered. ``--write``
@@ -86,6 +87,13 @@ VIBE_NO_SIGNATURE = Path("scripts/vibe-no-commit-signature.py")
 RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
 LITELLM_ROUTES = Path("registry/generated/litellm/routes.json")
+NIXOS_PACKAGES = Path("registry/generated/nixos/packages.nix")
+# The devWorkstation groups a NixOS package can belong to: core is always
+# installed, the others are optional. This order is the rendered order.
+NIXOS_PACKAGE_GROUPS = ("core", "kubernetes", "latex", "polyglot", "android")
+# `nixos:` is a nixpkgs attribute path, or `nixos-modules#<name>` for a
+# package the nixos-modules flake provides itself.
+NIXOS_ATTR = re.compile(r"^(nixos-modules#)?[A-Za-z0-9_][A-Za-z0-9_+-]*(\.[A-Za-z0-9_][A-Za-z0-9_+-]*)*$")
 
 # The agents a local_skills entry's `agents:` may name, and the homes each one
 # reads skills from. A name outside this table is a registry typo, not a home.
@@ -446,6 +454,55 @@ def validate(data: dict[str, Any]) -> None:
                 f"language server {server.get('plugin')} install_linux must be a command, "
                 "beside an install for the other platforms",
             )
+
+    # The NixOS package list is what a NixOS workstation installs from, so a
+    # bad attribute path or group breaks a machine, not a check.
+    for package in _entries(data, "nixos_packages"):
+        name = package.get("name") or package.get("nixos") or "(unnamed)"
+        for field in ("name", "nixos", "group"):
+            if not isinstance(package.get(field), str) or not package[field]:
+                raise RegistryError(f"nixos package {name}: {field} must be a non-empty string")
+        if not NIXOS_ATTR.fullmatch(package["nixos"]):
+            raise RegistryError(
+                f"nixos package {name}: nixos must be a nixpkgs attribute path, "
+                f"or nixos-modules#<name>, not {package['nixos']!r}",
+            )
+        if package["group"] not in NIXOS_PACKAGE_GROUPS:
+            raise RegistryError(
+                f"nixos package {name}: group must be one of {list(NIXOS_PACKAGE_GROUPS)}, "
+                f"not {package['group']!r}",
+            )
+    for server in _entries(data, "language_servers"):
+        if "nixos" in server and not NIXOS_ATTR.fullmatch(str(server["nixos"])):
+            raise RegistryError(
+                f"language server {server.get('plugin')}: nixos must be a nixpkgs attribute path, "
+                f"or nixos-modules#<name>, not {server['nixos']!r}",
+            )
+        group = server.get("nixos_group")
+        if group is None:
+            continue
+        if group not in NIXOS_PACKAGE_GROUPS:
+            raise RegistryError(
+                f"language server {server.get('plugin')}: nixos_group must be one of "
+                f"{list(NIXOS_PACKAGE_GROUPS)}, not {group!r}",
+            )
+        if not server.get("nixos"):
+            raise RegistryError(
+                f"language server {server.get('plugin')}: nixos_group names a group with no nixos package",
+            )
+    # Agent CLIs are installed by agent-kit, never by Nix.
+    for cli in _entries(data, "clis"):
+        for field in ("nixos", "nixos_group"):
+            if field in cli:
+                raise RegistryError(
+                    f"cli {cli.get('name')} may not set {field}: agent CLIs are installed "
+                    "by agent-kit, never by Nix",
+                )
+    seen_attrs: set[tuple[str, str]] = set()
+    for _group, attr, nixos_source in nixos_entries(data):
+        if (nixos_source, attr) in seen_attrs:
+            raise RegistryError(f"nixos package {attr} from {nixos_source} is declared twice")
+        seen_attrs.add((nixos_source, attr))
 
     for server in _entries(data, "mcp_servers"):
         if "auth" in server and not (
@@ -5192,6 +5249,60 @@ def render_litellm_routes(data: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# NixOS: packages.nix
+# ---------------------------------------------------------------------------
+
+
+def _nixos_source(nixos: str) -> tuple[str, str]:
+    """The attr and where it comes from: nixos-modules for a prefixed value, nixpkgs otherwise."""
+    if nixos.startswith("nixos-modules#"):
+        return nixos.removeprefix("nixos-modules#"), "nixos-modules"
+    return nixos, "nixpkgs"
+
+
+def nixos_entries(data: dict[str, Any]) -> list[tuple[str, str, str]]:
+    """Every ``(group, attr, source)`` the NixOS package list holds.
+
+    The union of the ``nixos_packages`` entries and every language server
+    with a ``nixos:`` key, whose group comes from ``nixos_group`` (core by
+    default).
+    """
+    entries: list[tuple[str, str, str]] = []
+    for package in _entries(data, "nixos_packages"):
+        attr, source = _nixos_source(str(package["nixos"]))
+        entries.append((str(package["group"]), attr, source))
+    for server in _entries(data, "language_servers"):
+        nixos = server.get("nixos")
+        if nixos:
+            attr, source = _nixos_source(str(nixos))
+            entries.append((str(server.get("nixos_group") or "core"), attr, source))
+    return entries
+
+
+def render_nixos_packages(data: dict[str, Any]) -> str:
+    """The NixOS package list, one line per package, grouped the devWorkstation role installs.
+
+    Every group appears, even when empty, in the fixed order, and each group's
+    entries are sorted by attr, so the file is a pure function of the registry.
+    """
+    by_group: dict[str, list[tuple[str, str]]] = {group: [] for group in NIXOS_PACKAGE_GROUPS}
+    for group, attr, source in nixos_entries(data):
+        by_group[group].append((attr, source))
+    lines = [
+        "# GENERATED by scripts/render_registry.py from registry/estate-tooling.yaml. DO NOT EDIT.",
+        "# NixOS packages a workstation gets from Nix, by devWorkstation group.",
+        "{",
+    ]
+    for group in NIXOS_PACKAGE_GROUPS:
+        lines.append(f"  {group} = [")
+        for attr, source in sorted(by_group[group]):
+            lines.append(f'    {{ attr = "{attr}"; source = "{source}"; }}')
+        lines.append("  ];")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -5208,6 +5319,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         ANTIGRAVITY_MCP: (render_antigravity_mcp(data), 0o644),
         OPENCODE_MCP: (render_opencode_mcp(data), 0o644),
         SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
+        NIXOS_PACKAGES: (render_nixos_packages(data), 0o644),
         LITELLM_ROUTES: (render_litellm_routes(data), 0o644),
         **{
             VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)

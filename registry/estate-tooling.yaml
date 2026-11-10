@@ -9,6 +9,7 @@
 #   installer/setup-container.sh              the agents image, at build time
 #   registry/generated/hermes/skills-sources.conf   Hermes `sources.conf` body
 #   registry/generated/hermes/mcp-servers.yaml      Hermes `mcp_servers:` block
+#   registry/generated/nixos/packages.nix     the NixOS workstation package list
 #
 # Regenerate and verify:
 #
@@ -858,6 +859,7 @@ language_servers:
     binary: ruby-lsp
     install: "gem install ruby-lsp"
     nixos: ruby-lsp
+    nixos_group: polyglot
     languages: [ruby]
     enabled: true
     cloud: false
@@ -898,6 +900,7 @@ language_servers:
     binary: clangd
     install: "brew install llvm"
     nixos: clang-tools
+    nixos_group: polyglot
     languages: [c, cpp]
     enabled: true
     cloud: false
@@ -920,6 +923,7 @@ language_servers:
     install: "dotnet tool install --global csharp-ls"
     toolchain: dotnet
     nixos: csharp-ls
+    nixos_group: polyglot
     languages: [csharp]
     enabled: true
     cloud: false
@@ -929,6 +933,7 @@ language_servers:
     # separately, so the setup script only reports whether it is present.
     install: null
     nixos: sourcekit-lsp
+    nixos_group: polyglot
     languages: [swift]
     enabled: true
     cloud: false
@@ -938,6 +943,179 @@ language_servers:
     languages: [liquid]
     enabled: false
     cloud: false
+
+# -------------------------------------------------------------------
+# NixOS packages.
+#
+# These are the tools a NixOS workstation gets from Nix: rendered into
+# registry/generated/nixos/packages.nix and installed by nixos-modules'
+# devWorkstation role. `nixos:` is a nixpkgs attribute path, or
+# `nixos-modules#<name>` for a package nixos-modules provides itself.
+# `group:` is core (always installed) or one of the optional groups
+# kubernetes, latex, polyglot, android. A language server with a `nixos:`
+# key is in the list too, its group from `nixos_group` (core by default).
+# -------------------------------------------------------------------
+nixos_packages:
+  # core: every NixOS workstation, whatever it works on.
+  - name: git
+    nixos: git
+    group: core
+  - name: gh
+    nixos: gh
+    group: core
+    # The binary name; nodejs_24 is the nixpkgs attribute.
+  - name: node
+    nixos: nodejs_24
+    group: core
+  - name: uv
+    nixos: uv
+    group: core
+  - name: python
+    nixos: python3
+    group: core
+  - name: go
+    nixos: go
+    group: core
+  - name: java
+    nixos: jdk21
+    group: core
+  - name: rustup
+    nixos: rustup
+    group: core
+  - name: task
+    nixos: go-task
+    group: core
+  - name: golangci-lint
+    nixos: golangci-lint
+    group: core
+  - name: shellcheck
+    nixos: shellcheck
+    group: core
+  - name: actionlint
+    nixos: actionlint
+    group: core
+  - name: gitleaks
+    nixos: gitleaks
+    group: core
+  - name: alejandra
+    nixos: alejandra
+    group: core
+  - name: statix
+    nixos: statix
+    group: core
+  - name: deadnix
+    nixos: deadnix
+    group: core
+  - name: jq
+    nixos: jq
+    group: core
+  - name: yq
+    nixos: yq-go
+    group: core
+  - name: rg
+    nixos: ripgrep
+    group: core
+  - name: curl
+    nixos: curl
+    group: core
+  - name: openssl
+    nixos: openssl
+    group: core
+  - name: perl
+    nixos: perl
+    group: core
+  - name: typescript-language-server
+    nixos: typescript-language-server
+    group: core
+  - name: pyright-langserver
+    nixos: pyright
+    group: core
+  - name: vue-language-server
+    nixos: vue-language-server
+    group: core
+  - name: nil
+    nixos: nil
+    group: core
+  - name: yaml-language-server
+    nixos: yaml-language-server
+    group: core
+  - name: bash-language-server
+    nixos: bash-language-server
+    group: core
+  - name: dockerfile-langserver
+    nixos: dockerfile-language-server
+    group: core
+  - name: taplo
+    nixos: taplo
+    group: core
+  - name: marksman
+    nixos: marksman
+    group: core
+    # The one package nixos-modules provides itself rather than nixpkgs.
+  - name: kotlin-lsp
+    nixos: nixos-modules#kotlin-lsp
+    group: core
+  # kubernetes: the estate cluster's tools.
+  - name: kubectl
+    nixos: kubectl
+    group: kubernetes
+  - name: helm
+    nixos: kubernetes-helm
+    group: kubernetes
+  - name: kustomize
+    nixos: kustomize
+    group: kubernetes
+  - name: kubeconform
+    nixos: kubeconform
+    group: kubernetes
+  - name: flux
+    nixos: fluxcd
+    group: kubernetes
+  - name: k3d
+    nixos: k3d
+    group: kubernetes
+  - name: vcluster
+    nixos: vcluster
+    group: kubernetes
+  - name: sops
+    nixos: sops
+    group: kubernetes
+  - name: age
+    nixos: age
+    group: kubernetes
+  - name: cosign
+    nixos: cosign
+    group: kubernetes
+  - name: crane
+    nixos: crane
+    group: kubernetes
+  - name: vault
+    nixos: vault
+    group: kubernetes
+  # latex: documents and books.
+  - name: latexmk
+    nixos: texliveMedium
+    group: latex
+  - name: pandoc
+    nixos: pandoc
+    group: latex
+  - name: mdbook
+    nixos: mdbook
+    group: latex
+  - name: texlab
+    nixos: texlab
+    group: latex
+  # polyglot: the optional language toolchains.
+  - name: ruby
+    nixos: ruby
+    group: polyglot
+  - name: dotnet
+    nixos: dotnet-sdk
+    group: polyglot
+  # android: the adb and friends group.
+  - name: adb
+    nixos: android-tools
+    group: android
 
 # -------------------------------------------------------------------
 # First-party skills that ship in this repository.
