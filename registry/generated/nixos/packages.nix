@@ -5,9 +5,12 @@
     { attr = "actionlint"; source = "nixpkgs"; }
     { attr = "alejandra"; source = "nixpkgs"; }
     { attr = "bash-language-server"; source = "nixpkgs"; }
+    { attr = "binutils"; source = "nixpkgs"; }
     { attr = "curl"; source = "nixpkgs"; }
     { attr = "deadnix"; source = "nixpkgs"; }
+    { attr = "dnsutils"; source = "nixpkgs"; }
     { attr = "dockerfile-language-server"; source = "nixpkgs"; }
+    { attr = "file"; source = "nixpkgs"; }
     { attr = "gh"; source = "nixpkgs"; }
     { attr = "git"; source = "nixpkgs"; }
     { attr = "gitleaks"; source = "nixpkgs"; }
