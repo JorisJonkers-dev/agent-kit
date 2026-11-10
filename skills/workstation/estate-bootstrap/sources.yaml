@@ -1,0 +1,100 @@
+sources:
+  - kind: file
+    repo: JorisJonkers-dev/workspace
+    path: CLAUDE.md
+    blob: 0993e8da9b17b2cde03085f21eff430b87b24e20
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/workspace
+    path: docs/testing-standards.md
+    blob: 1c2acbbfd18f0a560b6d1c45ba58b6b3df77a3e8
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/workspace
+    path: docs/decisions/ADR-0017-go-commons-extracts-on-third-use.md
+    blob: d2bf26aaf4dd75a2c6b3e73c78f502b52447787c
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/workspace
+    path: docs/decisions/ADR-0018-repository-templates.md
+    blob: e9e0bb84163d9b87fdb76f76e662eaef3e9cc11f
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/workspace
+    path: docs/decisions/ADR-0021-liquibase-runner-is-the-one-migration-path.md
+    blob: 9383824907047f1d1daafa0ce9bc10f4a97da8bb
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/workspace
+    path: docs/decisions/ADR-0022-tests-specify-behaviour.md
+    blob: 0f533a12b8b6b7ce07409795deaf44cc6326c4df
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/template-go
+    path: README.md
+    blob: ab3ff11f545bcea7ead60db19f593b570a25e62b
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/template-go-vue
+    path: README.md
+    blob: 0cf49c4c4e6049efea74628af0f53fa71cc27958
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/repo-template
+    path: README.md
+    blob: 5f8b4c537e3b9a5a8cbb4e1c8b3d8ba7342d9c54
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/repo-template
+    path: docs/REPO_SETUP.md
+    blob: f699ec710a084a2ad31c8486ef016a53eb679b59
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/renovate-config
+    path: README.md
+    blob: c63b4c56518310a537e638ccaf990ff33e97663f
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/github-workflows
+    path: README.md
+    blob: e381bf293165a0f29510199113a32f4545a3e787
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: README.md
+    blob: aacebea9522f5125c0b8be22a9613d496687dc0e
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/liquibase-runner
+    path: README.md
+    blob: 28432213fcf207823d109726ae33643e89f7dabd
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/go-commons
+    path: README.md
+    blob: dccf68f638d019af0bd56b17095697a5d828efde
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/python-commons
+    path: README.md
+    blob: 7a41bf6d04d5916844f38ff2c9063f659d9f9dd8
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/rust-commons
+    path: README.md
+    blob: 6e04575c97bd8e96305feb44351da475e3c84b1c
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/vue-web-commons
+    path: README.md
+    blob: fcdc91733ef82f449b234f21c7b150da60696b90
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/kotlin-spring-commons
+    path: README.md
+    blob: 5773146b2f8b6d681e174cb80491cf8d481efbbd
+    checked: 2026-11-10
+  - kind: release
+    repo: JorisJonkers-dev/github-workflows
+    tag: v0.45.4
+    checked: 2026-11-10
