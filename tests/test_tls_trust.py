@@ -38,8 +38,7 @@ def _load(path: Path) -> ModuleType:
 
 @pytest.mark.parametrize("name", sorted(SCRIPTS))
 def test_an_empty_trust_store_falls_back_to_the_system_bundle(
-    name: str,
-    monkeypatch: pytest.MonkeyPatch,
+    name: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     for key, value in NO_CA.items():
         monkeypatch.setenv(key, value)
@@ -61,33 +60,13 @@ def test_a_working_trust_store_is_left_alone(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_an_unreachable_auth_api_is_a_note_not_a_traceback(tmp_path: Path) -> None:
     table = tmp_path / "table.json"
-    table.write_text(
-        json.dumps(
-            [
-                {
-                    "env": "HINDSIGHT_API_TOKEN",
-                    "grant": "MEMORY_API",
-                    "check": "https://127.0.0.1:9/check",
-                    "export": True,
-                }
-            ]
-        )
-    )
-    env = {
-        **os.environ,
-        "HOME": str(tmp_path),
-        "AGENT_KIT_AUTH_URL": "https://127.0.0.1:9",
-        "AGENT_KIT_SECRETS_BACKEND": "file",
-        "SHELL": "/bin/zsh",
-    }
+    table.write_text(json.dumps([{"env": "HINDSIGHT_API_TOKEN", "grant": "MEMORY_API",
+                                  "check": "https://127.0.0.1:9/check", "export": True}]))
+    env = {**os.environ, "HOME": str(tmp_path), "AGENT_KIT_AUTH_URL": "https://127.0.0.1:9",
+           "AGENT_KIT_SECRETS_BACKEND": "file", "SHELL": "/bin/zsh"}
     result = subprocess.run(
         [sys.executable, str(SCRIPTS["keys"]), "--table", str(table), "ensure"],
-        input="me@example.com\npw\n\n",
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-        timeout=60,
+        input="me@example.com\npw\n\n", capture_output=True, text=True, check=False, env=env, timeout=60,
         start_new_session=True,
     )
     assert "Traceback" not in result.stderr

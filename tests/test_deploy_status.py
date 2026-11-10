@@ -29,7 +29,9 @@ class TestDeployStatusMergeReadyLogic:
 
     @patch("scripts.deploy.deploy_status.download_gate_summary")
     @patch("scripts.deploy.deploy_status.github_api_get")
-    def test_merge_ready_requires_pipeline_complete_pass(self, mock_get, mock_download, mock_github_token):
+    def test_merge_ready_requires_pipeline_complete_pass(
+        self, mock_get, mock_download, mock_github_token
+    ):
         """merge_ready is False when Pipeline Complete is fail even if other gates pass."""
         mock_get.side_effect = [
             # PR data
@@ -76,7 +78,9 @@ class TestDeployStatusMergeReadyLogic:
 
     @patch("scripts.deploy.deploy_status.download_gate_summary")
     @patch("scripts.deploy.deploy_status.github_api_get")
-    def test_merge_ready_true_when_all_gates_pass(self, mock_get, mock_download, mock_github_token):
+    def test_merge_ready_true_when_all_gates_pass(
+        self, mock_get, mock_download, mock_github_token
+    ):
         """merge_ready is True when all gates pass."""
         mock_get.side_effect = [
             # PR data
@@ -148,7 +152,9 @@ class TestDeployStatusMissingArtifactTolerance:
 
     @patch("scripts.deploy.deploy_status.download_gate_summary")
     @patch("scripts.deploy.deploy_status.github_api_get")
-    def test_stale_artifact_uses_latest_by_created_at(self, mock_get, mock_download, mock_github_token):
+    def test_stale_artifact_uses_latest_by_created_at(
+        self, mock_get, mock_download, mock_github_token
+    ):
         """When two artifacts share the same name (force-push), latest created_at wins."""
         mock_get.side_effect = [
             # PR data
@@ -187,7 +193,9 @@ class TestDeployStatusPendingState:
 
     @patch("scripts.deploy.deploy_status.github_api_get")
     @patch("scripts.deploy.deploy_status.download_gate_summary")
-    def test_in_progress_check_shows_pending(self, mock_download, mock_get, mock_github_token):
+    def test_in_progress_check_shows_pending(
+        self, mock_download, mock_get, mock_github_token
+    ):
         """In-progress checks (no conclusion) map to pending status."""
         mock_get.side_effect = [
             # PR data

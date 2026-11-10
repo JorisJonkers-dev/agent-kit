@@ -148,14 +148,13 @@ class Machine:
         body = (
             f"CHECK_ONLY=0\nCLOUD=0\nKIT_ROOT={KIT_ROOT}\nCLAUDE_HOME={self.work}\nfailures=0\n"
             f"CLAUDE_PROFILE_DIRS=({self.work} {self.personal})\n"
-            'log() { echo "setup: $*"; }\nok() { echo "setup: ok $*"; }\n'
-            'warn() { echo "setup: warn $*" >&2; }\n'
-            'fail() { echo "setup: FAIL $*" >&2; failures=$((failures + 1)); }\n'
-            + "".join(
-                _fn(script, f) for f in ("run", "run_sh", "run_redacted", "claude_in_profile", "claude_each_profile")
-            )
+            "log() { echo \"setup: $*\"; }\nok() { echo \"setup: ok $*\"; }\n"
+            "warn() { echo \"setup: warn $*\" >&2; }\n"
+            "fail() { echo \"setup: FAIL $*\" >&2; failures=$((failures + 1)); }\n"
+            + "".join(_fn(script, f) for f in ("run", "run_sh", "run_redacted", "claude_in_profile",
+                                               "claude_each_profile"))
             + _server_block(script, _playwright()["purpose"])
-            + 'echo "failures=${failures}"\n'
+            + "echo \"failures=${failures}\"\n"
         )
         env = {
             "PATH": f"{self.bin}:/usr/bin:/bin",
@@ -220,21 +219,9 @@ def test_vibe_starts_playwright_from_the_pinned_binary_with_a_startup_timeout(tm
     fragment.write_text(render_registry.render_vibe_mcp(_registry()))
     config = tmp_path / "config.toml"
     subprocess.run(
-        [
-            "uv",
-            "run",
-            "--no-project",
-            "--with",
-            "tomlkit",
-            "python",
-            str(MERGE),
-            str(fragment),
-            "--config",
-            str(config),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
+        ["uv", "run", "--no-project", "--with", "tomlkit", "python", str(MERGE), str(fragment),
+         "--config", str(config)],
+        capture_output=True, text=True, check=True,
     )
     server = next(s for s in tomllib.loads(config.read_text())["mcp_servers"] if s["name"] == "playwright")
     assert {"command": server["command"], "args": server["args"]} == EXPECTED
@@ -268,11 +255,8 @@ def test_the_render_check_fails_when_the_vibe_fragment_lacks_a_startup_timeout(t
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content)
     vibe = tmp_path / render_registry.VIBE_MCP
-    vibe.write_text(
-        "".join(
-            line for line in vibe.read_text().splitlines(keepends=True) if not line.startswith("startup_timeout_sec")
-        )
-    )
+    vibe.write_text("".join(line for line in vibe.read_text().splitlines(keepends=True)
+                            if not line.startswith("startup_timeout_sec")))
     assert render_registry.stale_artifacts(data, tmp_path) == [str(render_registry.VIBE_MCP)]
 
 

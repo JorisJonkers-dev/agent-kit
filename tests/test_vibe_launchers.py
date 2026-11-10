@@ -61,22 +61,14 @@ class Workstation:
         answers = self.tmp / "store-tty"
         answers.write_text(f"{PASSPHRASE}\n{PASSPHRASE}\n")
         result = subprocess.run(
-            [sys.executable, str(GATE), "store"],
-            input=TOKEN,
-            capture_output=True,
-            text=True,
-            check=False,
-            env={**self._env(), "AGENT_KIT_TTY": str(answers)},
-            timeout=60,
+            [sys.executable, str(GATE), "store"], input=TOKEN, capture_output=True, text=True, check=False,
+            env={**self._env(), "AGENT_KIT_TTY": str(answers)}, timeout=60,
         )
         assert result.returncode == 0, result.stderr
 
     def _env(self, **extra: str) -> dict[str, str]:
-        env = {
-            k: v
-            for k, v in os.environ.items()
-            if k not in ("MEMORY_PRIVATE_TOKEN", "MISTRAL_API_KEY", "VIBE_HOME", "MISTRAL_STUDY_API_KEY")
-        }
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("MEMORY_PRIVATE_TOKEN", "MISTRAL_API_KEY", "VIBE_HOME", "MISTRAL_STUDY_API_KEY")}
         env.update({"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin"}, **extra)
         return env
 
@@ -88,15 +80,8 @@ class Workstation:
             answers = self.tmp / "tty"
             answers.write_text(tty)
             run_env["AGENT_KIT_TTY"] = str(answers)
-        return subprocess.run(
-            ["bash", str(launcher), *args],
-            capture_output=True,
-            text=True,
-            check=False,
-            env=run_env,
-            timeout=60,
-            start_new_session=True,
-        )
+        return subprocess.run(["bash", str(launcher), *args], capture_output=True, text=True, check=False,
+                              env=run_env, timeout=60, start_new_session=True)
 
 
 def _seen(result: subprocess.CompletedProcess) -> dict[str, str]:
@@ -214,16 +199,8 @@ def test_vibe_private_never_reads_the_passphrase_from_stdin(tmp_path: Path) -> N
     ws = Workstation(tmp_path)
     ws.seal_token()
     run_env = ws._env(AGENT_KIT_TTY=str(tmp_path / "no-terminal"))
-    result = subprocess.run(
-        ["bash", str(PRIVATE)],
-        input=f"{PASSPHRASE}\n",
-        capture_output=True,
-        text=True,
-        check=False,
-        env=run_env,
-        timeout=60,
-        start_new_session=True,
-    )
+    result = subprocess.run(["bash", str(PRIVATE)], input=f"{PASSPHRASE}\n", capture_output=True, text=True,
+                            check=False, env=run_env, timeout=60, start_new_session=True)
     assert result.returncode != 0
     assert result.stdout == ""
 
@@ -248,7 +225,7 @@ def test_vibe_private_without_a_sealed_token_says_how_to_get_one(tmp_path: Path)
 
 # Stands in for macOS `security`: generic passwords as files. Vibe's entry is
 # keyed by service and account, agent-kit's by service alone.
-FAKE_SECURITY = r"""#!/usr/bin/env python3
+FAKE_SECURITY = r'''#!/usr/bin/env python3
 import os, shlex, sys
 store = os.environ["FAKE_KEYCHAIN"]
 with open(os.path.join(store, "argv.log"), "a") as log:
@@ -293,7 +270,7 @@ if sys.argv[1] == "find-generic-password":
     print(open(key(args)).read())
     sys.exit(0)
 sys.exit(1)
-"""
+'''
 
 # Stands in for Vibe's `--setup`: the browser sign-in mints a key and saves it
 # to the keychain, or to $VIBE_HOME/.env when the keychain is switched off.
@@ -315,13 +292,13 @@ PERSONAL = "personal_login_9"
 
 
 # Stands in for curl against Mistral's model list: reads the header from stdin.
-FAKE_CURL = r"""#!/usr/bin/env bash
+FAKE_CURL = r'''#!/usr/bin/env bash
 printf '%s\n' "$*" >> "${FAKE_KEYCHAIN}/curl-argv.log"
 [ -n "${FAKE_CURL_OFFLINE:-}" ] && exit 7
 header="$(cat)"
 case "${header}" in *"Bearer refused_key"*) exit 22 ;; esac
 exit 0
-"""
+'''
 
 
 class Keychain(Workstation):
@@ -404,8 +381,7 @@ def test_without_a_personal_login_an_ignored_switch_leaves_none_behind(tmp_path:
 def test_without_a_keychain_the_key_goes_to_the_private_secrets_file(tmp_path: Path) -> None:
     kc = Keychain(tmp_path)
     (kc.home / ".config" / "agent-kit" / "env.sh").write_text(
-        '_agent_kit_secret() { sed -n "s/^$1=//p" "$HOME/.config/agent-kit/secrets.env" 2>/dev/null; }\n'
-    )
+        '_agent_kit_secret() { sed -n "s/^$1=//p" "$HOME/.config/agent-kit/secrets.env" 2>/dev/null; }\n')
     secrets = kc.home / ".config" / "agent-kit" / "secrets.env"
     secrets.write_text("OTHER=kept\n")
     assert kc.login(AGENT_KIT_SECRETS_BACKEND="file").returncode == 0

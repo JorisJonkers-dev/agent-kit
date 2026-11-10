@@ -24,7 +24,7 @@ import yaml  # noqa: E402
 
 URL = "https://assets.example/agent-kit-skills.tar.gz"
 
-FAKE_CURL = r"""#!/usr/bin/env python3
+FAKE_CURL = r'''#!/usr/bin/env python3
 import os, shutil, sys
 args = sys.argv[1:]
 out = args[args.index("-o") + 1]
@@ -36,7 +36,7 @@ key = url.replace(os.environ["BASE"], "URL")
 if key not in name:
     sys.exit(22)
 shutil.copy(os.path.join(served, name[key]), out)
-"""
+'''
 
 
 def _bundle(marker: str) -> bytes:
@@ -73,21 +73,16 @@ def test_a_stale_cached_tarball_is_never_what_runs(tmp_path: Path) -> None:
     body = (
         f"KIT_ROOT={tmp_path}/not-a-checkout\nORIG_ARGS=()\nfailures=0\nwarnings=0\n"
         "todo_failures=()\ntodo_warnings=()\n"
-        'log() { printf \'setup: %s\\n\' "$*"; }\nok() { log "$*"; }\n'
-        "fail() { printf 'FAIL %s\\n' \"$*\" >&2; }\n" + _fn(script, "use_kit_bundle") + "use_kit_bundle\n"
+        "log() { printf 'setup: %s\\n' \"$*\"; }\nok() { log \"$*\"; }\n"
+        "fail() { printf 'FAIL %s\\n' \"$*\" >&2; }\n"
+        + _fn(script, "use_kit_bundle") + "use_kit_bundle\n"
     )
     env = {
-        **os.environ,
-        "PATH": f"{bin_dir}:{os.environ['PATH']}",
-        "CURL_LOG": str(log),
-        "SERVED": str(served),
-        "NEW_SHA": new_sha,
-        "BASE": URL,
-        "AGENT_KIT_SKILLS_BUNDLE_URL": URL,
+        **os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "CURL_LOG": str(log), "SERVED": str(served),
+        "NEW_SHA": new_sha, "BASE": URL, "AGENT_KIT_SKILLS_BUNDLE_URL": URL,
     }
-    result = subprocess.run(
-        ["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env=env, stdin=subprocess.DEVNULL
-    )
+    result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env=env,
+                            stdin=subprocess.DEVNULL)
     assert "NEW-BUNDLE" in result.stdout, result.stdout + result.stderr
     fetched = log.read_text().splitlines()
     assert fetched == [f"{URL}.sha256", f"{URL}?sha256={new_sha}"]

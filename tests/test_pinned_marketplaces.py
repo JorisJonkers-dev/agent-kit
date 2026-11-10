@@ -78,7 +78,7 @@ def test_validation_refuses_an_unpinned_marketplace_or_a_plugin_pin() -> None:
 
 # --- ensure_marketplace, against a local upstream and a stub claude ---
 
-STUB_CLAUDE = r"""#!/usr/bin/env python3
+STUB_CLAUDE = r'''#!/usr/bin/env python3
 import json, os, sys
 state = os.environ["STUB_STATE"]
 log = os.environ["STUB_LOG"]
@@ -97,7 +97,7 @@ if args[:3] == ["plugin", "marketplace", "add"]:
         print("reserved for official Anthropic marketplaces", file=sys.stderr); sys.exit(1)
     markets.append({"name": name, "source": "directory", "path": path}); save(); sys.exit(0)
 sys.exit(0)
-"""
+'''
 
 
 def _upstream(tmp_path: Path) -> tuple[Path, list[str]]:
@@ -109,37 +109,21 @@ def _upstream(tmp_path: Path) -> tuple[Path, list[str]]:
     for version in ("1", "2"):
         manifest = repo / ".claude-plugin" / "marketplace.json"
         manifest.parent.mkdir(exist_ok=True)
-        manifest.write_text(
-            json.dumps(
-                {
-                    "name": "tools",
-                    "plugins": [
-                        {"name": "inrepo", "source": "./plugins/inrepo"},
-                        {
-                            "name": "external",
-                            "source": {"source": "url", "url": "https://x/y.git", "sha": "e" * 39 + version},
-                        },
-                    ],
-                }
-            )
-        )
+        manifest.write_text(json.dumps({"name": "tools", "plugins": [
+            {"name": "inrepo", "source": "./plugins/inrepo"},
+            {"name": "external", "source": {"source": "url", "url": "https://x/y.git", "sha": "e" * 39 + version}},
+        ]}))
         subprocess.run([*git, "add", "-A"], check=True)
         subprocess.run([*git, "commit", "-q", "-m", version], check=True)
-        commits.append(
-            subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
-        )
+        commits.append(subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True,
+                                      check=True).stdout.strip())
     # Allow fetching any commit by sha, as GitHub does.
     subprocess.run([*git, "config", "uploadpack.allowAnySHA1InWant", "true"], check=True)
     return tmp_path / "upstream", commits
 
 
 def _ensure(
-    tmp_path: Path,
-    commit: str,
-    *,
-    github_first: bool = False,
-    declare_as: str = "",
-    reserved: str = "",
+    tmp_path: Path, commit: str, *, github_first: bool = False, declare_as: str = "", reserved: str = "",
 ) -> tuple[subprocess.CompletedProcess, list[str]]:
     base, _ = _upstream(tmp_path) if not (tmp_path / "upstream").exists() else (tmp_path / "upstream", [])
     bin_dir = tmp_path / "bin"
@@ -151,36 +135,25 @@ def _ensure(
         state.write_text(json.dumps([{"name": "tools", "source": "github", "repo": "owner/tools"}]))
     log.write_text("")
     body = (
-        'CHECK_ONLY=0\nlog() { :; }\nok() { echo "ok $*"; }\nwarn() { echo "warn $*" >&2; }\n'
-        'fail() { echo "fail $*" >&2; }\nrun() { "$@"; }\n'
+        "CHECK_ONLY=0\nlog() { :; }\nok() { echo \"ok $*\"; }\nwarn() { echo \"warn $*\" >&2; }\n"
+        "fail() { echo \"fail $*\" >&2; }\nrun() { \"$@\"; }\n"
         + "unpinned_markets=()\n"
         + _fn(_script(), "_marketplace_from_folder")
         + _fn(_script(), "_marketplace_alias")
-        + _fn(_script(), "ensure_marketplace")
-        + f"ensure_marketplace tools owner/tools {commit} {declare_as}\n"
+        + _fn(_script(), "ensure_marketplace") + f"ensure_marketplace tools owner/tools {commit} {declare_as}\n"
         + 'echo "UNPINNED=${unpinned_markets[*]-}"\n'
     )
-    env = {
-        **os.environ,
-        "PATH": f"{bin_dir}:{os.environ['PATH']}",
-        "STUB_STATE": str(state),
-        "STUB_LOG": str(log),
-        "AGENT_KIT_GIT_BASE": f"file://{base}",
-        "AGENT_KIT_MARKETPLACES": str(tmp_path / "markets"),
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "STUB_RESERVED": reserved,
-    }
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "STUB_STATE": str(state),
+           "STUB_LOG": str(log), "AGENT_KIT_GIT_BASE": f"file://{base}",
+           "AGENT_KIT_MARKETPLACES": str(tmp_path / "markets"), "GIT_CONFIG_GLOBAL": "/dev/null",
+           "STUB_RESERVED": reserved}
     result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env=env)
     return result, [line for line in log.read_text().splitlines() if line]
 
 
 def _head(tmp_path: Path) -> str:
-    return subprocess.run(
-        ["git", "-C", str(tmp_path / "markets" / "tools"), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    return subprocess.run(["git", "-C", str(tmp_path / "markets" / "tools"), "rev-parse", "HEAD"],
+                          capture_output=True, text=True, check=True).stdout.strip()
 
 
 def test_a_github_marketplace_moves_to_the_pinned_checkout(tmp_path: Path) -> None:
@@ -316,7 +289,8 @@ def test_validation_refuses_a_reserved_name_without_another_to_declare() -> None
 
 def test_a_reserved_marketplace_is_declared_from_a_renamed_alias(tmp_path: Path) -> None:
     _, commits = _upstream(tmp_path)
-    (tmp_path / "markets.json").write_text(json.dumps([{"name": "tools", "source": "github", "repo": "owner/tools"}]))
+    (tmp_path / "markets.json").write_text(json.dumps([{"name": "tools", "source": "github",
+                                                         "repo": "owner/tools"}]))
     result, calls = _ensure(tmp_path, commits[0], declare_as="tools-pinned", reserved="tools")
     assert result.returncode == 0 and "warn" not in result.stderr, result.stderr
     assert not any(c.startswith("plugin marketplace remove") for c in calls), "removing uninstalls its plugins"
@@ -352,7 +326,7 @@ def test_plugins_of_an_aliased_marketplace_install_under_the_alias() -> None:
 def test_a_copy_installed_under_the_reserved_name_is_removed_once() -> None:
     script = _script()
     block = script[script.index("# mattpocock-skills: ") : script.index("# security-guidance: ")]
-    assert "*'\"mattpocock-skills@claude-plugins-official\"'*)" in block
+    assert '*\'"mattpocock-skills@claude-plugins-official"\'*)' in block
     assert "run claude plugin uninstall mattpocock-skills@claude-plugins-official" in block
     assert 'installed_plugins="$(claude plugin list --json' in script
 
@@ -360,4 +334,4 @@ def test_a_copy_installed_under_the_reserved_name_is_removed_once() -> None:
 def test_drift_is_checked_under_the_alias() -> None:
     drift = _script()[_script().index('log "checking plugin commit drift"') :]
     assert '"mattpocock-skills@agent-kit-official"' in drift
-    assert '/claude-plugins-official"' in drift, "the expected commit comes from the checkout"
+    assert "/claude-plugins-official\"" in drift, "the expected commit comes from the checkout"

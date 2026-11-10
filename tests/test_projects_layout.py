@@ -141,11 +141,7 @@ def test_a_machine_without_projects_is_left_alone(tmp_path: Path) -> None:
 
 def test_a_payload_that_is_not_json_is_let_through(home: Path) -> None:
     result = subprocess.run(
-        ["/bin/sh", str(GUARD)],
-        input="{not json",
-        capture_output=True,
-        text=True,
-        check=False,
+        ["/bin/sh", str(GUARD)], input="{not json", capture_output=True, text=True, check=False,
         env={"HOME": str(home), "PATH": os.environ["PATH"]},
     )
     assert (result.returncode, result.stdout) == (0, "")

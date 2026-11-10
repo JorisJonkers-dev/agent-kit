@@ -197,9 +197,7 @@ def test_skills_tarball_has_no_dot_slash_prefix_and_no_version_dir(fake_repo: Pa
 
 
 def test_the_bundle_carries_what_the_setup_script_reads_beside_itself(
-    fake_repo: Path,
-    fake_gh_bin: Path,
-    tmp_path: Path,
+    fake_repo: Path, fake_gh_bin: Path, tmp_path: Path,
 ):
     """A setup-workstation.sh run outside a checkout re-runs the copy in this bundle."""
     stage_dir = tmp_path / "stage"
@@ -239,7 +237,9 @@ def test_verify_script_fails_when_asset_version_does_not_match_release(
     assert "version token" in result.stderr
 
 
-def test_the_attached_script_fetches_the_bundle_of_its_own_release(fake_repo: Path, fake_gh_bin: Path, tmp_path: Path):
+def test_the_attached_script_fetches_the_bundle_of_its_own_release(
+    fake_repo: Path, fake_gh_bin: Path, tmp_path: Path
+):
     stage_dir = tmp_path / "stage"
     release_store = tmp_path / "release-store"
     tag = "v1.0.0"
@@ -255,7 +255,9 @@ def test_the_attached_script_fetches_the_bundle_of_its_own_release(fake_repo: Pa
         assert "@AGENT_KIT_RELEASE_TAG@" in member.read().decode()
 
 
-def test_verify_script_fails_when_the_release_tag_does_not_match(fake_repo: Path, fake_gh_bin: Path, tmp_path: Path):
+def test_verify_script_fails_when_the_release_tag_does_not_match(
+    fake_repo: Path, fake_gh_bin: Path, tmp_path: Path
+):
     stage_dir = tmp_path / "stage"
     release_store = tmp_path / "release-store"
     tag = "v1.0.0"
@@ -313,7 +315,7 @@ def test_bundle_carries_every_kit_file_setup_reads() -> None:
     text = SCRIPT.read_text()
     kit_paths = text.split("KIT_PATHS=(")[1].split(")")[0].split()
     setup = (KIT_ROOT / "installer" / "setup-workstation.sh").read_text()
-    used = set(re.findall(r"\$\{KIT_ROOT\}/([A-Za-z0-9_./-]+)", setup))
+    used = set(re.findall(r'\$\{KIT_ROOT\}/([A-Za-z0-9_./-]+)', setup))
     used = {u for u in used if (KIT_ROOT / u).is_file()}
     assert used, "no ${KIT_ROOT} file references found in the setup script"
     missing = sorted(u for u in used if not any(u == p or u.startswith(p.rstrip("/") + "/") for p in kit_paths))

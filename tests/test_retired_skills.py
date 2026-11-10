@@ -69,18 +69,8 @@ def _registry_with(entry: object) -> dict:
 
 @pytest.mark.parametrize(
     "entry",
-    [
-        {"name": 'a"b'},
-        {"name": "$(touch x)"},
-        {"name": "a b"},
-        {"name": "../x"},
-        {"name": ""},
-        {"name": ".x"},
-        {"renamed_to": "x"},
-        {"name": 3},
-        "critique-spec",
-        ["a"],
-    ],
+    [{"name": 'a"b'}, {"name": "$(touch x)"}, {"name": "a b"}, {"name": "../x"}, {"name": ""}, {"name": ".x"},
+     {"renamed_to": "x"}, {"name": 3}, "critique-spec", ["a"]],
 )
 def test_a_malformed_or_unsafe_retired_skill_is_refused(entry: object) -> None:
 

@@ -21,7 +21,9 @@ def mock_github_token(monkeypatch):
 class TestPrepareRollbackEnvCheck:
     """T-I3: prepare_rollback refuses when privileged key present."""
 
-    def test_prepare_rollback_fails_when_release_key_in_env(self, monkeypatch, mock_github_token):
+    def test_prepare_rollback_fails_when_release_key_in_env(
+        self, monkeypatch, mock_github_token
+    ):
         """Reject when RELEASE_APP_PRIVATE_KEY is set."""
         monkeypatch.setenv("RELEASE_APP_PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----...")
 
@@ -34,7 +36,9 @@ class TestPrepareRollbackEnvCheck:
             )
         assert "RELEASE_APP_PRIVATE_KEY" in str(exc.value.vars)
 
-    def test_prepare_rollback_fails_when_kubeconfig_present(self, monkeypatch, mock_github_token):
+    def test_prepare_rollback_fails_when_kubeconfig_present(
+        self, monkeypatch, mock_github_token
+    ):
         """Reject when KUBECONFIG is set."""
         monkeypatch.setenv("KUBECONFIG", "/home/runner/.kube/config")
 
@@ -46,7 +50,9 @@ class TestPrepareRollbackEnvCheck:
                 alert_url="https://github.com/issue/1",
             )
 
-    def test_prepare_rollback_fails_when_vault_token_present(self, monkeypatch, mock_github_token):
+    def test_prepare_rollback_fails_when_vault_token_present(
+        self, monkeypatch, mock_github_token
+    ):
         """Reject when VAULT_TOKEN is set."""
         monkeypatch.setenv("VAULT_TOKEN", "s.abc123")
 
@@ -64,7 +70,9 @@ class TestPrepareRollbackAppKeyAge:
 
     @patch("scripts.deploy.prepare_rollback.fetch_file_content")
     @patch("scripts.deploy.prepare_rollback.get_branch_sha")
-    def test_prepare_rollback_refuses_stale_app_key(self, mock_get_sha, mock_fetch, mock_github_token):
+    def test_prepare_rollback_refuses_stale_app_key(
+        self, mock_get_sha, mock_fetch, mock_github_token
+    ):
         """Reject when App key is older than 90 days."""
         # Relative to today for the same reason as the fresh-key case: a
         # literal date drifts away from the boundary this test is about.
@@ -84,7 +92,9 @@ class TestPrepareRollbackAppKeyAge:
 
     @patch("scripts.deploy.prepare_rollback.fetch_file_content")
     @patch("scripts.deploy.prepare_rollback.get_branch_sha")
-    def test_prepare_rollback_accepts_fresh_app_key(self, mock_get_sha, mock_fetch, mock_github_token):
+    def test_prepare_rollback_accepts_fresh_app_key(
+        self, mock_get_sha, mock_fetch, mock_github_token
+    ):
         """Accept when App key is fresh (< 90 days old)."""
         # Relative to today, not a literal: a hardcoded date silently becomes
         # older than the 90-day limit and the test starts failing on a day
@@ -110,7 +120,9 @@ class TestPrepareRollbackAppKeyAge:
 
     @patch("scripts.deploy.prepare_rollback.fetch_file_content")
     @patch("scripts.deploy.prepare_rollback.get_branch_sha")
-    def test_prepare_rollback_graceful_on_unparseable_key_date(self, mock_get_sha, mock_fetch, mock_github_token):
+    def test_prepare_rollback_graceful_on_unparseable_key_date(
+        self, mock_get_sha, mock_fetch, mock_github_token
+    ):
         """Gracefully skip key check if date is unparseable."""
         # Unparseable date format
         mock_fetch.return_value = "App key created: unknown"

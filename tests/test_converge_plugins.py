@@ -73,37 +73,22 @@ def _github(name: str, repo: str) -> dict:
     return {"name": name, "source": "github", "repo": repo}
 
 
-DECLARED_MARKETS = [
-    _folder("agent-kit-official"),
-    _folder("caveman"),
-    _folder("drawio"),
-    _folder("kubernetes-skill"),
-    _folder("ai-software-architect"),
-]
+DECLARED_MARKETS = [_folder("agent-kit-official"), _folder("caveman"), _folder("drawio"),
+                    _folder("kubernetes-skill"), _folder("ai-software-architect")]
 
 
 class Machine:
-    def __init__(
-        self,
-        tmp_path: Path,
-        markets: list[dict],
-        plugins: list[str],
-        keep: list[str] | None = None,
-        project: list[str] = (),
-    ) -> None:
+    def __init__(self, tmp_path: Path, markets: list[dict], plugins: list[str],
+                 keep: list[str] | None = None, project: list[str] = ()) -> None:
         self.tmp = tmp_path
         self.home = tmp_path / "home"
         self.home.mkdir()
         self.state = tmp_path / "state.json"
-        self.state.write_text(
-            json.dumps(
-                {
-                    "markets": markets,
-                    "plugins": [{"id": p, "scope": "user", "enabled": True} for p in plugins]
-                    + [{"id": p, "scope": "project", "enabled": True, "projectPath": "/repo"} for p in project],
-                }
-            )
-        )
+        self.state.write_text(json.dumps({
+            "markets": markets,
+            "plugins": [{"id": p, "scope": "user", "enabled": True} for p in plugins]
+            + [{"id": p, "scope": "project", "enabled": True, "projectPath": "/repo"} for p in project],
+        }))
         self.log = tmp_path / "calls.log"
         self.log.write_text("")
         if keep is not None:
@@ -126,18 +111,15 @@ class Machine:
             (bin_dir / name).chmod(0o755)
         body = (
             f"CHECK_ONLY={int(check)}\nKIT_ROOT={KIT_ROOT}\nfailures=0\n"
-            'log() { echo "setup: $*"; }\nok() { echo "setup: ok $*"; }\n'
-            'warn() { echo "setup: warn $*" >&2; }\n'
-            'fail() { echo "setup: FAIL $*" >&2; failures=$((failures + 1)); }\n'
-            'run() { "$@"; }\n' + _fn(script, "converge_plugins") + 'converge_plugins\necho "failures=${failures}"\n'
+            "log() { echo \"setup: $*\"; }\nok() { echo \"setup: ok $*\"; }\n"
+            "warn() { echo \"setup: warn $*\" >&2; }\n"
+            "fail() { echo \"setup: FAIL $*\" >&2; failures=$((failures + 1)); }\n"
+            "run() { \"$@\"; }\n"
+            + _fn(script, "converge_plugins")
+            + "converge_plugins\necho \"failures=${failures}\"\n"
         )
-        env = {
-            "PATH": f"{bin_dir}:/usr/bin:/bin",
-            "HOME": str(self.home),
-            "FAKE_STATE": str(self.state),
-            "FAKE_LOG": str(self.log),
-            "FAKE_STUCK": stuck,
-        }
+        env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(self.home), "FAKE_STATE": str(self.state),
+               "FAKE_LOG": str(self.log), "FAKE_STUCK": stuck}
         return subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env=env)
 
 
@@ -178,21 +160,16 @@ def test_an_undeclared_plugin_is_uninstalled(tmp_path: Path) -> None:
 
 def test_a_kept_marketplace_and_its_plugins_stay(tmp_path: Path) -> None:
     work = _github("nedap-ai-skills", "nedap/ai-tools-plugins")
-    machine = Machine(
-        tmp_path, [*DECLARED_MARKETS, work], [*_declared_plugins(), "review@nedap-ai-skills"], keep=["nedap-ai-skills"]
-    )
+    machine = Machine(tmp_path, [*DECLARED_MARKETS, work], [*_declared_plugins(), "review@nedap-ai-skills"],
+                      keep=["nedap-ai-skills"])
     _clean(machine.setup())
     assert "nedap-ai-skills" in machine.markets()
     assert "review@nedap-ai-skills" in machine.plugins()
 
 
 def test_a_retired_plugin_and_its_marketplace_go(tmp_path: Path) -> None:
-    machine = Machine(
-        tmp_path,
-        [*DECLARED_MARKETS, _github("hindsight", "vectorize-io/hindsight")],
-        [*_declared_plugins(), "hindsight-memory@hindsight"],
-        keep=["hindsight"],
-    )
+    machine = Machine(tmp_path, [*DECLARED_MARKETS, _github("hindsight", "vectorize-io/hindsight")],
+                      [*_declared_plugins(), "hindsight-memory@hindsight"], keep=["hindsight"])
     result = machine.setup()
     _clean(result)
     assert "hindsight" not in machine.markets()
@@ -208,9 +185,8 @@ def test_a_declared_marketplace_still_on_github_is_left_to_the_pinning_step(tmp_
 
 
 def test_a_project_scoped_plugin_is_left_alone(tmp_path: Path) -> None:
-    machine = Machine(
-        tmp_path, DECLARED_MARKETS, _declared_plugins(), keep=[], project=["plugin-dev@agent-kit-official"]
-    )
+    machine = Machine(tmp_path, DECLARED_MARKETS, _declared_plugins(), keep=[],
+                      project=["plugin-dev@agent-kit-official"])
     result = machine.setup()
     _clean(result)
     assert "plugin-dev@agent-kit-official" in machine.plugins()

@@ -148,13 +148,13 @@ class ValidateEntrypointHomeIsolation(unittest.TestCase):
 
     def test_an_entrypoint_that_creates_claude_json_anywhere_fails(self) -> None:
         self._assert_refused(
-            '[ -f "$HOME/.claude.json" ] || echo \'{}\' > "$HOME/.claude.json"\n',
+            "[ -f \"$HOME/.claude.json\" ] || echo '{}' > \"$HOME/.claude.json\"\n",
             r"outside the runner container changed HOME \(outside-empty\): \['\.claude\.json'\]",
         )
 
     def test_an_entrypoint_that_edits_an_existing_codex_config_anywhere_fails(self) -> None:
         self._assert_refused(
-            'if [ -f "$CODEX_HOME/config.toml" ]; then echo \'x = 1\' >> "$CODEX_HOME/config.toml"; fi\n',
+            "if [ -f \"$CODEX_HOME/config.toml\" ]; then echo 'x = 1' >> \"$CODEX_HOME/config.toml\"; fi\n",
             r"outside the runner container changed HOME \(outside-seeded\): \['\.codex/config\.toml'\]",
         )
 
@@ -448,7 +448,8 @@ class RenderAgentKitDoctor(unittest.TestCase):
                     name="council-command-surface",
                     status="fail",
                     detail=(
-                        "required commands (eval, status, tail, triage) missing command dispatch branches: status, tail"
+                        "required commands (eval, status, tail, triage) "
+                        "missing command dispatch branches: status, tail"
                     ),
                 ),
             ),

@@ -226,8 +226,7 @@ def _stub(bin_dir: Path, name: str) -> None:
 
 @pytest.mark.parametrize("agent", ["claude", "codex"])
 def test_memory_private_refuses_to_open_a_claude_or_codex_session_even_with_the_token(
-    tmp_path: Path,
-    agent: str,
+    tmp_path: Path, agent: str,
 ) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()

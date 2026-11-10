@@ -76,9 +76,8 @@ def test_every_credential_a_workstation_server_needs_is_in_the_table() -> None:
 # --- the tokens step, run against a fake helper ---
 
 
-def _step(
-    tmp_path: Path, status: str, *, interactive: bool, cloud: bool = False, check_only: bool = False
-) -> tuple[subprocess.CompletedProcess, list[str]]:
+def _step(tmp_path: Path, status: str, *, interactive: bool, cloud: bool = False,
+          check_only: bool = False) -> tuple[subprocess.CompletedProcess, list[str]]:
     script = _script()
     kit = tmp_path / "kit"
     (kit / "scripts").mkdir(parents=True)
@@ -231,14 +230,8 @@ def test_drain_then_detach_keeps_the_pipe_writer_happy(tmp_path: Path) -> None:
     big = tmp_path / "big"
     big.write_text("x\n" * 200_000)
     result = subprocess.run(
-        [
-            "/bin/bash",
-            "-c",
-            f"cat {big} | /bin/bash -c '[ -t 0 ] || cat >/dev/null; exec /bin/cat </dev/null'; "
-            'echo "pipe=${PIPESTATUS[0]}"',
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+        ["/bin/bash", "-c", f'cat {big} | /bin/bash -c \'[ -t 0 ] || cat >/dev/null; exec /bin/cat </dev/null\'; '
+         'echo "pipe=${PIPESTATUS[0]}"'],
+        capture_output=True, text=True, check=False,
     )
     assert "pipe=0" in result.stdout

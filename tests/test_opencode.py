@@ -44,7 +44,8 @@ def _fragment() -> dict[str, Any]:
 
 def _opencode_skills() -> list[str]:
     return [
-        s["name"] for s in _registry()["local_skills"] if "opencode" in (s.get("agents") or []) and not s.get("pending")
+        s["name"] for s in _registry()["local_skills"]
+        if "opencode" in (s.get("agents") or []) and not s.get("pending")
     ]
 
 
@@ -69,26 +70,18 @@ def run_over_an_existing_config(tmp_path_factory: pytest.TempPathFactory) -> Run
     def seed(home: Path) -> None:
         config = home / ".config" / "opencode" / "opencode.json"
         config.parent.mkdir(parents=True)
-        config.write_text(
-            json.dumps(
-                {
-                    "theme": "dark",
-                    "mcp": {
-                        "timeout": 9000,
-                        "servers": {
-                            "memory-mcp": {"type": "remote", "url": "https://memory-mcp.example/mcp"},
-                            "memory-private": {"type": "remote", "url": "https://private.example/mcp"},
-                            "my-own-server": {"type": "local", "command": ["node", "/opt/mine.js"]},
-                            "drawio": {"type": "local", "command": ["old-drawio"], "enabled": False},
-                        },
-                    },
-                }
-            )
-        )
+        config.write_text(json.dumps({
+            "theme": "dark",
+            "mcp": {"timeout": 9000, "servers": {
+                "memory-mcp": {"type": "remote", "url": "https://memory-mcp.example/mcp"},
+                "memory-private": {"type": "remote", "url": "https://private.example/mcp"},
+                "my-own-server": {"type": "local", "command": ["node", "/opt/mine.js"]},
+                "drawio": {"type": "local", "command": ["old-drawio"], "enabled": False},
+            }},
+        }))
 
-    return setup_run(
-        tmp_path_factory.mktemp("opencode-existing"), "Darwin", prepare_home=seed, stubs={"opencode": OPENCODE_V2}
-    )
+    return setup_run(tmp_path_factory.mktemp("opencode-existing"), "Darwin",
+                     prepare_home=seed, stubs={"opencode": OPENCODE_V2})
 
 
 def test_setup_installs_opencode_with_homebrew_when_it_is_missing(tmp_path: Path) -> None:
@@ -230,27 +223,22 @@ def _copy(tmp_path: Path, listing: list[dict[str, Any]], ids: str, *extra: str) 
     claude.chmod(0o755)
     return subprocess.run(
         [sys.executable, str(PLUGIN_SKILLS), "--skills-dir", str(tmp_path / "skills"), "--plugins", ids, *extra],
-        capture_output=True,
-        text=True,
-        check=False,
+        capture_output=True, text=True, check=False,
         env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)},
     )
 
 
 def test_skills_are_found_the_way_claude_finds_them(tmp_path: Path) -> None:
     cache = tmp_path / "cache"
-    listed = _plugin(
-        cache,
-        "matt",
-        {"skills/engineering/tdd": "tdd", "skills/in-progress/draft": "draft"},
-        manifest={"skills": ["./skills/engineering/tdd"]},
-    )
+    listed = _plugin(cache, "matt", {"skills/engineering/tdd": "tdd", "skills/in-progress/draft": "draft"},
+                     manifest={"skills": ["./skills/engineering/tdd"]})
     default = _plugin(cache, "cave", {"skills/caveman": "caveman", "skills/cavecrew": "cavecrew"})
     root = _plugin(cache, "k8s", {".": "kubernetes-skill"})
     (root / ".claude-plugin").mkdir()
     (root / ".claude-plugin" / "marketplace.json").write_text("{}")
     listing = [
-        {"id": f"{p.name}@m", "scope": "user", "enabled": True, "installPath": str(p)} for p in (listed, default, root)
+        {"id": f"{p.name}@m", "scope": "user", "enabled": True, "installPath": str(p)}
+        for p in (listed, default, root)
     ]
     result = _copy(tmp_path, listing, "matt@m,cave@m,k8s@m")
     assert result.returncode == 0, result.stdout + result.stderr
@@ -277,7 +265,6 @@ def test_a_skill_no_plugin_ships_any_more_is_removed(tmp_path: Path) -> None:
     assert _copy(tmp_path, [entry], "p@m").returncode == 0
     assert (tmp_path / "skills" / "two").is_dir()
     import shutil
-
     shutil.rmtree(plugin / "skills" / "two")
     result = _copy(tmp_path, [entry], "p@m")
     assert result.returncode == 0
@@ -328,9 +315,8 @@ def test_an_unmarked_skill_folder_is_never_removed(tmp_path: Path) -> None:
 
 def test_a_plugin_json_path_outside_the_plugin_is_ignored(tmp_path: Path) -> None:
     outside = _plugin(tmp_path, "elsewhere", {"secret": "secret"})
-    plugin = _plugin(
-        tmp_path / "cache", "p", {"skills/one": "one"}, manifest={"skills": [str(outside), "../../elsewhere"]}
-    )
+    plugin = _plugin(tmp_path / "cache", "p", {"skills/one": "one"},
+                     manifest={"skills": [str(outside), "../../elsewhere"]})
     result = _copy(tmp_path, [{"id": "p@m", "scope": "user", "installPath": str(plugin)}], "p@m")
     assert result.returncode == 0
     assert (tmp_path / "skills" / "one" / "SKILL.md").is_file()
@@ -352,10 +338,7 @@ def test_a_failing_claude_changes_nothing_and_says_so(tmp_path: Path) -> None:
     (bin_dir / "claude").chmod(0o755)
     result = subprocess.run(
         [sys.executable, str(PLUGIN_SKILLS), "--skills-dir", str(tmp_path / "skills"), "--plugins", "p@m"],
-        capture_output=True,
-        text=True,
-        check=False,
-        env={"PATH": f"{bin_dir}:/usr/bin:/bin"},
+        capture_output=True, text=True, check=False, env={"PATH": f"{bin_dir}:/usr/bin:/bin"},
     )
     assert result.returncode == 1
     assert "claude plugin list failed" in result.stderr
@@ -368,12 +351,8 @@ def test_a_failing_claude_changes_nothing_and_says_so(tmp_path: Path) -> None:
 
 
 def _merge(config: Path, *extra: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(MERGE), str(FRAGMENT), "--config", str(config), *extra],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    return subprocess.run([sys.executable, str(MERGE), str(FRAGMENT), "--config", str(config), *extra],
+                          capture_output=True, text=True, check=False)
 
 
 def test_merge_is_idempotent_and_backs_up_the_first_version_only(tmp_path: Path) -> None:
@@ -413,27 +392,10 @@ def _converge(tmp_path: Path, servers: list[str], keep: list[str], *extra: str) 
     keep_file.write_text(yaml.safe_dump({"keep": keep}))
     declared = ",".join(render_registry.declared_servers(_registry(), "opencode"))
     result = subprocess.run(
-        [
-            sys.executable,
-            str(CONVERGE),
-            "mcp",
-            "--keep",
-            str(keep_file),
-            "--claude-home",
-            str(tmp_path),
-            "--opencode",
-            str(config),
-            "--declared",
-            f"opencode={declared}",
-            "--retired",
-            ",".join(render_registry.retired_servers(_registry())),
-            "--private",
-            "memory-private",
-            *extra,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+        [sys.executable, str(CONVERGE), "mcp", "--keep", str(keep_file), "--claude-home", str(tmp_path),
+         "--opencode", str(config), "--declared", f"opencode={declared}",
+         "--retired", ",".join(render_registry.retired_servers(_registry())), "--private", "memory-private", *extra],
+        capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     return config, result.stdout
@@ -460,30 +422,10 @@ def test_a_commented_opencode_json_does_not_stop_the_other_surfaces(tmp_path: Pa
     vibe = tmp_path / "config.toml"
     vibe.write_text('[[mcp_servers]]\nname = "pycharm"\ntransport = "stdio"\ncommand = "x"\n')
     result = subprocess.run(
-        [
-            sys.executable,
-            str(CONVERGE),
-            "mcp",
-            "--keep",
-            str(tmp_path / "keep.yaml"),
-            "--claude-home",
-            str(tmp_path),
-            "--opencode",
-            str(config),
-            "--vibe",
-            str(vibe),
-            "--declared",
-            "opencode=memory-api",
-            "--declared",
-            "vibe=memory-api",
-            "--retired",
-            "",
-            "--private",
-            "",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+        [sys.executable, str(CONVERGE), "mcp", "--keep", str(tmp_path / "keep.yaml"), "--claude-home", str(tmp_path),
+         "--opencode", str(config), "--vibe", str(vibe), "--declared", "opencode=memory-api",
+         "--declared", "vibe=memory-api", "--retired", "", "--private", ""],
+        capture_output=True, text=True, check=False,
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "is not plain JSON; opencode not converged" in result.stdout
@@ -504,8 +446,7 @@ def test_opencode_declares_no_hindsight_server() -> None:
 def test_the_fragment_covers_every_workstation_server_except_private_memory() -> None:
     data = _registry()
     workstation = {
-        s["name"]
-        for s in data["mcp_servers"]
+        s["name"] for s in data["mcp_servers"]
         if "workstation" in (s.get("surfaces") or []) and s.get("enabled") is not False
     }
     assert set(_servers(_fragment())) == workstation - {"memory-private"}

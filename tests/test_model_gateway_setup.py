@@ -158,7 +158,11 @@ def test_the_shipped_defaults_price_every_vibe_model_from_critiques_routing() ->
     prices critique already pays for the same models (routing.json). A model the
     pricing page does not price carries none."""
     routing = json.loads(ROUTING.read_text())["clients"]
-    priced = {client["model"]: client["prices"] for client in routing.values() if client["kind"] == "vibe"}
+    priced = {
+        client["model"]: client["prices"]
+        for client in routing.values()
+        if client["kind"] == "vibe"
+    }
     models = json.loads(DEFAULTS.read_text())["models"]
     # The catalogue names a Vibe model by its alias and records the config's own
     # names (critique's routing uses those) beside it.
@@ -203,7 +207,8 @@ def test_the_vibe_critic_routes_name_the_alias_not_a_config_name() -> None:
     routing = json.loads(ROUTING.read_text())["clients"]
     defaults = json.loads(DEFAULTS.read_text())
     by_client = {
-        client: {m["model"] for m in defaults["models"] if m["client"] == client} for client in defaults["clients"]
+        client: {m["model"] for m in defaults["models"] if m["client"] == client}
+        for client in defaults["clients"]
     }
     for name, client in routing.items():
         gateway = client.get("gateway")
@@ -275,10 +280,8 @@ def test_the_runner_and_defaults_are_pinned_in_the_manifest() -> None:
         "skills/workstation/model-gateway/defaults.schema.json",
     }
     assert files["skills/workstation/model-gateway/model-gateway.mjs"]["mode"] == "0755"
-    for path in (
-        "skills/workstation/model-gateway/defaults.json",
-        "skills/workstation/model-gateway/defaults.schema.json",
-    ):
+    for path in ("skills/workstation/model-gateway/defaults.json",
+                 "skills/workstation/model-gateway/defaults.schema.json"):
         assert files[path]["mode"] == "0644", path
     for path, entry in files.items():
         digest = hashlib.sha256((KIT_ROOT / path).read_bytes()).hexdigest()

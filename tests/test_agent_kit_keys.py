@@ -156,7 +156,7 @@ def auth() -> Iterator[tuple[Auth, str]]:
             state.log.append(f"DELETE {self.path}")
             prefix = "/api/v1/auth/service-tokens/"
             if self.path.startswith(prefix) and self._signed_in() and self._xsrf():
-                state.revoked.append(self.path[len(prefix) :])
+                state.revoked.append(self.path[len(prefix):])
                 self.send_response(204)
                 self.end_headers()
                 return None
@@ -183,20 +183,10 @@ def _table(base: str) -> list[dict]:
         {"env": "HINDSIGHT_API_URL", "value": "https://hindsight-api.jorisjonkers.dev", "export": True},
         {"env": "HINDSIGHT_API_TOKEN", "grant": "MEMORY_API", "check": f"{base}/check/api", "export": True},
         {"env": "MEMORY_MCP_TOKEN", "grant": "MEMORY_MCP", "check": f"{base}/check/mcp", "export": True},
-        {
-            "env": "MEMORY_PRIVATE_TOKEN",
-            "grant": "MEMORY_PRIVATE",
-            "check": f"{base}/check/private",
-            "export": False,
-            "gate": "passphrase",
-        },
-        {
-            "env": "MISTRAL_API_KEY",
-            "paste": "a Mistral key for this machine",
-            "check": f"{base}/mistral",
-            "check_method": "GET",
-            "export": True,
-        },
+        {"env": "MEMORY_PRIVATE_TOKEN", "grant": "MEMORY_PRIVATE", "check": f"{base}/check/private", "export": False,
+         "gate": "passphrase"},
+        {"env": "MISTRAL_API_KEY", "paste": "a Mistral key for this machine", "check": f"{base}/mistral",
+         "check_method": "GET", "export": True},
     ]
 
 
@@ -215,23 +205,9 @@ def _gated(home: dict) -> Path:
 
 def _unseal(home: dict) -> str:
     out = subprocess.run(
-        [
-            "openssl",
-            "enc",
-            "-d",
-            "-aes-256-cbc",
-            "-pbkdf2",
-            "-iter",
-            "600000",
-            "-pass",
-            "stdin",
-            "-in",
-            str(_gated(home)),
-        ],
-        input=GATE_PASSPHRASE + "\n",
-        capture_output=True,
-        text=True,
-        check=False,
+        ["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-iter", "600000", "-pass", "stdin",
+         "-in", str(_gated(home))],
+        input=GATE_PASSPHRASE + "\n", capture_output=True, text=True, check=False,
     )
     return out.stdout.strip()
 
@@ -266,12 +242,7 @@ def _keys(home: dict, *args: str, answers: str = "") -> subprocess.CompletedProc
     (home["tmp"] / "home").mkdir(exist_ok=True)
     return subprocess.run(
         [sys.executable, str(KEYS), "--table", str(home["table"]), *args],
-        input=answers,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=home["env"],
-        timeout=60,
+        input=answers, capture_output=True, text=True, check=False, env=home["env"], timeout=60,
         start_new_session=True,
     )
 
@@ -398,8 +369,7 @@ def state_tokens(auth: tuple[Auth, str]) -> set[str]:
 
 
 def test_a_private_token_left_in_the_keychain_is_removed_and_replaced_behind_the_gate(
-    home: dict,
-    auth: tuple[Auth, str],
+    home: dict, auth: tuple[Auth, str],
 ) -> None:
     state, _ = auth
     (home["keychain"] / "agent-kit.MEMORY_PRIVATE_TOKEN").write_text("smt_old_exposed")
@@ -475,9 +445,7 @@ def test_env_sh_leaves_plain_vibe_alone_and_exports_nothing_private(home: dict, 
 
 @pytest.mark.parametrize("shell", ["/bin/bash", "/bin/zsh"])
 def test_env_sh_drops_the_old_kit_vibe_function_but_never_one_of_your_own(
-    home: dict,
-    auth: tuple[Auth, str],
-    shell: str,
+    home: dict, auth: tuple[Auth, str], shell: str,
 ) -> None:
     if not Path(shell).exists():
         pytest.skip(f"{shell} is not installed")
@@ -491,16 +459,8 @@ def test_env_sh_drops_the_old_kit_vibe_function_but_never_one_of_your_own(
 
 
 def _with_study_login(home: dict, base: str) -> None:
-    table = [
-        *_table(base),
-        {
-            "env": "MISTRAL_STUDY_API_KEY",
-            "login": "vibe-study --login",
-            "check": f"{base}/mistral",
-            "check_method": "GET",
-            "export": False,
-        },
-    ]
+    table = [*_table(base), {"env": "MISTRAL_STUDY_API_KEY", "login": "vibe-study --login",
+                             "check": f"{base}/mistral", "check_method": "GET", "export": False}]
     home["table"].write_text(json.dumps(table))
 
 
@@ -528,10 +488,8 @@ def test_the_study_account_key_is_never_exported_only_read_by_vibe_study(home: d
     (home["keychain"] / "agent-kit.MISTRAL_STUDY_API_KEY").write_text("mk_good")
     assert _keys(home, "write-env").returncode == 0
     assert "export MISTRAL_STUDY_API_KEY" not in _env_sh(home).read_text()
-    probe = (
-        f'. "{_env_sh(home)}"; printf "%s|%s\\n" "${{MISTRAL_STUDY_API_KEY:-unset}}" '
-        '"$(_agent_kit_secret MISTRAL_STUDY_API_KEY)"'
-    )
+    probe = (f'. "{_env_sh(home)}"; printf "%s|%s\\n" "${{MISTRAL_STUDY_API_KEY:-unset}}" '
+             '"$(_agent_kit_secret MISTRAL_STUDY_API_KEY)"')
     out = subprocess.run(["/bin/bash", "-c", probe], capture_output=True, text=True, env=home["env"], check=False)
     assert out.stdout.strip() == "unset|mk_good", out.stderr
 
@@ -539,13 +497,8 @@ def test_the_study_account_key_is_never_exported_only_read_by_vibe_study(home: d
 def test_a_value_already_in_the_environment_wins(home: dict, auth: tuple[Auth, str]) -> None:
     _keys(home, "ensure", answers=ANSWERS)
     env = {**home["env"], "MISTRAL_API_KEY": "mine"}
-    out = subprocess.run(
-        ["/bin/bash", "-c", f'. "{_env_sh(home)}"; printf "%s" "$MISTRAL_API_KEY"'],
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
+    out = subprocess.run(["/bin/bash", "-c", f'. "{_env_sh(home)}"; printf "%s" "$MISTRAL_API_KEY"'],
+                         capture_output=True, text=True, env=env, check=False)
     assert out.stdout == "mine"
 
 
@@ -577,13 +530,8 @@ def test_without_a_keychain_secrets_go_to_a_private_file(home: dict, auth: tuple
     _keys(home, "ensure", answers=ANSWERS)
     secrets = Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "secrets.env"
     assert secrets.stat().st_mode & 0o777 == 0o600
-    out = subprocess.run(
-        ["/bin/bash", "-c", f'. "{_env_sh(home)}"; printf "%s" "$MISTRAL_API_KEY"'],
-        capture_output=True,
-        text=True,
-        env=home["env"],
-        check=False,
-    )
+    out = subprocess.run(["/bin/bash", "-c", f'. "{_env_sh(home)}"; printf "%s" "$MISTRAL_API_KEY"'],
+                         capture_output=True, text=True, env=home["env"], check=False)
     assert out.stdout == "mk_good"
 
 

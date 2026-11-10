@@ -20,9 +20,8 @@ TOKEN = "smt_private_Ab-1"
 SHOW = ["sh", "-c", 'printf "%s" "${MEMORY_PRIVATE_TOKEN:-unset}"']
 
 
-def _gate(
-    tmp_path: Path, *args: str, tty: str | None = "", stdin: str = "", env: dict | None = None
-) -> subprocess.CompletedProcess:
+def _gate(tmp_path: Path, *args: str, tty: str | None = "", stdin: str = "",
+          env: dict | None = None) -> subprocess.CompletedProcess:
     home = tmp_path / "home"
     home.mkdir(exist_ok=True)
     run_env = {k: v for k, v in os.environ.items() if k != "MEMORY_PRIVATE_TOKEN"}
@@ -34,16 +33,8 @@ def _gate(
         answers.write_text(tty)
         run_env["AGENT_KIT_TTY"] = str(answers)
     run_env.update(env or {})
-    return subprocess.run(
-        [sys.executable, str(GATE), *args],
-        input=stdin,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=run_env,
-        timeout=60,
-        start_new_session=True,
-    )
+    return subprocess.run([sys.executable, str(GATE), *args], input=stdin, capture_output=True, text=True,
+                          check=False, env=run_env, timeout=60, start_new_session=True)
 
 
 def _sealed(tmp_path: Path) -> Path:

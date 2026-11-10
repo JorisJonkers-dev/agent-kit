@@ -81,10 +81,7 @@ def _stub(bin_dir: Path, name: str, body: str) -> None:
     ],
 )
 def test_secret_ref_keeps_the_token_out_of_a_cloud_registration(
-    cloud: int,
-    args: str,
-    env: dict[str, str],
-    expected: str,
+    cloud: int, args: str, env: dict[str, str], expected: str,
 ) -> None:
     body = f"set -uo pipefail\nCLOUD={cloud}\n{_shell_function('secret_ref')}\nsecret_ref {args}"
     result = _bash(body, env)
@@ -97,7 +94,7 @@ def test_every_claude_credential_goes_through_secret_ref() -> None:
     for line in script.splitlines():
         if "claude_each_profile claude mcp add" not in line:
             continue
-        assert not re.search(r"Bearer \$\{[A-Z_]+\}", line), line
+        assert not re.search(r'Bearer \$\{[A-Z_]+\}', line), line
         assert not re.search(r'--env [A-Z_]+="\$\{[A-Z_]+(:-)?\}"', line.replace("OVERLEAF_BASE_URL", "")), line
 
 
@@ -392,7 +389,9 @@ def test_the_paste_lets_the_session_start_when_the_fetch_fails(tmp_path: Path) -
 def test_the_env_template_names_every_credential_a_cloud_session_reads() -> None:
     data = _registry()
     names = {
-        line.split("=", 1)[0] for line in ENV_TEMPLATE.read_text().splitlines() if line and not line.startswith("#")
+        line.split("=", 1)[0]
+        for line in ENV_TEMPLATE.read_text().splitlines()
+        if line and not line.startswith("#")
     }
     declared = re.search(r"AK_CLOUD_VARS=\(([^)]*)\)", CLOUD_HELPER.read_text())
     assert declared

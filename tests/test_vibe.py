@@ -84,22 +84,9 @@ def _merge(tmp_path: Path, *extra: str) -> subprocess.CompletedProcess:
     fragment = tmp_path / "fragment.toml"
     fragment.write_text(render_registry.render_vibe_mcp(_registry()))
     return subprocess.run(
-        [
-            "uv",
-            "run",
-            "--no-project",
-            "--with",
-            "tomlkit",
-            "python",
-            str(MERGE),
-            str(fragment),
-            "--config",
-            str(tmp_path / "config.toml"),
-            *extra,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+        ["uv", "run", "--no-project", "--with", "tomlkit", "python", str(MERGE), str(fragment),
+         "--config", str(tmp_path / "config.toml"), *extra],
+        capture_output=True, text=True, check=False,
     )
 
 
@@ -107,8 +94,8 @@ def test_merge_keeps_the_users_settings_and_servers(tmp_path: Path) -> None:
     config = tmp_path / "config.toml"
     config.write_text(
         'active_model = "mistral-medium-3.5"\n\n'
-        '[[mcp_servers]]\nname = "mine"\ntransport = "stdio"\ncommand = "my-mcp"\n\n'
-        '[[mcp_servers]]\nname = "memory-api"\ntransport = "http"\nurl = "https://stale.example/mcp"\n'
+        "[[mcp_servers]]\nname = \"mine\"\ntransport = \"stdio\"\ncommand = \"my-mcp\"\n\n"
+        "[[mcp_servers]]\nname = \"memory-api\"\ntransport = \"http\"\nurl = \"https://stale.example/mcp\"\n"
     )
     result = _merge(tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
@@ -149,7 +136,7 @@ def test_merge_keeps_the_first_backup(tmp_path: Path) -> None:
 def test_cloud_mode_merges_once_with_its_removals() -> None:
     script = render_registry.render_setup_script(_registry())
     assert script.count('"${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config') == 1
-    assert "vibe_remove+=(--remove n8n --remove kubernetes --remove grimoire --remove outline)" in script
+    assert 'vibe_remove+=(--remove n8n --remove kubernetes --remove grimoire --remove outline)' in script
 
 
 def test_merge_can_remove_a_managed_server(tmp_path: Path) -> None:

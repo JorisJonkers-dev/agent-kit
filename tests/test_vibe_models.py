@@ -33,30 +33,12 @@ import render_registry  # noqa: E402
 import yaml  # noqa: E402
 
 
-def _model(
-    mid: str,
-    name: str,
-    aliases: list[str],
-    *,
-    fc: bool = True,
-    vision: bool = False,
-    reasoning: bool = False,
-    transcription: bool = False,
-    ctx: int = 262144,
-) -> dict:
+def _model(mid: str, name: str, aliases: list[str], *, fc: bool = True, vision: bool = False,
+           reasoning: bool = False, transcription: bool = False, ctx: int = 262144) -> dict:
     return {
-        "id": mid,
-        "name": name,
-        "aliases": aliases,
-        "max_context_length": ctx,
-        "deprecation": None,
-        "capabilities": {
-            "completion_chat": True,
-            "function_calling": fc,
-            "vision": vision,
-            "reasoning": reasoning,
-            "audio_transcription": transcription,
-        },
+        "id": mid, "name": name, "aliases": aliases, "max_context_length": ctx, "deprecation": None,
+        "capabilities": {"completion_chat": True, "function_calling": fc, "vision": vision,
+                         "reasoning": reasoning, "audio_transcription": transcription},
     }
 
 
@@ -112,14 +94,8 @@ def _sync(tmp_path: Path, url: str, *, key: str | None = "mk_test") -> subproces
     env.update({"HOME": str(tmp_path / "home"), "AGENT_KIT_MISTRAL_MODELS_URL": url, "VIBE_TEST_DISABLE_KEYRING": "1"})
     if key:
         env["MISTRAL_API_KEY"] = key
-    return subprocess.run(
-        [sys.executable, str(SYNC), "--config", str(tmp_path / "config.toml")],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-        timeout=60,
-    )
+    return subprocess.run([sys.executable, str(SYNC), "--config", str(tmp_path / "config.toml")],
+                          capture_output=True, text=True, check=False, env=env, timeout=60)
 
 
 def _models(tmp_path: Path) -> dict[str, dict]:
@@ -152,8 +128,7 @@ def test_entries_carry_what_vibe_needs(tmp_path: Path, api: tuple[_Api, str]) ->
 
 
 def test_your_own_models_and_settings_are_kept_and_a_rerun_changes_nothing(
-    tmp_path: Path,
-    api: tuple[_Api, str],
+    tmp_path: Path, api: tuple[_Api, str],
 ) -> None:
     _, url = api
     (tmp_path / "config.toml").write_text(
@@ -230,11 +205,7 @@ def test_setup_syncs_after_merging_the_mcp_servers() -> None:
 
 
 def _vibe_login(
-    tmp_path: Path,
-    *,
-    keychain: str | None = None,
-    env_file: str | None = None,
-    secret_service: str | None = None,
+    tmp_path: Path, *, keychain: str | None = None, env_file: str | None = None, secret_service: str | None = None,
 ) -> dict:
     # A fake keyring module shadows any real one, so no test reads this machine's keyring.
     fake_keyring = tmp_path / "fake-keyring"
@@ -247,7 +218,8 @@ def _vibe_login(
     bin_dir.mkdir(exist_ok=True)
     found = f'printf "%s\\n" "{keychain}"; exit 0' if keychain else "exit 44"
     (bin_dir / "security").write_text(
-        '#!/bin/sh\ncase "$*" in *"-s ai.mistral.vibe -a MISTRAL_API_KEY -w"*) ' + found + " ;; esac\nexit 44\n",
+        "#!/bin/sh\n"
+        'case "$*" in *"-s ai.mistral.vibe -a MISTRAL_API_KEY -w"*) ' + found + " ;; esac\nexit 44\n",
     )
     (bin_dir / "security").chmod(0o755)
     home = tmp_path / "home"
@@ -260,14 +232,8 @@ def _vibe_login(
 def _sync_env(tmp_path: Path, url: str, extra: dict, *args: str) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if k != "MISTRAL_API_KEY"}
     env.update({"HOME": str(tmp_path / "home"), "AGENT_KIT_MISTRAL_MODELS_URL": url, **extra})
-    return subprocess.run(
-        [sys.executable, str(SYNC), "--config", str(tmp_path / "config.toml"), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-        timeout=60,
-    )
+    return subprocess.run([sys.executable, str(SYNC), "--config", str(tmp_path / "config.toml"), *args],
+                          capture_output=True, text=True, check=False, env=env, timeout=60)
 
 
 def test_the_key_vibe_signed_in_with_is_used(tmp_path: Path, api: tuple[_Api, str]) -> None:
