@@ -347,7 +347,7 @@ def validate(data: dict[str, Any]) -> None:
     gold_band = data.get("gold_band")
     if gold_band is not None:
         if not re.fullmatch(r"[0-9a-f]{40}", str(gold_band.get("commit", ""))):
-            raise RegistryError("gold_band.commit must be a full 40-character commit sha: the pin is the commit, not a tag")
+            raise RegistryError("gold_band.commit must be a full 40-character commit sha, not a tag")
         clone = str(gold_band.get("clone") or "")
         if not clone or clone.startswith(("/", "~")) or ".." in clone.split("/"):
             raise RegistryError("gold_band.clone must be relative to $HOME")
@@ -2813,7 +2813,7 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w('  if [ "${rc}" = 0 ]; then')
     w(f'    ok "gold band: {gold_band["tag"]} ({gold_band["commit"][:7]}) is handled, see the lines above"')
     w('  elif [ "${rc}" = 3 ]; then')
-    w('    fail "gold band: a crate in its Cargo.lock is younger than 7 days or its age is unprovable; the build was stopped"')
+    w('    fail "gold band: a crate in its Cargo.lock is younger than 7 days or unprovable; the build was stopped"')
     w("  else")
     w('    fail "gold band: the build failed (exit ${rc})"')
     w("  fi")

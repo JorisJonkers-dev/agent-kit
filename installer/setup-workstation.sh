@@ -2449,7 +2449,7 @@ gold_band_setup() {
   if [ "${rc}" = 0 ]; then
     ok "gold band: v0.19.1 (987fc3e) is handled, see the lines above"
   elif [ "${rc}" = 3 ]; then
-    fail "gold band: a crate in its Cargo.lock is younger than 7 days or its age is unprovable; the build was stopped"
+    fail "gold band: a crate in its Cargo.lock is younger than 7 days or unprovable; the build was stopped"
   else
     fail "gold band: the build failed (exit ${rc})"
   fi

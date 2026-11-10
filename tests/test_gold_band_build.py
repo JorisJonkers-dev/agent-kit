@@ -46,7 +46,7 @@ name = "tao"
 version = "0.35.3"
 {TAO}
 """
-RSPROXY = "[source.crates-io]\nreplace-with = \"rsproxy-sparse\"\n"
+RSPROXY = '[source.crates-io]\nreplace-with = "rsproxy-sparse"\n'
 
 
 def git(repo: Path, *args: str) -> str:
@@ -79,7 +79,9 @@ class Host:
         return subprocess.run(["bash", str(SCRIPT), *args], capture_output=True, text=True, env=full, check=False)
 
 
-def make_host(tmp_path: Path, *, age_status: int = 0, age_output: str = "", gate_up: bool = True, cargo_lock: str | None = None) -> Host:
+def make_host(
+    tmp_path: Path, *, age_status: int = 0, age_output: str = "", gate_up: bool = True, cargo_lock: str | None = None
+) -> Host:
     root = tmp_path
     (root / "home").mkdir()
     clone = root / "clone"
@@ -114,7 +116,9 @@ def make_host(tmp_path: Path, *, age_status: int = 0, age_output: str = "", gate
         f'cat .cargo/config.toml > "{root}/build-cargo-config.toml"\n'
         f'cp "{lock_file}" Cargo.lock\n'
         "mkdir -p target/release\n"
-        'for b in gold-band gold-band-desktop; do printf "#!/bin/sh\\necho $b\\n" > target/release/$b; chmod +x target/release/$b; done',
+        "for b in gold-band gold-band-desktop; do\n"
+        '  printf "#!/bin/sh\\necho $b\\n" > target/release/$b; chmod +x target/release/$b\n'
+        "done",
     )
     return Host(root, clone, commit, root / "bin", root / "state" / "build.json", calls)
 
@@ -218,7 +222,11 @@ def test_only_path_crates_and_the_pinned_tao_are_allowed_to_lack_an_age(tmp_path
 def test_tao_at_another_git_revision_stops_the_build(tmp_path: Path) -> None:
     out = "refused: tao 0.35.3: git dependency: no published date exists"
     host = make_host(tmp_path, age_status=2, age_output=out)
-    (host.clone / "Cargo.lock").write_text(LOCK.replace("c704261c519c58cfdd0bc2d58ba24e06a0b71c92#c704261c519c58cfdd0bc2d58ba24e06a0b71c92", "deadbeef#deadbeef"))
+    (host.clone / "Cargo.lock").write_text(
+        LOCK.replace(
+            "c704261c519c58cfdd0bc2d58ba24e06a0b71c92#c704261c519c58cfdd0bc2d58ba24e06a0b71c92", "deadbeef#deadbeef"
+        )
+    )
     git(host.clone, "commit", "-q", "-am", "moved tao")
     done = host.run(GOLD_BAND_REF=git(host.clone, "rev-parse", "HEAD"))
     assert done.returncode == 3
@@ -283,12 +291,16 @@ def test_a_young_crate_stops_the_build_even_when_crate_age_exits_2_for_tao(tmp_p
 
 
 def test_a_third_party_path_dependency_without_an_age_stops_the_build(tmp_path: Path) -> None:
-    host = make_host(tmp_path, age_status=2, age_output="refused: vendored 1.0.0: path dependency: no published date exists")
+    host = make_host(
+        tmp_path, age_status=2, age_output="refused: vendored 1.0.0: path dependency: no published date exists"
+    )
     assert host.run().returncode == 3
 
 
 def test_a_lock_entry_with_a_different_source_at_the_same_version_installs_nothing(tmp_path: Path) -> None:
-    moved = LOCK.replace("registry+https://github.com/rust-lang/crates.io-index", "git+https://example.invalid/serde#abc").replace('version = "0.19.0"', 'version = "0.19.1"')
+    moved = LOCK.replace(
+        "registry+https://github.com/rust-lang/crates.io-index", "git+https://example.invalid/serde#abc"
+    ).replace('version = "0.19.0"', 'version = "0.19.1"')
     host = make_host(tmp_path, cargo_lock=moved)
     assert host.run().returncode == 3
     assert not (host.bin_dir / "gold-band").exists()
