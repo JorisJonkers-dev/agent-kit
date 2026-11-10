@@ -49,3 +49,21 @@ def test_without_an_override_nothing_is_reported(tmp_path: Path) -> None:
     run = setup_run(tmp_path / "plain", "Linux")
     assert "ignoring CLAUDE_CONFIG_DIR" not in run.stderr
     assert _surfaces(run.home)
+
+
+def test_claude_calls_for_the_work_profile_run_without_a_config_root(tmp_path: Path) -> None:
+    """The work profile keeps its .claude.json in HOME, so its claude calls carry no CLAUDE_CONFIG_DIR."""
+    other = tmp_path / "elsewhere"
+    log = tmp_path / "claude-env.log"
+    run = setup_run(
+        tmp_path / "env",
+        "Linux",
+        stubs={"claude": f'echo "$* @ ${{CLAUDE_CONFIG_DIR:-unset}}" >> "{log}"'},
+        extra_env={"CLAUDE_CONFIG_DIR": str(other)},
+    )
+    seen = log.read_text().splitlines() if log.exists() else []
+    assert run.home.exists()
+    assert not any(str(other) in line for line in seen), seen
+    work_calls = [line for line in seen if line.endswith("@ unset")]
+    assert work_calls, seen
+    assert not (run.home / ".claude" / ".claude.json").exists()
