@@ -5,9 +5,9 @@
 Antigravity's MCP configuration cannot reference environment variables: a
 header value is literal, so a token in ``headers`` would be a token on disk.
 Shared Memory therefore reaches Antigravity through this local stdio command.
-It reads the token from the agent-kit secret store at start-up -- the same
-keychain entry, or ``~/.config/agent-kit/secrets.env`` line, that
-``scripts/agent-kit-keys.py`` writes -- and proxies newline-delimited JSON-RPC
+It reads the token from the agent-kit secret store at start-up -- through
+``agent-kit-secret``, the macOS Keychain or the Linux Secret Service, the same
+entry ``scripts/agent-kit-keys.py`` writes; there is no file fallback -- and proxies newline-delimited JSON-RPC
 from stdin to ``--url``.
 
 The token stays in memory: it is never written to disk, printed, or put in
@@ -49,27 +49,24 @@ def say(message: str) -> None:
 # --- the agent-kit secret store --------------------------------------------
 
 
-def backend() -> str:
-    return os.environ.get("AGENT_KIT_SECRETS_BACKEND") or ("keychain" if shutil.which("security") else "file")
+def secret_tool() -> str:
+    """agent-kit-secret: on PATH, or installed next to this proxy."""
+    return shutil.which("agent-kit-secret") or str(Path(__file__).resolve().parent / "agent-kit-secret")
 
 
-def store_name() -> str:
-    return "keychain" if backend() == "keychain" else "secrets file"
+def secret(var: str) -> tuple[str, str]:
+    """(value, why not): the value agent-kit-keys stored for var, read through the one secret store.
 
-
-def secret(var: str) -> str:
-    """The value agent-kit-keys stored for var, or "" when it is not there."""
-    if backend() == "keychain":
-        out = subprocess.run(
-            ["security", "find-generic-password", "-s", PREFIX + var, "-w"],
-            capture_output=True, text=True, check=False,
-        )
-        return out.stdout.strip() if out.returncode == 0 else ""
-    path = Path.home() / ".config" / "agent-kit" / "secrets.env"
-    if not path.is_file():
-        return ""
-    values = dict(line.split("=", 1) for line in path.read_text().splitlines() if "=" in line)
-    return values.get(var, "")
+    Nothing else is consulted: no environment variable, no file.
+    """
+    try:
+        out = subprocess.run([secret_tool(), "get", var], capture_output=True, text=True, check=False)
+    except OSError:
+        return "", "agent-kit-secret is not installed; run setup-workstation.sh"
+    if out.returncode != 0 or not out.stdout.strip():
+        # The tool's own message says whether the key or the store is missing; it holds no value.
+        return "", out.stderr.strip().removeprefix("agent-kit-secret: ") or f"{var} is not in the secret store"
+    return out.stdout.strip(), ""
 
 
 # --- the upstream ----------------------------------------------------------
@@ -217,9 +214,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--url", required=True, help="the server's streamable-HTTP endpoint")
     parser.add_argument("--secret", required=True, metavar="VAR", help="the agent-kit secret holding the bearer token")
     args = parser.parse_args(argv)
-    token = secret(args.secret)
+    token, why = secret(args.secret)
     if not token:
-        say(f"{args.secret} is not in the {store_name()}; run setup-workstation.sh to store it")
+        say(why)
         return 1
     return proxy(args.url, token)
 

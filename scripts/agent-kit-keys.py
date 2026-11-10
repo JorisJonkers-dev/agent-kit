@@ -4,14 +4,15 @@
 setup-workstation.sh runs this. ``ensure`` asks only for what is missing or no
 longer works: it signs in to auth-api once (password, then TOTP), grants the
 missing services when you are an admin, mints each service token, checks every
-value against its own host, and stores it in the macOS keychain (a 0600 file
-where there is none). ``write-env`` renders ~/.config/agent-kit/env.sh, which
-reads them back in every shell; the Private Memory token is opened only by
-``vibe-private``, and the Study account key is read only by ``vibe-study``.
+value against its own host, and stores it in the one secret store, through
+installer/agent-kit-secret: the macOS Keychain, or the Secret Service (libsecret)
+on Linux. There is no plain-file store: a missing store stops the run.
+``write-env`` renders ~/.config/agent-kit/env.sh, which reads them back in
+every shell; the Private Memory token is opened only by ``vibe-private``, and the Study
+account key is read only by ``vibe-study``.
 ``status`` reports without asking anything.
 
-Secrets never reach argv or output: the keychain gets them over ``security -i``
-on stdin. Stdlib only, so the system python3 runs it.
+Secrets never reach argv or output: the store gets them on stdin. Stdlib only, so the system python3 runs it.
 
 Usage::
 
@@ -92,68 +93,62 @@ def config_dir() -> Path:
 # --- storage ---------------------------------------------------------------
 
 
-class Keychain:
-    """macOS login keychain, one generic password per variable."""
+SECRET_TOOL = Path(__file__).resolve().parent.parent / "installer" / "agent-kit-secret"
 
-    name = "keychain"
+
+class StoreError(Exception):
+    """The secret store is missing or refused; the run stops rather than fall back to a file."""
+
+
+class Store:
+    """The one secret store, through agent-kit-secret: the macOS Keychain, or on Linux libsecret."""
+
+    @property
+    def name(self) -> str:
+        return "keychain" if self._backend() == "keychain" else "Secret Service"
+
+    @staticmethod
+    def _backend() -> str:
+        forced = os.environ.get("AGENT_KIT_SECRETS_BACKEND", "")
+        return forced or ("keychain" if shutil.which("security") else "libsecret")
+
+    def _run(self, command: str, var: str, value: str | None = None) -> subprocess.CompletedProcess[str]:
+        # The value goes over stdin, never argv.
+        return subprocess.run([sys.executable, str(SECRET_TOOL), command, var], input=value,
+                              capture_output=True, text=True, check=False)
+
+    def _checked(self, done: subprocess.CompletedProcess[str]) -> subprocess.CompletedProcess[str]:
+        if done.returncode == 2:
+            raise StoreError(done.stderr.strip().removeprefix("agent-kit-secret: ") or "the secret store is not usable")
+        return done
 
     def get(self, var: str) -> str:
-        out = subprocess.run(
-            ["security", "find-generic-password", "-s", PREFIX + var, "-w"],
-            capture_output=True, text=True, check=False,
-        )
-        return out.stdout.strip() if out.returncode == 0 else ""
+        done = self._checked(self._run("get", var))
+        return done.stdout.strip() if done.returncode == 0 else ""
 
     def put(self, var: str, value: str) -> None:
-        command = f'add-generic-password -U -a "{getpass.getuser()}" -s "{PREFIX + var}" -w "{value}"\n'
-        subprocess.run(["security", "-i"], input=command, capture_output=True, text=True, check=True)
+        self._checked(self._run("put", var, value))
         if self.get(var) != value:
-            raise RuntimeError(f"{var} did not read back from the keychain")
+            raise RuntimeError(f"{var} did not read back from the {self.name}")
 
     def delete(self, var: str) -> None:
-        subprocess.run(["security", "delete-generic-password", "-s", PREFIX + var],
-                       capture_output=True, check=False)
+        self._checked(self._run("delete", var))
 
     def shell_reader(self) -> str:
-        return f'_agent_kit_secret() {{ security find-generic-password -s "{PREFIX}$1" -w 2>/dev/null; }}'
+        # Quiet on a missing key: env.sh exports only what is there.
+        return '_agent_kit_secret() { "$HOME/.local/bin/agent-kit-secret" get "$1" 2>/dev/null; }'
 
-
-class SecretsFile:
-    """~/.config/agent-kit/secrets.env, mode 0600, where there is no keychain."""
-
-    name = "secrets file"
-
-    def __init__(self) -> None:
-        self.path = config_dir() / "secrets.env"
-
-    def _read(self) -> dict[str, str]:
-        if not self.path.is_file():
-            return {}
-        return dict(line.split("=", 1) for line in self.path.read_text().splitlines() if "=" in line)
-
-    def get(self, var: str) -> str:
-        return self._read().get(var, "")
-
-    def put(self, var: str, value: str) -> None:
-        values = {**self._read(), var: value}
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as f:
-            f.write("".join(f"{k}={v}\n" for k, v in values.items()))
-        os.chmod(self.path, 0o600)
-
-    def delete(self, var: str) -> None:
-        values = self._read()
-        if values.pop(var, None) is not None:
-            self.path.write_text("".join(f"{k}={v}\n" for k, v in values.items()))
-
-    def shell_reader(self) -> str:
-        return '_agent_kit_secret() { sed -n "s/^$1=//p" "$HOME/.config/agent-kit/secrets.env" 2>/dev/null; }'
-
-
-def store() -> Keychain | SecretsFile:
-    backend = os.environ.get("AGENT_KIT_SECRETS_BACKEND") or ("keychain" if shutil.which("security") else "file")
-    return Keychain() if backend == "keychain" else SecretsFile()
+    def migrate_legacy_file(self) -> None:
+        """Move a secrets.env an earlier setup wrote into the store, then remove the plain file."""
+        path = config_dir() / "secrets.env"
+        if not path.is_file():
+            return
+        values = dict(line.split("=", 1) for line in path.read_text().splitlines() if "=" in line)
+        for var, value in values.items():
+            if value and not self.get(var):
+                self.put(var, value)
+        path.unlink()
+        say(f"moved the keys in {path} into the {self.name} and removed the plain file")
 
 
 # --- checks ----------------------------------------------------------------
@@ -191,7 +186,7 @@ def secrets(table: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [e for e in table if "value" not in e and not e.get("retired")]
 
 
-def retire(table: list[dict[str, Any]], keys: Keychain | SecretsFile) -> None:
+def retire(table: list[dict[str, Any]], keys: Store) -> None:
     """Drop values the registry no longer manages from the store."""
     for entry in table:
         if entry.get("retired") and keys.get(entry["env"]):
@@ -212,7 +207,7 @@ def gate_store(value: str) -> bool:
     return subprocess.run([sys.executable, str(GATE), "store"], input=value, text=True, check=False).returncode == 0
 
 
-def state(entry: dict[str, Any], keys: Keychain | SecretsFile) -> str:
+def state(entry: dict[str, Any], keys: Store) -> str:
     if gated(entry):
         out = subprocess.run([sys.executable, str(GATE), "status"], capture_output=True, text=True, check=False)
         return "ok" if out.stdout.strip() == "present" else "missing"
@@ -343,7 +338,7 @@ def replaced(auth: Auth, ids: dict[str, str], var: str, new_id: str) -> None:
 SOURCE_LINE = '[ -f "$HOME/.config/agent-kit/env.sh" ] && . "$HOME/.config/agent-kit/env.sh"  # agent-kit'
 
 
-def write_env(table: list[dict[str, Any]], keys: Keychain | SecretsFile) -> Path:
+def write_env(table: list[dict[str, Any]], keys: Store) -> Path:
     lines = [
         "# managed by agent-kit setup-workstation.sh; rewritten on every run.",
         f"# Reads the workstation's tokens and keys from the {keys.name}. A value already",
@@ -403,7 +398,8 @@ def wire_shell() -> None:
 
 
 def ensure(table: list[dict[str, Any]]) -> int:
-    keys = store()
+    keys = Store()
+    keys.migrate_legacy_file()
     retire(table, keys)
     for entry in secrets(table):
         # A copy outside the gate was readable without the passphrase: drop it and mint anew.
@@ -480,7 +476,7 @@ def ensure(table: list[dict[str, Any]]) -> int:
 
 
 def status(table: list[dict[str, Any]]) -> int:
-    keys = store()
+    keys = Store()
     for entry in secrets(table):
         print(f"{entry['env']} {state(entry, keys)}")
     rc = shell_rc()
@@ -499,7 +495,8 @@ def main(argv: list[str] | None = None) -> int:
         return ensure(table)
     if args.command == "status":
         return status(table)
-    keys = store()
+    keys = Store()
+    keys.migrate_legacy_file()
     retire(table, keys)
     write_env(table, keys)
     return 0

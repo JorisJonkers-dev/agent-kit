@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -21,6 +22,7 @@ import pytest
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 PROXY = KIT_ROOT / "installer" / "antigravity-mcp-proxy"
+SECRET = KIT_ROOT / "installer" / "agent-kit-secret"
 VAR = "HINDSIGHT_API_TOKEN"
 TOKEN = "hindsight_token_Ab-1"
 URL = "https://hindsight-api.jorisjonkers.dev/mcp/default/"
@@ -113,12 +115,15 @@ class Workstation:
         security = self.bin / "security"
         security.write_text(FAKE_SECURITY.replace("/usr/bin/env python3", sys.executable))
         security.chmod(0o755)
+        shutil.copy(SECRET, self.bin / "agent-kit-secret")  # installed beside the proxy, as setup does
+        (self.bin / "agent-kit-secret").chmod(0o755)
 
     def store(self, value: str = TOKEN, var: str = VAR) -> None:
         """What agent-kit-keys puts in the keychain: one generic password per variable."""
         (self.keychain / f"agent-kit.{var}").write_text(value)
 
     def secrets_file(self, text: str) -> None:
+        """What an earlier setup wrote; nothing may read it any more."""
         path = self.home / ".config" / "agent-kit" / "secrets.env"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
@@ -159,14 +164,6 @@ def test_it_reads_the_token_from_the_keychain_and_attaches_it_to_every_request(
     assert [r["authorization"] for r in upstream.requests] == [f"Bearer {TOKEN}"] * 2
 
 
-def test_the_file_backend_reads_the_same_variable(tmp_path: Path, upstream: Upstream) -> None:
-    ws = Workstation(tmp_path)
-    ws.secrets_file(f"OTHER=kept\n{VAR}={TOKEN}\n")
-    result = ws.run(upstream.url, INIT, AGENT_KIT_SECRETS_BACKEND="file")
-    assert result.returncode == 0, result.stderr
-    assert upstream.requests[0]["authorization"] == f"Bearer {TOKEN}"
-
-
 def test_a_missing_token_fails_before_reading_stdin(tmp_path: Path, upstream: Upstream) -> None:
     ws = Workstation(tmp_path)
     result = ws.run(upstream.url, INIT)
@@ -177,14 +174,39 @@ def test_a_missing_token_fails_before_reading_stdin(tmp_path: Path, upstream: Up
     assert upstream.requests == [], "nothing was proxied"
 
 
-def test_an_empty_token_in_the_secrets_file_is_missing_too(tmp_path: Path, upstream: Upstream) -> None:
+def test_a_secrets_file_is_never_read_as_a_fallback(tmp_path: Path, upstream: Upstream) -> None:
     ws = Workstation(tmp_path)
-    ws.secrets_file(f"{VAR}=\n")
-    result = ws.run(upstream.url, INIT, AGENT_KIT_SECRETS_BACKEND="file")
-    assert result.returncode == 1
-    assert result.stdout == ""
-    assert "secrets file" in result.stderr
+    ws.secrets_file(f"{VAR}={TOKEN}\n")
+    for backend in ("file", "keychain"):
+        result = ws.run(upstream.url, INIT, AGENT_KIT_SECRETS_BACKEND=backend)
+        assert result.returncode == 1
+        assert result.stdout == ""
     assert upstream.requests == []
+
+
+def test_a_broken_secret_store_stops_the_proxy_and_proxies_nothing(tmp_path: Path, upstream: Upstream) -> None:
+    ws = Workstation(tmp_path)
+    ws.store()
+    (ws.bin / "security").write_text("#!/bin/sh\nexit 51\n")
+    result = ws.run(upstream.url, INIT)
+    assert result.returncode == 1
+    assert "not usable" in result.stderr
+    assert upstream.requests == []
+
+
+def test_without_agent_kit_secret_installed_the_proxy_stops_with_a_message(tmp_path: Path, upstream: Upstream) -> None:
+    ws = Workstation(tmp_path)
+    ws.store()
+    (ws.bin / "agent-kit-secret").unlink()
+    alone = tmp_path / "alone"
+    alone.mkdir()
+    shutil.copy(PROXY, alone / "antigravity-mcp-proxy")
+    run_env = {"HOME": str(ws.home), "PATH": str(ws.bin), "FAKE_KEYCHAIN": str(ws.keychain)}
+    result = subprocess.run([sys.executable, str(alone / "antigravity-mcp-proxy"), "--url", upstream.url,
+                             "--secret", VAR], input="", capture_output=True, text=True, check=False,
+                            env=run_env, timeout=60)
+    assert result.returncode == 1
+    assert "agent-kit-secret" in result.stderr
 
 
 def test_the_token_reaches_neither_the_helpers_output_nor_any_file_it_writes(

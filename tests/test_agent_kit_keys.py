@@ -9,6 +9,7 @@ token only reaches Vibe and memory-private sessions.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 import threading
@@ -223,6 +224,10 @@ def home(tmp_path: Path, auth: tuple[Auth, str]) -> dict:
     keychain.mkdir()
     table = tmp_path / "table.json"
     table.write_text(json.dumps(_table(base)))
+    # Setup installs the secret store's command here; env.sh reads through it.
+    installed = tmp_path / "home" / ".local" / "bin"
+    installed.mkdir(parents=True)
+    shutil.copy(KIT_ROOT / "installer" / "agent-kit-secret", installed / "agent-kit-secret")
     return {
         "tmp": tmp_path,
         "keychain": keychain,
@@ -524,15 +529,43 @@ def test_write_env_needs_no_answers(home: dict, auth: tuple[Auth, str]) -> None:
     assert "# managed by agent-kit" in _env_sh(home).read_text()
 
 
-def test_without_a_keychain_secrets_go_to_a_private_file(home: dict, auth: tuple[Auth, str]) -> None:
-    # Not by removing the stub: /usr/bin/security would then reach the real keychain.
+def test_without_a_usable_secret_store_the_run_stops_and_writes_no_file(home: dict, auth: tuple[Auth, str]) -> None:
+    # PATH holds nothing: no security, no gdbus, no uv, so libsecret cannot be reached.
+    home["env"].update({"AGENT_KIT_SECRETS_BACKEND": "libsecret", "PATH": str(home["tmp"] / "nowhere")})
+    result = _keys(home, "ensure", answers=ANSWERS)
+    assert result.returncode != 0
+    assert "stopped" in result.stderr
+    assert not (Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "secrets.env").exists()
+    assert auth[0].minted == [], "nothing was minted that could not be kept"
+
+
+def test_a_plain_file_backend_is_refused(home: dict, auth: tuple[Auth, str]) -> None:
     home["env"]["AGENT_KIT_SECRETS_BACKEND"] = "file"
-    _keys(home, "ensure", answers=ANSWERS)
-    secrets = Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "secrets.env"
-    assert secrets.stat().st_mode & 0o777 == 0o600
-    out = subprocess.run(["/bin/bash", "-c", f'. "{_env_sh(home)}"; printf "%s" "$MISTRAL_API_KEY"'],
-                         capture_output=True, text=True, env=home["env"], check=False)
-    assert out.stdout == "mk_good"
+    result = _keys(home, "ensure", answers=ANSWERS)
+    assert result.returncode != 0
+    assert "plain-file" in result.stderr
+    assert not (Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "secrets.env").exists()
+
+
+def test_a_secrets_file_from_an_earlier_setup_moves_into_the_store_and_is_removed(
+    home: dict, auth: tuple[Auth, str],
+) -> None:
+    legacy = Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "secrets.env"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("MISTRAL_API_KEY=mk_good\nEMPTY=\n")
+    result = _keys(home, "ensure", answers="me@example.com\npw\n123456\ny\n")
+    assert result.returncode == 0, result.stderr
+    assert not legacy.exists()
+    assert _stored(home)["MISTRAL_API_KEY"] == "mk_good"
+    assert "mk_good" not in result.stdout + result.stderr
+
+
+def test_no_secret_reaches_argv_or_output(home: dict, auth: tuple[Auth, str]) -> None:
+    result = _keys(home, "ensure", answers=ANSWERS)
+    assert result.returncode == 0, result.stderr
+    argv = (home["keychain"] / "argv.log").read_text()
+    for value in _stored(home).values():
+        assert value not in argv + result.stdout + result.stderr
 
 
 def test_requests_do_not_use_the_python_urllib_agent(home: dict, auth: tuple[Auth, str]) -> None:

@@ -18,6 +18,7 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 STUDY = KIT_ROOT / "installer" / "vibe-study"
 PRIVATE = KIT_ROOT / "installer" / "vibe-private"
 GATE = KIT_ROOT / "installer" / "agent-kit-private"
+SECRET = KIT_ROOT / "installer" / "agent-kit-secret"
 TOKEN = "smt_private_Ab-1"
 STUDY_KEY = "study-key-123"
 PASSPHRASE = "correct horse"
@@ -41,21 +42,19 @@ class Workstation:
         vibe = self.bin / "vibe"
         vibe.write_text(FAKE_VIBE)
         vibe.chmod(0o755)
-        # The real passphrase gate, installed the way setup installs it.
+        # The real passphrase gate and secret store, installed the way setup installs them.
         shutil.copy(GATE, self.bin / "agent-kit-private")
         (self.bin / "agent-kit-private").chmod(0o755)
+        shutil.copy(SECRET, self.bin / "agent-kit-secret")
+        (self.bin / "agent-kit-secret").chmod(0o755)
+        self.keychain = tmp_path / "keychain"
+        self.keychain.mkdir()
+        (self.bin / "security").write_text(FAKE_SECURITY.replace("/usr/bin/env python3", sys.executable))
+        (self.bin / "security").chmod(0o755)
 
     def store_study_key(self, value: str = STUDY_KEY) -> None:
-        """What agent-kit-keys' env.sh gives the shell: a reader for the secret store."""
-        env_sh = self.home / ".config" / "agent-kit" / "env.sh"
-        env_sh.parent.mkdir(parents=True, exist_ok=True)
-        env_sh.write_text(
-            f"_agent_kit_secret() {{ [ \"$1\" = MISTRAL_STUDY_API_KEY ] && printf '%s' '{value}'; }}\n"
-            # An env.sh from before the split defined this; the launchers must not run it.
-            "vibe() { echo 'old vibe function ran'; }\n"
-            # The rest of env.sh: one keychain lookup per exported secret.
-            f"touch '{self.tmp}/env-sh-ran'\n",
-        )
+        """What agent-kit-keys stores: the Study account key in the secret store (a fake Keychain here)."""
+        (self.keychain / "agent-kit.MISTRAL_STUDY_API_KEY").write_text(value)
 
     def seal_token(self) -> None:
         answers = self.tmp / "store-tty"
@@ -69,7 +68,8 @@ class Workstation:
     def _env(self, **extra: str) -> dict[str, str]:
         env = {k: v for k, v in os.environ.items()
                if k not in ("MEMORY_PRIVATE_TOKEN", "MISTRAL_API_KEY", "VIBE_HOME", "MISTRAL_STUDY_API_KEY")}
-        env.update({"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin"}, **extra)
+        env.update({"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin", "FAKE_KEYCHAIN": str(self.keychain)},
+                   **extra)
         return env
 
     def run(self, launcher: Path, *args: str, tty: str | None = None, **env: str) -> subprocess.CompletedProcess:
@@ -127,18 +127,38 @@ def test_vibe_study_prefers_a_study_key_already_in_the_environment(tmp_path: Pat
     assert _seen(result)["MISTRAL_API_KEY"] == "from-env"
 
 
-def test_vibe_study_never_runs_an_old_vibe_shell_function(tmp_path: Path) -> None:
+def test_vibe_study_reads_the_key_from_the_secret_store_alone_not_env_sh(tmp_path: Path) -> None:
     ws = Workstation(tmp_path)
     ws.store_study_key()
+    env_sh = ws.home / ".config" / "agent-kit" / "env.sh"
+    env_sh.parent.mkdir(parents=True)
+    env_sh.write_text(f"vibe() {{ echo 'old vibe function ran'; }}\ntouch '{tmp_path}/env-sh-ran'\n")
     result = ws.run(STUDY)
+    assert result.returncode == 0, result.stderr
     assert "old vibe function ran" not in result.stdout
+    assert not (tmp_path / "env-sh-ran").exists()
 
 
-def test_vibe_study_reads_only_the_study_key_not_the_rest_of_env_sh(tmp_path: Path) -> None:
+def test_vibe_study_launches_nothing_when_the_secret_store_is_not_usable(tmp_path: Path) -> None:
     ws = Workstation(tmp_path)
     ws.store_study_key()
-    assert ws.run(STUDY).returncode == 0
-    assert not (tmp_path / "env-sh-ran").exists()
+    result = ws.run(STUDY, FAKE_SECURITY_BROKEN="1")
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "not usable" in result.stderr
+
+
+def test_vibe_study_launches_nothing_without_agent_kit_secret_installed(tmp_path: Path) -> None:
+    ws = Workstation(tmp_path)
+    ws.store_study_key()
+    (ws.bin / "agent-kit-secret").unlink()
+    alone = tmp_path / "alone"
+    alone.mkdir()
+    shutil.copy(STUDY, alone / "vibe-study")  # not beside a copy of the tool
+    result = ws.run(alone / "vibe-study")
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "agent-kit-secret" in result.stderr
 
 
 def test_vibe_study_refuses_without_the_study_key_and_never_falls_back_to_the_personal_login(
@@ -254,6 +274,8 @@ if sys.argv[1:2] == ["-i"]:
             os.remove(key(args[1:]))
     sys.exit(0)
 args = sys.argv[2:]
+if os.environ.get("FAKE_SECURITY_BROKEN"):
+    sys.exit(51)
 if sys.argv[1] == "add-generic-password":
     add(args)
     sys.exit(0)
@@ -304,17 +326,9 @@ exit 0
 class Keychain(Workstation):
     def __init__(self, tmp_path: Path) -> None:
         super().__init__(tmp_path)
-        self.keychain = tmp_path / "keychain"
-        self.keychain.mkdir()
         (self.bin / "curl").write_text(FAKE_CURL)
         (self.bin / "curl").chmod(0o755)
         (self.bin / "vibe").write_text(SIGN_IN_VIBE)
-        (self.bin / "security").write_text(FAKE_SECURITY.replace("/usr/bin/env python3", sys.executable))
-        (self.bin / "security").chmod(0o755)
-        # The reader agent-kit-keys writes into env.sh for the keychain backend.
-        env_sh = self.home / ".config" / "agent-kit" / "env.sh"
-        env_sh.parent.mkdir(parents=True)
-        env_sh.write_text('_agent_kit_secret() { security find-generic-password -s "agent-kit.$1" -w 2>/dev/null; }\n')
         (self.keychain / "ai.mistral.vibe@MISTRAL_API_KEY").write_text(PERSONAL)
 
     def login(self, **env: str) -> subprocess.CompletedProcess:
@@ -378,16 +392,13 @@ def test_without_a_personal_login_an_ignored_switch_leaves_none_behind(tmp_path:
     assert not (kc.keychain / "ai.mistral.vibe@MISTRAL_API_KEY").exists()
 
 
-def test_without_a_keychain_the_key_goes_to_the_private_secrets_file(tmp_path: Path) -> None:
+def test_without_a_secret_store_login_stops_before_signing_in_and_writes_no_file(tmp_path: Path) -> None:
     kc = Keychain(tmp_path)
-    (kc.home / ".config" / "agent-kit" / "env.sh").write_text(
-        '_agent_kit_secret() { sed -n "s/^$1=//p" "$HOME/.config/agent-kit/secrets.env" 2>/dev/null; }\n')
-    secrets = kc.home / ".config" / "agent-kit" / "secrets.env"
-    secrets.write_text("OTHER=kept\n")
-    assert kc.login(AGENT_KIT_SECRETS_BACKEND="file").returncode == 0
-    assert secrets.read_text() == f"OTHER=kept\nMISTRAL_STUDY_API_KEY={SIGNED_IN}\n"
-    assert secrets.stat().st_mode & 0o777 == 0o600
-    assert _seen(kc.study())["MISTRAL_API_KEY"] == SIGNED_IN
+    result = kc.login(FAKE_SECURITY_BROKEN="1")
+    assert result.returncode != 0
+    assert not (kc.keychain / "setup-home").exists(), "no sign-in was started"
+    assert not (kc.home / ".config" / "agent-kit" / "secrets.env").exists()
+    assert "secret store" in result.stderr
 
 
 def test_signing_in_again_replaces_the_study_key(tmp_path: Path) -> None:
@@ -412,15 +423,6 @@ def test_a_key_that_does_not_read_back_is_not_reported_as_stored(tmp_path: Path)
     assert result.returncode != 0
     assert "signed in" not in result.stderr
     assert "read back" in result.stderr
-
-
-def test_login_needs_setups_env_sh_so_vibe_study_can_read_the_key_back(tmp_path: Path) -> None:
-    kc = Keychain(tmp_path)
-    (kc.home / ".config" / "agent-kit" / "env.sh").unlink()
-    result = kc.login()
-    assert result.returncode != 0
-    assert not (kc.keychain / "setup-home").exists(), "no sign-in was started"
-    assert "setup-workstation" in result.stderr
 
 
 def test_a_key_mistral_refuses_is_not_stored(tmp_path: Path) -> None:

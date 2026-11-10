@@ -4059,6 +4059,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  install_kit_command memory-private")
     w("  # agent-kit-private: the passphrase gate in front of the Private Memory token.")
     w("  install_kit_command agent-kit-private")
+    w("  # agent-kit-secret: the one secret store (Keychain on macOS, libsecret on Linux).")
+    w("  install_kit_command agent-kit-secret")
     w("  # The Vibe launchers. Plain vibe is Vibe itself: the shared Vibe home, the")
     w("  # personal login, Shared Memory. vibe-study is the same home with the Study")
     w("  # account; vibe-private has its own home and Private Memory, behind the gate.")

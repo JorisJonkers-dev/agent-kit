@@ -34,6 +34,7 @@ KIT_FILES = (
     "scripts/vibe-sync-models.py",
     "scripts/agent-kit-keys.py",
     "registry/generated/workstation-secrets.json",
+    "installer/agent-kit-secret",
     "installer/vibe-study",
     "installer/vibe-private",
     "scripts/vibe-split-homes.py",

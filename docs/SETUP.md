@@ -68,8 +68,12 @@ registry):
    in), which keeps its key in the keychain itself. Setup asks for no Mistral
    key: an exported `MISTRAL_API_KEY` would override that login, so a key an
    earlier setup stored is removed from the keychain and `env.sh`.
-4. It stores each in the macOS keychain as `agent-kit.<VARIABLE>` (a 0600
-   `~/.config/agent-kit/secrets.env` where there is no keychain). The
+4. It stores each in the one secret store, `agent-kit-secret`: the macOS
+   Keychain as `agent-kit.<VARIABLE>`, or on Linux the Secret Service
+   (GNOME Keyring or another libsecret provider; service `agent-kit`, username
+   `<VARIABLE>`). There is no plain-file store: with no store, or no key in
+   it, the run or launch stops with a message. A `secrets.env` an earlier
+   setup wrote is moved into the store and removed. The
    private-bank token is the exception: it is sealed behind a passphrase you
    choose (see Vibe launchers and Private Memory). Secrets travel over stdin, never argv, and
    are never printed.
@@ -655,8 +659,9 @@ The token cannot live in Antigravity's configuration. Its MCP file expands no
 environment variables — a header value is literal — so a token in `headers`
 would be a token on disk. `memory-api` is registered as a local stdio command
 instead, `~/.local/bin/antigravity-mcp-proxy`, which reads
-`HINDSIGHT_API_TOKEN` from the agent-kit secret store at start-up (the keychain
-entry `agent-kit.HINDSIGHT_API_TOKEN`, or `~/.config/agent-kit/secrets.env`)
+`HINDSIGHT_API_TOKEN` from the agent-kit secret store at start-up (through
+`agent-kit-secret`: the Keychain entry `agent-kit.HINDSIGHT_API_TOKEN`, or the
+Secret Service item on Linux; no file fallback)
 and proxies JSON-RPC to `hindsight-api.jorisjonkers.dev`. The token stays in
 memory: never on disk, never in argv, never printed. The fragment runs it
 through `/bin/sh -c` because a GUI-launched app has no `~/.local/bin` on
@@ -868,3 +873,20 @@ prompts; only the seeding is gone.
 - [HERMES.md](HERMES.md) — the same registry, applied to the cluster gateway
 - [MEMORY.md](MEMORY.md) — what replaced the knowledge base
 - [CLOUD.md](CLOUD.md) — the same setup in a Claude Code cloud environment
+
+### The secret store on Linux (B1-01)
+
+`agent-kit-secret get|put|delete|has NAME` is the one interface; the key
+script, `vibe-study` and the MCP stdio proxy all use it. On macOS it is
+`security` and the login Keychain. On Linux it is the Secret Service, the
+store Vibe itself uses.
+
+NixOS ships no `secret-tool`, so the Linux backend is split by what each
+operation needs. An existence check (`has`) asks the Secret Service for the
+item path over D-Bus with `gdbus SearchItems`, the way the critique runner
+checks Vibe's sign-in: it returns paths only, never a value. Reading and
+writing go through Python's `keyring` (Vibe's own library), supplied by
+`uv run --with keyring` when the system python has none. Adding libsecret to
+nix-config was not needed and would not help a non-Nix Linux. Exit status:
+0 done, 1 key absent, 2 no usable backend; a locked or absent keyring stops
+the launch with a message and nothing is written elsewhere.
