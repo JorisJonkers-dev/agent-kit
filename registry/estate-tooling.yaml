@@ -826,7 +826,7 @@ language_servers:
     binary: kotlin-lsp
     install: "brew install kotlin-lsp"
     install_linux: >-
-      v=263.4702.0 sum=1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405
+      v=263.7084.0 sum=ae0c4b01e17ab73a4a5227a78ea99e6dcbe3e499600315b22759a4e4cddd11df
       && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz"
       && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c -
       && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}"

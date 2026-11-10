@@ -3091,7 +3091,7 @@ for install in installs:
         else
           run claude plugin disable kotlin-lsp@agent-kit-official >/dev/null 2>&1 || true
           if [ "$(uname -s)" = Linux ]; then
-            lsp_cmd='v=263.4702.0 sum=1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405 && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz" && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c - && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}" && tar -xzf /tmp/kotlin-lsp.tgz -C "${AK_OPT_DIR}/kotlin-lsp" --strip-components=1 && rm -f /tmp/kotlin-lsp.tgz && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"'
+            lsp_cmd='v=263.7084.0 sum=ae0c4b01e17ab73a4a5227a78ea99e6dcbe3e499600315b22759a4e4cddd11df && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz" && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c - && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}" && tar -xzf /tmp/kotlin-lsp.tgz -C "${AK_OPT_DIR}/kotlin-lsp" --strip-components=1 && rm -f /tmp/kotlin-lsp.tgz && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"'
           else
             lsp_cmd='brew install kotlin-lsp'
           fi
