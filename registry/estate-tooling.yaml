@@ -1111,6 +1111,19 @@ local_skills:
       them. sources.yaml records what it was checked against for
       scripts/check_skill_sources.py.
 
+  - name: estate-rollback
+    path: skills/workstation/estate-rollback
+    purpose: >-
+      Plan a pause, rollback or resume of one estate Project and hand the owner
+      the exact gh workflow run command, reading the canonical docs and the pin
+      live with gh. It never dispatches a workflow.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Carries the procedure and points at the canonical docs; it never copies
+      them. sources.yaml records what it was checked against for
+      scripts/check_skill_sources.py.
+
   - name: model-gateway
     path: skills/workstation/model-gateway
     purpose: >-

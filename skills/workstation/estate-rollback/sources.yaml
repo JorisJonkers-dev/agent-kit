@@ -1,0 +1,71 @@
+sources:
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/55-delivery.md
+    blob: a9809479bdd405b605d4677510ecf40ad6a07805
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: CONTEXT.md
+    blob: ea28e0c25aa8cc787f9286bc0071c5092cadc296
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: README.md
+    blob: 4cdb43e307f942c218d885b21443aecaa1dd5438
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: .github/workflows/pause.yml
+    blob: 26aa111b6ef3622f61444dc929cc8cf1ea73b38b
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: .github/workflows/rollback.yml
+    blob: 90123984bad041b976dc9daeccc94ab20e0c0def
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: .github/workflows/resume.yml
+    blob: 9181989294ac9290b33d220d64eebe10864ef3c6
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: participants.yml
+    blob: 7aa95d084079fd55d9a4fcbd3b695996e2dceebc
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: docs/runbooks/auth-handover.md
+    blob: 5b6bbef55e2cdf4e554833fcc12efb5aac4c384e
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: docs/runbooks/data-handover.md
+    blob: 55e3c2eb9a14ba26bbc96896d4741f5a18e9799e
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: docs/runbooks/edge-handover.md
+    blob: d2f887282851ccbf3f82d8e4c53b2b795aacdcef
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: docs/runbooks/mail-handover.md
+    blob: a07c68a3b86fe7340f61dcecb1edee742eb75f0c
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: docs/runbooks/node-handover.md
+    blob: a9639ce1d999ab86f7a056c2a05e624074e3cfda
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: docs/runbooks/observability-handover.md
+    blob: 4a58fefb7cf9fe5c159c5cbdc6f1e9e33fdc14b1
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: docs/runbooks/secrets-handover.md
+    blob: edf464ecf9fa1d2fec60825821cabced9de601ba
+    checked: 2026-11-10
