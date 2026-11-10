@@ -127,7 +127,36 @@ if missing and mode != "check":
 print("sync: verified every pinned commit and server key landed")
 PY
 
+# The commands printed below restart and exec into Hermes. The default
+# `<cluster>` context is read-only (no exec); `<cluster>-admin` is cluster-admin
+# behind sudo. Same rule as the estate's bootstrap/lib/kube.sh: ESTATE_KUBE_CONTEXT
+# if set, else `<current>-admin` when that context exists, else the current one.
+kube_context() {
+  local base contexts
+  if [ -n "${ESTATE_KUBE_CONTEXT:-}" ]; then
+    printf '%s\n' "${ESTATE_KUBE_CONTEXT}"
+    return 0
+  fi
+  base="$(kubectl config current-context 2>/dev/null || true)"
+  contexts="$(kubectl config get-contexts -o name 2>/dev/null || true)"
+  if [ -n "${base}" ] && [[ "${base}" != *-admin ]] && printf '%s\n' "${contexts}" | grep -qxF -- "${base}-admin"; then
+    printf '%s\n' "${base}-admin"
+  else
+    printf '%s\n' "${base}"
+  fi
+}
+
 if [ "${MODE}" = 'write' ]; then
+  KUBE_CTX="$(kube_context)"
+  KUBE_FLAG=''
+  [ -n "${KUBE_CTX}" ] && KUBE_FLAG="--context ${KUBE_CTX} "
+  KUBE_NOTE=''
+  case "${KUBE_CTX}" in
+    *-admin) KUBE_NOTE="Context ${KUBE_CTX} asks for the sudo password: run these from a terminal.
+Set ESTATE_KUBE_CONTEXT to use another context.
+
+" ;;
+  esac
   cat <<EOF
 
 Next, in ${FLEET_ROOT}:
@@ -139,12 +168,12 @@ Flux reads deploy/production, which a workflow publishes from main. Wait for
 that publish to land before reconciling -- reconciling early silently applies
 the previous revision. Then:
 
-  kubectl -n agents-system rollout restart deploy/hermes
-  kubectl -n agents-system logs deploy/hermes -c sync-skills
-  kubectl -n agents-system exec deploy/hermes -- hermes skills list
-  kubectl -n agents-system exec deploy/hermes -- hermes doctor
+  kubectl ${KUBE_FLAG}-n agents-system rollout restart deploy/hermes
+  kubectl ${KUBE_FLAG}-n agents-system logs deploy/hermes -c sync-skills
+  kubectl ${KUBE_FLAG}-n agents-system exec deploy/hermes -- hermes skills list
+  kubectl ${KUBE_FLAG}-n agents-system exec deploy/hermes -- hermes doctor
 
-Read sync-skills' output rather than trusting Ready: it counts skills from
+${KUBE_NOTE}Read sync-skills' output rather than trusting Ready: it counts skills from
 disk and REJECTS any source whose commit does not match its pin.
 EOF
 fi

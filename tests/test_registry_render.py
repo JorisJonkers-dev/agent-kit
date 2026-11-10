@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -327,17 +328,25 @@ exit 0
     "curl": '#!/bin/bash\n[ -f "$STATE/up" ]\n',
     "kubectl": """#!/bin/bash
 if [ "$1 $2" = "config current-context" ]; then echo prod-ctx; exit 0; fi
+if [ "$1 $2" = "config get-contexts" ]; then cat "$STATE/contexts" 2>/dev/null; exit 0; fi
 echo "$*" >> "$STATE/kubectl.log"
 """,
     "sleep": "#!/bin/bash\nexit 0\n",
 }
 
 
-def _run_helper(tmp_path: Path, os_name: str, check_only: int = 0) -> subprocess.CompletedProcess:
+def _run_helper(
+    tmp_path: Path,
+    os_name: str,
+    check_only: int = 0,
+    contexts: str = "prod-ctx\nprod-ctx-pf\nprod-ctx-admin\n",
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
     bin_dir = tmp_path / "bin"
     state = tmp_path / "state"
     bin_dir.mkdir(exist_ok=True)
     state.mkdir(exist_ok=True)
+    (state / "contexts").write_text(contexts)
     stubs = dict(_STUBS, uname=f"#!/bin/bash\necho {os_name}\n")
     for name, body in stubs.items():
         path = bin_dir / name
@@ -357,6 +366,7 @@ ensure_port_forward kubernetes agents-system kubernetes-mcp-server 18080 8080
         "PATH": f"{bin_dir}:/usr/bin:/bin",
         "STATE": str(state),
         "KUBECONFIG": str(tmp_path / "kubeconfig"),
+        **(extra_env or {}),
     }
     return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, check=False)
 
@@ -377,7 +387,7 @@ def test_macos_installs_a_keepalive_launchd_agent(tmp_path: Path) -> None:
     text = plist.read_text()
     assert "<key>KeepAlive</key>\n  <true/>" in text
     # Pinned to the setup-time context, loopback only, the declared ports.
-    for arg in ("port-forward", "--context", "prod-ctx", "svc/kubernetes-mcp-server",
+    for arg in ("port-forward", "--context", "prod-ctx-pf", "svc/kubernetes-mcp-server",
                 "--address", "127.0.0.1", "18080:8080"):
         assert f"<string>{arg}</string>" in text
     assert f"<string>{tmp_path / 'kubeconfig'}</string>" in text
@@ -418,7 +428,7 @@ def test_linux_installs_a_restarting_systemd_user_unit(tmp_path: Path) -> None:
     assert "ok kubernetes: systemd user unit" in result.stdout
     text = _unit(tmp_path).read_text()
     assert "Restart=always" in text and "WantedBy=default.target" in text
-    assert '"--context" "prod-ctx"' in text and '"svc/kubernetes-mcp-server"' in text
+    assert '"--context" "prod-ctx-pf"' in text and '"svc/kubernetes-mcp-server"' in text
     assert '"127.0.0.1" "18080:8080"' in text
     assert f'Environment="KUBECONFIG={tmp_path / "kubeconfig"}"' in text
     assert not _plist(tmp_path).exists()
@@ -456,6 +466,34 @@ def test_other_os_falls_back_to_a_one_shot_forward(tmp_path: Path) -> None:
     assert not _plist(tmp_path).exists()
     assert not _unit(tmp_path).exists()
     assert not (tmp_path / "state" / "launchctl.log").exists()
+
+
+def test_the_forward_uses_the_port_forward_context_when_it_exists(tmp_path: Path) -> None:
+    result = _run_helper(tmp_path, "Linux")
+    assert "warn" not in result.stdout, result.stdout
+    assert "(context prod-ctx-pf)" in result.stdout
+
+
+def test_without_a_port_forward_context_it_falls_back_to_the_current_one_and_says_so(tmp_path: Path) -> None:
+    result = _run_helper(tmp_path, "Linux", contexts="prod-ctx\nprod-ctx-admin\n")
+    assert "warn kubernetes: no prod-ctx-pf kube context; forwarding with prod-ctx" in result.stdout, result.stdout
+    assert '"--context" "prod-ctx"' in _unit(tmp_path).read_text()
+    assert '"prod-ctx-pf"' not in _unit(tmp_path).read_text()
+
+
+def test_a_named_context_wins_over_the_guess(tmp_path: Path) -> None:
+    _run_helper(tmp_path, "Linux", extra_env={"AK_PORT_FORWARD_CONTEXT": "chosen"})
+    assert '"--context" "chosen"' in _unit(tmp_path).read_text()
+
+
+def test_the_one_shot_forward_uses_the_port_forward_context_too(tmp_path: Path) -> None:
+    _run_helper(tmp_path, "FreeBSD")
+    log = tmp_path / "state" / "kubectl.log"
+    for _ in range(50):  # the forward is a background process
+        if log.exists() and log.read_text():
+            break
+        time.sleep(0.1)
+    assert "port-forward --context prod-ctx-pf -n agents-system svc/kubernetes-mcp-server" in log.read_text()
 
 
 # --- Claude Code profiles ---

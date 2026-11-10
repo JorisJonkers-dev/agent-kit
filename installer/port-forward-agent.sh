@@ -19,9 +19,16 @@
 #
 # Any other OS: the one-shot background forward, with a warning.
 #
-# The forward is pinned to the kube context that is current when setup runs.
-# Without the pin, switching contexts later would point a "read-only cluster
-# diagnostics" server at whichever cluster happened to be current.
+# The forward is pinned to a kube context chosen when setup runs. Without the
+# pin, switching contexts later would point a "read-only cluster diagnostics"
+# server at whichever cluster happened to be current.
+#
+# The context is `<current>-pf` when it exists: scripts/workstation-kube.py
+# installs it with a ServiceAccount that can only port-forward to the services
+# the agents need. The plain read-only context cannot port-forward, and the
+# `-admin` one needs a sudo password a background agent does not have. Without
+# a `-pf` context the current one is used, with a warning that says why it may
+# fail. AK_PORT_FORWARD_CONTEXT names a context outright.
 
 AK_AGENT_PREFIX="dev.jorisjonkers.agent-kit.port-forward"
 AK_LAUNCH_AGENTS_DIR="${AK_LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
@@ -38,6 +45,32 @@ _pf_xml() {
 
 _pf_answers() {
   curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$1/" >/dev/null 2>&1
+}
+
+# _pf_context <name>: sets PF_CONTEXT to the kube context the forward uses, empty
+# when there is none.
+_pf_context() {
+  local name="$1" current contexts
+  PF_CONTEXT="${AK_PORT_FORWARD_CONTEXT:-}"
+  if [ -n "${PF_CONTEXT}" ]; then
+    return 0
+  fi
+  current="$(kubectl config current-context 2>/dev/null || true)"
+  if [ -z "${current}" ]; then
+    return 0
+  fi
+  contexts="$(kubectl config get-contexts -o name 2>/dev/null || true)"
+  case "${current}" in
+    *-pf) PF_CONTEXT="${current}" ;;
+    *)
+      if printf '%s\n' "${contexts}" | grep -qxF -- "${current}-pf"; then
+        PF_CONTEXT="${current}-pf"
+      else
+        PF_CONTEXT="${current}"
+        warn "${name}: no ${current}-pf kube context; forwarding with ${current}, which may lack permission to port-forward (re-run scripts/workstation-kube.py install --device <device>)"
+      fi
+      ;;
+  esac
 }
 
 # _pf_plist <label> <log> <kubeconfig> <path> <argv...>
@@ -125,7 +158,8 @@ _pf_linux_unit() {
   local unit="${AK_SYSTEMD_USER_DIR}/${unit_name}"
   local kubectl_bin context
   kubectl_bin="$(command -v kubectl)"
-  context="$(kubectl config current-context 2>/dev/null || true)"
+  _pf_context "${name}"
+  context="${PF_CONTEXT}"
   if [ -z "${context}" ]; then
     warn "${name}: no current kube context; not installing the port-forward unit"
     return 0
@@ -199,7 +233,8 @@ ensure_port_forward() {
     else
       warn "${name}: starting a one-shot kubectl port-forward svc/${svc} ${lport}:${rport} (not kept alive on this OS)"
     fi
-    kubectl port-forward -n "${ns}" "svc/${svc}" --address 127.0.0.1 "${lport}:${rport}" >/dev/null 2>&1 &
+    _pf_context "${name}"
+    kubectl port-forward ${PF_CONTEXT:+--context "${PF_CONTEXT}"} -n "${ns}" "svc/${svc}" --address 127.0.0.1 "${lport}:${rport}" >/dev/null 2>&1 &
     sleep 2
     _pf_answers "${lport}" || warn "${name}: port-forward did not come up; registration may fail"
     return 0
@@ -211,7 +246,8 @@ ensure_port_forward() {
   local domain kubectl_bin context
   domain="gui/$(id -u)"
   kubectl_bin="$(command -v kubectl)"
-  context="$(kubectl config current-context 2>/dev/null || true)"
+  _pf_context "${name}"
+  context="${PF_CONTEXT}"
   if [ -z "${context}" ]; then
     warn "${name}: no current kube context; not installing the port-forward agent"
     return 0

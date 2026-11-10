@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -46,9 +47,10 @@ data:
 """
 
 
-def _run_sync(fleet_root: Path, mode: str) -> subprocess.CompletedProcess:
+def _run_sync(fleet_root: Path, mode: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["bash", str(SYNC_SCRIPT), str(fleet_root), mode],
+        env=env,
         capture_output=True,
         text=True,
         check=False,
@@ -100,6 +102,43 @@ def test_check_mode_reports_the_corrupted_file_as_stale(tmp_path: Path) -> None:
     # The file on disk is untouched in --check mode.
     config = (fleet_root / "cluster/flux/apps/agents/hermes/config-configmap.yaml").read_text()
     assert config == _CONFIG_CM_CORRUPTED
+
+
+def _kube_env(tmp_path: Path, contexts: str, current: str = "personal", **extra: str) -> dict[str, str]:
+    """PATH with a kubectl that knows only the given contexts."""
+    bin_dir = tmp_path / "kbin"
+    bin_dir.mkdir(exist_ok=True)
+    stub = bin_dir / "kubectl"
+    stub.write_text(
+        "#!/usr/bin/env bash\n"
+        f'if [ "$1 $2" = "config current-context" ]; then echo {current}; exit 0; fi\n'
+        f'if [ "$1 $2" = "config get-contexts" ]; then printf \'%s\\n\' {contexts}; exit 0; fi\n'
+        "exit 1\n"
+    )
+    stub.chmod(0o755)
+    base = {k: v for k, v in os.environ.items() if k != "ESTATE_KUBE_CONTEXT"}
+    return {**base, "PATH": f"{bin_dir}:{os.environ['PATH']}", **extra}
+
+
+def test_the_printed_commands_use_the_admin_context_when_it_exists(tmp_path: Path) -> None:
+    fleet_root = _make_fleet_root(tmp_path)
+    result = _run_sync(fleet_root, "--write", _kube_env(tmp_path, "personal personal-admin personal-pf"))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "kubectl --context personal-admin -n agents-system exec deploy/hermes -- hermes doctor" in result.stdout
+    assert "kubectl -n agents-system" not in result.stdout
+
+
+def test_the_printed_commands_use_the_current_context_without_an_admin_one(tmp_path: Path) -> None:
+    fleet_root = _make_fleet_root(tmp_path)
+    result = _run_sync(fleet_root, "--write", _kube_env(tmp_path, "personal personal-pf"))
+    assert "kubectl --context personal -n agents-system rollout restart deploy/hermes" in result.stdout
+
+
+def test_estate_kube_context_overrides_the_guess(tmp_path: Path) -> None:
+    fleet_root = _make_fleet_root(tmp_path)
+    env = _kube_env(tmp_path, "personal personal-admin", ESTATE_KUBE_CONTEXT="elsewhere")
+    result = _run_sync(fleet_root, "--write", env)
+    assert "kubectl --context elsewhere -n agents-system logs deploy/hermes" in result.stdout
 
 
 if __name__ == "__main__":
