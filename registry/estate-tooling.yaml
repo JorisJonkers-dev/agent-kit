@@ -1232,8 +1232,9 @@ vibe_delegate_agents:
 #
 #   hosts   linux | mac. The work instance runs on the work machine (mac)
 #           only.
-#   banks   shared | nedap. Only the work instance reaches the nedap bank
-#           (ADR-0012); Private Memory is reachable only from vibe-private.
+#   banks   the work instance reaches the nedap bank only, the personal
+#           instance the shared bank only (ADR-0012: employer facts never
+#           enter Shared Memory); Private Memory is reachable only from vibe-private.
 # -------------------------------------------------------------------
 gold_band_instances:
   gold-band:
@@ -1242,9 +1243,9 @@ gold_band_instances:
       remotes: nedap-only
       no_remote: refuse
     hosts: [mac]
-    banks: [nedap, shared]
+    banks: [nedap]
   gold-band-personal:
-    agents: [opencode, vibe, vibe-study, agy, hermes, claude]
+    agents: [claude, opencode, vibe, vibe-study, pi, agy, hermes]
     repository_rule:
       remotes: not-nedap
       no_remote: allow

@@ -307,7 +307,7 @@ price per million input and output tokens, nothing else:
 
 `gold_band_instances` declares the two Gold Band instances (ADR-0011):
 `gold-band` (work: `claude-work` and `codex` only, `nedap`-owned remotes only,
-no remote refused, the mac only, the `nedap` bank) and `gold-band-personal`
+no remote refused, the mac only, the `nedap` bank only) and `gold-band-personal`
 (every other agent, `nedap`-owned remotes refused, no remote allowed). Each
 instance records its `repository_rule`; an instance without one is refused.
 

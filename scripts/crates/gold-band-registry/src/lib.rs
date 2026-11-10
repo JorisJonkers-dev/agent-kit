@@ -21,8 +21,10 @@
 //!   instance's, is refused;
 //! * `hosts.N`: `linux` or `mac`; the work instance runs on the work machine
 //!   (`mac`) only;
-//! * `banks.N`: `shared` or `nedap`; the work instance names `nedap`, the
-//!   personal instance never does (Private Memory is reachable only from
+//! * `banks.N`: the work instance reaches the `nedap` bank only, the
+//!   personal instance the `shared` bank only; any other bank, including
+//!   `nedap` on the personal instance and `shared` on the work instance,
+//!   is refused (Private Memory is reachable only from
 //!   vibe-private, so no instance names it);
 //! * any other field is refused.
 //!
@@ -212,14 +214,13 @@ fn registry_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
         out.push(format!("{place}: declares no banks"));
     }
     for bank in &banks {
-        if !matches!(*bank, "shared" | "nedap") {
-            out.push(format!("{place}: unknown bank {} (shared or nedap)", shown(bank)));
-        } else if !work && *bank == "nedap" {
-            out.push(format!("{place}: the nedap bank is reachable only from {WORK}"));
+        let want = if work { "nedap" } else { "shared" };
+        if *bank != want {
+            out.push(format!(
+                "{place}: bank {} is not allowed (this instance reaches the {want} bank only)",
+                shown(bank)
+            ));
         }
-    }
-    if work && !banks.contains(&"nedap") && !banks.is_empty() {
-        out.push(format!("{place}: must name the nedap bank"));
     }
 }
 
@@ -425,7 +426,7 @@ mod tests {
     const WORK_OK: &str = "instance\tgold-band\n\
         field\tagents.0\tclaude-work\nfield\tagents.1\tcodex\n\
         field\trepository_rule.remotes\tnedap-only\nfield\trepository_rule.no_remote\trefuse\n\
-        field\thosts.0\tmac\nfield\tbanks.0\tnedap\nfield\tbanks.1\tshared\n";
+        field\thosts.0\tmac\nfield\tbanks.0\tnedap\n";
     const PERSONAL_OK: &str = "instance\tgold-band-personal\n\
         field\tagents.0\tvibe\nfield\tagents.1\topencode\n\
         field\trepository_rule.remotes\tnot-nedap\nfield\trepository_rule.no_remote\tallow\n\
@@ -493,9 +494,10 @@ mod tests {
     fn hosts_and_banks_are_checked() {
         has(&registry().replace("hosts.0\tmac", "hosts.0\tlinux"), "work machine (mac) only");
         has(&registry().replace("hosts.0\tlinux", "hosts.0\twindows"), "unknown host windows");
-        has(&registry().replace("banks.0\tnedap\n", "banks.0\tshared\n"), "must name the nedap bank");
-        has(&registry().replace("banks.0\tshared\n", "banks.0\tnedap\n"), "reachable only from gold-band");
-        has(&registry().replace("banks.0\tshared\n", "banks.0\tprivate\n"), "unknown bank private");
+        has(&registry().replace("banks.0\tnedap\n", "banks.0\tshared\n"), "bank shared is not allowed (this instance reaches the nedap bank only)");
+        has(&registry().replace("banks.0\tnedap\n", "banks.0\tnedap\nfield\tbanks.1\tshared\n"), "bank shared is not allowed");
+        has(&registry().replace("banks.0\tshared\n", "banks.0\tnedap\n"), "bank nedap is not allowed (this instance reaches the shared bank only)");
+        has(&registry().replace("banks.0\tshared\n", "banks.0\tprivate\n"), "bank private is not allowed");
     }
 
     #[test]
