@@ -69,6 +69,7 @@ describe('check-adrs on a well-formed log', () => {
       ],
       stale: [],
       status: 'passed',
+      superseded: [],
       unknown_statuses: [],
       unresolved_links: [],
     })

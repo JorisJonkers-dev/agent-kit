@@ -3440,7 +3440,8 @@ The decision-log pre-check (agent-kit#226), the ADR review's counterpart of
   but it needs no family allowlist entry and writes nothing. A repository
   with no records in `docs/adr/` is refused with `no-adrs`. The result is
   `{ status, records, numbering, unknown_statuses, unresolved_links,
-  cites_superseded }`; each record lists its path, the number its file name
+  cites_superseded, superseded }`; `superseded` lists the paths of the records
+  the log supersedes; each record lists its path, the number its file name
   starts with, its title, the status it states (or null) and whether it is
   in force.
 - **What fails it.** `status` is `failed`, and the command line exits 3,
@@ -3537,3 +3538,37 @@ The `/critique-adrs` skill and the `adr-review` stage's own rules
 - **Second round.** `adr-review` calls for one after more than three
   critical findings are still accepted after the refute round; a refuted
   critical does not count.
+
+## What #485 settled
+
+The refactoring plan format and its deterministic check (agent-kit#485,
+architecture-expansion section 5.5):
+
+- **The command.** `critique check-plan` takes `{ "plan", "repo"? }`. With
+  `repo` it resolves the repository as prepare does (a refused remote is
+  refused) and reads `plan` relative to its root, and it checks anchored ADR
+  ids against `docs/adr/` (absent, or superseded as `check-adrs` reads
+  status). Without `repo` it reads the file as given and skips the ADR
+  checks with a note. It sends nothing and writes nothing. `status` is
+  `failed`, and the command line exits 3, while any error is reported.
+- **The format.** Sections `Goal`, `Target`, `Safety net`, `Steps`, `Not
+  doing`, `Open decisions`; each step is `### S01: <title>` with the fields
+  Kind, Technique, Anchor, Touches, Safety net, Main stays green because,
+  Rollback, Transitional element, Blocked by, Done when, as
+  `- **Field**: value` lines (a field may continue on indented lines or
+  sub-bullets; `none` is a value for Transitional element and Blocked by).
+- **Rules.** `missing-section`, `no-steps`, `bad-step-heading`,
+  `duplicate-step`, `duplicate-field` (a field given twice in a step), `missing-field`, `multiple-kinds`, `unknown-kind`,
+  `step-cycle`, `blocked-by-unknown`, `expand-incomplete`,
+  `transitional-no-removal`, `anchor-unresolved`, `anchor-unknown-step`,
+  `adr-absent`, `adr-superseded`, `behaviour-not-in-goal`,
+  `untested-structure`, `path-outside-anchor`, `too-many-touches`,
+  `too-many-criteria`. The size limits are routing's `ticket_size` for the
+  tickets stage. The report adds `stored_data_steps`, the migrate and
+  contract steps whose Touches or Technique mention a table, column,
+  migration, schema, database or stored data, for the depth signal.
+- **Expand is plan-wide.** An `expand` step passes when the plan holds at
+  least one `migrate` and one `contract` step anywhere; the check does not
+  tie them to that expand.
+- **Not checked.** A fact anchor is recognised by its form, a backticked
+  path; whether the path has a row in the facts index is not looked up.

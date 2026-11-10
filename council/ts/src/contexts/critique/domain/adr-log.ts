@@ -47,6 +47,8 @@ export interface AdrStructure {
   readonly unknown_statuses: readonly { readonly record: string; readonly status: string }[]
   readonly unresolved_links: readonly AdrLink[]
   readonly cites_superseded: readonly { readonly record: string; readonly cites: string }[]
+  /** The paths of the records the log supersedes: marked so, replaced by a record in force, or naming a replacement. */
+  readonly superseded: readonly string[]
 }
 
 /** The structure, and what the working tree and its history say about the code the records name. */
@@ -175,6 +177,7 @@ export function checkAdrLog(
     }),
     numbering: numbering(records),
     records,
+    superseded: [...superseded],
     unknown_statuses: records.flatMap((record) =>
       record.status === null || STATUSES.includes(record.status)
         ? []

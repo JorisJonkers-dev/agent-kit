@@ -35,6 +35,7 @@ const COMMANDS = {
   allow: 'allow',
   budget: 'budget',
   'check-adrs': 'checkAdrs',
+  'check-plan': 'checkPlan',
   'check-tickets': 'checkTickets',
   facts: 'facts',
   'fan-out': 'fanOut',
@@ -50,7 +51,7 @@ const COMMANDS = {
   triage: 'triage',
 } as const satisfies Record<string, keyof CritiqueCommands>
 
-export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]
+export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]
        critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>
        critique search-server --root DIR [--max-matches N] [--max-bytes N]
 
@@ -58,7 +59,7 @@ Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".
 An error prints "status": "error" with its "code" and exits 1. A check that
 fails, such as check-tickets finding a dependency cycle or check-adrs a
-structural error in the decision log, prints
+structural error in the decision log or check-plan a rule of the plan format, prints
 "status": "failed" and exits 3. gate and session-start always exit 0; input
 they cannot read is allowed, and logged.
 
