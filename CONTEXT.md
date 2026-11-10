@@ -199,8 +199,9 @@ _Avoid_: challenge round, appeal
 **Role**:
 The job one critic is given in a critique stage (for example `spec-redteam`):
 the part of its prompt, after the shared preamble, that says what it reviews
-and how. A role never mentions other models or critics.
-_Avoid_: persona, agent, prompt
+and how. A role never mentions other models or critics. Gold Band calls a
+role a profile; in this repository it is still a role.
+_Avoid_: persona, agent, prompt, Gold Band profile
 
 **Lens**:
 The angle one critic is told to review from (fidelity, failure modes, ...).
@@ -211,8 +212,10 @@ The per-repository list of model families a critique or a delegation may
 send content to, kept per machine outside the repository, so nothing about it
 is committed.
 It is keyed by the repository's remote. A repository with no entry, or with
-no remote, sends nothing; a repository owned by the `nedap` GitHub
-organisation sends nothing to critics, whatever its entry says. An entry allows
+no remote, sends nothing. A repository owned by the `nedap` GitHub
+organisation has a work-only critic roster, whatever its entry says: its
+critics may be Codex on the nedap account (under a grant) and the work Claude
+agent, and nothing else, and never the orchestrator's own family. An entry allows
 documents only unless its code permission is on; the code stages refuse
 while it is off. Its history permission, also off by default, separately
 lets a stage send the repository's commit messages and issue text; while it
@@ -274,7 +277,9 @@ _Avoid_: tier, pricing
 The owner's permission for one named workflow to send delegations to a
 metered-employer client, with a dollar cap. Without a grant the model gateway
 refuses that client. A grant ends when its workflow ends, after 24 hours, or
-when its cap is spent; a lapsed grant needs the owner asked again.
+when its cap is spent; a lapsed grant needs the owner asked again. A Gold Band
+workflow run counts as one workflow, and its grant's cap is counted in Codex
+node starts instead of dollars (ADR-0011).
 _Avoid_: approval, token, allowance
 
 **Workflow**:
@@ -340,3 +345,60 @@ The estate's gateway for third-party dependencies,
 packages.jorisjonkers.dev, that setup points every package manager at;
 first-party packages stay direct.
 _Avoid_: registry (that is the tooling registry), mirror
+
+## Gold Band
+
+**Gold Band**:
+The third-party desktop and headless app (github.com/diodeme/Gold-Band) that
+starts coding agents over the Agent Client Protocol and runs Gold Band
+workflows. agent-kit configures it and starts processes; it never changes
+Gold Band's own code.
+_Avoid_: GB, the harness, our harness
+
+**Gold Band workflow**:
+A JSON workflow definition that a Gold Band instance runs: nodes bound to agent ids,
+joined by success and failure edges. Always written in full, because
+**Workflow** alone is the model gateway's unit.
+_Avoid_: workflow (alone), pipeline, flow
+
+**Agent id**:
+One agent binding in Gold Band: one agent, at one reach level, with one skill
+set. A Gold Band workflow node gets exactly the reach of the agent id it names.
+_Avoid_: agent (alone), profile, binding
+
+**Reach level**:
+What an agent id may read, search, fetch from the web and write: `read`,
+`read-web`, `research`, `write-scoped`, `write`, `full` or `run-one-command`.
+It says what an agent may reach, not the part it plays (that is a role).
+_Avoid_: capability profile, permission level, ACL
+
+**Gold Band instance**:
+One separately configured Gold Band with its own data, agents and repository
+rule. There are two: the work instance and the personal instance.
+_Avoid_: Gold Band lane, profile
+
+**Work instance**:
+The Gold Band instance named `gold-band`. It holds only the work Claude agent
+and Codex, runs only on repositories with a `nedap`-owned remote, and runs
+only on the work machine. Every run that binds Codex needs a live grant, and
+each node that binds Codex is checked against it again before it starts.
+_Avoid_: gold-band-work, work lane
+
+**Personal instance**:
+The Gold Band instance named `gold-band-personal`. It holds every declared
+agent except Codex and the work Claude agent, and refuses repositories with a
+`nedap`-owned remote; a repository with no remote is allowed. On the work
+machine it runs under a second operating-system user account.
+_Avoid_: personal lane, personal mode
+
+**Direct lane**:
+Work that runs through an agent started directly (Claude Code, Codex, Vibe and
+the others) or through the model gateway, on any repository. Nothing is
+removed from it when the same thing is also offered in a Gold Band instance.
+_Avoid_: legacy lane, manual mode
+
+**Nedap bank**:
+The memory bank that holds employer facts. Only work surfaces reach it: the
+work instance and direct-lane sessions on `nedap` repositories. Shared Memory
+and Private Memory never hold employer facts.
+_Avoid_: work memory, work bank
