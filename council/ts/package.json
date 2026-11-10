@@ -5,7 +5,7 @@
   "type": "module",
   "description": "TypeScript council orchestrator package scaffold.",
   "engines": {
-    "node": ">=22"
+    "node": "v26.13.0"
   },
   "packageManager": "npm@10.9.9",
   "scripts": {
@@ -19,7 +19,7 @@
     "@eslint/js": "9.39.5",
     "@types/node": "22.20.5",
     "@vitest/coverage-v8": "4.1.12",
-    "dependency-cruiser": "^17.0.1",
+    "dependency-cruiser": "17.4.3",
     "esbuild": "0.28.2",
     "eslint": "9.39.5",
     "prettier": "3.9.10",
