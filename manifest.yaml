@@ -478,7 +478,7 @@ council:
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs
-      sha256: 6e79fb5bbb13f8002331d799f8092a99d8ea61dda051c29d2ce975c9fac5d920
+      sha256: 78ec1455d068b0a02afac7d5c9ab94990f0f1f55fa40abe59d0be60ede274f27
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
       sha256: 4bcf6d9cefbef0eb638d5dac328c84a22f120e7799cd834f677daaa48fcef65c
@@ -499,7 +499,7 @@ critique:
       sha256: e56b4588363c98ee6996bd1f6029baf8c7c112984d60a685d490eb525375c6e8
       mode: "0644"
     - path: skills/workstation/critique/lenses/decision-log.md
-      sha256: 65e5388b3c8ed8a2ae3776f37bf113cf075d3ce50e11d65d7ac0c07fe866c4b6
+      sha256: 9b1d33dfe5cf81f59540a4837a577c57ff11b598db2e921feee5350e8755f725
       mode: "0644"
     - path: skills/workstation/critique/lenses/dependency-direction.md
       sha256: 7e32170480a878e374b197ae0ec76db9ee21194cd0823c6170969ab003321c13
@@ -550,7 +550,7 @@ critique:
       sha256: 07d06a53117140ea2fb70902a7c0ae999748457ae1c62015709ad471d85b9097
       mode: "0644"
     - path: skills/workstation/critique/roles/adr-reviewer.md
-      sha256: 3ef1f3aa41a8069f7101329edc7353d0fd062c727a43de6d333210e02802eb05
+      sha256: a8a1c30391c5d81bb23d72fb5db963d2aef49aa9b4d3bb7fa4390820ed82cb4d
       mode: "0644"
     - path: skills/workstation/critique/roles/diff-reviewer.md
       sha256: 8387486bfca350811c6ae88391a353b49c96a6532e36086e0421c25aa0262f7f
@@ -571,7 +571,7 @@ critique:
       sha256: fa4dceabc2764d7d2fcf4638b376f9444553764b674ce42aec3c295012dfd20a
       mode: "0644"
     - path: skills/workstation/critique/README.md
-      sha256: 2c9c82bbf533e46a6613b4498b8c5fbb7cc75573290f97942c5f90f6eefc8823
+      sha256: 539308f5755fbf93bcf4d116a39145f09747543bded205810c00ea362557a7ed
       mode: "0644"
     - path: skills/workstation/critique/routing.json
       sha256: f64636b390cb209a466f5ce89e924061d316fcdc45878963b9ad5c3c89fac741

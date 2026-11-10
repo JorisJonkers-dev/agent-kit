@@ -6126,9 +6126,6 @@ var BudgetCommand = class {
 // src/contexts/critique/application/check-adrs.ts
 import { join as join13 } from "node:path";
 
-// src/contexts/critique/domain/adr-log.ts
-import { posix as posix2 } from "node:path";
-
 // src/contexts/critique/domain/decision-docs.ts
 var DOMAIN_DOC = "docs/agents/domain.md";
 var GLOSSARIES = ["GLOSSARY.md", "CONTEXT.md"];
@@ -6158,8 +6155,67 @@ function recordStatus(record) {
 function withoutFences(markdown) {
   return markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
 }
+function decisionDate(record) {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? "";
+  const prose2 = withoutFences(record);
+  return /^date[ \t]*:[ \t]*["']?(\d{4}-\d{2}-\d{2})/im.exec(frontmatter)?.[1] ?? /^[ \t]*(?:[-*+][ \t]+)?(?:\*\*|__)?date(?:[ \t]*:[ \t]*(?:\*\*|__)?|(?:\*\*|__)[ \t]*:?)[ \t]*(\d{4}-\d{2}-\d{2})/im.exec(prose2)?.[1];
+}
+
+// src/contexts/critique/domain/adr-drift.ts
+var KNOWN_EXTENSION = /\.(?:ts|tsx|js|mjs|cjs|json|ya?ml|toml|md|py|sh|css|html|sql|lock|kt|java|go|rs)$/i;
+var PATH_SHAPE = /^[\w@.-]+(?:\/[\w@.-]+)*\/?$/;
+var IDENTIFIER = /^[A-Za-z_]\w*$/;
+function namedCode(markdown) {
+  const paths = /* @__PURE__ */ new Set();
+  const symbols = /* @__PURE__ */ new Set();
+  for (const match of withoutFences(markdown).matchAll(/`([^`\n]+)`/g)) {
+    const [pathPart = "", symbolPart] = (match[1] ?? "").trim().split("#");
+    const path = pathPart.replace(/^\.\//, "").replace(/\/+$/, "");
+    if (isPath(pathPart)) {
+      paths.add(path);
+      const anchor = symbolPart?.replace(/\(\)$/, "");
+      if (anchor !== void 0 && IDENTIFIER.test(anchor)) symbols.add(anchor);
+    } else if (symbolPart === void 0 && isSymbol(pathPart)) {
+      symbols.add(pathPart.replace(/\(\)$/, ""));
+    }
+  }
+  return { paths: [...paths], symbols: [...symbols] };
+}
+function isPath(text) {
+  const path = text.replace(/^\.\//, "");
+  const marked = path !== text || path.endsWith("/") || KNOWN_EXTENSION.test(path);
+  return marked && PATH_SHAPE.test(path) && !path.split("/").includes("..");
+}
+function isSymbol(text) {
+  const name = text.replace(/\(\)$/, "");
+  return IDENTIFIER.test(name) && /[a-z0-9][A-Z]/.test(name);
+}
+function namedBy(records) {
+  return records.map((record) => ({ ...record, ...namedCode(record.text) }));
+}
+function driftAndStale(records, facts) {
+  const drifted = [];
+  const stale = [];
+  for (const record of records) {
+    const missing = record.paths.filter((path) => !facts.pathExists(path));
+    drifted.push(
+      ...missing.map((named) => ({ named, reason: "missing-path", record: record.path })),
+      ...record.symbols.filter((named) => !facts.symbolExists(named)).map((named) => ({ named, reason: "missing-symbol", record: record.path }))
+    );
+    const decided = decisionDate(record.text);
+    if (decided === void 0) continue;
+    const logDir = record.path.includes("/") ? record.path.slice(0, record.path.lastIndexOf("/") + 1) : "";
+    for (const path of record.paths.filter((named) => !missing.includes(named) && !(logDir !== "" && named.startsWith(logDir)))) {
+      const change = facts.lastChange(path);
+      if (change !== void 0 && change.date.slice(0, 10) > decided)
+        stale.push({ decision_date: decided, last_change: change.date, last_commit: change.commit, path, record: record.path });
+    }
+  }
+  return { drifted, stale };
+}
 
 // src/contexts/critique/domain/adr-log.ts
+import { posix as posix2 } from "node:path";
 var ADR_CHECK_PATH = "check/adrs.json";
 var STATUSES = ["proposed", "accepted", "rejected", "deprecated", "superseded"];
 var RECORD_NUMBER = /^(?!\d{4}[-_]\d{1,2}[-_]\d{1,2}(?!\d))(\d{1,5})[-_ ]/;
@@ -6293,12 +6349,49 @@ function repositoryPath(record, target) {
 async function logRecords(files, root) {
   return (await files.listFiles(join13(root, ADR_DIRECTORY))).filter((name) => name.endsWith(".md")).map((name) => join13(ADR_DIRECTORY, name));
 }
-async function checkLog(files, root, paths) {
+async function checkLog(deps, root, paths) {
+  const { files } = deps;
   const sources = await Promise.all(paths.map(async (path) => ({ path, text: await files.readText(join13(root, path)) })));
   const linked = linkedPaths(sources);
   const found = await Promise.all(linked.map(async (path) => await files.exists(join13(root, path)) ? [path] : []));
-  const check = checkAdrLog(sources, new Set(found.flat()));
-  return { status: adrCheckStatus(check), ...check };
+  const structure = checkAdrLog(sources, new Set(found.flat()));
+  const inForce2 = new Set(structure.records.filter((record) => record.in_force && record.number !== null).map((record) => record.path));
+  const checked = namedBy(sources.filter((source) => inForce2.has(source.path)));
+  const facts = await codeFacts(deps, root, checked);
+  const { drifted, stale } = facts === void 0 ? { drifted: [], stale: [] } : driftAndStale(checked, facts);
+  return { status: adrCheckStatus(structure), ...structure, drifted, stale };
+}
+var READ_CONCURRENCY = 32;
+var searched = (path) => !path.startsWith(`${ADR_DIRECTORY}/`) && !path.split("/").includes("node_modules");
+async function codeFacts({ files, git }, root, records) {
+  const head = await git.resolveCommit(root, "HEAD").catch(() => void 0);
+  if (head === void 0) return void 0;
+  const names = [...new Set(records.flatMap((record) => record.paths))];
+  const existing = new Set((await Promise.all(names.map(async (path) => await files.exists(join13(root, path)) ? [path] : []))).flat());
+  const changes = /* @__PURE__ */ new Map();
+  for (const path of existing) {
+    const change = await git.lastChange(root, path);
+    if (change !== null) changes.set(path, change);
+  }
+  const wanted = new Set(records.flatMap((record) => record.symbols));
+  const present = /* @__PURE__ */ new Set();
+  let incomplete = false;
+  if (wanted.size > 0) {
+    const tracked = [...await git.treeFiles(root, head), ...await git.untrackedPaths(root)].filter(searched);
+    const queue = [...tracked];
+    const worker = async () => {
+      for (let path = queue.shift(); path !== void 0; path = queue.shift()) {
+        try {
+          const text = await files.readText(join13(root, path));
+          for (const word of text.match(/[A-Za-z_]\w*/g) ?? []) if (wanted.has(word)) present.add(word);
+        } catch (error) {
+          if (error.code !== "ENOENT") incomplete = true;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(READ_CONCURRENCY, tracked.length) }, worker));
+  }
+  return { lastChange: (path) => changes.get(path), pathExists: (path) => existing.has(path), symbolExists: (symbol) => incomplete || present.has(symbol) };
 }
 var CheckAdrsCommand = class {
   constructor(deps) {
@@ -6313,7 +6406,7 @@ var CheckAdrsCommand = class {
     if (repository.status === "refused") return repository;
     const paths = await logRecords(this.deps.files, repository.root);
     if (paths.length === 0) return refusal("no-adrs", `found no decision records in ${ADR_DIRECTORY}/ to review`);
-    return checkLog(this.deps.files, repository.root, paths);
+    return checkLog(this.deps, repository.root, paths);
   }
 };
 
@@ -6808,8 +6901,8 @@ function gatewayProblems(calls) {
     if (call.status === "failed" && call.code === "tool_denied") return [];
     return [`${tool} came back ${call.status}${call.code === void 0 ? "" : ` (${call.code})`}, not tool_denied`];
   });
-  const searched = calls.some((entry2) => entry2.tool === GATEWAY_PROOF.searched && entry2.status === "completed");
-  return searched ? problems : [...problems, `${GATEWAY_PROOF.searched} did not complete through run_typescript`];
+  const searched2 = calls.some((entry2) => entry2.tool === GATEWAY_PROOF.searched && entry2.status === "completed");
+  return searched2 ? problems : [...problems, `${GATEWAY_PROOF.searched} did not complete through run_typescript`];
 }
 
 // src/contexts/critique/domain/prompt.ts
@@ -8631,7 +8724,7 @@ var CodeChangeReader = class {
 };
 
 // src/contexts/critique/application/tracked-tree.ts
-var READ_CONCURRENCY = 16;
+var READ_CONCURRENCY2 = 16;
 async function readTrackedTree(deps, root, commit, limits) {
   const excluded = { generated: 0, lock: 0, vendored: 0 };
   const paths = (await deps.git.treeFiles(root, commit)).filter((path) => {
@@ -8640,8 +8733,8 @@ async function readTrackedTree(deps, root, commit, limits) {
     return kind === void 0;
   });
   const tracked = [];
-  for (let start = 0; start < paths.length; start += READ_CONCURRENCY) {
-    const batch = paths.slice(start, start + READ_CONCURRENCY);
+  for (let start = 0; start < paths.length; start += READ_CONCURRENCY2) {
+    const batch = paths.slice(start, start + READ_CONCURRENCY2);
     const texts = await Promise.all(batch.map((path) => deps.git.fileAt(root, commit, path)));
     batch.forEach((path, i) => {
       const text = texts[i] ?? "";
@@ -8781,7 +8874,7 @@ var AdrPacketReader = class {
       text: await files.readText(join21(root, source))
     });
     const artifact = await Promise.all(reviewed.map((source) => read("artifact", source)));
-    const check = await checkLog(files, root, records);
+    const check = await checkLog(this.deps, root, records);
     const documents = [...artifact, ...await Promise.all(references2.map((source) => read("reference", source))), checkReportFile(check)];
     const text = artifact.map((file) => file.text).join("\n\n");
     const packet2 = {
@@ -12404,6 +12497,11 @@ var GitCliAdapter = class {
       const [commit = "", tree = "", ...parents] = line2.trim().split(" ");
       return { commit, parents, tree };
     });
+  }
+  async lastChange(cwd, path) {
+    const result = await this.git(cwd, ["--literal-pathspecs", "log", "-1", "--format=%H%x00%cI", "--", path]);
+    const [commit = "", date = ""] = result.stdout.trim().split("\0");
+    return commit === "" ? null : { commit, date };
   }
   async treeEntries(cwd, revision) {
     const result = await this.git(cwd, ["ls-tree", "-r", "-z", "--full-tree", revision]);

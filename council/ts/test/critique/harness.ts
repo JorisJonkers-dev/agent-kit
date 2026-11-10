@@ -13,6 +13,7 @@ import type {
   GhIssueRequest,
   GhLinkedIssue,
   GitCommitLink,
+  GitLastChange,
   GitMergeTree,
   GitPorcelainEntry,
   GitRemote,
@@ -126,6 +127,8 @@ export class FixedClock implements ClockPort {
  * `merge` starts a merge the next `commit()` concludes with two parents.
  */
 export class FakeGit implements CritiqueGitPort {
+  /** The committer date of each commit, as `commit(date)` set it. */
+  private readonly dates = new Map<string, string>()
   private readonly history: { readonly id: string; readonly tree: ReadonlyMap<string, string>; readonly parents: readonly string[] }[] = []
   /** Each branch's tip, as `checkout`, `setBranch` and `commit()` left it. */
   private readonly branches = new Map<string, string>()
@@ -173,17 +176,30 @@ export class FakeGit implements CritiqueGitPort {
   }
 
   /** Records the working tree as a new commit on HEAD's line, stages it as `git commit -a` leaves it, and returns its id. */
-  async commit(): Promise<string> {
+  async commit(date = '2026-01-01T00:00:00+00:00'): Promise<string> {
     const id = `c${String(this.history.filter((entry) => entry.id.startsWith('c')).length + 1)}`
     const tree = await this.workingTree()
     const parent = this.line.at(-1)
     const parents = [...(parent === undefined ? [] : [parent]), ...(this.mergeHead === undefined ? [] : [this.mergeHead])]
     this.history.push({ id, parents, tree })
+    this.dates.set(id, date)
     this.line.push(id)
     this.index = tree
     this.mergeHead = undefined
     if (this.branch !== '') this.branches.set(this.branch, id)
     return id
+  }
+
+  /** The newest commit on HEAD's line whose tree differs from its first parent's at the path, or under it. */
+  async lastChange(_cwd: string, path: string): Promise<GitLastChange | null> {
+    const slice = (tree: ReadonlyMap<string, string>): string =>
+      JSON.stringify([...tree].filter(([name]) => name === path || name.startsWith(`${path}/`)).sort())
+    for (const id of [...this.line].reverse()) {
+      const parent = this.history.find((entry) => entry.id === id)?.parents[0]
+      const before = parent === undefined ? new Map<string, string>() : this.treeOfCommit(parent)
+      if (slice(this.treeOfCommit(id)) !== slice(before)) return Promise.resolve({ commit: id, date: this.dates.get(id) ?? '' })
+    }
+    return Promise.resolve(null)
   }
 
   /** Points a branch at a commit without moving HEAD, as a fetch moves a remote-tracking branch. */

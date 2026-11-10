@@ -3,7 +3,11 @@
 Check the records as one log, across files. `check/adrs.json` already
 reports numbering, status values, link and supersede targets that do not
 resolve, and superseded records still cited: build on it, and never report
-again what it lists.
+again what it lists. It also lists `drifted` records (they name a path or
+symbol the tree no longer holds) and `stale` ones (their decision date
+precedes the last change to a path they name): the runner computed these
+from the repository, so they are settled facts, never yours to recompute,
+and each one is a question for the owner.
 
 - `records-contradict`: Look for two records in force that cannot both
   hold. Quote each record, and give the case in which they disagree.

@@ -72,3 +72,17 @@ export function recordStatus(record: string): string | undefined {
 export function withoutFences(markdown: string): string {
   return markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, '')
 }
+
+/**
+ * The day a record states its decision was made, as `YYYY-MM-DD`: a `date:`
+ * key in YAML frontmatter, or a `Date:` line (bold or a list item allowed)
+ * outside fenced blocks. Undefined when it states none.
+ */
+export function decisionDate(record: string): string | undefined {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? ''
+  const prose = withoutFences(record)
+  return (
+    /^date[ \t]*:[ \t]*["']?(\d{4}-\d{2}-\d{2})/im.exec(frontmatter)?.[1] ??
+    /^[ \t]*(?:[-*+][ \t]+)?(?:\*\*|__)?date(?:[ \t]*:[ \t]*(?:\*\*|__)?|(?:\*\*|__)[ \t]*:?)[ \t]*(\d{4}-\d{2}-\d{2})/im.exec(prose)?.[1]
+  )
+}

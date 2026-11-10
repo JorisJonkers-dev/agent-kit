@@ -4,6 +4,8 @@ import type {
   GitCommitLink,
   GitCommitAllResult,
   GitDagExecutorPort,
+  GitHistoryPort,
+  GitLastChange,
   GitMergeTree,
   GitPorcelainEntry,
   GitReconcileRequest,
@@ -65,7 +67,7 @@ export class GitCommandError extends Error {
   }
 }
 
-export class GitCliAdapter implements GitDagExecutorPort {
+export class GitCliAdapter implements GitDagExecutorPort, GitHistoryPort {
   private integrationQueue: Promise<void> = Promise.resolve()
   private readonly process: ProcessPort
 
@@ -192,6 +194,12 @@ export class GitCliAdapter implements GitDagExecutorPort {
         const [commit = '', tree = '', ...parents] = line.trim().split(' ')
         return { commit, parents, tree }
       })
+  }
+
+  async lastChange(cwd: string, path: string): Promise<GitLastChange | null> {
+    const result = await this.git(cwd, ['--literal-pathspecs', 'log', '-1', '--format=%H%x00%cI', '--', path])
+    const [commit = '', date = ''] = result.stdout.trim().split('\0')
+    return commit === '' ? null : { commit, date }
   }
 
   async treeEntries(cwd: string, revision: string): Promise<string> {
