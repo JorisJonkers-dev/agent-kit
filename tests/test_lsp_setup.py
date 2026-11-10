@@ -60,12 +60,14 @@ def _run(
     on_path: tuple[str, ...] = (),
     nixos: bool = False,
     in_store: tuple[str, ...] = (),
+    after_store: tuple[str, ...] = (),
 ) -> list[str]:
     """Run one server's block with stub binaries.
 
     `on_path` are plain copies, first on PATH. `in_store` are copies Nix
     provides: the stub sits in a fake store and PATH holds a symlink to it,
     after the plain copies, so a test can put one in front of the other.
+    `after_store` are plain copies that come after the store copies on PATH.
     """
     # Resolved, so the store prefix matches what `readlink -f` prints even
     # where the temporary directory is itself reached through a symlink.
@@ -76,6 +78,11 @@ def _run(
     nix_bin.mkdir()
     store = root / "store"
     store.mkdir()
+    late_bin = root / "late-bin"
+    late_bin.mkdir()
+    for name in after_store:
+        (late_bin / name).write_text("#!/bin/sh\n")
+        (late_bin / name).chmod(0o755)
     for name in on_path:
         (bin_dir / name).write_text("#!/bin/sh\n")
         (bin_dir / name).chmod(0o755)
@@ -101,7 +108,7 @@ def _run(
         [BASH, "-c", body],
         check=True,
         env={
-            "PATH": f"{bin_dir}:{nix_bin}",
+            "PATH": f"{bin_dir}:{nix_bin}:{late_bin}",
             "LOG": str(log),
             "AK_NIXOS_MARKER": str(marker),
             "AK_NIX_STORE": str(store),
@@ -204,3 +211,15 @@ def test_a_language_server_field_naming_a_command_or_package_must_be_a_string(fi
     data["language_servers"][0][field] = ["java"]
     with pytest.raises(render_registry.RegistryError, match=field):
         render_registry.validate(data)
+
+
+def test_on_nixos_a_copy_behind_the_store_copy_shadows_nothing(tmp_path: Path) -> None:
+    """Only a copy ahead of Nix's on PATH runs instead of it, so only that one is reported."""
+    lines = _run(
+        tmp_path,
+        "typescript-lsp",
+        nixos=True,
+        in_store=("typescript-language-server",),
+        after_store=("typescript-language-server",),
+    )
+    assert not any("can shadow" in line or "is not from Nix" in line for line in lines)

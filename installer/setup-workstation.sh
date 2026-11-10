@@ -92,13 +92,15 @@ nix_provides() {
   return 1
 }
 
-# The first copy of this binary that is NOT Nix's, so setup can name what shadows it.
+# The first non-Nix copy of this binary ahead of any Nix copy on PATH: the
+# one that actually runs instead of Nix's. A copy after the Nix one shadows
+# nothing, so the search stops at the first store copy.
 non_nix_copy() {
   local path resolved
   while read -r path; do
     [ -n "${path}" ] || continue
     resolved=$(readlink -f "${path}" 2>/dev/null) || continue
-    case "${resolved}" in "${AK_NIX_STORE:-/nix/store}/"*) continue ;; esac
+    case "${resolved}" in "${AK_NIX_STORE:-/nix/store}/"*) return 1 ;; esac
     printf '%s\n' "${path}"
     return 0
   done < <(type -aP "$1" 2>/dev/null)
