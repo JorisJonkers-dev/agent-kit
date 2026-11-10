@@ -33,14 +33,15 @@ if [ "$rust_llvm" != "$tool_llvm" ]; then
 fi
 
 rm -rf "$target"
-mkdir -p "$target"
+mkdir -p "$target/profiles"
 export CARGO_TARGET_DIR=$target
 export RUSTFLAGS="${RUSTFLAGS:-} -C instrument-coverage"
 export LLVM_PROFILE_FILE=$target/profiles/cov-%p-%m.profraw
 
 cargo test --locked --workspace --manifest-path "$manifest"
 
-mapfile -t bins < <(cargo test --locked --workspace --no-run --message-format=json \
+bins=()
+while IFS= read -r line; do bins+=("$line"); done < <(cargo test --locked --workspace --no-run --message-format=json \
     --manifest-path "$manifest" 2>/dev/null \
     | jq -r 'select(.reason=="compiler-artifact" and .profile.test==true and .executable!=null) | .executable')
 [ "${#bins[@]}" -gt 0 ] || { echo "coverage: no test binaries found" >&2; exit 2; }
