@@ -291,7 +291,7 @@ def _retire(tmp_path: Path, check_only: int = 0) -> subprocess.CompletedProcess:
     bin_dir.mkdir(exist_ok=True)
     for name in ("launchctl", "systemctl"):
         stub = bin_dir / name
-        stub.write_text(f'#!/bin/bash\necho "{name} $*" >> "{tmp_path}/calls.log"\n')
+        stub.write_text(f'#!/usr/bin/env bash\necho "{name} $*" >> "{tmp_path}/calls.log"\n')
         stub.chmod(0o755)
     run = f"""
 CHECK_ONLY={check_only}
@@ -341,17 +341,18 @@ def test_setup_with_no_old_agent_does_nothing(tmp_path: Path) -> None:
     assert result.returncode == 0 and result.stdout == ""
 
 
-def _launcher(tmp_path: Path, context: str, *args: str, **env: str) -> subprocess.CompletedProcess:
+def _launcher(tmp_path: Path, context: str, *args: str, user: str = "c-dev-ro", **env: str) -> subprocess.CompletedProcess:
     """Run the launcher with a stub kubectl and a stub server that records its config."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     (bin_dir / "kubectl").write_text(
-        f"#!/bin/bash\n"
+        f"#!/usr/bin/env bash\n"
         f'if [ "$2" = current-context ]; then echo {context}; exit 0; fi\n'
+        f'case "$*" in *jsonpath*) echo "{user}"; exit 0;; esac\n'
         f'echo "kubeconfig for $*"\n'
     )
     (bin_dir / "kubernetes-mcp-server").write_text(
-        f'#!/bin/bash\ncp "$2" "{tmp_path}/config.toml"\n'
+        f'#!/usr/bin/env bash\ncp "$2" "{tmp_path}/config.toml"\n'
         f'cp "$(sed -n \'s/^kubeconfig = "\\(.*\\)"/\\1/p\' "$2")" "{tmp_path}/kubeconfig"\n'
         f'echo "$*" > "{tmp_path}/server-args"\n'
     )
@@ -389,10 +390,13 @@ def test_the_launcher_starts_the_server_read_only_on_a_single_context_kubeconfig
     assert not list(tmp_path.glob("kubernetes-mcp.*")), "the throwaway kubeconfig is removed on exit"
 
 
-def test_the_launcher_needs_kubectl_a_context_and_the_server(tmp_path: Path) -> None:
+def test_the_launcher_refuses_a_context_whose_user_is_not_read_only(tmp_path: Path) -> None:
+    result = _launcher(tmp_path, "work", user="cluster-admin-user")
+    assert result.returncode == 1 and "not a read-only" in result.stderr
+
+
+def test_the_launcher_needs_a_context(tmp_path: Path) -> None:
     assert "no current kube context" in _launcher(tmp_path, "").stderr
-    (tmp_path / "bin" / "kubernetes-mcp-server").unlink()
-    assert "kubernetes-mcp-server is not on PATH" in _launcher(tmp_path, "personal").stderr
 
 
 

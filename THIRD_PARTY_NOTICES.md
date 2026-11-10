@@ -5,7 +5,7 @@ MIT-licensed except where an entry says otherwise.
 
 Sources listed under "Registry skill sources" are not vendored into this
 repository. They are pinned in `registry/estate-tooling.yaml` and cloned at
-runtime by the Hermes gateway's `sync-skills` init container, which verifies
+runtime by a sync-skills step, which verifies
 each pinned commit and refuses the source on a mismatch. The notice is recorded
 here because the material executes inside agent context.
 

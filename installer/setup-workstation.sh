@@ -964,8 +964,8 @@ retire_port_forward_agents() {
     fi
     rm -f "${file}" && ok "${label}: retired, removed ${file}"
   done
-  if [ "${found}" = 1 ] && [ "${CHECK_ONLY}" != 1 ]; then
-    if command -v systemctl >/dev/null 2>&1; then
+  if [ "${CHECK_ONLY}" != 1 ]; then
+    if [ "${found}" = 1 ] && command -v systemctl >/dev/null 2>&1; then
       systemctl --user daemon-reload >/dev/null 2>&1 || true
     fi
     rm -f "${log_dir}"/port-forward-*.log

@@ -26,6 +26,13 @@ case "${context}" in
   *-admin | *-pf) die "refusing context '${context}': only the read-only context may be used" ;;
 esac
 
+# The credential behind the context must be a read-only ServiceAccount (`<cluster>-<device>-ro`).
+user="$(kubectl config view --minify --context "${context}" -o jsonpath='{.users[0].name}' 2>/dev/null || true)"
+case "${user}" in
+  *-ro) ;;
+  *) die "refusing context '${context}': its user '${user}' is not a read-only (-ro) account" ;;
+esac
+
 if [ "${1:-}" = "--check" ]; then
   printf '%s\n' "${context}"
   exit 0
