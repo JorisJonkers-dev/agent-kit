@@ -57,13 +57,15 @@ const STATUSES: readonly string[] = ['proposed', 'accepted', 'rejected', 'deprec
 const RECORD_NUMBER = /^(?!\d{4}[-_]\d{1,2}[-_]\d{1,2}(?!\d))(\d{1,5})[-_ ]/
 
 /** A line that links a record to the one it replaces or amends, or that replaces or amends it. */
-const SUPERSEDE_LINE = /\b(?:supersedes|superseded[ \t]+by|amends|amended[ \t]+by|replaces|replaced[ \t]+by)\b/i
+const SUPERSEDE_LINE =
+  /\b(?:supersedes|superseded[ \t]+by|amends|amended[ \t]+by|replaces|replaced[ \t]+by)\b/i
 
 /** A line on which a record says it replaces the records it names. */
 const REPLACING_LINE = /\b(?:supersedes|replaces)\b/i
 
 /** An inline link's target, a reference definition's target (never a footnote's `[^1]:`), or an ADR number. */
-const REFERENCE = /\]\(<?([^)\s>]+)>?(?:[ \t]+"[^"]*")?\)|^[ \t]*\[(?!\^)[^\]\n]+\]:[ \t]*<?([^\s>]+)>?|\bADR[- ]?(\d{1,5})\b/gim
+const REFERENCE =
+  /\]\(<?([^)\s>]+)>?(?:[ \t]+"[^"]*")?\)|^[ \t]*\[(?!\^)[^\]\n]+\]:[ \t]*<?([^\s>]+)>?|\bADR[- ]?(\d{1,5})\b/gim
 
 /** A bare URL, such as `https://example.com/adr/ADR-0004.md`: nothing in it names a record of this log. */
 const BARE_URL = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi
@@ -86,7 +88,11 @@ interface Reference extends AdrLink {
  * exist before the log is checked.
  */
 export function linkedPaths(sources: readonly AdrSource[]): readonly string[] {
-  const paths = sources.flatMap((source) => references(source).flatMap((reference) => (typeof reference.path === 'string' ? [reference.path] : [])))
+  const paths = sources.flatMap((source) =>
+    references(source).flatMap((reference) =>
+      typeof reference.path === 'string' ? [reference.path] : [],
+    ),
+  )
   return [...new Set(paths)]
 }
 
@@ -96,27 +102,57 @@ export function linkedPaths(sources: readonly AdrSource[]): readonly string[] {
  * force still cites one that is superseded. `existing` holds the linked
  * repository paths that exist.
  */
-export function checkAdrLog(sources: readonly AdrSource[], existing: ReadonlySet<string>): AdrCheck {
+export function checkAdrLog(
+  sources: readonly AdrSource[],
+  existing: ReadonlySet<string>,
+): AdrCheck {
   const stated = sources.map(entry)
   const named = sources.map((source) => references(source))
-  const numbers = new Set(stated.flatMap((record) => (record.number === null ? [] : [record.number])))
+  const numbers = new Set(
+    stated.flatMap((record) => (record.number === null ? [] : [record.number])),
+  )
   const resolves = (reference: Reference): boolean =>
-    reference.number === undefined ? typeof reference.path === 'string' && existing.has(reference.path) : numbers.has(reference.number)
+    reference.number === undefined
+      ? typeof reference.path === 'string' && existing.has(reference.path)
+      : numbers.has(reference.number)
   const recordsOf = (reference: Reference): readonly string[] =>
-    stated.filter((record) => (reference.number === undefined ? record.path === reference.path : record.number === reference.number)).map((record) => record.path)
-  const replaced = new Set(stated.flatMap((record, n) => (record.in_force ? (named[n] ?? []).filter((reference) => reference.replacing).flatMap(recordsOf) : [])))
-  const records = stated.map((record) => (replaced.has(record.path) ? { ...record, in_force: false } : record))
-  const superseded = new Set([...records.filter((record) => record.status === 'superseded').map((record) => record.path), ...replaced])
+    stated
+      .filter((record) =>
+        reference.number === undefined
+          ? record.path === reference.path
+          : record.number === reference.number,
+      )
+      .map((record) => record.path)
+  const replaced = new Set(
+    stated.flatMap((record, n) =>
+      record.in_force
+        ? (named[n] ?? []).filter((reference) => reference.replacing).flatMap(recordsOf)
+        : [],
+    ),
+  )
+  const records = stated.map((record) =>
+    replaced.has(record.path) ? { ...record, in_force: false } : record,
+  )
+  const superseded = new Set([
+    ...records.filter((record) => record.status === 'superseded').map((record) => record.path),
+    ...replaced,
+  ])
   return {
     cites_superseded: records.flatMap((record, n) => {
-      if (!record.in_force) return []
-      const cited = (named[n] ?? []).filter((reference) => reference.kind === 'link').flatMap(recordsOf)
-      return [...new Set(cited)].filter((path) => superseded.has(path) && path !== record.path).map((cites) => ({ cites, record: record.path }))
+      if (!record.in_force || record.number === null) return []
+      const cited = (named[n] ?? [])
+        .filter((reference) => reference.kind === 'link')
+        .flatMap(recordsOf)
+      return [...new Set(cited)]
+        .filter((path) => superseded.has(path) && path !== record.path)
+        .map((cites) => ({ cites, record: record.path }))
     }),
     numbering: numbering(records),
     records,
     unknown_statuses: records.flatMap((record) =>
-      record.status === null || STATUSES.includes(record.status) ? [] : [{ record: record.path, status: record.status }],
+      record.status === null || STATUSES.includes(record.status)
+        ? []
+        : [{ record: record.path, status: record.status }],
     ),
     unresolved_links: named.flatMap((found) =>
       found
@@ -128,7 +164,13 @@ export function checkAdrLog(sources: readonly AdrSource[], existing: ReadonlySet
 
 export function adrCheckStatus(check: AdrCheck): AdrCheckStatus {
   const { numbering } = check
-  const errors = [numbering.gaps, numbering.duplicates, check.unknown_statuses, check.unresolved_links, check.cites_superseded]
+  const errors = [
+    numbering.gaps,
+    numbering.duplicates,
+    check.unknown_statuses,
+    check.unresolved_links,
+    check.cites_superseded,
+  ]
   return errors.some((list) => list.length > 0) ? 'failed' : 'passed'
 }
 
@@ -146,7 +188,8 @@ function entry(source: AdrSource): AdrEntry {
 function numbering(records: readonly AdrEntry[]): AdrNumbering {
   const byNumber = new Map<number, string[]>()
   for (const record of records) {
-    if (record.number !== null) byNumber.set(record.number, [...(byNumber.get(record.number) ?? []), record.path])
+    if (record.number !== null)
+      byNumber.set(record.number, [...(byNumber.get(record.number) ?? []), record.path])
   }
   const used = [...byNumber.keys()].sort((a, b) => a - b)
   const gaps: number[] = []
@@ -171,15 +214,21 @@ function references(source: AdrSource): readonly Reference[] {
       return [...line.replace(BARE_URL, ' ').matchAll(REFERENCE)].flatMap((match): Reference[] => {
         const [whole, inline, definition, number] = match
         const record = source.path
-        if (number !== undefined) return [{ kind, number: Number(number), record, replacing, target: whole }]
+        if (number !== undefined)
+          return [{ kind, number: Number(number), record, replacing, target: whole }]
         const target = inline ?? definition ?? ''
-        return NOT_A_FILE.test(target) ? [] : [{ kind, path: repositoryPath(source.path, target), record, replacing, target }]
+        return NOT_A_FILE.test(target)
+          ? []
+          : [{ kind, path: repositoryPath(source.path, target), record, replacing, target }]
       })
     })
 }
 
 /** The repository path a link in a record names, without its anchor; null when it climbs out of the repository. */
 function repositoryPath(record: string, target: string): string | null {
-  const path = posix.normalize(posix.join(posix.dirname(record), target.replace(/#.*$/, '')))
+  const file = target.replace(/#.*$/, '')
+  const path = file.startsWith('/')
+    ? posix.normalize(file.slice(1))
+    : posix.normalize(posix.join(posix.dirname(record), file))
   return path === '..' || path.startsWith('../') ? null : path
 }

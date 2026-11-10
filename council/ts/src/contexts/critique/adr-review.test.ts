@@ -39,7 +39,7 @@ const ADR_TWO = '# Widgets keep a seven-second window\n\nThe window is seven sec
  * `adr-reviewer` role ships its own lenses, so these tests declare the ADR
  * checks they exercise on those two lenses in a private copy of the assets.
  */
-const ADR_CHECKS: NonNullable<Parameters<typeof harness>[0]>['assets'] = {
+const ADR_CHECKS: NonNullable<NonNullable<Parameters<typeof harness>[0]>['assets']> = {
   'lenses/fidelity.md': (shipped) =>
     `${shipped}- \`no-decision-sentence\` (critical): No sentence states what was decided.\n- \`no-cost\` (major): No cost is named.\n- \`two-readings\` (major): Wording two readers would build differently.\n- \`no-confirmation\` (minor): Needs \`tree/\`. No check named.\n`,
   'lenses/integration.md': (shipped) =>

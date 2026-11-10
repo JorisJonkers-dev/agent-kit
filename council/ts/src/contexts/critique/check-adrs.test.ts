@@ -23,7 +23,8 @@ afterEach(async () => {
 async function withLog(records: Readonly<Record<string, string>>): Promise<Harness> {
   const h = await harness()
   open.push(h)
-  for (const [name, text] of Object.entries(records)) await h.writeText(join(h.repo, 'docs', 'adr', name), text)
+  for (const [name, text] of Object.entries(records))
+    await h.writeText(join(h.repo, 'docs', 'adr', name), text)
   return h
 }
 
@@ -40,16 +41,30 @@ async function checked(h: Harness): Promise<CheckAdrsResult> {
 describe('check-adrs on a well-formed log', () => {
   it('passes, listing each record with its number and status', async () => {
     const h = await withLog({
-      '0001-nightly-job.md': '# The nightly job frobnicates widgets\n\nWe frobnicate widgets nightly.\n',
-      '0002-window.md': '# Widgets keep a window\n\nStatus: accepted\n\nThe window follows [ADR-0001](0001-nightly-job.md).\n',
+      '0001-nightly-job.md':
+        '# The nightly job frobnicates widgets\n\nWe frobnicate widgets nightly.\n',
+      '0002-window.md':
+        '# Widgets keep a window\n\nStatus: accepted\n\nThe window follows [ADR-0001](0001-nightly-job.md).\n',
     })
 
     expect(await checked(h)).toEqual({
       cites_superseded: [],
       numbering: { duplicates: [], gaps: [], unnumbered: [] },
       records: [
-        { in_force: true, number: 1, path: 'docs/adr/0001-nightly-job.md', status: null, title: 'The nightly job frobnicates widgets' },
-        { in_force: true, number: 2, path: 'docs/adr/0002-window.md', status: 'accepted', title: 'Widgets keep a window' },
+        {
+          in_force: true,
+          number: 1,
+          path: 'docs/adr/0001-nightly-job.md',
+          status: null,
+          title: 'The nightly job frobnicates widgets',
+        },
+        {
+          in_force: true,
+          number: 2,
+          path: 'docs/adr/0002-window.md',
+          status: 'accepted',
+          title: 'Widgets keep a window',
+        },
       ],
       status: 'passed',
       unknown_statuses: [],
@@ -62,18 +77,30 @@ describe('check-adrs on a log with every kind of structural error', () => {
   it('reports a gap, a duplicate number, an unknown status, an unresolved supersede link and an accepted record citing a superseded one', async () => {
     const h = await withLog({
       '0001-old-window.md': '# Old window\n\nStatus: superseded\n\nSuperseded by ADR-0002.\n',
-      '0002-new-window.md': '# New window\n\nStatus: accepted\n\nSupersedes ADR-0001 and ADR-0009.\n',
+      '0002-new-window.md':
+        '# New window\n\nStatus: accepted\n\nSupersedes ADR-0001 and ADR-0009.\n',
       '0002-queue.md': '# Queue\n\nStatus: accepted\n',
-      '0004-retry.md': '# Retry\n\nStatus: accepted\n\nThe retry waits one window, as ADR-0001 says.\n',
+      '0004-retry.md':
+        '# Retry\n\nStatus: accepted\n\nThe retry waits one window, as ADR-0001 says.\n',
       '0005-cache.md': '# Cache\n\nStatus: draft\n',
     })
 
     expect(await checked(h)).toMatchObject({
-      cites_superseded: [{ cites: 'docs/adr/0001-old-window.md', record: 'docs/adr/0004-retry.md' }],
-      numbering: { duplicates: [{ number: 2, records: ['docs/adr/0002-new-window.md', 'docs/adr/0002-queue.md'] }], gaps: [3], unnumbered: [] },
+      cites_superseded: [
+        { cites: 'docs/adr/0001-old-window.md', record: 'docs/adr/0004-retry.md' },
+      ],
+      numbering: {
+        duplicates: [
+          { number: 2, records: ['docs/adr/0002-new-window.md', 'docs/adr/0002-queue.md'] },
+        ],
+        gaps: [3],
+        unnumbered: [],
+      },
       status: 'failed',
       unknown_statuses: [{ record: 'docs/adr/0005-cache.md', status: 'draft' }],
-      unresolved_links: [{ kind: 'supersede', record: 'docs/adr/0002-new-window.md', target: 'ADR-0009' }],
+      unresolved_links: [
+        { kind: 'supersede', record: 'docs/adr/0002-new-window.md', target: 'ADR-0009' },
+      ],
     })
   })
 })
@@ -96,7 +123,11 @@ describe('the numbering check-adrs reports', () => {
     const result = await checked(h)
 
     expect(result.status).toBe('failed')
-    expect(result.numbering).toEqual({ duplicates: [{ number: 2, records: ['docs/adr/0002-b.md', 'docs/adr/0002-c.md'] }], gaps: [], unnumbered: [] })
+    expect(result.numbering).toEqual({
+      duplicates: [{ number: 2, records: ['docs/adr/0002-b.md', 'docs/adr/0002-c.md'] }],
+      gaps: [],
+      unnumbered: [],
+    })
   })
 
   it('counts from the lowest number the log uses, so a log from 0000 has no gap', async () => {
@@ -111,7 +142,10 @@ describe('the numbering check-adrs reports', () => {
     const result = await checked(h)
 
     expect(result.status).toBe('passed')
-    expect(result.numbering.unnumbered).toEqual(['docs/adr/2024-01-15-cache.md', 'docs/adr/20240302-queue.md'])
+    expect(result.numbering.unnumbered).toEqual([
+      'docs/adr/2024-01-15-cache.md',
+      'docs/adr/20240302-queue.md',
+    ])
   })
 
   it('reads a file named by a bare date as unnumbered', async () => {
@@ -124,7 +158,11 @@ describe('the numbering check-adrs reports', () => {
   })
 
   it('reads a file named by a date with one-digit parts as unnumbered', async () => {
-    const h = await withLog({ '0001-a.md': RECORD, '0002-b.md': RECORD, '2024-1-15-cache.md': RECORD })
+    const h = await withLog({
+      '0001-a.md': RECORD,
+      '0002-b.md': RECORD,
+      '2024-1-15-cache.md': RECORD,
+    })
 
     const result = await checked(h)
 
@@ -133,13 +171,22 @@ describe('the numbering check-adrs reports', () => {
   })
 
   it('lists a file with no number without failing', async () => {
-    const h = await withLog({ '0001-a.md': RECORD, 'README.md': '# Decision log\n\nOne record per file.\n' })
+    const h = await withLog({
+      '0001-a.md': RECORD,
+      'README.md': '# Decision log\n\nOne record per file.\n',
+    })
 
     const result = await checked(h)
 
     expect(result.status).toBe('passed')
     expect(result.numbering.unnumbered).toEqual(['docs/adr/README.md'])
-    expect(result.records[1]).toEqual({ in_force: true, number: null, path: 'docs/adr/README.md', status: null, title: 'Decision log' })
+    expect(result.records[1]).toEqual({
+      in_force: true,
+      number: null,
+      path: 'docs/adr/README.md',
+      status: null,
+      title: 'Decision log',
+    })
   })
 })
 
@@ -173,7 +220,8 @@ describe('the link targets check-adrs resolves', () => {
   it('fails on a supersede link to a record the log does not hold, by number or by file', async () => {
     const h = await withLog({
       '0001-a.md': '# A\n\nStatus: superseded\n\nSuperseded by [ADR-0002](0002-b.md).\n',
-      '0002-b.md': '# B\n\nSupersedes ADR-0001 and ADR-0007.\n\nAmends [the old rule](0009-old-rule.md).\n',
+      '0002-b.md':
+        '# B\n\nSupersedes ADR-0001 and ADR-0007.\n\nAmends [the old rule](0009-old-rule.md).\n',
     })
 
     const result = await checked(h)
@@ -214,7 +262,9 @@ describe('the link targets check-adrs resolves', () => {
   })
 
   it('never reads an ADR number inside a bare URL as a reference', async () => {
-    const h = await withLog({ '0001-a.md': '# A\n\nSee https://example.com/adr/ADR-0004.md for the upstream record.\n' })
+    const h = await withLog({
+      '0001-a.md': '# A\n\nSee https://example.com/adr/ADR-0004.md for the upstream record.\n',
+    })
 
     const result = await checked(h)
 
@@ -223,7 +273,10 @@ describe('the link targets check-adrs resolves', () => {
   })
 
   it('reads a footnote as a note, never as a link', async () => {
-    const h = await withLog({ '0001-a.md': '# A\n\nWe follow Nygard.[^1]\n\n[^1]: Nygard, Documenting Architecture Decisions, 2011.\n' })
+    const h = await withLog({
+      '0001-a.md':
+        '# A\n\nWe follow Nygard.[^1]\n\n[^1]: Nygard, Documenting Architecture Decisions, 2011.\n',
+    })
 
     const result = await checked(h)
 
@@ -234,7 +287,9 @@ describe('the link targets check-adrs resolves', () => {
   it('never resolves a link outside the repository', async () => {
     const h = await withLog({ '0001-a.md': '# A\n\nSee [outside](../../../elsewhere.md).\n' })
 
-    expect((await checked(h)).unresolved_links).toEqual([{ kind: 'link', record: 'docs/adr/0001-a.md', target: '../../../elsewhere.md' }])
+    expect((await checked(h)).unresolved_links).toEqual([
+      { kind: 'link', record: 'docs/adr/0001-a.md', target: '../../../elsewhere.md' },
+    ])
   })
 })
 
@@ -243,7 +298,8 @@ describe('the superseded records check-adrs finds still cited', () => {
     const h = await withLog({
       '0001-old-window.md': '# Old window\n\nStatus: superseded\n\nSuperseded by ADR-0002.\n',
       '0002-new-window.md': '# New window\n\nSupersedes ADR-0001.\n',
-      '0003-retry.md': '# Retry\n\nThe retry waits one window, as ADR-0001 says, and [the old record](0001-old-window.md) explains.\n',
+      '0003-retry.md':
+        '# Retry\n\nThe retry waits one window, as ADR-0001 says, and [the old record](0001-old-window.md) explains.\n',
     })
 
     const result = await checked(h)
@@ -261,7 +317,9 @@ describe('the superseded records check-adrs finds still cited', () => {
       '0003-c.md': '# C\n\nBuilds on ADR-0001.\n',
     })
 
-    expect((await checked(h)).cites_superseded).toEqual([{ cites: 'docs/adr/0001-a.md', record: 'docs/adr/0003-c.md' }])
+    expect((await checked(h)).cites_superseded).toEqual([
+      { cites: 'docs/adr/0001-a.md', record: 'docs/adr/0003-c.md' },
+    ])
   })
 
   it('counts a record another in force replaces as out of force, so its own citations are not reported', async () => {
@@ -274,13 +332,39 @@ describe('the superseded records check-adrs finds still cited', () => {
     const result = await checked(h)
 
     expect(result.cites_superseded).toEqual([])
-    expect(result.records[0]).toMatchObject({ in_force: false, path: 'docs/adr/0001-a.md', status: null })
+    expect(result.records[0]).toMatchObject({
+      in_force: false,
+      path: 'docs/adr/0001-a.md',
+      status: null,
+    })
   })
 
   it('lets a record that is not in force cite a superseded one', async () => {
     const h = await withLog({
       '0001-a.md': '# A\n\nStatus: superseded\n',
       '0002-b.md': '# B\n\nStatus: deprecated\n\nBuilt on ADR-0001.\n',
+    })
+
+    expect((await checked(h)).cites_superseded).toEqual([])
+  })
+})
+
+describe('the root-relative and unnumbered files check-adrs reads', () => {
+  it('resolves a link that starts with a slash from the repository root', async () => {
+    const h = await withLog({
+      '0001-nightly-job.md':
+        '# The nightly job frobnicates widgets\n\nSee [the window](/docs/adr/0002-window.md).\n',
+      '0002-window.md': '# Widgets keep a window\n\nStatus: accepted\n',
+    })
+
+    expect((await checked(h)).status).toBe('passed')
+  })
+
+  it('lets an unnumbered file such as an index list a superseded record without failing the log', async () => {
+    const h = await withLog({
+      '0001-old.md': '# Old\n\nStatus: superseded\n',
+      '0002-new.md': '# New\n\nStatus: accepted\n\nSupersedes [ADR-0001](0001-old.md).\n',
+      'README.md': '# Index\n\n- [Old](0001-old.md)\n- [New](0002-new.md)\n',
     })
 
     expect((await checked(h)).cites_superseded).toEqual([])
@@ -297,8 +381,16 @@ describe("check-adrs on agent-kit's own decision log", () => {
 
     const result = await checked(h)
 
-    expect(result).toMatchObject({ cites_superseded: [], numbering: { duplicates: [], gaps: [], unnumbered: [] }, status: 'passed', unknown_statuses: [], unresolved_links: [] })
-    expect(result.records.map((record) => record.path)).toEqual(names.map((name) => join(ADR_DIRECTORY, name)))
+    expect(result).toMatchObject({
+      cites_superseded: [],
+      numbering: { duplicates: [], gaps: [], unnumbered: [] },
+      status: 'passed',
+      unknown_statuses: [],
+      unresolved_links: [],
+    })
+    expect(result.records.map((record) => record.path)).toEqual(
+      names.map((name) => join(ADR_DIRECTORY, name)),
+    )
     expect(result.records.every((record) => record.in_force && record.status === null)).toBe(true)
   })
 })
@@ -307,7 +399,11 @@ describe('check-adrs refusals', () => {
   it('is refused when the repository has no decision records', async () => {
     const h = await withLog({})
 
-    expect(await check(h)).toEqual({ message: 'found no decision records in docs/adr/ to review', reason: 'no-adrs', status: 'refused' })
+    expect(await check(h)).toEqual({
+      message: 'found no decision records in docs/adr/ to review',
+      reason: 'no-adrs',
+      status: 'refused',
+    })
   })
 
   it('is refused for a repository whose remotes refuse a critique, with no allowlist entry needed otherwise', async () => {
