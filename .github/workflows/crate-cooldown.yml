@@ -64,6 +64,10 @@
           'require-package-proxy': 'true'
       - 'name': 'Build crate-gate and crate-age'
         'working-directory': 'standards/scripts'
+        # The proxy is an authenticated registry; the action exports its token,
+        # and cargo needs to be told to read it.
+        'env':
+          'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
         'run': 'cargo build --release --locked --bin crate-gate --bin crate-age'
 
       # crate-age's command line is owned by the standards repo
