@@ -54,6 +54,14 @@ export interface RunInput {
   /** `false` turns off the retry, the climb and the fall-through; they are on unless the caller says so. */
   readonly escalate?: boolean
   /**
+   * Whether the model's family is binding: it is unless the caller says `false`.
+   * A binding delegation is only ever answered by a model of the family it asked
+   * for; the retry, the climb and the fall-through stay inside that family, and
+   * a delegation that no model of the family can answer fails with its cause.
+   * `false` lets the gateway move to another family, and the summary then says so.
+   */
+  readonly family_binding?: boolean
+  /**
    * Whether nobody is there to answer: a headless run is refused for want of a
    * grant like any other, and its task is then the orchestrator's to keep or
    * split. Nothing else about the run changes.
@@ -114,14 +122,18 @@ function readHeadless(raw: Record<string, unknown>): boolean | undefined {
 }
 
 /** What a run says about its own escalation: whether it is on, and how many attempts it may take. */
-function readEscalation(raw: Record<string, unknown>): { escalate?: boolean; max_attempts?: number } {
+function readEscalation(raw: Record<string, unknown>): { escalate?: boolean; family_binding?: boolean; max_attempts?: number } {
   if (raw.escalate !== undefined && typeof raw.escalate !== 'boolean') {
     throw new ModelGatewayError('invalid-input', 'escalate must be true or false')
+  }
+  if (raw.family_binding !== undefined && typeof raw.family_binding !== 'boolean') {
+    throw new ModelGatewayError('invalid-input', 'family_binding must be true or false')
   }
   const attempts = raw.max_attempts === undefined ? undefined : requiredWholeNumber(raw.max_attempts, 'max_attempts')
   if (attempts !== undefined && attempts < 1) throw new ModelGatewayError('invalid-input', 'max_attempts must be a whole number above 0')
   return {
     ...(raw.escalate === undefined ? {} : { escalate: raw.escalate }),
+    ...(raw.family_binding === undefined ? {} : { family_binding: raw.family_binding }),
     ...(attempts === undefined ? {} : { max_attempts: attempts }),
   }
 }

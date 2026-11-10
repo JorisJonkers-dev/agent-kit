@@ -3621,7 +3621,13 @@ const ALLOWED_GIT_CALLS = new Set([
 
 /** The input of a writing run: one task, on a base, with a check. */
 function writeInput(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): unknown {
-  return w.input({ base: 'main', check: 'npm test', mode: 'write', ...overrides })
+  return w.input({
+    base: 'main',
+    check: 'npm test',
+    family_binding: false,
+    mode: 'write',
+    ...overrides,
+  })
 }
 
 /** What a fake delegate does in its workdir: writes the files it names, as a client that edits would. */
@@ -4921,9 +4927,9 @@ async function promptOf(w: RunWorkspace, runId: string): Promise<string> {
   return readFile(join(w.repo, '.git', 'model-gateway', 'runs', runId, 'prompt.md'), 'utf8')
 }
 
-/** A delegation the escalation handles: the test input with the escalation left at its default. */
+/** A delegation the escalation handles: the escalation left at its default, free to change family unless a test binds it. */
 function delegation(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): unknown {
-  return w.input({ escalate: undefined, ...overrides })
+  return w.input({ escalate: undefined, family_binding: false, ...overrides })
 }
 
 const FAILS: VibeScript = { exitCode: 3, stderr: 'boom: the tests did not pass', stdout: '' }
@@ -5106,6 +5112,67 @@ describe('model-gateway run: retry', () => {
     const result = await w.run(delegation(w, { model: 'unknown-model-1' }))
 
     expect(printed(result)).toMatchObject({ code: 'unknown-model', status: 'error' })
+  })
+})
+
+describe('model-gateway run: binding family', () => {
+  it('ends a delegation failed when its family cannot answer, and never returns an answer from another family', async () => {
+    const w = await escalating({ scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS] })
+
+    const result = await w.run(delegation(w, { family_binding: undefined }))
+
+    expect(printed(result)).toMatchObject({
+      client: 'vibe',
+      family: 'zhipu',
+      model: 'glm-5-3',
+      reason: 'exit-3',
+      status: 'failed',
+    })
+    expect(attemptedModels(result).every((model) => model.startsWith('vibe:'))).toBe(true)
+    expect(binariesOf(w.vibe.commands)).not.toContain('claude')
+  })
+
+  it('stays unavailable, saying the family is binding, when its client cannot start and no model of the family can stand in', async () => {
+    const w = await escalating({ override: oneRunADay('vibe'), scripts: [CLAUDE_SUCCEEDS] })
+    await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
+
+    const result = await w.run(delegation(w, { family_binding: true }))
+
+    expect(printed(result)).toMatchObject({ status: 'unavailable' })
+    expect(String(printed(result).message)).toContain('is binding')
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('opens the summary of a permitted escalation with both families and the cause', async () => {
+    const w = await escalating({ override: oneRunADay('vibe'), scripts: [CLAUDE_SUCCEEDS] })
+    await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({ family: 'anthropic', status: 'ok' })
+    expect(String(printed(result).summary)).toBe(
+      'escalated from zhipu (vibe: unable_to_start: at 100% of its day plan limit (1 of 1 runs)) to anthropic\ndone by claude',
+    )
+  })
+
+  it('states the escalation of a climb that changed family, with the reason the requested model failed', async () => {
+    const w = await escalating({ scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(String(printed(result).summary)).toBe(
+      'escalated from zhipu (vibe: exit-3) to anthropic\ndone by claude',
+    )
+  })
+
+  it('leaves the summary alone when the answer is from the requested family, and refuses a malformed family_binding', async () => {
+    const w = await escalating({ scripts: [SUCCEEDS] })
+
+    expect(String(printed(await w.run(delegation(w))).summary)).toBe('done')
+    expect(printed(await w.run(delegation(w, { family_binding: 'yes' })))).toMatchObject({
+      code: 'invalid-input',
+      message: 'family_binding must be true or false',
+    })
   })
 })
 

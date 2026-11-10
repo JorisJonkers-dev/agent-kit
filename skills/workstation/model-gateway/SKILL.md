@@ -183,7 +183,8 @@ The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
 only for an inline run), `time_limit_s` (default 900), `max_price_usd` and
 `provider` (which a Hermes run must name, and which this machine must allow),
 `escalate` (default `true`; `false` turns off the retry, the climb and the
-fall-through below), `max_attempts` (default 3) and `headless` (a boolean that
+fall-through below), `family_binding` (default `true`; see below),
+`max_attempts` (default 3) and `headless` (a boolean that
 changes nothing else: a run marked headless is refused and launched exactly
 like any other).
 `workflow` is required (`code: "invalid-input"`), and is a name: a letter or
@@ -404,6 +405,19 @@ make in all.
   next attempt could not start with. In a `nedap` repository only Claude Code
   and Codex are permitted, so Claude Code never falls through to Vibe or
   Antigravity.
+
+- **The family is binding by default.** The model a delegation names fixes its
+  family, and the retry, the climb and the fall-through stay inside that family.
+  A delegation that no model of its family can answer ends failed (or
+  `unavailable`, whose message says the family is binding) with its cause; it is
+  never answered by another family. This is the default for every delegation
+  because a caller who names a model almost always wants that family's opinion
+  (review, critique, second opinion), and an answer from the orchestrator's own
+  family defeats that. `"family_binding": false` lets the gateway move to another
+  family. When it then does, the summary of the answer opens with a line naming
+  both families and the cause, for example `escalated from mistral (vibe:
+  model-unavailable) to anthropic`; a batch report shows the same line in that
+  delegation's summary.
 
 The result of a delegation is the last run's result plus `attempts`, a short
 list of `{run_id, client, model, status, reason?}` in order (one entry when

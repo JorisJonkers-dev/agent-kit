@@ -3,11 +3,13 @@ import { dirname, join } from 'node:path'
 import { ModelGatewayError } from '../domain/config.js'
 import {
   attemptInput,
+  bindFamily,
   candidateKey,
   candidatePool,
   CannotStartError,
   climbOrder,
   DEFAULT_MAX_ATTEMPTS,
+  escalationNotice,
   fallThroughOrder,
   isCannotStart,
   isRefusal,
@@ -37,6 +39,8 @@ export interface AttemptedRun {
   readonly run_id: string
   readonly client: string
   readonly model: string
+  readonly family?: string
+  readonly summary?: string
   readonly reason?: string
   readonly output_path: string
   readonly check?: { readonly output_path: string }
@@ -109,8 +113,17 @@ export class EscalatedRun {
     /** The last attempt that really ran: a run with an output path and a cost, which a later attempt that cannot start never replaces. */
     let real: R | undefined
 
-    const done = (run: R, escalation?: 'exhausted' | 'stopped', stoppedReason?: string): Escalated<R> => ({
+    /** The summary of a run answered by another family: it opens with the escalation, both families and the cause. */
+    const stated = async (run: R): Promise<Pick<AttemptedRun, 'summary'>> => {
+      if (run.status !== 'ok' || run.family === undefined || run.summary === undefined) return {}
+      const { requested } = await planned()
+      if (run.family === requested.family) return {}
+      const cause = skipped.find((who) => who.client === requested.client && who.model === requested.model)?.reason ?? attempts[0]?.reason ?? 'failed'
+      return { summary: `${escalationNotice(requested, cause, { family: run.family })}\n${run.summary}` }
+    }
+    const done = async (run: R, escalation?: 'exhausted' | 'stopped', stoppedReason?: string): Promise<Escalated<R>> => ({
       ...run,
+      ...(await stated(run)),
       attempts,
       ...(escalation === undefined ? {} : { escalation }),
       ...(skipped.length === 0 ? {} : { skipped }),
@@ -118,10 +131,11 @@ export class EscalatedRun {
     })
     const unavailable = async (): Promise<UnavailableResult> => {
       const from = ref ?? (await planned()).requested
+      const binding = input.family_binding === false ? '' : `; the family ${from.family} is binding, so no other family answers`
       return {
         attempts,
         client: input.client,
-        message: `${from.client}:${from.model} cannot start, and no other permitted ${from.costClass} client model covers its tier; the gateway never moves into a costlier cost class by itself`,
+        message: `${from.client}:${from.model} cannot start, and no other permitted ${from.costClass} client model covers its tier; the gateway never moves into a costlier cost class by itself${binding}`,
         model: input.model,
         reasons: skipped,
         status: 'unavailable',
@@ -140,7 +154,7 @@ export class EscalatedRun {
     }
 
     for (;;) {
-      if (last !== undefined && counted >= maxAttempts) return done(last, 'exhausted')
+      if (last !== undefined && counted >= maxAttempts) return await done(last, 'exhausted')
       const link: AttemptLink | undefined =
         attempts.length === 0 ? undefined : { attempt: attempts.length + 1, attempt_of: String(attempts[0]?.run_id) }
       let run: R
@@ -150,33 +164,33 @@ export class EscalatedRun {
       } catch (error) {
         if (!(error instanceof CannotStartError)) {
           if (last === undefined) throw error
-          return done(last, 'stopped', error instanceof ModelGatewayError ? `${error.code}: ${error.message}` : messageOf(error))
+          return await done(last, 'stopped', error instanceof ModelGatewayError ? `${error.code}: ${error.message}` : messageOf(error))
         }
         passOver(current ?? input, error.message)
         const swapped = await replacement()
         if (swapped === undefined) {
           if (real === undefined) return await unavailable()
-          return mode === 'climb' ? done(real, 'exhausted') : done(real, 'stopped', error.message)
+          return mode === 'climb' ? await done(real, 'exhausted') : await done(real, 'stopped', error.message)
         }
         current = swapped
         continue
       }
       attempts.push(summaryOf(run))
       last = run
-      if (run.status === 'ok') return done(run)
+      if (run.status === 'ok') return await done(run)
       if (isCannotStart(run.reason)) {
         passOver(current ?? input, run.reason ?? 'launch-failed')
         const swapped = await replacement()
         if (swapped === undefined) {
           if (real === undefined) return await unavailable()
-          return mode === 'climb' ? done(real, 'exhausted') : done(real, 'stopped', run.reason ?? 'launch-failed')
+          return mode === 'climb' ? await done(real, 'exhausted') : await done(real, 'stopped', run.reason ?? 'launch-failed')
         }
         current = swapped
         continue
       }
       real = run
       counted += 1
-      if (isRefusal(run.reason)) return done(run)
+      if (isRefusal(run.reason)) return await done(run)
       failures += 1
       ref = current ?? (await planned()).requested
       current = ref
@@ -185,7 +199,7 @@ export class EscalatedRun {
       if (failures === 1) continue
       mode = 'climb'
       const stronger = await replacement()
-      if (stronger === undefined) return done(run, 'exhausted')
+      if (stronger === undefined) return await done(run, 'exhausted')
       current = stronger
       failures = 0
     }
@@ -204,7 +218,7 @@ export class EscalatedRun {
     const requested = requestedCandidate(config, input, entry, family)
     const scope = await resolveScope(this.deps, input.repo)
     const granted = await this.grants.liveClients(input.workflow, this.deps.clock.now())
-    const pool = candidatePool(config, input, decidePolicy(config, scope, config.models).permissions, granted)
+    const pool = bindFamily(input, requested, candidatePool(config, input, decidePolicy(config, scope, config.models).permissions, granted))
     return { pool, requested }
   }
 

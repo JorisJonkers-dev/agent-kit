@@ -485,10 +485,14 @@ function readEscalation(raw) {
   if (raw.escalate !== void 0 && typeof raw.escalate !== "boolean") {
     throw new ModelGatewayError("invalid-input", "escalate must be true or false");
   }
+  if (raw.family_binding !== void 0 && typeof raw.family_binding !== "boolean") {
+    throw new ModelGatewayError("invalid-input", "family_binding must be true or false");
+  }
   const attempts = raw.max_attempts === void 0 ? void 0 : requiredWholeNumber(raw.max_attempts, "max_attempts");
   if (attempts !== void 0 && attempts < 1) throw new ModelGatewayError("invalid-input", "max_attempts must be a whole number above 0");
   return {
     ...raw.escalate === void 0 ? {} : { escalate: raw.escalate },
+    ...raw.family_binding === void 0 ? {} : { family_binding: raw.family_binding },
     ...attempts === void 0 ? {} : { max_attempts: attempts }
   };
 }
@@ -1370,6 +1374,12 @@ function attemptInput(input, candidate, prompt) {
     prompt,
     ...candidate.provider === void 0 ? {} : { provider: candidate.provider }
   };
+}
+function bindFamily(input, requested, pool) {
+  return input.family_binding === false ? pool : pool.filter((candidate) => candidate.family === requested.family);
+}
+function escalationNotice(from, cause, to) {
+  return `escalated from ${from.family} (${from.client}: ${cause}) to ${to.family}`;
 }
 
 // src/contexts/model-gateway/domain/ledger.ts
@@ -3323,8 +3333,17 @@ var EscalatedRun = class {
     let prompt = input.prompt;
     let last;
     let real;
-    const done = (run, escalation, stoppedReason) => ({
+    const stated = async (run) => {
+      if (run.status !== "ok" || run.family === void 0 || run.summary === void 0) return {};
+      const { requested } = await planned();
+      if (run.family === requested.family) return {};
+      const cause = skipped.find((who) => who.client === requested.client && who.model === requested.model)?.reason ?? attempts[0]?.reason ?? "failed";
+      return { summary: `${escalationNotice(requested, cause, { family: run.family })}
+${run.summary}` };
+    };
+    const done = async (run, escalation, stoppedReason) => ({
       ...run,
+      ...await stated(run),
       attempts,
       ...escalation === void 0 ? {} : { escalation },
       ...skipped.length === 0 ? {} : { skipped },
@@ -3332,10 +3351,11 @@ var EscalatedRun = class {
     });
     const unavailable = async () => {
       const from = ref ?? (await planned()).requested;
+      const binding = input.family_binding === false ? "" : `; the family ${from.family} is binding, so no other family answers`;
       return {
         attempts,
         client: input.client,
-        message: `${from.client}:${from.model} cannot start, and no other permitted ${from.costClass} client model covers its tier; the gateway never moves into a costlier cost class by itself`,
+        message: `${from.client}:${from.model} cannot start, and no other permitted ${from.costClass} client model covers its tier; the gateway never moves into a costlier cost class by itself${binding}`,
         model: input.model,
         reasons: skipped,
         status: "unavailable",
@@ -3353,7 +3373,7 @@ var EscalatedRun = class {
       return order.find((candidate) => !dead.has(candidateKey(candidate)));
     };
     for (; ; ) {
-      if (last !== void 0 && counted >= maxAttempts) return done(last, "exhausted");
+      if (last !== void 0 && counted >= maxAttempts) return await done(last, "exhausted");
       const link = attempts.length === 0 ? void 0 : { attempt: attempts.length + 1, attempt_of: String(attempts[0]?.run_id) };
       let run;
       try {
@@ -3362,33 +3382,33 @@ var EscalatedRun = class {
       } catch (error) {
         if (!(error instanceof CannotStartError)) {
           if (last === void 0) throw error;
-          return done(last, "stopped", error instanceof ModelGatewayError ? `${error.code}: ${error.message}` : messageOf3(error));
+          return await done(last, "stopped", error instanceof ModelGatewayError ? `${error.code}: ${error.message}` : messageOf3(error));
         }
         passOver(current ?? input, error.message);
         const swapped = await replacement();
         if (swapped === void 0) {
           if (real === void 0) return await unavailable();
-          return mode === "climb" ? done(real, "exhausted") : done(real, "stopped", error.message);
+          return mode === "climb" ? await done(real, "exhausted") : await done(real, "stopped", error.message);
         }
         current = swapped;
         continue;
       }
       attempts.push(summaryOf2(run));
       last = run;
-      if (run.status === "ok") return done(run);
+      if (run.status === "ok") return await done(run);
       if (isCannotStart(run.reason)) {
         passOver(current ?? input, run.reason ?? "launch-failed");
         const swapped = await replacement();
         if (swapped === void 0) {
           if (real === void 0) return await unavailable();
-          return mode === "climb" ? done(real, "exhausted") : done(real, "stopped", run.reason ?? "launch-failed");
+          return mode === "climb" ? await done(real, "exhausted") : await done(real, "stopped", run.reason ?? "launch-failed");
         }
         current = swapped;
         continue;
       }
       real = run;
       counted += 1;
-      if (isRefusal(run.reason)) return done(run);
+      if (isRefusal(run.reason)) return await done(run);
       failures += 1;
       ref = current ?? (await planned()).requested;
       current = ref;
@@ -3397,7 +3417,7 @@ var EscalatedRun = class {
       if (failures === 1) continue;
       mode = "climb";
       const stronger = await replacement();
-      if (stronger === void 0) return done(run, "exhausted");
+      if (stronger === void 0) return await done(run, "exhausted");
       current = stronger;
       failures = 0;
     }
@@ -3415,7 +3435,7 @@ var EscalatedRun = class {
     const requested = requestedCandidate(config, input, entry, family);
     const scope = await resolveScope(this.deps, input.repo);
     const granted = await this.grants.liveClients(input.workflow, this.deps.clock.now());
-    const pool = candidatePool(config, input, decidePolicy(config, scope, config.models).permissions, granted);
+    const pool = bindFamily(input, requested, candidatePool(config, input, decidePolicy(config, scope, config.models).permissions, granted));
     return { pool, requested };
   }
   /** Why a client cannot start, or undefined when it can: what `usage` reports as its availability. */
@@ -5162,7 +5182,7 @@ characters. It takes "workflow", "client" (vibe, agy, claude, opencode or
 hermes), "model", "mode", "prompt", and optionally "repo", "carries" (code and
 history), "time_limit_s" (900 by default), "max_price_usd" (Vibe only),
 "provider" (which a hermes run must name, and which this machine must allow),
-"escalate" and "max_attempts".
+"escalate", "family_binding" and "max_attempts".
 The workflow's life, the data policy and the client model's read-only proof are
 checked before anything is launched; a model without a passing proof (every one
 but a proven Vibe or Antigravity model) works in a throwaway worktree of the
@@ -5172,7 +5192,9 @@ default), never opencode. A client near its plan limit adds "warnings" to the
 result.
 
 A delegation that fails does not come straight back: "escalate" (true by
-default; false turns it all off) and "max_attempts" (3 by default) govern it. A
+default; false turns it all off), "family_binding" (true by default: only a
+model of the requested family ever answers; false lets another family answer,
+and the summary then says so) and "max_attempts" (3 by default) govern it. A
 failed result (a timeout, output that cannot be parsed, a failed check, a
 non-zero exit) is retried once on the same client model with the failure in the
 prompt, but an answer that says the client model cannot run \u2014 the account's
