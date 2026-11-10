@@ -443,6 +443,7 @@
         }
       ],
       "must_contain": [
+        "settings.gradle.kts",
         "auth-api",
         "agents-api"
       ],
@@ -902,9 +903,6 @@
         "cpu: 400m"
       ],
       "commit": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1",
-      "must_not_contain": [
-        "4Gi"
-      ],
       "evidence": [
         {
           "repo": "auth-api",

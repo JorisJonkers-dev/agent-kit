@@ -67,11 +67,15 @@ impl Json {
     }
 }
 
+/// How deep JSON arrays and objects may nest.
+const MAX_DEPTH: usize = 64;
+
 /// Parse one complete JSON document.
 pub fn parse_json(text: &str) -> Result<Json, String> {
     let mut p = Parser {
         chars: text.chars().collect(),
         pos: 0,
+        depth: 0,
     };
     let value = p.value()?;
     p.skip_ws();
@@ -84,6 +88,7 @@ pub fn parse_json(text: &str) -> Result<Json, String> {
 struct Parser {
     chars: Vec<char>,
     pos: usize,
+    depth: usize,
 }
 
 impl Parser {
@@ -121,8 +126,8 @@ impl Parser {
             Some('t') => self.literal("true", Json::Bool(true)),
             Some('f') => self.literal("false", Json::Bool(false)),
             Some('"') => self.string().map(Json::Str),
-            Some('[') => self.array(),
-            Some('{') => self.object(),
+            Some('[') => self.nested(Parser::array),
+            Some('{') => self.nested(Parser::object),
             Some(c) if c == '-' || c.is_ascii_digit() => self.number(),
             Some(c) => Err(format!("unexpected '{c}' at {}", self.pos)),
         }
@@ -201,6 +206,17 @@ impl Parser {
             hi
         };
         char::from_u32(code).ok_or_else(|| "bad unicode escape".to_string())
+    }
+
+    /// Runs a container parser one level deeper, refusing absurd nesting.
+    fn nested(&mut self, parse: fn(&mut Parser) -> Result<Json, String>) -> Result<Json, String> {
+        if self.depth >= MAX_DEPTH {
+            return Err(format!("nesting deeper than {MAX_DEPTH} levels"));
+        }
+        self.depth += 1;
+        let result = parse(self);
+        self.depth -= 1;
+        result
     }
 
     fn array(&mut self) -> Result<Json, String> {
@@ -382,6 +398,9 @@ fn parse_question(q: &Json, index: usize, errs: &mut Vec<String>) -> Question {
         None => errs.push(format!("{ctx}: missing or non-array 'gold_files'")),
     }
     let must_contain = str_list(q, "must_contain", true, &ctx, errs);
+    if must_contain.is_empty() {
+        errs.push(format!("{ctx}: 'must_contain' must not be empty"));
+    }
     let must_not_contain = str_list(q, "must_not_contain", false, &ctx, errs);
     let commit = match q.get("commit") {
         None => None,
@@ -444,6 +463,12 @@ pub fn check_set(set: &QuestionSet) -> Vec<String> {
     for (repo, _) in &set.pins {
         if is_denied(repo) {
             errs.push(format!("pin {repo}: repo is on the deny list"));
+        }
+        let safe = !repo.is_empty()
+            && !repo.starts_with('.')
+            && repo.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+        if !safe {
+            errs.push(format!("pin {repo}: repo name must be letters, digits, '.', '_' or '-'"));
         }
     }
     let mut seen: Vec<&str> = Vec::new();
@@ -542,8 +567,21 @@ pub fn check_pins(set: &QuestionSet, root: &Path, exec: Exec) -> Vec<String> {
 
 /// Snapshot one pinned repo into `dest` (skipped when `dest` exists).
 pub fn snapshot(repo_dir: &Path, sha: &str, dest: &Path, exec: Exec) -> Result<(), String> {
-    if dest.exists() {
-        return Ok(());
+    let name = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let marker = dest.with_file_name(format!("{name}.sha"));
+    match std::fs::read_to_string(&marker) {
+        Ok(found) if found.trim() == sha => return Ok(()),
+        Ok(found) => {
+            return Err(format!(
+                "snapshot {} holds commit {}, not {sha}; use a new --out",
+                dest.display(),
+                found.trim()
+            ))
+        }
+        Err(_) if dest.exists() => {
+            return Err(format!("snapshot {} has no commit marker; use a new --out", dest.display()))
+        }
+        Err(_) => {}
     }
     let script = "mkdir -p \"$3\" && git -C \"$1\" archive --format=tar -o \"$3.tar\" \"$2\" \
                   && tar -x -C \"$3\" -f \"$3.tar\"; rc=$?; rm -f \"$3.tar\"; \
@@ -562,7 +600,8 @@ pub fn snapshot(repo_dir: &Path, sha: &str, dest: &Path, exec: Exec) -> Result<(
         cwd: None,
     };
     match exec(&inv)? {
-        o if o.code == 0 => Ok(()),
+        o if o.code == 0 => std::fs::write(&marker, sha)
+            .map_err(|e| format!("cannot write {}: {e}", marker.display())),
         o => Err(format!("snapshot of {} failed: {}", repo_dir.display(), o.stderr.trim())),
     }
 }
@@ -717,11 +756,14 @@ pub fn grade(q: &Question, answer: &str, files_opened: &[String]) -> (bool, f64)
     let recall = if q.gold_files.is_empty() {
         1.0
     } else {
-        // `<repo>/<path>` contains the bare path, so the bare path decides.
+        // A gold file counts only under its own repo: `<repo>/<path>`.
         let hit = q
             .gold_files
             .iter()
-            .filter(|g| answer.contains(&g.path) || files_opened.iter().any(|f| f.contains(&g.path)))
+            .filter(|g| {
+                let full = format!("{}/{}", g.repo, g.path);
+                answer.contains(&full) || files_opened.iter().any(|f| f.contains(&full))
+            })
             .count();
         hit as f64 / q.gold_files.len() as f64
     };
@@ -882,18 +924,24 @@ fn cell(rows: &[&ResultRow]) -> String {
     if rows.is_empty() {
         return "-".to_string();
     }
-    let ok = rows.iter().filter(|r| r.correct).count();
-    let tokens: Vec<f64> = rows.iter().map(|r| (r.input_tokens + r.output_tokens) as f64).collect();
-    let calls: Vec<f64> = rows.iter().map(|r| r.tool_calls as f64).collect();
-    let recall: Vec<f64> = rows.iter().map(|r| r.gold_recall).collect();
-    format!(
+    let good: Vec<&ResultRow> = rows.iter().copied().filter(|r| r.error.is_none()).collect();
+    let errors = rows.len() - good.len();
+    let ok = good.iter().filter(|r| r.correct).count();
+    let tokens: Vec<f64> = good.iter().map(|r| (r.input_tokens + r.output_tokens) as f64).collect();
+    let calls: Vec<f64> = good.iter().map(|r| r.tool_calls as f64).collect();
+    let recall: Vec<f64> = good.iter().map(|r| r.gold_recall).collect();
+    let mut cell = format!(
         "{}/{} ok, {} tok, {} calls, recall {:.2}",
         ok,
         rows.len(),
         fmt_num(median(&tokens)),
         fmt_num(median(&calls)),
         mean(&recall)
-    )
+    );
+    if errors > 0 {
+        cell.push_str(&format!(", {errors} errors"));
+    }
+    cell
 }
 
 fn unique<'a>(items: impl Iterator<Item = &'a str>) -> Vec<&'a str> {
@@ -1458,14 +1506,14 @@ mod tests {
     #[test]
     fn grading() {
         let mut k = q();
-        assert_eq!(grade(&k, "FOO in src/a.rs", &[]), (true, 1.0));
+        assert_eq!(grade(&k, "FOO in src/a.rs", &[]), (true, 0.0));
         assert_eq!(grade(&k, "foo in alpha/src/a.rs", &[]), (true, 1.0));
         assert_eq!(grade(&k, "foo", &s(&["/snap/alpha/src/a.rs"])), (true, 1.0));
         assert_eq!(grade(&k, "foo", &s(&["/snap/alpha/other.rs"])), (true, 0.0));
         assert_eq!(grade(&k, "nothing", &[]), (false, 0.0));
         assert!(!grade(&k, "foo BAR", &[]).0);
         k.gold_files.push(GoldFile { repo: "alpha".into(), path: "b.rs".into() });
-        assert_eq!(grade(&k, "foo src/a.rs", &[]).1, 0.5);
+        assert_eq!(grade(&k, "foo alpha/src/a.rs", &[]).1, 0.5);
         k.gold_files.clear();
         assert_eq!(grade(&k, "foo", &[]), (true, 1.0));
     }
@@ -1711,6 +1759,8 @@ mod tests {
         let out3 = dir.join("o3");
         std::fs::create_dir_all(out3.join("snap/alpha")).unwrap();
         std::fs::create_dir_all(out3.join("snap/beta")).unwrap();
+        std::fs::write(out3.join("snap/alpha.sha"), SHA_A).unwrap();
+        std::fs::write(out3.join("snap/beta.sha"), SHA_B).unwrap();
         std::fs::create_dir_all(out3.join("results.jsonl")).unwrap();
         let mut a = ok_args(&["--runs", "1", "--agent", "claude"]);
         let at = a.iter().position(|x| x == &os).unwrap();
@@ -1741,10 +1791,23 @@ mod tests {
     #[test]
     fn snapshot_skips_existing_and_reports_spawn_errors() {
         let dir = temp_dir();
+        let ok = |_: &Invocation| -> Result<Output, String> {
+            Ok(Output { code: 0, stdout: String::new(), stderr: String::new() })
+        };
+        let dest = dir.join("snap-repo");
+        assert!(snapshot(Path::new("/r"), SHA_A, &dest, &ok).is_ok());
+        assert_eq!(std::fs::read_to_string(dir.join("snap-repo.sha")).unwrap(), SHA_A);
         let boom = |_: &Invocation| -> Result<Output, String> { panic!("must not run") };
-        assert!(snapshot(Path::new("/r"), SHA_A, &dir, &boom).is_ok());
+        assert!(snapshot(Path::new("/r"), SHA_A, &dest, &boom).is_ok());
+        let other = snapshot(Path::new("/r"), SHA_B, &dest, &boom).unwrap_err();
+        assert!(other.contains("use a new --out"));
+        std::fs::create_dir_all(dir.join("unmarked")).unwrap();
+        let unmarked = snapshot(Path::new("/r"), SHA_A, &dir.join("unmarked"), &boom).unwrap_err();
+        assert!(unmarked.contains("no commit marker"));
         let fail = |_: &Invocation| Err("no sh".to_string());
         assert_eq!(snapshot(Path::new("/r"), SHA_A, &dir.join("new"), &fail), Err("no sh".to_string()));
+        let bad = |_: &Invocation| Ok(Output { code: 1, stdout: String::new(), stderr: "boom".into() });
+        assert!(snapshot(Path::new("/r"), SHA_A, &dir.join("bad"), &bad).unwrap_err().contains("boom"));
         std::fs::remove_dir_all(dir).unwrap();
     }
 
