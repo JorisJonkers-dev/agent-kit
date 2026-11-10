@@ -141,13 +141,14 @@ def test_the_hook_refuses_a_message_that_credits_anyone_but_the_owner(tmp_path: 
 @pytest.mark.parametrize(
     ("lines", "joined"),
     [
-        (("Reviewed by deepseek-flash and", "mistral-large"), "Reviewed by deepseek-flash and"),
+        (("Reviewed by", "deepseek-flash and mistral-large"), "Reviewed by deepseek-flash and mistral-large"),
         (("Credit goes to the team and", "reviewed by", "mistral-large"), "reviewed by mistral-large"),
         (("Reviewed by", "Kimi K2.7"), "Reviewed by Kimi K2.7"),
         (("Generated", "with OpenCode"), "Generated with OpenCode"),
         (("This was generated", "  with [a tool]"), "This was generated with [a tool]"),
         (("Each part written by", "GLM 5.3 through Vibe."), "Each part written by GLM 5.3 through Vibe."),
         (("Reviewed", "by", "Haiku"), "Reviewed by Haiku"),
+        (("Reviewed", "by the", "Haiku"), "Reviewed by the Haiku"),
     ],
 )
 def test_the_hook_refuses_a_credit_split_across_a_line_break(
@@ -165,6 +166,9 @@ def test_the_hook_refuses_a_credit_split_across_a_line_break(
         "Reviewed by\nthe maintainers.",
         "The change was generated\n\nwith care elsewhere.",
         "Reviewed by\n\nQwen is a model family.",
+        "Reviewed by the maintainers\n- Vibe config migrated",
+        "Written by the maintainers\n## Mistral notes",
+        "Reviewed by hand\n> Kimi said so",
     ],
 )
 def test_the_hook_does_not_join_across_a_paragraph_or_a_harmless_continuation(tmp_path: Path, message: str) -> None:

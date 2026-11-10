@@ -134,7 +134,7 @@ offending_lines() {
     if matches_any "${lowered}" ${refusals[@]+"${refusals[@]}"}; then
       printf '%s\n' "${line}"
       flagged=1
-    elif [ -n "${prev1}" ]; then
+    elif [ -n "${prev1}" ] && printf '%s %s\n' "${prev2}" "${prev1}" | grep -Eiq -- "${credit_words}"; then
       joined="$(unwrap "${prev1} ${line}")"
       if matches_any "$(lower "${joined}")" ${refusals[@]+"${refusals[@]}"}; then
         printf '%s\n' "${joined}"
@@ -150,12 +150,18 @@ offending_lines() {
     # A blank line ends the paragraph; a refused line starts a fresh window.
     if [ "${flagged}" = 1 ] || [ -z "${line//[[:space:]]/}" ]; then
       prev2="" prev1=""
+    elif [[ "${line}" =~ ^[[:space:]]*([-*+][[:space:]]|[0-9]+[.\)][[:space:]]|#{1,6}[[:space:]]|\||\>) ]]; then
+      # A list item, heading, table row or quote starts a new block.
+      prev2="" prev1="${line}"
     else
       prev2="${prev1}"
       prev1="${line}"
     fi
   done
 }
+
+# The verbs of a credit; a line pair is only joined when it holds one.
+credit_words='(generated|written|reviewed|authored|drafted|assisted|created|coded|produced|made|implemented|planned)'
 
 # Collapses every run of whitespace to one space and trims the ends.
 unwrap() { printf '%s' "$1" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//'; }
