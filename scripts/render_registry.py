@@ -2904,6 +2904,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
         skill.get("name") == "projects-layout" and on_surface(skill, "workstation")
         for skill in _entries(data, "local_skills")
     )
+    # What a NixOS workstation gets from Nix: setup reports those instead of
+    # installing them, and names a copy outside the store that shadows one.
+    nix_listed = nix_listed_binaries(data)
 
     w("#!/usr/bin/env bash")
     w(f"# {GENERATED_BANNER}")
@@ -2988,6 +2991,36 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("ok()   { printf 'setup:   ok    %s\\n' \"$*\"; }")
     w("warn() { printf 'setup:   warn  %s\\n' \"$*\" >&2; warnings=$((warnings + 1)); todo_warnings+=(\"$*\"); }")
     w("fail() { printf 'setup:   FAIL  %s\\n' \"$*\" >&2; failures=$((failures + 1)); todo_failures+=(\"$*\"); }")
+    w("")
+    # NixOS provides some of these tools itself, and a copy agent-kit installed
+    # (~/.local/bin, ~/.npm-global/bin, $AK_BIN_DIR) shadows the Nix one. Only a
+    # copy that resolves into the store counts as Nix's, so both helpers follow
+    # every symlink on PATH. AK_NIX_STORE exists so a test can point them at a
+    # fake store; nothing else sets it.
+    w("# Whether NixOS provides this binary: some copy on PATH resolves into the store.")
+    w("nix_provides() {")
+    w('  [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ] || return 1')
+    w("  local path resolved")
+    w("  while read -r path; do")
+    w('    [ -n "${path}" ] || continue')
+    w('    resolved=$(readlink -f "${path}" 2>/dev/null) || continue')
+    w('    case "${resolved}" in "${AK_NIX_STORE:-/nix/store}/"*) return 0 ;; esac')
+    w('  done < <(type -aP "$1" 2>/dev/null)')
+    w("  return 1")
+    w("}")
+    w("")
+    w("# The first copy of this binary that is NOT Nix's, so setup can name what shadows it.")
+    w("non_nix_copy() {")
+    w("  local path resolved")
+    w("  while read -r path; do")
+    w('    [ -n "${path}" ] || continue')
+    w('    resolved=$(readlink -f "${path}" 2>/dev/null) || continue')
+    w('    case "${resolved}" in "${AK_NIX_STORE:-/nix/store}/"*) continue ;; esac')
+    w("    printf '%s\\n' \"${path}\"")
+    w("    return 0")
+    w('  done < <(type -aP "$1" 2>/dev/null)')
+    w("  return 1")
+    w("}")
     w("")
     w("# Everything the run left for a person to do: failures first, each once.")
     w("print_todo() {")
@@ -4046,6 +4079,21 @@ def render_setup_script(data: dict[str, Any]) -> str:
         b(f'    fail "{failed}"')
         b("  fi")
         b("fi")
+        if binary and binary in nix_listed:
+            # NixOS gets this binary from Nix, so setup neither installs nor
+            # updates it there: it says so, and names a copy outside the store
+            # that would shadow the Nix one. Everywhere else the step is as it
+            # was. Wrapped in place so the requires_env checks stay outside.
+            block[:] = [
+                f"if nix_provides {binary}; then",
+                f'  ok "{name}: provided by Nix; setup does not install or update it"',
+                f"  if copy=$(non_nix_copy {binary}); then",
+                f'    warn "{name}: ${{copy}} is not from Nix and can shadow the Nix-provided {binary}; remove it"',
+                "  fi",
+                "else",
+                *[f"  {line}" if line else line for line in block],
+                "fi",
+            ]
         for var, why in (cli.get("requires_env") or {}).items():
             why_escaped = str(why).replace('"', '\\"')
             b(f'if [ -z "${{{var}:-}}" ]; then')
@@ -4324,6 +4372,24 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b(f'        ok "{plugin}: {binary} on PATH, plugin enabled"')
         else:
             b(f'        ok "{plugin}: {binary} on PATH, so plugin enabled (off by default)"')
+        if binary in nix_listed:
+            # NixOS provides this binary itself, so a copy that is not from the
+            # store is either agent-kit's own or a stale one that wins over
+            # Nix's. Say which; the plugin stays enabled either way.
+            b(f"        if nix_provides {binary}; then")
+            b(f"          if copy=$(non_nix_copy {binary}); then")
+            b(
+                f'            warn "{plugin}: ${{copy}} is not from Nix and can shadow '
+                f'the Nix-provided {binary}; remove it"'
+            )
+            b("          fi")
+            b('        elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then')
+            b(f'          copy=$(non_nix_copy {binary}) || copy=""')
+            b(
+                f'          warn "{plugin}: {binary} on PATH is not from Nix; on NixOS it comes '
+                "from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed\""
+            )
+            b("        fi")
         if runtime:
             b(f"      elif command -v {binary} >/dev/null 2>&1; then")
             b(f'        run claude plugin disable {ref} >/dev/null 2>&1 || true')
@@ -5281,6 +5347,19 @@ def nixos_entries(data: dict[str, Any]) -> list[tuple[str, str, str]]:
             attr, source = _nixos_source(str(nixos))
             entries.append((str(server.get("nixos_group") or "core"), attr, source))
     return entries
+
+
+def nix_listed_binaries(data: dict[str, Any]) -> set[str]:
+    """Every binary a NixOS workstation gets from Nix, by the name it is on PATH as.
+
+    The union of the ``nixos_packages`` names and the binary of every language
+    server with a ``nixos:`` key. Setup does not install or update one of these
+    on NixOS: it reports what Nix provides, and names a copy outside the store
+    that would shadow it.
+    """
+    listed = {str(package["name"]) for package in _entries(data, "nixos_packages")}
+    listed |= {str(server["binary"]) for server in _entries(data, "language_servers") if server.get("nixos")}
+    return listed
 
 
 def render_nixos_packages(data: dict[str, Any]) -> str:

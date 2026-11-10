@@ -80,6 +80,31 @@ ok()   { printf 'setup:   ok    %s\n' "$*"; }
 warn() { printf 'setup:   warn  %s\n' "$*" >&2; warnings=$((warnings + 1)); todo_warnings+=("$*"); }
 fail() { printf 'setup:   FAIL  %s\n' "$*" >&2; failures=$((failures + 1)); todo_failures+=("$*"); }
 
+# Whether NixOS provides this binary: some copy on PATH resolves into the store.
+nix_provides() {
+  [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ] || return 1
+  local path resolved
+  while read -r path; do
+    [ -n "${path}" ] || continue
+    resolved=$(readlink -f "${path}" 2>/dev/null) || continue
+    case "${resolved}" in "${AK_NIX_STORE:-/nix/store}/"*) return 0 ;; esac
+  done < <(type -aP "$1" 2>/dev/null)
+  return 1
+}
+
+# The first copy of this binary that is NOT Nix's, so setup can name what shadows it.
+non_nix_copy() {
+  local path resolved
+  while read -r path; do
+    [ -n "${path}" ] || continue
+    resolved=$(readlink -f "${path}" 2>/dev/null) || continue
+    case "${resolved}" in "${AK_NIX_STORE:-/nix/store}/"*) continue ;; esac
+    printf '%s\n' "${path}"
+    return 0
+  done < <(type -aP "$1" 2>/dev/null)
+  return 1
+}
+
 # Everything the run left for a person to do: failures first, each once.
 print_todo() {
   local all=() unique=() entry seen i=0
@@ -2415,18 +2440,25 @@ fi
 
 # Python tool/venv manager; prerequisite for hermes-agent and the
 # kit's own tooling.
-if command -v uv >/dev/null 2>&1; then
-  run_sh 'uv self update 2>/dev/null || brew upgrade uv 2>/dev/null || true'
-  ok "uv $(uv --version 2>/dev/null | head -1)"
+if nix_provides uv; then
+  ok "uv: provided by Nix; setup does not install or update it"
+  if copy=$(non_nix_copy uv); then
+    warn "uv: ${copy} is not from Nix and can shadow the Nix-provided uv; remove it"
+  fi
 else
-  run_sh 'curl -fsSL https://astral.sh/uv/install.sh | sh'
-  if [ "${CHECK_ONLY}" = 1 ]; then
-    log "uv would be installed"
-  elif command -v uv >/dev/null 2>&1; then
-    ok "uv installed"
-    new_binaries+=("uv")
+  if command -v uv >/dev/null 2>&1; then
+    run_sh 'uv self update 2>/dev/null || brew upgrade uv 2>/dev/null || true'
+    ok "uv $(uv --version 2>/dev/null | head -1)"
   else
-    fail "uv still not on PATH after install; open a new shell and re-run"
+    run_sh 'curl -fsSL https://astral.sh/uv/install.sh | sh'
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "uv would be installed"
+    elif command -v uv >/dev/null 2>&1; then
+      ok "uv installed"
+      new_binaries+=("uv")
+    else
+      fail "uv still not on PATH after install; open a new shell and re-run"
+    fi
   fi
 fi
 
@@ -2897,6 +2929,14 @@ for install in installs:
         if command -v typescript-language-server >/dev/null 2>&1; then
           run claude plugin enable typescript-lsp@agent-kit-official >/dev/null 2>&1 || true
           ok "typescript-lsp: typescript-language-server on PATH, plugin enabled"
+          if nix_provides typescript-language-server; then
+            if copy=$(non_nix_copy typescript-language-server); then
+              warn "typescript-lsp: ${copy} is not from Nix and can shadow the Nix-provided typescript-language-server; remove it"
+            fi
+          elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+            copy=$(non_nix_copy typescript-language-server) || copy=""
+            warn "typescript-lsp: typescript-language-server on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+          fi
         else
           run claude plugin disable typescript-lsp@agent-kit-official >/dev/null 2>&1 || true
           lsp_cmd='npm install -g typescript-language-server typescript'
@@ -2927,6 +2967,14 @@ for install in installs:
         if command -v pyright-langserver >/dev/null 2>&1; then
           run claude plugin enable pyright-lsp@agent-kit-official >/dev/null 2>&1 || true
           ok "pyright-lsp: pyright-langserver on PATH, plugin enabled"
+          if nix_provides pyright-langserver; then
+            if copy=$(non_nix_copy pyright-langserver); then
+              warn "pyright-lsp: ${copy} is not from Nix and can shadow the Nix-provided pyright-langserver; remove it"
+            fi
+          elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+            copy=$(non_nix_copy pyright-langserver) || copy=""
+            warn "pyright-lsp: pyright-langserver on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+          fi
         else
           run claude plugin disable pyright-lsp@agent-kit-official >/dev/null 2>&1 || true
           lsp_cmd='npm install -g pyright'
@@ -2957,6 +3005,14 @@ for install in installs:
         if command -v kotlin-lsp >/dev/null 2>&1; then
           run claude plugin enable kotlin-lsp@agent-kit-official >/dev/null 2>&1 || true
           ok "kotlin-lsp: kotlin-lsp on PATH, plugin enabled"
+          if nix_provides kotlin-lsp; then
+            if copy=$(non_nix_copy kotlin-lsp); then
+              warn "kotlin-lsp: ${copy} is not from Nix and can shadow the Nix-provided kotlin-lsp; remove it"
+            fi
+          elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+            copy=$(non_nix_copy kotlin-lsp) || copy=""
+            warn "kotlin-lsp: kotlin-lsp on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+          fi
         else
           run claude plugin disable kotlin-lsp@agent-kit-official >/dev/null 2>&1 || true
           if [ "$(uname -s)" = Linux ]; then
@@ -2991,6 +3047,14 @@ for install in installs:
         if command -v jdtls >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
           run claude plugin enable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
           ok "jdtls-lsp: jdtls on PATH, plugin enabled"
+          if nix_provides jdtls; then
+            if copy=$(non_nix_copy jdtls); then
+              warn "jdtls-lsp: ${copy} is not from Nix and can shadow the Nix-provided jdtls; remove it"
+            fi
+          elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+            copy=$(non_nix_copy jdtls) || copy=""
+            warn "jdtls-lsp: jdtls on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+          fi
         elif command -v jdtls >/dev/null 2>&1; then
           run claude plugin disable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
           warn "jdtls-lsp: jdtls is on PATH but java is not; plugin left disabled"
@@ -3037,6 +3101,14 @@ for install in installs:
           if command -v ruby-lsp >/dev/null 2>&1; then
             run claude plugin enable ruby-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "ruby-lsp: ruby-lsp on PATH, plugin enabled"
+            if nix_provides ruby-lsp; then
+              if copy=$(non_nix_copy ruby-lsp); then
+                warn "ruby-lsp: ${copy} is not from Nix and can shadow the Nix-provided ruby-lsp; remove it"
+              fi
+            elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              copy=$(non_nix_copy ruby-lsp) || copy=""
+              warn "ruby-lsp: ruby-lsp on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+            fi
           else
             run claude plugin disable ruby-lsp@agent-kit-official >/dev/null 2>&1 || true
             if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
@@ -3076,6 +3148,14 @@ for install in installs:
           if command -v gopls >/dev/null 2>&1; then
             run claude plugin enable gopls-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "gopls-lsp: gopls on PATH, plugin enabled"
+            if nix_provides gopls; then
+              if copy=$(non_nix_copy gopls); then
+                warn "gopls-lsp: ${copy} is not from Nix and can shadow the Nix-provided gopls; remove it"
+              fi
+            elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              copy=$(non_nix_copy gopls) || copy=""
+              warn "gopls-lsp: gopls on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+            fi
           else
             run claude plugin disable gopls-lsp@agent-kit-official >/dev/null 2>&1 || true
             if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
@@ -3115,6 +3195,14 @@ for install in installs:
           if command -v rust-analyzer >/dev/null 2>&1; then
             run claude plugin enable rust-analyzer-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "rust-analyzer-lsp: rust-analyzer on PATH, plugin enabled"
+            if nix_provides rust-analyzer; then
+              if copy=$(non_nix_copy rust-analyzer); then
+                warn "rust-analyzer-lsp: ${copy} is not from Nix and can shadow the Nix-provided rust-analyzer; remove it"
+              fi
+            elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              copy=$(non_nix_copy rust-analyzer) || copy=""
+              warn "rust-analyzer-lsp: rust-analyzer on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+            fi
           else
             run claude plugin disable rust-analyzer-lsp@agent-kit-official >/dev/null 2>&1 || true
             if ! command -v rustup >/dev/null 2>&1; then
@@ -3158,6 +3246,14 @@ for install in installs:
           if command -v lua-language-server >/dev/null 2>&1; then
             run claude plugin enable lua-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "lua-lsp: lua-language-server on PATH, plugin enabled"
+            if nix_provides lua-language-server; then
+              if copy=$(non_nix_copy lua-language-server); then
+                warn "lua-lsp: ${copy} is not from Nix and can shadow the Nix-provided lua-language-server; remove it"
+              fi
+            elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              copy=$(non_nix_copy lua-language-server) || copy=""
+              warn "lua-lsp: lua-language-server on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+            fi
           else
             run claude plugin disable lua-lsp@agent-kit-official >/dev/null 2>&1 || true
             if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
@@ -3197,6 +3293,14 @@ for install in installs:
           if command -v clangd >/dev/null 2>&1; then
             run claude plugin enable clangd-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "clangd-lsp: clangd on PATH, plugin enabled"
+            if nix_provides clangd; then
+              if copy=$(non_nix_copy clangd); then
+                warn "clangd-lsp: ${copy} is not from Nix and can shadow the Nix-provided clangd; remove it"
+              fi
+            elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              copy=$(non_nix_copy clangd) || copy=""
+              warn "clangd-lsp: clangd on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+            fi
           else
             run claude plugin disable clangd-lsp@agent-kit-official >/dev/null 2>&1 || true
             if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
@@ -3270,6 +3374,14 @@ for install in installs:
           if command -v csharp-ls >/dev/null 2>&1; then
             run claude plugin enable csharp-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "csharp-lsp: csharp-ls on PATH, plugin enabled"
+            if nix_provides csharp-ls; then
+              if copy=$(non_nix_copy csharp-ls); then
+                warn "csharp-lsp: ${copy} is not from Nix and can shadow the Nix-provided csharp-ls; remove it"
+              fi
+            elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              copy=$(non_nix_copy csharp-ls) || copy=""
+              warn "csharp-lsp: csharp-ls on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+            fi
           else
             run claude plugin disable csharp-lsp@agent-kit-official >/dev/null 2>&1 || true
             if ! command -v dotnet >/dev/null 2>&1; then
@@ -3313,6 +3425,14 @@ for install in installs:
           if command -v sourcekit-lsp >/dev/null 2>&1; then
             run claude plugin enable swift-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "swift-lsp: sourcekit-lsp on PATH, plugin enabled"
+            if nix_provides sourcekit-lsp; then
+              if copy=$(non_nix_copy sourcekit-lsp); then
+                warn "swift-lsp: ${copy} is not from Nix and can shadow the Nix-provided sourcekit-lsp; remove it"
+              fi
+            elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              copy=$(non_nix_copy sourcekit-lsp) || copy=""
+              warn "swift-lsp: sourcekit-lsp on PATH is not from Nix; on NixOS it comes from nixos-modules' devWorkstation, so remove ${copy:-it} once that is deployed"
+            fi
           else
             run claude plugin disable swift-lsp@agent-kit-official >/dev/null 2>&1 || true
             if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
