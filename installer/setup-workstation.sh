@@ -2536,14 +2536,14 @@ if ! command -v claude >/dev/null 2>&1; then
   fail "claude is not on PATH; skipping plugins, language servers and MCP"
 else
   log "plugin marketplaces"
-  ensure_marketplace claude-plugins-official anthropics/claude-plugins-official ea10b213686c90bb1984b2016937310e05336cf3 agent-kit-official
-  ensure_marketplace caveman JuliusBrussee/caveman b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+  ensure_marketplace claude-plugins-official anthropics/claude-plugins-official dceb15d50832e6adf380bedc26dde03d251324b9 agent-kit-official
+  ensure_marketplace caveman JuliusBrussee/caveman 8b0c1d3699b8d83e87fe4605b378da20c41555e0
   ensure_marketplace drawio jgraph/drawio-mcp 14b318b19cc37b159f841227b9d11fbd18ce18ea
   ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill 34f93c1e409156958cc7c410ab1aa88ab512f10f
   if [ "${CLOUD}" = 1 ]; then
     log "ai-software-architect: not set up in cloud mode"
   else
-    ensure_marketplace ai-software-architect codenamev/ai-software-architect 3f030c1e3f1568e9509251d2c24290392cdcd4e1
+    ensure_marketplace ai-software-architect codenamev/ai-software-architect 73d6f9a63effc9aba948f5ea5a29fd73e65f547b
   fi
 
   log "plugins"
@@ -2728,7 +2728,7 @@ for install in installs:
         "$1" "$2" 2>/dev/null
     }
 
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/caveman" caveman b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/caveman" caveman 8b0c1d3699b8d83e87fe4605b378da20c41555e0)"
     installed_commit="$(installed_plugin_commit "${manifest}" "caveman@caveman")"
     if [ -z "${expected_commit}" ]; then
       warn "caveman: its marketplace entry pins no commit, so it cannot be pinned"
@@ -2764,7 +2764,7 @@ for install in installs:
         plugin_drift+=("drawio: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" frontend-design ea10b213686c90bb1984b2016937310e05336cf3)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" frontend-design dceb15d50832e6adf380bedc26dde03d251324b9)"
     installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "frontend-design: its marketplace entry pins no commit, so it cannot be pinned"
@@ -2782,7 +2782,7 @@ for install in installs:
         plugin_drift+=("frontend-design: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" mattpocock-skills ea10b213686c90bb1984b2016937310e05336cf3)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" mattpocock-skills dceb15d50832e6adf380bedc26dde03d251324b9)"
     installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "mattpocock-skills: its marketplace entry pins no commit, so it cannot be pinned"
@@ -2800,7 +2800,7 @@ for install in installs:
         plugin_drift+=("mattpocock-skills: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" security-guidance ea10b213686c90bb1984b2016937310e05336cf3)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" security-guidance dceb15d50832e6adf380bedc26dde03d251324b9)"
     installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "security-guidance: its marketplace entry pins no commit, so it cannot be pinned"
@@ -2836,7 +2836,7 @@ for install in installs:
         plugin_drift+=("kubernetes-skill: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" github ea10b213686c90bb1984b2016937310e05336cf3)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" github dceb15d50832e6adf380bedc26dde03d251324b9)"
     installed_commit="$(installed_plugin_commit "${manifest}" "github@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "github: its marketplace entry pins no commit, so it cannot be pinned"
@@ -2854,7 +2854,7 @@ for install in installs:
         plugin_drift+=("github: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/ai-software-architect" ai-software-architect 3f030c1e3f1568e9509251d2c24290392cdcd4e1)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/ai-software-architect" ai-software-architect 73d6f9a63effc9aba948f5ea5a29fd73e65f547b)"
     installed_commit="$(installed_plugin_commit "${manifest}" "ai-software-architect@ai-software-architect")"
     if [ -z "${expected_commit}" ]; then
       warn "ai-software-architect: its marketplace entry pins no commit, so it cannot be pinned"

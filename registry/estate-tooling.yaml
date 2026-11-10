@@ -636,14 +636,14 @@ marketplaces:
   - name: claude-plugins-official
     repo: anthropics/claude-plugins-official
     ref: main
-    commit: ea10b213686c90bb1984b2016937310e05336cf3
+    commit: dceb15d50832e6adf380bedc26dde03d251324b9
     # Claude Code reserves this name for GitHub sources, so the pinned folder is
     # declared under another name and its plugins install as <plugin>@agent-kit-official.
     declare_as: agent-kit-official
   - name: caveman
     repo: JuliusBrussee/caveman
-    ref: v2.6.0
-    commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+    ref: v2.7.0
+    commit: 8b0c1d3699b8d83e87fe4605b378da20c41555e0
   - name: drawio
     repo: jgraph/drawio-mcp
     ref: main
@@ -655,7 +655,7 @@ marketplaces:
   - name: ai-software-architect
     repo: codenamev/ai-software-architect
     ref: main
-    commit: 3f030c1e3f1568e9509251d2c24290392cdcd4e1
+    commit: 73d6f9a63effc9aba948f5ea5a29fd73e65f547b
 
 # -------------------------------------------------------------------
 # Claude Code plugins.
@@ -1439,8 +1439,8 @@ skill_sources:
 
   - name: caveman
     repo: https://github.com/JuliusBrussee/caveman
-    ref: v2.6.0
-    commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+    ref: v2.7.0
+    commit: 8b0c1d3699b8d83e87fe4605b378da20c41555e0
     license: MIT
     selector: "*"
     surfaces: [hermes]

@@ -55,6 +55,30 @@ or list-item date line, or a frontmatter `date:` key, precedes the last commit
 that changed a path it names). Both are
 computed facts for the owner, not errors: they never make `check-adrs`
 fail.
+`critique check-plan --json '{"plan": "refactoring-plan.md"}'` (or with `"repo"`,
+and `plan` relative to it) checks a refactoring plan and exits 3 while it breaks
+a rule. The plan holds the sections `## Goal`, `## Target`, `## Safety net`,
+`## Steps`, `## Not doing` and `## Open decisions`. Each step is a
+`### S01: <title>` heading followed by `- **Field**: value` lines: Kind,
+Technique, Anchor, Touches, Safety net, Main stays green because, Rollback,
+Transitional element, Blocked by, Done when. Kind is exactly one of
+characterize, tidy, structure, behaviour, expand, migrate, contract,
+remove-transitional. An anchor is a backticked path (a fact row, with an
+optional `#symbol`), an `ADR-0005` id, or `prerequisite-of:S02`. File paths
+appear only in anchors, in Touches and in the Goal's evidence. The report is
+`{ status, errors: [{ step?, rule, message }], stored_data_steps, steps, notes }`;
+`stored_data_steps` lists the migrate and contract steps that touch a table,
+column, migration, schema, database or stored data. Step size limits come from
+`ticket_size` in routing.
+`critique facts --json '{"repo": ..., "files": [...], "modules": [...]}'`
+prints the runner's deterministic facts at HEAD's commit (ADR-0004): for each
+named file its last commit, that commit's own committer date and its churn
+(how many commits changed it), and for each named module (a file path) its
+imports, fan-in, fan-out and instability over the named set, and the import
+cycles among them. It holds no author and no commit message, gives the same
+bytes for the same commit, sends nothing and writes nothing. A module in a
+language the scan does not know (TypeScript/JavaScript, Python, Kotlin, Go and
+Rust are) gets `language: null` and a note in `notes`.
 With it on, the packet is a **repository packet**: it adds `tree/`, a sample
 of the code chosen by rule (the files the records name, then the top
 hotspots, each module's entry file, then the files on each import cycle),
