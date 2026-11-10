@@ -933,7 +933,7 @@ fn cell(rows: &[&ResultRow]) -> String {
     let mut cell = format!(
         "{}/{} ok, {} tok, {} calls, recall {:.2}",
         ok,
-        rows.len(),
+        good.len(),
         fmt_num(median(&tokens)),
         fmt_num(median(&calls)),
         mean(&recall)
@@ -1317,6 +1317,13 @@ mod tests {
     }
 
     #[test]
+    fn json_nesting_limit() {
+        let deep = |n: usize| format!("{}{}", "[".repeat(n), "]".repeat(n));
+        assert!(parse_json(&deep(64)).is_ok());
+        assert!(parse_json(&deep(65)).unwrap_err().contains("nesting deeper than 64 levels"));
+    }
+
+    #[test]
     fn json_errors() {
         for bad in [
             "", "nul", "tru", "@", "[1,", "[1 2]", "{\"a\" 1}", "{\"a\":1 \"b\":2}", "{1:2}", "\"abc",
@@ -1409,6 +1416,10 @@ mod tests {
         assert!(has(&e, "repo gamma is not in pins"));
         let e = errs_of(doc(|d| d.replace(&format!(r#""alpha":"{SHA_A}""#), r#""workspace":"cccccccccccccccccccccccccccccccccccccccc""#)));
         assert!(has(&e, "pin workspace: repo is on the deny list"));
+        let e = errs_of(doc(|d| d.replace(&format!(r#""alpha":"{SHA_A}""#), &format!(r#""a b":"{SHA_A}""#))));
+        assert!(has(&e, "pin a b: repo name must be letters"));
+        let e = errs_of(doc(|d| d.replacen(r#""must_contain":["a.rs"]"#, r#""must_contain":[]"#, 1)));
+        assert!(has(&e, "'must_contain' must not be empty"));
         let e = errs_of(doc(|d| d.replacen(r#""extra":1"#, &format!(r#""commit":"{SHA_B}""#), 1)));
         assert!(has(&e, "commit does not match the pin"));
         let e = errs_of(doc(|d| d.replacen(r#""extra":1"#, &format!(r#""commit":"{SHA_A}""#), 1)));
@@ -1583,6 +1594,11 @@ mod tests {
     #[test]
     fn tables() {
         assert_eq!(render_tables(&[]), "no results\n");
+        let mut failed = row("E-1", "concept", "m1", false, 9, 1, 0.0);
+        failed.error = Some("exit 2".into());
+        let failed_cell = cell(&[&failed]);
+        assert!(failed_cell.starts_with("0/0 ok") && failed_cell.ends_with("1 errors"), "{failed_cell}");
+        assert!(cell(&[]) == "-");
         let mut other = row("B-1", "refs", "m2", true, 7, 1, 1.0);
         other.agent = "claude".into();
         let rows = vec![
