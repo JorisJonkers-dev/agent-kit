@@ -169,8 +169,8 @@
           set -euo pipefail
           rev="$(curl -fsSL https://raw.githubusercontent.com/JorisJonkers-dev/nixos-modules/main/flake.lock \
             | jq -r '.nodes.nixpkgs.locked.rev')"
-          if [ -z "${rev}" ] || [ "${rev}" = "null" ]; then
-            echo "::error::nixos-modules' flake.lock names no nixpkgs revision"
+          if ! printf '%s' "${rev}" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::nixos-modules' flake.lock names no valid nixpkgs revision: ${rev}"
             exit 1
           fi
           echo "NIXPKGS_REV=${rev}" >> "$GITHUB_ENV"

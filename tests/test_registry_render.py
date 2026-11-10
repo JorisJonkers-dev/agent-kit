@@ -1257,6 +1257,9 @@ def test_a_bad_nixos_attribute_path_is_rejected() -> None:
     data["nixos_packages"][0]["nixos"] = "no such attr"
     with pytest.raises(render_registry.RegistryError, match="nixpkgs attribute path"):
         render_registry.validate(data)
+    data["nixos_packages"][0]["nixos"] = "texlive..combined"
+    with pytest.raises(render_registry.RegistryError, match="nixpkgs attribute path"):
+        render_registry.validate(data)
 
 
 def test_a_bad_language_server_nixos_value_is_rejected() -> None:

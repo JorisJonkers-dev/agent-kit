@@ -45,11 +45,16 @@ let
   check = entry:
     let
       label = "${entry.group}/${entry.attr}";
-      value = lib.attrByPath (lib.splitString "." entry.attr) null pkgs;
+      # Looking the path up can itself throw (an alias that was removed, a
+      # broken package set), so it is inside tryEval too.
+      looked = builtins.tryEval (lib.attrByPath (lib.splitString "." entry.attr) null pkgs);
+      value = looked.value;
+      isPackage = builtins.tryEval (value != null && lib.isDerivation value);
       evaluated = builtins.tryEval (builtins.seq value.drvPath true);
     in
-    if value == null then [ "${label}: missing" ]
-    else if !(lib.isDerivation value) then [ "${label}: not a package" ]
+    if !looked.success then [ "${label}: does not evaluate" ]
+    else if value == null then [ "${label}: missing" ]
+    else if !(isPackage.success && isPackage.value) then [ "${label}: not a package" ]
     else if evaluated.success then [ ]
     else [ "${label}: does not evaluate" ];
 

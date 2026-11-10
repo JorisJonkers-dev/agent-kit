@@ -93,7 +93,7 @@ NIXOS_PACKAGES = Path("registry/generated/nixos/packages.nix")
 NIXOS_PACKAGE_GROUPS = ("core", "kubernetes", "latex", "polyglot", "android")
 # `nixos:` is a nixpkgs attribute path, or `nixos-modules#<name>` for a
 # package the nixos-modules flake provides itself.
-NIXOS_ATTR = re.compile(r"^(nixos-modules#)?[A-Za-z0-9_][A-Za-z0-9_.+-]*$")
+NIXOS_ATTR = re.compile(r"^(nixos-modules#)?[A-Za-z0-9_][A-Za-z0-9_+-]*(\.[A-Za-z0-9_][A-Za-z0-9_+-]*)*$")
 
 # The agents a local_skills entry's `agents:` may name, and the homes each one
 # reads skills from. A name outside this table is a registry typo, not a home.
