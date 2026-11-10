@@ -10,7 +10,7 @@
 # llvm-profdata / llvm-cov, taken from the same toolchain's llvm-tools
 # component, read them. A mismatched LLVM is refused here, since its error
 # otherwise is a profile-format version mismatch. src/main.rs files (the one exit-wrapper
-# line each crate documents) are excluded. Resolution goes through the
+# line each crate documents) and test code are excluded. Resolution goes through the
 # crate-gate as for every cargo command here (.cargo/config.toml).
 set -euo pipefail
 
@@ -18,6 +18,11 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 manifest=$root/scripts/Cargo.toml
 target=${COVERAGE_TARGET_DIR:-$root/scripts/target/coverage}
 min=${COVERAGE_MIN_LINES:-100}
+# Not measured: dependencies and the toolchain, the src/main.rs exit wrappers,
+# and test code (a tests.rs module or a tests/ directory). Test modules live
+# in their own files for this reason; the standard is coverage of the
+# production source, not of the tests that exercise it.
+ignore='(/\.cargo/|/rustc/|/nix/store/|src/main\.rs$|/tests\.rs$|/tests/)'
 
 command -v rustc >/dev/null && PATH="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin:$PATH"
 
@@ -50,10 +55,10 @@ llvm-profdata merge -sparse "$target"/profiles/*.profraw -o "$target/merged.prof
 args=()
 for b in "${bins[@]}"; do args+=(-object "$b"); done
 llvm-cov report --instr-profile="$target/merged.profdata" \
-    --ignore-filename-regex='(/\.cargo/|/rustc/|/nix/store/|src/main\.rs$)' \
+    --ignore-filename-regex="$ignore" \
     --summary-only "${args[@]}" | tee "$target/report.txt"
 pct=$(llvm-cov export --instr-profile="$target/merged.profdata" --summary-only \
-    --ignore-filename-regex='(/\.cargo/|/rustc/|/nix/store/|src/main\.rs$)' "${args[@]}" \
+    --ignore-filename-regex="$ignore" "${args[@]}" \
     | jq -r '.data[0].totals.lines.percent')
 echo "coverage: workspace line coverage ${pct}% (required ${min}%)"
 awk -v p="$pct" -v m="$min" 'BEGIN { exit !(p + 0 >= m + 0) }' \

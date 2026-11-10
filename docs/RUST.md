@@ -74,7 +74,11 @@ It builds the workspace tests with rustc's own `-C instrument-coverage`, merges
 the profiles with `llvm-profdata`, prints a per-file `llvm-cov` report and
 exits `1` below 100 percent line coverage (`COVERAGE_MIN_LINES` overrides the
 floor for experiments). `src/main.rs` files are excluded: they are the one
-exit-wrapper line each crate documents. No crate is added, so the cooldown is
+exit-wrapper line each crate documents. Test code is excluded too, since the
+standard is coverage of production source: unit tests live in `src/tests.rs`
+(`#[cfg(test)] mod tests;`, or `src/<module>/tests.rs`) and integration tests
+under `tests/`, and any file matching `/tests.rs` or `/tests/` is ignored.
+Keep test helpers and stubs in those files, never in a production file. No crate is added, so the cooldown is
 untouched. It needs a rustup toolchain with the `llvm-tools` component (so
 `llvm-profdata` and `llvm-cov` come from the LLVM that built that `rustc`; the
 script refuses a mismatch) and `jq`.
