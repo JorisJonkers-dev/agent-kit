@@ -91,6 +91,12 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 @pytest.fixture(autouse=True)
 def _isolated_home(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> Path:
     home = tmp_path_factory.mktemp("home")
+    # Toolchains stay where they are: rustup finds its toolchains and cargo its registry
+    # config under the home, and both would be gone in an empty one. The watched files above
+    # still fail the run if a test writes cargo's config or credentials.
+    for name, default in (("RUSTUP_HOME", ".rustup"), ("CARGO_HOME", ".cargo")):
+        if name not in os.environ and (REAL_HOME / default).is_dir():
+            monkeypatch.setenv(name, str(REAL_HOME / default))
     monkeypatch.setenv("HOME", str(home))
     # Unset rather than set: each falls back to a path under HOME, and a test that sets one
     # itself still can. Some scripts refuse to run while KUBECONFIG is set at all.
