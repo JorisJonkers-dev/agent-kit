@@ -8,6 +8,7 @@
       - 'synchronize'
       - 'labeled'
       - 'unlabeled'
+      - 'edited'
 
 'concurrency':
   'group': '${{ github.workflow }}-${{ github.ref }}'
@@ -19,7 +20,7 @@
 
 'jobs':
   'repository-hygiene':
-    'uses': 'JorisJonkers-dev/github-workflows/.github/workflows/repository-hygiene-guard.yml@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+    'uses': 'JorisJonkers-dev/github-workflows/.github/workflows/repository-hygiene-guard.yml@a68da7988585d307c147a320dbd53f76b19943c4' # v0.46.0
     'with':
       'allowlist-regex': '^(\\.agents/|\\.claude/|\\.codex/|council/|skills/repo/|agents/)'
       'package-proxy-guard': 'enforce'
