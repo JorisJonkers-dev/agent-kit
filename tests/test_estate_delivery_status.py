@@ -2,7 +2,8 @@
 
 `verdict.py` reads the five signals SKILL.md gathers and prints `VERDICT: landed`,
 `mixed` or `not landed`, then one line per signal with its link. Landed needs the
-compose row clean and `estate/production` success; the Deployment does not gate it.
+compose row clean and `estate/production` success; not landed needs neither; mixed is
+exactly one. The Deployment and the publish run never change the verdict.
 """
 
 from __future__ import annotations
@@ -113,6 +114,19 @@ def test_nothing_good_is_not_landed() -> None:
     assert _verdict(data) == "not landed"
 
 
+def test_a_good_deployment_does_not_rescue_a_not_landed() -> None:
+    data = signals(compose="errors", status="failure", deployment="success", publish="success")
+    assert _verdict(data) == "not landed"
+
+
+def test_the_deployment_and_publish_never_change_the_verdict() -> None:
+    for deployment in ("success", "failure", "in_progress", "missing"):
+        for publish in ("success", "failure", "missing"):
+            assert _verdict(signals(deployment=deployment, publish=publish)) == "landed"
+            assert _verdict(signals(status="pending", deployment=deployment, publish=publish)) == "mixed"
+            assert _verdict(signals(compose="errors", status="pending", deployment=deployment)) == "not landed"
+
+
 def test_a_pending_status_with_a_clean_compose_is_mixed_with_every_link() -> None:
     result = _run(signals(status="pending", deployment="success"))
     lines = result.stdout.splitlines()
@@ -123,24 +137,20 @@ def test_a_pending_status_with_a_clean_compose_is_mixed_with_every_link() -> Non
     assert "publish: success  https://example.test/publish/1" in lines
 
 
-def test_a_failed_status_with_a_clean_compose_and_a_good_deployment_is_mixed() -> None:
-    result = _run(signals(status="failure", deployment="success"))
-    assert result.stdout.splitlines()[0] == "VERDICT: mixed"
-    assert "https://example.test/status/3" in result.stdout
+def test_a_failed_status_with_a_clean_compose_is_mixed_whatever_the_deployment() -> None:
+    for deployment in ("success", "missing"):
+        result = _run(signals(status="failure", deployment=deployment))
+        assert result.stdout.splitlines()[0] == "VERDICT: mixed"
+        assert "https://example.test/status/3" in result.stdout
 
 
 def test_the_opposite_disagreement_is_mixed_too() -> None:
-    data = signals(compose="errors", status="success", deployment="success", codes=["E_X", "E_Y"])
+    data = signals(compose="errors", status="success", deployment="missing", codes=["E_X", "E_Y"])
     result = _run(data)
     assert result.stdout.splitlines()[0] == "VERDICT: mixed"
     assert "compose: errors  https://example.test/compose/2" in result.stdout
     assert "codes: E_X, E_Y" in result.stdout
     assert "https://example.test/status/3" in result.stdout
-
-
-def test_only_a_good_deployment_is_mixed() -> None:
-    data = signals(compose="errors", status="failure", deployment="success")
-    assert _verdict(data) == "mixed"
 
 
 def test_a_head_sha_mismatch_counts_as_missing() -> None:
@@ -157,6 +167,23 @@ def test_a_null_or_absent_head_sha_is_not_a_mismatch() -> None:
     data["signals"]["status"]["headSha"] = None
     del data["signals"]["compose"]["headSha"]
     assert _verdict(data) == "landed"
+
+
+def test_head_sha_is_compared_case_insensitively() -> None:
+    data = signals()
+    data["signals"]["status"]["headSha"] = SHA.upper()
+    assert _verdict(data) == "landed"
+    data["sha"] = SHA.upper()
+    data["signals"]["status"]["headSha"] = SHA
+    assert _verdict(data) == "landed"
+
+
+def test_an_empty_head_sha_counts_as_null() -> None:
+    data = signals()
+    data["signals"]["status"]["headSha"] = ""
+    result = _run(data)
+    assert result.stdout.splitlines()[0] == "VERDICT: landed"
+    assert "counted as missing" not in result.stdout
 
 
 def test_open_issues_are_listed_with_links_and_do_not_change_the_verdict() -> None:
@@ -211,6 +238,11 @@ MALFORMED = {
     "unknown state": lambda d: d["signals"]["status"].update(state="green"),
     "url not a string": lambda d: d["signals"]["status"].update(url=3),
     "head sha not a string": lambda d: d["signals"]["status"].update(headSha=3),
+    "head sha not 40 hex": lambda d: d["signals"]["status"].update(headSha="abc123"),
+    "head sha 40 non-hex": lambda d: d["signals"]["status"].update(headSha="z" * 40),
+    "sha not 40 hex": lambda d: d.update(sha="abc123"),
+    "unhashable state": lambda d: d["signals"]["status"].update(state=[]),
+    "object state": lambda d: d["signals"]["compose"].update(state={}),
     "codes not a list": lambda d: d["signals"]["compose"].update(codes="E_X"),
     "codes not strings": lambda d: d["signals"]["compose"].update(codes=[1]),
     "issues not a list": lambda d: d["signals"].update(issues="none"),
@@ -225,6 +257,15 @@ def test_malformed_input_exits_2_with_a_message_and_no_verdict(name: str) -> Non
     data = copy.deepcopy(signals())
     replaced = mutate(data)
     result = _run(replaced if isinstance(replaced, list) else data)
+    assert result.returncode == 2
+    assert result.stderr.startswith("verdict.py: malformed input: ")
+    assert result.stdout == ""
+
+
+def test_a_file_that_is_not_utf8_exits_2(tmp_path: Path) -> None:
+    path = tmp_path / "latin.json"
+    path.write_bytes(b'{"project": "caf\xe9"}')
+    result = _run(None, "--signals", str(path), raw="")
     assert result.returncode == 2
     assert result.stderr.startswith("verdict.py: malformed input: ")
     assert result.stdout == ""
@@ -283,10 +324,13 @@ def test_evaluate_refuses_malformed_input_in_process(verdict_module: ModuleType,
     ("compose", "status", "deployment", "expected"),
     [
         ("clean", "success", "missing", "landed"),
+        ("clean", "success", "failure", "landed"),
         ("errors", "failure", "missing", "not landed"),
+        ("errors", "failure", "success", "not landed"),
         ("clean", "pending", "missing", "mixed"),
+        ("clean", "failure", "success", "mixed"),
         ("errors", "success", "missing", "mixed"),
-        ("errors", "failure", "success", "mixed"),
+        ("errors", "success", "success", "mixed"),
     ],
 )
 def test_verdict_rule_in_process(
@@ -339,9 +383,9 @@ def test_the_checker_fails_when_a_worked_example_is_removed(name: str) -> None:
 def test_skill_md_states_the_verdict_rule_and_that_the_deployment_does_not_gate_landed() -> None:
     text = SKILL_MD.read_text()
     assert "**landed** only when the compose row is clean and `estate/production` is success" in text
-    assert "The Deployment does not gate landed" in text
-    assert "**not landed** when none of the three is good" in text
-    assert "**mixed** otherwise" in text
+    assert "The Deployment and the publish run do not gate the verdict" in text
+    assert "**not landed** when neither of the two is good, whatever the Deployment says" in text
+    assert "**mixed** when exactly one of the two is good" in text
     assert "headSha" in text
     assert "differs from `sha`" in text
 
@@ -382,7 +426,7 @@ def test_each_worked_example_gives_the_verdict_it_states(name: str) -> None:
     assert _verdict(EXAMPLE_INPUTS[name]) == name
 
 
-def test_the_mixed_example_names_the_disagreeing_signals_with_links() -> None:
+def test_the_mixed_example_names_the_disagreeing_signal_with_its_link() -> None:
     result = _run(EXAMPLE_INPUTS["mixed"])
     assert "status: pending  https://example.test/status/3" in result.stdout
     assert "deployment: in_progress  https://example.test/deploy/4" in result.stdout

@@ -8,12 +8,16 @@ input and 2 for malformed input (message on stderr).
 
 import argparse
 import json
+import re
 import sys
 
 PUBLISH_STATES = {"success", "failure", "missing"}
 COMPOSE_STATES = {"clean", "errors", "missing"}
 STATUS_STATES = {"success", "failure", "pending", "missing"}
 DEPLOYMENT_STATES = {"success", "failure", "in_progress", "missing"}
+
+
+FULL_SHA = re.compile(r"[0-9a-fA-F]{40}")
 
 
 class Malformed(Exception):
@@ -34,10 +38,14 @@ def read_text(obj, key, where):
 def read_signal(signals, name, states):
     signal = signals.get(name)
     require(isinstance(signal, dict), f"signals.{name} must be an object")
-    require(signal.get("state") in states, f"signals.{name}.state must be one of {sorted(states)}")
+    state = signal.get("state")
+    require(isinstance(state, str) and state in states, f"signals.{name}.state must be one of {sorted(states)}")
     require(isinstance(signal.get("url", ""), str), f"signals.{name}.url must be a string")
     head = signal.get("headSha")
-    require(head is None or isinstance(head, str), f"signals.{name}.headSha must be a string or null")
+    require(
+        head is None or head == "" or (isinstance(head, str) and FULL_SHA.fullmatch(head)),
+        f"signals.{name}.headSha must be a 40-hex commit, an empty string or null",
+    )
     return signal
 
 
@@ -55,18 +63,21 @@ def read_issues(signals):
 def effective_state(signal, sha):
     """A signal for another commit than the release counts as missing."""
     head = signal.get("headSha")
-    if head and head != sha:
+    if head and head.lower() != sha.lower():
         return "missing", f"headSha {head} differs from {sha}"
     return signal["state"], None
 
 
 def verdict(states):
+    """landed: both good; not landed: neither good; mixed: exactly one.
+
+    The Deployment and the publish run are reported but never decide.
+    """
     compose_good = states["compose"] == "clean"
     status_good = states["status"] == "success"
-    deployment_good = states["deployment"] == "success"
     if compose_good and status_good:
         return "landed"
-    if not (compose_good or status_good or deployment_good):
+    if not (compose_good or status_good):
         return "not landed"
     return "mixed"
 
@@ -76,6 +87,7 @@ def evaluate(data):
     read_text(data, "project", "input")
     read_text(data, "release", "input")
     sha = read_text(data, "sha", "input")
+    require(FULL_SHA.fullmatch(sha) is not None, "input.sha must be a 40-hex commit")
     signals = data.get("signals")
     require(isinstance(signals, dict), "signals must be an object")
 
@@ -125,7 +137,7 @@ def main():
         else:
             data = json.load(sys.stdin)
         rows, states, notes, codes, issues = evaluate(data)
-    except (OSError, json.JSONDecodeError, Malformed) as error:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, Malformed) as error:
         print(f"verdict.py: malformed input: {error}", file=sys.stderr)
         return 2
     print(render(rows, states, notes, codes, issues, verdict(states)))

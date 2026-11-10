@@ -20,6 +20,16 @@ sources:
     blob: bfa316efdf4d8b69919b8f40df057d4ea8d65cd3
     checked: 2026-11-10
   - kind: file
+    repo: JorisJonkers-dev/estate
+    path: .github/scripts/delivery-report.sh
+    blob: 4cdb8df581f28bc96c62907741da91029a1754e6
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: .github/scripts/deployments.sh
+    blob: d4651886499fa260c9b6c6dfddf0e3a131a71c72
+    checked: 2026-11-10
+  - kind: file
     repo: JorisJonkers-dev/workspace
     path: CLAUDE.md
     blob: 0993e8da9b17b2cde03085f21eff430b87b24e20
