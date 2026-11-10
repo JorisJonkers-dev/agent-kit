@@ -1124,6 +1124,20 @@ local_skills:
       them. sources.yaml records what it was checked against for
       scripts/check_skill_sources.py.
 
+  - name: estate-bootstrap
+    path: skills/workstation/estate-bootstrap
+    purpose: >-
+      Start or audit a repository against the estate templates, shared
+      workflows, Renovate preset, commons libraries and testing standards,
+      reporting gaps with evidence and drafting issues only after the owner
+      says yes.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Carries the procedure and points at the canonical docs; it never copies
+      them. sources.yaml records what it was checked against for
+      scripts/check_skill_sources.py.
+
   - name: model-gateway
     path: skills/workstation/model-gateway
     purpose: >-
