@@ -3520,8 +3520,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('CLAUDE_HOME="${HOME}/.claude"')
     w('if [ -n "${CLAUDE_CONFIG_DIR:-}" ] && [ "${CLAUDE_CONFIG_DIR%/}" != "${CLAUDE_HOME}" ]; then')
     w(
-        '  echo "setup: ignoring CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR};'
-        ' the work profile installs into ${CLAUDE_HOME}" >&2'
+        '  log "ignoring CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR};'
+        ' the work profile installs into ${CLAUDE_HOME}"'
     )
     w("fi")
     w("unset CLAUDE_CONFIG_DIR")
@@ -3964,7 +3964,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             # makes that secondary the primary too. Everything below would
             # then point the root at itself, so stop before touching it.
             w('  if [ "${profile_dir}" = "${CLAUDE_HOME}" ] || [ "${profile_dir}" -ef "${CLAUDE_HOME}" ]; then')
-            w(f'    fail "{name}: CLAUDE_CONFIG_DIR points at ${{profile_dir}}; re-run with it unset"')
+            w(f'    fail "{name}: is the work profile directory ${{profile_dir}}; point it elsewhere"')
             w("  else")
             w('    if [ "${CHECK_ONLY}" = 1 ] && [ ! -d "${profile_dir}" ]; then')
             w('      log "would create ${profile_dir}"')

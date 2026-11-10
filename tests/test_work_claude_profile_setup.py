@@ -26,7 +26,7 @@ def test_ambient_config_dir_does_not_redirect_the_work_profile(tmp_path: Path) -
     run = setup_run(tmp_path / "ambient", "Linux", extra_env={"CLAUDE_CONFIG_DIR": str(other)})
     assert _surfaces(run.home), "work profile skills were not installed into ~/.claude"
     assert not other.exists(), "setup wrote into the ambient CLAUDE_CONFIG_DIR"
-    assert "ignoring CLAUDE_CONFIG_DIR" in run.stderr
+    assert "ignoring CLAUDE_CONFIG_DIR" in run.stdout
 
 
 def test_personal_session_leaves_personal_profile_separate(tmp_path: Path) -> None:
@@ -47,7 +47,7 @@ def test_personal_session_leaves_personal_profile_separate(tmp_path: Path) -> No
 
 def test_without_an_override_nothing_is_reported(tmp_path: Path) -> None:
     run = setup_run(tmp_path / "plain", "Linux")
-    assert "ignoring CLAUDE_CONFIG_DIR" not in run.stderr
+    assert "ignoring CLAUDE_CONFIG_DIR" not in run.stdout
     assert _surfaces(run.home)
 
 
@@ -58,7 +58,12 @@ def test_claude_calls_for_the_work_profile_run_without_a_config_root(tmp_path: P
     run = setup_run(
         tmp_path / "env",
         "Linux",
-        stubs={"claude": f'echo "$* @ ${{CLAUDE_CONFIG_DIR:-unset}}" >> "{log}"'},
+        stubs={
+            "claude": (
+                f'echo "$* @ ${{CLAUDE_CONFIG_DIR:-unset}}" >> "{log}"\n'
+                'echo "{}" > "${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"'
+            ),
+        },
         extra_env={"CLAUDE_CONFIG_DIR": str(other)},
     )
     seen = log.read_text().splitlines() if log.exists() else []
@@ -66,4 +71,5 @@ def test_claude_calls_for_the_work_profile_run_without_a_config_root(tmp_path: P
     assert not any(str(other) in line for line in seen), seen
     work_calls = [line for line in seen if line.endswith("@ unset")]
     assert work_calls, seen
+    assert (run.home / ".claude.json").exists()
     assert not (run.home / ".claude" / ".claude.json").exists()
