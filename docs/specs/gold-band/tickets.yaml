@@ -1198,6 +1198,44 @@ tickets:
   what: Glossary and setup-guide updates and the recorded Gold Band gaps from the real runs.
   ac:
   - Each gap in the Gold Band runs record appears in the setup guide's Gold Band gaps list with an upstream issue link or the shim that closes it.
+- key: B2-16
+  issue: 568
+  branch: B2
+  stories: []
+  title: The model gateway and agent ids read the live LiteLLM model catalogue
+  blocked_by:
+  - B2-07
+  supersedes: []
+  lanes:
+  - gold-band-personal
+  - gold-band-work
+  hosts:
+  - linux
+  - mac
+  what: The gateway and the Gold Band agent ids read the probed model catalogue the litellm repository publishes, instead of static model lists.
+  ac:
+  - The gateway lists only usable models, refuses a blocked one with the provider's reason, and marks free ones.
+  - A missing or stale catalogue is a warning, never a failed run.
+  - No static model list for the five routes remains.
+- key: B2-17
+  issue: 570
+  branch: B2
+  stories: []
+  title: Verify LiteLLM telemetry, dashboard and budget alerts live
+  blocked_by:
+  - B2-07
+  supersedes: []
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The deployed proxy's metrics, traces, dashboard and budget alerts are verified live, metadata only.
+  ac:
+  - Series per key alias and model are in the estate Prometheus for a real request.
+  - A trace carries tokens, model and status and neither prompt nor response.
+  - A throwaway key with a small max_budget is called until refused and the budget alert fires; the window and reset are recorded.
+  - The alert rules pass promtool check rules.
 - key: B3-01
   issue: 457
   branch: B3
@@ -2186,6 +2224,23 @@ tickets:
   ac:
   - The wrapper refuses to run on a branch other than main.
   - The stray clone's unpushed commits and dirty files are listed in the ticket before it is removed, and its path no longer exists afterwards.
+- key: B6-13
+  issue: 569
+  branch: B6
+  stories: []
+  title: Local OpenAI-compatible model server reachable by LiteLLM
+  blocked_by:
+  - B2-07
+  supersedes: []
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  what: The ROCm model server on the GPU workstation is reachable from the litellm namespace, so local/<model> answers.
+  ac:
+  - The node serves /v1/models and a 1-token chat completion after switch.
+  - From a pod in litellm-system the server answers; from other namespaces it does not.
+  - local/qwen3:32b answers through LiteLLM with no budget and fails fast while the game-yield watcher has the server stopped.
 - key: B7-01
   issue: 516
   branch: B7
