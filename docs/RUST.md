@@ -15,12 +15,16 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Three members: `crates/inventory-check` (fails when an on-disk skill, hook, role file or MCP server is missing from docs/gold-band-port-inventory.md, has two targets or no lanes) and `crates/agent-kit-setup`, the canary: a
+* **The workspace.** Five members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
-  `--version` proves the build and whose `validate <PATH>` checks a path. The
-  third, `crates/gold-band-registry`, is std-only too and validates the Gold
-  Band instances and the overlay (docs/REGISTRY.md). New
-  Rust joins this workspace as a new member, never as its own Cargo project.
+  `--version` proves the build and whose `validate <PATH>` checks a path.
+  `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
+  server is missing from docs/gold-band-port-inventory.md, has two targets or no
+  lanes. `crates/gold-band-registry` is std-only too and validates the Gold Band
+  instances and the overlay (docs/REGISTRY.md). `crates/code-nav-eval` runs the
+  frozen code-navigation question set. `crates/workflow-lint` is the Gold Band
+  workflow lint (below). New Rust joins this workspace as a new member, never as
+  its own Cargo project.
 
 ```bash
 cargo build --manifest-path scripts/Cargo.toml
@@ -145,3 +149,28 @@ which waiting seven days is the worse risk. The route:
 
 How crate-age itself honours a waiver is defined by the standards repo
 (ADR-0014); the ledger here is this repository's approval record for it.
+
+## The Gold Band workflow lint
+
+`crates/workflow-lint` is a library plus a CLI (`workflow-lint <FILE>...`;
+exit 0 clean, 1 problems, 2 bad usage or an unreadable or invalid file) that
+later tickets call. Its one registry dependency, `serde_json`, is pinned
+exactly at a version older than the cooldown. It reads Gold Band's workflow
+JSON (version `0.1`), bare or in the authoring wrapper with `modelBindings`,
+and refuses, one line per problem, `<node>: <rule>: <message>`:
+
+* `opus-outside-judgment`: a node binds Opus and its id does not end in
+  `-escalation`, `-acceptance` or `-planning`;
+* `memory-write-outside-judgment`: a node binds a memory-writing agent and its
+  id does not end in `-acceptance` or `-escalation` (ADR-0012);
+* `loop-not-unrolled`: the edges contain a cycle, or an edge targets
+  `$new-round`; a repair loop is unrolled into fixed nodes (`review-1`,
+  `repair-1`, `review-2`);
+* `banned-binding`: a node binds an agent or model containing `codex`.
+
+**How a binding declares a memory write.** Gold Band's JSON has no memory
+field, so the lint defines the smallest declaration: an agent id (a worker's
+`provider`, a strategy's provider fields, or a wrapper binding's `agentId`)
+that contains the marker `memory-write`, case-insensitive, for example
+`claude-acp+memory-write`. A binding without the marker reads memory only.
+Fixture workflows live in `crates/workflow-lint/tests/fixtures/`.

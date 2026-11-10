@@ -16,4 +16,5 @@ members = [
     "crates/inventory-check",
     "crates/gold-band-registry",
     "crates/code-nav-eval",
+    "crates/workflow-lint",
 ]

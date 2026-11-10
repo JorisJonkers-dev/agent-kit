@@ -1,0 +1,14 @@
+{
+  "version": "0.1",
+  "id": "repair-loop",
+  "entry": "dev-build",
+  "nodes": [
+    { "type": "worker", "profile": "pf-builtin-dev", "goal": "Do it.", "id": "dev-build", "provider": "claude-acp", "model": "claude-sonnet-4-5" },
+    { "type": "worker", "profile": "pf-builtin-dev", "goal": "Do it.", "id": "dev-repair", "provider": "claude-acp", "model": "claude-sonnet-4-5" }
+  ],
+  "edges": [
+    { "from": "dev-build", "to": "dev-repair", "on": "failure", "session": null },
+    { "from": "dev-repair", "to": "dev-build", "on": "success", "session": null },
+    { "from": "dev-build", "to": "$end", "on": "success", "session": null }
+  ]
+}
