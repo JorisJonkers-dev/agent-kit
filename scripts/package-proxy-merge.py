@@ -136,9 +136,13 @@ def main(argv: list[str] | None = None) -> int:
     if refuse is not None:
         for number, line in enumerate(_without_block(lines, begin, end), start=1):
             if refuse.search(line):
+                # Name the property only, never its value: a user's own
+                # password or token must not reach the output.
+                key, sep, _ = line.partition("=")
+                named = f" ({key.strip()!r})" if sep else ""
                 print(
                     f"package-proxy-merge: refusing to merge into {args.file}: "
-                    f"line {number} ({line.strip()!r}) is outside the block "
+                    f"line {number}{named} is outside the block "
                     "and must not be overridden",
                     file=sys.stderr,
                 )

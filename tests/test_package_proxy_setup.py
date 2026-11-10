@@ -361,6 +361,18 @@ def test_an_npmrc_registry_outside_the_block_refuses_the_writer(tmp_path: Path) 
     _assert_no_key_leak(run)
 
 
+def test_a_user_npmrc_auth_token_line_is_kept_and_never_printed(tmp_path: Path) -> None:
+    scratch = tmp_path / "scratch"
+    user_line = "//packages.jorisjonkers.dev/npm/:_authToken=usernpm-321"
+    npmrc = scratch / ".npmrc"
+    npmrc.parent.mkdir(parents=True)
+    npmrc.write_text(user_line + "\n")
+    run = _run(tmp_path, scratch=scratch, env={"PACKAGES_PROXY_TOKEN": KEY})
+    assert user_line in npmrc.read_text().splitlines()
+    assert _no_proxy_failure(run)
+    _assert_no_key_leak(run, "usernpm-321")
+
+
 def test_the_go_env_call_and_the_case_go_is_missing(tmp_path: Path) -> None:
     run = _run(tmp_path, env={"PACKAGES_PROXY_TOKEN": KEY})
     goenv = tmp_path / "scratch" / "goenv"
@@ -540,6 +552,8 @@ MAVEN_MIRROR_URL = "https://packages.jorisjonkers.dev/maven/"
 GRADLE_BLOCK = (
     "# agent-kit packages-proxy begin",
     f"packagesProxyToken={KEY}",
+    "systemProp.gradle.wrapperUser=packages",
+    f"systemProp.gradle.wrapperPassword={KEY}",
     "# agent-kit packages-proxy end",
 )
 
@@ -644,9 +658,50 @@ def test_a_gradle_proxy_token_outside_the_block_refuses_the_writer(tmp_path: Pat
     run = _run(tmp_path, scratch=scratch, env={"PACKAGES_PROXY_TOKEN": KEY})
     assert props.read_text() == original
     assert not props.with_name("gradle.properties.bak-agent-kit").exists()
-    assert "has its own packagesProxyToken, nothing written" in run.stderr
+    assert "has its own proxy line, nothing written" in run.stderr
     assert _no_proxy_failure(run)
     _assert_no_key_leak(run)
+
+
+def test_a_user_wrapper_user_line_is_kept_and_warns(tmp_path: Path) -> None:
+    scratch = tmp_path / "scratch"
+    original = "systemProp.gradle.wrapperUser=myuser\n"
+    props = _gradle_props(scratch)
+    props.parent.mkdir(parents=True)
+    props.write_text(original)
+    run = _run(tmp_path, scratch=scratch, env={"PACKAGES_PROXY_TOKEN": KEY})
+    lines = props.read_text().splitlines()
+    assert "systemProp.gradle.wrapperUser=myuser" in lines
+    assert "has its own proxy line, nothing written" in run.stderr
+    assert _no_proxy_failure(run)
+    _assert_no_key_leak(run)
+
+
+def test_a_user_wrapper_password_line_is_kept_and_warns(tmp_path: Path) -> None:
+    scratch = tmp_path / "scratch"
+    original = "systemProp.gradle.wrapperPassword=mysecret\n"
+    props = _gradle_props(scratch)
+    props.parent.mkdir(parents=True)
+    props.write_text(original)
+    run = _run(tmp_path, scratch=scratch, env={"PACKAGES_PROXY_TOKEN": KEY})
+    lines = props.read_text().splitlines()
+    assert "systemProp.gradle.wrapperPassword=mysecret" in lines
+    assert "has its own proxy line, nothing written" in run.stderr
+    assert _no_proxy_failure(run)
+    _assert_no_key_leak(run, "mysecret")
+
+
+def test_a_user_proxy_token_line_is_kept_warns_and_never_printed(tmp_path: Path) -> None:
+    scratch = tmp_path / "scratch"
+    original = "packagesProxyToken=usertoken-789\n"
+    props = _gradle_props(scratch)
+    props.parent.mkdir(parents=True)
+    props.write_text(original)
+    run = _run(tmp_path, scratch=scratch, env={"PACKAGES_PROXY_TOKEN": KEY})
+    assert props.read_text() == original
+    assert "has its own proxy line, nothing written" in run.stderr
+    assert _no_proxy_failure(run)
+    _assert_no_key_leak(run, "usertoken-789")
 
 
 def test_a_second_run_leaves_the_gradle_and_maven_files_identical(tmp_path: Path) -> None:
