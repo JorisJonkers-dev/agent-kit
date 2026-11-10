@@ -59,7 +59,7 @@ fn rows(text: &str) -> Vec<(String, Vec<&str>)> {
             section = title.trim().to_string();
         } else if let Some(c) = cells(line) {
             let head = c[0].eq_ignore_ascii_case("name");
-            let rule = c[0].chars().all(|ch| ch == '-' || ch == ' ');
+            let rule = !c[0].is_empty() && c[0].chars().all(|ch| ch == '-');
             if !head && !rule {
                 out.push((section.clone(), c));
             }
@@ -475,6 +475,14 @@ mod tests {
             &problems_of("dup", &dup),
             "Planned/x: name has two rows"
         ));
+    }
+
+    #[test]
+    fn blank_name_row_is_still_checked() {
+        let doc = format!("{GOOD}\n## Planned\n\n{HEAD}|  | p | w |  |  | |\n");
+        let p = problems_of("blank", &doc);
+        assert!(has(&p, "Planned/: row has no target"));
+        assert!(has(&p, "Planned/: row has no lanes"));
     }
 
     #[test]
