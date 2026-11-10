@@ -132,7 +132,9 @@ class Workstation:
             **env: str) -> subprocess.CompletedProcess:
         run_env = {k: v for k, v in os.environ.items() if k != "AGENT_KIT_SECRETS_BACKEND"}
         run_env.update({"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin",
-                        "FAKE_KEYCHAIN": str(self.keychain)}, **env)
+                        "FAKE_KEYCHAIN": str(self.keychain),
+                        # The stand-in stands for macOS; the default is by platform.
+                        "AGENT_KIT_SECRETS_BACKEND": "keychain"}, **env)
         stdin = raw if raw is not None else "".join(json.dumps(m) + "\n" for m in messages)
         return subprocess.run([sys.executable, str(PROXY), "--url", url, "--secret", var],
                               input=stdin, capture_output=True, text=True, check=False,

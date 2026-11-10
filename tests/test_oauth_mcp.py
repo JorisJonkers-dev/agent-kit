@@ -118,7 +118,9 @@ class Machine:
         self.bin = tmp_path / "bin"
         self.bin.mkdir()
         for name, body in (("claude", FAKE_CLAUDE), ("codex", FAKE_CODEX), ("security", FAKE_SECURITY),
-                           ("uv", FAKE_UV), ("vibe", "#!/bin/sh\n")):
+                           ("uv", FAKE_UV), ("vibe", "#!/bin/sh\n"),
+                           # The stand-in `security` stands for macOS, which is where the Keychain is read.
+                           ("uname", "#!/bin/sh\necho Darwin\n")):
             (self.bin / name).write_text(body)
             (self.bin / name).chmod(0o755)
         self.log = tmp_path / "calls.log"

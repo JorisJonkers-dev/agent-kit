@@ -229,7 +229,8 @@ def _vibe_login(
     (home / ".vibe").mkdir(parents=True, exist_ok=True)
     if env_file:
         (home / ".vibe" / ".env").write_text(f"MISTRAL_API_KEY='{env_file}'\n")
-    return {"PATH": f"{bin_dir}:{os.environ['PATH']}", "PYTHONPATH": str(fake_keyring)}
+    return {"PATH": f"{bin_dir}:{os.environ['PATH']}", "PYTHONPATH": str(fake_keyring),
+            "AGENT_KIT_SECRETS_BACKEND": "keychain"}
 
 
 def _sync_env(tmp_path: Path, url: str, extra: dict, *args: str) -> subprocess.CompletedProcess:

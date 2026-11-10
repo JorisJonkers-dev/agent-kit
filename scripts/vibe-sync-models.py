@@ -65,18 +65,23 @@ def vibe_home() -> Path:
     return Path(os.environ.get("VIBE_HOME") or Path.home() / ".vibe")
 
 
+def on_macos() -> bool:
+    """macOS, or a stand-in for it: AGENT_KIT_SECRETS_BACKEND=keychain is the same switch the secret helpers honour."""
+    return sys.platform == "darwin" or os.environ.get("AGENT_KIT_SECRETS_BACKEND") == "keychain"
+
+
 def login_key() -> str:
     """The key Vibe itself uses, in the order it looks."""
     if os.environ.get("MISTRAL_API_KEY"):
         return os.environ["MISTRAL_API_KEY"]
-    if sys.platform == "darwin" and shutil.which("security"):
+    if on_macos() and shutil.which("security"):
         out = subprocess.run(
             ["security", "find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY", "-w"],
             capture_output=True, text=True, check=False,
         )
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout.strip()
-    if sys.platform != "darwin":
+    if not on_macos():
         key = secret_service_key()
         if key:
             return key
