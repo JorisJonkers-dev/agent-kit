@@ -1,0 +1,85 @@
+sources:
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/10-project-intent.md
+    blob: ce64304c3071926fd7688283bbe20561c480b5f0
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/16-dependencies.md
+    blob: 3af34397f4ff192c1f244f5474043bd21670c5df
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/17-sign-in.md
+    blob: 977605d483d262aae2b2bd95e2a06fd03257a9d1
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/60-setup.md
+    blob: 1032c416374efe1d1fd8fd1baffe2d5fc6de7788
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: CONTEXT.md
+    blob: ea28e0c25aa8cc787f9286bc0071c5092cadc296
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/examples/minimal/notes.project.yml
+    blob: 7f7def148c291382196fad71817801e85f13d406
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: README.md
+    blob: 4cdb43e307f942c218d885b21443aecaa1dd5438
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: participants.yml
+    blob: 7aa95d084079fd55d9a4fcbd3b695996e2dceebc
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: docs/runbooks/secrets-handover.md
+    blob: edf464ecf9fa1d2fec60825821cabced9de601ba
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/workspace
+    path: CLAUDE.md
+    blob: 0993e8da9b17b2cde03085f21eff430b87b24e20
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/examples/minimal/README.md
+    blob: 0f9d2c6c94b1fb8e861505e836e1b7bce2807413
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/examples/minimal/env/notes-api/base.env
+    blob: 4d795bc46303dfdb48da4eeb5e7b5548cf0d64ce
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/n8n
+    path: .github/workflows/publish.yml
+    blob: 87e9f895f72ceefb966e5e0e0b70b64c2335b79a
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/n8n
+    path: tools/deploy-kit/package.json
+    blob: fd0e9a81b32863abf41744f6a85857a5d68e05a4
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/github-workflows
+    path: .github/workflows/publish-fragment.yml
+    blob: aa4968aa6e29cb61e968d60d68728f3e956c329d
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: toolkit.yml
+    blob: 9321479890d8bceba9ccfbb2fd3684bb5e7bd121
+    checked: 2026-11-10
+  - kind: release
+    repo: JorisJonkers-dev/github-workflows
+    tag: v0.45.4
+    checked: 2026-11-10

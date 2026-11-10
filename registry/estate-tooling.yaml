@@ -1069,6 +1069,19 @@ local_skills:
       instruction file, and merges hooks/projects-layout-guard.sh into Claude
       Code and Codex (docs/adr/0009-projects-layout-guard.md).
 
+  - name: estate-project-intent
+    path: skills/workstation/estate-project-intent
+    purpose: >-
+      Write or change a Project's Intent for deploy-kit 1.x, validate it with
+      deploy-kit validate, wire its publishing and propose the estate
+      participants.yml entry, reading the canonical docs live with gh.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Carries the procedure and points at the canonical docs; it never copies
+      them. sources.yaml records what it was checked against for
+      scripts/check_skill_sources.py.
+
   - name: model-gateway
     path: skills/workstation/model-gateway
     purpose: >-
