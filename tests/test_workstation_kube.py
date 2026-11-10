@@ -393,13 +393,13 @@ def test_a_cluster_without_the_port_forward_account_still_installs(device: Devic
     assert "port-forwards fall back to the current context" in result.stdout
 
 
-def test_the_port_forward_token_file_is_in_an_owner_only_kubeconfig(device: Device) -> None:
+def test_the_kubeconfig_holding_the_port_forward_token_is_owner_only(device: Device) -> None:
     with_pf(device)
     device.install()
     assert (device.home / ".kube" / "config").stat().st_mode & 0o777 == 0o600
 
 
-def test_a_recreated_port_forward_secret_matches_what_gitops_declares(device: Device) -> None:
+def test_a_created_port_forward_secret_matches_what_gitops_declares(device: Device) -> None:
     with_pf(device)
     device.install()
     docs = json.loads(device.state.read_text())["created"]

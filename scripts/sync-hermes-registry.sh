@@ -150,6 +150,13 @@ if [ "${MODE}" = 'write' ]; then
   KUBE_CTX="$(kube_context)"
   KUBE_FLAG=''
   [ -n "${KUBE_CTX}" ] && KUBE_FLAG="--context ${KUBE_CTX} "
+  KUBE_NOTE=''
+  case "${KUBE_CTX}" in
+    *-admin) KUBE_NOTE="Context ${KUBE_CTX} asks for the sudo password: run these from a terminal.
+Set ESTATE_KUBE_CONTEXT to use another context.
+
+" ;;
+  esac
   cat <<EOF
 
 Next, in ${FLEET_ROOT}:
@@ -166,10 +173,7 @@ the previous revision. Then:
   kubectl ${KUBE_FLAG}-n agents-system exec deploy/hermes -- hermes skills list
   kubectl ${KUBE_FLAG}-n agents-system exec deploy/hermes -- hermes doctor
 
-${KUBE_CTX:+Context ${KUBE_CTX}: the -admin context asks for the sudo password (run these from a terminal).
-Set ESTATE_KUBE_CONTEXT to use another context.
-
-}Read sync-skills' output rather than trusting Ready: it counts skills from
+${KUBE_NOTE}Read sync-skills' output rather than trusting Ready: it counts skills from
 disk and REJECTS any source whose commit does not match its pin.
 EOF
 fi

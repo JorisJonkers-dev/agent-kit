@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import sys
 from pathlib import Path
 
@@ -487,9 +488,12 @@ def test_a_named_context_wins_over_the_guess(tmp_path: Path) -> None:
 
 def test_the_one_shot_forward_uses_the_port_forward_context_too(tmp_path: Path) -> None:
     _run_helper(tmp_path, "FreeBSD")
-    assert "port-forward --context prod-ctx-pf -n agents-system svc/kubernetes-mcp-server" in (
-        tmp_path / "state" / "kubectl.log"
-    ).read_text()
+    log = tmp_path / "state" / "kubectl.log"
+    for _ in range(50):  # the forward is a background process
+        if log.exists() and log.read_text():
+            break
+        time.sleep(0.1)
+    assert "port-forward --context prod-ctx-pf -n agents-system svc/kubernetes-mcp-server" in log.read_text()
 
 
 # --- Claude Code profiles ---

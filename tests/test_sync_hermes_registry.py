@@ -116,7 +116,8 @@ def _kube_env(tmp_path: Path, contexts: str, current: str = "personal", **extra:
         "exit 1\n"
     )
     stub.chmod(0o755)
-    return {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", **extra}
+    base = {k: v for k, v in os.environ.items() if k != "ESTATE_KUBE_CONTEXT"}
+    return {**base, "PATH": f"{bin_dir}:{os.environ['PATH']}", **extra}
 
 
 def test_the_printed_commands_use_the_admin_context_when_it_exists(tmp_path: Path) -> None:
