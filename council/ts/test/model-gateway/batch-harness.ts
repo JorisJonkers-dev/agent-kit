@@ -12,11 +12,28 @@ export interface DelegateBehavior {
   readonly cost?: number
   /** How long the launch takes, so that launches of one test overlap. */
   readonly delayMs?: number
+  /** Holds the launch running until the test releases this gate, in place of `delayMs`, so the test and not the clock decides what finishes when. */
+  readonly hold?: Gate
   /** A non-zero exit fails the run. */
   readonly exitCode?: number
   readonly stderr?: string
   /** Runs as the launch starts, as the time passing in the world would. */
   readonly effect?: () => void
+}
+
+/** A signal a test controls: a launch that waits on `opened` stays running until the test calls `release`. */
+export interface Gate {
+  readonly opened: Promise<void>
+  readonly release: () => void
+}
+
+/** A closed gate, to give a launch as its `hold`. */
+export function gate(): Gate {
+  let release: () => void = () => undefined
+  const opened = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  return { opened, release }
 }
 
 /** One launch a fake saw: which task it was, on which client, with which prompt. */
@@ -45,6 +62,9 @@ export class FakeDelegateProcess implements ModelGatewayProcessPort {
   peakTotal = 0
   private readonly active = new Map<string, number>()
   private readonly attempts = new Map<string, number>()
+  private readonly finishedTasks: string[] = []
+  private readonly startWaiters = new Map<string, (() => void)[]>()
+  private readonly endWaiters = new Map<string, (() => void)[]>()
 
   /**
    * `barrier` holds the first that many launches until that many are running
@@ -67,19 +87,31 @@ export class FakeDelegateProcess implements ModelGatewayProcessPort {
   async exec(command: ProcessCommand): Promise<ProcessResult> {
     const launched = await this.identify(command)
     // A writing delegation's check: `false` fails it, anything else passes.
-    if (command.command === 'sh') return { exitCode: command.args[1] === 'false' ? 1 : 0, stderr: '', stdout: '' }
+    if (command.command === 'sh')
+      return { exitCode: command.args[1] === 'false' ? 1 : 0, stderr: '', stdout: '' }
     if (launched === undefined) return { exitCode: 0, stderr: '', stdout: 'Logged in\n' }
     const attempt = (this.attempts.get(launched.task) ?? 0) + 1
     this.attempts.set(launched.task, attempt)
-    this.launches.push({ attempt, client: launched.client, prompt: launched.prompt, task: launched.task, timeoutMs: command.timeoutMs })
+    this.launches.push({
+      attempt,
+      client: launched.client,
+      prompt: launched.prompt,
+      task: launched.task,
+      timeoutMs: command.timeoutMs,
+    })
+    this.wake(this.startWaiters, launched.task)
     const behavior = this.behaviorOf(launched.task, attempt)
     behavior.effect?.()
     this.enter(launched.client)
     try {
       if (this.launches.length <= this.barrier) await this.holdUntilRunning(this.barrier)
-      await new Promise((resolve) => setTimeout(resolve, behavior.delayMs ?? 5))
+      if (behavior.hold === undefined)
+        await new Promise((resolve) => setTimeout(resolve, behavior.delayMs ?? 5))
+      else await behavior.hold.opened
     } finally {
       this.leave(launched.client)
+      this.finishedTasks.push(launched.task)
+      this.wake(this.endWaiters, launched.task)
     }
     return this.answer(command, launched.client, launched.task, behavior)
   }
@@ -94,6 +126,32 @@ export class FakeDelegateProcess implements ModelGatewayProcessPort {
     return this.launches.map((launch) => launch.task)
   }
 
+  /** Resolves once a launch of this task is running; at once when one already is. */
+  started(task: string): Promise<void> {
+    if (this.launches.some((launch) => launch.task === task)) return Promise.resolve()
+    return new Promise((resolve) => {
+      this.startWaiters.set(task, [...(this.startWaiters.get(task) ?? []), resolve])
+    })
+  }
+
+  /** Resolves once a launch of this task has ended; at once when one already has. */
+  ended(task: string): Promise<void> {
+    if (this.finishedTasks.includes(task)) return Promise.resolve()
+    return new Promise((resolve) => {
+      this.endWaiters.set(task, [...(this.endWaiters.get(task) ?? []), resolve])
+    })
+  }
+
+  /** The tasks whose launches have ended, in the order they ended. */
+  finished(): string[] {
+    return [...this.finishedTasks]
+  }
+
+  private wake(waiters: Map<string, (() => void)[]>, task: string): void {
+    for (const resolve of waiters.get(task) ?? []) resolve()
+    waiters.delete(task)
+  }
+
   private behaviorOf(task: string, attempt: number): DelegateBehavior {
     const configured = this.behaviors[task]
     if (configured === undefined) return {}
@@ -104,7 +162,8 @@ export class FakeDelegateProcess implements ModelGatewayProcessPort {
 
   private async holdUntilRunning(count: number): Promise<void> {
     const until = Date.now() + 5000
-    while (this.running() < count && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 2))
+    while (this.running() < count && Date.now() < until)
+      await new Promise((resolve) => setTimeout(resolve, 2))
   }
 
   private running(): number {
@@ -122,7 +181,9 @@ export class FakeDelegateProcess implements ModelGatewayProcessPort {
   }
 
   /** The client and the prompt of a launch, or undefined for a command that is not one. */
-  private async identify(command: ProcessCommand): Promise<{ client: string; prompt: string; task: string } | undefined> {
+  private async identify(
+    command: ProcessCommand,
+  ): Promise<{ client: string; prompt: string; task: string } | undefined> {
     const prompt = await this.promptOf(command)
     const task = prompt === undefined ? undefined : /TASK-([A-Za-z0-9]+)/.exec(prompt)?.[1]
     if (prompt === undefined || task === undefined) return undefined
@@ -137,7 +198,12 @@ export class FakeDelegateProcess implements ModelGatewayProcessPort {
     return at === -1 ? undefined : readFile(String(command.args[at + 1]), 'utf8')
   }
 
-  private async answer(command: ProcessCommand, client: string, task: string, behavior: DelegateBehavior): Promise<ProcessResult> {
+  private async answer(
+    command: ProcessCommand,
+    client: string,
+    task: string,
+    behavior: DelegateBehavior,
+  ): Promise<ProcessResult> {
     const exitCode = behavior.exitCode ?? 0
     const stderr = behavior.stderr ?? ''
     if (exitCode !== 0) return { exitCode, stderr, stdout: '' }
@@ -145,25 +211,58 @@ export class FakeDelegateProcess implements ModelGatewayProcessPort {
     const answer = text.includes('SUMMARY:') ? text : `${text}\nSUMMARY: ${text}`
     const cost = behavior.cost ?? 0.01
     if (client === 'claude') {
-      return { exitCode, stderr, stdout: JSON.stringify({ is_error: false, result: answer, subtype: 'success', total_cost_usd: cost, type: 'result', usage: { input_tokens: 10, output_tokens: 40 } }) }
+      return {
+        exitCode,
+        stderr,
+        stdout: JSON.stringify({
+          is_error: false,
+          result: answer,
+          subtype: 'success',
+          total_cost_usd: cost,
+          type: 'result',
+          usage: { input_tokens: 10, output_tokens: 40 },
+        }),
+      }
     }
     if (client === 'hermes') {
       const usagePath = String(command.args[command.args.indexOf('--usage-file') + 1])
       await mkdir(dirname(usagePath), { recursive: true })
-      await writeFile(usagePath, JSON.stringify({ api_calls: 1, estimated_cost_usd: cost, failed: false, input_tokens: 100, output_tokens: 50 }))
+      await writeFile(
+        usagePath,
+        JSON.stringify({
+          api_calls: 1,
+          estimated_cost_usd: cost,
+          failed: false,
+          input_tokens: 100,
+          output_tokens: 50,
+        }),
+      )
       return { exitCode, stderr, stdout: answer }
     }
     if (client === 'codex') {
       const events = [
         { thread_id: 't-1', type: 'thread.started' },
         { item: { id: 'item_0', text: answer, type: 'agent_message' }, type: 'item.completed' },
-        { type: 'turn.completed', usage: { cached_input_tokens: 0, input_tokens: 1000, output_tokens: 200 } },
+        {
+          type: 'turn.completed',
+          usage: { cached_input_tokens: 0, input_tokens: 1000, output_tokens: 200 },
+        },
       ]
       return { exitCode, stderr, stdout: events.map((event) => JSON.stringify(event)).join('\n') }
     }
     const outputDir = String(command.args[command.args.indexOf('--output-dir') + 1])
     await mkdir(outputDir, { recursive: true })
-    await writeFile(join(outputDir, 'export.json'), JSON.stringify({ cost_usd: cost, usage: { cached_input_tokens: 0, input_tokens: 100, output_tokens: 50 } }))
-    return { exitCode, stderr, stdout: JSON.stringify([{ content: [{ text: answer }], role: 'assistant', type: 'message' }]) }
+    await writeFile(
+      join(outputDir, 'export.json'),
+      JSON.stringify({
+        cost_usd: cost,
+        usage: { cached_input_tokens: 0, input_tokens: 100, output_tokens: 50 },
+      }),
+    )
+    return {
+      exitCode,
+      stderr,
+      stdout: JSON.stringify([{ content: [{ text: answer }], role: 'assistant', type: 'message' }]),
+    }
   }
 }
