@@ -276,3 +276,13 @@ def test_non_utf8_file_is_refused(tmp_path: Path) -> None:
     path.write_bytes(b"\xff\xfe")
     with pytest.raises(rs.SetupFileError):
         rs.load(repo)
+
+
+def test_main_guard_exits_with_the_command_status(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import runpy
+
+    repo = make_repo(tmp_path, "https://github.com/acme-corp/billing")
+    monkeypatch.setattr(sys, "argv", ["repo_setup.py", "check", "--repo", str(repo)])
+    with pytest.raises(SystemExit) as exit_info:
+        runpy.run_path(str(Path(rs.__file__)), run_name="__main__")
+    assert exit_info.value.code == 3
