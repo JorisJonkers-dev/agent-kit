@@ -52,7 +52,8 @@ verified_at: 2026-09-09
 # (granting the service first when you are an admin), a `paste` entry is a
 # key you paste once, a `login` entry is one a sign-in command gets for you
 # (setup only says which), and a `value` entry is a fixed setting. Each is
-# checked against `check` and stored in the keychain;
+# checked against `check` and stored in the one secret store (the macOS
+# Keychain, or libsecret on Linux; never a file);
 # ~/.config/agent-kit/env.sh reads them back in every shell. `export:
 # false` keeps a value out of the shell: only vibe-private (the Private
 # Memory token, through the passphrase gate) and vibe-study (the Study

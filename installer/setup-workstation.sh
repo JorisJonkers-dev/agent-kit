@@ -2631,6 +2631,8 @@ else
   install_kit_command memory-private
   # agent-kit-private: the passphrase gate in front of the Private Memory token.
   install_kit_command agent-kit-private
+  # agent-kit-secret: the one secret store (Keychain on macOS, libsecret on Linux).
+  install_kit_command agent-kit-secret
   # The Vibe launchers. Plain vibe is Vibe itself: the shared Vibe home, the
   # personal login, Shared Memory. vibe-study is the same home with the Study
   # account; vibe-private has its own home and Private Memory, behind the gate.

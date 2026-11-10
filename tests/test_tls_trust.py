@@ -62,8 +62,13 @@ def test_an_unreachable_auth_api_is_a_note_not_a_traceback(tmp_path: Path) -> No
     table = tmp_path / "table.json"
     table.write_text(json.dumps([{"env": "HINDSIGHT_API_TOKEN", "grant": "MEMORY_API",
                                   "check": "https://127.0.0.1:9/check", "export": True}]))
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "security").write_text("#!/bin/sh\nexit 44\n")  # a keychain that holds nothing
+    (bin_dir / "security").chmod(0o755)
     env = {**os.environ, "HOME": str(tmp_path), "AGENT_KIT_AUTH_URL": "https://127.0.0.1:9",
-           "AGENT_KIT_SECRETS_BACKEND": "file", "SHELL": "/bin/zsh"}
+           "AGENT_KIT_SECRETS_BACKEND": "keychain", "SHELL": "/bin/zsh",
+           "PATH": f"{bin_dir}:{os.environ['PATH']}"}
     result = subprocess.run(
         [sys.executable, str(SCRIPTS["keys"]), "--table", str(table), "ensure"],
         input="me@example.com\npw\n\n", capture_output=True, text=True, check=False, env=env, timeout=60,

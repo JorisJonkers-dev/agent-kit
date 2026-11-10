@@ -58,6 +58,7 @@ KIT_PATHS=(
   installer/model-gateway
   scripts/instruction-block.py
   scripts/package-proxy-merge.py
+  installer/agent-kit-secret
   installer/vibe-study
   installer/vibe-private
   installer/vibe-hooks.toml

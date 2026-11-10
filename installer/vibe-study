@@ -18,48 +18,31 @@ set -euo pipefail
 
 VAR=MISTRAL_STUDY_API_KEY
 SAFE='^[A-Za-z0-9._~+/=-]+$'
-config="${HOME}/.config/agent-kit"
 
 fail() { echo "vibe-study: $*" >&2; exit 1; }
 
-# The agent-kit secret store agent-kit-keys uses: the keychain, or a 0600 file.
-backend() {
-  if [ -n "${AGENT_KIT_SECRETS_BACKEND:-}" ]; then
-    printf '%s' "${AGENT_KIT_SECRETS_BACKEND}"
-  elif command -v security >/dev/null 2>&1; then
-    printf keychain
+# The one agent-kit secret store (agent-kit-secret): the Keychain on macOS, the
+# Secret Service on Linux. No plain file; no store means no launch.
+secret_tool() {
+  local here
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if command -v agent-kit-secret >/dev/null 2>&1; then
+    agent-kit-secret "$@"
+  elif [ -x "${here}/agent-kit-secret" ]; then
+    "${here}/agent-kit-secret" "$@"
   else
-    printf file
+    echo "vibe-study: agent-kit-secret is not installed; run setup-workstation in a terminal first" >&2
+    return 2
   fi
-}
-
-# The one-line reader setup's env.sh defines for the store (keychain or file).
-# The launcher reads the key with it, so --login checks with it too.
-secret_reader() {
-  local env_sh="${config}/env.sh"
-  [ -f "${env_sh}" ] && grep -m1 '^_agent_kit_secret() ' "${env_sh}" || true
 }
 
 read_secret() {
-  local reader="$1"
-  (eval "${reader}"; _agent_kit_secret "${VAR}" 2>/dev/null || true)
+  secret_tool get "${VAR}" || true
 }
 
+# The value goes over stdin, never argv.
 store_key() {
-  local value="$1" file tmp
-  if [ "$(backend)" = keychain ]; then
-    # Over stdin, never argv; the value passed SAFE, so it needs no escaping.
-    # The account is the one agent-kit-keys uses (Python's getpass.getuser()).
-    printf 'add-generic-password -U -a "%s" -s "agent-kit.%s" -w "%s"\n' \
-      "${LOGNAME:-${USER:-$(id -un)}}" "${VAR}" "${value}" | security -i >/dev/null
-    return
-  fi
-  file="${config}/secrets.env"
-  mkdir -p "${config}"
-  tmp="$(mktemp "${config}/.secrets.XXXXXX")"
-  chmod 600 "${tmp}"
-  { if [ -f "${file}" ]; then grep -v "^${VAR}=" "${file}" || true; fi; printf '%s=%s\n' "${VAR}" "${value}"; } > "${tmp}"
-  mv "${tmp}" "${file}"
+  printf '%s' "$1" | secret_tool put "${VAR}"
 }
 
 # Vibe's own login, the keychain item it reads and writes (macOS only).
@@ -104,9 +87,9 @@ check_key() {
 }
 
 login() {
-  local reader before_state before_value home key verdict
-  reader="$(secret_reader)"
-  [ -n "${reader}" ] || fail "no ~/.config/agent-kit/env.sh to read the key back with; run setup-workstation in a terminal first"
+  local before_state before_value home key verdict store_rc=0
+  secret_tool has "${VAR}" >/dev/null 2>&1 || store_rc=$?
+  [ "${store_rc}" -ne 2 ] || fail "no usable secret store (Keychain or Secret Service), so the key could not be kept; nothing changed"
   read_personal_login
   before_state="${personal_state}"
   before_value="${personal_value}"
@@ -146,8 +129,8 @@ login() {
   [[ "${key}" =~ ${SAFE} ]] || fail "the key Vibe saved has unexpected characters; not stored"
   verdict="$(check_key "${key}")"
   [ "${verdict}" != refused ] || fail "Mistral refused the key this sign-in minted; not stored"
-  store_key "${key}"
-  [ "$(read_secret "${reader}")" = "${key}" ] \
+  store_key "${key}" || fail "the Study account key could not be stored in the agent-kit secret store; nothing changed"
+  [ "$(read_secret)" = "${key}" ] \
     || fail "the Study account key did not read back from the agent-kit store; vibe-study cannot use it"
   [ "${verdict}" = ok ] || echo "vibe-study: Mistral did not answer, so the key was not checked" >&2
   echo "vibe-study: signed in; the Study account key is stored as ${VAR}" >&2
@@ -168,10 +151,10 @@ fi
 
 key="${MISTRAL_STUDY_API_KEY:-}"
 if [ -z "${key}" ]; then
-  # Only the store's one-line reader, not the rest of env.sh: that would look
-  # up every other secret on each launch.
-  reader="$(secret_reader)"
-  [ -z "${reader}" ] || key="$(read_secret "${reader}")"
+  # Only this one secret, from the store itself.
+  store_rc=0
+  key="$(secret_tool get "${VAR}")" || store_rc=$?
+  [ "${store_rc}" -ne 2 ] || fail "the secret store (Keychain or Secret Service) is not usable; nothing launched"
 fi
 [ -n "${key}" ] || fail "not signed in with the Study account yet; run: vibe-study --login"
 unset MISTRAL_STUDY_API_KEY
