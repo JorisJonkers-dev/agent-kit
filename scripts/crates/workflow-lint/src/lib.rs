@@ -118,23 +118,19 @@ fn node_strings<'a>(
     push_fields(agents, node, &["provider"]);
     push_fields(models, node, &["model"]);
     if let Some(strategy) = node.get("agentStrategy") {
-        match str_field(strategy, "mode") {
-            Some("fixed") => {
-                push_fields(agents, strategy, &["provider"]);
-                push_fields(models, strategy, &["model"]);
+        // Every binding field is read whatever the mode says, so a strategy
+        // with a missing or unknown mode cannot hide a binding.
+        push_fields(agents, strategy, &["provider", "bootstrapProvider"]);
+        push_fields(
+            models,
+            strategy,
+            &["model", "bootstrapModel", "acceptanceModel"],
+        );
+        if let Some(available) = array_field(strategy, "availableAgents") {
+            for agent in available {
+                push_fields(agents, agent, &["provider"]);
+                push_fields(models, agent, &["model"]);
             }
-            Some("dynamic") => {
-                push_fields(agents, strategy, &["bootstrapProvider"]);
-                push_fields(models, strategy, &["bootstrapModel"]);
-                push_fields(models, strategy, &["acceptanceModel"]);
-                if let Some(available) = array_field(strategy, "availableAgents") {
-                    for agent in available {
-                        push_fields(agents, agent, &["provider"]);
-                        push_fields(models, agent, &["model"]);
-                    }
-                }
-            }
-            _ => {}
         }
     }
     if let Some(slot) = str_field(node, "executionSlotId") {
@@ -510,12 +506,17 @@ mod tests {
     }
 
     #[test]
-    fn a_strategy_without_a_known_mode_or_a_node_without_an_id_is_gold_bands_problem() {
-        let nodes = concat!(
-            r#"{"id":"o","agentStrategy":{"provider":"codex","model":"opus-4"}},"#,
-            r#"{"provider":"codex"}"#
+    fn a_strategy_without_a_known_mode_cannot_hide_a_binding() {
+        let nodes = r#"{"id":"o","agentStrategy":{"provider":"codex","model":"opus-4"}}"#;
+        assert_eq!(
+            rules(&lint_nodes(nodes)),
+            ["o: banned-binding", "o: opus-outside-judgment"]
         );
-        assert!(lint_nodes(nodes).is_empty());
+    }
+
+    #[test]
+    fn a_node_without_an_id_is_gold_bands_problem() {
+        assert!(lint_nodes(r#"{"provider":"codex"}"#).is_empty());
     }
 
     const TWO: &str = concat!(
