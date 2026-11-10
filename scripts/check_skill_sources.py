@@ -49,6 +49,7 @@ REPO = re.compile(r"[A-Za-z0-9][\w.-]*/[\w.-]+")
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 KINDS = {"file", "release"}
 RETRIES = 3
+TIMEOUT = 60  # seconds per gh call
 DEFAULT_ISSUE_TITLE = "Skill sources drift"
 # A reply that suggests the request may succeed later; anything else fails at once.
 TRANSIENT = ("timeout", "timed out", "deadline exceeded", "connection", "http 5")
@@ -88,7 +89,12 @@ def gh(args: list[str]) -> str:
     error = "gh made no attempt"
     for attempt in range(1, RETRIES + 1):
         try:
-            result = subprocess.run(["gh", *args], capture_output=True, text=True, check=False)
+            result = subprocess.run(["gh", *args], capture_output=True, text=True, check=False, timeout=TIMEOUT)
+        except subprocess.TimeoutExpired:
+            error = "timeout waiting for gh"
+            if attempt == RETRIES:
+                break
+            continue
         except OSError as failure:
             raise RequestFailure(str(failure)) from failure
         if result.returncode == 0:
@@ -110,13 +116,24 @@ def _json(reply: str, label: str) -> object:
         raise RequestFailure(f"{label}: GitHub's reply is not JSON") from error
 
 
+def repo_reachable(repo: str) -> bool:
+    """Whether the repository itself is visible: a 404 on a path means little when it is not."""
+    try:
+        gh(["api", f"repos/{repo}"])
+    except RequestFailure as error:
+        if "HTTP 404" in str(error):
+            raise RequestFailure(f"{repo}: not found or not visible to this token (HTTP 404)") from error
+        raise
+    return True
+
+
 def current_blob(repo: str, path: str) -> str | None:
     """The blob sha of one file on the default branch, or None when it is gone."""
     try:
         reply = gh(["api", "-H", "Accept: application/vnd.github.object+json",
                     f"repos/{repo}/contents/{quote(path, safe='/')}"])
     except RequestFailure as error:
-        if "HTTP 404" in str(error):
+        if "HTTP 404" in str(error) and repo_reachable(repo):
             return None
         raise
     data = _json(reply, f"{repo} {path}")
@@ -131,7 +148,7 @@ def latest_tag(repo: str) -> str | None:
     try:
         reply = gh(["api", f"repos/{repo}/releases/latest"])
     except RequestFailure as error:
-        if "HTTP 404" in str(error):
+        if "HTTP 404" in str(error) and repo_reachable(repo):
             return None
         raise
     data = _json(reply, f"{repo} release")
@@ -284,7 +301,7 @@ def update(root: Path, name: str) -> list[str]:
 
 def find_issue(title: str) -> int | None:
     """The number of the one open issue with this title, if there is one."""
-    data = _json(gh(["issue", "list", "--state", "open", "--json", "number,title"]), "gh issue list")
+    data = _json(gh(["issue", "list", "--state", "open", "--limit", "1000", "--json", "number,title"]), "gh issue list")
     for issue in data if isinstance(data, list) else []:
         if isinstance(issue, dict) and issue.get("title") == title:
             number = issue.get("number")
@@ -326,6 +343,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--issue-title", default=DEFAULT_ISSUE_TITLE, help="the title --sync-issue finds its issue by")
     args = parser.parse_args(argv)
     try:
+        if not args.root.is_dir():
+            raise CheckError(f"{args.root}: no such skills folder")
         if args.validate:
             problems = validate(args.root)
             for problem in problems:

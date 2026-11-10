@@ -202,10 +202,38 @@ def test_a_moved_blob_is_listed(tmp_path: Path, fake_gh_bin: Path) -> None:
 def test_a_missing_path_is_listed(tmp_path: Path, fake_gh_bin: Path) -> None:
     root = tmp_path / "workstation"
     skill(root, "estate-bootstrap", BOTH_SOURCES)
-    state_dir = state(tmp_path, {RELEASE_KEY: {"tag_name": "v0.43.0"}})
+    state_dir = state(tmp_path, {RELEASE_KEY: {"tag_name": "v0.43.0"}, "repos/JorisJonkers-dev/deploy-kit": {}})
     result = run(fake_gh_bin, state_dir, tmp_path, "--root", str(root))
     assert result.returncode == 1, result.stdout + result.stderr
     assert "estate-bootstrap: JorisJonkers-dev/deploy-kit spec/v1/10-project-intent.md is gone" in result.stdout
+
+
+def test_a_404_on_an_invisible_repo_is_a_failure_not_a_gone_source(tmp_path: Path, fake_gh_bin: Path) -> None:
+    root = tmp_path / "workstation"
+    skill(root, "estate-bootstrap", FILE_SOURCES)
+    state_dir = state(tmp_path, {})
+    result = run(fake_gh_bin, state_dir, tmp_path, "--root", str(root))
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "not found or not visible to this token" in result.stdout
+    assert "is gone" not in result.stdout
+    assert "1 check(s) failed" in result.stdout
+
+
+def test_a_missing_root_fails_and_leaves_the_issue_alone(tmp_path: Path, fake_gh_bin: Path) -> None:
+    seeded = {"number": 7, "title": ISSUE_TITLE, "body": "old", "state": "open"}
+    state_dir = state(tmp_path, {}, [seeded])
+    result = run(fake_gh_bin, state_dir, tmp_path, "--root", str(tmp_path / "nowhere"), "--sync-issue")
+    assert result.returncode == 1
+    assert "no such skills folder" in result.stdout
+    assert issues(state_dir)[0]["state"] == "open"
+
+
+def test_the_issue_lookup_asks_for_more_than_the_default_page(tmp_path: Path, fake_gh_bin: Path) -> None:
+    root = tmp_path / "workstation"
+    skill(root, "estate-bootstrap", FILE_SOURCES)
+    state_dir = state(tmp_path, {FILE_KEY: {"sha": BLOB_OLD}})
+    run(fake_gh_bin, state_dir, tmp_path, "--root", str(root), "--sync-issue")
+    assert "issue list --state open --limit 1000" in calls(state_dir)
 
 
 def test_a_newer_release_tag_is_listed(tmp_path: Path, fake_gh_bin: Path) -> None:
@@ -421,3 +449,20 @@ def test_the_python_job_validates_sources() -> None:
     doc = yaml.safe_load(CI_WORKFLOW.read_text())
     runs = [step.get("run", "") for step in doc["jobs"]["python"]["steps"]]
     assert "uv run python scripts/check_skill_sources.py --validate" in runs
+
+
+def test_a_hung_gh_call_times_out_and_raises_a_request_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    sys.path.insert(0, str(KIT_ROOT / "scripts"))
+    import check_skill_sources as module
+
+    attempts: list[int] = []
+
+    def hang(*_args: object, **kwargs: object) -> None:
+        assert kwargs["timeout"] == module.TIMEOUT
+        attempts.append(1)
+        raise subprocess.TimeoutExpired("gh", module.TIMEOUT)
+
+    monkeypatch.setattr(module.subprocess, "run", hang)
+    with pytest.raises(module.RequestFailure, match="timeout"):
+        module.gh(["api", "x"])
+    assert len(attempts) == module.RETRIES
