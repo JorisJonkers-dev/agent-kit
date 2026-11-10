@@ -1098,6 +1098,19 @@ local_skills:
       them. sources.yaml records what it was checked against for
       scripts/check_skill_sources.py.
 
+  - name: estate-delivery-status
+    path: skills/workstation/estate-delivery-status
+    purpose: >-
+      Answer whether a release landed from the estate compose run, the commit
+      status and the deployment: landed only when they agree, otherwise mixed
+      with each signal and its link.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Carries the procedure and points at the canonical docs; it never copies
+      them. sources.yaml records what it was checked against for
+      scripts/check_skill_sources.py.
+
   - name: model-gateway
     path: skills/workstation/model-gateway
     purpose: >-
