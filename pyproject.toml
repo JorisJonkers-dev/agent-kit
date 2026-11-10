@@ -19,6 +19,12 @@ dev = [
 
 [tool.uv]
 package = false
+# uv resolves nothing published in the last 7 days. The relative value rolls forward
+# on every `uv lock`; the lock records it as exclude-newer-span = "P7D".
+exclude-newer = "7 days"
+# 0.9.17 is the oldest uv that applies the window; older uv ignores exclude-newer
+# silently, and this key makes every run refuse a uv below the floor.
+required-version = ">=0.9.17"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

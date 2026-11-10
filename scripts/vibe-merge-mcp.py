@@ -11,7 +11,7 @@ caller can trust the merge landed rather than the exit code.
 
 Usage::
 
-    uv run --no-project --with tomlkit python scripts/vibe-merge-mcp.py \\
+    uv run --no-project --exclude-newer "7 days" --with tomlkit python scripts/vibe-merge-mcp.py \\
         <fragment.toml> [--key mcp_servers|hooks] [--config PATH] [--remove NAME ...]
 """
 

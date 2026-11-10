@@ -22,6 +22,15 @@ uv run python scripts/validate_manifest.py
 uv run python scripts/render_registry.py --check
 ```
 
+Python dependencies resolve with a seven-day window: `[tool.uv] exclude-newer = "7 days"`
+in `pyproject.toml` refuses any release uploaded in the last week. The value is relative, so
+the window moves forward at every `uv lock`, and `uv.lock` records it as `exclude-newer-span`.
+`uv run --no-project --with ...` calls do not read `pyproject.toml`, so they pass
+`--exclude-newer "7 days"` themselves. uv 0.9.17 is the oldest that applies the window, and
+older uv ignores it without a word, so the floor is `required-version` in `pyproject.toml`
+(current uv refuses to run below it) and the install paths pin at or above it.
+`tests/test_uv_cooldown.py` proves a younger release is not resolved.
+
 Run `uv run python scripts/render_agent_kit.py --write` after a checkout or a pull. It
 renders the gitignored `.claude/`, `.agents/` and `.council/context/` from
 `skills/repo/`, `agents/` and `council/context/`, and the committed

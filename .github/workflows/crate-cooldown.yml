@@ -97,3 +97,8 @@
       - 'name': 'Test the workspace'
         'working-directory': 'agent-kit'
         'run': 'cargo test --locked --manifest-path scripts/Cargo.toml'
+      # Every skill, hook, role file and MCP server has exactly one target
+      # and its lanes in docs/gold-band-port-inventory.md (spec #392).
+      - 'name': 'Check the Gold Band port inventory'
+        'working-directory': 'agent-kit'
+        'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p inventory-check -- .'
