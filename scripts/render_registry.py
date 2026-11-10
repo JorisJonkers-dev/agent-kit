@@ -5098,13 +5098,18 @@ def _validate_litellm(data: dict[str, Any]) -> None:
                 "so no shell holds the key",
             )
         budget = route["budget_eur"]
-        if isinstance(budget, bool) or not isinstance(budget, int) or budget <= 0:
-            raise RegistryError(f"litellm route {agent}: budget_eur must be a positive whole number")
+        if budget is not None and (isinstance(budget, bool) or not isinstance(budget, int) or budget <= 0):
+            raise RegistryError(f"litellm route {agent}: budget_eur must be a positive whole number, or null for no cap")
         models = route["models"]
-        if not models or not all(isinstance(m, str) and re.fullmatch(r"[A-Za-z0-9._:/-]+", m) for m in models):
+        if not models or not all(isinstance(m, str) and re.fullmatch(r"[A-Za-z0-9._:/*-]+", m) for m in models):
             raise RegistryError(f"litellm route {agent}: models must be plain model names")
-        if any(m.lower().startswith(("openrouter/", "opencode/")) or "*" in m for m in models):
-            raise RegistryError(f"litellm route {agent}: no wildcard, openrouter or opencode Zen model")
+        for model in models:
+            if not model.startswith(f"{agent}/"):
+                raise RegistryError(f"litellm route {agent}: model {model!r} must sit beneath {agent}/")
+            if model.lower().startswith("opencode/"):
+                raise RegistryError(f"litellm route {agent}: no opencode Zen model")
+            if "*" in model and model != f"{agent}/*":
+                raise RegistryError(f"litellm route {agent}: the only wildcard is {agent}/*")
 
 
 def render_litellm_routes(data: dict[str, Any]) -> str:

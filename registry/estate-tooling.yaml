@@ -130,6 +130,14 @@ workstation_secrets:
     paste: "the LiteLLM virtual key for the opencode-go agent id, made on the proxy with a max budget of 60"
     unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
     export: false
+  - env: LITELLM_OPENROUTER_KEY
+    paste: "the LiteLLM virtual key for the openrouter agent id, made on the proxy with a max budget of 5"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
+  - env: LITELLM_LOCAL_KEY
+    paste: "the LiteLLM virtual key for the local agent id (the GPU workstation's model server), made on the proxy with no max budget"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
   # An API key made while signed in as a separate Outline user, not the
   # owner's own account: the key reads and writes exactly what that user can,
   # so the agent sees only the collections and documents shared with it.
@@ -151,7 +159,7 @@ workstation_secrets:
 # proxy, so one budget per key holds across machines.
 #
 # Each route is one agent id's key: its own LiteLLM virtual key, with a hard
-# max budget (LiteLLM's budget unit; the cap is spent against the number, see
+# max budget (none for a free route) (LiteLLM's budget unit; the cap is spent against the number, see
 # docs/LITELLM.md). A spent key is refused by the proxy (HTTP 400,
 # budget_exceeded) and the node fails: litellm-gate turns that into exit 1.
 #
@@ -166,19 +174,32 @@ litellm:
   base_url: "https://litellm.jorisjonkers.dev/v1"
   key_header: x-litellm-api-key
   edge_token_env: LITELLM_EDGE_TOKEN
+  # `models` are the route's wildcard, or plain ids beneath its own `<agent>/` prefix: any model
+  # the provider offers works (the live catalogue in the litellm repository says which the
+  # account can use). `budget_eur: null` is no cap, for a free route.
   routes:
     - agent: vibe
       key_env: LITELLM_VIBE_KEY
       budget_eur: 255
-      models: [vibe/zai-glm-5-3-flash, vibe/deepseek-v4-1-flash-1017]
+      models: ["vibe/*"]
     - agent: vibe-study
       key_env: LITELLM_VIBE_STUDY_KEY
       budget_eur: 128
-      models: [vibe-study/zai-glm-5-3-flash, vibe-study/deepseek-v4-1-flash-1017]
+      models: ["vibe-study/*"]
     - agent: opencode-go
       key_env: LITELLM_OPENCODE_GO_KEY
       budget_eur: 60
-      models: [opencode-go/glm-5.3-flash, opencode-go/qwen3.8-flash, opencode-go/mimo-v2.6-flash]
+      models: ["opencode-go/*"]
+    # Mostly the `:free` ids; the cap covers the few paid ones.
+    - agent: openrouter
+      key_env: LITELLM_OPENROUTER_KEY
+      budget_eur: 5
+      models: ["openrouter/*"]
+    # The OpenAI-compatible model server on the GPU workstation: free, so no cap.
+    - agent: local
+      key_env: LITELLM_LOCAL_KEY
+      budget_eur: null
+      models: ["local/*"]
 
 # -------------------------------------------------------------------
 # The packages proxy.

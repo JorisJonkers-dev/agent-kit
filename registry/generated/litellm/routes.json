@@ -9,8 +9,7 @@
       "key_env": "LITELLM_VIBE_KEY",
       "budget_eur": 255,
       "models": [
-        "vibe/zai-glm-5-3-flash",
-        "vibe/deepseek-v4-1-flash-1017"
+        "vibe/*"
       ]
     },
     {
@@ -18,8 +17,7 @@
       "key_env": "LITELLM_VIBE_STUDY_KEY",
       "budget_eur": 128,
       "models": [
-        "vibe-study/zai-glm-5-3-flash",
-        "vibe-study/deepseek-v4-1-flash-1017"
+        "vibe-study/*"
       ]
     },
     {
@@ -27,9 +25,23 @@
       "key_env": "LITELLM_OPENCODE_GO_KEY",
       "budget_eur": 60,
       "models": [
-        "opencode-go/glm-5.3-flash",
-        "opencode-go/qwen3.8-flash",
-        "opencode-go/mimo-v2.6-flash"
+        "opencode-go/*"
+      ]
+    },
+    {
+      "agent": "openrouter",
+      "key_env": "LITELLM_OPENROUTER_KEY",
+      "budget_eur": 5,
+      "models": [
+        "openrouter/*"
+      ]
+    },
+    {
+      "agent": "local",
+      "key_env": "LITELLM_LOCAL_KEY",
+      "budget_eur": null,
+      "models": [
+        "local/*"
       ]
     }
   ]

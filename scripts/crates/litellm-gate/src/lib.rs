@@ -449,6 +449,64 @@ mod tests {
         assert!(request.contains(r#""max_tokens":1"#));
     }
 
+    /// The key variable the registry's route table names for an agent id.
+    fn route_key_env(agent: &str) -> String {
+        let table = include_str!("../../../../registry/generated/litellm/routes.json");
+        let from = table
+            .find(&format!("\"agent\": \"{agent}\""))
+            .unwrap_or_else(|| panic!("no route for {agent}"));
+        let rest = &table[from..];
+        let key = rest.find("\"key_env\": \"").unwrap() + "\"key_env\": \"".len();
+        rest[key..key + rest[key..].find('"').unwrap()].to_string()
+    }
+
+    #[test]
+    fn the_openrouter_route_is_gated_and_the_free_local_route_passes() {
+        let openrouter = route_key_env("openrouter");
+        let local = route_key_env("local");
+        assert_eq!(openrouter, "LITELLM_OPENROUTER_KEY");
+        assert_eq!(local, "LITELLM_LOCAL_KEY");
+        let lookup = |var: &str| (var == openrouter || var == local).then(|| KEY.to_string());
+        // The 5 EUR key, spent, fails the node and names its variable.
+        let (url, server) = stub(400, BUDGET_BODY);
+        let (message, code) = execute(
+            args(&[
+                "--url",
+                &url,
+                "--key-env",
+                &openrouter,
+                "--model",
+                "openrouter/vendor/m:free",
+            ]),
+            lookup,
+            "curl",
+        );
+        assert_eq!(code, 1);
+        assert_eq!(
+            message,
+            format!("litellm-gate: node n1 failed: budget exhausted for key {openrouter}")
+        );
+        let request = server.join().unwrap();
+        assert!(request.contains(r#""model":"openrouter/vendor/m:free""#));
+        // The local route has no budget, so the proxy answers and the gate passes.
+        let (url, server) = stub(200, r#"{"choices":[]}"#);
+        assert_eq!(
+            run_with(
+                args(&[
+                    "--url",
+                    &url,
+                    "--key-env",
+                    &local,
+                    "--model",
+                    "local/qwen3:32b"
+                ]),
+                lookup
+            ),
+            0
+        );
+        server.join().unwrap();
+    }
+
     #[test]
     fn exhausted_budget_fails_and_the_same_stub_within_budget_passes() {
         let (url, server) = stub(400, BUDGET_BODY);

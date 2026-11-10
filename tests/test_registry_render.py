@@ -1127,7 +1127,12 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
     """One route per cheap agent id, with the three caps, rendered without any key value."""
     table = json.loads((KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json").read_text())
     caps = {route["agent"]: route["budget_eur"] for route in table["routes"]}
-    assert caps == {"vibe": 255, "vibe-study": 128, "opencode-go": 60}
+    # openrouter is capped at 5, and local (the GPU workstation's server) is free: no cap.
+    assert caps == {"vibe": 255, "vibe-study": 128, "opencode-go": 60, "openrouter": 5, "local": None}
+    # Every route is its own provider wildcard, so any model the provider offers works.
+    assert {route["agent"]: route["models"] for route in table["routes"]} == {
+        agent: [f"{agent}/*"] for agent in caps
+    }
     assert table["base_url"].startswith("https://") and table["key_header"] == "x-litellm-api-key"
     # Names of variables only: the keys live in the secret store.
     assert all(route["key_env"].startswith("LITELLM_") for route in table["routes"])
@@ -1145,8 +1150,12 @@ def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
     [
         (lambda d: d["litellm"]["routes"][0].update(budget_eur=0), "positive whole number"),
         (lambda d: d["litellm"]["routes"][0].update(budget_eur="255"), "positive whole number"),
-        (lambda d: d["litellm"]["routes"][0].update(models=["openrouter/x"]), "no wildcard"),
-        (lambda d: d["litellm"]["routes"][0].update(models=["*"]), "plain model names"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["openrouter/x"]), "must sit beneath vibe/"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["*"]), "must sit beneath vibe/"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["vibe/zai-*"]), "only wildcard is vibe/"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["vibe/a b"]), "plain model names"),
+        (lambda d: d["litellm"]["routes"][2].update(agent="opencode", models=["opencode/zen-model"]), "no opencode Zen"),
+        (lambda d: d["litellm"]["routes"][4].update(budget_eur=-1), "positive whole number"),
         (lambda d: d["litellm"]["routes"][1].update(agent="vibe"), "unique lower-case agent id"),
         (lambda d: d["litellm"]["routes"][1].update(key_env="LITELLM_VIBE_KEY"), "unique variable name"),
         (lambda d: d["litellm"]["routes"][0].update(key_env="NOT_A_SECRET"), "workstation secret"),
@@ -1158,7 +1167,7 @@ def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
         (lambda d: d["litellm"].update(edge_token_env="NOT_A_SECRET"), "must be a workstation secret"),
         (lambda d: d.update(litellm="x"), "must be a mapping"),
         (lambda d: d["litellm"]["routes"].append("x"), "must be a mapping"),
-        (lambda d: d["litellm"]["routes"][0].update(models=["OpenRouter/x"]), "no wildcard"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["OpenRouter/x"]), "must sit beneath vibe/"),
     ],
 )
 def test_a_bad_litellm_section_is_refused(mutate, message: str) -> None:
