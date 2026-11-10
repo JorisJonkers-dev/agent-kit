@@ -58,6 +58,9 @@ as (not of the app you run in), so no critic shares your family:
 - **After `/grill-with-docs`**: leave `decision_summary` out. Prepare freezes
   the decision docs it wrote (the domain docs `docs/agents/domain.md` names,
   else `GLOSSARY.md` or `CONTEXT.md`, plus the ADRs in `docs/adr/`).
+  When an ADR is among them, the roster adds a DeepSeek Flash critic with
+  the `adr-reviewer` role and the `adr-record` lens, whose findings quote
+  the record they are about.
 - **After `/grill-me`**, which writes no docs: write `decision_summary`, at
   most 40 lines, one top-level `- ` item per decision the owner made, in the
   owner's terms. Record only what was decided; an open question is not a

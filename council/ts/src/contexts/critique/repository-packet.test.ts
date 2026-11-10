@@ -317,7 +317,9 @@ describe('the evidence check on a repository packet', () => {
       h,
       run,
       finding({
-        category: 'omission',
+        category: 'untestable',
+        // An adr-record check, so the shipped adr-review critic declares it.
+        check: 'no-confirmation',
         evidence: [ADR_QUOTE, { kind: 'trace', value: `tree/src/big.ts:${String(sent)}` }],
         location: 'src/big.ts:812',
       }),

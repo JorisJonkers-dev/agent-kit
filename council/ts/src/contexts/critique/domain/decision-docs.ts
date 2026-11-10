@@ -12,6 +12,15 @@ export const GLOSSARIES = ['GLOSSARY.md', 'CONTEXT.md'] as const
 /** Where the ADRs live when there is no domain doc. */
 export const ADR_DIRECTORY = 'docs/adr'
 
+/**
+ * Whether a decision doc, at its repository path, is a decision record: a
+ * markdown file directly in an `adr` directory, the repository's
+ * `docs/adr/` or a context's own.
+ */
+export function isDecisionRecord(path: string): boolean {
+  return path.endsWith('.md') && path.split('/').at(-2) === 'adr'
+}
+
 /** The file Pocock's multi-context layout uses to point at one `CONTEXT.md` per context. */
 export const CONTEXT_MAP = 'CONTEXT-MAP.md'
 
