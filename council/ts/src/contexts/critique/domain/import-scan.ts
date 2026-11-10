@@ -36,7 +36,7 @@ function withoutComments(text: string, language: ScanLanguage): string {
 
 const PATTERNS: Readonly<Record<ScanLanguage, readonly RegExp[]>> = {
   typescript: [
-    /^\s*(?:import|export)\b[^'"`\n]*?\bfrom\s*['"]([^'"\n]+)['"]/gm,
+    /^\s*(?:import|export)\b[\w\s,{}*$]*?\bfrom\s*['"]([^'"\n]+)['"]/gm,
     /^\s*import\s*['"]([^'"\n]+)['"]/gm,
     /\b(?:require|import)\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g,
   ],

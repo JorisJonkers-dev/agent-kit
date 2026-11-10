@@ -226,9 +226,10 @@ describe('the import scan', () => {
       "const lazy = await import('./lazy')",
       "const c = require('./c')",
       "import a2 from './a'",
+      "import {\n  wrapped,\n  other as o,\n} from './wrapped'",
     ].join('\n')
 
-    expect(specifiers(scanImports('typescript', text))).toEqual(['./a', './side', '../x', 'pkg', './lazy', './c'])
+    expect(specifiers(scanImports('typescript', text))).toEqual(['./a', './side', '../x', 'pkg', './lazy', './c', './wrapped'])
   })
 
   it('reads Python import forms, Kotlin imports, Go single and block imports, and Rust use and mod', () => {
