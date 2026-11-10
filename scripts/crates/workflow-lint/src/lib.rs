@@ -380,18 +380,26 @@ fn lint_file(path: &Path, shown: &str, instance: Instance) -> i32 {
     i32::from(!problems.is_empty())
 }
 
-/// The instance and files a command line names; `None` on bad usage.
+/// The instance and files a command line names; `None` on bad usage: a
+/// missing, unknown or repeated `--instance`, an unknown flag, or no file.
 fn parse_args(args: &[OsString]) -> Option<(Instance, Vec<&OsString>)> {
     let mut instance = None;
     let mut files = Vec::new();
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         let text = arg.to_string_lossy();
-        if text == "--instance" {
-            instance = Instance::parse(&iter.next()?.to_string_lossy());
-            instance?;
-        } else if let Some(name) = text.strip_prefix("--instance=") {
-            instance = Some(Instance::parse(name)?);
+        let name = if text == "--instance" {
+            Some(iter.next()?.to_string_lossy().into_owned())
+        } else {
+            text.strip_prefix("--instance=").map(str::to_string)
+        };
+        if let Some(name) = name {
+            if instance.is_some() {
+                return None;
+            }
+            instance = Some(Instance::parse(&name)?);
+        } else if text.starts_with('-') {
+            return None;
         } else {
             files.push(arg);
         }
