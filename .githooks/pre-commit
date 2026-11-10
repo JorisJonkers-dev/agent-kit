@@ -43,7 +43,10 @@ if ! git checkout-index --prefix="${snapshot}/" -- ${changed} 2>/dev/null; then
   exit 2
 fi
 for lock in $(git ls-files --cached -- '*Cargo.lock'); do
-  git checkout-index --prefix="${snapshot}/" -- "${lock}" 2>/dev/null || true
+  if ! git checkout-index --prefix="${snapshot}/" -- "${lock}" 2>/dev/null; then
+    echo "pre-commit: refused (exit 2): ${lock} could not be read for the age check." >&2
+    exit 2
+  fi
 done
 "${age}" --root "${snapshot}"
 status=$?
