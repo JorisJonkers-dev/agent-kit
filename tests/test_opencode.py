@@ -91,7 +91,7 @@ def test_setup_installs_opencode_with_homebrew_when_it_is_missing(tmp_path: Path
 
 def test_without_homebrew_setup_says_so(tmp_path: Path) -> None:
     result = setup_run(tmp_path, "Linux", without=("brew",))
-    assert "opencode: Homebrew is not on PATH; install it, or OpenCode 2, then re-run" in result.stderr
+    assert "opencode: Homebrew is not on PATH; skipped (install Homebrew or OpenCode 2, then re-run)" in result.stderr
 
 
 def test_setup_upgrades_only_a_homebrew_opencode(run: Run) -> None:

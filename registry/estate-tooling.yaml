@@ -459,7 +459,7 @@ clis:
     # Without Homebrew (a Linux machine) the install names the missing piece.
     install: >-
       if command -v brew >/dev/null 2>&1; then brew install opencode;
-      else echo "opencode: Homebrew is not on PATH; install it, or OpenCode 2, then re-run" >&2; fi
+      else echo "opencode: Homebrew is not on PATH; skipped (install Homebrew or OpenCode 2, then re-run)" >&2; fi
     # Only an OpenCode Homebrew installed is Homebrew's to upgrade.
     update: "! brew list --formula opencode >/dev/null 2>&1 || brew upgrade opencode"
     version_command: "opencode --version"

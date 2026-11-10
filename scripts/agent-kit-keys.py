@@ -110,7 +110,7 @@ class Store:
     @staticmethod
     def _backend() -> str:
         forced = os.environ.get("AGENT_KIT_SECRETS_BACKEND", "")
-        return forced or ("keychain" if shutil.which("security") else "libsecret")
+        return forced or ("keychain" if sys.platform == "darwin" and shutil.which("security") else "libsecret")
 
     def _run(self, command: str, var: str, value: str | None = None) -> subprocess.CompletedProcess[str]:
         # The value goes over stdin, never argv.

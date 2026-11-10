@@ -1246,9 +1246,15 @@ oauth_status() {
       "${name}" || warn "${name}: needs sign-in (codex): run codex mcp login ${name}"
   fi
   # Vibe keeps an MCP OAuth token in the keychain as mcp-oauth:<name>:tokens.
-  if command -v vibe >/dev/null 2>&1 && command -v security >/dev/null 2>&1; then
-    security find-generic-password -s ai.mistral.vibe -a "mcp-oauth:${name}:tokens" >/dev/null 2>&1 \
-      || warn "${name}: needs sign-in (vibe): run /mcp login ${name} in Vibe"
+  # Only the macOS Keychain can be asked without reading the token; on Linux
+  # the check is skipped, and that is reported.
+  if command -v vibe >/dev/null 2>&1; then
+    if [ "$(uname -s)" = Darwin ] && command -v security >/dev/null 2>&1; then
+      security find-generic-password -s ai.mistral.vibe -a "mcp-oauth:${name}:tokens" >/dev/null 2>&1 \
+        || warn "${name}: needs sign-in (vibe): run /mcp login ${name} in Vibe"
+    else
+      warn "${name}: vibe sign-in not checked: the check reads the macOS Keychain; skipped on $(uname -s)"
+    fi
   fi
 }
 
@@ -2375,7 +2381,7 @@ else
     run_sh '! brew list --formula opencode >/dev/null 2>&1 || brew upgrade opencode'
     ok "opencode $(opencode --version 2>/dev/null | head -1)"
   else
-    run_sh 'if command -v brew >/dev/null 2>&1; then brew install opencode; else echo "opencode: Homebrew is not on PATH; install it, or OpenCode 2, then re-run" >&2; fi'
+    run_sh 'if command -v brew >/dev/null 2>&1; then brew install opencode; else echo "opencode: Homebrew is not on PATH; skipped (install Homebrew or OpenCode 2, then re-run)" >&2; fi'
     if [ "${CHECK_ONLY}" = 1 ]; then
       log "opencode would be installed"
     elif command -v opencode >/dev/null 2>&1; then
