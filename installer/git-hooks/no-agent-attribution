@@ -104,9 +104,12 @@ trailer_re='^[[:space:]]*([^<]*[^<[:space:]])[[:space:]]*<([^>]+)>[[:space:]]*$'
 
 # Prints each line of the message on stdin that is not allowed. Comment lines
 # and everything below git's scissors line are not part of the commit, so
-# they are skipped.
+# they are skipped. A credit wrapped across a line break ("Reviewed by" then
+# "mistral-large", or "Generated" then "with ...") is caught too: each line is
+# also tried joined to the one or two lines before it, within one paragraph,
+# and the joined text is printed when only the join matches.
 offending_lines() {
-  local line lowered name email
+  local line lowered name email prev1="" prev2="" joined flagged
   while IFS= read -r line || [ -n "${line}" ]; do
     case "${line}" in
       "# ------------------------ >8 ------------------------"*) break ;;
@@ -122,15 +125,46 @@ offending_lines() {
         fi
         if ! allowed_identity "${name}" "${email}"; then
           printf '%s\n' "${line}"
+          prev2="" prev1=""
           continue
         fi
         ;;
     esac
+    flagged=0
     if matches_any "${lowered}" ${refusals[@]+"${refusals[@]}"}; then
       printf '%s\n' "${line}"
+      flagged=1
+    elif [ -n "${prev1}" ] && printf '%s %s\n' "${prev2}" "${prev1}" | grep -Eiq -- "${credit_words}"; then
+      joined="$(unwrap "${prev1} ${line}")"
+      if matches_any "$(lower "${joined}")" ${refusals[@]+"${refusals[@]}"}; then
+        printf '%s\n' "${joined}"
+        flagged=1
+      elif [ -n "${prev2}" ]; then
+        joined="$(unwrap "${prev2} ${prev1} ${line}")"
+        if matches_any "$(lower "${joined}")" ${refusals[@]+"${refusals[@]}"}; then
+          printf '%s\n' "${joined}"
+          flagged=1
+        fi
+      fi
+    fi
+    # A blank line ends the paragraph; a refused line starts a fresh window.
+    if [ "${flagged}" = 1 ] || [ -z "${line//[[:space:]]/}" ]; then
+      prev2="" prev1=""
+    elif [[ "${line}" =~ ^[[:space:]]*([-*+][[:space:]]|[0-9]+[.\)][[:space:]]|#{1,6}[[:space:]]|\||\>) ]]; then
+      # A list item, heading, table row or quote starts a new block.
+      prev2="" prev1="${line}"
+    else
+      prev2="${prev1}"
+      prev1="${line}"
     fi
   done
 }
+
+# The verbs of a credit; a line pair is only joined when it holds one.
+credit_words='(generated|written|reviewed|authored|drafted|assisted|created|coded|produced|made|implemented|planned)'
+
+# Collapses every run of whitespace to one space and trims the ends.
+unwrap() { printf '%s' "$1" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//'; }
 
 refuse() {
   printf 'no-agent-attribution: %s\n' "$1" >&2
