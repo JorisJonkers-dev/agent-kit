@@ -82,6 +82,7 @@ is `stays outside` in the `direct` lane.
 
 | Name | Path | What it does | Target | Lanes | Notes |
 | --- | --- | --- | --- | --- | --- |
+| adr-reviewer | `skills/workstation/critique/roles/adr-reviewer.md` | Reviews a decision log as an official reviewer: whether each record carries its decision, never whether the choice was right. | role | direct | Direct lane (#475). |
 | diff-reviewer | `skills/workstation/critique/roles/diff-reviewer.md` | Reviews one ticket's staged diff for bugs a third party can check. | role | direct, gold-band, gold-band-personal | Gold Band profile, rendered by the `gold-band-roles` crate (#345). |
 | feature-reviewer | `skills/workstation/critique/roles/feature-reviewer.md` | Reviews the whole feature diff against its spec and tickets. | role | direct, gold-band, gold-band-personal | Gold Band profile (#345). |
 | gap-critic | `skills/workstation/critique/roles/gap-critic.md` | Lists the questions nobody asked about a feature's decisions. | role | direct, gold-band, gold-band-personal | Gold Band profile (#345). |
