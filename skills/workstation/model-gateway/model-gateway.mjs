@@ -2662,11 +2662,19 @@ var codex = {
 var LAUNCHERS = { agy, claude, codex, hermes, opencode, vibe };
 
 // src/contexts/model-gateway/application/client-run.ts
+var VIBE_ON_DEMAND_TOOLS = ["web_search", "web_fetch"];
 function requireSupportedExtras(client, extras) {
   const launcher = LAUNCHERS[client];
   const unsupported = EXTRA_NAMES.find((name) => extras[name] !== void 0 && !launcher.extras.includes(name));
   if (unsupported !== void 0) {
     throw new ModelGatewayError("extras-not-supported", `${client} cannot apply the ${unsupported} extra`);
+  }
+  const webTool = client === "vibe" ? (extras.tools ?? []).find((tool) => VIBE_ON_DEMAND_TOOLS.includes(tool)) : void 0;
+  if (webTool !== void 0) {
+    throw new ModelGatewayError(
+      "extras-not-supported",
+      `vibe cannot enable the ${webTool} tool: it loads on demand, and --enabled-tools hides it, so the run would have no web tool; keep the default tool set and disable the unwanted tools instead`
+    );
   }
   const sandboxed = launcher.sandboxedExtras.find((name) => extras[name] !== void 0 && extras.sandbox === void 0);
   if (sandboxed !== void 0) {
