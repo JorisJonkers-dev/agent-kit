@@ -72,6 +72,7 @@ export type {
   CriticClientPort,
   CriticClients,
   CriticLaunch,
+  GrantsPort,
   CriticReport,
   CritiqueDeps,
   CritiqueFilesPort,
@@ -85,8 +86,9 @@ export type {
   SearchServerCommand,
   SearchSession,
 } from './application/ports.js'
+export type { ClaudeCriticClient, ClientReadiness, CodexCriticClient, CriticClient } from './domain/routing.js'
 export type { CriticIdentity, CriticOutcome, CriticRun } from './domain/critic.js'
-export type { ModelFamily, OrchestratorFamily } from './domain/family.js'
+export type { CriticFamily, ModelFamily, OrchestratorFamily } from './domain/family.js'
 export { gateIndexPath, gatePath } from './application/feature-gate.js'
 export { parseGateRecord, type FollowUp, type GateRecord, type OpenCriticalFollowUp } from './domain/feature-review.js'
 export type { RunFinding } from './domain/findings.js'
@@ -113,6 +115,7 @@ export { specReference } from './domain/manifest.js'
 export { NodeCritiqueFiles } from './adapters/fs/index.js'
 export { AgyCriticClient } from './adapters/agy/index.js'
 export { VibeCriticClient } from './adapters/vibe/index.js'
+export { GatewayGrants } from './adapters/grants/index.js'
 export { GatewayPlanLimit } from './adapters/plan/index.js'
 export { ProcessSearchClient } from './adapters/search/client.js'
 export { runSearchServer, SEARCH_SERVER_USAGE, type SearchServerIo } from './adapters/search/server.js'

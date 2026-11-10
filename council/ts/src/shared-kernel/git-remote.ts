@@ -41,7 +41,7 @@ export function parseRemote(url: string): RemoteLocation | undefined {
  * that it belongs to the denied organisation, or that it has no remote at all.
  */
 export type RepositoryIdentity =
-  | { readonly status: 'denied-owner'; readonly remote: string; readonly owner: string }
+  | { readonly status: 'denied-owner'; readonly remote: string; readonly owner: string; readonly location: RemoteLocation }
   | { readonly status: 'no-remote' }
   | { readonly status: 'identified'; readonly key: string; readonly location: RemoteLocation }
 
@@ -57,7 +57,7 @@ export function identifyRepository(remotes: readonly GitRemote[]): RepositoryIde
   })
   const denied = located.find((remote) => remote.location.owner.split('/')[0] === DENIED_OWNER)
   if (denied !== undefined) {
-    return { owner: denied.location.owner, remote: denied.name, status: 'denied-owner' }
+    return { location: denied.location, owner: denied.location.owner, remote: denied.name, status: 'denied-owner' }
   }
   const primary = located.find((remote) => remote.name === 'origin') ?? located[0]
   if (primary === undefined) return { status: 'no-remote' }

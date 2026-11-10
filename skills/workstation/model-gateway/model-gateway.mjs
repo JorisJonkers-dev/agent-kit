@@ -3156,7 +3156,7 @@ function identifyRepository(remotes) {
   });
   const denied = located.find((remote) => remote.location.owner.split("/")[0] === DENIED_OWNER);
   if (denied !== void 0) {
-    return { owner: denied.location.owner, remote: denied.name, status: "denied-owner" };
+    return { location: denied.location, owner: denied.location.owner, remote: denied.name, status: "denied-owner" };
   }
   const primary = located.find((remote) => remote.name === "origin") ?? located[0];
   if (primary === void 0) return { status: "no-remote" };

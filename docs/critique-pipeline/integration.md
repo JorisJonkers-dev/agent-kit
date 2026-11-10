@@ -997,8 +997,13 @@ them:
   Vibe-specific is in `VibeCriticClient`; the Antigravity client (#171) is a
   second adapter and a second `kind`. A dependency-cruiser rule keeps the
   critique domain free of ports, the application layer and adapters.
-- **Degraded runs.** Only the family allowlist refuses: no remote, no entry,
-  or a `nedap` remote. A stage whose roster drops every critic still
+- **Degraded runs.** Only the family allowlist refuses: no remote or no entry. A
+  `nedap` remote is not refused: prepare gives it the stage's `work` roster
+  (`codex-work`, `claude-work`), whatever an entry says. A work client never
+  sits in a base or deep roster or a fallback list (routing refuses it
+  there), Codex is dropped as `no-grant` without a live grant for the
+  `workflow` (or `flow`) the call names, and a client with no launcher on the
+  machine is dropped as `unavailable`. A stage whose roster drops every critic still
   prepares a run with no critics; fan-out then launches nothing and marks
   the run degraded, as it does when every critic fails, and record's
   summary and report open with `degraded: no critique ran`. #173 adds

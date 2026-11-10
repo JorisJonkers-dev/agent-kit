@@ -1,7 +1,7 @@
 import { isCheckId } from './checks.js'
 import { readCriticRun, type CriticRun } from './critic.js'
 import { checkEvidence, type PacketIndex } from './evidence.js'
-import type { AllowlistFamily, ModelFamily, OrchestratorFamily } from './family.js'
+import type { AllowlistFamily, CriticFamily, OrchestratorFamily } from './family.js'
 import {
   CHECK_HINT_CODES,
   HINT_CODES,
@@ -115,7 +115,7 @@ export interface RefuterRules {
 }
 
 /** Why a candidate's family may not refute this finding, if it may not. */
-export function familyBar(family: ModelFamily, rules: RefuterRules, raisers: readonly ModelFamily[]): string | undefined {
+export function familyBar(family: CriticFamily, rules: RefuterRules, raisers: readonly CriticFamily[]): string | undefined {
   if (raisers.includes(family)) return `${family} raised the finding`
   if (family === rules.orchestratorFamily) return `${family} is the orchestrator's family`
   if (!rules.allowedFamilies.includes(family)) return `the allowlist does not permit ${family}`
@@ -130,7 +130,7 @@ export function familyBar(family: ModelFamily, rules: RefuterRules, raisers: rea
 export function chooseRefuter(
   finding: Pick<RunFinding, 'id'>,
   candidates: readonly RefuterCandidate[],
-  bars: { readonly family: (family: ModelFamily) => string | undefined; readonly blocked: (client: string) => string | undefined },
+  bars: { readonly family: (family: CriticFamily) => string | undefined; readonly blocked: (client: string) => string | undefined },
 ): { readonly refuter: RosterCritic } | { readonly skipped: string } {
   const passed: string[] = []
   for (const candidate of candidates) {
