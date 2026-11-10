@@ -2536,7 +2536,7 @@ if ! command -v claude >/dev/null 2>&1; then
 else
   log "plugin marketplaces"
   ensure_marketplace claude-plugins-official anthropics/claude-plugins-official dceb15d50832e6adf380bedc26dde03d251324b9 agent-kit-official
-  ensure_marketplace caveman JuliusBrussee/caveman b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+  ensure_marketplace caveman JuliusBrussee/caveman 8b0c1d3699b8d83e87fe4605b378da20c41555e0
   ensure_marketplace drawio jgraph/drawio-mcp 14b318b19cc37b159f841227b9d11fbd18ce18ea
   ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill 34f93c1e409156958cc7c410ab1aa88ab512f10f
   if [ "${CLOUD}" = 1 ]; then
@@ -2727,7 +2727,7 @@ for install in installs:
         "$1" "$2" 2>/dev/null
     }
 
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/caveman" caveman b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/caveman" caveman 8b0c1d3699b8d83e87fe4605b378da20c41555e0)"
     installed_commit="$(installed_plugin_commit "${manifest}" "caveman@caveman")"
     if [ -z "${expected_commit}" ]; then
       warn "caveman: its marketplace entry pins no commit, so it cannot be pinned"
