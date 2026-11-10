@@ -1,0 +1,11 @@
+{
+  "version": "0.1",
+  "id": "memory-write-in-planning",
+  "entry": "dev-build",
+  "nodes": [
+    { "type": "worker", "profile": "pf-builtin-dev", "goal": "Do it.", "id": "dev-planning", "provider": "claude-acp+memory-write", "model": "claude-sonnet-4-5" }
+  ],
+  "edges": [
+    { "from": "dev-planning", "to": "$end", "on": "success", "session": null }
+  ]
+}

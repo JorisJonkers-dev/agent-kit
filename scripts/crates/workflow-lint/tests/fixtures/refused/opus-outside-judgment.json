@@ -1,0 +1,11 @@
+{
+  "version": "0.1",
+  "id": "opus-outside-judgment",
+  "entry": "dev-build",
+  "nodes": [
+    { "type": "worker", "profile": "pf-builtin-dev", "goal": "Do it.", "id": "dev-build", "provider": "claude-acp", "model": "claude-opus-4-1" }
+  ],
+  "edges": [
+    { "from": "dev-build", "to": "$end", "on": "success", "session": null }
+  ]
+}

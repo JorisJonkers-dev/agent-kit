@@ -1,0 +1,25 @@
+{
+  "version": "0.1",
+  "id": "gold-band-unrolled-review",
+  "entry": "dev-planning",
+  "nodes": [
+    { "type": "worker", "id": "dev-planning", "provider": "claude-acp", "model": "claude-opus-4-1", "profile": "pf-builtin-dev", "goal": "State the targeted prompt." },
+    { "type": "worker", "id": "dev-build", "provider": "claude-acp", "model": "claude-sonnet-4-5", "profile": "pf-builtin-dev", "goal": "Implement it." },
+    { "type": "worker", "id": "review-1", "provider": "claude-acp", "model": "claude-sonnet-4-5", "profile": "pf-critique", "goal": "Review the build." },
+    { "type": "worker", "id": "repair-1", "provider": "claude-acp", "model": "claude-sonnet-4-5", "profile": "pf-builtin-dev", "goal": "Fix the findings." },
+    { "type": "worker", "id": "review-2", "provider": "claude-acp", "model": "claude-sonnet-4-5", "profile": "pf-critique", "goal": "Review the repair." },
+    { "type": "worker", "id": "review-escalation", "provider": "claude-acp+memory-write", "model": "claude-opus-4-1", "profile": "pf-escalation", "goal": "Settle what the repairs did not." },
+    { "type": "worker", "id": "final-acceptance", "provider": "claude-acp+memory-write", "model": "claude-opus-4-1", "profile": "pf-critique", "goal": "Accept the finished work and record the lesson." }
+  ],
+  "edges": [
+    { "from": "dev-planning", "to": "dev-build", "on": "success", "session": null },
+    { "from": "dev-build", "to": "review-1", "on": "success", "session": null },
+    { "from": "review-1", "to": "final-acceptance", "on": "success", "session": null },
+    { "from": "review-1", "to": "repair-1", "on": "failure", "session": null },
+    { "from": "repair-1", "to": "review-2", "on": "success", "session": null },
+    { "from": "review-2", "to": "final-acceptance", "on": "success", "session": null },
+    { "from": "review-2", "to": "review-escalation", "on": "failure", "session": null },
+    { "from": "review-escalation", "to": "$end", "on": "success", "session": null },
+    { "from": "final-acceptance", "to": "$end", "on": "success", "session": null }
+  ]
+}

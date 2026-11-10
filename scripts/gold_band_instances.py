@@ -19,6 +19,7 @@ A missing overlay is an empty one.
 
 from __future__ import annotations
 
+import atexit
 import os
 import shutil
 import subprocess
@@ -123,15 +124,34 @@ def _command(declaration: Path) -> list[str]:
         "cargo",
         "run",
         "--quiet",
-        "--locked",
         "--manifest-path",
-        str(CARGO_MANIFEST),
-        "-p",
-        CRATE,
+        str(_standalone_manifest()),
         "--",
         "validate",
         str(declaration),
     ]
+
+
+_STANDALONE: Path | None = None
+
+
+def _standalone_manifest() -> Path:
+    """A private copy of the crate that is its own workspace.
+
+    The crate is std-only, so building it alone needs no registry. Building it
+    inside the shared workspace would make cargo resolve every other member's
+    dependencies too, and so need the crate gate, which a registry check does
+    not have.
+    """
+    global _STANDALONE
+    if _STANDALONE is None:
+        root = Path(tempfile.mkdtemp(prefix="gold-band-registry-"))
+        atexit.register(shutil.rmtree, root, ignore_errors=True)
+        source = CARGO_MANIFEST.parent / "crates" / CRATE
+        shutil.copytree(source / "src", root / "src")
+        (root / "Cargo.toml").write_text((source / "Cargo.toml").read_text() + "\n[workspace]\n")
+        _STANDALONE = root / "Cargo.toml"
+    return _STANDALONE
 
 
 def validate(registry: dict[str, Any], overlay_path: Path | None = None) -> list[str]:

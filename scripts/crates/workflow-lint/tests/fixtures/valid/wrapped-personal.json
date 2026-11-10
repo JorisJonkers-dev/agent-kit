@@ -1,0 +1,21 @@
+{
+  "workflow": {
+    "version": "0.1",
+    "id": "gold-band-personal-wrapped",
+    "entry": "dev-build",
+    "nodes": [
+      { "type": "worker", "id": "dev-build", "provider": "claude-acp", "executionSlotId": "slot-build", "profile": "pf-builtin-dev", "goal": "Implement it." },
+      { "type": "worker", "id": "dev-acceptance", "provider": "claude-acp", "executionSlotId": "slot-accept", "profile": "pf-critique", "goal": "Accept it." }
+    ],
+    "edges": [
+      { "from": "dev-build", "to": "dev-acceptance", "on": "success", "session": null },
+      { "from": "dev-acceptance", "to": "$end", "on": "success", "session": null }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      { "executionSlotId": "slot-build", "agentId": "opencode-go", "modelId": "opencode-go/glm-5.3-flash" },
+      { "executionSlotId": "slot-accept", "agentId": "claude-acp+memory-write", "modelId": "claude-opus-4-1" }
+    ]
+  }
+}
