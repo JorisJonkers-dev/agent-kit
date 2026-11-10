@@ -1,0 +1,10 @@
+[package]
+name = "inventory-check"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Fails when a skill, hook, role file or MCP server is missing from the Gold Band port inventory, has two targets, or has no lanes."
+
+# std only, by design: nothing here has an age for the 7-day crate cooldown
+# (standards ADR-0014, docs/RUST.md) to question.
+[dependencies]
