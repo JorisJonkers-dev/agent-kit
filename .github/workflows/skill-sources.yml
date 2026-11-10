@@ -1,0 +1,38 @@
+'name': 'Skill Sources'
+
+# The weekly drift check behind every estate skill: it compares each skill's
+# `sources.yaml` against GitHub and keeps one open issue listing the sources
+# that moved. The App token reads the estate's private repositories; the issue
+# lives in this repository and is found by its title. A failed run leaves the
+# issue as it is: the failed run itself is the signal.
+'on':
+  'schedule':
+    - 'cron': '17 6 * * 1'
+  'workflow_dispatch':
+
+'concurrency':
+  'group': 'skill-sources'
+  'cancel-in-progress': false
+
+'permissions':
+  'contents': 'read'
+  'issues': 'write'
+
+'jobs':
+  'drift':
+    'name': 'Check skill sources'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      # The app must be installed on the estate's private repositories so the
+      # check can read their blobs and release tags.
+      - 'uses': 'actions/create-github-app-token@v3'
+        'id': 'app-token'
+        'with':
+          'app-id': '${{ secrets.RELEASE_APP_ID }}'
+          'private-key': '${{ secrets.RELEASE_APP_PRIVATE_KEY }}'
+      - 'uses': 'actions/checkout@v6'
+      - 'uses': 'astral-sh/setup-uv@v8.2.0'
+      - 'run': 'uv sync --frozen'
+      - 'run': 'uv run python scripts/check_skill_sources.py --sync-issue'
+        'env':
+          'GH_TOKEN': '${{ steps.app-token.outputs.token }}'
