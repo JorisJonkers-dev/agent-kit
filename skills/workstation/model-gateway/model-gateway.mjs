@@ -3138,7 +3138,7 @@ function readListInput(raw) {
 // src/shared-kernel/git-remote.ts
 var DENIED_OWNER = "nedap";
 function parseRemote(url) {
-  const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
+  const scp = /^(?:[^@/\s]+@)?([^:/\s]+):(?!\/\/)(.+)$/.exec(url);
   const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url);
   const match = scp ?? standard;
   if (match === null) return void 0;
@@ -3156,7 +3156,7 @@ function identifyRepository(remotes) {
   });
   const denied = located.find((remote) => remote.location.owner.split("/")[0] === DENIED_OWNER);
   if (denied !== void 0) {
-    return { owner: denied.location.owner, remote: denied.name, status: "denied-owner" };
+    return { location: denied.location, owner: denied.location.owner, remote: denied.name, status: "denied-owner" };
   }
   const primary = located.find((remote) => remote.name === "origin") ?? located[0];
   if (primary === void 0) return { status: "no-remote" };

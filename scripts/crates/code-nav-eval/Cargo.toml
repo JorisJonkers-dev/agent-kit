@@ -1,0 +1,11 @@
+[package]
+name = "code-nav-eval"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The frozen code-navigation question set and its runner."
+
+# std only, by design (the standards repo's ADR-0014, docs/RUST.md). The JSON
+# parser lives in the library so the crate takes no registry dependency and the
+# 7-day crate cooldown has nothing to question here.
+[dependencies]

@@ -13,7 +13,10 @@ can type it.
 
 Nothing is sent until the repository has a **family allowlist** entry
 (per machine, `~/.config/agent-kit/critique-allowlist.json`, keyed by the
-remote). A repository with no remote or a `nedap` remote never sends. An
+remote). A repository with no remote never sends. A `nedap` remote needs no entry and
+has a work-only roster instead: Codex on the nedap account, only under a live
+model-gateway grant for the `workflow` the call names, and the work Claude
+agent, each never in the orchestrator's own family, and no other family. An
 entry covers documents only until its code permission is on, which the code
 stages need, and leaves out commit messages and issue text until its history
 permission is on. Both are off by default. The first stage that needs one

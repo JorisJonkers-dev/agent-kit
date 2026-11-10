@@ -58,6 +58,8 @@ KIT_PATHS=(
   installer/model-gateway
   scripts/instruction-block.py
   scripts/package-proxy-merge.py
+  scripts/gold-band/build-linux.sh
+  scripts/gold-band/shell.nix
   installer/agent-kit-secret
   installer/vibe-study
   installer/vibe-private

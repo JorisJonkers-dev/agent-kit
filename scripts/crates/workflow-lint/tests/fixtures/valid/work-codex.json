@@ -1,0 +1,13 @@
+{
+  "version": "0.1",
+  "id": "gold-band-work-codex",
+  "entry": "dev-build",
+  "nodes": [
+    { "type": "worker", "id": "dev-build", "provider": "codex-cli", "model": "gpt-5", "profile": "pf-builtin-dev", "goal": "Implement it." },
+    { "type": "worker", "id": "dev-acceptance", "provider": "claude-acp+memory-write", "model": "claude-opus-4-1", "profile": "pf-critique", "goal": "Accept it." }
+  ],
+  "edges": [
+    { "from": "dev-build", "to": "dev-acceptance", "on": "success", "session": null },
+    { "from": "dev-acceptance", "to": "$end", "on": "success", "session": null }
+  ]
+}

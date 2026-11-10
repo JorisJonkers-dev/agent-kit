@@ -15,4 +15,7 @@ members = [
     "crates/agent-kit-setup",
     "crates/inventory-check",
     "crates/litellm-gate",
+    "crates/gold-band-registry",
+    "crates/code-nav-eval",
+    "crates/workflow-lint",
 ]

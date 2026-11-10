@@ -25,6 +25,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+import gold_band_instances
 import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
@@ -346,6 +347,16 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError("package_proxy.token_file must be relative to XDG_CONFIG_HOME")
         if not str(proxy["verify_url"]).startswith(base + "/"):
             raise RegistryError("package_proxy.verify_url must sit under package_proxy.base")
+
+    gold_band = data.get("gold_band")
+    if gold_band is not None:
+        if not re.fullmatch(r"[0-9a-f]{40}", str(gold_band.get("commit", ""))):
+            raise RegistryError("gold_band.commit must be a full 40-character commit sha, not a tag")
+        clone = str(gold_band.get("clone") or "")
+        if not clone or clone.startswith(("/", "~")) or ".." in clone.split("/"):
+            raise RegistryError("gold_band.clone must be relative to $HOME")
+        if not gold_band.get("linux_script") or not gold_band.get("tag"):
+            raise RegistryError("gold_band needs a tag and a linux_script")
 
     for server in _entries(data, "mcp_servers"):
         if "claude_allow_tools" not in server:
@@ -2775,6 +2786,52 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("")
 
 
+def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
+    """The Gold Band step: on Linux, build the pinned commit from an existing
+    clone through the crate gate and install it (scripts/gold-band/build-linux.sh).
+
+    A machine without the clone skips the surface and says so; a skipped
+    surface never fails setup. A too-young or unprovable crate stops the build
+    and is a failure, reported with the crate. Under --check it only reports.
+    """
+    gold_band = data.get("gold_band")
+    if not gold_band:
+        return
+    script = gold_band["linux_script"]
+    clone = gold_band["clone"]
+    w("# -----------------------------------------------------------------")
+    w(f"# Gold Band {gold_band['tag']} ({gold_band['commit'][:7]}): built from an existing")
+    w("# clone through the crate gate, Linux only. No clone: skipped, said so.")
+    w("# -----------------------------------------------------------------")
+    w("gold_band_setup() {")
+    w("  local rc=0 mode=()")
+    w('  if [ "$(uname -s)" != Linux ]; then')
+    w('    log "gold band: the Mac build is not part of this step, skipped on $(uname -s)"')
+    w("    return 0")
+    w("  fi")
+    w('  if [ "${CLOUD}" = 1 ]; then')
+    w('    log "gold band: not built in a cloud session"')
+    w("    return 0")
+    w("  fi")
+    w(f'  if [ ! -e "${{HOME}}/{clone}/.git" ]; then')
+    w(f'    log "gold band: skipped, no clone at ${{HOME}}/{clone}"')
+    w("    return 0")
+    w("  fi")
+    w('  [ "${CHECK_ONLY}" = 1 ] && mode=(--check)')
+    w(f'  GOLD_BAND_DIR="${{HOME}}/{clone}" GOLD_BAND_REF="{gold_band["commit"]}" \\')
+    w(f'    bash "${{KIT_ROOT}}/{script}" "${{mode[@]}}" || rc=$?')
+    w('  if [ "${rc}" = 0 ]; then')
+    w(f'    ok "gold band: {gold_band["tag"]} ({gold_band["commit"][:7]}) is handled, see the lines above"')
+    w('  elif [ "${rc}" = 3 ]; then')
+    w('    fail "gold band: a crate in its Cargo.lock is younger than 7 days or unprovable; the build was stopped"')
+    w("  else")
+    w('    fail "gold band: the build failed (exit ${rc})"')
+    w("  fi")
+    w("}")
+    w("gold_band_setup")
+    w("")
+
+
 def render_setup_script(data: dict[str, Any]) -> str:
     out: list[str] = []
     w = out.append
@@ -3941,6 +3998,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
     w("report_antigravity_signin")
     w("")
+    _gold_band_step(w, data)
 
     # --- Claude profiles ---
     #
@@ -5183,12 +5241,24 @@ def main(argv: list[str] | None = None) -> int:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--write", action="store_true", help="write the generated artifacts")
     group.add_argument("--check", action="store_true", help="fail if any artifact is stale")
+    parser.add_argument(
+        "--overlay",
+        type=Path,
+        default=gold_band_instances.DEFAULT_OVERLAY,
+        help="the per-machine Gold Band overlay to validate with the instances (a missing file is empty)",
+    )
     args = parser.parse_args(argv)
 
     try:
         data = load_registry()
-    except RegistryError as exc:
+        refused = gold_band_instances.validate(data, args.overlay)
+    except (RegistryError, gold_band_instances.InstanceError) as exc:
         print(f"registry invalid: {exc}", file=sys.stderr)
+        return 1
+    if refused:
+        print("registry invalid: the Gold Band instances are refused:", file=sys.stderr)
+        for line in refused:
+            print(f"  {line}", file=sys.stderr)
         return 1
 
     if args.check:

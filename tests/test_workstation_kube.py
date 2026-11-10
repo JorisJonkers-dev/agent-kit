@@ -79,6 +79,13 @@ echo "ssh $*" >> "$FAKE_ARGV_LOG"
 for last; do :; done
 exec sh -c "$last"
 """
+# The script finds a remote owner's home in passwd. The fake ssh runs on this machine, so the
+# real getent would name the real home and the test would overwrite its ~/.kube/config.
+FAKE_GETENT = """#!/bin/sh
+echo "getent $*" >> "$FAKE_ARGV_LOG"
+[ "$1" = passwd ] && [ -n "$2" ] || exit 2
+echo "$2:x:1000:100::$FAKE_HOME:/bin/sh"
+"""
 FAKE_CHOWN = """#!/bin/sh
 echo "chown $*" >> "$FAKE_ARGV_LOG"
 """
@@ -114,6 +121,7 @@ class Device:
             "sudo": FAKE_SUDO,
             "ssh": FAKE_SSH,
             "chown": FAKE_CHOWN,
+            "getent": FAKE_GETENT,
             "cat": FAKE_CAT,
         }.items():
             (bin_dir / name).write_text(body.replace("@REAL_CAT@", real_cat))
@@ -126,6 +134,7 @@ class Device:
             **os.environ,
             "PATH": f"{bin_dir}:{os.environ['PATH']}",
             "HOME": str(self.home),
+            "FAKE_HOME": str(self.home),
             "FAKE_KUBE_STATE": str(self.state),
             "FAKE_ARGV_LOG": str(self.log),
             "FAKE_ROOT_ONLY": str(self.secret_dir),
@@ -264,6 +273,7 @@ def test_a_remote_device_is_installed_over_ssh(device: Device) -> None:
     device.install("--ssh", "deploy@desktop", "--user", os.environ.get("USER", "nobody"))
     assert "ssh -p 22 -o BatchMode=yes deploy@desktop" in device.log.read_text()
     assert (device.secret_dir / "personal-admin.json").exists()
+    assert (device.home / ".kube" / "config").exists()
 
 
 def test_check_passes_when_an_agent_can_read_but_not_administer(device: Device) -> None:

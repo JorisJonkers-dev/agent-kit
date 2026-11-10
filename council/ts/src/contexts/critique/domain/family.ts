@@ -14,3 +14,11 @@ export type OrchestratorFamily = (typeof ORCHESTRATOR_FAMILIES)[number]
  */
 export const ALLOWLIST_FAMILIES = [...MODEL_FAMILIES, 'anthropic', 'openai'] as const
 export type AllowlistFamily = (typeof ALLOWLIST_FAMILIES)[number]
+
+/**
+ * The family a critic can have: every family a client serves. Only a `nedap`
+ * repository's work roster has critics from `anthropic` or `openai`; every
+ * other roster draws on the four model families.
+ */
+export type CriticFamily = AllowlistFamily
+export const CRITIC_FAMILIES = ALLOWLIST_FAMILIES

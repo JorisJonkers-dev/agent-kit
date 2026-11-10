@@ -391,6 +391,15 @@ agent except Codex and the work Claude agent, and refuses repositories with a
 machine it runs under a second operating-system user account.
 _Avoid_: personal lane, personal mode
 
+**Overlay**:
+A per-machine file beside the keep file, `~/.config/agent-kit/overlay.yaml`,
+holding the work instance's employer-specific MCP servers and settings, so
+nothing about the employer enters the public registry. It may add `mcp_servers`
+and `settings` to the work instance only, and `agents` held to the same rules
+as the registry's; it never changes a repository rule, host or bank. A missing
+file is an empty overlay.
+_Avoid_: profile, local registry
+
 **Direct lane**:
 Work that runs through an agent started directly (Claude Code, Codex, Vibe and
 the others) or through the model gateway, on any repository. Nothing is

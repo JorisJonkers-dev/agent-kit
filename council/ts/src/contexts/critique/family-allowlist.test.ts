@@ -69,15 +69,14 @@ describe('family allowlist', () => {
     'https://github.com/nedap/widgets.git',
     'ssh://git@github.com/Nedap/widgets',
     'git@github-work:nedap/widgets.git',
-  ])('refuses a nedap remote (%s) whatever its allowlist says', async (url) => {
+  ])('gives a nedap remote (%s) the work-only roster whatever its allowlist says', async (url) => {
     const h = await setup({ remotes: [AGENT_KIT_REMOTE] })
     await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
     h.git.remoteList = [AGENT_KIT_REMOTE, { name: 'upstream', url }]
 
     const result = await h.commands.prepare.run(prepareInput(h))
 
-    expect(result).toMatchObject({ status: 'refused', reason: 'nedap' })
-    expect(existsSync(critiqueDir(h))).toBe(false)
+    expect(result).toMatchObject({ status: 'ready', critics: [] })
   })
 
   it('refuses to record an allowlist entry for a nedap repository', async () => {
@@ -290,17 +289,6 @@ describe('family allowlist', () => {
         expect(existsSync(critiqueDir(h))).toBe(false)
       },
     )
-
-    it('lets the nedap deny win over a code permission', async () => {
-      const h = await setup()
-      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], code: true })
-      h.git.remoteList = [AGENT_KIT_REMOTE, { name: 'work', url: 'git@github.com:nedap/widgets.git' }]
-
-      const result = await h.commands.prepare.run({ ...prepareInput(h), stage: 'ticket-review', ticket: '.scratch/widgets/issues/01-widgets.md', base: 'HEAD' })
-
-      expect(result).toMatchObject({ status: 'refused', reason: 'nedap' })
-      expect(existsSync(critiqueDir(h))).toBe(false)
-    })
 
     it('lets the no-remote refusal win over a code permission', async () => {
       const h = await setup()

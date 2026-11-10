@@ -235,6 +235,22 @@ package_proxy:
   verify_url: "https://packages.jorisjonkers.dev/npm/typescript"
 
 # -------------------------------------------------------------------
+# Gold Band (github.com/diodeme/Gold-Band, AGPL, third party).
+#
+# On Linux, setup builds the pinned commit from an EXISTING clone (never
+# cloned or touched by setup) through the crate gate, after crate-age has
+# checked its Cargo.lock, and installs the desktop app and the headless
+# `gold-band` binary into ~/.local/bin. No clone: the surface is skipped and
+# setup says so. The pin is a commit, not a tag. See docs/GOLD-BAND.md.
+# -------------------------------------------------------------------
+gold_band:
+  repository: "https://github.com/diodeme/Gold-Band"
+  clone: "Projects/diodeme/Gold-Band"
+  tag: "v0.19.1"
+  commit: "987fc3e298b15d725a7f0e9b609b0f77dba63a74"
+  linux_script: "scripts/gold-band/build-linux.sh"
+
+# -------------------------------------------------------------------
 # Claude Code profiles.
 #
 # One login per profile. CLAUDE_CONFIG_DIR moves the WHOLE config root,
@@ -1162,6 +1178,32 @@ local_skills:
       them. sources.yaml records what it was checked against for
       scripts/check_skill_sources.py.
 
+  - name: estate-delivery-status
+    path: skills/workstation/estate-delivery-status
+    purpose: >-
+      Answer whether a release landed from the estate compose run, the commit
+      status and the deployment: landed only when they agree, otherwise mixed
+      with each signal and its link.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Carries the procedure and points at the canonical docs; it never copies
+      them. sources.yaml records what it was checked against for
+      scripts/check_skill_sources.py.
+
+  - name: estate-rollback
+    path: skills/workstation/estate-rollback
+    purpose: >-
+      Plan a pause, rollback or resume of one estate Project and hand the owner
+      the exact gh workflow run command, reading the canonical docs and the pin
+      live with gh. It never dispatches a workflow.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Carries the procedure and points at the canonical docs; it never copies
+      them. sources.yaml records what it was checked against for
+      scripts/check_skill_sources.py.
+
   - name: model-gateway
     path: skills/workstation/model-gateway
     purpose: >-
@@ -1281,6 +1323,58 @@ vibe_delegate_agents:
     surfaces: [workstation]
   - name: delegate-write
     surfaces: [workstation]
+
+# -------------------------------------------------------------------
+# Gold Band instances (ADR-0011).
+#
+# Two separately configured Gold Band instances, split by employer. The
+# unsuffixed name is work, `-personal` is personal. The registry holds only
+# the generic shape; employer-specific entries (MCP servers, settings) live in
+# the per-machine overlay ~/.config/agent-kit/overlay.yaml, beside the keep
+# file, so nothing about the employer enters this public file.
+#
+# The gold-band-registry crate (scripts/crates/gold-band-registry) validates
+# this section and the overlay on every `render_registry.py --check` and
+# `--write`, and refuses:
+#
+#   * Codex or the work Claude agent (`claude-work`) on the personal
+#     instance, from this file or from the overlay;
+#   * any agent other than `claude-work` and `codex` on the work instance;
+#   * an instance without its repository rule, or with the other instance's:
+#     work is `remotes: nedap-only` + `no_remote: refuse`, personal is
+#     `remotes: not-nedap` + `no_remote: allow`;
+#   * a bank other than `nedap` on the work instance or `shared` on the
+#     personal one;
+#   * a literal secret in any value, an unknown field, a bad id (lowercase
+#     letters and digits in dash-separated groups).
+#
+# The overlay (`instances:` keyed by instance id) may add `agents` (held to
+# the same rules), and `mcp_servers` and `settings` to the work instance
+# only. It never relaxes a rule: hosts, banks and repository rules are not
+# overlay fields. This section writes no settings file; the instances are
+# converged onto it by later tickets.
+#
+#   hosts   linux | mac. The work instance runs on the work machine (mac)
+#           only.
+#   banks   the work instance reaches the nedap bank only, the personal
+#           instance the shared bank only (ADR-0012: employer facts never
+#           enter Shared Memory); Private Memory is reachable only from vibe-private.
+# -------------------------------------------------------------------
+gold_band_instances:
+  gold-band:
+    agents: [claude-work, codex]
+    repository_rule:
+      remotes: nedap-only
+      no_remote: refuse
+    hosts: [mac]
+    banks: [nedap]
+  gold-band-personal:
+    agents: [claude, opencode, vibe, vibe-study, pi, agy, hermes]
+    repository_rule:
+      remotes: not-nedap
+      no_remote: allow
+    hosts: [linux, mac]
+    banks: [shared]
 
 # -------------------------------------------------------------------
 # Vendored third-party skills.
