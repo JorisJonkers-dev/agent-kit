@@ -1203,6 +1203,55 @@ vibe_delegate_agents:
     surfaces: [workstation]
 
 # -------------------------------------------------------------------
+# Gold Band instances (ADR-0011).
+#
+# Two separately configured Gold Band instances, split by employer. The
+# unsuffixed name is work, `-personal` is personal. The registry holds only
+# the generic shape; employer-specific entries (MCP servers, settings) live in
+# the per-machine overlay ~/.config/agent-kit/overlay.yaml, beside the keep
+# file, so nothing about the employer enters this public file.
+#
+# The gold-band-registry crate (scripts/crates/gold-band-registry) validates
+# this section and the overlay on every `render_registry.py --check` and
+# `--write`, and refuses:
+#
+#   * Codex or the work Claude agent (`claude-work`) on the personal
+#     instance, from this file or from the overlay;
+#   * any agent other than `claude-work` and `codex` on the work instance;
+#   * an instance without its repository rule, or with the other instance's:
+#     work is `remotes: nedap-only` + `no_remote: refuse`, personal is
+#     `remotes: not-nedap` + `no_remote: allow`;
+#   * a literal secret in any value, an unknown field, a bad id (lowercase
+#     letters and digits in dash-separated groups).
+#
+# The overlay (`instances:` keyed by instance id) may add `agents` (held to
+# the same rules), and `mcp_servers` and `settings` to the work instance
+# only. It never relaxes a rule: hosts, banks and repository rules are not
+# overlay fields. This section writes no settings file; the instances are
+# converged onto it by later tickets.
+#
+#   hosts   linux | mac. The work instance runs on the work machine (mac)
+#           only.
+#   banks   shared | nedap. Only the work instance reaches the nedap bank
+#           (ADR-0012); Private Memory is reachable only from vibe-private.
+# -------------------------------------------------------------------
+gold_band_instances:
+  gold-band:
+    agents: [claude-work, codex]
+    repository_rule:
+      remotes: nedap-only
+      no_remote: refuse
+    hosts: [mac]
+    banks: [nedap, shared]
+  gold-band-personal:
+    agents: [opencode, vibe, vibe-study, agy, hermes, claude]
+    repository_rule:
+      remotes: not-nedap
+      no_remote: allow
+    hosts: [linux, mac]
+    banks: [shared]
+
+# -------------------------------------------------------------------
 # Vendored third-party skills.
 #
 # `selector` semantics, as implemented by Hermes' sync-skills init
