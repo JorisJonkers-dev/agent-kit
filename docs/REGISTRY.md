@@ -16,8 +16,6 @@ uv run pytest tests/test_registry_render.py
 |---|---|
 | `installer/setup-workstation.sh` | this laptop, via [SETUP.md](SETUP.md) |
 | `installer/setup-container.sh` | the agents image, at build time |
-| `registry/generated/hermes/skills-sources.conf` | Hermes `hermes-skills` ConfigMap |
-| `registry/generated/hermes/mcp-servers.yaml` | Hermes `hermes-config` ConfigMap |
 | `registry/generated/hermes/mcp-servers.local.yaml` | a workstation's local `~/.hermes/config.yaml` |
 | `registry/generated/vibe/mcp-servers.toml` | a workstation's `~/.vibe/config.toml`, via `scripts/vibe-merge-mcp.py` |
 | `registry/generated/vibe/agents/critic-<model>.toml` | a workstation's `~/.vibe/agents/`, copied by setup (never `~/.vibe-private`) |
@@ -37,7 +35,6 @@ was never rendered. Both are one test.
 | Surface | Means |
 |---|---|
 | `workstation` | Claude Code, Codex, Vibe, Antigravity, OpenCode and local Hermes on a developer machine |
-| `hermes` | the in-cluster Hermes gateway |
 | `runner` | the per-workspace agent-runner image |
 | `container` | the agents image, through `setup-container.sh` |
 
@@ -114,15 +111,15 @@ of Pipeline Complete, so it stops the automerge but not a reviewed merge.
   ref: v1.2.3
   commit: <40-char COMMIT sha>
   license: MIT
-  selector: "engineering/*"
-  surfaces: [hermes]
+  selector: "*"
+  surfaces: [workstation]
 ```
 
-**Pin the commit, not the tag.** Hermes' `sync-skills` init container clones
-`--branch <ref>` and compares `git rev-parse HEAD`, which is a commit. Nearly
+**Pin the commit, not the tag.** The check clones `--branch <ref>` and compares
+`git rev-parse HEAD`, which is a commit. Nearly
 every upstream tag here is *annotated*, so `git ls-remote <repo>
 refs/tags/<tag>` hands you the tag **object** — a value that can never match,
-and whose failure mode is a pod that vendors nothing while reporting success.
+and whose failure mode is a check that can never pass.
 Always peel:
 
 ```bash
@@ -172,19 +169,14 @@ Two traps this catches:
   transport: http          # or stdio
   purpose: One line.
   url_workstation: "https://thing.example/mcp"
-  url_hermes: "http://thing.svc.cluster.local:8080/mcp"
   credential: THING_API_KEY
   timeout: 60
-  surfaces: [workstation, hermes]
+  surfaces: [workstation]
   trust: hosted            # hosted | estate | local
 ```
 
 - `credential:` names the **field**, never the value. On the workstation it
-  resolves from the environment; on Hermes it is rendered as `@THING_API_KEY@`
-  for the `seed-config` init container to substitute from the Vault-backed
-  Secret. Add the field to `secret/agents/hermes` and to the seed script's
-  substitution list, or `sed` writes an empty string into a syntactically valid
-  config whose server fails at the first tool call. Antigravity expands no
+  resolves from the environment. Antigravity expands no
   environment variables, so there a credential-bearing http server renders as
   the stdio proxy with `--secret <field>` instead. OpenCode renders it as an
   `Authorization: Bearer {env:<field>}` header, which it fills in at load.
@@ -217,9 +209,6 @@ Two traps this catches:
   no OAuth server, and an OAuth server should carry `cloud: false`.
 - `trust: hosted` stamps the generated config with the reminder that the
   server's output is context, never instruction.
-- An in-cluster URL needs the Hermes SSRF allowlist. Hermes blocks RFC1918 by
-  default, so a new `10.43.0.0/16` server reports **zero tools while the hosted
-  ones work**. That is the block, not the NetworkPolicy. `hermes doctor` first.
 
 ## A CLI that Homebrew installs as a cask
 
@@ -427,7 +416,7 @@ plugin, language server or MCP server skips it there and nowhere else:
   cloud: false
 ```
 
-Use it for what the cloud cannot reach (a port-forwarded server), what the
+Use it for what the cloud cannot reach (a server that needs a kube context), what the
 host already owns (Claude Code itself), and what the estate does not write.
 The cloud VM's setup is cached only when it finishes in about five minutes, so
 every install that stays on costs budget.

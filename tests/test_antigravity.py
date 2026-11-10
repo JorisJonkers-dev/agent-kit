@@ -235,7 +235,6 @@ def test_validation_rejects_an_unknown_skill_agent() -> None:
 def test_the_runner_hermes_and_container_outputs_have_no_antigravity() -> None:
     data = _registry()
     for rendered in (
-        render_registry.render_hermes_mcp(data),
         render_registry.render_hermes_local_mcp(data),
         render_registry.render_container_setup_script(data),
     ):

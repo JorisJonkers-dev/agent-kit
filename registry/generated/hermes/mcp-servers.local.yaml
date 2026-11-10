@@ -1,7 +1,6 @@
 # GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
 #
-# WORKSTATION surface for LOCAL Hermes (vs the in-cluster gateway, which
-# is registry/generated/hermes/mcp-servers.yaml). Merged into
+# WORKSTATION surface for LOCAL Hermes. Merged into
 # ~/.hermes/config.yaml by scripts/hermes-merge-mcp.py.
 #
 mcp_servers:
@@ -17,7 +16,8 @@ mcp_servers:
     timeout: 60
 
   kubernetes:
-    url: "http://127.0.0.1:18080/mcp"
+    command: "kubernetes-mcp-readonly"
+    args: []
     timeout: 60
 
   grimoire:

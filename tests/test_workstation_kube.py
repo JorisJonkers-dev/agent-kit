@@ -365,53 +365,8 @@ def test_check_fails_when_sudo_would_read_the_admin_token_without_a_password(dev
     assert "FAIL personal: admin token not readable through sudo without a password" in result.stdout
 
 
-def with_pf(device: Device, clusters: tuple[str, ...] = ("personal",)) -> None:
-    device.patch_state(sas=[*json.loads(device.state.read_text())["sas"], *(f"{c}/macbook-pf" for c in clusters)])
-
-
-def test_a_port_forward_context_holds_its_own_token_inline(device: Device) -> None:
-    with_pf(device)
+def test_the_kubeconfig_holds_only_read_only_and_admin_contexts_and_is_owner_only(device: Device) -> None:
     device.install()
-    config = device.kubeconfig()
-    assert user(config, "personal-macbook-pf") == {"token": device.tokens()["personal/macbook-pf-token"]}
-    context = next(c["context"] for c in config["contexts"] if c["name"] == "personal-pf")
-    assert context == {"cluster": "personal", "user": "personal-macbook-pf"}
-    assert device.tokens()["personal/macbook-pf-token"] != device.tokens()["personal/macbook-ro-token"]
-
-
-def test_the_port_forward_context_exists_only_on_clusters_that_declare_it(device: Device) -> None:
-    with_pf(device)
-    result = device.install()
     names = [c["name"] for c in device.kubeconfig()["contexts"]]
-    assert names == ["personal", "personal-pf", "personal-admin", "blueshell", "blueshell-admin"]
-    assert "blueshell: no workstation-access/macbook-pf ServiceAccount" in result.stdout
-
-
-def test_a_cluster_without_the_port_forward_account_still_installs(device: Device) -> None:
-    result = device.install()
-    assert "personal-pf" not in [c["name"] for c in device.kubeconfig()["contexts"]]
-    assert "port-forwards fall back to the current context" in result.stdout
-
-
-def test_the_kubeconfig_holding_the_port_forward_token_is_owner_only(device: Device) -> None:
-    with_pf(device)
-    device.install()
+    assert names == ["personal", "personal-admin", "blueshell", "blueshell-admin"]
     assert (device.home / ".kube" / "config").stat().st_mode & 0o777 == 0o600
-
-
-def test_a_created_port_forward_secret_matches_what_gitops_declares(device: Device) -> None:
-    with_pf(device)
-    device.install()
-    docs = json.loads(device.state.read_text())["created"]
-    created = [d for d in docs if d["metadata"]["name"] == "macbook-pf-token"]
-    assert created[0]["metadata"]["annotations"] == {"kubernetes.io/service-account.name": "macbook-pf"}
-    assert created[0]["metadata"]["labels"]["workstation-access/level"] == "pf"
-
-
-def test_rotate_replaces_the_port_forward_token_too(device: Device) -> None:
-    with_pf(device)
-    device.install()
-    before = device.tokens()["personal/macbook-pf-token"]
-    device.install("--rotate")
-    assert device.tokens()["personal/macbook-pf-token"] != before
-    assert user(device.kubeconfig(), "personal-macbook-pf")["token"] == device.tokens()["personal/macbook-pf-token"]

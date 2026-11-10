@@ -108,7 +108,7 @@ Declared in `registry/estate-tooling.yaml` (`mcp_servers:`, and `hindsight` via
 | memory-mcp | `registry/estate-tooling.yaml` (`mcp_servers:`) | Retired record: Basic Memory over the knowledge-vault; registered nowhere. | stays outside | direct | Retired record. |
 | n8n | `registry/estate-tooling.yaml` (`mcp_servers:`) | n8n workflows through the instance-level MCP server, OAuth per client. | MCP server | direct, gold-band-personal | |
 | n8n-mcp | `registry/estate-tooling.yaml` (`mcp_servers:`) | n8n node docs and schemas, docs-only, no API key. | MCP server | direct, gold-band-personal | |
-| kubernetes | `registry/estate-tooling.yaml` (`mcp_servers:`) | Read-only cluster diagnostics through the server's own ClusterRole. | MCP server | direct, gold-band-personal | |
+| kubernetes | `registry/estate-tooling.yaml` (`mcp_servers:`) | Read-only cluster diagnostics: kubernetes-mcp-server run locally over stdio against the read-only kube context, read-only with Secrets denied. | MCP server | direct, gold-band-personal | |
 | github | `registry/estate-tooling.yaml` (`mcp_servers:`) | GitHub issues, branches and pull requests; delete and label tools excluded. | MCP server | direct, gold-band-personal | |
 | grimoire | `registry/estate-tooling.yaml` (`mcp_servers:`) | Grimoire D&D 5e table companion, account-scoped token. | MCP server | direct, gold-band-personal | |
 | outline | `registry/estate-tooling.yaml` (`mcp_servers:`) | Outline wiki at notes.jorisjonkers.dev, as a separate Outline user. | MCP server | direct, gold-band-personal | |

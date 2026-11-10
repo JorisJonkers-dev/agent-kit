@@ -504,7 +504,6 @@ def test_opencode_is_off_the_cloud_and_off_every_other_surface() -> None:
     assert cli["surfaces"] == ["workstation"]
     assert cli["cloud"] is False
     for rendered in (
-        render_registry.render_hermes_mcp(data),
         render_registry.render_hermes_local_mcp(data),
         render_registry.render_container_setup_script(data),
     ):

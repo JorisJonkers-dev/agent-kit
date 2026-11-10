@@ -58,7 +58,7 @@ and re-runs the copy inside it.
 | Claude Code | installed and updated | the host's own; a config-only CLI is installed under `/opt/agent-kit/claude-cli` if none is on `PATH` during setup |
 | Claude profiles | `work` and `personal` | one |
 | MCP tokens in `~/.claude.json` | the value | a `${VAR}` reference, expanded from the session's environment |
-| `kubernetes` MCP server | port-forwarded | skipped: no kube context |
+| `kubernetes` MCP server | local stdio, read-only kube context | skipped: no kube context |
 | `github` plugin | installed | skipped: the host's GitHub proxy and tools cover it |
 | Language servers | all | TypeScript, Python, Kotlin, Java |
 | Codex | your login | logged in with `OPENAI_API_KEY` |

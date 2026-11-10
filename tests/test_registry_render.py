@@ -6,10 +6,8 @@ import copy
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -75,20 +73,12 @@ def test_lsp_plugin_may_not_be_listed_twice() -> None:
         render_registry.validate(data)
 
 
-def test_hermes_http_server_needs_a_hermes_url() -> None:
-    data = _registry()
-    server = next(s for s in data["mcp_servers"] if "hermes" in s["surfaces"] and s["transport"] == "http")
-    del server["url_hermes"]
-    with pytest.raises(render_registry.RegistryError, match="no url_hermes"):
-        render_registry.render_hermes_mcp(data)
-
-
 def test_no_generated_artifact_registers_the_retired_knowledge_base() -> None:
     """The knowledge base is retired, so nothing setup writes may point at it."""
     data = _registry()
     # Match the server KEY, not the word: the memory server's comment
     # legitimately mentions the retired knowledge base.
-    assert "\n  knowledge:\n" not in render_registry.render_hermes_mcp(data)
+    assert "\n  knowledge:\n" not in render_registry.render_hermes_local_mcp(data)
     assert "kb.jorisjonkers.dev" not in render_registry.render_setup_script(data)
 
 
@@ -111,24 +101,6 @@ def test_workstation_http_credential_becomes_a_bearer_header() -> None:
     cred = server["credential"]
     assert f'--header "Authorization: Bearer $(secret_ref {cred})"' in script
     assert f"--bearer-token-env-var {cred}" in script
-
-
-def test_hermes_gateway_skips_the_bearer_header_when_credential_hermes_is_false() -> None:
-    """credential_hermes: false suppresses the Authorization header Hermes cannot fill.
-
-    No live server uses it since memory-mcp retired, so the check runs on a
-    synthetic copy of an http server with a credential.
-    """
-    data = copy.deepcopy(_registry())
-    server = copy.deepcopy(next(s for s in data["mcp_servers"] if s["name"] == "memory-api"))
-    server.update(name="netpol-only", credential="NETPOL_ONLY_TOKEN", credential_hermes=False,
-                  url_hermes="http://netpol-only.example.svc.cluster.local:8000/mcp")
-    server["surfaces"] = ["hermes"]
-    data["mcp_servers"].append(server)
-    fragment = render_registry.render_hermes_mcp(data)
-    entry = fragment.split("  netpol-only:")[1].split("\n\n")[0]
-    assert "headers" not in entry
-    assert "Authorization" not in entry
 
 
 def test_local_hermes_http_credential_becomes_a_bearer_header() -> None:
@@ -191,7 +163,6 @@ def test_overleaf_cookie_name_is_the_self_hosted_one() -> None:
     data = _registry()
     for surface in (
         render_registry.render_setup_script(data),
-        render_registry.render_hermes_mcp(data),
         render_registry.render_hermes_local_mcp(data),
     ):
         assert "overleaf_session2" not in surface
@@ -214,7 +185,6 @@ def test_overleaf_writes_do_not_ask_per_write() -> None:
     for line in overleaf_adds:
         assert '--env OLCLI_MCP_UNCONFIRMED_WRITES="1"' in line, line
     for surface in (
-        render_registry.render_hermes_mcp(data),
         render_registry.render_hermes_local_mcp(data),
     ):
         overleaf_entry = surface.split("  overleaf:")[1].split("\n\n")[0]
@@ -283,217 +253,147 @@ def test_claude_env_flags_come_after_the_server_name() -> None:
         assert name_pos < env_pos < line.index(f"-- {server['command']}")
 
 
-def test_port_forward_is_ensured_before_the_server_is_registered() -> None:
-    """A loopback URL registered before its forward exists points at a dead port."""
-    data = _registry()
-    script = render_registry.render_setup_script(data)
-    assert f'. "${{KIT_ROOT}}/{render_registry.PORT_FORWARD_HELPER}"' in script
-    for server in data["mcp_servers"]:
-        connect = server.get("workstation_connect")
-        if not connect or "workstation" not in server["surfaces"]:
-            continue
-        name = server["name"]
-        call = (
-            f"ensure_port_forward {name} {connect['namespace']} {connect['svc']} "
-            f"{connect['local_port']} {connect['remote_port']}"
-        )
-        assert call in script
-        assert script.index(call) < script.index(f"claude mcp add --scope user {name}")
-    # The helper is sourced before anything calls it.
-    assert script.index("port-forward-agent.sh") < script.index("ensure_port_forward kubernetes")
+LAUNCHER = KIT_ROOT / "installer" / "kubernetes-mcp-readonly"
 
 
-# --- installer/port-forward-agent.sh, driven with stubbed system commands ---
-
-_STUBS = {
-    # launchctl keeps "loaded" state in a file; bootstrap also brings the port up.
-    "launchctl": """#!/bin/bash
-echo "$*" >> "$STATE/launchctl.log"
-case "$1" in
-  print) [ -f "$STATE/loaded" ] ;;
-  bootstrap) touch "$STATE/loaded" "$STATE/up" ;;
-  bootout) rm -f "$STATE/loaded" "$STATE/up" ;;
-esac
-""",
-    # systemctl --user keeps "active" state in a file; restart brings the port up.
-    "systemctl": """#!/bin/bash
-echo "$*" >> "$STATE/systemctl.log"
-[ -f "$STATE/no-systemd" ] && exit 1
-case "$2" in
-  is-active) [ -f "$STATE/active" ] ;;
-  restart) touch "$STATE/active" "$STATE/up" ;;
-esac
-exit 0
-""",
-    "curl": '#!/bin/bash\n[ -f "$STATE/up" ]\n',
-    "kubectl": """#!/bin/bash
-if [ "$1 $2" = "config current-context" ]; then echo prod-ctx; exit 0; fi
-if [ "$1 $2" = "config get-contexts" ]; then cat "$STATE/contexts" 2>/dev/null; exit 0; fi
-echo "$*" >> "$STATE/kubectl.log"
-""",
-    "sleep": "#!/bin/bash\nexit 0\n",
-}
+def test_kubernetes_is_a_local_read_only_stdio_server() -> None:
+    server = next(s for s in _registry()["mcp_servers"] if s["name"] == "kubernetes")
+    assert server["transport"] == "stdio"
+    assert server["command"] == "kubernetes-mcp-readonly"
+    assert server["surfaces"] == ["workstation"]
+    assert server["cloud"] is False
+    assert server["requires_binary"] == "kubernetes-mcp-server" and server["install_pinned"] is True
+    assert not any(key in server for key in ("url_workstation", "workstation_connect"))
 
 
-def _run_helper(
-    tmp_path: Path,
-    os_name: str,
-    check_only: int = 0,
-    contexts: str = "prod-ctx\nprod-ctx-pf\nprod-ctx-admin\n",
-    extra_env: dict[str, str] | None = None,
-) -> subprocess.CompletedProcess:
+def test_kubernetes_registers_the_launcher_for_every_agent_and_no_port_forward_remains() -> None:
+    script = render_registry.render_setup_script(_registry())
+    assert "claude mcp add --scope user kubernetes -- kubernetes-mcp-readonly" in script
+    assert "codex mcp add kubernetes -- kubernetes-mcp-readonly" in script
+    assert "install_kit_command kubernetes-mcp-readonly" in script
+    assert "127.0.0.1:18080" not in script
+    assert "ensure_port_forward" not in script
+    for generated in (
+        "registry/generated/vibe/mcp-servers.toml",
+        "registry/generated/opencode/opencode.json",
+        "registry/generated/antigravity/mcp_config.json",
+        "registry/generated/hermes/mcp-servers.local.yaml",
+    ):
+        text = (KIT_ROOT / generated).read_text()
+        assert "kubernetes-mcp-readonly" in text and "18080" not in text, generated
+
+
+def _retire(tmp_path: Path, check_only: int = 0) -> subprocess.CompletedProcess:
+    script = render_registry.render_setup_script(_registry())
+    start = script.index("retire_port_forward_agents() {")
+    body = script[start : script.index("\n}\n", start) + 3]
     bin_dir = tmp_path / "bin"
-    state = tmp_path / "state"
     bin_dir.mkdir(exist_ok=True)
-    state.mkdir(exist_ok=True)
-    (state / "contexts").write_text(contexts)
-    stubs = dict(_STUBS, uname=f"#!/bin/bash\necho {os_name}\n")
-    for name, body in stubs.items():
-        path = bin_dir / name
-        path.write_text(body)
-        path.chmod(0o755)
-    script = f"""
+    for name in ("launchctl", "systemctl"):
+        stub = bin_dir / name
+        stub.write_text(f'#!/bin/bash\necho "{name} $*" >> "{tmp_path}/calls.log"\n')
+        stub.chmod(0o755)
+    run = f"""
 CHECK_ONLY={check_only}
 log()  {{ echo "log $*"; }}
 ok()   {{ echo "ok $*"; }}
-warn() {{ echo "warn $*"; }}
-fail() {{ echo "FAIL $*"; }}
-. "{KIT_ROOT / render_registry.PORT_FORWARD_HELPER}"
-ensure_port_forward kubernetes agents-system kubernetes-mcp-server 18080 8080
+{body}
+retire_port_forward_agents
 """
     env = {
         "HOME": str(tmp_path / "home"),
-        "PATH": f"{bin_dir}:/usr/bin:/bin",
-        "STATE": str(state),
-        "KUBECONFIG": str(tmp_path / "kubeconfig"),
-        **(extra_env or {}),
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "AK_LAUNCH_AGENTS_DIR": str(tmp_path / "agents"),
+        "AK_SYSTEMD_USER_DIR": str(tmp_path / "units"),
+        "AK_LOG_DIR": str(tmp_path / "logs"),
     }
-    return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, check=False)
+    return subprocess.run(["bash", "-c", run], env=env, capture_output=True, text=True, check=False)
 
 
-def _plist(tmp_path: Path) -> Path:
-    return (
-        tmp_path / "home" / "Library" / "LaunchAgents"
-        / "dev.jorisjonkers.agent-kit.port-forward.kubernetes.plist"
+def _old_agents(tmp_path: Path) -> list[Path]:
+    prefix = "dev.jorisjonkers.agent-kit.port-forward.kubernetes"
+    files = [tmp_path / "agents" / f"{prefix}.plist", tmp_path / "units" / f"{prefix}.service",
+             tmp_path / "logs" / "port-forward-kubernetes.log"]
+    for f in files:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("x")
+    return files
+
+
+def test_setup_removes_the_old_launchd_agent_systemd_unit_and_log(tmp_path: Path) -> None:
+    files = _old_agents(tmp_path)
+    result = _retire(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert not any(f.exists() for f in files)
+    calls = (tmp_path / "calls.log").read_text()
+    assert "bootout gui/" in calls and "disable --now" in calls and "daemon-reload" in calls
+
+
+def test_setup_check_mode_only_reports_the_old_agents(tmp_path: Path) -> None:
+    files = _old_agents(tmp_path)
+    result = _retire(tmp_path, check_only=1)
+    assert all(f.exists() for f in files)
+    assert result.stdout.count("would remove retired") == 2
+
+
+def test_setup_with_no_old_agent_does_nothing(tmp_path: Path) -> None:
+    result = _retire(tmp_path)
+    assert result.returncode == 0 and result.stdout == ""
+
+
+def _launcher(tmp_path: Path, context: str, *args: str, **env: str) -> subprocess.CompletedProcess:
+    """Run the launcher with a stub kubectl and a stub server that records its config."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    (bin_dir / "kubectl").write_text(
+        f"#!/bin/bash\n"
+        f'if [ "$2" = current-context ]; then echo {context}; exit 0; fi\n'
+        f'echo "kubeconfig for $*"\n'
+    )
+    (bin_dir / "kubernetes-mcp-server").write_text(
+        f'#!/bin/bash\ncp "$2" "{tmp_path}/config.toml"\n'
+        f'cp "$(sed -n \'s/^kubeconfig = "\\(.*\\)"/\\1/p\' "$2")" "{tmp_path}/kubeconfig"\n'
+        f'echo "$*" > "{tmp_path}/server-args"\n'
+    )
+    for stub in bin_dir.iterdir():
+        stub.chmod(0o755)
+    return subprocess.run(
+        [str(LAUNCHER), *args],
+        env={"PATH": f"{bin_dir}:{os.environ['PATH']}", "TMPDIR": str(tmp_path), **env},
+        capture_output=True, text=True, check=False,
     )
 
 
-def test_macos_installs_a_keepalive_launchd_agent(tmp_path: Path) -> None:
-    result = _run_helper(tmp_path, "Darwin")
-    assert "FAIL" not in result.stdout and "warn" not in result.stdout, result.stdout + result.stderr
-    assert "ok kubernetes: launchd agent" in result.stdout
-
-    plist = _plist(tmp_path)
-    text = plist.read_text()
-    assert "<key>KeepAlive</key>\n  <true/>" in text
-    # Pinned to the setup-time context, loopback only, the declared ports.
-    for arg in ("port-forward", "--context", "prod-ctx-pf", "svc/kubernetes-mcp-server",
-                "--address", "127.0.0.1", "18080:8080"):
-        assert f"<string>{arg}</string>" in text
-    assert f"<string>{tmp_path / 'kubeconfig'}</string>" in text
-    if shutil.which("plutil"):
-        lint = subprocess.run(["plutil", "-lint", str(plist)], capture_output=True, text=True, check=False)
-        assert lint.returncode == 0, lint.stdout + lint.stderr
-
-    calls = (tmp_path / "state" / "launchctl.log").read_text()
-    assert "bootstrap gui/" in calls and str(plist) in calls
+def test_the_launcher_pins_the_read_only_context(tmp_path: Path) -> None:
+    result = _launcher(tmp_path, "personal", "--check")
+    assert result.stdout == "personal\n"
+    assert _launcher(tmp_path, "personal", "--check", AK_KUBE_CONTEXT="work").stdout == "work\n"
 
 
-def test_macos_rerun_leaves_a_loaded_agent_alone(tmp_path: Path) -> None:
-    _run_helper(tmp_path, "Darwin")
-    log = tmp_path / "state" / "launchctl.log"
-    log.write_text("")
-    result = _run_helper(tmp_path, "Darwin")
-    assert "already loaded" in result.stdout, result.stdout
-    assert "bootstrap" not in log.read_text() and "bootout" not in log.read_text()
+@pytest.mark.parametrize("context", ["personal-admin", "personal-pf"])
+def test_the_launcher_refuses_an_admin_or_port_forward_context(tmp_path: Path, context: str) -> None:
+    for result in (_launcher(tmp_path, context), _launcher(tmp_path, "personal", AK_KUBE_CONTEXT=context)):
+        assert result.returncode == 1
+        assert "refusing context" in result.stderr
 
 
-def test_check_mode_installs_nothing(tmp_path: Path) -> None:
-    result = _run_helper(tmp_path, "Darwin", check_only=1)
-    assert "would install launchd agent" in result.stdout, result.stdout
-    assert not _plist(tmp_path).exists()
-    assert "bootstrap" not in (tmp_path / "state" / "launchctl.log").read_text()
-
-
-def _unit(tmp_path: Path) -> Path:
-    return (
-        tmp_path / "home" / ".config" / "systemd" / "user"
-        / "dev.jorisjonkers.agent-kit.port-forward.kubernetes.service"
+def test_the_launcher_starts_the_server_read_only_on_a_single_context_kubeconfig(tmp_path: Path) -> None:
+    result = _launcher(tmp_path, "personal")
+    assert result.returncode == 0, result.stderr
+    config = (tmp_path / "config.toml").read_text()
+    for line in ("read_only = true", "disable_destructive = true", 'toolsets = ["core"]', 'kind = "Secret"'):
+        assert line in config
+    assert (tmp_path / "kubeconfig").read_text() == (
+        "kubeconfig for config view --raw --minify --flatten --context personal\n"
     )
+    assert not list(tmp_path.glob("kubernetes-mcp.*")), "the throwaway kubeconfig is removed on exit"
 
 
-def test_linux_installs_a_restarting_systemd_user_unit(tmp_path: Path) -> None:
-    result = _run_helper(tmp_path, "Linux")
-    assert "FAIL" not in result.stdout and "warn" not in result.stdout, result.stdout + result.stderr
-    assert "ok kubernetes: systemd user unit" in result.stdout
-    text = _unit(tmp_path).read_text()
-    assert "Restart=always" in text and "WantedBy=default.target" in text
-    assert '"--context" "prod-ctx-pf"' in text and '"svc/kubernetes-mcp-server"' in text
-    assert '"127.0.0.1" "18080:8080"' in text
-    assert f'Environment="KUBECONFIG={tmp_path / "kubeconfig"}"' in text
-    assert not _plist(tmp_path).exists()
-    calls = (tmp_path / "state" / "systemctl.log").read_text()
-    assert "--user daemon-reload" in calls and "--user restart" in calls
+def test_the_launcher_needs_kubectl_a_context_and_the_server(tmp_path: Path) -> None:
+    assert "no current kube context" in _launcher(tmp_path, "").stderr
+    (tmp_path / "bin" / "kubernetes-mcp-server").unlink()
+    assert "kubernetes-mcp-server is not on PATH" in _launcher(tmp_path, "personal").stderr
 
-
-def test_linux_rerun_leaves_an_active_unit_alone(tmp_path: Path) -> None:
-    _run_helper(tmp_path, "Linux")
-    log = tmp_path / "state" / "systemctl.log"
-    log.write_text("")
-    result = _run_helper(tmp_path, "Linux")
-    assert "already active" in result.stdout, result.stdout
-    assert "restart" not in log.read_text()
-
-
-def test_linux_check_mode_writes_no_unit(tmp_path: Path) -> None:
-    result = _run_helper(tmp_path, "Linux", check_only=1)
-    assert "would install systemd user unit" in result.stdout, result.stdout
-    assert not _unit(tmp_path).exists()
-
-
-def test_linux_without_a_systemd_session_reports_the_skip(tmp_path: Path) -> None:
-    (tmp_path / "state").mkdir()
-    (tmp_path / "state" / "no-systemd").touch()
-    result = _run_helper(tmp_path, "Linux")
-    assert "no systemd user session; skipped the user unit" in result.stdout, result.stdout
-    assert not _unit(tmp_path).exists()
-    assert not _plist(tmp_path).exists()
-
-
-def test_other_os_falls_back_to_a_one_shot_forward(tmp_path: Path) -> None:
-    result = _run_helper(tmp_path, "FreeBSD")
-    assert "one-shot kubectl port-forward" in result.stdout, result.stdout
-    assert not _plist(tmp_path).exists()
-    assert not _unit(tmp_path).exists()
-    assert not (tmp_path / "state" / "launchctl.log").exists()
-
-
-def test_the_forward_uses_the_port_forward_context_when_it_exists(tmp_path: Path) -> None:
-    result = _run_helper(tmp_path, "Linux")
-    assert "warn" not in result.stdout, result.stdout
-    assert "(context prod-ctx-pf)" in result.stdout
-
-
-def test_without_a_port_forward_context_it_falls_back_to_the_current_one_and_says_so(tmp_path: Path) -> None:
-    result = _run_helper(tmp_path, "Linux", contexts="prod-ctx\nprod-ctx-admin\n")
-    assert "warn kubernetes: no prod-ctx-pf kube context; forwarding with prod-ctx" in result.stdout, result.stdout
-    assert '"--context" "prod-ctx"' in _unit(tmp_path).read_text()
-    assert '"prod-ctx-pf"' not in _unit(tmp_path).read_text()
-
-
-def test_a_named_context_wins_over_the_guess(tmp_path: Path) -> None:
-    _run_helper(tmp_path, "Linux", extra_env={"AK_PORT_FORWARD_CONTEXT": "chosen"})
-    assert '"--context" "chosen"' in _unit(tmp_path).read_text()
-
-
-def test_the_one_shot_forward_uses_the_port_forward_context_too(tmp_path: Path) -> None:
-    _run_helper(tmp_path, "FreeBSD")
-    log = tmp_path / "state" / "kubectl.log"
-    for _ in range(50):  # the forward is a background process
-        if log.exists() and log.read_text():
-            break
-        time.sleep(0.1)
-    assert "port-forward --context prod-ctx-pf -n agents-system svc/kubernetes-mcp-server" in log.read_text()
 
 
 # --- Claude Code profiles ---
@@ -1146,7 +1046,6 @@ def test_memory_api_uses_the_shared_bank_endpoint() -> None:
     """hindsight-api.* routes only /mcp/default/; the multi-bank /mcp root 404s there."""
     server = next(s for s in _registry()["mcp_servers"] if s["name"] == "memory-api")
     assert server["url_workstation"].endswith("/mcp/default/")
-    assert server["url_hermes"].endswith("/mcp/default/")
     script = render_registry.render_setup_script(_registry())
     assert "hindsight-api.jorisjonkers.dev/mcp/default/" in script
     assert "hindsight-api.jorisjonkers.dev/mcp " not in script
@@ -1184,17 +1083,6 @@ def test_user_config_merge_fails_when_the_value_does_not_read_back(tmp_path: Pat
     assert result.returncode != 0
 
 
-def test_hermes_reaches_hindsight_only_through_the_gated_shared_path() -> None:
-    """In-cluster Service access cannot be path-scoped, so it could reach any bank."""
-    rendered = yaml.safe_load(render_registry.render_hermes_mcp(_registry()))
-    servers = rendered["mcp_servers"]
-    api = servers["memory-api"]
-    assert api["url"] == "https://hindsight-api.jorisjonkers.dev/mcp/default/"
-    assert api["headers"]["Authorization"] == "Bearer @HINDSIGHT_API_TOKEN@"
-    for name, server in servers.items():
-        assert "hindsight-api.knowledge-platform-system" not in str(server.get("url", "")), name
-
-
 def test_a_retired_server_is_removed_from_every_local_agent() -> None:
     """Retiring a server must unregister it from Claude, Codex, Vibe and local Hermes.
 
@@ -1211,7 +1099,6 @@ def test_a_retired_server_is_removed_from_every_local_agent() -> None:
     for name in retired:
         assert f"--remove {name}" in hermes_line
     assert "memory-mcp" not in render_registry.render_hermes_local_mcp(data)
-    assert "memory-mcp" not in render_registry.render_hermes_mcp(data)
 
 
 # --- B2-07: LiteLLM routes and their budget caps ---------------------------

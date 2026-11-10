@@ -18,7 +18,8 @@
       "timeoutSeconds": 60
     },
     "kubernetes": {
-      "serverUrl": "http://127.0.0.1:18080/mcp",
+      "command": "kubernetes-mcp-readonly",
+      "args": [],
       "timeoutSeconds": 60
     },
     "grimoire": {
