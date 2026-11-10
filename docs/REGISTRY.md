@@ -354,7 +354,7 @@ docker run --rm -v "$PWD/installer/setup-container.sh:/s.sh:ro" debian:bookworm-
 claude_profiles:
   - name: work
     primary: true
-    config_dir: "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+    config_dir: "$HOME/.claude"
   - name: personal
     config_dir: "$HOME/.claude-personal"
     shares_from: work

@@ -3514,7 +3514,17 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# This script lives in <kit>/installer, and the first-party skills it")
     w("# copies live in <kit>/skills.")
     w('KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"')
-    w('CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
+    w("# The work profile lives in the default Claude directory, whatever")
+    w("# CLAUDE_CONFIG_DIR the calling shell carries (a personal session exports")
+    w("# its own). Dropping it keeps every claude call below on that directory.")
+    w('CLAUDE_HOME="${HOME}/.claude"')
+    w('if [ -n "${CLAUDE_CONFIG_DIR:-}" ] && [ "${CLAUDE_CONFIG_DIR%/}" != "${CLAUDE_HOME}" ]; then')
+    w(
+        '  log "ignoring CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR};'
+        ' the work profile installs into ${CLAUDE_HOME}"'
+    )
+    w("fi")
+    w("unset CLAUDE_CONFIG_DIR")
     w('CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"')
     w('VIBE_HOME="${VIBE_HOME:-$HOME/.vibe}"')
     w("# vibe-private exports its own home as VIBE_HOME; setup run from inside a")
@@ -3954,7 +3964,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             # makes that secondary the primary too. Everything below would
             # then point the root at itself, so stop before touching it.
             w('  if [ "${profile_dir}" = "${CLAUDE_HOME}" ] || [ "${profile_dir}" -ef "${CLAUDE_HOME}" ]; then')
-            w(f'    fail "{name}: CLAUDE_CONFIG_DIR points at ${{profile_dir}}; re-run with it unset"')
+            w(f'    fail "{name}: is the work profile directory ${{profile_dir}}; point it elsewhere"')
             w("  else")
             w('    if [ "${CHECK_ONLY}" = 1 ] && [ ! -d "${profile_dir}" ]; then')
             w('      log "would create ${profile_dir}"')

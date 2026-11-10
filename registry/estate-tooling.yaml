@@ -181,9 +181,9 @@ package_proxy:
 claude_profiles:
   - name: work
     primary: true
-    # The default location. `CLAUDE_CONFIG_DIR` still overrides it, which
-    # is what lets a throwaway root be set up without touching this one.
-    config_dir: "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+    # The default location, always: setup ignores an ambient
+    # `CLAUDE_CONFIG_DIR`, so the work profile cannot land in another root.
+    config_dir: "$HOME/.claude"
     purpose: >-
       The default profile a bare `claude` uses, and the home of every
       shared asset the other profiles link back to.

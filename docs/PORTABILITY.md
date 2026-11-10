@@ -23,7 +23,7 @@ fetches the kit bundle attached to that same release and runs that:
 curl -fsSL https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/setup-workstation.sh | bash
 ```
 
-Writes to `CLAUDE_CONFIG_DIR` or `~/.claude` and `CODEX_HOME` or `~/.codex`;
+Writes to `~/.claude` (an ambient `CLAUDE_CONFIG_DIR` is ignored) and `CODEX_HOME` or `~/.codex`;
 there is no project-scope install (that was an `install.sh`-only mode and did
 not carry over).
 

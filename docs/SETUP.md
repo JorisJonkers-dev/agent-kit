@@ -592,9 +592,9 @@ claude-personal   # first run: log in, personal account
 The launcher only sets `CLAUDE_CONFIG_DIR` and execs `claude`. A
 `claude-<profile>` file that setup did not write is left alone and reported.
 
-Run setup from a shell **without** `CLAUDE_CONFIG_DIR` set, not from inside a
-`claude-personal` session. With it set, the personal root looks like the
-primary; setup refuses to link a root onto itself and fails that profile.
+Setup always installs the work profile into `~/.claude`. An ambient
+`CLAUDE_CONFIG_DIR` (for example from inside a `claude-personal` session) is
+ignored, and setup says so on stderr; the personal root stays a separate profile.
 
 A real file or directory already sitting where a symlink would go is **left
 alone** and reported in the summary; the script never replaces one. Fix it by

@@ -1438,7 +1438,14 @@ install_profile_launcher() {
 # This script lives in <kit>/installer, and the first-party skills it
 # copies live in <kit>/skills.
 KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# The work profile lives in the default Claude directory, whatever
+# CLAUDE_CONFIG_DIR the calling shell carries (a personal session exports
+# its own). Dropping it keeps every claude call below on that directory.
+CLAUDE_HOME="${HOME}/.claude"
+if [ -n "${CLAUDE_CONFIG_DIR:-}" ] && [ "${CLAUDE_CONFIG_DIR%/}" != "${CLAUDE_HOME}" ]; then
+  log "ignoring CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR}; the work profile installs into ${CLAUDE_HOME}"
+fi
+unset CLAUDE_CONFIG_DIR
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 VIBE_HOME="${VIBE_HOME:-$HOME/.vibe}"
 # vibe-private exports its own home as VIBE_HOME; setup run from inside a
@@ -2439,7 +2446,7 @@ if [ "${DO_PROFILES}" = 1 ]; then
   # history.
   profile_dir="$HOME/.claude-personal"
   if [ "${profile_dir}" = "${CLAUDE_HOME}" ] || [ "${profile_dir}" -ef "${CLAUDE_HOME}" ]; then
-    fail "personal: CLAUDE_CONFIG_DIR points at ${profile_dir}; re-run with it unset"
+    fail "personal: is the work profile directory ${profile_dir}; point it elsewhere"
   else
     if [ "${CHECK_ONLY}" = 1 ] && [ ! -d "${profile_dir}" ]; then
       log "would create ${profile_dir}"
