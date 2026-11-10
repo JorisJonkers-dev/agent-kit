@@ -17,8 +17,8 @@ This skill plans a hold on one Project and hands the owner the exact command to 
 
 ## Procedure
 
-1. Establish the facts. The pin is the `event.toolkit.fluxcd.io/version` annotation in `projects/<project>/source.yaml`. For a rollback, get from the owner the target release (X.Y.Z, as the Project's repository tagged it) and the reason. If the pinned release carries a Migration Proof, get from the owner the release that proof names, and pass it as `--proof-names`. The target must be earlier than the pin, and where a proof exists it must be that release.
-2. Run `python3 <skill dir>/scripts/plan.py --project P --action pause|rollback|resume [--target V] [--reason R] [--pin V] [--proof-names V]`. The script reads the pin with one GET, applies the refusals, and prints the plan with the exact command. If it refuses, report the refusal and stop. Do not edit the command to get around it.
+1. Establish the facts. The pin is the `event.toolkit.fluxcd.io/version` annotation in `projects/<project>/source.yaml`. For a rollback, get from the owner the target release (X.Y.Z, as the Project's repository tagged it) and the reason. Also get from the owner whether the pinned release carries a Migration Proof. If it does, get the release the owner has confirmed the proof names and pass it as `--proof-names`; if it carries none, pass `--no-proof`. A rollback states exactly one of the two, and plan.py refuses otherwise. The target must be earlier than the pin, and where a proof exists it must be the release the owner confirmed.
+2. Run `python3 <skill dir>/scripts/plan.py --project P --action pause|rollback|resume [--target V] [--reason R] [--proof-names V | --no-proof]`. The script reads the pin with one GET, applies the refusals, and prints the plan with the exact command. If it refuses, report the refusal and stop. Do not edit the command to get around it. Live use never passes `--pin`: it is a by-hand override for offline use and the worked examples, it skips the pin-file read so a recorded rollback is not checked, and the plan says so (`pin given by hand: ...`).
 3. Explain the flow as the workflows run it, taken from rollback.yml and the README (see the disagreement section below for what the docs say against the files). A rollback refuses an unproven target before anything runs, records the pause and the target in one commit to the pin file, starts composition, and leaves the Project paused. A pause records who paused and why in one commit and moves no pin. A resume removes the record and starts composition, which moves the pin to the Project's newest fragment.
 4. Hand the owner the command. The owner runs it from a shell where `gh` is signed in to GitHub with access to JorisJonkers-dev/estate. A rollback plan gives one command now and a resume command for later, to run only once the fix has landed.
 5. Verify the value, not the exit code. After the owner runs it, rerun `plan.py --project P --action resume` for the same project. Its `state:` lines show whether the pin file now records the pause and the rolled-back version.
@@ -30,7 +30,7 @@ This skill plans a hold on one Project and hands the owner the exact command to 
 Project `grimoire`, pinned at 1.5.0. The owner asks for 1.6.0 because of a bad deploy.
 
 ```
-python3 scripts/plan.py --project grimoire --action rollback --target 1.6.0 --reason "bad deploy" --pin 1.5.0
+python3 scripts/plan.py --project grimoire --action rollback --target 1.6.0 --no-proof --reason "bad deploy" --pin 1.5.0
 REFUSED: target 1.6.0 is not earlier than the pin 1.5.0; a rollback goes back, never forward.
 ```
 
@@ -38,14 +38,16 @@ Exit status 1, and no command is printed. Tell the owner that a rollback needs a
 
 ### Worked example: target with no Migration Proof (refused)
 
-Project `grimoire`, pinned at 1.5.0. The pinned release's Migration Proof names 1.4.2. The owner asks for 1.3.0.
+Project `grimoire`, pinned at 1.5.0. The owner asks for 1.3.0 and has not said whether the pinned release carries a Migration Proof.
 
 ```
-python3 scripts/plan.py --project grimoire --action rollback --target 1.3.0 --proof-names 1.4.2 --reason "bad deploy" --pin 1.5.0
-REFUSED: target 1.3.0 is not the release the pinned release 1.5.0's Migration Proof names (1.4.2); only that one runs against the current schema.
+python3 scripts/plan.py --project grimoire --action rollback --target 1.3.0 --reason "bad deploy" --pin 1.5.0
+REFUSED: Migration Proof not stated: pass --proof-names <release the proof names> or --no-proof when the pinned release carries none
 ```
 
-Exit status 1, and no command is printed. Tell the owner that 1.4.2 is the only target the proof allows.
+Exit status 1, and no command is printed. Ask the owner whether a proof exists. If it does, rerun with `--proof-names` set to the release the owner has confirmed the proof names; if not, rerun with `--no-proof`.
+
+Another refusal: with `--proof-names 1.4.2` (the release the owner confirmed the proof names) and the target 1.3.0, plan.py refuses with `target 1.3.0 is not the release the pinned release 1.5.0's Migration Proof names (1.4.2); only that one runs against the current schema.` Tell the owner that 1.4.2 is the only target the proof allows.
 
 ## Where the docs and reality disagree
 

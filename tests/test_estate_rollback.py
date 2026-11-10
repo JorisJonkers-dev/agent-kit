@@ -129,6 +129,11 @@ ROLLBACK_CMD = (
     "gh workflow run rollback.yml --repo JorisJonkers-dev/estate --ref main"
     " -f project=grimoire -f version=1.3.0 -f 'reason=bad deploy'"
 )
+PIN_NOTE = "pin given by hand: the pin file was not read, so a recorded rollback is not checked"
+NOT_STATED = (
+    "Migration Proof not stated: pass --proof-names <release the proof names>"
+    " or --no-proof when the pinned release carries none"
+)
 RESUME_CMD = "gh workflow run resume.yml --repo JorisJonkers-dev/estate --ref main -f project=grimoire"
 
 
@@ -158,12 +163,14 @@ def test_pause_prints_the_exact_command(tmp_path: Path) -> None:
 def test_rollback_prints_the_rollback_and_the_later_resume(tmp_path: Path) -> None:
     env = _env(tmp_path)
     result = _run(
-        "--project", "grimoire", "--action", "rollback", "--target", "1.3.0", "--reason", "bad deploy", env=env
-    )
+        "--project", "grimoire", "--action", "rollback", "--target", "1.3.0", "--no-proof", "--reason", "bad deploy",
+        env=env,
+    )  # fmt: skip
     assert result.returncode == 0, result.stderr
     assert _commands(result.stdout) == [ROLLBACK_CMD, RESUME_CMD]
     assert "target:   1.3.0 (earlier than the pin 1.5.0: ok)" in result.stdout
-    assert "Migration Proof: not checked here" in result.stdout
+    assert "Migration Proof: --no-proof says release 1.5.0 carries none" in result.stdout
+    assert "pin given by hand" not in result.stdout
 
 
 def test_rollback_with_the_proofs_release_says_ok(tmp_path: Path) -> None:
@@ -209,9 +216,11 @@ def test_a_reason_is_quoted_so_it_cannot_inject_a_second_command(tmp_path: Path)
 CASES = [
     ["--action", "pause", "--reason", "bad deploy"],
     ["--action", "resume"],
+    ["--action", "rollback", "--target", "1.3.0", "--no-proof", "--reason", "bad deploy"],
     ["--action", "rollback", "--target", "1.3.0", "--reason", "bad deploy"],
-    ["--action", "rollback", "--target", "1.6.0", "--reason", "bad deploy"],
-    ["--action", "rollback", "--target", "1.5.0", "--reason", "bad deploy"],
+    ["--action", "rollback", "--target", "1.3.0", "--no-proof", "--proof-names", "1.3.0", "--reason", "bad deploy"],
+    ["--action", "rollback", "--target", "1.6.0", "--no-proof", "--reason", "bad deploy"],
+    ["--action", "rollback", "--target", "1.5.0", "--no-proof", "--reason", "bad deploy"],
     ["--action", "rollback", "--target", "1.3.0", "--proof-names", "1.4.2", "--reason", "bad deploy"],
     ["--action", "rollback", "--reason", "bad deploy"],
     ["--action", "rollback", "--target", "1.3.0"],
@@ -223,14 +232,9 @@ CASES = [
 def test_the_only_gh_call_is_a_read_only_get_of_the_contents_endpoint(tmp_path: Path, case: list[str]) -> None:
     env = _env(tmp_path)
     _run("--project", "grimoire", *case, env=env)
+    expected = f"api {PIN_PATH} -H Accept: application/vnd.github.raw"
     for call in _calls(env):
-        words = call.split()
-        assert words[0] == "api", call
-        assert words[1] == PIN_PATH, call
-        assert "workflow" not in words and "run" not in words, call
-        assert "-X" not in words and "--method" not in words, call
-        assert "-f" not in words and "-F" not in words and "--field" not in words, call
-        assert "--input" not in words, call
+        assert call == expected
 
 
 def test_a_refusal_made_before_reading_never_calls_gh(tmp_path: Path) -> None:
@@ -251,9 +255,11 @@ def test_with_pin_given_gh_is_not_called_at_all(tmp_path: Path, action: str) -> 
     env = _env(tmp_path)
     extra = ["--target", "1.3.0"] if action == "rollback" else []
     reason = [] if action == "resume" else ["--reason", "bad deploy"]
+    extra += ["--no-proof"] if action == "rollback" else []
     result = _run("--project", "grimoire", "--action", action, *extra, *reason, "--pin", "1.5.0", env=env)
     assert result.returncode == 0, result.stderr
     assert "(given with --pin (file not read))" in result.stdout
+    assert PIN_NOTE in result.stdout
     assert _calls(env) == []
 
 
@@ -273,18 +279,19 @@ def _refused(tmp_path: Path, args: list[str], message: str, **env_kwargs: str) -
 
 
 RB = ["--project", "grimoire", "--action", "rollback", "--reason", "bad deploy"]
+NP = ["--no-proof"]
 
 
 def test_a_target_later_than_the_pin_is_refused(tmp_path: Path) -> None:
-    _refused(tmp_path, [*RB, "--target", "1.6.0"], "target 1.6.0 is not earlier than the pin 1.5.0")
+    _refused(tmp_path, [*RB, *NP, "--target", "1.6.0"], "target 1.6.0 is not earlier than the pin 1.5.0")
 
 
 def test_a_target_equal_to_the_pin_is_refused(tmp_path: Path) -> None:
-    _refused(tmp_path, [*RB, "--target", "1.5.0"], "target 1.5.0 is not earlier than the pin 1.5.0")
+    _refused(tmp_path, [*RB, *NP, "--target", "1.5.0"], "target 1.5.0 is not earlier than the pin 1.5.0")
 
 
 def test_versions_compare_numerically_not_as_text(tmp_path: Path) -> None:
-    _refused(tmp_path, [*RB, "--target", "1.10.0"], "not earlier than the pin 1.9.0", pin="1.9.0")
+    _refused(tmp_path, [*RB, *NP, "--target", "1.10.0"], "not earlier than the pin 1.9.0", pin="1.9.0")
 
 
 def test_a_target_the_proof_does_not_name_is_refused(tmp_path: Path) -> None:
@@ -295,29 +302,48 @@ def test_a_target_the_proof_does_not_name_is_refused(tmp_path: Path) -> None:
     )
 
 
+def test_a_rollback_stating_neither_proof_flag_is_refused(tmp_path: Path) -> None:
+    _refused(tmp_path, [*RB, "--target", "1.3.0"], NOT_STATED)
+
+
+def test_a_rollback_stating_both_proof_flags_is_refused(tmp_path: Path) -> None:
+    _refused(tmp_path, [*RB, "--target", "1.3.0", *NP, "--proof-names", "1.3.0"], NOT_STATED)
+
+
+def test_pin_given_by_hand_prints_the_note_on_every_plan(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    result = _run(*RB, "--target", "1.3.0", *NP, "--pin", "1.5.0", env=env)
+    assert result.stdout.count(PIN_NOTE) == 1
+
+
+@pytest.mark.parametrize("version", ["01.4.0", "1.04.0", "1.4.00"])
+def test_leading_zeros_in_a_version_are_refused(tmp_path: Path, version: str) -> None:
+    _refused(tmp_path, [*RB, *NP, "--target", version], f"--target '{version}' is not a release version")
+
+
 def test_a_missing_target_is_refused(tmp_path: Path) -> None:
     _refused(tmp_path, RB, "--action rollback needs --target")
 
 
 @pytest.mark.parametrize("action", ["pause", "rollback"])
-@pytest.mark.parametrize("reason", [None, "", "   ", "two\nlines"])
+@pytest.mark.parametrize("reason", [None, "", "   ", "two\nlines", "a\x85b", "a\u2028b", "a\u2029b"])
 def test_a_missing_blank_or_multiline_reason_is_refused(tmp_path: Path, action: str, reason: str | None) -> None:
     args = ["--project", "grimoire", "--action", action]
     if action == "rollback":
-        args += ["--target", "1.3.0"]
+        args += ["--target", "1.3.0", "--no-proof"]
     if reason is not None:
         args += ["--reason", reason]
-    message = "--reason must be one line" if reason == "two\nlines" else "needs --reason"
+    message = "--reason must be one line" if reason and reason.strip() else "needs --reason"
     _refused(tmp_path, args, message)
 
 
 def test_an_already_rolled_back_pin_is_refused(tmp_path: Path) -> None:
-    _refused(tmp_path, [*RB, "--target", "1.2.0"], "grimoire is already rolled back to 1.3.0", extra=ROLLED)
+    _refused(tmp_path, [*RB, *NP, "--target", "1.2.0"], "grimoire is already rolled back to 1.3.0", extra=ROLLED)
 
 
 def test_an_already_rolled_back_pin_without_a_version_is_refused(tmp_path: Path) -> None:
     extra = "    estate.jorisjonkers.dev/rollback-fragment: sha256:abc\n"
-    _refused(tmp_path, [*RB, "--target", "1.2.0"], "already rolled back to ?", extra=extra)
+    _refused(tmp_path, [*RB, *NP, "--target", "1.2.0"], "already rolled back to ?", extra=extra)
 
 
 @pytest.mark.parametrize(
@@ -325,8 +351,9 @@ def test_an_already_rolled_back_pin_without_a_version_is_refused(tmp_path: Path)
     [
         (["--project", "Grimoire", "--action", "resume"], "'Grimoire' is not a Project's name"),
         (["--project", "grimoire", "--action", "resume", "--target", "1.0.0"], "only apply to --action rollback"),
+        (["--project", "grimoire", "--action", "resume", "--no-proof"], "only apply to --action rollback"),
         (["--project", "grimoire", "--action", "pause", "--reason", "r", "--proof-names", "1.0.0"], "only apply"),
-        ([*RB, "--target", "1.x"], "--target '1.x' is not a release version"),
+        ([*RB, *NP, "--target", "1.x"], "--target '1.x' is not a release version"),
         ([*RB, "--target", "1.3.0", "--proof-names", "v1"], "--proof-names 'v1' is not a release version"),
         (["--project", "grimoire", "--action", "resume", "--pin", "latest"], "--pin 'latest' is not a release version"),
     ],
@@ -402,8 +429,10 @@ def test_main_runs_in_process(
     out = capsys.readouterr().out
     assert RESUME_CMD in out
     assert "state:    paused by alice at 2026-11-01T10:00:00Z: bad deploy" in out
-    assert plan_module.main([*RB, "--target", "1.3.0", "--pin", "1.5.0"]) == 0
-    assert plan_module.main([*RB, "--target", "1.6.0", "--pin", "1.5.0"]) == 1
+    assert plan_module.main([*RB, "--target", "1.3.0", "--no-proof", "--pin", "1.5.0"]) == 0
+    assert PIN_NOTE in capsys.readouterr().out
+    assert plan_module.main([*RB, "--target", "1.6.0", *NP, "--pin", "1.5.0"]) == 1
+    assert plan_module.main([*RB, "--target", "1.3.0", "--pin", "1.5.0"]) == 1
     assert plan_module.main([*RB, "--target", "1.3.0", "--proof-names", "1.4.2", "--pin", "1.5.0"]) == 1
     assert plan_module.main([*RB, "--target", "1.3.0", "--proof-names", "1.3.0", "--pin", "1.5.0"]) == 0
     assert len(calls) == 1
@@ -456,7 +485,7 @@ def test_in_process_rolled_back_state_is_refused(
         "    event.toolkit.fluxcd.io/url", ROLLED + "    event.toolkit.fluxcd.io/url"
     )
     monkeypatch.setattr(plan_module.subprocess, "run", lambda *_a, **_k: _Done(0, body))
-    assert plan_module.main([*RB, "--target", "1.2.0"]) == 1
+    assert plan_module.main([*RB, *NP, "--target", "1.2.0"]) == 1
     assert plan_module.main(["--project", "grimoire", "--action", "resume"]) == 0
     capsys.readouterr()
 
@@ -475,6 +504,8 @@ def test_the_script_never_names_a_dispatching_gh_call() -> None:
     assert '"gh", "api"' in code
     assert "--method" not in code
     assert '"-X"' not in code
+    assert "-XPOST" not in code
+    assert '"-f"' not in code.split("def gh_run_command")[0]
 
 
 # ---------------------------------------------------------------------------

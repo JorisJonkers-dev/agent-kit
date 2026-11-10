@@ -16,7 +16,8 @@ import sys
 
 REPO = "JorisJonkers-dev/estate"
 PROJECT_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
-VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+NUMBER = r"(?:0|[1-9][0-9]*)"
+VERSION_RE = re.compile(rf"^{NUMBER}\.{NUMBER}\.{NUMBER}$")
 PIN_RE = re.compile(
     r"^\s*event\.toolkit\.fluxcd\.io/version:[ \t]*[\"']?([^\"'\s#]+)[\"']?[ \t]*(?:#.*)?$",
     re.M,
@@ -24,7 +25,7 @@ PIN_RE = re.compile(
 ANNOTATION_RE = re.compile(
     r"^\s*estate\.jorisjonkers\.dev/([a-z-]+):[ \t]*[\"']?(.*?)[\"']?[ \t]*$", re.M
 )
-CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+CONTROL_RE = re.compile("[\x00-\x1f\x7f\x85\u2028\u2029]")
 
 
 class Refusal(Exception):
@@ -96,8 +97,8 @@ def build(args):
     if not PROJECT_RE.match(project):
         refuse(f"'{project}' is not a Project's name (lowercase letters, digits and hyphens).")
 
-    if args.action != "rollback" and (args.target or args.proof_names):
-        refuse("--target and --proof-names only apply to --action rollback.")
+    if args.action != "rollback" and (args.target or args.proof_names or args.no_proof):
+        refuse("--target, --proof-names and --no-proof only apply to --action rollback.")
     if args.action in ("pause", "rollback"):
         check_reason(args.reason)
 
@@ -107,9 +108,12 @@ def build(args):
             refuse(f"--pin '{pin}' is not a release version X.Y.Z.")
         annotations = {}
         pin_source = "given with --pin (file not read)"
+        pin_note = ("pin given by hand: the pin file was not read, so a recorded "
+                    "rollback is not checked")
     else:
         pin, annotations = parse_pin_file(read_pin_file(project), project)
         pin_source = f"projects/{project}/source.yaml, event.toolkit.fluxcd.io/version"
+        pin_note = None
 
     lines = [
         "estate rollback plan (this script runs nothing; the owner runs the command)",
@@ -117,6 +121,8 @@ def build(args):
         f"action:   {args.action}",
         f"pin:      {pin} ({pin_source})",
     ]
+    if pin_note:
+        lines.append(pin_note)
     if "paused-by" in annotations:
         lines.append(f"state:    paused by {annotations['paused-by']} "
                      f"at {annotations.get('paused-at', '?')}: "
@@ -157,6 +163,10 @@ def build(args):
         if version_key(target) >= version_key(pin):
             refuse(f"target {target} is not earlier than the pin {pin}; "
                    "a rollback goes back, never forward.")
+        if (args.proof_names is not None) == bool(args.no_proof):
+            refuse("Migration Proof not stated: pass --proof-names <release the proof names> "
+                   "or --no-proof when the pinned release carries none"
+                   + (" (not both)" if args.no_proof else ""))
         if args.proof_names is not None:
             if not VERSION_RE.match(args.proof_names):
                 refuse(f"--proof-names '{args.proof_names}' is not a release version X.Y.Z.")
@@ -166,9 +176,8 @@ def build(args):
                        "against the current schema.")
             proof_line = f"Migration Proof: target {target} is the release --proof-names gives: ok"
         else:
-            proof_line = (f"Migration Proof: not checked here (no --proof-names). If release "
-                          f"{pin} carries a Migration Proof, rerun with --proof-names; "
-                          "rollback.yml refuses a target the proof does not name.")
+            proof_line = (f"Migration Proof: --no-proof says release {pin} carries none; "
+                          "rollback.yml still checks the real lock.")
         command = gh_run_command("rollback.yml", [
             ("project", project), ("version", target), ("reason", args.reason)])
         lines += [
@@ -196,6 +205,8 @@ def main(argv=None):
     parser.add_argument("--pin", help="the pinned version, instead of reading the pin file")
     parser.add_argument("--proof-names", dest="proof_names",
                         help="rollback: the release the pinned release's Migration Proof names")
+    parser.add_argument("--no-proof", dest="no_proof", action="store_true",
+                        help="rollback: state that the pinned release carries no Migration Proof")
     args = parser.parse_args(argv)
     try:
         print(build(args))
