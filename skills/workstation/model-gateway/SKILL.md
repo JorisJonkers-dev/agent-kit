@@ -415,7 +415,8 @@ make in all.
   (review, critique, second opinion), and an answer from the orchestrator's own
   family defeats that. `"family_binding": false` lets the gateway move to another
   family. When it then does, the summary of the answer opens with a line naming
-  both families and the cause, for example `escalated from mistral (vibe:
+  both families and the cause (the whole summary is still cut at
+  `summary_max_chars`), for example `escalated from mistral (vibe:
   model-unavailable) to anthropic`; a batch report shows the same line in that
   delegation's summary.
 

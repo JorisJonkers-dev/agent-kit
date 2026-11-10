@@ -3335,11 +3335,11 @@ var EscalatedRun = class {
     let real;
     const stated = async (run) => {
       if (run.status !== "ok" || run.family === void 0 || run.summary === void 0) return {};
-      const { requested } = await planned();
+      const { requested, summaryMax } = await planned();
       if (run.family === requested.family) return {};
       const cause = skipped.find((who) => who.client === requested.client && who.model === requested.model)?.reason ?? attempts[0]?.reason ?? "failed";
       return { summary: `${escalationNotice(requested, cause, { family: run.family })}
-${run.summary}` };
+${run.summary}`.slice(0, summaryMax) };
     };
     const done = async (run, escalation, stoppedReason) => ({
       ...run,
@@ -3436,7 +3436,7 @@ ${run.summary}` };
     const scope = await resolveScope(this.deps, input.repo);
     const granted = await this.grants.liveClients(input.workflow, this.deps.clock.now());
     const pool = bindFamily(input, requested, candidatePool(config, input, decidePolicy(config, scope, config.models).permissions, granted));
-    return { pool, requested };
+    return { pool, requested, summaryMax: config.settings.summary_max_chars };
   }
   /** Why a client cannot start, or undefined when it can: what `usage` reports as its availability. */
   async startCheck(input) {

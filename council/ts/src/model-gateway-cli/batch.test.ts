@@ -673,6 +673,33 @@ describe('model-gateway batch: reserving up front', () => {
     expect(printed(result).reservations_released_usd).toBe(0)
   })
 
+  it('shows the escalation to another family in that delegation’s summary when the caller allowed it', async () => {
+    const w = await batchWorkspace({
+      families: ALL_FAMILIES,
+      override: {
+        clients: {
+          claude: { cost_class: 'metered-personal' },
+          vibe: { cost_class: 'metered-personal', plan_limits: [{ limit_runs: 1, window: 'day' }] },
+        },
+        models: [
+          {
+            client: 'claude',
+            family: 'anthropic',
+            model: 'claude-sonnet-5-5',
+            prices: { cached_input: 0.3, input: 3, output: 15 },
+            tier: 'hard',
+          },
+        ],
+        settings: { metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 1 } },
+      },
+    })
+    await w.writeLedger([TODAYS_VIBE_RUN])
+
+    const result = await w.batch([vibe('a', { escalate: undefined, family_binding: false })])
+
+    expect(String(delegationsOf(result)[0]?.summary)).toMatch(/^escalated from zhipu \(vibe: .+\) to anthropic\n/)
+  })
+
   it('fails a delegation whose binding family cannot start rather than answering it from another family', async () => {
     const w = await batchWorkspace({
       families: ALL_FAMILIES,

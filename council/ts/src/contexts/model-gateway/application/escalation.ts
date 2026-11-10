@@ -66,6 +66,7 @@ export type Escalated<R> = R & EscalationReport
 
 /** Where the delegation's catalogue stands: the model asked for and every model it may move to. */
 interface Plan {
+  readonly summaryMax: number
   readonly requested: Candidate
   readonly pool: readonly Candidate[]
 }
@@ -116,10 +117,10 @@ export class EscalatedRun {
     /** The summary of a run answered by another family: it opens with the escalation, both families and the cause. */
     const stated = async (run: R): Promise<Pick<AttemptedRun, 'summary'>> => {
       if (run.status !== 'ok' || run.family === undefined || run.summary === undefined) return {}
-      const { requested } = await planned()
+      const { requested, summaryMax } = await planned()
       if (run.family === requested.family) return {}
       const cause = skipped.find((who) => who.client === requested.client && who.model === requested.model)?.reason ?? attempts[0]?.reason ?? 'failed'
-      return { summary: `${escalationNotice(requested, cause, { family: run.family })}\n${run.summary}` }
+      return { summary: `${escalationNotice(requested, cause, { family: run.family })}\n${run.summary}`.slice(0, summaryMax) }
     }
     const done = async (run: R, escalation?: 'exhausted' | 'stopped', stoppedReason?: string): Promise<Escalated<R>> => ({
       ...run,
@@ -219,7 +220,7 @@ export class EscalatedRun {
     const scope = await resolveScope(this.deps, input.repo)
     const granted = await this.grants.liveClients(input.workflow, this.deps.clock.now())
     const pool = bindFamily(input, requested, candidatePool(config, input, decidePolicy(config, scope, config.models).permissions, granted))
-    return { pool, requested }
+    return { pool, requested, summaryMax: config.settings.summary_max_chars }
   }
 
   /** Why a client cannot start, or undefined when it can: what `usage` reports as its availability. */

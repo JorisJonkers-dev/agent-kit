@@ -5165,6 +5165,37 @@ describe('model-gateway run: binding family', () => {
     )
   })
 
+  it('keeps the whole summary, escalation line included, within summary_max_chars', async () => {
+    const w = await escalating({ override: { settings: { summary_max_chars: 60 } }, scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(String(printed(result).summary)).toBe('escalated from zhipu (vibe: exit-3) to anthropic\ndone by claude'.slice(0, 60))
+    expect(String(printed(result).summary).length).toBeLessThanOrEqual(60)
+  })
+
+  it('climbs inside the family by default: a routine GLM model that fails twice climbs to the hard one, never to Claude', async () => {
+    const w = await escalating({ scripts: [FAILS, FAILS, SUCCEEDS] })
+
+    const result = await w.run(w.input({ escalate: undefined, model: 'zai-glm-5-3-flash' }))
+
+    expect(attemptedModels(result)).toEqual(['vibe:zai-glm-5-3-flash', 'vibe:zai-glm-5-3-flash', 'vibe:glm-5-3'])
+    expect(printed(result)).toMatchObject({ family: 'zhipu', status: 'ok', summary: 'done' })
+  })
+
+  it('falls through inside the family by default: a model the account cannot use is swapped for another of its family, never for Claude', async () => {
+    const w = await escalating({
+      defaults: JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as unknown,
+      scripts: [OPENCODE_REGION, SUCCEEDS],
+    })
+
+    const result = await w.run(w.input({ client: 'opencode', escalate: undefined, model: 'opencode-go/glm-5.3-flash' }))
+
+    expect(attemptedModels(result)).toEqual(['opencode:opencode-go/glm-5.3-flash', 'vibe:zai-glm-5-3-flash'])
+    expect(printed(result)).toMatchObject({ family: 'zhipu', status: 'ok', summary: 'done' })
+    expect(binariesOf(w.vibe.commands)).toEqual(['opencode', 'vibe'])
+  })
+
   it('leaves the summary alone when the answer is from the requested family, and refuses a malformed family_binding', async () => {
     const w = await escalating({ scripts: [SUCCEEDS] })
 
