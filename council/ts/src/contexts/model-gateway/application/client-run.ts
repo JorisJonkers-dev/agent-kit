@@ -37,11 +37,21 @@ export interface ClientRunOutcome {
  * profile gets a refusal rather than a run that quietly drops it, and one that
  * tries to lift the launcher's own isolation is refused rather than obeyed.
  */
+/** The Vibe tools that load on demand through `search_tool_functions`, which `--enabled-tools` filters out along with them. */
+const VIBE_ON_DEMAND_TOOLS: readonly string[] = ['web_search', 'web_fetch']
+
 export function requireSupportedExtras(client: RunClient, extras: RunExtras): void {
   const launcher = LAUNCHERS[client]
   const unsupported = EXTRA_NAMES.find((name: ExtraName) => extras[name] !== undefined && !launcher.extras.includes(name))
   if (unsupported !== undefined) {
     throw new ModelGatewayError('extras-not-supported', `${client} cannot apply the ${unsupported} extra`)
+  }
+  const webTool = client === 'vibe' ? (extras.tools ?? []).find((tool) => VIBE_ON_DEMAND_TOOLS.includes(tool)) : undefined
+  if (webTool !== undefined) {
+    throw new ModelGatewayError(
+      'extras-not-supported',
+      `vibe cannot enable the ${webTool} tool: it loads on demand, and --enabled-tools hides it, so the run would have no web tool; keep the default tool set and disable the unwanted tools instead`,
+    )
   }
   const sandboxed = launcher.sandboxedExtras.find((name) => extras[name] !== undefined && extras.sandbox === undefined)
   if (sandboxed !== undefined) {

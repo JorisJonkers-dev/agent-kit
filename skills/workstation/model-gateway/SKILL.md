@@ -430,6 +430,22 @@ attempt the gateway refuses (the workflow ended meanwhile) ends the delegation
 with the last result, `escalation: "stopped"` and `stopped_reason` naming the
 refusal. The first attempt's refusals are errors as always.
 
+## Web tools in a Vibe run
+
+Vibe does not expose `web_search` and `web_fetch` directly: a headless run
+reaches them through `search_tool_functions`, which loads them on demand.
+`--enabled-tools` removes `search_tool_functions`, so a run that names a web
+tool in `--enabled-tools` has no way to the web and used to stall without
+saying why. The gateway now refuses such a Vibe run before its first model
+call: a non-zero exit, `code: "extras-not-supported"`, and a message naming the
+tool (`vibe cannot enable the web_fetch tool: ...`). Nothing is launched.
+
+Workaround: keep Vibe's default tool set and remove the tools the run must not
+have with `--disabled-tools`, for example
+`vibe -p "..." --model <alias> --disabled-tools bash --disabled-tools write_file --disabled-tools edit --disabled-tools run_typescript --auto-approve`.
+With that, `web_search` and `web_fetch` work. A delegation that needs the web
+through the gateway can instead go to a client with its own web access.
+
 ## Writing runs
 
 `"mode": "write"` hands a code change to a client model. It takes `repo`,
