@@ -440,8 +440,13 @@ saying why. The gateway now refuses such a Vibe run before its first model
 call: a non-zero exit, `code: "extras-not-supported"`, and a message naming the
 tool (`vibe cannot enable the web_fetch tool: ...`). Nothing is launched.
 
-Workaround: keep Vibe's default tool set and remove the tools the run must not
-have with `--disabled-tools`, for example
+Through the gateway, leave the `tools` extra unset: the launcher then passes no
+`--enabled-tools`, so Vibe keeps its default tool set including the on-demand
+web tools. The gateway has no extra that passes `--disabled-tools`.
+
+Workaround when running Vibe directly (outside the gateway): keep Vibe's
+default tool set and remove the tools the run must not have with
+`--disabled-tools`, for example
 `vibe -p "..." --model <alias> --disabled-tools bash --disabled-tools write_file --disabled-tools edit --disabled-tools run_typescript --auto-approve`.
 With that, `web_search` and `web_fetch` work. A delegation that needs the web
 through the gateway can instead go to a client with its own web access.

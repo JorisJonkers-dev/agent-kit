@@ -291,6 +291,17 @@ describe('the gateway launch path, for a caller inside this process', () => {
     expect(w.process.commands).toEqual([])
   })
 
+  it('refuses web_search for Vibe too, and lets other tools through', async () => {
+    const w = await workspace([{ stdout: 'x' }])
+
+    await expect(w.run.launch(w.request({ extras: { tools: ['web_search'] } }))).rejects.toMatchObject({
+      message: expect.stringContaining('vibe cannot enable the web_search tool') as string,
+    })
+    expect(w.process.commands).toEqual([])
+    await w.run.launch(w.request({ extras: { tools: ['read_file'] } })).catch(() => undefined)
+    expect(w.process.commands).toHaveLength(1)
+  })
+
   it('refuses the tools and the schema an Antigravity run applies only in the read-only sandbox', async () => {
     const w = await workspace()
 
