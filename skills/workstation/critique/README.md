@@ -123,6 +123,12 @@ in `lenses/`.
 - `operability`: how the owner learns it failed, and what state it leaves.
 - `simplicity`: mechanisms no user story needs, or two for one problem.
 - `unasked-questions`: choices made without saying who decided.
+- `dependency-direction`: dependencies point inward, with the import cited.
+- `domain-language`: one word, one meaning, and a named relation between contexts.
+- `aggregates`: each invariant held by its root, and one transaction per aggregate.
+- `coupling`: modules that depend on another's internals, or share one decision.
+- `test-seams`: behaviour testable at a seam with no real database, network or clock.
+- `quality-scenarios`: quality claims with a stimulus and a number, and a check for each structural decision.
 
 ### Check ids
 
