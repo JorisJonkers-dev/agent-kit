@@ -106,6 +106,23 @@ workstation_secrets:
     check: "https://api.mistral.ai/v1/models"
     check_method: GET
     export: false
+  # The LiteLLM virtual keys, one per cheap agent id (the `litellm` section).
+  # The owner makes each on the proxy with its max budget and pastes it here.
+  # No check: the proxy sits behind the sign-in edge, which wants a service
+  # token as the bearer, so the key cannot be tried on its own. litellm-gate
+  # is what proves a key works and has budget left.
+  - env: LITELLM_VIBE_KEY
+    paste: "the LiteLLM virtual key for the vibe agent id, made on the proxy with a max budget of 255"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
+  - env: LITELLM_VIBE_STUDY_KEY
+    paste: "the LiteLLM virtual key for the vibe-study agent id, made on the proxy with a max budget of 128"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
+  - env: LITELLM_OPENCODE_GO_KEY
+    paste: "the LiteLLM virtual key for the opencode-go agent id, made on the proxy with a max budget of 60"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
   # An API key made while signed in as a separate Outline user, not the
   # owner's own account: the key reads and writes exactly what that user can,
   # so the agent sees only the collections and documents shared with it.
@@ -120,6 +137,41 @@ workstation_secrets:
     paste: "Grimoire → Account → Access Tokens, a token with the scopes the agent may use"
     check: "https://grimoire.jorisjonkers.dev/mcp"
     export: true
+
+# -------------------------------------------------------------------
+# LiteLLM: the one proxy in the estate cluster the cheap agents' models are
+# reached through (spec #392, stories 96-98). Both machines use the same
+# proxy, so one budget per key holds across machines.
+#
+# Each route is one agent id's key: its own LiteLLM virtual key, with a hard
+# max budget (LiteLLM's budget unit; the cap is spent against the number, see
+# docs/LITELLM.md). A spent key is refused by the proxy (HTTP 400,
+# budget_exceeded) and the node fails: litellm-gate turns that into exit 1.
+#
+# The proxy sits behind the estate sign-in (audience: authenticated), so a
+# request carries two credentials: an auth-api service token as the bearer
+# (`edge_token_env`, minted by hand: no LITELLM service exists in auth-api
+# yet) and the virtual key in `key_header`, which LiteLLM reads instead of
+# Authorization. The keys are pasted once into the one secret store
+# (workstation_secrets below), never written to a file in any repository.
+# -------------------------------------------------------------------
+litellm:
+  base_url: "https://litellm.jorisjonkers.dev/v1"
+  key_header: x-litellm-api-key
+  edge_token_env: LITELLM_EDGE_TOKEN
+  routes:
+    - agent: vibe
+      key_env: LITELLM_VIBE_KEY
+      budget_eur: 255
+      models: [vibe/zai-glm-5-3-flash, vibe/deepseek-v4-1-flash-1017]
+    - agent: vibe-study
+      key_env: LITELLM_VIBE_STUDY_KEY
+      budget_eur: 128
+      models: [vibe-study/zai-glm-5-3-flash, vibe-study/deepseek-v4-1-flash-1017]
+    - agent: opencode-go
+      key_env: LITELLM_OPENCODE_GO_KEY
+      budget_eur: 60
+      models: [opencode-go/glm-5.3-flash, opencode-go/qwen3.8-flash, opencode-go/mimo-v2.6-flash]
 
 # -------------------------------------------------------------------
 # The packages proxy.

@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Two members: `crates/inventory-check` (fails when an on-disk skill, hook, role file or MCP server is missing from docs/gold-band-port-inventory.md, has two targets or no lanes) and `crates/agent-kit-setup`, the canary: a
+* **The workspace.** Three members: `crates/litellm-gate` (the node-side check that a LiteLLM per-key budget is not exhausted: one probe request through curl with the key on stdin, exit 1 when the budget is spent or the proxy cannot be asked), `crates/inventory-check` (fails when an on-disk skill, hook, role file or MCP server is missing from docs/gold-band-port-inventory.md, has two targets or no lanes) and `crates/agent-kit-setup`, the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path. New
   Rust joins this workspace as a new member, never as its own Cargo project.
