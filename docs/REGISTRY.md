@@ -308,7 +308,7 @@ price per million input and output tokens, nothing else:
 `gold_band_instances` declares the two Gold Band instances (ADR-0011):
 `gold-band` (work: `claude-work` and `codex` only, `nedap`-owned remotes only,
 no remote refused, the mac only, the `nedap` bank only) and `gold-band-personal`
-(every other agent, `nedap`-owned remotes refused, no remote allowed). Each
+(every other agent, `nedap`-owned remotes refused, no remote allowed, the `shared` bank only). Each
 instance records its `repository_rule`; an instance without one is refused.
 
 The per-machine overlay, `~/.config/agent-kit/overlay.yaml` beside the keep
@@ -329,7 +329,7 @@ under the same rules as the registry's. The `gold-band-registry` crate
 another overlay; a missing file is empty). It refuses Codex or `claude-work`
 on the personal instance, from the registry or the overlay; any agent but
 `claude-work` and `codex` on the work instance; literal secrets (use `$NAME`);
-unknown fields; and bad ids. The step runs the crate with `cargo run`, or the
+unknown fields; bad ids; a repository rule that is missing or the other instance's; a host the instance may not run on; and a bank other than `nedap` (work) or `shared` (personal). The step runs the crate with `cargo run`, or the
 binary named by `GOLD_BAND_REGISTRY_BIN`, and fails when neither exists. This
 section writes no settings files.
 

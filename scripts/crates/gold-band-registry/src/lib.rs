@@ -199,6 +199,8 @@ fn registry_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
         }
     }
 
+    repeated_values("host", &hosts, place, out);
+    repeated_values("bank", &banks, place, out);
     if hosts.is_empty() {
         out.push(format!("{place}: declares no hosts"));
     }
@@ -310,6 +312,15 @@ fn agent_problems(instance: &str, place: &str, agents: &[&str], out: &mut Vec<St
             out.push(format!(
                 "{place}: agent {agent} is not allowed on the personal instance (Codex and the work Claude agent stay on {WORK})"
             ));
+        }
+    }
+}
+
+/// A host or bank listed twice.
+fn repeated_values(kind: &str, values: &[&str], place: &str, out: &mut Vec<String>) {
+    for (index, value) in values.iter().enumerate() {
+        if values[..index].contains(value) {
+            out.push(format!("{place}: {kind} {} is listed more than once", shown(value)));
         }
     }
 }
@@ -519,6 +530,12 @@ mod tests {
         let body = format!("instance\tgold-band\nfield\tmcp_servers.{upper}.command\tx\nfield\tmcp_servers.a.env.{upper}\tx\nfield\tmcp_servers.b.url\tx\nfield\tmcp_servers.b.command\tx\n");
         let all = found(&overlay(&body));
         assert!(all.iter().all(|p| !p.contains(upper)), "{all:?}");
+    }
+
+    #[test]
+    fn repeated_hosts_and_banks_are_refused() {
+        has(&registry().replace("hosts.0\tmac\n", "hosts.0\tmac\nfield\thosts.1\tmac\n"), "host mac is listed more than once");
+        has(&registry().replace("banks.0\tnedap\n", "banks.0\tnedap\nfield\tbanks.1\tnedap\n"), "bank nedap is listed more than once");
     }
 
     #[test]

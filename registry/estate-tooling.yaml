@@ -1221,6 +1221,8 @@ vibe_delegate_agents:
 #   * an instance without its repository rule, or with the other instance's:
 #     work is `remotes: nedap-only` + `no_remote: refuse`, personal is
 #     `remotes: not-nedap` + `no_remote: allow`;
+#   * a bank other than `nedap` on the work instance or `shared` on the
+#     personal one;
 #   * a literal secret in any value, an unknown field, a bad id (lowercase
 #     letters and digits in dash-separated groups).
 #
