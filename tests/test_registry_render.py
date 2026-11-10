@@ -1242,3 +1242,52 @@ def test_an_unchecked_secret_may_not_also_name_a_check() -> None:
     entry["check"] = "https://litellm.jorisjonkers.dev/key/info"
     with pytest.raises(render_registry.RegistryError, match="either checked or unchecked"):
         render_registry.validate(data)
+
+
+# --- NixOS: registry/generated/nixos/packages.nix --------------------------
+
+
+def _nixos_group_block(rendered: str, group: str) -> str:
+    start = rendered.index(f"  {group} = [")
+    return rendered[start:rendered.index("\n  ];", start)]
+
+
+def test_a_bad_nixos_attribute_path_is_rejected() -> None:
+    data = _registry()
+    data["nixos_packages"][0]["nixos"] = "no such attr"
+    with pytest.raises(render_registry.RegistryError, match="nixpkgs attribute path"):
+        render_registry.validate(data)
+
+
+def test_an_unknown_nixos_group_is_rejected() -> None:
+    data = _registry()
+    data["nixos_packages"][0]["group"] = "editor"
+    with pytest.raises(render_registry.RegistryError, match="group must be one of"):
+        render_registry.validate(data)
+
+
+def test_a_duplicate_nixos_attribute_is_rejected() -> None:
+    data = _registry()
+    data["nixos_packages"].append(copy.deepcopy(data["nixos_packages"][0]))
+    with pytest.raises(render_registry.RegistryError, match="declared twice"):
+        render_registry.validate(data)
+
+
+def test_a_cli_may_not_be_installed_by_nix() -> None:
+    """Agent CLIs are agent-kit's to install; Nix never touches them."""
+    data = _registry()
+    data["clis"][0]["nixos"] = "claude-code"
+    with pytest.raises(render_registry.RegistryError, match="never by Nix"):
+        render_registry.validate(data)
+
+
+def test_the_nixos_package_list_covers_the_language_servers() -> None:
+    """packages.nix is the union of nixos_packages and the language servers' nixos keys."""
+    rendered = render_registry.render_nixos_packages(_registry())
+    core = _nixos_group_block(rendered, "core")
+    assert '{ attr = "kotlin-lsp"; source = "nixos-modules"; }' in core
+    assert '{ attr = "gopls"; source = "nixpkgs"; }' in core
+    assert '{ attr = "ruby-lsp"; source = "nixpkgs"; }' in _nixos_group_block(rendered, "polyglot")
+    assert re.findall(r"^  (\w+) = \[$", rendered, re.MULTILINE) == [
+        "core", "kubernetes", "latex", "polyglot", "android",
+    ]
