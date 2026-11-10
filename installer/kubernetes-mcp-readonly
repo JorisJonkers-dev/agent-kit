@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# managed by agent-kit setup-workstation.sh
+#
+# Runs kubernetes-mcp-server over stdio against this workstation's READ-ONLY
+# kube context, for every agent that registers the `kubernetes` MCP server.
+#
+# The context is `<cluster>` (for example `personal`), the one scripts/
+# workstation-kube.py installs for the `<device>-ro` ServiceAccount: view
+# without Secrets. It is the current context, or AK_KUBE_CONTEXT when set.
+# A context named `*-admin` is refused. The server gets a throwaway kubeconfig
+# holding that one context alone, so no tool can switch to another, and it
+# starts read-only with destructive tools off, Secrets denied and the
+# `config` toolset (which prints the kubeconfig) left out.
+#
+# Usage: kubernetes-mcp-readonly            (an MCP client starts it)
+#        kubernetes-mcp-readonly --check    (print the context it would use)
+set -euo pipefail
+
+die() { printf 'kubernetes-mcp-readonly: %s\n' "$*" >&2; exit 1; }
+
+command -v kubectl >/dev/null 2>&1 || die "kubectl is not on PATH"
+
+context="${AK_KUBE_CONTEXT:-$(kubectl config current-context 2>/dev/null || true)}"
+[ -n "${context}" ] || die "no current kube context; run scripts/workstation-kube.py install"
+case "${context}" in
+  *-admin | *-pf) die "refusing context '${context}': only the read-only context may be used" ;;
+esac
+
+# The credential behind the context must be a read-only ServiceAccount (`<cluster>-<device>-ro`).
+user="$(kubectl config view --minify --context "${context}" -o jsonpath='{.users[0].name}' 2>/dev/null || true)"
+case "${user}" in
+  *-ro) ;;
+  *) die "refusing context '${context}': its user '${user}' is not a read-only (-ro) account" ;;
+esac
+
+if [ "${1:-}" = "--check" ]; then
+  printf '%s\n' "${context}"
+  exit 0
+fi
+
+command -v kubernetes-mcp-server >/dev/null 2>&1 || die "kubernetes-mcp-server is not on PATH; re-run setup"
+
+umask 077
+work="$(mktemp -d "${TMPDIR:-/tmp}/kubernetes-mcp.XXXXXX")"
+trap 'rm -rf "${work}"' EXIT
+trap 'exit 143' TERM HUP INT
+
+kubectl config view --raw --minify --flatten --context "${context}" > "${work}/kubeconfig" \
+  || die "could not read kube context '${context}'"
+
+cat > "${work}/config.toml" <<EOF
+kubeconfig = "${work}/kubeconfig"
+read_only = true
+disable_destructive = true
+toolsets = ["core"]
+
+[[denied_resources]]
+group = ""
+version = "v1"
+kind = "Secret"
+EOF
+
+# Not exec: the trap above removes the throwaway kubeconfig when the client closes stdin.
+kubernetes-mcp-server --config "${work}/config.toml"

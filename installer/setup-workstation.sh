@@ -931,6 +931,47 @@ retire_kit_command() {
   rm -f "${dest}" && ok "$1: retired, removed ${dest}"
 }
 
+# Retired: the kubectl port-forward that reached the in-cluster kubernetes MCP
+# server (estate#316). The server now runs locally over stdio. Removes the
+# launchd agent (macOS) and the systemd user unit (Linux) older setups left.
+retire_port_forward_agents() {
+  local prefix="dev.jorisjonkers.agent-kit.port-forward" file label
+  local agents_dir="${AK_LAUNCH_AGENTS_DIR:-${HOME}/Library/LaunchAgents}"
+  local units_dir="${AK_SYSTEMD_USER_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user}"
+  local log_dir="${AK_LOG_DIR:-${HOME}/Library/Logs/agent-kit}"
+  local found=0
+  for file in "${agents_dir}/${prefix}".*.plist; do
+    [ -e "${file}" ] || continue
+    found=1
+    label="$(basename "${file}" .plist)"
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "would remove retired launchd agent ${label}"
+      continue
+    fi
+    launchctl bootout "gui/$(id -u)/${label}" >/dev/null 2>&1 || true
+    rm -f "${file}" && ok "${label}: retired, removed ${file}"
+  done
+  for file in "${units_dir}/${prefix}".*.service; do
+    [ -e "${file}" ] || continue
+    found=1
+    label="$(basename "${file}")"
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "would remove retired systemd unit ${label}"
+      continue
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl --user disable --now "${label}" >/dev/null 2>&1 || true
+    fi
+    rm -f "${file}" && ok "${label}: retired, removed ${file}"
+  done
+  if [ "${CHECK_ONLY}" != 1 ]; then
+    if [ "${found}" = 1 ] && command -v systemctl >/dev/null 2>&1; then
+      systemctl --user daemon-reload >/dev/null 2>&1 || true
+    fi
+    rm -f "${log_dir}"/port-forward-*.log
+  fi
+}
+
 # Copies a kit command onto PATH. A file there that setup did not write is left alone.
 install_kit_command() {
   local name="$1"
@@ -1552,10 +1593,6 @@ else
   AK_BIN_DIR="$HOME/.local/bin" AK_OPT_DIR="$HOME/.local/lib/agent-kit"
 fi
 export AK_BIN_DIR AK_OPT_DIR
-
-# ensure_port_forward: keeps the loopback of a workstation_connect MCP
-# server alive (a launchd agent on macOS).
-. "${KIT_ROOT}/installer/port-forward-agent.sh"
 
 if [ "${CLOUD}" = 1 ]; then
   . "${KIT_ROOT}/installer/cloud-session.sh"
@@ -2282,8 +2319,7 @@ else
 fi
 
 # Nous Research Hermes Agent. Installed on the workstation for
-# `hermes doctor` / `hermes skills list` against a local config;
-# the in-cluster gateway runs the container image, not this.
+# `hermes doctor` / `hermes skills list` against a local config.
 if command -v hermes >/dev/null 2>&1; then
   run_sh 'uv tool upgrade --exclude-newer "7 days" '\''hermes-agent[mcp]'\'''
   ok "hermes $(hermes --version 2>/dev/null | head -1)"
@@ -2678,6 +2714,8 @@ else
   install_kit_command agent-kit-private
   # agent-kit-secret: the one secret store (Keychain on macOS, libsecret on Linux).
   install_kit_command agent-kit-secret
+  # kubernetes-mcp-readonly: the kubernetes MCP server, pinned to the read-only kube context.
+  install_kit_command kubernetes-mcp-readonly
   # The Vibe launchers. Plain vibe is Vibe itself: the shared Vibe home, the
   # personal login, Shared Memory. vibe-study is the same home with the Study
   # account; vibe-private has its own home and Private Memory, behind the gate.
@@ -2693,6 +2731,7 @@ else
   fi
   # Retired: Vibe saves to memory by tool now, not every turn.
   retire_kit_command vibe-retain-private
+  retire_port_forward_agents
 
   # ---------------------------------------------------------------
   # 4. Plugin drift detection.
@@ -3460,18 +3499,19 @@ for install in installs:
       fi
     fi
 
-    # Read-only cluster diagnostics through the server's own
-    # ClusterRole.
+    # Read-only cluster diagnostics, run locally against the
+    # workstation's read-only kube context.
     if [ "${CLOUD}" = 1 ]; then
       log "kubernetes: not set up in cloud mode"
     else
-
-      # kubernetes reaches the cluster via a kubectl port-forward of the
-      # ClusterIP service kubernetes-mcp-server.agents-system (no ingress route exists for it).
-      ensure_port_forward kubernetes agents-system kubernetes-mcp-server 18080 8080
+      if ! npm ls -g --depth=0 "kubernetes-mcp-server@0.1.1" >/dev/null 2>&1; then
+        run_sh 'npm install -g "kubernetes-mcp-server@0.1.1"' || true
+      fi
+      command -v kubernetes-mcp-server >/dev/null 2>&1 \
+        || warn "kubernetes: kubernetes-mcp-server is not on PATH; skipping"
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user kubernetes >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add kubernetes" claude_each_profile claude mcp add --scope user kubernetes --transport http http://127.0.0.1:18080/mcp; then
+        if run_redacted "claude mcp add kubernetes" claude_each_profile claude mcp add --scope user kubernetes -- kubernetes-mcp-readonly; then
           ok "kubernetes registered (claude)"
         else
           fail "kubernetes registration failed (claude)"
@@ -3479,7 +3519,7 @@ for install in installs:
       fi
       if command -v codex >/dev/null 2>&1; then
         run codex mcp remove kubernetes >/dev/null 2>&1 || true
-        if run_redacted "codex mcp add kubernetes" codex mcp add kubernetes --url http://127.0.0.1:18080/mcp; then
+        if run_redacted "codex mcp add kubernetes" codex mcp add kubernetes -- kubernetes-mcp-readonly; then
           ok "kubernetes registered (codex)"
         else
           fail "kubernetes registration failed (codex)"
@@ -7029,8 +7069,7 @@ fi
 log "vendored skills"
 
 # No plugin wraps this one on the workstation, unlike caveman,
-# kubernetes-skill, drawio and mattpocock-skills. 14 skills
-# reaching only Hermes was exactly the gap agent-kit#40 closed.
+# kubernetes-skill, drawio and mattpocock-skills.
 # superpowers: https://github.com/obra/superpowers@v6.3.0
 if [ "${CHECK_ONLY}" = 1 ]; then
   log "would clone https://github.com/obra/superpowers@v6.3.0 and install its skills (superpowers)"

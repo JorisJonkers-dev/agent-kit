@@ -50,7 +50,7 @@ KIT_PATHS=(
   installer/setup-workstation.sh
   installer/git-hooks/no-agent-attribution
   installer/git-hooks/allowed-identities
-  installer/port-forward-agent.sh
+  installer/kubernetes-mcp-readonly
   installer/cloud-session.sh
   installer/memory-private
   installer/agent-kit-private

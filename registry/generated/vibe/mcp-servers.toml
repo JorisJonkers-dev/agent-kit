@@ -38,8 +38,9 @@ startup_timeout_sec = 30.0
 
 [[mcp_servers]]
 name = "kubernetes"
-transport = "streamable-http"
-url = "http://127.0.0.1:18080/mcp"
+transport = "stdio"
+command = "kubernetes-mcp-readonly"
+args = []
 tool_timeout_sec = 60.0
 startup_timeout_sec = 30.0
 

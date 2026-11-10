@@ -2,7 +2,7 @@
 """Merge a rendered ``mcp_servers:`` fragment into the local Hermes config.
 
 Hermes reads its MCP servers from ``~/.hermes/config.yaml`` under the
-``mcp_servers`` key (the same schema the gateway's ``mcp-servers.yaml`` uses).
+``mcp_servers`` key (the schema of ``registry/generated/hermes/mcp-servers.local.yaml``).
 Running ``hermes mcp add`` is interactive -- it probes the server, lists its
 tools and prompts to enable/select -- so an idempotent setup script cannot use
 it. This helper does what ``hermes mcp add`` does to the config file, without

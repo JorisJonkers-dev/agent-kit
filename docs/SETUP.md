@@ -206,7 +206,7 @@ are reset on every run.
 | Client | Capture |
 |---|---|
 | Claude Code, Codex | **Recall automatic, saving deliberate** — Hindsight Coding Agents recalls at a session's first prompt; the agent saves with its `hindsight` or `memory-api` tools, by the memory policy. |
-| Hermes (laptop and in-cluster) | **Model-elective** — recall and retain only happen when the model calls a `memory-api` tool itself. |
+| Hermes (laptop) | **Model-elective** — recall and retain only happen when the model calls a `memory-api` tool itself. |
 | Mistral Vibe | **Model-elective** for now, through the same MCP servers. Vibe's hooks fire only around tools and after a turn (`pre_tool`, `post_tool`, `post_agent`), so automatic retain is possible but automatic recall at prompt start is not (fleet-infra#399). |
 
 All of them write into the same shared bank, `default` (the setup script pins
@@ -448,34 +448,28 @@ local Hermes**. Codex gets each server via `codex mcp add`; local Hermes reads
 `registry/generated/hermes/mcp-servers.local.yaml`) by
 `scripts/hermes-merge-mcp.py`.
 
-### Servers reached through a port-forward
+### The kubernetes server runs locally
 
-A server with a `workstation_connect` block, today only `kubernetes`, is a
-ClusterIP service with no ingress route. It is registered at a loopback URL
-(`http://127.0.0.1:18080/mcp`) that a `kubectl port-forward` publishes.
-[`installer/port-forward-agent.sh`](../installer/port-forward-agent.sh) keeps
-that forward up:
+`kubernetes` is `kubernetes-mcp-server` (an npm package, pinned, installed
+through the package proxy's 7-day cooldown) run on the workstation over stdio.
+The in-cluster server and the port-forward to it are retired (estate#316).
+Each agent starts [`installer/kubernetes-mcp-readonly`](../installer/kubernetes-mcp-readonly)
+(setup puts it on `PATH`), which:
 
-- **macOS**: a launchd user agent, `dev.jorisjonkers.agent-kit.port-forward.<name>`,
-  with `KeepAlive`. A bare `kubectl port-forward &` dies when the laptop
-  sleeps, the network changes or the pod restarts. After that the server drops
-  out of every session, and nothing reports it. launchd restarts the forward
-  whenever kubectl exits.
-- **Elsewhere**: a one-shot background forward, which is not kept alive.
+- takes the current kube context, or `AK_KUBE_CONTEXT`, which must be the
+  read-only context `workstation-kube.py` installs (`<cluster>`, for example
+  `personal`; ServiceAccount `<device>-ro`, view without Secrets). A context
+  ending in `-admin` or `-pf` is refused;
+- gives the server a throwaway kubeconfig holding that one context, so no tool
+  can switch to another, and deletes it when the client closes;
+- starts it with `read_only` and `disable_destructive` (the 0.1.x server takes
+  these as TOML options, not `--read-only` flags), Secrets denied, and only
+  the `core` toolset, because the `config` toolset prints the kubeconfig.
 
-The forward is pinned to the kube context that is current when setup runs, and
-it listens on `127.0.0.1` only. If you switch clusters, re-run setup to re-pin
-it.
-
-```bash
-launchctl print gui/$(id -u)/dev.jorisjonkers.agent-kit.port-forward.kubernetes   # state
-tail -f ~/Library/Logs/agent-kit/port-forward-kubernetes.log                      # kubectl output
-launchctl bootout gui/$(id -u)/dev.jorisjonkers.agent-kit.port-forward.kubernetes  # stop until next login
-rm ~/Library/LaunchAgents/dev.jorisjonkers.agent-kit.port-forward.kubernetes.plist # remove for good
-```
-
-If a forward started by hand already holds the port, setup warns. The agent
-retries every 10s and takes over once that forward exits.
+Switch clusters with `AK_KUBE_CONTEXT` or `kubectl config use-context`; no
+setup re-run is needed. Setup also removes the old port-forward launchd agent
+(`dev.jorisjonkers.agent-kit.port-forward.*`) and systemd user unit from a
+machine that has them.
 
 The GitHub MCP server comes from the `github` **plugin**, which manages its own
 credential. It reports `Authorization header is badly formatted` when that
@@ -671,7 +665,7 @@ retries, so Antigravity needs no restart.
 
 A server that needs no token is registered by URL: `n8n`, whose OAuth tokens
 Antigravity keeps in `~/.gemini/antigravity/mcp_oauth_tokens.json`, and
-`kubernetes`, at the loopback URL of the port-forward above.
+`kubernetes` is a local stdio command (see above).
 
 ### Where its configuration lives
 
@@ -870,7 +864,6 @@ prompts; only the seeding is gone.
 ## Related
 
 - [REGISTRY.md](REGISTRY.md) — adding a tool so every surface gets it
-- [HERMES.md](HERMES.md) — the same registry, applied to the cluster gateway
 - [MEMORY.md](MEMORY.md) — what replaced the knowledge base
 - [CLOUD.md](CLOUD.md) — the same setup in a Claude Code cloud environment
 

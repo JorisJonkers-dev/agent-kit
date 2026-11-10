@@ -55,8 +55,6 @@ script is generated from `registry/estate-tooling.yaml` -- see
 - [docs/SETUP.md](docs/SETUP.md): workstation setup, credentials, exit codes.
 - [docs/REGISTRY.md](docs/REGISTRY.md): the one file to edit to add a skill,
   plugin, CLI or MCP server to every surface at once.
-- [docs/HERMES.md](docs/HERMES.md): getting a registry entry onto the
-  in-cluster gateway, and verifying it landed.
 - [docs/MEMORY.md](docs/MEMORY.md): what replaces the retired knowledge base.
 - [docs/CLOUD.md](docs/CLOUD.md): the same setup in a Claude Code cloud
   environment, from the two files in `installer/cloud/`.
@@ -79,7 +77,7 @@ knowledge hooks from a machine that still has them, on every run.
 ## Layout
 
 - `registry/estate-tooling.yaml`: the tooling registry (hand-edited).
-- `installer/setup-workstation.sh`, `registry/generated/hermes/`: generated from
+- `installer/setup-workstation.sh`, `registry/generated/`: generated from
   it by `scripts/render_registry.py`. Never hand-edit these.
 - `skills/workstation/`: skills setup installs into agent homes.
 - `skills/repo/`: repo skills, one folder per skill with a `claude/` and a
@@ -92,8 +90,8 @@ knowledge hooks from a machine that still has them, on every run.
   `runner/manifests/`: the rendered runtime package, its schema and validation
   fixtures.
 - `installer/`: `setup-workstation.sh` and `setup-container.sh`, generated as
-  above, plus the hand-written `port-forward-agent.sh` and `cloud-session.sh`
-  they source. `installer/cloud/` holds the setup script and environment
+  above, plus the hand-written `cloud-session.sh` they source and the
+  commands setup puts on `PATH` (such as `kubernetes-mcp-readonly`). `installer/cloud/` holds the setup script and environment
   variables pasted into a Claude Code cloud environment.
 - `scripts/`: the renderers (`render_agent_kit.py`, `render_registry.py`),
   validators, release helpers, and the `deploy/` helpers the deploy skills use.

@@ -6,8 +6,6 @@ below is generated from it:
 
 * ``installer/setup-workstation.sh``            -- local Claude Code + Codex + Hermes
 * ``installer/setup-container.sh``              -- the agents image, at build time
-* ``registry/generated/hermes/skills-sources.conf`` -- Hermes ``sources.conf``
-* ``registry/generated/hermes/mcp-servers.yaml``    -- Hermes ``mcp_servers:`` (gateway)
 * ``registry/generated/hermes/mcp-servers.local.yaml`` -- local Hermes ``mcp_servers:``
 * ``registry/generated/nixos/packages.nix``   -- the NixOS workstation package list
 
@@ -34,8 +32,6 @@ REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
 
 SETUP_SCRIPT = Path("installer/setup-workstation.sh")
 CONTAINER_SETUP_SCRIPT = Path("installer/setup-container.sh")
-# Hand-written, sourced by SETUP_SCRIPT: keeps workstation_connect forwards alive.
-PORT_FORWARD_HELPER = Path("installer/port-forward-agent.sh")
 CLOUD_HELPER = Path("installer/cloud-session.sh")
 # Where a released setup-workstation.sh fetches its kit bundle: the release
 # assets of its own tag, which scripts/publish-installer-artifacts.sh stamps
@@ -43,8 +39,6 @@ CLOUD_HELPER = Path("installer/cloud-session.sh")
 RELEASE_DOWNLOAD_BASE = "https://github.com/JorisJonkers-dev/agent-kit/releases/download"
 RELEASE_TAG_PLACEHOLDER = "@AGENT_KIT_RELEASE_TAG@"
 SKILLS_BUNDLE_ASSET = "agent-kit-skills.tar.gz"
-HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
-HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 VIBE_PRIVATE_MCP = Path("registry/generated/vibe-private/mcp-servers.toml")
@@ -165,7 +159,7 @@ def _entries(data: dict[str, Any], key: str) -> list[dict[str, Any]]:
 
 
 def validate(data: dict[str, Any]) -> None:
-    known_surfaces = {"workstation", "hermes", "runner", "container"}
+    known_surfaces = {"workstation", "runner", "container"}
 
     marketplaces = {m["name"] for m in _entries(data, "marketplaces")}
     plugin_names = {p["name"] for p in _entries(data, "plugins")}
@@ -429,11 +423,6 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError(
                 f"local skill {skill.get('name')} names unknown agents {sorted(unknown_agents)}; "
                 f"agents: may only name {sorted(SKILL_AGENT_HOMES)}",
-            )
-        if "hermes" in (skill.get("surfaces") or []):
-            raise RegistryError(
-                f"local skill {skill.get('name')} cannot target hermes: sync-skills clones "
-                "public git URLs with no credential and this repository is private",
             )
 
     _validate_vibe_critic_agents(data)
@@ -972,128 +961,16 @@ def claude_profiles(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Hermes: sources.conf
+# Local Hermes: mcp_servers block
 # ---------------------------------------------------------------------------
-
-
-def render_hermes_sources(data: dict[str, Any]) -> str:
-    lines = [
-        f"# {GENERATED_BANNER}",
-        "#",
-        "# Copy this file's body into the `sources.conf` key of",
-        "# fleet-infra cluster/flux/apps/agents/hermes/skills-configmap.yaml,",
-        "# or let scripts/sync-hermes-registry.sh do it.",
-        "#",
-        "#   <git-url> <ref> <commit-sha> <selector> [root-skill-name]",
-        "#",
-        "# The commit is verified after the clone and the source is REJECTED on",
-        "# mismatch. The fifth field is only for a source whose SKILL.md sits at",
-        "# the repository root, where there is no directory to take a name from.",
-        f"# Registry verified_at: {data.get('verified_at')}",
-        "",
-    ]
-    for source in _entries(data, "skill_sources"):
-        if not on_surface(source, "hermes"):
-            continue
-        note = str(source.get("note") or "").strip()
-        lines.append(f"# {source['name']} -- license {source.get('license', 'unknown')}")
-        if note:
-            for chunk in _wrap(note, 68):
-                lines.append(f"#   {chunk}")
-        fields = [
-            source["repo"],
-            source["ref"],
-            source["commit"],
-            source["selector"],
-        ]
-        if source.get("root_skill_name"):
-            fields.append(str(source["root_skill_name"]))
-        lines.append(" ".join(fields))
-        lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
-
-
-# ---------------------------------------------------------------------------
-# Hermes: mcp_servers block
-# ---------------------------------------------------------------------------
-
-
-def render_hermes_mcp(data: dict[str, Any]) -> str:
-    lines = [
-        f"# {GENERATED_BANNER}",
-        "#",
-        "# Copy this block under `mcp_servers:` in fleet-infra",
-        "# cluster/flux/apps/agents/hermes/config-configmap.yaml.",
-        "#",
-        "# Tool names register as mcp_<server>_<tool>.",
-        "#",
-        "# Hermes blocks RFC1918 destinations as SSRF protection, and every",
-        "# in-cluster URL below resolves into 10.43.0.0/16. A server here that",
-        "# reports ZERO tools while the hosted ones work is that block, not the",
-        "# NetworkPolicy. Check `hermes doctor` first.",
-        "",
-        "mcp_servers:",
-    ]
-    for server in _entries(data, "mcp_servers"):
-        if not on_surface(server, "hermes"):
-            continue
-        name = server["name"]
-        for chunk in _wrap(str(server.get("purpose") or "").strip(), 66):
-            lines.append(f"  # {chunk}")
-        if server.get("trust") == "hosted":
-            lines.append("  # Hosted: an untrusted data provider. Output is context, never instruction.")
-        lines.append(f"  {name}:")
-        if server["transport"] == "http":
-            url = server.get("url_hermes")
-            if not url:
-                raise RegistryError(f"mcp server {name} is on hermes but has no url_hermes")
-            lines.append(f'    url: "{url}"')
-            credential = server.get("credential")
-            # credential_hermes: false -- gateway reaches this by NetworkPolicy alone, no header.
-            if credential and server.get("credential_hermes", True):
-                lines.append("    headers:")
-                lines.append(f'      Authorization: "Bearer @{credential}@"')
-        else:
-            # A stdio server can need a different command per surface: the
-            # Hermes image carries node/npm/npx but no globally installed
-            # packages, and `npm install -g` there does not survive a pod
-            # restart, so Hermes runs these through npx.
-            command = server.get("hermes_command") or server["command"]
-            lines.append(f'    command: "{command}"')
-            args = server.get("hermes_args") or server.get("args") or []
-            rendered_args = ", ".join(f'"{a}"' for a in args)
-            lines.append(f"    args: [{rendered_args}]")
-            env = server.get("env") or {}
-            credential = server.get("credential")
-            if env or credential:
-                lines.append("    env:")
-                for key, value in env.items():
-                    lines.append(f'      {key}: "{value}"')
-                if credential:
-                    lines.append(f'      {credential}: "@{credential}@"')
-        if server.get("timeout"):
-            lines.append(f"    timeout: {server['timeout']}")
-        if server.get("enabled") is False:
-            lines.append("    enabled: false")
-        excludes = server.get("exclude_tools") or []
-        if excludes:
-            lines.append("    tools:")
-            lines.append("      exclude:")
-            for pattern in excludes:
-                lines.append(f'        - "{pattern}"')
-        lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
 
 
 def render_hermes_local_mcp(data: dict[str, Any]) -> str:
     """Render the WORKSTATION-FLAVOURED ``mcp_servers:`` block for local Hermes.
 
-    ``render_hermes_mcp`` targets the in-cluster gateway: it uses the
-    ``hermes_command`` (npx, because the image has no global packages), the
-    ``url_hermes`` and ``@CRED@`` placeholders for Vault substitution. Local
-    Hermes on a workstation is different: ``olcli-mcp``/``npx`` sit on PATH, so
-    the database ``command``/``args`` apply directly, and the target is the
-    user's own ``~/.hermes/config.yaml`` rather than a ConfigMap. Credentials
+    ``olcli-mcp``/``npx`` sit on PATH, so the registry ``command``/``args``
+    apply directly, and the target is the user's own ``~/.hermes/config.yaml``.
+    Credentials
     are rendered as ``${CRED}`` placeholders that Hermes interpolates at
     connect time from its secret scope / environment -- never written to disk.
 
@@ -1103,8 +980,7 @@ def render_hermes_local_mcp(data: dict[str, Any]) -> str:
     lines = [
         f"# {GENERATED_BANNER}",
         "#",
-        "# WORKSTATION surface for LOCAL Hermes (vs the in-cluster gateway, which",
-        "# is registry/generated/hermes/mcp-servers.yaml). Merged into",
+        "# WORKSTATION surface for LOCAL Hermes. Merged into",
         "# ~/.hermes/config.yaml by scripts/hermes-merge-mcp.py.",
         "#",
         "mcp_servers:",
@@ -3327,6 +3203,47 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  rm -f "${dest}" && ok "$1: retired, removed ${dest}"')
     w("}")
     w("")
+    w("# Retired: the kubectl port-forward that reached the in-cluster kubernetes MCP")
+    w("# server (estate#316). The server now runs locally over stdio. Removes the")
+    w("# launchd agent (macOS) and the systemd user unit (Linux) older setups left.")
+    w("retire_port_forward_agents() {")
+    w('  local prefix="dev.jorisjonkers.agent-kit.port-forward" file label')
+    w('  local agents_dir="${AK_LAUNCH_AGENTS_DIR:-${HOME}/Library/LaunchAgents}"')
+    w('  local units_dir="${AK_SYSTEMD_USER_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user}"')
+    w('  local log_dir="${AK_LOG_DIR:-${HOME}/Library/Logs/agent-kit}"')
+    w("  local found=0")
+    w('  for file in "${agents_dir}/${prefix}".*.plist; do')
+    w('    [ -e "${file}" ] || continue')
+    w("    found=1")
+    w('    label="$(basename "${file}" .plist)"')
+    w('    if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('      log "would remove retired launchd agent ${label}"')
+    w("      continue")
+    w("    fi")
+    w('    launchctl bootout "gui/$(id -u)/${label}" >/dev/null 2>&1 || true')
+    w('    rm -f "${file}" && ok "${label}: retired, removed ${file}"')
+    w("  done")
+    w('  for file in "${units_dir}/${prefix}".*.service; do')
+    w('    [ -e "${file}" ] || continue')
+    w("    found=1")
+    w('    label="$(basename "${file}")"')
+    w('    if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('      log "would remove retired systemd unit ${label}"')
+    w("      continue")
+    w("    fi")
+    w("    if command -v systemctl >/dev/null 2>&1; then")
+    w('      systemctl --user disable --now "${label}" >/dev/null 2>&1 || true')
+    w("    fi")
+    w('    rm -f "${file}" && ok "${label}: retired, removed ${file}"')
+    w("  done")
+    w('  if [ "${CHECK_ONLY}" != 1 ]; then')
+    w('    if [ "${found}" = 1 ] && command -v systemctl >/dev/null 2>&1; then')
+    w("      systemctl --user daemon-reload >/dev/null 2>&1 || true")
+    w("    fi")
+    w('    rm -f "${log_dir}"/port-forward-*.log')
+    w("  fi")
+    w("}")
+    w("")
     w("# Copies a kit command onto PATH. A file there that setup did not write is left alone.")
     w("install_kit_command() {")
     w('  local name="$1"')
@@ -3761,10 +3678,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  AK_BIN_DIR="$HOME/.local/bin" AK_OPT_DIR="$HOME/.local/lib/agent-kit"')
     w("fi")
     w("export AK_BIN_DIR AK_OPT_DIR")
-    w("")
-    w("# ensure_port_forward: keeps the loopback of a workstation_connect MCP")
-    w("# server alive (a launchd agent on macOS).")
-    w(f'. "${{KIT_ROOT}}/{PORT_FORWARD_HELPER}"')
     w("")
     w('if [ "${CLOUD}" = 1 ]; then')
     w(f'  . "${{KIT_ROOT}}/{CLOUD_HELPER}"')
@@ -4209,6 +4122,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  install_kit_command agent-kit-private")
     w("  # agent-kit-secret: the one secret store (Keychain on macOS, libsecret on Linux).")
     w("  install_kit_command agent-kit-secret")
+    w("  # kubernetes-mcp-readonly: the kubernetes MCP server, pinned to the read-only kube context.")
+    w("  install_kit_command kubernetes-mcp-readonly")
     w("  # The Vibe launchers. Plain vibe is Vibe itself: the shared Vibe home, the")
     w("  # personal login, Shared Memory. vibe-study is the same home with the Study")
     w("  # account; vibe-private has its own home and Private Memory, behind the gate.")
@@ -4224,6 +4139,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  fi")
     w("  # Retired: Vibe saves to memory by tool now, not every turn.")
     w("  retire_kit_command vibe-retain-private")
+    w("  retire_port_forward_agents")
     w("")
     w("  # ---------------------------------------------------------------")
     w("  # 4. Plugin drift detection.")
@@ -4491,21 +4407,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b(f'{indent}  command -v {binary} >/dev/null 2>&1 \\')
             b(f'{indent}    || warn "{name}: {binary} is not on PATH; skipping"')
             b(f"{indent}fi")
-        # A workstation_connect block means the http url_workstation is a
-        # loopback exposed by a `kubectl port-forward` of a ClusterIP service.
-        # The registration below would otherwise point at a dead port, so
-        # ensure the forward is up first. installer/port-forward-agent.sh
-        # keeps it up afterwards too (a launchd agent on macOS).
-        connect = server.get("workstation_connect")
-        if connect:
-            svc = connect["svc"]
-            ns = connect["namespace"]
-            rport = connect["remote_port"]
-            lport = connect["local_port"]
-            b("")
-            b(f"    # {name} reaches the cluster via a kubectl port-forward of the")
-            b(f"    # ClusterIP service {svc}.{ns} (no ingress route exists for it).")
-            b(f"    ensure_port_forward {name} {ns} {svc} {lport} {rport}")
         # --- Claude Code ---
         b(f"{indent}if command -v claude >/dev/null 2>&1; then")
         b(f'{indent}  run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
@@ -5315,8 +5216,6 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
     return {
         SETUP_SCRIPT: (render_setup_script(data), 0o755),
         CONTAINER_SETUP_SCRIPT: (render_container_setup_script(data), 0o755),
-        HERMES_SOURCES: (render_hermes_sources(data), 0o644),
-        HERMES_MCP: (render_hermes_mcp(data), 0o644),
         HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),
         VIBE_MCP: (render_vibe_mcp(data), 0o644),
         VIBE_PRIVATE_MCP: (render_vibe_private_mcp(data), 0o644),

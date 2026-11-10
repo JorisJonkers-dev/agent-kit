@@ -2,13 +2,11 @@
 #
 # Everything an estate agent surface gets is declared here once:
 # CLIs, Claude Code marketplaces and plugins, language servers, vendored
-# third-party skills, and MCP servers. Three artifacts are GENERATED from
+# third-party skills, and MCP servers. The artifacts under installer/ and registry/generated/ are GENERATED from
 # it and must never be hand-edited:
 #
 #   installer/setup-workstation.sh            local machine (Claude Code + Codex)
 #   installer/setup-container.sh              the agents image, at build time
-#   registry/generated/hermes/skills-sources.conf   Hermes `sources.conf` body
-#   registry/generated/hermes/mcp-servers.yaml      Hermes `mcp_servers:` block
 #   registry/generated/nixos/packages.nix     the NixOS workstation package list
 #
 # Regenerate and verify:
@@ -19,7 +17,6 @@
 # `surfaces:` is what makes one edit reach every agent. Valid values:
 #
 #   workstation   this laptop: Claude Code and Codex through setup-workstation.sh
-#   hermes        the in-cluster Hermes gateway
 #   runner        the per-workspace agent-runner image
 #   container     the agents image, through setup-container.sh
 #
@@ -29,18 +26,15 @@
 # Container pins are exact; keep datasource, package, version in that order
 # (Renovate reads them as one match). See docs/REGISTRY.md.
 #
-# PINS ARE COMMIT SHAs, NOT TAG SHAs. Hermes' sync-skills init container
-# fetches each source by its commit (`git fetch --depth 1 <url> <sha>`) and
-# checks out FETCH_HEAD, so the sha alone decides what is installed. For a
-# tag ref it also requires the PEELED tag to equal the sha:
+# PINS ARE COMMIT SHAs, NOT TAG SHAs. A tag ref also requires the PEELED tag
+# to equal the sha:
 #
 #   git ls-remote https://github.com/<owner>/<repo> 'refs/tags/<tag>^{}'
 #
 # Every tag here is annotated, so the unpeeled `refs/tags/<tag>` is the TAG
 # OBJECT, not the commit: always pin the peeled value. A moved tag is a
 # supply-chain event, so the mismatch failing loudly is the point. For a
-# source with no usable tags, pin `main` plus the commit: upstream pushing to
-# `main` does not matter, because Hermes fetches the sha, not the branch tip.
+# source with no usable tags, pin `main` plus the commit.
 
 version: 1
 verified_at: 2026-09-09
@@ -387,8 +381,7 @@ clis:
     binary: hermes
     purpose: >-
       Nous Research Hermes Agent. Installed on the workstation for
-      `hermes doctor` / `hermes skills list` against a local config; the
-      in-cluster gateway runs the container image, not this.
+      `hermes doctor` / `hermes skills list` against a local config.
     latest: true
     surfaces: [workstation, container]
     # uv tool, not pip: hermes-agent needs >=3.11,<3.14 and a shared
@@ -400,7 +393,6 @@ clis:
     update: "uv tool upgrade --exclude-newer \"7 days\" 'hermes-agent[mcp]'"
     version_command: "hermes --version"
     requires: [uv]
-    # CLI only in the container; Agent Sessions use the in-cluster Hermes.
     container:
       datasource: pypi
       package: "hermes-agent"
@@ -473,7 +465,7 @@ clis:
       Overleaf CLI and MCP server. Points at the estate's self-hosted
       Overleaf, not overleaf.com.
     latest: true
-    surfaces: [workstation, hermes, container]
+    surfaces: [workstation, container]
     install: "npm install -g @aloth/olcli@latest"
     update: "npm install -g @aloth/olcli@latest"
     version_command: "olcli --version"
@@ -1123,10 +1115,6 @@ nixos_packages:
 # Multi-file skills living under `skills/` here, copied onto a surface
 # rather than fetched from an upstream. `agents:` picks the client homes.
 #
-# Hermes cannot take these: its sync-skills init container clones public
-# git URLs with no credential, and this repository is private. A
-# first-party skill reaches Hermes only by being published somewhere
-# public, or by being written into the hermes-skills ConfigMap by hand.
 # -------------------------------------------------------------------
 local_skills:
   - name: pr-composer
@@ -1571,8 +1559,7 @@ gold_band_instances:
 # -------------------------------------------------------------------
 # Vendored third-party skills.
 #
-# `selector` semantics, as implemented by Hermes' sync-skills init
-# container (fleet-infra bootstrap-configmap.yaml):
+# `selector` semantics:
 #
 #   *                 every SKILL.md the source publishes
 #   <category>/*      one directory level, e.g. engineering/*
@@ -1597,7 +1584,7 @@ skill_sources:
     # `deprecated`, `in-progress` and `personal` are left out: two are
     # unfinished and the third is upstream's own article/vault workflows.
     selector: "engineering/*,productivity/*,misc/*"
-    surfaces: [hermes]
+    surfaces: []
     note: >-
       The workstation gets these through the mattpocock-skills PLUGIN
       instead, so they are not vendored twice.
@@ -1609,11 +1596,10 @@ skill_sources:
     license: MIT
     license_notice: Copyright (c) 2025 Jesse Vincent
     selector: "*"
-    surfaces: [workstation, hermes]
+    surfaces: [workstation]
     note: >-
       No plugin wraps this one on the workstation, unlike caveman,
-      kubernetes-skill, drawio and mattpocock-skills. 14 skills reaching only
-      Hermes was exactly the gap agent-kit#40 closed.
+      kubernetes-skill, drawio and mattpocock-skills.
 
   - name: caveman
     repo: https://github.com/JuliusBrussee/caveman
@@ -1621,7 +1607,7 @@ skill_sources:
     commit: 8b0c1d3699b8d83e87fe4605b378da20c41555e0
     license: MIT
     selector: "*"
-    surfaces: [hermes]
+    surfaces: []
     note: >-
       The repo also publishes the same skills under
       plugins/caveman/skills/. Those sit outside <repo>/skills, so they are
@@ -1636,7 +1622,7 @@ skill_sources:
     # folder. sync-skills names it from the repository instead.
     selector: "*"
     root_skill_name: kubernetes
-    surfaces: [hermes]
+    surfaces: []
 
   - name: drawio
     repo: https://github.com/jgraph/drawio-mcp
@@ -1646,7 +1632,7 @@ skill_sources:
     # Published three times, once per host CLI. The explicit path is what
     # keeps the duplicate-name refusal from rejecting two of them.
     selector: "plugins/claude-code/skills/drawio"
-    surfaces: [hermes]
+    surfaces: []
 
   - name: overleaf
     repo: https://github.com/aloth/olcli
@@ -1655,7 +1641,7 @@ skill_sources:
     license: MIT
     selector: "*"
     root_skill_name: overleaf
-    surfaces: [hermes]
+    surfaces: []
     note: The CLI half is the olcli entry under `clis:`.
 
 # -------------------------------------------------------------------
@@ -1665,8 +1651,7 @@ skill_sources:
 # never instruction.
 #
 # `credential:` names the secret field, never the value. On the workstation
-# it resolves from the environment; on Hermes it is a placeholder the
-# seed-config init container substitutes from the Vault-backed Secret.
+# it resolves from the environment.
 # -------------------------------------------------------------------
 mcp_servers:
   - name: memory-api
@@ -1675,12 +1660,9 @@ mcp_servers:
     # Single-bank endpoint for the shared bank: hindsight-api.* routes nothing
     # else, and the tools there take no bank_id (fleet-infra#392).
     url_workstation: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
-    # Hermes too goes through the gated public host with its own token: a
-    # Service-DNS path cannot be scoped to one bank (fleet-infra#394).
-    url_hermes: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
     credential: HINDSIGHT_API_TOKEN
     timeout: 60
-    surfaces: [workstation, hermes, runner]
+    surfaces: [workstation, runner]
     trust: estate
     note: >-
       HINDSIGHT_API_TOKEN is a per-host token from auth-api's
@@ -1709,7 +1691,6 @@ mcp_servers:
     transport: http
     purpose: RETIRED. Basic Memory -- shared Markdown notes over the knowledge-vault.
     url_workstation: "https://memory-mcp.jorisjonkers.dev/mcp"
-    url_hermes: "http://basic-memory.knowledge-platform-system.svc.cluster.local:8000/mcp"
     credential: MEMORY_MCP_TOKEN
     timeout: 60
     enabled: false
@@ -1751,34 +1732,40 @@ mcp_servers:
       version: "2.100.0"
 
   - name: kubernetes
-    transport: http
-    purpose: Read-only cluster diagnostics through the server's own ClusterRole.
-    url_hermes: "http://kubernetes-mcp-server.agents-system.svc.cluster.local:8080/mcp"
-    # The workstation reaches the same read-only server via a `kubectl
-    # port-forward svc/kubernetes-mcp-server 18080:8080`, because the server
-    # is a ClusterIP service with no ingress route. The `url_workstation` is
-    # the loopback the forward publishes on; setup starts the forward before
-    # registering the server.
-    url_workstation: "http://127.0.0.1:18080/mcp"
-    workstation_connect:
-      svc: kubernetes-mcp-server
-      namespace: agents-system
-      remote_port: 8080
-      local_port: 18080
-    # A cloud VM has no kube context to port-forward through.
-    cloud: false
+    transport: stdio
+    purpose: Read-only cluster diagnostics, run locally against the workstation's read-only kube context.
+    # `kubernetes-mcp-server` runs on the workstation over stdio. The command
+    # is installer/kubernetes-mcp-readonly, which pins the server to the
+    # current read-only kube context (`<cluster>`, never `<cluster>-admin`),
+    # starts it read-only with destructive tools off and Secrets denied, and
+    # hands it a throwaway single-context kubeconfig. The read-only
+    # ServiceAccount (`<device>-ro`) has view without Secrets, so the cluster
+    # refuses writes as well. This replaces the in-cluster server and the
+    # port-forward to it (estate#316).
+    command: kubernetes-mcp-readonly
+    args: []
     timeout: 60
-    surfaces: [workstation, hermes, runner]
+    surfaces: [workstation]
+    # A cloud VM has no kube context.
+    cloud: false
     trust: estate
+    requires_binary: kubernetes-mcp-server
+    # A pinned global binary, the way n8n-mcp is; Renovate moves the pin.
+    # 0.1.x dropped the --read-only and --kubeconfig flags for TOML options,
+    # which the launcher writes.
+    install_pinned: true
+    pin:
+      datasource: npm
+      package: "kubernetes-mcp-server"
+      version: "0.1.1"
 
   - name: github
     transport: http
     purpose: Issues, branches, pull requests.
     url_workstation: "https://api.githubcopilot.com/mcp/"
-    url_hermes: "https://api.githubcopilot.com/mcp/"
     credential: GITHUB_PAT
     timeout: 120
-    surfaces: [hermes, runner]
+    surfaces: [runner]
     trust: hosted
     # The estate uses a prefixed label taxonomy (type:/area:/component:/
     # priority:/status:). Plain `bug` and `enhancement` do not exist in most
@@ -1830,10 +1817,9 @@ mcp_servers:
     transport: http
     purpose: Vuetify component API.
     url_workstation: "https://mcp.vuetifyjs.com/mcp"
-    url_hermes: "https://mcp.vuetifyjs.com/mcp"
     timeout: 60
     enabled: false
-    surfaces: [workstation, hermes]
+    surfaces: [workstation]
     trust: hosted
 
   - name: playwright
@@ -1841,13 +1827,10 @@ mcp_servers:
     purpose: Browser automation.
     command: playwright-mcp
     args: ["--headless", "--browser", "chromium"]
-    # The Hermes image has no global packages; see drawio.
-    hermes_command: npx
-    hermes_args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
     timeout: 120
     # A cold Chromium start can outlast Vibe's default.
     startup_timeout: 60
-    surfaces: [workstation, hermes, container]
+    surfaces: [workstation, container]
     trust: local
     requires_binary: playwright-mcp
     # The workstation installs the container pin below, so one Renovate match moves both.
@@ -1870,15 +1853,8 @@ mcp_servers:
     purpose: Diagram authoring and export.
     command: drawio-mcp
     args: []
-    # The Hermes image has node, npm, npx, uv and uvx but no globally
-    # installed packages, and a `npm install -g` would not survive a pod
-    # restart. Verified in-cluster: `npx --yes @aloth/olcli@latest --version`
-    # prints 0.12.0 from inside the hermes container. npx caches under HOME,
-    # which is on the PVC, so only the first start pays the download.
-    hermes_command: npx
-    hermes_args: ["-y", "@drawio/mcp@latest"]
     timeout: 60
-    surfaces: [workstation, hermes, container]
+    surfaces: [workstation, container]
     trust: local
     requires_binary: drawio-mcp
     install: "npm install -g @drawio/mcp@latest"
@@ -1897,10 +1873,8 @@ mcp_servers:
     command: olcli-mcp
     args: []
     # `@aloth/olcli` ships the olcli-mcp binary; npx runs it by package.
-    hermes_command: npx
-    hermes_args: ["-y", "--package=@aloth/olcli@latest", "olcli-mcp"]
     timeout: 120
-    surfaces: [workstation, hermes]
+    surfaces: [workstation]
     trust: estate
     requires_binary: olcli-mcp
     env:

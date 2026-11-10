@@ -229,12 +229,6 @@ def test_vibe_starts_playwright_from_the_pinned_binary_with_a_startup_timeout(tm
     assert server["startup_timeout_sec"] == 60.0
 
 
-def test_the_in_cluster_hermes_keeps_its_own_playwright(tmp_path: Path) -> None:
-    hermes = yaml.safe_load(render_registry.render_hermes_mcp(_registry()))["mcp_servers"]["playwright"]
-    assert hermes["command"] == "npx"
-    assert hermes["args"] == ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
-
-
 def test_one_renovate_match_moves_the_container_and_the_workstation_pin() -> None:
     renovate = json.loads((KIT_ROOT / ".github" / "renovate.json").read_text())
     manager = next(m for m in renovate["customManagers"] if "container tool pins" in m["description"])

@@ -47,7 +47,6 @@ def test_registry_points_at_the_private_bank_on_the_workstation_only() -> None:
 def test_no_hermes_or_container_output_carries_it() -> None:
     data = _data()
     for text in (
-        render_registry.render_hermes_mcp(data),
         render_registry.render_hermes_local_mcp(data),
         render_registry.render_container_setup_script(data),
     ):

@@ -4,15 +4,9 @@
 Each device has two ServiceAccounts per cluster, declared in GitOps
 (fleet-infra and ESA-Blueshell/website, ``cluster/flux/apps/core/workstation-access``):
 ``<device>-ro`` (view, no Secrets) and ``<device>-admin`` (cluster-admin).
-A cluster may also declare ``<device>-pf``, which can only port-forward to the
-services the agents need (fleet-infra, ``workstation-portforward`` Role); where
-it exists, ``install`` adds the ``<cluster>-pf`` context below, and where it does
-not, the cluster simply has no such context.
 ``install`` writes the device owner's ``~/.kube/config`` with
 
 * ``<cluster>``: the read-only token, inline. This is what agents use.
-* ``<cluster>-pf``: the port-forward-only token, inline. The scheduled
-  port-forward agent uses this, because the read-only account cannot port-forward.
 * ``<cluster>-admin``: an exec credential that runs ``sudo cat`` on a
   root-only file holding the admin token. Every use asks for the sudo
   password, and kubectl refuses it outside a terminal.
@@ -231,12 +225,6 @@ class Admin:
                     " cluster/flux/apps/core/workstation-access and let Flux apply it first."
                 )
 
-    def has_service_account(self, cluster: str, device: str, level: str) -> bool:
-        found = self.kubectl(
-            cluster, ["-n", NAMESPACE, "get", "serviceaccount", f"{device}-{level}", "-o", "name"], check=False
-        )
-        return found.returncode == 0
-
     def recreate_token_secret(self, cluster: str, device: str, level: str) -> None:
         name = f"{device}-{level}-token"
         self.kubectl(cluster, ["-n", NAMESPACE, "delete", "secret", name, "--ignore-not-found"])
@@ -303,15 +291,11 @@ def render_kubeconfig(
     layout: Layout,
     clusters: dict[str, dict[str, Any]],
     ro_tokens: dict[str, str],
-    pf_tokens: dict[str, str] | None = None,
 ) -> str:
-    """The device's kubeconfig: inline read-only and port-forward users, sudo-gated admin users."""
+    """The device's kubeconfig: inline read-only users, sudo-gated admin users."""
     users, contexts = [], []
-    pf_tokens = pf_tokens or {}
     for cluster in clusters:
         users.append({"name": f"{cluster}-{device}-ro", "user": {"token": ro_tokens[cluster]}})
-        if cluster in pf_tokens:
-            users.append({"name": f"{cluster}-{device}-pf", "user": {"token": pf_tokens[cluster]}})
         users.append(
             {
                 "name": f"{cluster}-{device}-admin",
@@ -327,10 +311,6 @@ def render_kubeconfig(
             }
         )
         contexts.append({"name": cluster, "context": {"cluster": cluster, "user": f"{cluster}-{device}-ro"}})
-        if cluster in pf_tokens:
-            contexts.append(
-                {"name": f"{cluster}-pf", "context": {"cluster": cluster, "user": f"{cluster}-{device}-pf"}}
-            )
         contexts.append(
             {"name": f"{cluster}-admin", "context": {"cluster": cluster, "user": f"{cluster}-{device}-admin"}}
         )
@@ -352,29 +332,20 @@ def install(args: argparse.Namespace) -> int:
     admin = Admin(os.path.expanduser(args.admin_kubeconfig), args.admin_context)
     clusters: dict[str, dict[str, Any]] = {}
     ro_tokens: dict[str, str] = {}
-    pf_tokens: dict[str, str] = {}
     for cluster in args.clusters:
         admin.require_service_accounts(cluster, args.device)
-        has_pf = admin.has_service_account(cluster, args.device, "pf")
-        if not has_pf:
-            print(
-                f"{cluster}: no {NAMESPACE}/{args.device}-pf ServiceAccount; no {cluster}-pf context, "
-                "port-forwards fall back to the current context"
-            )
-        for level in ("ro", "admin", *(("pf",) if has_pf else ())):
+        for level in ("ro", "admin"):
             if args.rotate:
                 admin.recreate_token_secret(cluster, args.device, level)
             else:
                 admin.ensure_token_secret(cluster, args.device, level)
         clusters[cluster] = admin.cluster_entry(cluster)
         ro_tokens[cluster] = admin.token(cluster, args.device, "ro")
-        if has_pf:
-            pf_tokens[cluster] = admin.token(cluster, args.device, "pf")
         target.write_root_file(
             admin_token_path(target.layout, cluster), exec_credential(admin.token(cluster, args.device, "admin"))
         )
         print(f"{cluster}: {args.device} tokens {'rotated and ' if args.rotate else ''}installed on {target.name}")
-    moved = target.install_kubeconfig(render_kubeconfig(args.device, target.layout, clusters, ro_tokens, pf_tokens))
+    moved = target.install_kubeconfig(render_kubeconfig(args.device, target.layout, clusters, ro_tokens))
     if moved:
         print(f"previous kubeconfig moved to {moved} (root only)")
     return report(target, args.device, args.clusters)
