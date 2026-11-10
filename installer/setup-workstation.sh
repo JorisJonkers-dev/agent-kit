@@ -2426,6 +2426,37 @@ fi
 report_antigravity_signin
 
 # -----------------------------------------------------------------
+# Gold Band v0.19.1 (987fc3e): built from an existing
+# clone through the crate gate, Linux only. No clone: skipped, said so.
+# -----------------------------------------------------------------
+gold_band_setup() {
+  local rc=0 mode=()
+  if [ "$(uname -s)" != Linux ]; then
+    log "gold band: the Mac build is not part of this step, skipped on $(uname -s)"
+    return 0
+  fi
+  if [ "${CLOUD}" = 1 ]; then
+    log "gold band: not built in a cloud session"
+    return 0
+  fi
+  if [ ! -e "${HOME}/Projects/diodeme/Gold-Band/.git" ]; then
+    log "gold band: skipped, no clone at ${HOME}/Projects/diodeme/Gold-Band"
+    return 0
+  fi
+  [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
+  GOLD_BAND_DIR="${HOME}/Projects/diodeme/Gold-Band" GOLD_BAND_REF="987fc3e298b15d725a7f0e9b609b0f77dba63a74" \
+    bash "${KIT_ROOT}/scripts/gold-band/build-linux.sh" "${mode[@]}" || rc=$?
+  if [ "${rc}" = 0 ]; then
+    ok "gold band: v0.19.1 (987fc3e) is handled, see the lines above"
+  elif [ "${rc}" = 3 ]; then
+    fail "gold band: a crate in its Cargo.lock is younger than 7 days or its age is unprovable; the build was stopped"
+  else
+    fail "gold band: the build failed (exit ${rc})"
+  fi
+}
+gold_band_setup
+
+# -----------------------------------------------------------------
 # 2. Claude Code profiles.
 #
 # A profile is a config root: CLAUDE_CONFIG_DIR moves credentials AND
