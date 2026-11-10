@@ -314,6 +314,16 @@ case "$1" in
   bootout) rm -f "$STATE/loaded" "$STATE/up" ;;
 esac
 """,
+    # systemctl --user keeps "active" state in a file; restart brings the port up.
+    "systemctl": """#!/bin/bash
+echo "$*" >> "$STATE/systemctl.log"
+[ -f "$STATE/no-systemd" ] && exit 1
+case "$2" in
+  is-active) [ -f "$STATE/active" ] ;;
+  restart) touch "$STATE/active" "$STATE/up" ;;
+esac
+exit 0
+""",
     "curl": '#!/bin/bash\n[ -f "$STATE/up" ]\n',
     "kubectl": """#!/bin/bash
 if [ "$1 $2" = "config current-context" ]; then echo prod-ctx; exit 0; fi
@@ -395,10 +405,56 @@ def test_check_mode_installs_nothing(tmp_path: Path) -> None:
     assert "bootstrap" not in (tmp_path / "state" / "launchctl.log").read_text()
 
 
-def test_other_os_falls_back_to_a_one_shot_forward(tmp_path: Path) -> None:
+def _unit(tmp_path: Path) -> Path:
+    return (
+        tmp_path / "home" / ".config" / "systemd" / "user"
+        / "dev.jorisjonkers.agent-kit.port-forward.kubernetes.service"
+    )
+
+
+def test_linux_installs_a_restarting_systemd_user_unit(tmp_path: Path) -> None:
     result = _run_helper(tmp_path, "Linux")
+    assert "FAIL" not in result.stdout and "warn" not in result.stdout, result.stdout + result.stderr
+    assert "ok kubernetes: systemd user unit" in result.stdout
+    text = _unit(tmp_path).read_text()
+    assert "Restart=always" in text and "WantedBy=default.target" in text
+    assert '"--context" "prod-ctx"' in text and '"svc/kubernetes-mcp-server"' in text
+    assert '"127.0.0.1" "18080:8080"' in text
+    assert f'Environment="KUBECONFIG={tmp_path / "kubeconfig"}"' in text
+    assert not _plist(tmp_path).exists()
+    calls = (tmp_path / "state" / "systemctl.log").read_text()
+    assert "--user daemon-reload" in calls and "--user restart" in calls
+
+
+def test_linux_rerun_leaves_an_active_unit_alone(tmp_path: Path) -> None:
+    _run_helper(tmp_path, "Linux")
+    log = tmp_path / "state" / "systemctl.log"
+    log.write_text("")
+    result = _run_helper(tmp_path, "Linux")
+    assert "already active" in result.stdout, result.stdout
+    assert "restart" not in log.read_text()
+
+
+def test_linux_check_mode_writes_no_unit(tmp_path: Path) -> None:
+    result = _run_helper(tmp_path, "Linux", check_only=1)
+    assert "would install systemd user unit" in result.stdout, result.stdout
+    assert not _unit(tmp_path).exists()
+
+
+def test_linux_without_a_systemd_session_reports_the_skip(tmp_path: Path) -> None:
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "no-systemd").touch()
+    result = _run_helper(tmp_path, "Linux")
+    assert "no systemd user session; skipped the user unit" in result.stdout, result.stdout
+    assert not _unit(tmp_path).exists()
+    assert not _plist(tmp_path).exists()
+
+
+def test_other_os_falls_back_to_a_one_shot_forward(tmp_path: Path) -> None:
+    result = _run_helper(tmp_path, "FreeBSD")
     assert "one-shot kubectl port-forward" in result.stdout, result.stdout
     assert not _plist(tmp_path).exists()
+    assert not _unit(tmp_path).exists()
     assert not (tmp_path / "state" / "launchctl.log").exists()
 
 
@@ -1118,3 +1174,71 @@ def test_a_retired_server_is_removed_from_every_local_agent() -> None:
         assert f"--remove {name}" in hermes_line
     assert "memory-mcp" not in render_registry.render_hermes_local_mcp(data)
     assert "memory-mcp" not in render_registry.render_hermes_mcp(data)
+
+
+# --- B2-07: LiteLLM routes and their budget caps ---------------------------
+
+
+def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
+    """One route per cheap agent id, with the three caps, rendered without any key value."""
+    table = json.loads((KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json").read_text())
+    caps = {route["agent"]: route["budget_eur"] for route in table["routes"]}
+    # openrouter is capped at 5, and local (the GPU workstation's server) is free: no cap.
+    assert caps == {"vibe": 255, "vibe-study": 128, "opencode-go": 60, "openrouter": 5, "local": None}
+    # Every route is its own provider wildcard, so any model the provider offers works.
+    assert {route["agent"]: route["models"] for route in table["routes"]} == {
+        agent: [f"{agent}/*"] for agent in caps
+    }
+    assert table["base_url"].startswith("https://") and table["key_header"] == "x-litellm-api-key"
+    # Names of variables only: the keys live in the secret store.
+    assert all(route["key_env"].startswith("LITELLM_") for route in table["routes"])
+
+
+def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
+    secrets = {e["env"]: e for e in _registry()["workstation_secrets"]}
+    for route in _registry()["litellm"]["routes"]:
+        entry = secrets[route["key_env"]]
+        assert entry["export"] is False and "check" not in entry and entry["unchecked"]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda d: d["litellm"]["routes"][0].update(budget_eur=0), "positive whole number"),
+        (lambda d: d["litellm"]["routes"][0].update(budget_eur="255"), "positive whole number"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["openrouter/x"]), "must sit beneath vibe/"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["*"]), "must sit beneath vibe/"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["vibe/zai-*"]), "only wildcard is vibe/"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["vibe/a b"]), "plain model names"),
+        (
+            lambda d: d["litellm"]["routes"][2].update(agent="opencode", models=["opencode/zen-model"]),
+            "no opencode Zen",
+        ),
+        (lambda d: d["litellm"]["routes"][4].update(budget_eur=-1), "positive whole number"),
+        (lambda d: d["litellm"]["routes"][1].update(agent="vibe"), "unique lower-case agent id"),
+        (lambda d: d["litellm"]["routes"][1].update(key_env="LITELLM_VIBE_KEY"), "unique variable name"),
+        (lambda d: d["litellm"]["routes"][0].update(key_env="NOT_A_SECRET"), "workstation secret"),
+        (lambda d: d["litellm"]["routes"][0].pop("models"), "takes exactly"),
+        (lambda d: d["litellm"].update(base_url="http://litellm.example/v1"), "https URL"),
+        (lambda d: d["litellm"].update(routes=[]), "at least one agent id"),
+        (lambda d: d["litellm"].update(key_header="X_Key"), "lower-case header"),
+        (lambda d: d["litellm"].update(edge_token_env="bad name"), "environment variable name"),
+        (lambda d: d["litellm"].update(edge_token_env="NOT_A_SECRET"), "must be a workstation secret"),
+        (lambda d: d.update(litellm="x"), "must be a mapping"),
+        (lambda d: d["litellm"]["routes"].append("x"), "must be a mapping"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["OpenRouter/x"]), "must sit beneath vibe/"),
+    ],
+)
+def test_a_bad_litellm_section_is_refused(mutate, message: str) -> None:
+    data = copy.deepcopy(_registry())
+    mutate(data)
+    with pytest.raises(render_registry.RegistryError, match=message):
+        render_registry.validate(data)
+
+
+def test_an_unchecked_secret_may_not_also_name_a_check() -> None:
+    data = copy.deepcopy(_registry())
+    entry = next(e for e in data["workstation_secrets"] if e["env"] == "LITELLM_VIBE_KEY")
+    entry["check"] = "https://litellm.jorisjonkers.dev/key/info"
+    with pytest.raises(render_registry.RegistryError, match="either checked or unchecked"):
+        render_registry.validate(data)

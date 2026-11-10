@@ -68,7 +68,9 @@ class Workstation:
     def _env(self, **extra: str) -> dict[str, str]:
         env = {k: v for k, v in os.environ.items()
                if k not in ("MEMORY_PRIVATE_TOKEN", "MISTRAL_API_KEY", "VIBE_HOME", "MISTRAL_STUDY_API_KEY")}
-        env.update({"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin", "FAKE_KEYCHAIN": str(self.keychain)},
+        env.update({"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin", "FAKE_KEYCHAIN": str(self.keychain),
+                    # The stand-in stands for macOS; the default is by platform.
+                    "AGENT_KIT_SECRETS_BACKEND": "keychain"},
                    **extra)
         return env
 

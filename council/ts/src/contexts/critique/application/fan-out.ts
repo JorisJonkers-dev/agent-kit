@@ -42,15 +42,16 @@ export interface FanOutResult {
  * first; only a finding it leaves to the orchestrator is checked for its
  * check id.
  */
-function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: PacketIndex, checks: CriticChecks): RunFinding {
-  const declared = checks.get(finding.raised_by[0] ?? '') ?? []
+function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: PacketIndex, critics: RaisingCritics): RunFinding {
+  const raiser = critics.get(finding.raised_by[0] ?? '')
+  const declared = raiser?.checks ?? []
   const rated = withDeclaredSeverity(finding, declared)
-  const preVerdict = checkEvidence(rated, stage, packet) ?? checkNamed(rated, declared) ?? checkRunnable(rated, declared, packet.tree)
+  const preVerdict = checkEvidence(rated, stage, packet, raiser?.role) ?? checkNamed(rated, declared) ?? checkRunnable(rated, declared, packet.tree)
   return preVerdict === undefined ? rated : { ...rated, pre_verdict: preVerdict }
 }
 
-/** The checks each critic's prompt declared, by critic id. */
-type CriticChecks = ReadonlyMap<string, readonly DeclaredCheck[]>
+/** Each critic's role and the checks its prompt declared, by critic id. */
+type RaisingCritics = ReadonlyMap<string, { readonly role: string; readonly checks: readonly DeclaredCheck[] }>
 
 /** Reads `findings.json`, the merged findings fan-out wrote, back for record. */
 export function parseFanOutResult(text: string): FanOutResult {
@@ -88,8 +89,8 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, tools, tripwire }, critic)))
     const outcomes = [...first, ...(await this.retries({ budget, manifest, tools, tripwire }, first))]
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
-    const checks: CriticChecks = new Map(outcomes.map((outcome) => [outcome.run.critic_id, outcome.checks]))
-    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet, checks))
+    const critics: RaisingCritics = new Map(outcomes.map(({ checks, run }) => [run.critic_id, { checks, role: run.role }]))
+    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet, critics))
     const ledgerWarnings = outcomes.flatMap((outcome) => (outcome.ledger_warning === undefined ? [] : [outcome.ledger_warning]))
     const skipped = skippedChecks(manifest.stage, packet, await this.checkSources(manifest))
     const result: FanOutResult = {

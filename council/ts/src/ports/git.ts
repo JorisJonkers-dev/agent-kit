@@ -106,6 +106,24 @@ export interface GitRevisionPort {
   mergeTree(cwd: string, ours: string, theirs: string): Promise<GitMergeTree>
 }
 
+/** The last commit that changed a path: its id and its committer date, ISO 8601. */
+export interface GitLastChange {
+  readonly commit: string
+  readonly date: string
+}
+
+/**
+ * Reading history: when a path last changed. The facts a decision record is
+ * checked against (that a file it names changed after the decision) come
+ * from here, never from a critic.
+ */
+export interface GitHistoryPort {
+  /** The newest commit reachable from HEAD that changed the path (a file or a directory); null when none did. */
+  lastChange(cwd: string, path: string): Promise<GitLastChange | null>
+  /** Every commit reachable from `revision` that changed the path, newest first: its id and committer date only, never an author or a message. */
+  fileCommits(cwd: string, revision: string, path: string): Promise<readonly GitLastChange[]>
+}
+
 /**
  * Reading the index: the staged change the next commit would record. A code
  * review of work not yet committed reviews a commit made of the index, and a

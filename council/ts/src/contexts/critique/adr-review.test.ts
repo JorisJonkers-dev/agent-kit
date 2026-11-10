@@ -33,21 +33,8 @@ const ADR_ONE =
   '# The nightly job frobnicates widgets\n\nWe frobnicate widgets in the nightly job only.\n'
 const ADR_TWO = '# Widgets keep a seven-second window\n\nThe window is seven seconds.\n'
 
-/**
- * The checks an ADR review's critics declare. The shipped roster is
- * `spec-redteam` with the `fidelity` and `integration` lenses until the
- * `adr-reviewer` role ships its own lenses, so these tests declare the ADR
- * checks they exercise on those two lenses in a private copy of the assets.
- */
-const ADR_CHECKS: NonNullable<NonNullable<Parameters<typeof harness>[0]>['assets']> = {
-  'lenses/fidelity.md': (shipped) =>
-    `${shipped}- \`no-decision-sentence\` (critical): No sentence states what was decided.\n- \`no-cost\` (major): No cost is named.\n- \`two-readings\` (major): Wording two readers would build differently.\n- \`no-confirmation\` (minor): Needs \`tree/\`. No check named.\n`,
-  'lenses/integration.md': (shipped) =>
-    `${shipped}- \`records-contradict\` (major): Two records contradict each other.\n`,
-}
-
 async function withAdrs(options: Parameters<typeof harness>[0] = {}): Promise<Harness> {
-  const h = await harness({ ...options, assets: { ...ADR_CHECKS, ...options.assets } })
+  const h = await harness(options)
   open.push(h)
   await h.commands.allow.run({ families: ['mistral'], repo: h.repo })
   await h.writeText(join(h.repo, 'docs', 'adr', '0001-nightly-job.md'), ADR_ONE)
@@ -294,7 +281,10 @@ describe('the review runs /flow lists', () => {
   }
 
   function adrFinding(id: string): Record<string, unknown> {
+    // A check of the adr-record lens the shipped Mistral Large critic carries, so the finding is no unknown-check hint.
     return finding({
+      category: 'omission',
+      check: 'no-decision-sentence',
       evidence: [ADR_QUOTE, GLOSSARY_QUOTE],
       id,
       location: `docs/adr/0001-nightly-job.md ${id}`,
@@ -533,6 +523,165 @@ describe('the depth of an adr-review run', () => {
 
     expect(run.depth).toBe('base')
     expect(run.depth_choice.chosen_by).toBe('argument')
+  })
+})
+
+describe('the adr-reviewer critics an adr-review run routes (#227)', () => {
+  const MISTRAL = 'c1-vibe-mistral-large'
+  const GEMINI = 'c2-agy-gemini-flash-high'
+
+  async function bothFamilies(
+    vibe: VibeScript = noFindings(),
+  ): Promise<{ h: Harness; run: PrepareResult }> {
+    const h = await withAdrs({
+      agyScripts: [agyFindings({ findings: [], no_findings_reason: 'Read every record.' })],
+      scripts: [vibe],
+    })
+    await h.commands.allow.run({ families: ['mistral', 'google'], repo: h.repo })
+    return { h, run: await prepared(h) }
+  }
+
+  async function promptOf(run: PrepareResult, critic: string): Promise<string> {
+    return readFile(join(run.run_dir, 'critics', critic, 'prompt.md'), 'utf8')
+  }
+
+  it('runs Mistral Large with adr-record and Gemini Flash with decision-log, both as adr-reviewer', async () => {
+    const { run } = await bothFamilies()
+
+    expect(run.critics.map((critic) => [critic.critic_id, critic.role, critic.lenses])).toEqual([
+      [MISTRAL, 'adr-reviewer', ['adr-record']],
+      [GEMINI, 'adr-reviewer', ['decision-log']],
+    ])
+  })
+
+  it("puts the adr-reviewer role and each critic's lens in its prompt", async () => {
+    const { h, run } = await bothFamilies()
+
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const mistral = await promptOf(run, MISTRAL)
+    const gemini = await promptOf(run, GEMINI)
+    for (const prompt of [mistral, gemini]) {
+      expect(prompt).toContain('# Role: ADR reviewer')
+      expect(prompt).toContain('- `not-significant`: ')
+      expect(prompt).toContain('Never argue that the chosen option is wrong')
+    }
+    expect(mistral).toContain('# Lens: ADR record')
+    expect(mistral).toContain('- `no-decision-sentence` (critical): ')
+    expect(mistral).not.toContain('# Lens: decision log')
+    expect(gemini).toContain('# Lens: decision log')
+    expect(gemini).toContain('- `records-contradict`: ')
+    expect(gemini).not.toContain('# Lens: ADR record')
+  })
+
+  it('tells a documents-only critic to skip the checks that need tree/ and to name each one it skipped', async () => {
+    const { h, run } = await bothFamilies()
+
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    // The asset text wraps, so the prompt is read with each run of whitespace as one space.
+    const flat = (text: string): string => text.replace(/\s+/g, ' ')
+    const mistral = flat(await promptOf(run, MISTRAL))
+    expect(run.packet_files.some((path) => path.startsWith('tree/'))).toBe(false)
+    expect(mistral).toContain('- `no-confirmation` (minor): Needs `tree/`.')
+    expect(mistral).toContain(
+      'When no listed file is under `tree/`, the packet holds documents and no code',
+    )
+    expect(mistral).toContain(
+      'skip every check marked "Needs `tree/`", and name each check you skipped, by its id',
+    )
+    expect(flat(await promptOf(run, GEMINI))).toContain(
+      'When the packet holds no glossary, report no glossary terms',
+    )
+  })
+
+  it("keeps no-confirmation's fixed severity with its needs-tree mark", async () => {
+    const raised = finding({
+      category: 'untestable',
+      check: 'no-confirmation',
+      evidence: [
+        {
+          file: 'artifact/docs/adr/0001-nightly-job.md',
+          kind: 'quote',
+          value: 'We frobnicate widgets in the nightly job only.',
+        },
+      ],
+      location: 'docs/adr/0001-nightly-job.md: no-confirmation',
+      severity: 'critical',
+    })
+    const { h, run } = await bothFamilies({
+      exitCode: 0,
+      exportJson: isolatedExport(),
+      stdout: vibeStdout(fenced({ findings: [raised] })),
+    })
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.findings[0]).toMatchObject({
+      check: 'no-confirmation',
+      declared_severity: 'minor',
+      severity: 'minor',
+    })
+  })
+
+  /** The severity each `adr-record` check fixes, as #227 sets them. */
+  const FIXED = [
+    ['no-decision-sentence', 'critical'],
+    ['no-rejected-alternative', 'major'],
+    ['no-cost', 'major'],
+    ['solution-in-context', 'minor'],
+    ['no-because', 'major'],
+    ['undated-claim', 'minor'],
+    ['no-confirmation', 'minor'],
+    ['two-choices', 'major'],
+    ['two-readings', 'major'],
+  ] as const
+
+  it("gives each adr-record finding its check's fixed severity, whatever the critic wrote", async () => {
+    const raised = FIXED.map(([check], n) =>
+      finding({
+        category: 'omission',
+        check,
+        evidence: [
+          {
+            file: 'artifact/docs/adr/0001-nightly-job.md',
+            kind: 'quote',
+            value: 'We frobnicate widgets in the nightly job only.',
+          },
+          { file: 'references/CONTEXT.md', kind: 'quote', value: DECISION_CANARY },
+        ],
+        id: `F${String(n + 1)}`,
+        location: `docs/adr/0001-nightly-job.md: ${check}`,
+        severity: n % 2 === 0 ? 'minor' : 'critical',
+      }),
+    )
+    const { h, run } = await bothFamilies({
+      exitCode: 0,
+      exportJson: isolatedExport(),
+      stdout: vibeStdout(fenced({ findings: raised })),
+    })
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(
+      result.findings.map((found) => [found.check, found.severity, found.declared_severity]),
+    ).toEqual(FIXED.map(([check, severity]) => [check, severity, severity]))
+  })
+
+  it("names the adr-reviewer role and both lenses in the stage's report", async () => {
+    const h = await withAdrs({
+      agyScripts: [agyFindings({ findings: [], no_findings_reason: 'Read every record.' })],
+      scripts: [noFindings()],
+    })
+    await h.commands.allow.run({ families: ['mistral', 'google'], repo: h.repo })
+    const run = await prepared(h)
+
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+    const recorded = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    const report = await readFile(recorded.report_path, 'utf8')
+    expect(report).toContain('- Role adr-reviewer, lenses adr-record')
+    expect(report).toContain('- Role adr-reviewer, lenses decision-log')
   })
 })
 
@@ -803,7 +952,7 @@ describe('a documents-only adr-review run (#249)', () => {
         '',
         '- `drift` (category): a decision that names code, config or a command, checked against the code',
         '- `stale` (category): an assumption, revisit condition or promised consequence, checked against the code',
-        '- `no-confirmation` (lens fidelity)',
+        '- `no-confirmation` (lens adr-record)',
         '',
       ].join('\n'),
     )
@@ -816,8 +965,8 @@ describe('a documents-only adr-review run (#249)', () => {
     const h = await withAdrs({
       agyScripts: [agyFindings({ findings: [], no_findings_reason: 'Read every record.' })],
       assets: {
-        'roles/spec-redteam.md': (shipped) =>
-          shipped.replace('- `ignored-failure`: ', '- `ignored-failure`: Needs `tree/`. '),
+        'roles/adr-reviewer.md': (shipped) =>
+          shipped.replace('- `not-significant`: ', '- `not-significant`: Needs `tree/`. '),
       },
       scripts: [
         {
@@ -828,9 +977,9 @@ describe('a documents-only adr-review run (#249)', () => {
               findings: [
                 finding({
                   category: 'structure',
-                  check: 'ignored-failure',
+                  check: 'not-significant',
                   evidence: [ONE],
-                  location: 'docs/adr/0001-nightly-job.md: ignored-failure',
+                  location: 'docs/adr/0001-nightly-job.md: not-significant',
                 }),
               ],
             }),
@@ -845,8 +994,8 @@ describe('a documents-only adr-review run (#249)', () => {
 
     expect(fanned.findings[0]?.pre_verdict?.reason_code).toBe('needs-tree')
     expect(fanned.skipped_checks).toContainEqual({
-      check: 'ignored-failure',
-      from: 'role spec-redteam',
+      check: 'not-significant',
+      from: 'role adr-reviewer',
     })
   })
 
@@ -901,7 +1050,7 @@ describe('the second round of an adr-review run (#249)', () => {
 
   /** A first round in which Mistral Large finds four records with no decision sentence, each critical by its check. */
   async function fourCriticals(): Promise<{ h: Harness; run: PrepareResult }> {
-    const h = await harness({ assets: ADR_CHECKS })
+    const h = await harness()
     open.push(h)
     await h.commands.allow.run({ families: ['mistral', 'zhipu'], repo: h.repo })
     for (const [n, record] of RECORDS.entries()) {

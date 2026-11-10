@@ -229,7 +229,10 @@ def _vibe_login(
     (home / ".vibe").mkdir(parents=True, exist_ok=True)
     if env_file:
         (home / ".vibe" / ".env").write_text(f"MISTRAL_API_KEY='{env_file}'\n")
-    return {"PATH": f"{bin_dir}:{os.environ['PATH']}", "PYTHONPATH": str(fake_keyring)}
+    env = {"PATH": f"{bin_dir}:{os.environ['PATH']}", "PYTHONPATH": str(fake_keyring)}
+    if keychain is not None:
+        env["AGENT_KIT_SECRETS_BACKEND"] = "keychain"  # the stand-in stands for macOS
+    return env
 
 
 def _sync_env(tmp_path: Path, url: str, extra: dict, *args: str) -> subprocess.CompletedProcess:

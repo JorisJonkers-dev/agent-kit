@@ -85,6 +85,7 @@ VIBE_NO_SIGNATURE = Path("scripts/vibe-no-commit-signature.py")
 # Removed from ${VIBE_HOME}/hooks.toml on every run.
 RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
+LITELLM_ROUTES = Path("registry/generated/litellm/routes.json")
 
 # The agents a local_skills entry's `agents:` may name, and the homes each one
 # reads skills from. A name outside this table is a registry typo, not a home.
@@ -299,6 +300,8 @@ def validate(data: dict[str, Any]) -> None:
         if "apiToken" in (ca.get("config") or {}):
             raise RegistryError("coding_agents.config may not hold apiToken; it is read from HINDSIGHT_API_TOKEN")
 
+    _validate_litellm(data)
+
     if proxy := data.get("package_proxy"):
         base = str(proxy.get("base") or "")
         if not base.startswith("https://") or base.endswith("/"):
@@ -387,7 +390,11 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError(
                 f"workstation secret {secret['env']}: login must be a plain command (letters, digits, - _ . / =)",
             )
-        if kinds != ["value"] and not str(secret.get("check") or "").startswith("https://"):
+        if kinds == ["paste"] and secret.get("unchecked"):
+            # A key the host cannot be asked about on its own: the reason is the record.
+            if secret.get("check"):
+                raise RegistryError(f"workstation secret {secret['env']} is either checked or unchecked, not both")
+        elif kinds != ["value"] and not str(secret.get("check") or "").startswith("https://"):
             raise RegistryError(f"workstation secret {secret['env']} needs an https check url")
         if "gate" in secret and (secret["gate"] != "passphrase" or secret.get("export") is not False):
             raise RegistryError(f"workstation secret {secret['env']}: gate must be passphrase, with export: false")
@@ -3430,9 +3437,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      "${name}" || warn "${name}: needs sign-in (codex): run codex mcp login ${name}"')
     w("  fi")
     w("  # Vibe keeps an MCP OAuth token in the keychain as mcp-oauth:<name>:tokens.")
-    w("  if command -v vibe >/dev/null 2>&1 && command -v security >/dev/null 2>&1; then")
-    w('    security find-generic-password -s ai.mistral.vibe -a "mcp-oauth:${name}:tokens" >/dev/null 2>&1 \\')
-    w('      || warn "${name}: needs sign-in (vibe): run /mcp login ${name} in Vibe"')
+    w("  # Only the macOS Keychain can be asked without reading the token; on Linux")
+    w("  # the check is skipped, and that is reported.")
+    w("  if command -v vibe >/dev/null 2>&1; then")
+    w('    if [ "$(uname -s)" = Darwin ] && command -v security >/dev/null 2>&1; then')
+    w('      security find-generic-password -s ai.mistral.vibe -a "mcp-oauth:${name}:tokens" >/dev/null 2>&1 \\')
+    w('        || warn "${name}: needs sign-in (vibe): run /mcp login ${name} in Vibe"')
+    w("    else")
+    w('      warn "${name}: vibe sign-in not checked: the check reads the macOS Keychain; skipped on $(uname -s)"')
+    w("    fi")
     w("  fi")
     w("}")
     w("")
@@ -5102,6 +5115,82 @@ def _has_plugin_pins(data: dict[str, Any]) -> bool:
     return bool(_entries(data, "marketplaces") and _entries(data, "plugins"))
 
 
+LITELLM_ENV = re.compile(r"[A-Z][A-Z0-9_]*")
+LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "models"}
+
+
+def _validate_litellm(data: dict[str, Any]) -> None:
+    """The LiteLLM section: one https base, one key per agent id, one cap each."""
+    section = data.get("litellm")
+    if section is None:
+        return
+    if not isinstance(section, dict):
+        raise RegistryError("litellm must be a mapping")
+    base = str(section.get("base_url") or "")
+    if not re.fullmatch(r"https://[A-Za-z0-9.-]+(/[A-Za-z0-9._-]+)*", base):
+        raise RegistryError("litellm.base_url must be an https URL with no trailing slash")
+    if not re.fullmatch(r"[a-z][a-z0-9-]*", str(section.get("key_header") or "")):
+        raise RegistryError("litellm.key_header must be a lower-case header name")
+    edge = str(section.get("edge_token_env") or "")
+    if not LITELLM_ENV.fullmatch(edge):
+        raise RegistryError("litellm.edge_token_env must be an environment variable name")
+    routes = section.get("routes") or []
+    if not routes:
+        raise RegistryError("litellm.routes must name at least one agent id")
+    secrets_by_env = {str(e["env"]): e for e in _entries(data, "workstation_secrets") if not e.get("retired")}
+    if secrets_by_env.get(edge, {}).get("export") is not False:
+        raise RegistryError(f"litellm.edge_token_env {edge} must be a workstation secret with export: false")
+    seen_agents: set[str] = set()
+    seen_envs: set[str] = set()
+    for route in routes:
+        if not isinstance(route, dict):
+            raise RegistryError("each litellm route must be a mapping")
+        agent = str(route.get("agent") or "")
+        if set(route) != LITELLM_ROUTE_KEYS:
+            raise RegistryError(f"litellm route {agent!r} takes exactly {sorted(LITELLM_ROUTE_KEYS)}")
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", agent) or agent in seen_agents:
+            raise RegistryError(f"litellm route agent {agent!r} must be a unique lower-case agent id")
+        seen_agents.add(agent)
+        key_env = str(route["key_env"])
+        if not LITELLM_ENV.fullmatch(key_env) or key_env in seen_envs or key_env == edge:
+            raise RegistryError(f"litellm route {agent}: key_env {key_env!r} must be a unique variable name")
+        seen_envs.add(key_env)
+        secret = secrets_by_env.get(key_env)
+        if secret is None or secret.get("export") is not False:
+            raise RegistryError(
+                f"litellm route {agent}: {key_env} must be a workstation secret with export: false, "
+                "so no shell holds the key",
+            )
+        budget = route["budget_eur"]
+        if budget is not None and (isinstance(budget, bool) or not isinstance(budget, int) or budget <= 0):
+            raise RegistryError(
+                f"litellm route {agent}: budget_eur must be a positive whole number, or null for no cap",
+            )
+        models = route["models"]
+        if not models or not all(isinstance(m, str) and re.fullmatch(r"[A-Za-z0-9._:/*-]+", m) for m in models):
+            raise RegistryError(f"litellm route {agent}: models must be plain model names")
+        for model in models:
+            if not model.startswith(f"{agent}/"):
+                raise RegistryError(f"litellm route {agent}: model {model!r} must sit beneath {agent}/")
+            if model.lower().startswith("opencode/"):
+                raise RegistryError(f"litellm route {agent}: no opencode Zen model")
+            if "*" in model and model != f"{agent}/*":
+                raise RegistryError(f"litellm route {agent}: the only wildcard is {agent}/*")
+
+
+def render_litellm_routes(data: dict[str, Any]) -> str:
+    """The route table the launchers and litellm-gate read: names and caps, never a key."""
+    section = data.get("litellm")
+    table = {
+        "generated_from": "registry/estate-tooling.yaml",
+        "base_url": section["base_url"],
+        "key_header": section["key_header"],
+        "edge_token_env": section["edge_token_env"],
+        "routes": section["routes"],
+    } if section else {"routes": []}
+    return json.dumps(table, indent=2) + "\n"
+
+
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
@@ -5119,6 +5208,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         ANTIGRAVITY_MCP: (render_antigravity_mcp(data), 0o644),
         OPENCODE_MCP: (render_opencode_mcp(data), 0o644),
         SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
+        LITELLM_ROUTES: (render_litellm_routes(data), 0o644),
         **{
             VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)
             for agent in vibe_critic_agents(data)

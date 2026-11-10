@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Six members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Seven members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -24,8 +24,11 @@ on the Linux workstation.
   instances and the overlay (docs/REGISTRY.md). `crates/code-nav-eval` runs the
   frozen code-navigation question set. `crates/workflow-lint` is the Gold Band
   workflow lint (below). `crates/ticket-sync` is the ticket sync tool (below);
-  it takes serde, serde_json and serde_yaml, each pinned exactly. New Rust joins
-  this workspace as a new member, never as its own Cargo project.
+  it takes serde, serde_json and serde_yaml, each pinned exactly.
+  `crates/litellm-gate` is the node-side check that a LiteLLM per-key budget is
+  not exhausted: one probe request through curl with the key on stdin, exit 1
+  when the budget is spent or the proxy cannot be asked. New Rust joins this
+  workspace as a new member, never as its own Cargo project.
 
 ```bash
 cargo build --manifest-path scripts/Cargo.toml
@@ -33,7 +36,7 @@ cargo test --manifest-path scripts/Cargo.toml
 ```
 
 The workspace aims at **100 percent line coverage** of every crate: the unit
-tests in `src/lib.rs` execute each of its lines, with one exception that each
+tests in `src/tests.rs` execute each of its lines, with one exception that each
 crate names in a comment beside the code, the single executable line in
 `src/main.rs` (the exit wrapper).
 
@@ -57,6 +60,42 @@ sits behind the `Client` trait: tests fake it, and the real client drives `gh ap
 Coverage is measured with `cargo llvm-cov` (or `-C instrument-coverage` with
 the matching `llvm-cov`); the unit tests cover every line except the one
 executable line in `src/main.rs`.
+
+## Measuring line coverage
+
+One command, from the repository root, on the Linux workstation and
+in CI (Linux only: one code-nav-eval test needs `/dev/full`):
+
+```bash
+scripts/coverage.sh
+```
+
+It builds the workspace tests with rustc's own `-C instrument-coverage`, merges
+the profiles with `llvm-profdata`, prints a per-file `llvm-cov` report and
+exits `1` below 100 percent line coverage (`COVERAGE_MIN_LINES` overrides the
+floor for experiments). `src/main.rs` files are excluded: they are the one
+exit-wrapper line each crate documents. Test code is excluded too, since the
+standard is coverage of production source: unit tests live in `src/tests.rs`
+(`#[cfg(test)] mod tests;`, or `src/<module>/tests.rs`) and integration tests
+under `tests/`, and any file matching `/tests.rs` or `/tests/` is ignored.
+Keep test helpers and stubs in those files, never in a production file. No crate is added, so the cooldown is
+untouched. It needs a rustup toolchain with the `llvm-tools` component (so
+`llvm-profdata` and `llvm-cov` come from the LLVM that built that `rustc`; the
+script refuses a mismatch) and `jq`.
+
+On NixOS take rustup, a linker and jq from nix, and install the toolchain once:
+
+```bash
+nix shell nixpkgs#rustup nixpkgs#gcc nixpkgs#jq --command \
+    rustup toolchain install stable --profile minimal -c llvm-tools
+nix shell nixpkgs#rustup nixpkgs#gcc nixpkgs#jq --command scripts/coverage.sh
+```
+
+Do not use the nixpkgs `rustc`/`cargo-llvm-cov`: the latter fails its own tests
+and the former's instrumented binaries segfault while writing the profile
+(checked with rustc 1.99.0 / LLVM 21.1.8), and nixpkgs LLVM tools reject the
+profiles of other rustc builds. CI runs the same script as the last step of the
+workspace workflow, after `rustup component add llvm-tools`.
 
 ## Cargo resolves through the gate
 

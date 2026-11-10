@@ -555,6 +555,28 @@ describe('GitCliAdapter commits', () => {
     expect(process.commands[0]?.args).toEqual(['ls-tree', '-r', '-z', '--full-tree', 'abc'])
   })
 
+  it('reads the commit and committer date that last changed a path, and null for a path no commit touched', async () => {
+    const answers = ['0123abc\x002026-03-04T05:06:07+01:00\n', '']
+    const process = new RecordingProcess(() => success(answers.shift() ?? ''))
+    const git = new GitCliAdapter(process)
+
+    expect(await git.lastChange('/r', 'src/a b.ts')).toEqual({ commit: '0123abc', date: '2026-03-04T05:06:07+01:00' })
+    expect(process.commands[0]?.args).toEqual(['--literal-pathspecs', 'log', '-1', '--format=%H%x00%cI', '--', 'src/a b.ts'])
+    expect(await git.lastChange('/r', 'gone.ts')).toBeNull()
+    await git.lastChange('/r', 'pages/[id].ts')
+    expect(process.commands[2]?.args).toEqual(['--literal-pathspecs', 'log', '-1', '--format=%H%x00%cI', '--', 'pages/[id].ts'])
+  })
+
+  it('lists every commit that changed a path, newest first, with its committer date only', async () => {
+    const process = new RecordingProcess(() => success('bbb\x002026-03-04T05:06:07+01:00\naaa\x002026-01-01T00:00:00+00:00\n'))
+
+    expect(await new GitCliAdapter(process).fileCommits('/r', 'abc', 'a.ts')).toEqual([
+      { commit: 'bbb', date: '2026-03-04T05:06:07+01:00' },
+      { commit: 'aaa', date: '2026-01-01T00:00:00+00:00' },
+    ])
+    expect(process.commands[0]?.args).toEqual(['--literal-pathspecs', 'log', '--format=%H%x00%cI', '--end-of-options', 'abc', '--', 'a.ts'])
+  })
+
   it('reads a file as it is in a commit', async () => {
     const process = new RecordingProcess(() => success('line one\n'))
 

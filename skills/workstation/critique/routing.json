@@ -170,6 +170,15 @@
           "time_limit_s": 240
         }
       ],
+      "adr": [
+        {
+          "client": "vibe-deepseek-flash",
+          "role": "adr-reviewer",
+          "lenses": ["adr-record"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        }
+      ],
       "deep": [
         {
           "client": "vibe-glm",
@@ -444,15 +453,15 @@
       "base": [
         {
           "client": "vibe-mistral-large",
-          "role": "spec-redteam",
-          "lenses": ["fidelity"],
+          "role": "adr-reviewer",
+          "lenses": ["adr-record"],
           "max_price_usd": 0.5,
           "time_limit_s": 600
         },
         {
           "client": "agy-gemini-flash-high",
-          "role": "spec-redteam",
-          "lenses": ["integration"],
+          "role": "adr-reviewer",
+          "lenses": ["decision-log"],
           "max_price_usd": 0.5,
           "time_limit_s": 600
         }
@@ -460,8 +469,8 @@
       "deep": [
         {
           "client": "vibe-glm",
-          "role": "spec-redteam",
-          "lenses": ["simplicity"],
+          "role": "adr-reviewer",
+          "lenses": ["adr-record", "decision-log"],
           "max_price_usd": 0.5,
           "time_limit_s": 600
         }

@@ -21,7 +21,7 @@ for a review of the decision records), which tells you how to drive it.
 | `critique.mjs` | the runner, one self-contained Node file built from `council/ts` |
 | `routing.json` | the default routing: which critic clients, roles and lenses each stage runs at base and deep depth, with their caps and depth signals, and risk triage's risk paths, size threshold and triage model |
 | `prompts/` | the shared preamble and the output contract every critic prompt carries, and the triage model's yes/no prompt |
-| `roles/` | the role bodies, such as `spec-redteam` |
+| `roles/` | the role bodies, such as `spec-redteam` and `adr-reviewer` |
 | `lenses/` | the lens files a role is combined with |
 | `schemas/finding.schema.json` | the finding format critics must return |
 

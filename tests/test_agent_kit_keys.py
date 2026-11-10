@@ -237,6 +237,8 @@ def home(tmp_path: Path, auth: tuple[Auth, str]) -> dict:
             "HOME": str(tmp_path / "home"),
             "SHELL": "/bin/zsh",
             "FAKE_KEYCHAIN": str(keychain),
+            # The stand-in stands for macOS; the default is by platform.
+            "AGENT_KIT_SECRETS_BACKEND": "keychain",
             "AGENT_KIT_TTY": str(_tty(tmp_path)),
             "AGENT_KIT_AUTH_URL": base,
         },
@@ -572,3 +574,15 @@ def test_requests_do_not_use_the_python_urllib_agent(home: dict, auth: tuple[Aut
     # The fake refuses Python-urllib like Cloudflare does; a full run still succeeds.
     assert _keys(home, "ensure", answers=ANSWERS).returncode == 0
     assert "HINDSIGHT_API_TOKEN" in _stored(home)
+
+
+def test_an_entry_without_a_check_url_is_unchecked_and_asks_no_host() -> None:
+    """A key whose host cannot be asked on its own (LiteLLM behind the sign-in edge) is stored as pasted."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("agent_kit_keys_under_test", KEYS)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    entry = {"env": "LITELLM_VIBE_KEY", "paste": "x", "unchecked": "behind the edge", "export": False}
+    assert module.check(entry, "sk-anything") == "unchecked"

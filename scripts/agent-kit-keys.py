@@ -110,7 +110,7 @@ class Store:
     @staticmethod
     def _backend() -> str:
         forced = os.environ.get("AGENT_KIT_SECRETS_BACKEND", "")
-        return forced or ("keychain" if shutil.which("security") else "libsecret")
+        return forced or ("keychain" if sys.platform == "darwin" and shutil.which("security") else "libsecret")
 
     def _run(self, command: str, var: str, value: str | None = None) -> subprocess.CompletedProcess[str]:
         # The value goes over stdin, never argv.
@@ -164,7 +164,9 @@ _CHECK = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(co
 
 
 def check(entry: dict[str, Any], value: str) -> str:
-    """ok, invalid, or unchecked (the host did not answer)."""
+    """ok, invalid, or unchecked (the host did not answer, or the entry says it cannot be asked)."""
+    if not entry.get("check"):
+        return "unchecked"
     get = entry.get("check_method") == "GET"
     request = urllib.request.Request(
         entry["check"], data=None if get else MCP_INIT, method="GET" if get else "POST",

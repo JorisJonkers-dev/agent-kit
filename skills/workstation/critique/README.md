@@ -26,12 +26,12 @@ offers it.
 
 | Stage | Skill | After / before | Base critics (role) | Deep adds | You get |
 |---|---|---|---|---|---|
-| `decisions` | `/review-grill` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`) | GLM | Up to seven questions about decision branches nobody opened |
+| `decisions` | `/review-grill` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`); with a decision record among the decisions, DeepSeek Flash (`adr-reviewer`, `adr-record`) too | GLM | Up to seven questions about decision branches nobody opened |
 | `spec` | `/review-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
 | `tickets` | `/review-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
 | `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
-| `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Large with `spec-redteam` and `fidelity`, Gemini Flash with `spec-redteam` and `integration` (until the `adr-reviewer` role ships) | GLM | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
+| `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Large with `adr-reviewer` and `adr-record`, Gemini Flash with `adr-reviewer` and `decision-log` | GLM with `adr-reviewer`, both lenses | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
 
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
@@ -46,6 +46,39 @@ review in `artifact/`, and the glossary and the other records in
 and skips the checks that need the code: `drift`, `stale` (against the
 code) and `adr-record`'s `no-confirmation`. A finding of one is a hint
 (`needs-tree`), and the report and the summary name each skipped check.
+The runner's own pre-check, `check/adrs.json`, covers the repository either
+way: for each record in force it lists `drifted` (a path or symbol named in
+backticks that the working tree no longer holds; a symbol needs an internal
+capital, as `computeWindow`, or a `path#symbol` anchor) and `stale` (the record's
+decision date, the first `YYYY-MM-DD` on a `Date:` line, a bold `**Date**:`
+or list-item date line, or a frontmatter `date:` key, precedes the last commit
+that changed a path it names). Both are
+computed facts for the owner, not errors: they never make `check-adrs`
+fail.
+`critique check-plan --json '{"plan": "refactoring-plan.md"}'` (or with `"repo"`,
+and `plan` relative to it) checks a refactoring plan and exits 3 while it breaks
+a rule. The plan holds the sections `## Goal`, `## Target`, `## Safety net`,
+`## Steps`, `## Not doing` and `## Open decisions`. Each step is a
+`### S01: <title>` heading followed by `- **Field**: value` lines: Kind,
+Technique, Anchor, Touches, Safety net, Main stays green because, Rollback,
+Transitional element, Blocked by, Done when. Kind is exactly one of
+characterize, tidy, structure, behaviour, expand, migrate, contract,
+remove-transitional. An anchor is a backticked path (a fact row, with an
+optional `#symbol`), an `ADR-0005` id, or `prerequisite-of:S02`. File paths
+appear only in anchors, in Touches and in the Goal's evidence. The report is
+`{ status, errors: [{ step?, rule, message }], stored_data_steps, steps, notes }`;
+`stored_data_steps` lists the migrate and contract steps that touch a table,
+column, migration, schema, database or stored data. Step size limits come from
+`ticket_size` in routing.
+`critique facts --json '{"repo": ..., "files": [...], "modules": [...]}'`
+prints the runner's deterministic facts at HEAD's commit (ADR-0004): for each
+named file its last commit, that commit's own committer date and its churn
+(how many commits changed it), and for each named module (a file path) its
+imports, fan-in, fan-out and instability over the named set, and the import
+cycles among them. It holds no author and no commit message, gives the same
+bytes for the same commit, sends nothing and writes nothing. A module in a
+language the scan does not know (TypeScript/JavaScript, Python, Kotlin, Go and
+Rust are) gets `language: null` and a note in `notes`.
 With it on, the packet is a **repository packet**: it adds `tree/`, a sample
 of the code chosen by rule (the files the records name, then the top
 hotspots, each module's entry file, then the files on each import cycle),
@@ -132,6 +165,15 @@ in `lenses/`.
 - `coupling`: modules that depend on another's internals, or share one decision.
 - `test-seams`: behaviour testable at a seam with no real database, network or clock.
 - `quality-scenarios`: quality claims with a stimulus and a number, and a check for each structural decision.
+- `adr-record`: one decision record at a time, for its content and never
+  its headings: a sentence that states the decision, a rejected alternative
+  with its reason, a cost, a context that does not presuppose the choice, a
+  "because" tied to a stated force, dated outside claims, a confirmation
+  where one is possible, one choice per record, and wording with only one
+  reading. Each check fixes its severity.
+- `decision-log`: the records as one log: records in force that contradict,
+  a replacement with no status or link, and references nothing resolves,
+  beyond what `check/adrs.json` reports. Documents only for now.
 
 ### Check ids
 
@@ -177,7 +219,31 @@ fixes none. The overridden severity is the one that counts, for a second
 round among others. Each ledger finding line carries `declared_severity`,
 `severity_override` and `severity_reason`, or `null`. Only the files on the
 validator's `DECLARES_SEVERITY` list may declare a severity; the list is
-empty until the `adr-record` lens and the `plan-critic` role ship.
+today the `adr-record` lens, and the `plan-critic` role once it ships.
+
+The `adr-record` checks and their fixed severities:
+
+- `no-decision-sentence` (critical): no sentence states what was decided.
+- `no-rejected-alternative` (major): no alternative turned down, or none
+  with the reason it lost.
+- `no-cost` (major): no cost, risk or negative consequence.
+- `solution-in-context` (minor): a context that already states or argues
+  for the choice.
+- `no-because` (major): a choice with no "because" tied to a stated force.
+- `undated-claim` (minor): a claim about the outside world with no date or
+  source.
+- `no-confirmation` (minor): a decision a test, lint rule or script could
+  check, with no such check named. Needs `tree/`: a documents-only run
+  skips it, and the critic and the report name it as skipped.
+- `two-choices` (major): two choices in one record that could be reversed
+  separately.
+- `two-readings` (major): wording two readers would build differently, with
+  both readings given.
+
+The `adr-reviewer` role never argues that a chosen option is wrong and never
+copy-edits; a record that fails the significance gate (`not-significant`) is
+at most minor.
+
 
 ## Refute round
 

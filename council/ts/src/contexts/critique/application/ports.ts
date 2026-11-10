@@ -1,4 +1,4 @@
-import type { ClockPort, EnvPort, GhPort, GitIndexPort, GitPort, GitRevisionPort } from '../../../ports/index.js'
+import type { ClockPort, EnvPort, GhPort, GitHistoryPort, GitIndexPort, GitPort, GitRevisionPort } from '../../../ports/index.js'
 import type { ModelGatewayLedgerPort, PlanLimitReading } from '../../model-gateway/index.js'
 import type { CriticFailure, CriticOutcome, CriticTokens } from '../domain/critic.js'
 import type { CriticToolset, SearchServerLaunch, ToolCall } from '../domain/critic-tools.js'
@@ -10,7 +10,7 @@ import type { AgyCriticClient, ClaudeCriticClient, ClientReadiness, CodexCriticC
  * what it reads, the commits a code stage freezes, and the index, which
  * holds a change before it is committed.
  */
-export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus' | 'currentBranch'> & GitRevisionPort & GitIndexPort
+export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus' | 'currentBranch'> & GitRevisionPort & GitIndexPort & GitHistoryPort
 
 /** What the critique reads from GitHub: council's gh port, narrowed to reading issues and their links. */
 export type CritiqueGhPort = Pick<GhPort, 'viewIssue' | 'subIssues' | 'blockedBy'>

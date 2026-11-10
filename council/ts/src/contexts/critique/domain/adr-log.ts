@@ -1,5 +1,6 @@
 import { posix } from 'node:path'
 
+import type { AdrDrift, AdrStale } from './adr-drift.js'
 import { inForce, recordStatus, withoutFences } from './decision-docs.js'
 
 /** Where an ADR review's packet holds the checker's report, settled before any critic reads the records. */
@@ -39,15 +40,26 @@ export interface AdrLink {
   readonly kind: 'supersede' | 'link'
 }
 
-export interface AdrCheck {
+/** What the checker reads off the log's text and its links alone. */
+export interface AdrStructure {
   readonly records: readonly AdrEntry[]
   readonly numbering: AdrNumbering
   readonly unknown_statuses: readonly { readonly record: string; readonly status: string }[]
   readonly unresolved_links: readonly AdrLink[]
   readonly cites_superseded: readonly { readonly record: string; readonly cites: string }[]
+  /** The paths of the records the log supersedes: marked so, replaced by a record in force, or naming a replacement. */
+  readonly superseded: readonly string[]
 }
 
-/** `failed` while the log holds any structural error; unnumbered files alone never fail it. */
+/** The structure, and what the working tree and its history say about the code the records name. */
+export interface AdrCheck extends AdrStructure {
+  /** Records in force that name a path or symbol the tree no longer holds; the owner's question, never an error. */
+  readonly drifted: readonly AdrDrift[]
+  /** Records in force whose decision date precedes the last change to a path they name; the owner's question, never an error. */
+  readonly stale: readonly AdrStale[]
+}
+
+/** `failed` while the log holds any structural error; unnumbered files alone never fail it, and neither do drifted or stale records. */
 export type AdrCheckStatus = 'passed' | 'failed'
 
 /** The status values a record may state, as Nygard and MADR name them. */
@@ -113,7 +125,7 @@ export function linkedPaths(sources: readonly AdrSource[]): readonly string[] {
 export function checkAdrLog(
   sources: readonly AdrSource[],
   existing: ReadonlySet<string>,
-): AdrCheck {
+): AdrStructure {
   const stated = sources.map(entry)
   const named = sources.map((source) => references(source))
   const numbers = new Set(
@@ -165,6 +177,7 @@ export function checkAdrLog(
     }),
     numbering: numbering(records),
     records,
+    superseded: [...superseded],
     unknown_statuses: records.flatMap((record) =>
       record.status === null || STATUSES.includes(record.status)
         ? []
@@ -178,7 +191,11 @@ export function checkAdrLog(
   }
 }
 
-export function adrCheckStatus(check: AdrCheck): AdrCheckStatus {
+/**
+ * `failed` for a structural error only. Drifted and stale records are listed
+ * in the report but never fail it: they are questions for the owner.
+ */
+export function adrCheckStatus(check: AdrStructure): AdrCheckStatus {
   const { numbering } = check
   const errors = [
     numbering.gaps,

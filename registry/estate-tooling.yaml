@@ -106,6 +106,38 @@ workstation_secrets:
     check: "https://api.mistral.ai/v1/models"
     check_method: GET
     export: false
+  # The LiteLLM virtual keys, one per cheap agent id (the `litellm` section).
+  # The owner makes each on the proxy with its max budget and pastes it here.
+  # No check: the proxy sits behind the sign-in edge, which wants a service
+  # token as the bearer, so the key cannot be tried on its own. litellm-gate
+  # is what proves a key works and has budget left.
+  # The auth-api service token the sign-in edge wants as the bearer in front of
+  # the proxy. Minted by hand while signed in (no LITELLM service in auth-api
+  # yet), pasted once; unchecked for the same reason as the keys below.
+  - env: LITELLM_EDGE_TOKEN
+    paste: "an auth-api service token that the edge accepts for litellm.jorisjonkers.dev"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the token
+    export: false
+  - env: LITELLM_VIBE_KEY
+    paste: "the LiteLLM virtual key for the vibe agent id, made on the proxy with a max budget of 255"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
+  - env: LITELLM_VIBE_STUDY_KEY
+    paste: "the LiteLLM virtual key for the vibe-study agent id, made on the proxy with a max budget of 128"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
+  - env: LITELLM_OPENCODE_GO_KEY
+    paste: "the LiteLLM virtual key for the opencode-go agent id, made on the proxy with a max budget of 60"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
+  - env: LITELLM_OPENROUTER_KEY
+    paste: "the LiteLLM virtual key for the openrouter agent id, made on the proxy with a max budget of 5"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
+  - env: LITELLM_LOCAL_KEY
+    paste: "the LiteLLM virtual key for the local agent id (the GPU workstation's model server), made on the proxy with no max budget"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
+    export: false
   # An API key made while signed in as a separate Outline user, not the
   # owner's own account: the key reads and writes exactly what that user can,
   # so the agent sees only the collections and documents shared with it.
@@ -120,6 +152,54 @@ workstation_secrets:
     paste: "Grimoire → Account → Access Tokens, a token with the scopes the agent may use"
     check: "https://grimoire.jorisjonkers.dev/mcp"
     export: true
+
+# -------------------------------------------------------------------
+# LiteLLM: the one proxy in the estate cluster the cheap agents' models are
+# reached through (spec #392, stories 96-98). Both machines use the same
+# proxy, so one budget per key holds across machines.
+#
+# Each route is one agent id's key: its own LiteLLM virtual key, with a hard
+# max budget (none for a free route) (LiteLLM's budget unit; the cap is spent against the number, see
+# docs/LITELLM.md). A spent key is refused by the proxy (HTTP 400,
+# budget_exceeded) and the node fails: litellm-gate turns that into exit 1.
+#
+# The proxy sits behind the estate sign-in (audience: authenticated), so a
+# request carries two credentials: an auth-api service token as the bearer
+# (`edge_token_env`, minted by hand: no LITELLM service exists in auth-api
+# yet) and the virtual key in `key_header`, which LiteLLM reads instead of
+# Authorization. The keys are pasted once into the one secret store
+# (workstation_secrets below), never written to a file in any repository.
+# -------------------------------------------------------------------
+litellm:
+  base_url: "https://litellm.jorisjonkers.dev/v1"
+  key_header: x-litellm-api-key
+  edge_token_env: LITELLM_EDGE_TOKEN
+  # `models` are the route's wildcard, or plain ids beneath its own `<agent>/` prefix: any model
+  # the provider offers works (the live catalogue in the litellm repository says which the
+  # account can use). `budget_eur: null` is no cap, for a free route.
+  routes:
+    - agent: vibe
+      key_env: LITELLM_VIBE_KEY
+      budget_eur: 255
+      models: ["vibe/*"]
+    - agent: vibe-study
+      key_env: LITELLM_VIBE_STUDY_KEY
+      budget_eur: 128
+      models: ["vibe-study/*"]
+    - agent: opencode-go
+      key_env: LITELLM_OPENCODE_GO_KEY
+      budget_eur: 60
+      models: ["opencode-go/*"]
+    # Mostly the `:free` ids; the cap covers the few paid ones.
+    - agent: openrouter
+      key_env: LITELLM_OPENROUTER_KEY
+      budget_eur: 5
+      models: ["openrouter/*"]
+    # The OpenAI-compatible model server on the GPU workstation: free, so no cap.
+    - agent: local
+      key_env: LITELLM_LOCAL_KEY
+      budget_eur: null
+      models: ["local/*"]
 
 # -------------------------------------------------------------------
 # The packages proxy.
@@ -379,7 +459,7 @@ clis:
     # Without Homebrew (a Linux machine) the install names the missing piece.
     install: >-
       if command -v brew >/dev/null 2>&1; then brew install opencode;
-      else echo "opencode: Homebrew is not on PATH; install it, or OpenCode 2, then re-run" >&2; fi
+      else echo "opencode: Homebrew is not on PATH; skipped (install Homebrew or OpenCode 2, then re-run)" >&2; fi
     # Only an OpenCode Homebrew installed is Homebrew's to upgrade.
     update: "! brew list --formula opencode >/dev/null 2>&1 || brew upgrade opencode"
     version_command: "opencode --version"
@@ -556,14 +636,14 @@ marketplaces:
   - name: claude-plugins-official
     repo: anthropics/claude-plugins-official
     ref: main
-    commit: ea10b213686c90bb1984b2016937310e05336cf3
+    commit: dceb15d50832e6adf380bedc26dde03d251324b9
     # Claude Code reserves this name for GitHub sources, so the pinned folder is
     # declared under another name and its plugins install as <plugin>@agent-kit-official.
     declare_as: agent-kit-official
   - name: caveman
     repo: JuliusBrussee/caveman
-    ref: v2.6.0
-    commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+    ref: v2.7.0
+    commit: 8b0c1d3699b8d83e87fe4605b378da20c41555e0
   - name: drawio
     repo: jgraph/drawio-mcp
     ref: main
@@ -575,7 +655,7 @@ marketplaces:
   - name: ai-software-architect
     repo: codenamev/ai-software-architect
     ref: main
-    commit: 3f030c1e3f1568e9509251d2c24290392cdcd4e1
+    commit: 73d6f9a63effc9aba948f5ea5a29fd73e65f547b
 
 # -------------------------------------------------------------------
 # Claude Code plugins.
@@ -1359,8 +1439,8 @@ skill_sources:
 
   - name: caveman
     repo: https://github.com/JuliusBrussee/caveman
-    ref: v2.6.0
-    commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+    ref: v2.7.0
+    commit: 8b0c1d3699b8d83e87fe4605b378da20c41555e0
     license: MIT
     selector: "*"
     surfaces: [hermes]
