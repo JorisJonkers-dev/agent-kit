@@ -473,6 +473,11 @@ def validate(data: dict[str, Any]) -> None:
                 f"not {package['group']!r}",
             )
     for server in _entries(data, "language_servers"):
+        if "nixos" in server and not NIXOS_ATTR.fullmatch(str(server["nixos"])):
+            raise RegistryError(
+                f"language server {server.get('plugin')}: nixos must be a nixpkgs attribute path, "
+                f"or nixos-modules#<name>, not {server['nixos']!r}",
+            )
         group = server.get("nixos_group")
         if group is None:
             continue

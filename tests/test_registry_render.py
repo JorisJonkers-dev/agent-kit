@@ -1259,6 +1259,15 @@ def test_a_bad_nixos_attribute_path_is_rejected() -> None:
         render_registry.validate(data)
 
 
+def test_a_bad_language_server_nixos_value_is_rejected() -> None:
+    """A language server's nixos value is written into Nix source too, so it is held to the same rule."""
+    data = _registry()
+    server = next(s for s in data["language_servers"] if s.get("nixos"))
+    server["nixos"] = 'gopls"; evil = "'
+    with pytest.raises(render_registry.RegistryError, match="nixpkgs attribute path"):
+        render_registry.validate(data)
+
+
 def test_an_unknown_nixos_group_is_rejected() -> None:
     data = _registry()
     data["nixos_packages"][0]["group"] = "editor"

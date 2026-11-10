@@ -16,13 +16,13 @@
 #
 # It returns { ok, failures, checked }: `ok` is false when any entry is
 # missing or does not evaluate, `failures` names each one as
-# "<group>/<attr>: missing" or "<group>/<attr>: does not evaluate", and
+# "<group>/<attr>: missing", "<group>/<attr>: not a package" or "<group>/<attr>: does not evaluate", and
 # `checked` counts the nixpkgs entries that were looked at. Pass `packagesFile`
 # to check a list other than the generated one.
 { nixpkgs, packagesFile ? ../registry/generated/nixos/packages.nix }:
 
 let
-  lib = nixpkgs.lib;
+  lib = pkgs.lib;
 
   pkgs = import nixpkgs {
     system = "x86_64-linux";
@@ -49,6 +49,7 @@ let
       evaluated = builtins.tryEval (builtins.seq value.drvPath true);
     in
     if value == null then [ "${label}: missing" ]
+    else if !(lib.isDerivation value) then [ "${label}: not a package" ]
     else if evaluated.success then [ ]
     else [ "${label}: does not evaluate" ];
 
