@@ -16,10 +16,10 @@ entries, reads every surface again and fails if a removed name is still there.
 
 Usage::
 
-    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py mcp \\
+    uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py mcp \\
         --keep PATH --claude-home DIR [--claude DIR ...] [--codex PATH] [--vibe PATH] [--vibe-private PATH] \\
         [--opencode PATH] --declared SURFACE=NAME,... --retired NAME,... [--private NAME,...] [--check]
-    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py plugins \\
+    uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py plugins \\
         --keep PATH --declared-markets NAME,... --declared-plugins ID,... \\
         --retired-markets NAME,... --retired-plugins ID,... [--check]
 """

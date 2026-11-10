@@ -194,7 +194,10 @@ def test_setup_syncs_after_merging_the_mcp_servers() -> None:
     fn = script[script.index("_vibe_models() {") :]
     fn = fn[: fn.index("\n}\n")]
     # keyring reads Vibe's key from the Secret Service on Linux.
-    sync = 'uv run --no-project --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py"'
+    sync = (
+        'uv run --no-project --exclude-newer "7 days" --with tomlkit --with keyring python '
+        '"${KIT_ROOT}/scripts/vibe-sync-models.py"'
+    )
     assert f'VIBE_HOME="${{home}}" {sync}' in fn
     assert '--config "${home}/config.toml"' in fn
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()

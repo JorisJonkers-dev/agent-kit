@@ -21,7 +21,8 @@ the next run. When the API cannot be read, the config is left as it was.
 
 Usage::
 
-    uv run --no-project --with tomlkit python scripts/vibe-sync-models.py --config <config.toml>
+    uv run --no-project --exclude-newer "7 days" --with tomlkit \\
+        python scripts/vibe-sync-models.py --config <config.toml>
 """
 
 from __future__ import annotations

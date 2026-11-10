@@ -1571,7 +1571,7 @@ def _no_agent_attribution_fns(w: Any) -> None:
     w('    log "would set include_commit_signature = false in ${home}/config.toml"')
     w("    return 0")
     w("  fi")
-    w(f'  uv run --no-project --with tomlkit python "${{KIT_ROOT}}/{VIBE_NO_SIGNATURE}" \\')
+    w(f'  uv run --no-project --exclude-newer "7 days" --with tomlkit python "${{KIT_ROOT}}/{VIBE_NO_SIGNATURE}" \\')
     w('    --config "${home}/config.toml" >/dev/null \\')
     w('    && ok "no Vibe commit signature in ${home}/config.toml" \\')
     w('    || fail "could not turn off the Vibe commit signature in ${home}/config.toml"')
@@ -1839,7 +1839,8 @@ def _converge_plugins(data: dict[str, Any], w: Any) -> None:
     w('    warn "uv is not on PATH; plugins not converged"')
     w("    return 0")
     w("  fi")
-    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" plugins \\')
+    w('  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
+        '"${KIT_ROOT}/scripts/converge.py" plugins \\')
     w(f'    "${{args[@]}}" --declared-markets {markets} \\')
     w(f"    --declared-plugins {','.join(declared_plugins(data))} \\")
     w(f"    --retired-markets {','.join(str(r['marketplace']) for r in retired)} \\")
@@ -1868,7 +1869,8 @@ def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w('    warn "uv is not on PATH; MCP servers not converged"')
     w("    return 0")
     w("  fi")
-    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \\')
+    w('  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
+        '"${KIT_ROOT}/scripts/converge.py" mcp \\')
     w('    "${args[@]}" \\')
     for surface in ("claude", "codex", "vibe", "vibe-private", "opencode"):
         w(f"    --declared {surface}={','.join(declared_servers(data, surface))} \\")
@@ -3257,7 +3259,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("_vibe_models() {")
     w('  local home="$1"')
     # keyring reads Vibe's key from the Secret Service on Linux.
-    sync = 'uv run --no-project --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py"'
+    sync = (
+        'uv run --no-project --exclude-newer "7 days" --with tomlkit --with keyring python '
+        '"${KIT_ROOT}/scripts/vibe-sync-models.py"'
+    )
     w(f'  if VIBE_HOME="${{home}}" {sync} \\')
     w('      --config "${home}/config.toml" --has-key; then')
     w(f'    VIBE_HOME="${{home}}" {sync} \\')
@@ -3271,7 +3276,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# The kit's hooks into one Vibe home; extra arguments are --remove NAME pairs.")
     w("_vibe_hooks() {")
     w('  local home="$1"; shift')
-    w('  uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    w('  uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
     w(f'    "${{KIT_ROOT}}/{VIBE_HOOKS}" --key hooks --config "${{home}}/hooks.toml" "$@" \\')
     w('    && ok "Vibe hooks merged (${home})" \\')
     w('    || fail "Vibe hooks merge failed (${home})"')
@@ -3300,7 +3305,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
     w('    log "would merge vibe-private MCP servers into ${VIBE_PRIVATE_HOME}/config.toml"')
     w("  else")
-    w('    uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    w('    uv run --no-project --exclude-newer "7 days" --with tomlkit python '
+        '"${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
     w(f'      "${{KIT_ROOT}}/{VIBE_PRIVATE_MCP}" --config "${{VIBE_PRIVATE_HOME}}/config.toml" \\')
     w('      && ok "vibe-private MCP servers merged" \\')
     w('      || fail "vibe-private MCP merge failed"')
@@ -4396,7 +4402,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         if server.get("auth") == "oauth":
             # `codex mcp add --url` starts the OAuth flow at once and waits for a
             # browser, so the helper writes the entry and codex reads it back.
-            b(f'{indent}  if run uv run --no-project --with tomlkit python '
+            b(f'{indent}  if run uv run --no-project --exclude-newer "7 days" --with tomlkit python '
               f'"${{KIT_ROOT}}/scripts/codex-add-url-mcp.py" '
               f'"${{CODEX_HOME:-${{HOME}}/.codex}}/config.toml" {name} {server["url_workstation"]} \\')
             b(f"{indent}    && run codex mcp get {name} >/dev/null; then")
@@ -4432,14 +4438,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("      if [ \"${CHECK_ONLY}\" = 1 ]; then")
     w("        log \"would merge local Hermes MCP servers\"")
     w("      else")
-    w("        uv run --no-project --with pyyaml python \"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
+    w("        uv run --no-project --exclude-newer \"7 days\" --with pyyaml python "
+        "\"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
     w(f"          \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" \\")
     w("          || fail \"local Hermes MCP merge failed\"")
     retired = retired_servers(data)
     if retired:
         # The merge only adds and replaces, so retired servers go in a separate pass.
         removes = " ".join(f"--remove {name}" for name in retired)
-        w("        uv run --no-project --with pyyaml python \"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
+        w("        uv run --no-project --exclude-newer \"7 days\" --with pyyaml python "
+            "\"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
         w(f"          \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" {removes} \\")
         w("          || fail \"local Hermes retired MCP cleanup failed\"")
     hermes_off_cloud = [
@@ -4450,7 +4458,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     if hermes_off_cloud:
         removes = " ".join(f"--remove {name}" for name in hermes_off_cloud)
         w('        if [ "${CLOUD}" = 1 ]; then')
-        w("          uv run --no-project --with pyyaml python \"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
+        w("          uv run --no-project --exclude-newer \"7 days\" --with pyyaml python "
+            "\"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
         w(f"            \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" {removes} \\")
         w("            || fail \"local Hermes MCP cleanup failed\"")
         w("        fi")
@@ -4471,7 +4480,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     if vibe_off_cloud:
         removes = " ".join(f"--remove {name}" for name in vibe_off_cloud)
         w(f'        [ "${{CLOUD}}" = 1 ] && vibe_remove+=({removes})')
-    w('        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    w('        uv run --no-project --exclude-newer "7 days" --with tomlkit python '
+        '"${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
     # A shared home from before the split still lists Private Memory: drop it.
     private_only = "".join(
         f" --remove {s['name']}" for s in _entries(data, "mcp_servers")
