@@ -447,15 +447,16 @@ $'registries\.jorisjonkers-packages|registry)\]'
 
 # pp_write_gradle writes Gradle's packages-proxy init script -- copied
 # from the estate's setup-java-gradle action, with only the token
-# source changed -- plus the packagesProxyToken Gradle property that
-# carries the key. The init script holds no key (its Kotlin reads the
-# token from the property or the environment at build time), so it is
-# written 0644 through a quoted heredoc (no shell expansion inside
-# it); gradle.properties holds the key and is written 0600 through
-# the merge helper, its key riding stdin -- a packagesProxyToken= line
-# outside the block refusing the merge outright. GRADLE_USER_HOME
-# counts only when it is set AND under the root; anything else falls
-# back to ROOT/.gradle, so the writer never writes outside its root.
+# source changed -- plus the packagesProxyToken Gradle property and the
+# wrapper proxy credentials that carry the key. The init script holds no
+# key (its Kotlin reads the token from the property or the environment at
+# build time), so it is written 0644 through a quoted heredoc (no shell
+# expansion inside it); gradle.properties holds the key and is written 0600
+# through the merge helper, its key riding stdin -- a packagesProxyToken=,
+# systemProp.gradle.wrapperUser= or systemProp.gradle.wrapperPassword= line
+# outside the block refusing the merge outright. GRADLE_USER_HOME counts only
+# when it is set AND under the root; anything else falls back to ROOT/.gradle,
+# so the writer never writes outside its root.
 pp_write_gradle() {
   local root="$1" key="$2"
   local gradle_home="${root}/.gradle"
@@ -547,12 +548,12 @@ KTS
   )
   chmod 644 "${init_script}"
   ok "packages proxy: ${init_script} is set up"
-  printf 'packagesProxyToken=%s\n' "${key}" \
+  printf 'packagesProxyToken=%s\nsystemProp.gradle.wrapperUser=packages\nsystemProp.gradle.wrapperPassword=%s\n' "${key}" "${key}" \
     | python3 "${helper}" "${gradle_props}" packages-proxy --mode 600 \
-      --refuse '^packagesProxyToken=' >/dev/null
+      --refuse '^(packagesProxyToken=|systemProp\.gradle\.wrapper(User|Password)=)' >/dev/null
   case $? in
     0) ok "packages proxy: ${gradle_props} is set up" ;;
-    3) warn "packages proxy: ${gradle_props} has its own packagesProxyToken, nothing written" ;;
+    3) warn "packages proxy: ${gradle_props} has its own proxy line, nothing written" ;;
     *) return 1 ;;
   esac
 }
