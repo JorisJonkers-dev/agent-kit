@@ -55,6 +55,15 @@ or list-item date line, or a frontmatter `date:` key, precedes the last commit
 that changed a path it names). Both are
 computed facts for the owner, not errors: they never make `check-adrs`
 fail.
+`critique facts --json '{"repo": ..., "files": [...], "modules": [...]}'`
+prints the runner's deterministic facts at HEAD's commit (ADR-0004): for each
+named file its last commit, that commit's own committer date and its churn
+(how many commits changed it), and for each named module (a file path) its
+imports, fan-in, fan-out and instability over the named set, and the import
+cycles among them. It holds no author and no commit message, gives the same
+bytes for the same commit, sends nothing and writes nothing. A module in a
+language the scan does not know (TypeScript/JavaScript, Python, Kotlin, Go and
+Rust are) gets `language: null` and a note in `notes`.
 With it on, the packet is a **repository packet**: it adds `tree/`, a sample
 of the code chosen by rule (the files the records name, then the top
 hotspots, each module's entry file, then the files on each import cycle),

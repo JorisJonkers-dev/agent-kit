@@ -3471,6 +3471,29 @@ The decision-log pre-check (agent-kit#226), the ADR review's counterpart of
   before any `tree/` or `facts/`. The prompt describes it as settled: build
   on it, never recompute it. agent-kit's own ADRs, with no status lines,
   pass.
+
+## What #479 settled
+
+Deterministic history and import-graph facts (agent-kit#479, ADR-0004):
+
+- **The command.** `critique facts` takes `{ "repo", "files"?, "modules"? }`
+  and prints `{ status: "reported", commit, history, modules, cycles, notes }`.
+  It resolves the repository as prepare does but sends nothing and writes
+  nothing; it is a local command. A repository with no commit is refused with
+  `no-commit`.
+- **History.** Per named file: `last_commit`, `last_date` (that commit's own
+  committer date, ISO 8601, never today's) and `churn` (commits that changed
+  the file). Authors and commit messages are never read.
+- **Code.** Per named module: `language`, `imports` (each raw specifier and the
+  tree file it resolves to, or null), `fan_in`, `fan_out` and `instability`
+  (fan_out / (fan_in + fan_out), null when both are 0) counted over the named
+  set only, and `cycles` among the named set. The scan is line oriented and
+  regex based for TypeScript/JavaScript, Python, Kotlin, Go and Rust; Go
+  package directories and Rust `use crate::` paths resolve to null. A file in
+  another language yields `language: null` and a line in `notes`.
+- **Determinism.** Files are read at the commit, inputs are sorted and
+  de-duplicated, so the same commit gives byte-identical output.
+
 ## What #249 settled
 
 The `/critique-adrs` skill and the `adr-review` stage's own rules
