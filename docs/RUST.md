@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Seventeen members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Nineteen members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -48,7 +48,9 @@ on the Linux workstation.
   wrapper that runs one gate command with a timeout and writes the gate report,
   and the read-only copier that verifies it. It takes no registry crate, only
   gold-band-report. `crates/coverage-gate` is the coverage gate (below), std
-  only. `crates/ci-wait` is the CI-wait gate (below); it takes
+  only. `crates/gold-band-findings` is the finding check node (below): it sorts
+  critic findings into kept and hints and takes only serde_json.
+  `crates/ci-wait` is the CI-wait gate (below); it takes
   serde_json and serde_yaml, each pinned exactly. New Rust joins this
   workspace as a new member, never as its own Cargo project.
 
@@ -514,6 +516,15 @@ coverage-gate --repo-dir DIR [--base REF] [--ignore TEXT]...
   listed.
 * The git, tool and file-system calls sit behind a `Host` trait: the unit
   tests fake it, and `RealHost` is exercised against a real git repository.
+
+## The Gold Band finding check
+
+`crates/gold-band-findings` is a library plus a CLI, `gold-band-findings check`;
+the flags, the rules and the exit codes are in [GOLD-BAND.md](GOLD-BAND.md). The
+schema check is written by hand over serde_json against
+`skills/workstation/critique/schemas/finding.schema.json`, so no schema crate
+joins the lockfile. The unit tests cover every library line; only `src/main.rs`
+is outside the coverage count.
 
 ## ci-wait
 

@@ -30,4 +30,5 @@ members = [
     "crates/gold-band-run-start",
     "crates/gold-band-gate",
     "crates/coverage-gate",
+    "crates/gold-band-findings",
 ]

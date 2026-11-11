@@ -1,0 +1,12 @@
+[package]
+name = "gold-band-findings"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The finding check shim: keeps only critic findings that validate against the finding schema and quote the diff or the ticket, and lists every other finding as a hint that is never sent back to the writer (issue #450)."
+
+# serde_json is the one dependency, pinned to the version the other members
+# share (older than the 7-day crate cooldown, docs/RUST.md); it adds no
+# registry version that scripts/Cargo.lock does not already hold.
+[dependencies]
+serde_json = "=1.0.154"
