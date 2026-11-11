@@ -47,7 +47,8 @@ on the Linux workstation.
   gold-band-report. `crates/gold-band-gate` is the gate shim (below): the
   wrapper that runs one gate command with a timeout and writes the gate report,
   and the read-only copier that verifies it. It takes no registry crate, only
-  gold-band-report. `crates/ci-wait` is the CI-wait gate (below); it takes
+  gold-band-report. `crates/coverage-gate` is the coverage gate (below), std
+  only. `crates/ci-wait` is the CI-wait gate (below); it takes
   serde_json and serde_yaml, each pinned exactly. New Rust joins this
   workspace as a new member, never as its own Cargo project.
 
@@ -475,6 +476,35 @@ tests fake it for every outcome, and the real host is exercised too (a real
 echo, exit code, signal death, hung command killed at the deadline, missing
 and non-executable command), so only `src/main.rs` is outside the coverage
 count. `tests/test_gold_band_gate.py` proves the shim headless.
+
+## coverage-gate
+
+`coverage-gate` fails unless every file a change touches has 100 percent line
+coverage. Workflow B runs it as the `gate-coverage` node through the gate shim
+(`gold-band-gate run ... -- coverage-gate --repo-dir DIR`), followed by the
+`copy-coverage` copier.
+
+```bash
+coverage-gate --repo-dir DIR [--base REF] [--ignore TEXT]...
+```
+
+* **The change.** The added, copied, modified, renamed and untracked files
+  between the merge base of `--base` (default `origin/main`) and the working
+  tree. An uncovered file the change did not touch never fails the gate.
+* **The tool** is the repository's own, looked for in `DIR` and one level
+  below it: `cargo llvm-cov` for a `Cargo.toml`, `npx vitest run --coverage`
+  for a `package.json` naming vitest, `pytest --cov` for a pyproject.toml,
+  pytest.ini, tox.ini or setup.cfg naming pytest-cov. Each writes an lcov
+  report, read by one parser. A repository with none of them is refused (exit
+  2) with a message naming the three.
+* **The verdict.** Exit 0 when every instrumented line of every changed file
+  ran (a changed file the report does not list, a language without a tool, or
+  a file `--ignore` names, is printed as not measured); exit 1 and one
+  `coverage-gate: FILE: uncovered lines N-M` line per file otherwise, or when
+  the tool itself fails; exit 2 for bad usage or a change that cannot be
+  listed.
+* The git, tool and file-system calls sit behind a `Host` trait: the unit
+  tests fake it, and `RealHost` is exercised against a real git repository.
 
 ## ci-wait
 
