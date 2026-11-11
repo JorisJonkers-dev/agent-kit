@@ -1,6 +1,7 @@
 //! Repository map: files and symbols ranked by how often they are referenced.
 //!
-//! Nothing is indexed: every call walks the files as they are now.
+//! Nothing is indexed: every call walks the files as they are now. The walk
+//! keeps paths only and reads each file twice, one text in memory at a time.
 //!
 //! **Reference.** A symbol's references are the whole-identifier occurrences
 //! of its name in every scanned file, minus the declarations of that name
@@ -63,28 +64,46 @@ pub fn map(scope: &[PathBuf], limit: usize) -> RepoMap {
 
 /// [`map`] with an explicit file cap.
 pub fn map_capped(scope: &[PathBuf], limit: usize, max_files: usize) -> RepoMap {
-    let mut texts: Vec<(PathBuf, String)> = Vec::new();
+    map_with(scope, limit, max_files, &mut read_text)
+}
+
+/// [`map`] reading each file through `read`. Memory stays at one file's text
+/// plus the symbol table: the walk keeps only paths, a first pass collects the
+/// declarations, and a second pass counts the declared names file by file.
+pub(crate) fn map_with(
+    scope: &[PathBuf],
+    limit: usize,
+    max_files: usize,
+    read: &mut dyn FnMut(&Path) -> Option<String>,
+) -> RepoMap {
+    let mut paths: Vec<PathBuf> = Vec::new();
     for path in scope {
-        visit(path, max_files + 1, &mut texts);
+        visit(path, max_files + 1, &mut paths);
     }
     // One file past the cap proves the walk left something out.
-    let walk_capped = texts.len() > max_files;
-    texts.truncate(max_files);
-    let mut words: HashMap<&str, usize> = HashMap::new();
+    let walk_capped = paths.len() > max_files;
+    paths.truncate(max_files);
+    let mut counts: HashMap<String, usize> = HashMap::new();
     let mut declared: HashMap<String, usize> = HashMap::new();
     let mut entries: Vec<Entry> = Vec::new();
-    for (path, text) in &texts {
-        for word in identifiers(text) {
-            *words.entry(word).or_insert(0) += 1;
-        }
-        for s in outline::symbols(text).into_iter().filter(|s| s.kind != "impl") {
+    for path in &paths {
+        let Some(text) = read(path) else { continue };
+        for s in outline::symbols(&text).into_iter().filter(|s| s.kind != "impl") {
             *declared.entry(s.name.clone()).or_insert(0) += 1;
+            counts.entry(s.name.clone()).or_insert(0);
             entries.push(Entry { path: path.clone(), line: s.line, kind: s.kind, name: s.name, refs: 0 });
         }
     }
+    for path in &paths {
+        let Some(text) = read(path) else { continue };
+        for word in identifiers(&text) {
+            if let Some(count) = counts.get_mut(word) {
+                *count += 1;
+            }
+        }
+    }
     for entry in &mut entries {
-        let seen = words.get(entry.name.as_str()).copied().unwrap_or(0);
-        entry.refs = seen.saturating_sub(declared[&entry.name]);
+        entry.refs = counts[&entry.name].saturating_sub(declared[&entry.name]);
     }
     let mut per_file: HashMap<&Path, FileEntry> = HashMap::new();
     for entry in &entries {
@@ -110,9 +129,14 @@ fn path_order(a: &Path, b: &Path) -> std::cmp::Ordering {
     a.components().count().cmp(&b.components().count()).then_with(|| a.cmp(b))
 }
 
-/// Read every admissible text file under `path` into `texts`, up to `max_files`.
-fn visit(path: &Path, max_files: usize, texts: &mut Vec<(PathBuf, String)>) {
-    if texts.len() >= max_files {
+/// The text of a file, or `None` when it cannot be read as UTF-8 text.
+fn read_text(path: &Path) -> Option<String> {
+    fs::read_to_string(path).ok().filter(|text| !text.contains('\0'))
+}
+
+/// Collect the admissible regular files under `path` into `files`, up to `max_files`.
+fn visit(path: &Path, max_files: usize, files: &mut Vec<PathBuf>) {
+    if files.len() >= max_files {
         return;
     }
     let Ok(meta) = fs::symlink_metadata(path) else { return };
@@ -128,14 +152,10 @@ fn visit(path: &Path, max_files: usize, texts: &mut Vec<(PathBuf, String)>) {
             if SKIPPED_DIRS.contains(&name.as_str()) || is_secret(Path::new(&name)) {
                 continue;
             }
-            visit(&child, max_files, texts);
+            visit(&child, max_files, files);
         }
     } else if meta.is_file() && meta.len() <= MAX_FILE_BYTES {
-        if let Ok(text) = fs::read_to_string(path) {
-            if !text.contains('\0') {
-                texts.push((path.to_path_buf(), text));
-            }
-        }
+        files.push(path.to_path_buf());
     }
 }
 

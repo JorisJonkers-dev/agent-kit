@@ -1003,3 +1003,19 @@ fn a_walk_that_hit_the_file_cap_says_so() {
     let none = map::RepoMap { symbols: vec![], total_symbols: 0, ..repo };
     assert_eq!(server::render_map(&none), "no symbols\nstopped after the file cap; narrow the path");
 }
+
+#[test]
+fn the_map_holds_one_file_text_at_a_time() {
+    let f = map_fixture();
+    write(&f.root.join("blob.rs"), "fn nul() {}\0");
+    let mut reads: Vec<String> = Vec::new();
+    let repo = map::map_with(std::slice::from_ref(&f.root), 10, 10, &mut |path| {
+        reads.push(path.file_name().unwrap().to_string_lossy().into_owned());
+        fs::read_to_string(path).ok().filter(|t| !t.contains('\0'))
+    });
+    // Four files, each read once per pass and handed back before the next
+    // read: the mapper keeps no text between reads, only the symbol table.
+    assert_eq!(reads, ["a.rs", "b.rs", "blob.rs", "core.rs", "a.rs", "b.rs", "blob.rs", "core.rs"]);
+    assert_eq!(repo.symbols[0].name, "parse");
+    assert_eq!(repo.total_files, 3);
+}
