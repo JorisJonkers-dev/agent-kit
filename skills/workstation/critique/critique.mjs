@@ -14061,7 +14061,10 @@ An error prints "status": "error" with its "code" and exits 1. A check that
 fails, such as check-tickets finding a dependency cycle or check-adrs a
 structural error in the decision log, check-rewrite a changed decision
 sentence or check-plan a rule of the plan format, prints
-"status": "failed" and exits 3. gate and session-start always exit 0; input
+"status": "failed" and exits 3. With --strict as the last argument, a refusal
+prints its result as usual and exits 4, so a Gold Band gate node that runs the
+command fails on it; without --strict a refusal exits 0. gate and
+session-start always exit 0; input
 they cannot read is allowed, and logged.
 
 hook runs one of ADR-0002's hooks on the agent's payload from stdin and
@@ -14071,6 +14074,7 @@ nothing. It always exits 0.
 search-server is the read-only MCP stdio server a Vibe critic searches its
 packet copy through (ADR-0006); the runner starts it, never the owner.
 `;
+var REFUSED_EXIT_CODE = 4;
 var FAILED_EXIT_CODE = 3;
 var HOOKS = {
   "critique-commit-gate": "commit",
@@ -14078,7 +14082,8 @@ var HOOKS = {
   "critique-session-start": "session-start"
 };
 async function runCritiqueCli(argv2, runtime) {
-  const [name, flag, value, ...rest] = argv2;
+  const strict = argv2.length > 1 && argv2[argv2.length - 1] === "--strict" && argv2[0] !== "hook";
+  const [name, flag, value, ...rest] = strict ? argv2.slice(0, -1) : argv2;
   if (name === "--help" || name === "-h") return { exitCode: 0, stderr: "", stdout: CRITIQUE_USAGE };
   if (name === "hook") {
     const hook = flag !== void 0 && value === void 0 && Object.hasOwn(HOOKS, flag) ? HOOKS[flag] : void 0;
@@ -14094,7 +14099,7 @@ async function runCritiqueCli(argv2, runtime) {
     const text = flag === "--json" ? value ?? "" : flag === "--input" ? await runtime.readFile(value ?? "") : await runtime.readStdin();
     const lenient = method === "gate" || method === "sessionStart";
     const result = await runtime.commands[method].run(lenient ? parseLeniently(text) : parseInput(text));
-    const exitCode = result.status === "failed" ? FAILED_EXIT_CODE : 0;
+    const exitCode = result.status === "failed" ? FAILED_EXIT_CODE : strict && result.status === "refused" ? REFUSED_EXIT_CODE : 0;
     return { exitCode, stderr: "", stdout: `${JSON.stringify(result, null, 2)}
 ` };
   } catch (error) {

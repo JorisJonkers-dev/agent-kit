@@ -125,6 +125,56 @@ fn workflow_b_ends_in_success_on_the_happy_path_and_in_failure_when_a_gate_fails
     assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
 }
 
+/// The critique stage templates over the runner (issue #458).
+const CRITIQUE_STAGES: [&str; 8] = [
+    "decisions",
+    "spec",
+    "tickets",
+    "ticket-review",
+    "feature-review",
+    "adr-review",
+    "decision-recovery",
+    "architecture-review",
+];
+
+#[test]
+fn every_critique_stage_template_ends_in_its_expected_state() {
+    let Some(gold_band) = gold_band() else { return };
+    for stage in CRITIQUE_STAGES {
+        let workflow = manifest_dir().join(format!(
+            "../../../installer/gold-band/workflows/critique-{stage}.json"
+        ));
+        let records = scratch(&format!("critique-{stage}"));
+        let output = prove(&workflow, &records, &[], &gold_band);
+        let stdout = text(&output.stdout);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{stage}: {stdout}\n{}",
+            text(&output.stderr)
+        );
+        assert!(
+            stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
+            "{stage}: {stdout}"
+        );
+        assert!(
+            stdout.contains("needs-human: expected exit 2, got 2 (paused/"),
+            "{stage}: {stdout}"
+        );
+        // A refused run-start (the allowlist refusal) and a refused runner
+        // command each end the run in failure, as does every other gate.
+        for step in ["start", "prepare", "fan-out", "refute", "record"] {
+            assert!(
+                stdout.contains(&format!(
+                    "gate-fail-critique-{stage}-{step}: expected exit 1, got 1 (completed/failure)"
+                )),
+                "{stage} {step}: {stdout}"
+            );
+        }
+        assert!(stdout.contains("gold-band-proof: passed"), "{stage}: {stdout}");
+    }
+}
+
 #[test]
 fn a_run_that_expects_success_from_a_failing_gate_fails_the_proof() {
     let Some(gold_band) = gold_band() else { return };

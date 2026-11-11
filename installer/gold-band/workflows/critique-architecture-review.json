@@ -1,0 +1,380 @@
+{
+  "workflow": {
+    "description": "The critique pipeline's stage for the architecture review (/review-architecture) as a Gold Band template over the critique runner (issue #458): a run-start node refuses the run when the repository rule or the family allowlist forbids a bound agent, then the runner's prepare, fan-out, refute and record each run as a gate node (the pinned gold-band-gate wrapper around one `critique <command> --strict`, where --strict turns a refusal into a failing exit status) followed by the read-only copier that verifies its report. The runner stays the executor, so the architecture critics keep its read-only tripwire, packet confinement, time limits and family allowlist; Gold Band only sequences the stages and pauses on the manual check when the orchestrator leaves a finding open. The orchestrator's verdict node sits between fan-out and refute.",
+    "version": "0.1",
+    "id": "critique-architecture-review",
+    "entry": "gate-critique-architecture-review-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-critique-architecture-review-start",
+        "executionSlotId": "slot-gate-critique-architecture-review-start",
+        "provider": "gate-critique-architecture-review-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for the architecture review (/review-architecture), which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-architecture-review-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-architecture-review-prepare",
+        "executionSlotId": "slot-gate-critique-architecture-review-prepare",
+        "provider": "gate-critique-architecture-review-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique prepare --strict` for the stage for the architecture review (/review-architecture) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-architecture-review-prepare-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-architecture-review-prepare",
+        "executionSlotId": "slot-copy-critique-architecture-review-prepare",
+        "provider": "copy-critique-architecture-review-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the prepare gate of the architecture review (/review-architecture) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-architecture-review-prepare-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-architecture-review-fan-out",
+        "executionSlotId": "slot-gate-critique-architecture-review-fan-out",
+        "provider": "gate-critique-architecture-review-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique fan-out --strict` for the stage for the architecture review (/review-architecture) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-architecture-review-fan-out-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-architecture-review-fan-out",
+        "executionSlotId": "slot-copy-critique-architecture-review-fan-out",
+        "provider": "copy-critique-architecture-review-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the fan-out gate of the architecture review (/review-architecture) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-architecture-review-fan-out-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "architecture-review-verdicts",
+        "executionSlotId": "slot-architecture-review-verdicts",
+        "provider": "vibe-study",
+        "model": "deepseek-v4-1-flash-1017",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the orchestrator of the architecture review (/review-architecture). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
+        "output": {
+          "kind": "json",
+          "artifact": "architecture-review-open-findings",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "architecture-review-needs-human",
+        "executionSlotId": "slot-architecture-review-needs-human",
+        "provider": "vibe-study",
+        "model": "deepseek-v4-1-flash-1017",
+        "profile": "pf-builtin-dev",
+        "goal": "Some finding of the architecture review (/review-architecture) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-architecture-review-refute",
+        "executionSlotId": "slot-gate-critique-architecture-review-refute",
+        "provider": "gate-critique-architecture-review-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique refute --strict` for the stage for the architecture review (/review-architecture) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-architecture-review-refute-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-architecture-review-refute",
+        "executionSlotId": "slot-copy-critique-architecture-review-refute",
+        "provider": "copy-critique-architecture-review-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the refute gate of the architecture review (/review-architecture) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-architecture-review-refute-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-architecture-review-record",
+        "executionSlotId": "slot-gate-critique-architecture-review-record",
+        "provider": "gate-critique-architecture-review-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique record --strict` for the stage for the architecture review (/review-architecture) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-architecture-review-record-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-architecture-review-record",
+        "executionSlotId": "slot-copy-critique-architecture-review-record",
+        "provider": "copy-critique-architecture-review-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the record gate of the architecture review (/review-architecture) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-architecture-review-record-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-critique-architecture-review-start",
+        "to": "gate-critique-architecture-review-prepare",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-architecture-review-prepare",
+        "to": "copy-critique-architecture-review-prepare",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-architecture-review-prepare",
+        "to": "gate-critique-architecture-review-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-architecture-review-fan-out",
+        "to": "copy-critique-architecture-review-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-architecture-review-fan-out",
+        "to": "architecture-review-verdicts",
+        "on": "success"
+      },
+      {
+        "from": "architecture-review-verdicts",
+        "to": "gate-critique-architecture-review-refute",
+        "on": "success"
+      },
+      {
+        "from": "architecture-review-verdicts",
+        "to": "architecture-review-needs-human",
+        "on": "failure"
+      },
+      {
+        "from": "architecture-review-needs-human",
+        "to": "gate-critique-architecture-review-refute",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-architecture-review-refute",
+        "to": "copy-critique-architecture-review-refute",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-architecture-review-refute",
+        "to": "gate-critique-architecture-review-record",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-architecture-review-record",
+        "to": "copy-critique-architecture-review-record",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-architecture-review-record",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-critique-architecture-review-start",
+        "agentId": "gate-critique-architecture-review-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-architecture-review-prepare",
+        "agentId": "gate-critique-architecture-review-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-architecture-review-prepare",
+        "agentId": "copy-critique-architecture-review-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-architecture-review-fan-out",
+        "agentId": "gate-critique-architecture-review-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-architecture-review-fan-out",
+        "agentId": "copy-critique-architecture-review-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-architecture-review-verdicts",
+        "agentId": "vibe-study",
+        "modelId": "deepseek-v4-1-flash-1017"
+      },
+      {
+        "executionSlotId": "slot-architecture-review-needs-human",
+        "agentId": "vibe-study",
+        "modelId": "deepseek-v4-1-flash-1017"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-architecture-review-refute",
+        "agentId": "gate-critique-architecture-review-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-architecture-review-refute",
+        "agentId": "copy-critique-architecture-review-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-architecture-review-record",
+        "agentId": "gate-critique-architecture-review-record",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-architecture-review-record",
+        "agentId": "copy-critique-architecture-review-record",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}
