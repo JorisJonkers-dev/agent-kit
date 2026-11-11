@@ -119,6 +119,48 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
 * Nothing is written while the desktop app runs (setup stops and says so), and
   a machine without Gold Band gets no settings file. `--check` only reports.
 
+## Skill sets per agent id
+
+An agent can be given its own set of skills. `gold_band.skill_sets` in
+`registry/estate-tooling.yaml` names each set and the local skills it holds, and
+an agent names one with `skill_set`:
+
+```yaml
+gold_band:
+  skill_sets:            # name -> list of local skill names
+    estate: [estate-bootstrap, estate-rollback]
+  agents:
+    - id: opencode
+      skill_set: estate  # registry-only field, never written to settings.json
+```
+
+* A skill name must be a `name` in the registry's top-level `local_skills` list;
+  its source is that entry's `path` under the kit, a directory holding
+  `SKILL.md`. `skill_set` is registry-only: it is never written to
+  `settings.json`.
+* Setup builds ONE directory per agent id that names a set, at
+  `<settings.json's directory>/skill-sets/<agent id>/` (`--skills-root` moves
+  it), holding exactly that set's skills, each a verbatim copy of the skill
+  directory under the kit. Skills not in the set are removed, changed files are
+  rewritten, missing ones are added, and an up-to-date directory is not touched.
+  Directories are created `0o700`, and a symlink is copied as a symlink.
+* Nothing is shared: the agent's entry gets `primaryAgentDir` set to the
+  absolute path of its own directory and `compatibleAgentDirs` set to `[]`. An
+  agent that names a set may not also declare `primaryAgentDir`,
+  `projectPrimaryAgentDir` or `compatibleAgentDirs`.
+* A directory under the skills root for an id that is not installed with a set
+  is removed, unless the id is skipped (its binary is missing, so its existing
+  directory stays) or the keep file names it. Only direct children of the skills
+  root are ever removed.
+* `--check` reports `added skills <id>`, `changed skills <id>` and
+  `removed skills <id>` and writes nothing; a normal run prints the same lines
+  after doing the work. The skill directories are written before
+  `settings.json`, so an unchanged agent map never skips them.
+* A `skill_set` that is not a string or names an undeclared set, a `skill_sets`
+  value that is not a list of strings, a duplicate skill, a skill that is not in
+  `local_skills`, a skill source without `SKILL.md` and a set name that is not a
+  Gold Band id are all refused before anything is written.
+
 ## The run-start shim
 
 Every Gold Band workflow opens with a cheap, read-only node that runs one

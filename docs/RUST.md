@@ -219,6 +219,11 @@ without its limit. The tests run without root and need a kernel with Landlock
 ABI 3. On macOS the `sandbox-exec` backend is not built yet, so a limited level
 is refused there.
 
+For an id that names a `skill_set`, `run` also exports `AGENT_KIT_SKILL_SET`
+with that name and `AGENT_KIT_SKILLS_DIR` with the directory setup builds for
+it, `<GOLD_BAND_HOME or $HOME/.gold-band>/skill-sets/<id>`; an id without one
+exports neither.
+
 ## build-tracker
 
 `build-tracker` is the port of the build tracker the `/flow` skill drives

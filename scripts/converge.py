@@ -16,7 +16,9 @@ which REPLACES the app's built-in agent list rather than merging with it. The
 map is made to hold exactly the registry's declared agents that are installed
 plus the kept ones; a declared agent whose ``binary`` is not on PATH is skipped
 and reported, and its existing entry is left alone. Codex ids and the retired
-agents go even when the keep file names them.
+agents go even when the keep file names them. An agent that names a
+``skill_set`` also gets one skill directory of its own, holding exactly that
+set's skills, and its entry points at it.
 
 ``gold-band-roles``: the ``context/profiles`` directory of the same instance,
 one Markdown profile per role the registry declares, rendered from the critique
@@ -37,7 +39,7 @@ Usage::
         --keep PATH --declared-markets NAME,... --declared-plugins ID,... \\
         --retired-markets NAME,... --retired-plugins ID,... [--check]
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
-        --keep PATH [--settings PATH] [--registry PATH] [--check]
+        --keep PATH [--settings PATH] [--registry PATH] [--kit DIR] [--skills-root DIR] [--check]
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py \\
         gold-band-roles --keep PATH [--profiles DIR] [--registry PATH] [--critique DIR] [--closing PATH] [--check]
 """
@@ -80,6 +82,7 @@ GOLD_BAND_PROMPT_DELIVERY = ("none", "meta-append")
 GOLD_BAND_AGENT_FIELDS = (
     "id",
     "binary",
+    "skill_set",
     "adapter",
     "icon",
     "primaryAgentDir",
@@ -89,6 +92,9 @@ GOLD_BAND_AGENT_FIELDS = (
     "externalSessionSyncSupported",
     "externalSessionSyncEnabled",
 )
+# An agent that names a skill set gets its own directory as its primary agent
+# directory, so it may not also declare one of these.
+GOLD_BAND_SKILL_SET_REPLACES = ("primaryAgentDir", "projectPrimaryAgentDir", "compatibleAgentDirs")
 GOLD_BAND_ADAPTER_FIELDS = ("displayName", "command", "args", "env")
 # A generated profile's front matter carries a fixed stamp, so a second run
 # rewrites nothing. The app's own profiles carry this id prefix and are never
@@ -394,32 +400,111 @@ def _gold_band_problems(
     return problems
 
 
+def _gold_band_skill_sets(path: Path) -> tuple[Any, dict[str, str]]:
+    """The raw ``gold_band.skill_sets`` value and each local skill's source path.
+
+    ``_gold_band_registry`` has already refused a registry that is not a mapping
+    with a ``gold_band`` section, so only ``local_skills`` is checked here. The
+    sets come back unvalidated: a malformed one is a problem line, so the owner
+    sees every problem at once instead of one per run.
+    """
+    data = yaml.safe_load(path.read_text())
+    local = data.get("local_skills")
+    if local is None:
+        local = []
+    if not isinstance(local, list) or not all(isinstance(skill, dict) for skill in local):
+        raise _CannotConverge(f"{path}: local_skills must be a list of mappings")
+    sources = {
+        str(skill["name"]): str(skill.get("path") or "") for skill in local if isinstance(skill.get("name"), str)
+    }
+    return data["gold_band"].get("skill_sets"), sources
+
+
+def _gold_band_skill_set_problems(
+    declared: list[dict[str, Any]], raw_sets: Any, sources: dict[str, str], kit: Path
+) -> tuple[list[str], dict[str, list[str]]]:
+    """One line per problem with the declared skill sets, and the sets themselves.
+
+    The sets come back even beside a problem, so the caller can report every
+    problem before it refuses to write anything.
+    """
+    problems: list[str] = []
+    if raw_sets is None:
+        raw_sets = {}
+    if not isinstance(raw_sets, dict):
+        return ["skill_sets must be a mapping of set name to skills"], {}
+    sets: dict[str, list[str]] = {}
+    for raw_name, raw_skills in raw_sets.items():
+        name = str(raw_name)
+        skills = [skill for skill in raw_skills if isinstance(skill, str)] if isinstance(raw_skills, list) else []
+        sets[name] = skills
+        if not GOLD_BAND_ID.match(name):
+            problems.append(f"{name}: skill set name must match {GOLD_BAND_ID.pattern}")
+        if not isinstance(raw_skills, list) or len(skills) != len(raw_skills):
+            problems.append(f"{name}: skill set must be a list of skill names")
+            continue
+        seen: set[str] = set()
+        for skill in skills:
+            if skill in seen:
+                problems.append(f"{name}: duplicate skill {skill}")
+                continue
+            seen.add(skill)
+            if skill not in sources:
+                problems.append(f"{name}: {skill} is not in local_skills")
+            elif not (kit / sources[skill] / "SKILL.md").is_file():
+                problems.append(f"{name}: {skill} has no SKILL.md at {sources[skill]}")
+    for agent in declared:
+        raw_id = agent.get("id")
+        if not isinstance(raw_id, str) or not GOLD_BAND_ID.match(raw_id):
+            continue
+        chosen = agent.get("skill_set")
+        if chosen is None:
+            continue
+        if not isinstance(chosen, str):
+            problems.append(f"{raw_id}: skill_set must be a set name")
+            continue
+        if chosen not in sets:
+            problems.append(f"{raw_id}: skill_set {chosen} is not a declared set")
+            continue
+        replaced = [key for key in GOLD_BAND_SKILL_SET_REPLACES if key in agent]
+        if replaced:
+            problems.append(f"{raw_id}: skill_set replaces {', '.join(replaced)}")
+    return problems, sets
+
+
 def _gold_band_expand(value: str) -> str:
     """A leading ``~/`` becomes the home directory; the app expands nothing itself."""
     return str(Path.home()) + value[1:] if value.startswith("~/") else value
 
 
-def _gold_band_entry(agent: dict[str, Any]) -> dict[str, Any]:
-    """The settings entry for a declared agent: its written fields, expanded."""
+def _gold_band_entry(agent: dict[str, Any], skills_dir: Path | None = None) -> dict[str, Any]:
+    """The settings entry for a declared agent: its written fields, expanded.
+
+    ``skill_set`` is registry-only, so it is never written. An agent that names
+    one gets its own skill directory as its primary agent directory and no
+    compatible ones, since nothing is shared between ids.
+    """
     entry = {
         key: value
         for key, value in agent.items()
-        if key in GOLD_BAND_AGENT_FIELDS and key not in ("id", "binary")
+        if key in GOLD_BAND_AGENT_FIELDS and key not in ("id", "binary", "skill_set")
     }
     adapter = entry.get("adapter")
-    if not isinstance(adapter, dict):
-        return entry
-    adapter = dict(adapter)
-    if agent["id"] in GOLD_BAND_BUILT_INS:
-        adapter.pop("command", None)
-        adapter.pop("args", None)
-    if "command" in adapter:
-        adapter["command"] = _gold_band_expand(adapter["command"])
-    if "args" in adapter:
-        adapter["args"] = [_gold_band_expand(arg) for arg in adapter["args"]]
-    if "env" in adapter:
-        adapter["env"] = {key: _gold_band_expand(value) for key, value in adapter["env"].items()}
-    entry["adapter"] = adapter
+    if isinstance(adapter, dict):
+        adapter = dict(adapter)
+        if agent["id"] in GOLD_BAND_BUILT_INS:
+            adapter.pop("command", None)
+            adapter.pop("args", None)
+        if "command" in adapter:
+            adapter["command"] = _gold_band_expand(adapter["command"])
+        if "args" in adapter:
+            adapter["args"] = [_gold_band_expand(arg) for arg in adapter["args"]]
+        if "env" in adapter:
+            adapter["env"] = {key: _gold_band_expand(value) for key, value in adapter["env"].items()}
+        entry["adapter"] = adapter
+    if skills_dir is not None:
+        entry["primaryAgentDir"] = str(skills_dir)
+        entry["compatibleAgentDirs"] = []
     return entry
 
 
@@ -524,11 +609,103 @@ def _gold_band_stopped(tool: str, running: str, written: list[str], pending: lis
     return GOLD_BAND_RUNNING_EXIT
 
 
+def _gold_band_skill_tree(root: Path) -> dict[str, tuple[str, bytes]]:
+    """Every entry under ``root`` as its kind and payload, for an exact comparison.
+
+    A symlink is recorded as its target and never followed: the copy keeps it a
+    symlink, so a link out of the kit stays a link.
+    """
+    tree: dict[str, tuple[str, bytes]] = {}
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            tree[relative] = ("link", os.readlink(path).encode())
+        elif path.is_dir():
+            tree[relative] = ("dir", b"")
+        elif path.is_file():
+            tree[relative] = ("file", path.read_bytes())
+    return tree
+
+
+def _gold_band_mkdir(path: Path) -> None:
+    """``path`` as a directory, 0o700 on the ones this creates."""
+    if path.is_dir():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.mkdir(mode=0o700)
+    os.chmod(path, 0o700)
+
+
+def _gold_band_remove(path: Path) -> None:
+    """Remove a file, a symlink or a directory tree; a missing path is nothing to do."""
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
+def _gold_band_skills(
+    root: Path,
+    kit: Path,
+    wanted: dict[str, list[str]],
+    sources: dict[str, str],
+    spared: set[str],
+    keep: set[str],
+    check: bool,
+) -> list[str]:
+    """Converge one skill directory per agent id; return the lines to print.
+
+    Each directory holds exactly its set's skills, each a verbatim copy of the
+    skill directory under the kit. An up-to-date directory is not touched, and a
+    directory for an id that is not installed with a set is removed unless the
+    id is spared or the keep file names it. Only direct children of ``root`` are
+    ever removed.
+    """
+    lines: list[str] = []
+    for name, skills in wanted.items():
+        target = root / name
+        held = {child.name for child in target.iterdir()} if target.is_dir() else set()
+        added = [skill for skill in skills if skill not in held]
+        changed = [
+            skill
+            for skill in skills
+            if skill in held and _gold_band_skill_tree(target / skill) != _gold_band_skill_tree(kit / sources[skill])
+        ]
+        removed = sorted(held - set(skills))
+        if not (added or changed or removed):
+            continue
+        if not check:
+            _gold_band_mkdir(root)
+            _gold_band_mkdir(target)
+            for skill in [*removed, *added, *changed]:
+                _gold_band_remove(target / skill)
+            for skill in [*added, *changed]:
+                shutil.copytree(kit / sources[skill], target / skill, symlinks=True)
+        if added:
+            lines.append(f"added skills {name}")
+        if changed:
+            lines.append(f"changed skills {name}")
+        if removed:
+            lines.append(f"removed skills {name}")
+    if root.is_dir():
+        for child in sorted(root.iterdir()):
+            if child.name in wanted or child.name in spared or child.name in keep:
+                continue
+            if not check:
+                _gold_band_remove(child)
+            lines.append(f"removed skills {child.name}")
+    return lines
+
+
 def gold_band(args: argparse.Namespace) -> int:
     settings = args.settings or _gold_band_settings_path()
+    skills_root = Path(os.path.abspath(args.skills_root or settings.parent / "skill-sets"))
     try:
         declared, retired, allowed = _gold_band_registry(args.registry)
+        raw_sets, sources = _gold_band_skill_sets(args.registry)
         problems = _gold_band_problems(declared, allowed, retired)
+        set_problems, sets = _gold_band_skill_set_problems(declared, raw_sets, sources, args.kit)
+        problems += set_problems
         if problems:
             for problem in problems:
                 print(f"gold-band-agents: {problem}")
@@ -546,14 +723,27 @@ def gold_band(args: argparse.Namespace) -> int:
         return 3
     keep = _keep(args.keep)
 
-    installed: dict[str, dict[str, Any]] = {}
+    installed_ids: set[str] = set()
     skipped: list[tuple[str, str]] = []
     for agent in declared:
         binary = agent.get("binary")
         if binary is not None and shutil.which(binary) is None:
             skipped.append((agent["id"], binary))
             continue
-        installed[agent["id"]] = _gold_band_entry(agent)
+        installed_ids.add(agent["id"])
+
+    # One directory per installed id that names a set, holding exactly that
+    # set's skills: no id shares another's directory.
+    wanted: dict[str, list[str]] = {
+        agent["id"]: sets[agent["skill_set"]]
+        for agent in declared
+        if agent["id"] in installed_ids and agent.get("skill_set") is not None
+    }
+    installed: dict[str, dict[str, Any]] = {}
+    for agent in declared:
+        if agent["id"] in installed_ids:
+            directory = skills_root / agent["id"] if agent["id"] in wanted else None
+            installed[agent["id"]] = _gold_band_entry(agent, directory)
 
     # A skipped agent is declared, so its existing entry stays exactly as it is.
     skipped_ids = {name for name, _ in skipped}
@@ -574,6 +764,10 @@ def gold_band(args: argparse.Namespace) -> int:
 
     for name, binary in skipped:
         print(f"skipped: {name} ({binary} is not installed)")
+    # The skill directories are written before settings.json, and an unchanged
+    # settings map never skips them.
+    for line in _gold_band_skills(skills_root, args.kit, wanted, sources, skipped_ids, keep, args.check):
+        print(line)
     # The map keeps its slot among the other top-level keys; a new one is appended.
     new_doc = {**doc, "agents": merged}
     if new_doc == doc:
@@ -856,6 +1050,10 @@ def main(argv: list[str] | None = None) -> int:
     g = sub.add_parser("gold-band")
     g.add_argument("--settings", type=Path, default=None)
     g.add_argument("--registry", type=Path, default=REGISTRY_PATH)
+    # The kit the local skills are copied from, and where the per-agent skill
+    # directories go: beside settings.json unless the owner moves them.
+    g.add_argument("--kit", type=Path, default=KIT_ROOT)
+    g.add_argument("--skills-root", type=Path, default=None)
     r = sub.add_parser("gold-band-roles")
     r.add_argument("--profiles", type=Path, default=None)
     r.add_argument("--registry", type=Path, default=REGISTRY_PATH)
