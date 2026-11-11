@@ -86,8 +86,9 @@ fn parse_time_accepts_dates_and_rfc3339_and_rejects_the_rest() {
     assert_eq!(parse_time("1969-12-31T19:00:00-05:00"), Ok(0));
     assert_eq!(parse_time("1970-01-01T00:00:00.123Z"), Ok(0));
     assert_eq!(parse_time("2000-03-01"), Ok(951_868_800));
+    assert!(parse_time("2000-02-29").is_ok() && parse_time("2024-02-29").is_ok());
     for bad in [
-        "", "2026", "2026-1-01", "2026-13-01", "2026-00-10", "2026-01-32", "2026-aa-01", "+026-01-01",
+        "", "2026", "2026-1-01", "2026-13-01", "2026-00-10", "2026-01-32", "2026-02-29", "2026-04-31", "1900-02-29", "2026-aa-01", "+026-01-01",
         "2026-01-01T10:00:00", "2026-01-01T10:00Z", "2026-01-01T24:00:00Z", "2026-01-01T10:60:00Z",
         "2026-01-01T10:00:00+0100", "2026-01-01T10:00:00+aa:00", "2026-01-01T10:00:00+01:aa", "2026-01-01TxxZ",
     ] {
@@ -124,7 +125,7 @@ fn analyse_transcript_edge_cases() {
         r#"{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}"#,
         r#"{"type":"assistant","message":{"content":[{"type":"tool_use"},{"type":"tool_use","name":7}]}}"#,
         r#"{"type":"assistant","timestamp":"2026-01-01","message":{"content":[{"type":"tool_use","name":"Grep","input":{}}]}}"#,
-        r#"{"type":"assistant","message":{"usage":{"output_tokens":9},"content":[{"type":"tool_use","name":"Edit"}]}}"#,
+        r#"{"type":"assistant","message":{"usage":{"output_tokens":9},"content":[{"type":"tool_use","name":"EDIT"}]}}"#,
         r#"{"type":"assistant","message":{"usage":{"output_tokens":9},"content":[{"type":"tool_use","name":"Grep"}]}}"#,
     ]
     .join("\n");

@@ -28,7 +28,7 @@ DATE is YYYY-MM-DD or an RFC 3339 timestamp; a task is in the window when its\n\
 first timestamp is at or after --since and before --until.\n";
 
 /// Tools that edit files: the first one ends a task's exploration.
-pub const EDIT_TOOLS: &[&str] = &["Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch"];
+pub const EDIT_TOOLS: &[&str] = &["edit", "write", "multiedit", "notebookedit", "apply_patch", "patch"];
 
 /// How a tool is used to find code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,7 +112,9 @@ pub fn parse_time(text: &str) -> Result<i64, String> {
         num(parts[1]).ok_or_else(bad)?,
         num(parts[2]).ok_or_else(bad)?,
     );
-    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let month_days = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    if !(1..=12).contains(&m) || d < 1 || d > month_days[m as usize - 1] {
         return Err(bad());
     }
     let mut secs = days_from_civil(y, m, d) * 86400;
@@ -172,7 +174,7 @@ pub fn analyse_transcript(text: &str) -> Task {
         if calls.is_empty() {
             continue;
         }
-        let editing = calls.iter().any(|(n, _)| EDIT_TOOLS.contains(n));
+        let editing = calls.iter().any(|(n, _)| EDIT_TOOLS.contains(&n.to_ascii_lowercase().as_str()));
         if !task.edited {
             if editing {
                 task.edited = true;
