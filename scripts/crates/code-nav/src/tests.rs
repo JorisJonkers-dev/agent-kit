@@ -814,7 +814,10 @@ fn all_roots_missing_refuses_to_start() {
     let (mut out, mut err) = (Vec::new(), Vec::new());
     assert_eq!(cli(&a, &mut &b""[..], &mut out, &mut err), 2);
     let err = String::from_utf8(err).unwrap();
-    assert!(err.contains("none of the roots exists") && err.contains("x") && err.contains("y"), "{err}");
+    assert!(err.contains("none of the roots exists")
+            && err.contains(&f.root.join("x").display().to_string())
+            && err.contains(&f.root.join("y").display().to_string()),
+        "{err}");
 }
 
 #[test]
