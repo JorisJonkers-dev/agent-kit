@@ -144,6 +144,7 @@ node <this folder>/build-tracker.mjs sync --spec <ref>
 node <this folder>/build-tracker.mjs path --spec <ref>
 node <this folder>/build-tracker.mjs refresh --spec <ref> [--landed <ticket>] ...
 node <this folder>/build-tracker.mjs render --state <state file> --out <page file>
+node <this folder>/build-tracker.mjs render --tickets <ticket file> [--repo <owner/repo>] --out <page file>
 node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[:note] ...
 ```
 
@@ -171,6 +172,16 @@ node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[
   repository: a local spec's tickets then link to their files on the
   remote's file view on github.com. Elsewhere they show without a link, so
   the page never carries a local path.
+- `render --tickets` writes one page for every ticket of a spec that keeps a
+  ticket file (such as `docs/specs/gold-band/tickets.yaml`), grouped by
+  branch in the file's order, with the graph across all branches. Its source
+  is the ticket file and GitHub only: each ticket shows Merged when its issue
+  is closed, and Ready or Blocked when it is open, by its blockers. It reads
+  no state file and writes none, so it never changes a page made with
+  `init`. `--repo` names the repository the issues are in; without it the
+  working directory's remote (`origin`, else the first remote) is used. Give the page its own path, and
+  publish it as **Republish** says:
+  `node <this folder>/build-tracker.mjs render --tickets docs/specs/gold-band/tickets.yaml --out <page>`.
 - `set` changes the named tickets' statuses. A note after the status replaces
   the ticket's note, an empty note removes it, and no note keeps it. The
   statuses are `todo`, `running`, `review`, `merged` and `owner`.

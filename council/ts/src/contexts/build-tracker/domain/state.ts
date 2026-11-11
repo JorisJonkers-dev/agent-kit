@@ -55,6 +55,18 @@ export interface BuildTrackerState {
   readonly milestones: readonly Milestone[]
   /** Every ticket, in issue-number order. */
   readonly tickets: readonly Ticket[]
+  /**
+   * Sections the page shows in place of the milestones', each a name and its
+   * tickets. Set only for a state built from a ticket file; a state file has
+   * no such field.
+   */
+  readonly groups?: readonly TicketGroup[]
+}
+
+/** A named section of the page and the tickets in it, by issue number. */
+export interface TicketGroup {
+  readonly name: string
+  readonly tickets: readonly number[]
 }
 
 export type BuildTrackerErrorCode =
@@ -68,6 +80,7 @@ export type BuildTrackerErrorCode =
   | 'invalid-spec'
   | 'invalid-milestone'
   | 'invalid-ticket-file'
+  | 'invalid-tickets'
   | 'tracker-unreachable'
   | 'unsupported-ticket'
   | 'no-state-home'

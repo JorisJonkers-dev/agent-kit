@@ -195,6 +195,12 @@ Known differences from the node runner:
 - Some V8 JSON error texts and rare errno wordings differ.
 - A program's output is not capped at 64 MiB.
 - When the rename that writes `--out` fails, the outcome is non-deterministic.
+- `render --tickets FILE [--repo OWNER/REPO]` (one page for a whole spec from its
+  ticket file and GitHub, grouped by branch, B0-07) exists only in the node
+  runner. The port does not have it yet, so the node runner's `--help` text is
+  longer than the port's and the `usage` golden predates it. The port gains the
+  option, a reader for the ticket file's YAML subset and the regenerated `usage`
+  golden when the node runners are ported (spec #392, story 119).
 
 ```bash
 cargo run --manifest-path scripts/Cargo.toml -p build-tracker -- --help

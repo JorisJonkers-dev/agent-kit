@@ -23,7 +23,7 @@ export const BUILD_TRACKER_USAGE = `usage: build-tracker init --spec SPEC [--mil
        build-tracker sync --spec SPEC
        build-tracker path --spec SPEC
        build-tracker refresh --spec SPEC [--landed <ticket> ...]
-       build-tracker render --state FILE --out FILE
+       build-tracker render (--state FILE | --tickets FILE [--repo OWNER/REPO]) --out FILE
        build-tracker set --state FILE <ticket>=<status>[:note] ...
 
 SPEC is a GitHub issue (#12, owner/repo#12 or its URL) whose sub-issues are
@@ -44,7 +44,12 @@ refresh brings the spec's page up to date in one step, as /flow runs it: init
 --landed ticket (12, #12, or a local ticket's 01) turns merged, keeping its
 note; then the page is rendered at the path path prints.
 
-render writes the build tracker page for the state file. set changes the
+render writes the build tracker page for the state file. With --tickets it
+writes one page for every ticket of a spec instead, grouped by branch: the
+ticket file (docs/specs/<name>/tickets.yaml) names the tickets and branches,
+GitHub says which issues are closed (shown merged), and --repo names the
+repository the issues are in (the working directory's remote when it is
+left out). It reads and writes no state file. set changes the
 named tickets' statuses in the state file; a note after the status replaces
 the ticket's note, an empty one removes it, and none keeps it. The statuses
 are todo, running, review, merged and owner.
@@ -55,8 +60,8 @@ is an error that names init; an unreadable one names its path and says to
 delete it and run init again. Bad arguments print this usage and exit 2.
 `
 
-/** A required flag is given once; a repeatable one any number of times, none included. */
-type FlagKind = 'required' | 'repeatable'
+/** A required flag is given once; an optional one at most once; a repeatable one any number of times, none included. */
+type FlagKind = 'required' | 'optional' | 'repeatable'
 
 type Flags = Readonly<Record<string, readonly string[]>>
 
@@ -65,6 +70,8 @@ interface CommandSpec {
   readonly flags: Readonly<Record<string, FlagKind>>
   /** Whether the command takes one or more positional arguments. */
   readonly positionals: boolean
+  /** Whether the flags given fit together, when that is more than each being allowed. */
+  readonly fits?: (flags: Flags) => boolean
   run(commands: BuildTrackerCommands, flags: Flags, positionals: readonly string[]): Promise<unknown>
 }
 
@@ -85,9 +92,15 @@ const COMMANDS: Readonly<Record<string, CommandSpec>> = {
     run: (commands, flags) => commands.refresh.run({ landed: flags.landed ?? [], spec: flag(flags, 'spec') }),
   },
   render: {
-    flags: { out: 'required', state: 'required' },
+    fits: (flags) => Object.hasOwn(flags, 'state') !== Object.hasOwn(flags, 'tickets') && (!Object.hasOwn(flags, 'repo') || Object.hasOwn(flags, 'tickets')),
+    flags: { out: 'required', repo: 'optional', state: 'optional', tickets: 'optional' },
     positionals: false,
-    run: (commands, flags) => commands.render.run({ out: flag(flags, 'out'), state: flag(flags, 'state') }),
+    run: (commands, flags) =>
+      commands.render.run(
+        Object.hasOwn(flags, 'tickets')
+          ? { out: flag(flags, 'out'), repo: flags.repo?.[0], tickets: flag(flags, 'tickets') }
+          : { out: flag(flags, 'out'), state: flag(flags, 'state') },
+      ),
   },
   set: {
     flags: { state: 'required' },
@@ -138,13 +151,13 @@ function parseArguments(
     const name = arg.slice(2)
     const kind = Object.hasOwn(spec.flags, name) ? spec.flags[name] : undefined
     const value = args[index + 1]
-    if (kind === undefined || (kind === 'required' && Object.hasOwn(flags, name)) || value === undefined) return undefined
+    if (kind === undefined || (kind !== 'repeatable' && Object.hasOwn(flags, name)) || value === undefined) return undefined
     flags[name] = [...(flags[name] ?? []), value]
     index += 1
   }
   const flagsOk = Object.entries(spec.flags).every(([name, kind]) => kind !== 'required' || Object.hasOwn(flags, name))
   const positionalsOk = spec.positionals ? positionals.length > 0 : positionals.length === 0
-  return flagsOk && positionalsOk ? { flags, positionals } : undefined
+  return flagsOk && positionalsOk && (spec.fits?.(flags) ?? true) ? { flags, positionals } : undefined
 }
 
 function flag(flags: Flags, name: string): string {
