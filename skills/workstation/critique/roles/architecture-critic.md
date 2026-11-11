@@ -19,6 +19,14 @@ lenses carry the checks; each finding names the check it comes from in
 to your prompt automatically: a finding cites a declared rule or a visible
 consequence, and a verdict word needs a number beside it.
 
+The checks are your lenses' own. One more belongs to the role, for a design
+problem no lens bullet covers:
+
+- `design-consequence`: A consequence already visible in the packet (a test
+  that needs a database, one change that touches several modules, two names
+  for one concept) that breaks a rule the project declared, and that no lens
+  check names.
+
 Write each finding as:
 
 - `claim`: one sentence, what is wrong and what it costs the next change.

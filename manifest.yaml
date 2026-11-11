@@ -553,7 +553,7 @@ critique:
       sha256: a8a1c30391c5d81bb23d72fb5db963d2aef49aa9b4d3bb7fa4390820ed82cb4d
       mode: "0644"
     - path: skills/workstation/critique/roles/architecture-critic.md
-      sha256: 465060ceb970ea9f14b1ce3052cdc238e12090408015eb9fed602b218e36ab19
+      sha256: 48176fe17269733477d35c9c0286b184dbd5c1b7a5a272e78b5792b29affd339
       mode: "0644"
     - path: skills/workstation/critique/roles/decision-recoverer.md
       sha256: adb236abfa5f0e175b2f48354fc2b8d563318272c56b685099b35bb0a48d05ce
