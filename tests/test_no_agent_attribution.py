@@ -371,6 +371,24 @@ def test_the_pre_push_hook_checks_a_force_push_over_a_tip_it_never_fetched(tmp_p
     assert "fix: two" in result.stderr
 
 
+def test_the_pre_push_hook_skips_commits_a_rebase_takes_from_the_remote(tmp_path: Path) -> None:
+    repo, remote = _pushing_repo(tmp_path)
+    _commit(repo, "fix: one")
+    assert _push(repo).returncode == 0
+    _git(repo, "checkout", "-q", "-b", "feature")
+    _commit(repo, "fix: two")
+    _git(repo, "push", "-q", "origin", "feature")
+    # A release bot lands on main elsewhere, through no hook of this clone.
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", "-b", "main", str(remote), str(other))
+    _commit(other, "chore: release", "This PR was generated with Release Please.")
+    _git(other, "push", "-q", "origin", "main")
+    _git(repo, "fetch", "-q", "origin")
+    _git(repo, "rebase", "-q", "origin/main")
+    result = _git(repo, "push", "-q", "--force", "origin", "feature", check=False)
+    assert result.returncode == 0, result.stderr
+
+
 def test_the_pre_push_hook_lets_a_branch_deletion_through(tmp_path: Path) -> None:
     repo, _ = _pushing_repo(tmp_path)
     _commit(repo, "fix: one")
