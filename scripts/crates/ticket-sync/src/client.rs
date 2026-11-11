@@ -33,7 +33,10 @@ pub trait Client {
     fn blocked_by(&mut self, number: u64) -> Result<Vec<Link>>;
     fn add_blocked_by(&mut self, number: u64, blocker_id: u64) -> Result<()>;
     fn remove_blocked_by(&mut self, number: u64, blocker_id: u64) -> Result<()>;
-    fn close(&mut self, number: u64, comment: &str) -> Result<()>;
+    /// Comment on an issue, then close it: `completed` for delivered work,
+    /// otherwise as not planned. The comment goes first so a failed close
+    /// never leaves a closed issue without its mapping.
+    fn close(&mut self, number: u64, comment: &str, completed: bool) -> Result<()>;
 }
 
 /// Runs one `gh` invocation and returns its stdout.
@@ -177,8 +180,9 @@ impl Client for GhClient {
         self.call("DELETE", &format!("issues/{number}/dependencies/blocked_by/{blocker_id}"), None).map(drop)
     }
 
-    fn close(&mut self, number: u64, comment: &str) -> Result<()> {
-        self.call("PATCH", &format!("issues/{number}"), Some(serde_json::json!({"state": "closed", "state_reason": "not_planned"})))?;
-        self.call("POST", &format!("issues/{number}/comments"), Some(serde_json::json!({"body": comment}))).map(drop)
+    fn close(&mut self, number: u64, comment: &str, completed: bool) -> Result<()> {
+        self.call("POST", &format!("issues/{number}/comments"), Some(serde_json::json!({"body": comment})))?;
+        let reason = if completed { "completed" } else { "not_planned" };
+        self.call("PATCH", &format!("issues/{number}"), Some(serde_json::json!({"state": "closed", "state_reason": reason}))).map(drop)
     }
 }

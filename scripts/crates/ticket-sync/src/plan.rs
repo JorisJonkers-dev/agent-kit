@@ -1,6 +1,7 @@
 //! Compare the graph with the live issues and list what would change; then
 //! carry the list out. Planning only reads. Applying runs the actions in a
-//! fixed order: creates, edits, unlinks, unblocks, links, blocks, and last the closes.
+//! fixed order: creates, edits, unlinks, unblocks, links, blocks. Closes are listed
+//! last but only carried out by the approved close action.
 
 use crate::body::{body, labels, normalize, title};
 use crate::client::{Client, Link};
@@ -30,7 +31,7 @@ impl Plan {
         self.actions.is_empty()
     }
 
-    pub fn render(&self, model: &Model, close_approved: bool) -> String {
+    pub fn render(&self, model: &Model) -> String {
         let n = |k: &str| model.number(k).map_or_else(|| "(new)".to_string(), |n| format!("#{n}"));
         let mut out = String::new();
         for a in &self.actions {
@@ -42,11 +43,7 @@ impl Plan {
                 Action::Link { parent, child } => format!("link      {child} {} under {parent} {}\n", n(child), n(parent)),
                 Action::Unblock { key, blocker, blocker_key } => format!("unblock   {key} {} no longer blocked by {blocker_key} #{}\n", n(key), blocker.number),
                 Action::Block { key, blocker } => format!("block     {key} {} blocked by {blocker} {}\n", n(key), n(blocker)),
-                Action::Close { number, by } => format!(
-                    "close     #{number} superseded by {by} {}{}\n",
-                    n(by),
-                    if close_approved { "" } else { "  (needs --approve-close)" }
-                ),
+                Action::Close { number, by } => format!("close     #{number} superseded by {by} {}  (needs an approved plan: --approve-plan, then --close)\n", n(by)),
             });
         }
         let count = |f: fn(&Action) -> bool| self.actions.iter().filter(|a| f(a)).count();
@@ -158,23 +155,23 @@ pub fn plan(model: &Model, stories: &BTreeMap<u64, String>, client: &mut dyn Cli
     Ok(p)
 }
 
-/// What an apply did: the numbers of issues it created.
+/// What an apply did: the issues it created, and the closes it left for the
+/// approved close action.
 #[derive(Debug, Default)]
 pub struct Applied {
     pub created: Vec<(String, u64)>,
-    pub closed: Vec<u64>,
     pub skipped_closes: usize,
 }
 
 /// Carry out a plan. `done` is filled as it goes, so the issues created before
 /// a failure are still known to the caller. `model` gains the numbers of created issues as it goes,
-/// so later bodies and links can name them. Closes run only when approved.
+/// so later bodies and links can name them. Closes are never run here: they
+/// belong to the approved close action (`close.rs`).
 pub fn apply(
     plan: &Plan,
     model: &mut Model,
     stories: &BTreeMap<u64, String>,
     client: &mut dyn Client,
-    close_approved: bool,
     done: &mut Applied,
 ) -> Result<()> {
     let mut ids: BTreeMap<String, u64> = BTreeMap::new();
@@ -198,15 +195,7 @@ pub fn apply(
             Action::Link { parent, child } => client.add_sub_issue(model.number(parent).unwrap_or(0), ids[child])?,
             Action::Unblock { key, blocker, .. } => client.remove_blocked_by(model.number(key).unwrap_or(0), blocker.id)?,
             Action::Block { key, blocker } => client.add_blocked_by(model.number(key).unwrap_or(0), ids[blocker])?,
-            Action::Close { number, by } => {
-                if close_approved {
-                    let comment = format!("Superseded by #{} ({by}) of spec #{}.", model.number(by).unwrap_or(0), model.spec);
-                    client.close(*number, &comment)?;
-                    done.closed.push(*number);
-                } else {
-                    done.skipped_closes += 1;
-                }
-            }
+            Action::Close { .. } => done.skipped_closes += 1,
         }
     }
     Ok(())

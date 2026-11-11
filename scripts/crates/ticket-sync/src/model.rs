@@ -126,3 +126,21 @@ pub fn stories(spec_text: &str) -> BTreeMap<u64, String> {
     }
     out
 }
+
+/// The spec's issue disposition table: `| #N | title | branch | Close: why |`
+/// rows, keyed by issue number, holding the text after `Close: `. Other
+/// dispositions (rewrite, outside) are not listed.
+pub fn dispositions(spec_text: &str) -> BTreeMap<u64, String> {
+    let mut out = BTreeMap::new();
+    for line in spec_text.lines() {
+        let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+        if cells.len() < 6 {
+            continue;
+        }
+        let number = cells[1].strip_prefix('#').and_then(|n| n.parse::<u64>().ok());
+        if let (Some(n), Some(why)) = (number, cells[4].strip_prefix("Close: ")) {
+            out.insert(n, why.to_string());
+        }
+    }
+    out
+}

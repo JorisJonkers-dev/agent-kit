@@ -2,11 +2,13 @@
 //! the GitHub issues in line with docs/specs/gold-band/tickets.yaml.
 //!
 //! The default is a dry run: it reads the live state, prints the full plan
-//! and writes nothing. Closing superseded issues needs `--apply` and
-//! `--approve-close` together; a dry run only lists them.
+//! and writes nothing. `--apply` never closes. Closing the superseded and
+//! delivered issues is its own action, `--close`, and it closes nothing unless
+//! `--approve-plan` recorded an approval of the same close plan first.
 
 pub mod body;
 pub mod client;
+pub mod close;
 pub mod model;
 pub mod plan;
 
@@ -14,20 +16,37 @@ use client::{Client, GhClient, ProcessRunner};
 use model::{Model, Result};
 use std::ffi::OsString;
 use std::io::Write;
+use std::path::Path;
 
-const USAGE: &str = "usage: ticket-sync [--repo OWNER/REPO] [--tickets FILE] [--spec FILE] [--apply [--approve-close]]\n\
+const USAGE: &str = "usage: ticket-sync [--repo OWNER/REPO] [--tickets FILE] [--spec FILE] [--approval FILE] [--apply | --approve-plan | --close]\n\
 \n\
 Dry run by default: prints the plan, changes nothing.\n\
---apply            carry the plan out (creates, edits, sub-issue and blocked-by links)\n\
---approve-close    with --apply, also close the superseded issues\n";
+--apply            carry the plan out (creates, edits, sub-issue and blocked-by links); never closes\n\
+--approve-plan     record the owner's approval of the close plan as printed (writes the approval file only)\n\
+--close            close the issues in the close plan, each with its mapping comment; refuses (exit 1,\n\
+                   closing nothing) unless the recorded approval is for the current close plan\n\
+--approval FILE    where the approval is kept (default: $XDG_STATE_HOME/agent-kit/ticket-sync-close-approval)\n";
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Options {
     pub repo: String,
     pub tickets: String,
     pub spec: String,
-    pub apply: bool,
-    pub approve_close: bool,
+    pub approval: String,
+    pub mode: Mode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    DryRun,
+    Apply,
+    ApprovePlan,
+    Close,
+}
+
+pub fn approval_path(xdg_state_home: Option<String>, home: Option<String>) -> String {
+    let state = xdg_state_home.filter(|s| !s.is_empty()).unwrap_or_else(|| format!("{}/.local/state", home.unwrap_or_default()));
+    format!("{state}/agent-kit/ticket-sync-close-approval")
 }
 
 pub fn parse_args(args: impl IntoIterator<Item = OsString>) -> Result<Option<Options>> {
@@ -35,8 +54,8 @@ pub fn parse_args(args: impl IntoIterator<Item = OsString>) -> Result<Option<Opt
         repo: "JorisJonkers-dev/agent-kit".into(),
         tickets: "docs/specs/gold-band/tickets.yaml".into(),
         spec: "docs/specs/gold-band/spec.md".into(),
-        apply: false,
-        approve_close: false,
+        approval: approval_path(std::env::var("XDG_STATE_HOME").ok(), std::env::var("HOME").ok()),
+        mode: Mode::DryRun,
     };
     let mut it = args.into_iter().map(|a| a.to_string_lossy().into_owned());
     while let Some(a) = it.next() {
@@ -45,14 +64,20 @@ pub fn parse_args(args: impl IntoIterator<Item = OsString>) -> Result<Option<Opt
             "--repo" => o.repo = value("--repo")?,
             "--tickets" => o.tickets = value("--tickets")?,
             "--spec" => o.spec = value("--spec")?,
-            "--apply" => o.apply = true,
-            "--approve-close" => o.approve_close = true,
+            "--approval" => o.approval = value("--approval")?,
+            "--apply" | "--approve-plan" | "--close" => {
+                if o.mode != Mode::DryRun {
+                    return Err("--apply, --approve-plan and --close are mutually exclusive".into());
+                }
+                o.mode = match a.as_str() {
+                    "--apply" => Mode::Apply,
+                    "--approve-plan" => Mode::ApprovePlan,
+                    _ => Mode::Close,
+                };
+            }
             "-h" | "--help" => return Ok(None),
             other => return Err(format!("unknown argument {other}")),
         }
-    }
-    if o.approve_close && !o.apply {
-        return Err("--approve-close only means something with --apply".into());
     }
     Ok(Some(o))
 }
@@ -90,27 +115,47 @@ pub fn sync(o: &Options, client: &mut dyn Client, out: &mut dyn Write) -> Result
     let stories = model::stories(&spec_text);
     let p = plan::plan(&model, &stories, client)?;
     let say = |out: &mut dyn Write, s: &str| out.write_all(s.as_bytes()).map_err(|e| e.to_string());
-    say(out, &p.render(&model, o.apply && o.approve_close))?;
-    if !o.apply {
-        return say(out, "dry run: nothing was written\n");
+    match o.mode {
+        Mode::DryRun => {
+            say(out, &p.render(&model))?;
+            // The close plan needs published tickets; before the first apply it is only a note.
+            match close::closings(&p, &model, &model::dispositions(&spec_text)) {
+                Ok(closings) => say(out, &close::render(&o.repo, &closings))?,
+                Err(e) => say(out, &format!("close plan not available yet: {e}\n"))?,
+            }
+            say(out, "dry run: nothing was written\n")
+        }
+        Mode::ApprovePlan => {
+            let closings = close::closings(&p, &model, &model::dispositions(&spec_text))?;
+            say(out, &close::render(&o.repo, &closings))?;
+            close::approve(Path::new(&o.approval), &o.repo, &closings)?;
+            say(out, &format!("approval recorded in {}\n", o.approval))
+        }
+        Mode::Close => {
+            let closings = close::closings(&p, &model, &model::dispositions(&spec_text))?;
+            if closings.is_empty() {
+                return say(out, "nothing to close\n");
+            }
+            let mut closed = Vec::new();
+            let result = close::close(Path::new(&o.approval), &o.repo, &closings, client, &mut closed);
+            for n in &closed {
+                say(out, &format!("closed #{n}\n"))?;
+            }
+            result?;
+            say(out, &format!("closed {} issues\n", closed.len()))
+        }
+        Mode::Apply => {
+            say(out, &p.render(&model))?;
+            let mut done = plan::Applied::default();
+            let result = plan::apply(&p, &mut model, &stories, client, &mut done);
+            // Record what was created even when a later step failed, or a retry would
+            // create the same issues again.
+            let written = write_back(o, &text, &done.created);
+            result?;
+            written?;
+            say(out, &format!("applied: {} actions, {} created, {} closes left for --close\n", p.actions.len(), done.created.len(), done.skipped_closes))
+        }
     }
-    let mut done = plan::Applied::default();
-    let result = plan::apply(&p, &mut model, &stories, client, o.approve_close, &mut done);
-    // Record what was created even when a later step failed, or a retry would
-    // create the same issues again.
-    let written = write_back(o, &text, &done.created);
-    result?;
-    written?;
-    say(
-        out,
-        &format!(
-            "applied: {} actions, {} created, {} closed, {} closes held back\n",
-            p.actions.len(),
-            done.created.len(),
-            done.closed.len(),
-            done.skipped_closes
-        ),
-    )
 }
 
 /// The command: returns the exit status. `gh` is the program that talks to
