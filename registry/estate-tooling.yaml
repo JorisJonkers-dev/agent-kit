@@ -358,7 +358,7 @@ clis:
     container:
       datasource: npm
       package: "@anthropic-ai/claude-code"
-      version: "2.1.317"
+      version: "2.1.318"
       install: 'npm install -g "@anthropic-ai/claude-code@${VERSION}"'
       requires: [node]
 
@@ -548,7 +548,7 @@ clis:
     container:
       datasource: github-releases
       package: "jdx/mise"
-      version: "v2026.10.25"
+      version: "v2026.11.0"
       install: >-
         curl -fsSL -o /usr/local/bin/mise
         "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}"
@@ -1741,7 +1741,7 @@ mcp_servers:
     pin:
       datasource: npm
       package: "n8n-mcp"
-      version: "2.100.0"
+      version: "2.101.0"
 
   - name: kubernetes
     transport: stdio
