@@ -1120,3 +1120,16 @@ fn inspect_keeps_agents_that_name_no_model() {
     assert!(info.models["solo"].is_empty());
     assert!(info.models["bound"].is_empty());
 }
+
+#[test]
+fn inspect_keeps_a_node_without_a_provider_out_of_the_agents() {
+    let info = inspect(
+        r#"{"id":"x","nodes":[{"id":"manual","manual_check":true},{"id":"n","provider":"a","model":"m"}]}"#,
+    )
+    .expect("inspected");
+    assert_eq!(
+        info.agent_ids.into_iter().collect::<Vec<_>>(),
+        vec!["a".to_string()]
+    );
+    assert!(info.has_manual_check);
+}
