@@ -1,0 +1,12 @@
+{
+  "url": "https://api.github.com/repos/acme/kit/issues/531",
+  "number": 531,
+  "title": "Export a published issue to a requirement file",
+  "state": "open",
+  "user": {"login": "octo"},
+  "labels": [{"name": "type: feature"}],
+  "comments": 2,
+  "created_at": "2026-11-01T10:00:00Z",
+  "updated_at": "2026-11-09T12:30:00Z",
+  "body": "## Parent\n\n#405\n\n## What to build\n\nA wrapper exports a published issue.\n\n## Acceptance criteria\n\n- [ ] Given a fixture issue, the wrapper writes the requirement file.\n- [ ] The wrapper refuses a repository without a setup file.\n\n## Scope\n\n- Ticket key: `B2-11b`\n"
+}

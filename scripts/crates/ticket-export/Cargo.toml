@@ -1,0 +1,12 @@
+[package]
+name = "ticket-export"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Exports a published GitHub issue and its sub-issues to the requirement file Workflow B reads, through read-only GitHub access."
+
+# Registry dependencies are pinned exactly, each at a version at least seven
+# days old (docs/RUST.md); crate-age checks every transitive version.
+[dependencies]
+serde_json = "=1.0.154"
+serde_yaml = "=0.9.34"

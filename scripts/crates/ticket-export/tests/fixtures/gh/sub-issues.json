@@ -1,0 +1,4 @@
+[
+  {"number": 601, "title": "Read the issue", "state": "open", "user": {"login": "octo"}, "body": "ignored"},
+  {"number": 602, "title": "Write the file", "state": "closed", "user": {"login": "octo"}, "body": "ignored"}
+]

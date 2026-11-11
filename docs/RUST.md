@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Eleven members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Twelve members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -33,6 +33,8 @@ on the Linux workstation.
   `crates/litellm-gate` is the node-side check that a LiteLLM per-key budget is
   not exhausted: one probe request through curl with the key on stdin, exit 1
   when the budget is spent or the proxy cannot be asked.
+  `crates/ticket-export` is the issue export wrapper (below); it takes serde_json
+  and serde_yaml, each pinned exactly.
   `crates/transcript-mix` is the transcript tool-mix analyser (below), std-only
   with the JSON parser borrowed from `code-nav-eval`. New Rust joins this
   workspace as a new member, never as its own Cargo project.
@@ -94,6 +96,25 @@ sits behind the `Client` trait: tests fake it, and the real client drives `gh ap
 Coverage is measured with `cargo llvm-cov` (or `-C instrument-coverage` with
 the matching `llvm-cov`); the unit tests cover every line except the one
 executable line in `src/main.rs`.
+
+## ticket-export
+
+`ticket-export` exports a published issue and its sub-issues to the requirement
+file Workflow B consumes, so no agent needs GitHub write access.
+
+```bash
+cargo run --manifest-path scripts/Cargo.toml -p ticket-export -- <REPO_DIR> <ISSUE_NUMBER> <OUT_FILE>
+```
+
+`<REPO_DIR>` is a repository holding the per-repository setup file
+(`docs/agents/setup.yaml`, written by `scripts/repo_setup.py write`); the tracker
+the issue is read from comes from that file, and a repository without a valid one
+is refused. The file written holds the issue's title, body, acceptance criteria,
+sub-issues and blocked-by list, and nothing else (no comments, no edit history).
+A missing issue, a closed blocker, an unreadable tracker or a missing setup file
+exits 1 with a message and writes no file. GitHub is reached only through a
+GET-only trait (the real one runs `gh api -X GET` under a timeout); the tests
+read recorded API answers from `crates/ticket-export/tests/fixtures`.
 
 ## transcript-mix
 
