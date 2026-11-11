@@ -94,7 +94,7 @@ pub fn resolve(cwd: &str, path: &str) -> String {
 /// `path.basename`.
 pub fn basename(path: &str) -> &str {
     let trimmed = path.trim_end_matches('/');
-    trimmed.rsplit('/').next().unwrap_or("")
+    trimmed.rsplit_once('/').map_or(trimmed, |(_, name)| name)
 }
 
 /// `path.dirname` for an absolute path.

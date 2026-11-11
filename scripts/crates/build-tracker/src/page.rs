@@ -81,7 +81,7 @@ pub fn render_page(state: &BuildTrackerState, updated: &str, files: Option<&Tick
     };
     let strip: Vec<String> = board.counts.iter().map(|(shown, count)| format!("<span class=\"pill {}\">{} {count}</span>", shown.name(), shown.label())).collect();
     let stamp = format!("updated {updated}");
-    let subtitle: Vec<String> = [state.subtitle.as_str(), stamp.as_str()].iter().filter(|part| !part.is_empty()).map(|part| escape_html(part)).collect();
+    let subtitle: Vec<String> = [state.subtitle.as_str(), stamp.as_str()].into_iter().filter(|part| !part.is_empty()).map(escape_html).collect();
     let body: Vec<String> = parts.iter().map(|part| section_html(part, &link)).collect();
     let html = format!(
         "<!doctype html>
@@ -131,7 +131,7 @@ fn page_title(state: &BuildTrackerState) -> String {
     match &state.spec {
         SpecReference::Github { number, .. } => format!("Spec #{number} build tracker"),
         SpecReference::Local { path } => {
-            let name = path.rsplit('/').next().unwrap_or("");
+            let name = path.rsplit_once('/').map_or(path.as_str(), |(_, name)| name);
             format!("{} build tracker", collapse(without_md(name), "-"))
         }
     }

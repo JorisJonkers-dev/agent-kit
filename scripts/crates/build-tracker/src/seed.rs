@@ -1,6 +1,6 @@
 //! A new state from a spec's tickets, and a state brought up to date with them.
 
-use crate::json::{object, Object, Value};
+use crate::json::{numbers, object, Object, Value};
 use crate::spec::{spec_text, ResolvedSpec};
 use crate::state::{raw_is_merged, raw_tickets, ExternalBlocker, Failure, Milestone, STATE_VERSION};
 use crate::text::{is_space, parse_number, trim};
@@ -52,10 +52,6 @@ pub fn parse_milestones(texts: &[String], snapshot: &IssueTrackerSnapshot) -> Re
         milestones.push(Milestone { closes, name: name.to_string() });
     }
     Ok(milestones)
-}
-
-fn numbers(values: &[u64]) -> Value {
-    Value::Arr(values.iter().map(|number| Value::Num(*number as f64)).collect())
 }
 
 /// The entry with the fields the issue tracker owns replaced; an empty external list or a missing file leaves no key.
@@ -138,13 +134,10 @@ pub fn sync_state(raw: &Object, snapshot: &IssueTrackerSnapshot) -> SyncOutcome 
             Some(known) if ticket.closed && !raw_is_merged(&Value::Obj(known.clone())) => merged.push(ticket.number),
             Some(_) => {}
         }
-        let status = match (&known, ticket.closed) {
-            (_, true) => Value::str("merged"),
-            (Some(known), false) => known.get("status").cloned().unwrap_or_else(|| Value::str("todo")),
-            (None, false) => Value::str("todo"),
-        };
-        let mut entry = known.unwrap_or_default();
-        entry.set("status", status);
+        let mut entry = known.unwrap_or_else(|| with_status("todo"));
+        if ticket.closed {
+            entry.set("status", Value::str("merged"));
+        }
         tickets.set(&key, Value::Obj(issue_tracker_fields(&entry, ticket)));
     }
     let mut synced = raw.clone();

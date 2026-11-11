@@ -105,7 +105,8 @@ pub enum SpecArgument {
 pub fn parse_spec_argument(argument: &str) -> SpecArgument {
     let text = crate::text::trim(argument);
     let bare = text.strip_prefix('#').unwrap_or(text);
-    if let Some(number) = Some(bare).filter(|bare| is_issue_number(bare)).and_then(parse_number) {
+    let number = if is_issue_number(bare) { parse_number(bare) } else { None };
+    if let Some(number) = number {
         return SpecArgument::Issue { number, repository: None };
     }
     let issue = parse_issue_reference(text).or_else(|| parse_issue_url(text).filter(|url| !url.pull).map(|url| url.reference));

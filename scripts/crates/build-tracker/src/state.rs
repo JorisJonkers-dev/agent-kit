@@ -115,11 +115,16 @@ pub fn raw_is_merged(entry: &Value) -> bool {
     entry.as_object().and_then(|object| object.get("status")).and_then(Value::as_str) == Some("merged")
 }
 
+/// The JSON object a state file holds, or why it is not one.
+pub fn state_object(value: Value) -> Result<Object, Failure> {
+    match value {
+        Value::Obj(object) => Ok(object),
+        _ => Err(invalid("the state is not a JSON object")),
+    }
+}
+
 /// Reads parsed JSON as a version-1 state, or says what is wrong with it.
-pub fn parse_state(raw: &Value) -> Result<BuildTrackerState, Failure> {
-    let Some(raw) = raw.as_object() else {
-        return Err(invalid("the state is not a JSON object"));
-    };
+pub fn parse_state(raw: &Object) -> Result<BuildTrackerState, Failure> {
     if raw.get("version") != Some(&Value::Num(STATE_VERSION)) {
         let seen = raw.get("version").map_or("missing".to_string(), compact);
         return Err(invalid(format!("version must be 1, not {seen}")));
@@ -245,5 +250,5 @@ fn read_milestones(raw: Option<&Value>, tickets: &[Ticket]) -> Result<Vec<Milest
 
 /// The `tickets` object of a raw state, which `parse_state` has checked is one.
 pub fn raw_tickets(raw: &Object) -> Object {
-    raw.get("tickets").and_then(Value::as_object).cloned().unwrap_or_default()
+    raw.get("tickets").and_then(Value::as_object).cloned().expect("a checked state has a tickets object")
 }

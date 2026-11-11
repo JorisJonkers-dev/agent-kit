@@ -12,10 +12,7 @@ pub struct GhCliIssues<P: Process> {
 impl<P: Process> Issues for GhCliIssues<P> {
     fn issue(&self, repository: &RepositoryName, number: u64) -> Result<IssueRecord, String> {
         let parsed = self.api(repository, &format!("issues/{number}"), false)?;
-        match parsed.filter(is_rest_issue) {
-            Some(issue) => Ok(record(&issue, repository)),
-            None => Err("gh api printed something that is not an issue".to_string()),
-        }
+        parsed.and_then(|issue| rest_issue(&issue, repository)).ok_or_else(|| "gh api printed something that is not an issue".to_string())
     }
 
     fn sub_issues(&self, repository: &RepositoryName, number: u64) -> Result<Vec<IssueRecord>, String> {
@@ -35,11 +32,8 @@ impl<P: Process> GhCliIssues<P> {
             Some(Value::Arr(pages)) => pages.into_iter().map(|page| if let Value::Arr(items) = page { Some(items) } else { None }).collect::<Option<Vec<_>>>(),
             _ => None,
         };
-        let issues: Option<Vec<Value>> = pages.map(|pages| pages.into_iter().flatten().collect());
-        match issues.filter(|issues| issues.iter().all(is_rest_issue)) {
-            Some(issues) => Ok(issues.iter().map(|issue| record(issue, repository)).collect()),
-            None => Err("gh api printed something that is not a list of issues".to_string()),
-        }
+        let issues = pages.and_then(|pages| pages.iter().flatten().map(|issue| rest_issue(issue, repository)).collect::<Option<Vec<_>>>());
+        issues.ok_or_else(|| "gh api printed something that is not a list of issues".to_string())
     }
 
     fn api(&self, repository: &RepositoryName, path: &str, paginate: bool) -> Result<Option<Value>, String> {
@@ -58,19 +52,18 @@ impl<P: Process> GhCliIssues<P> {
     }
 }
 
-fn is_rest_issue(value: &Value) -> bool {
-    matches!(value.as_object().and_then(|issue| issue.get("number")), Some(Value::Num(_)))
-}
-
-/// The issue's repository comes from its URL; one with no readable URL is taken to be in the repository asked.
-fn record(issue: &Value, asked: &RepositoryName) -> IssueRecord {
-    let fields = issue.as_object();
-    let text = |key: &str| fields.and_then(|fields| fields.get(key)).and_then(Value::as_str);
-    let number = fields.and_then(|fields| fields.get("number")).map_or(0, |number| if let Value::Num(number) = number { *number as u64 } else { 0 });
-    IssueRecord {
+/// The record of a REST issue, which is an object with a numeric `number`; anything else is not one. The issue's
+/// repository comes from its URL; one with no readable URL is taken to be in the repository asked.
+fn rest_issue(issue: &Value, asked: &RepositoryName) -> Option<IssueRecord> {
+    let fields = issue.as_object()?;
+    let Some(Value::Num(number)) = fields.get("number") else {
+        return None;
+    };
+    let text = |key: &str| fields.get(key).and_then(Value::as_str);
+    Some(IssueRecord {
         closed: text("state") == Some("closed"),
-        number,
+        number: *number as u64,
         repository: text("html_url").and_then(parse_issue_url).map_or_else(|| asked.clone(), |url| url.reference.repository),
         title: text("title").unwrap_or_default().to_string(),
-    }
+    })
 }

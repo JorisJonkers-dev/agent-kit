@@ -37,7 +37,7 @@ fn first_heading(text: &str) -> Option<String> {
 
 /// A local spec's title: its first `#` heading, or its file name.
 pub fn local_spec_title(text: &str, path: &str) -> String {
-    first_heading(text).unwrap_or_else(|| path.rsplit('/').next().unwrap_or(path).to_string())
+    first_heading(text).unwrap_or_else(|| path.rsplit_once('/').map_or(path, |(_, name)| name).to_string())
 }
 
 /// A heading without its leading `12:`, `#12 -` or `12.` (`^#?\d+\s*[:.\-–]\s*`).
@@ -183,7 +183,7 @@ struct Parsed {
 pub fn local_tickets(files: &[LocalTicketFile]) -> Result<Vec<SpecTicket>, Failure> {
     let mut parsed: Vec<Parsed> = Vec::new();
     for file in files {
-        let name = file.file.rsplit('/').next().unwrap_or("");
+        let name = file.file.rsplit_once('/').map_or(file.file.as_str(), |(_, name)| name);
         let stem = without_md(name);
         let digits = stem.len() - stem.trim_start_matches(|c: char| c.is_ascii_digit()).len();
         let number = parse_number(stem[..digits].trim_start_matches('0')).unwrap_or(0);

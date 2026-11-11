@@ -72,7 +72,7 @@ pub fn apply_assignments(raw: &Object, assignments: &[Assignment]) -> Object {
     let mut tickets = raw_tickets(raw);
     for assignment in assignments {
         let key = assignment.ticket.to_string();
-        let mut entry = tickets.get(&key).and_then(Value::as_object).cloned().unwrap_or_default();
+        let mut entry = tickets.get(&key).and_then(Value::as_object).cloned().expect("the assignments name tickets of the state");
         entry.set("status", Value::str(assignment.status.name()));
         match assignment.note.as_deref() {
             Some("") => entry.remove("note"),

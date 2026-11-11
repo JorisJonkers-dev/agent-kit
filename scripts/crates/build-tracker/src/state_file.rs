@@ -5,7 +5,7 @@ use crate::json::{parse, pretty, Object, Value};
 use crate::page::render_page;
 use crate::ports::{Files, Runtime};
 use crate::spec::TicketFiles;
-use crate::state::{parse_state, BuildTrackerState, Failure};
+use crate::state::{parse_state, state_object, BuildTrackerState, Failure};
 
 /// A state file as read: its parsed JSON, kept whole for writing back, and the state it holds.
 pub struct LoadedState {
@@ -26,8 +26,9 @@ pub fn read_state_file(files: &dyn Files, path: &str) -> Result<Option<LoadedSta
         Err(error) => return Err(unreadable(path, &error.message)),
     };
     let raw = parse(&text).map_err(|error| unreadable(path, &format!("it is not JSON (SyntaxError: {error})")))?;
+    let raw = state_object(raw).map_err(|error| unreadable(path, &error.message))?;
     let state = parse_state(&raw).map_err(|error| unreadable(path, &error.message))?;
-    Ok(Some(LoadedState { raw: raw.as_object().cloned().unwrap_or_default(), state }))
+    Ok(Some(LoadedState { raw, state }))
 }
 
 /// The state file read and checked; a missing one is `missing-state`, which names init.

@@ -47,6 +47,13 @@ fn json_numbers_print_as_javascript_prints_them() {
 }
 
 #[test]
+fn json_false_prints_and_reads_back() {
+    assert_eq!(compact(&Value::Bool(false)), "false");
+    assert_eq!(parse("false"), Ok(Value::Bool(false)));
+    assert_eq!(pretty(&object(vec![("live", Value::Bool(false))])), "{\n  \"live\": false\n}");
+}
+
+#[test]
 fn json_strings_escape_as_stringify_does() {
     let value = parse(r#""a\"b\\c\/d\b\f\n\r\t\u0001\u007f\u00e9\ud83d\ude00\u2028""#).expect("string");
     assert_eq!(compact(&value), "\"a\\\"b\\\\c/d\\b\\f\\n\\r\\t\\u0001\u{7f}é😀\u{2028}\"");
@@ -355,7 +362,8 @@ fn system_process_runs_programs_and_names_the_ones_it_cannot() {
     assert_eq!(sh("printf %s \"$BUILD_TRACKER_TEST\"").stdout, "seen");
     let failing = sh("echo oops >&2; exit 3");
     assert_eq!((failing.exit_code, failing.stderr.as_str()), (3, "oops\n"));
-    assert_eq!(sh("kill -9 $$").exit_code, -1);
+    let killed = echo.exec("sh", &["-c".to_string(), "echo partial >&2; kill -9 $$".to_string()]).expect_err("a program a signal ended did not run to its end");
+    assert_eq!(killed, "cannot run sh: Command failed: sh -c echo partial >&2; kill -9 $$\npartial\n");
     assert_eq!(echo.exec("build-tracker-no-such-program", &[]).map(|output| output.exit_code), Err("cannot run build-tracker-no-such-program: spawn build-tracker-no-such-program ENOENT".to_string()));
     let denied = SystemProcess { env: Vec::new() }.exec("/", &[]);
     assert!(denied.expect_err("a folder cannot run").starts_with("cannot run /: spawn / "));
@@ -493,13 +501,4 @@ fn a_state_that_cannot_be_written_is_reported_and_the_page_is_not_left_behind() 
     assert_eq!(set.stderr, "build-tracker set: EACCES: permission denied, open '/state/state.json'\n");
     let render = crate::cli::run_cli(&["render".to_string(), "--state".to_string(), "/state/state.json".to_string(), "--out".to_string(), "/out/p.html".to_string()], &runtime);
     assert_eq!(render.stderr, "build-tracker render: EACCES: permission denied, open '/out/p.html'\n");
-}
-
-#[test]
-fn sync_gives_a_known_entry_without_a_status_the_todo_status() {
-    use crate::seed::{sync_state, IssueTrackerSnapshot, SpecTicket};
-    let raw = parse(r#"{"tickets":{"1":{"title":"x"}}}"#).expect("raw");
-    let snapshot = IssueTrackerSnapshot { title: "T".into(), tickets: vec![SpecTicket { blocked_by: vec![], closed: false, external: vec![], file: None, number: 1, title: "x".into() }] };
-    let outcome = sync_state(raw.as_object().expect("object"), &snapshot);
-    assert_eq!(compact(&Value::Obj(outcome.raw)), r#"{"tickets":{"1":{"title":"x","blocked_by":[],"status":"todo"}}}"#);
 }

@@ -2,7 +2,7 @@
 
 use crate::assignments::{apply_assignments, landed_assignments, parse_assignments};
 use crate::board::Shown;
-use crate::json::{object, Object, Value};
+use crate::json::{numbers, object, Object, Value};
 use crate::ports::Runtime;
 use crate::seed::{parse_milestones, seed_state, sync_state};
 use crate::spec::{state_base, state_location, ResolvedSpec, TicketFiles};
@@ -12,16 +12,12 @@ use crate::state_file::{load_state, read_state_file, write_page, write_state};
 use crate::text::resolve;
 
 fn parse_object(raw: &Object) -> Result<BuildTrackerState, Failure> {
-    parse_state(&Value::Obj(raw.clone()))
+    parse_state(raw)
 }
 
 /// What every command that takes `--spec` prints about where the spec's files are: page, spec, state.
 fn spec_paths(located: &LocatedSpec) -> Vec<(&'static str, Value)> {
     vec![("page", Value::str(&located.location.page)), ("spec", Value::str(&located.spec)), ("state", Value::str(&located.location.state))]
-}
-
-fn numbers(values: &[u64]) -> Value {
-    Value::Arr(values.iter().map(|number| Value::Num(*number as f64)).collect())
 }
 
 fn counts(counts: &[(Shown, usize)]) -> Value {

@@ -151,8 +151,19 @@ separate interface that plugs in beside it.
 `init`, `sync`, `path`, `refresh`, `render` and `set`, with the same usage text,
 exit codes (0, 1 for an error with its JSON object, 2 for bad arguments), state
 file layout under `$XDG_STATE_HOME` (else `~/.local/state`)`/agent-kit/build-tracker`
-and page. The output is meant to be byte-identical to the node runner's: the
-stdout JSON, the state file and the page.
+and page. For every scenario under `crates/build-tracker/tests/fixtures/` the
+stdout, stderr, exit code, state file and page are byte for byte what the node
+runner wrote. Outside those scenarios the output is the same except for the
+known differences below.
+
+Known differences from the node runner:
+
+- A number beyond 2^53, or beyond what a `u64` holds, in a spec, an assignment
+  or a state file parses differently from a JavaScript `Number`.
+- A lone UTF-16 surrogate escape in a state file reads as U+FFFD.
+- Some V8 JSON error texts and rare errno wordings differ.
+- A program's output is not capped at 64 MiB.
+- When the rename that writes `--out` fails, the outcome is non-deterministic.
 
 ```bash
 cargo run --manifest-path scripts/Cargo.toml -p build-tracker -- --help

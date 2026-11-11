@@ -15,8 +15,13 @@ impl Process for SystemProcess {
             let reason = if error.kind() == std::io::ErrorKind::NotFound { "ENOENT".to_string() } else { error.to_string() };
             format!("cannot run {command}: spawn {command} {reason}")
         })?;
+        // A program a signal ended has no exit code; node reports that as a failure to run it.
+        let Some(exit_code) = output.status.code() else {
+            let line = std::iter::once(command).chain(args.iter().map(String::as_str)).collect::<Vec<_>>().join(" ");
+            return Err(format!("cannot run {command}: Command failed: {line}\n{}", String::from_utf8_lossy(&output.stderr)));
+        };
         Ok(ProcessOutput {
-            exit_code: output.status.code().unwrap_or(-1),
+            exit_code,
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
             stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
         })

@@ -88,6 +88,11 @@ impl Value {
     }
 }
 
+/// A JSON array of whole numbers.
+pub fn numbers(values: &[u64]) -> Value {
+    Value::Arr(values.iter().map(|number| Value::Num(*number as f64)).collect())
+}
+
 /// An object from `(key, value)` pairs, in order.
 pub fn object(pairs: Vec<(&str, Value)>) -> Value {
     let mut result = Object::new();
@@ -323,7 +328,7 @@ impl Parser {
             }
         }
         let text: String = self.chars[start..self.at].iter().collect();
-        Ok(Value::Num(text.parse().unwrap_or(f64::INFINITY)))
+        Ok(Value::Num(text.parse().expect("a checked JSON number reads as a float")))
     }
 
     fn string(&mut self) -> Result<String, String> {
@@ -379,7 +384,7 @@ impl Parser {
             self.at += 2;
             let pair = self.hex4()?;
             if (0xdc00..0xe000).contains(&pair) {
-                return Ok(char::from_u32(0x10000 + ((code - 0xd800) << 10) + (pair - 0xdc00)).unwrap_or('\u{fffd}'));
+                return Ok(char::from_u32(0x10000 + ((code - 0xd800) << 10) + (pair - 0xdc00)).expect("a surrogate pair is a scalar value"));
             }
             self.at = saved;
         }

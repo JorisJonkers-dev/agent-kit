@@ -105,11 +105,11 @@ impl SpecSource {
 /// The spec issue's title and its sub-issues, each with its native blocked-by links.
 fn read_issue_spec(repository: &RepositoryName, number: u64, runtime: &Runtime) -> Result<IssueTrackerSnapshot, Failure> {
     let reference = issue_reference_text(repository, number);
-    let unreachable = |message: String| {
+    let tracker_unreachable = |message: String| {
         Failure::new("tracker-unreachable", format!("cannot read the tickets of {reference}: {}", first_line(&message).unwrap_or_else(|| "the tracker failed".to_string())))
     };
-    let spec_issue = runtime.issues.issue(repository, number).map_err(unreachable)?;
-    let subs = runtime.issues.sub_issues(repository, number).map_err(unreachable)?;
+    let spec_issue = runtime.issues.issue(repository, number).map_err(tracker_unreachable)?;
+    let subs = runtime.issues.sub_issues(repository, number).map_err(tracker_unreachable)?;
     if let Some(outside) = subs.iter().find(|sub| !same_repository(&sub.repository, repository)) {
         return Err(Failure::new(
             "unsupported-ticket",
@@ -122,7 +122,7 @@ fn read_issue_spec(repository: &RepositoryName, number: u64, runtime: &Runtime) 
     let inside = |blocker: &IssueRecord| same_repository(&blocker.repository, repository) && subs.iter().any(|sub| sub.number == blocker.number);
     let mut tickets = Vec::new();
     for sub in &subs {
-        let blockers = runtime.issues.blocked_by(&sub.repository, sub.number).map_err(unreachable)?;
+        let blockers = runtime.issues.blocked_by(&sub.repository, sub.number).map_err(tracker_unreachable)?;
         tickets.push(SpecTicket {
             blocked_by: blockers.iter().filter(|blocker| inside(blocker)).map(|blocker| blocker.number).collect(),
             closed: sub.closed,
