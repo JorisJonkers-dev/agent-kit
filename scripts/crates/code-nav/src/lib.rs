@@ -12,7 +12,9 @@
 //!
 //! Usage: `code-nav --root DIR [--root DIR ...] [--limit N]`. The roots are
 //! the allowlist; the caller (setup, per instance) passes only roots that fit
-//! the instance's repository rule. `--limit` sets the default result cap.
+//! the instance's repository rule. `--limit` sets the default result cap. A
+//! root of `~` or `~/...` is expanded against `HOME`, because a registry
+//! config passes the argument literally, with no shell to expand it.
 
 pub mod boundary;
 pub mod outline;
@@ -23,7 +25,7 @@ use std::ffi::OsString;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
-/// What the command line configures.
+/// What the command line configures. A root's leading `~` is already expanded.
 #[derive(Debug, PartialEq)]
 pub struct Config {
     pub roots: Vec<PathBuf>,
@@ -34,12 +36,20 @@ const USAGE: &str = "usage: code-nav --root DIR [--root DIR ...] [--limit N]";
 
 /// Parse the command line. `Err` is the message to print.
 pub fn parse_args(args: &[String]) -> Result<Config, String> {
+    parse_args_with_home(args, std::env::var("HOME").ok().as_deref())
+}
+
+/// Parse the command line, expanding a root's leading `~` against `home`.
+pub fn parse_args_with_home(args: &[String], home: Option<&str>) -> Result<Config, String> {
     let mut roots = Vec::new();
     let mut limit = search::DEFAULT_LIMIT;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
-            "--root" => roots.push(PathBuf::from(it.next().ok_or("--root needs a directory")?)),
+            "--root" => {
+                let dir = it.next().ok_or("--root needs a directory")?;
+                roots.push(PathBuf::from(expand_home(dir, home)?));
+            }
             "--limit" => {
                 let n: usize = it
                     .next()
@@ -57,6 +67,18 @@ pub fn parse_args(args: &[String]) -> Result<Config, String> {
         return Err("at least one --root is required".to_string());
     }
     Ok(Config { roots, limit })
+}
+
+/// Expand a leading `~` or `~/` against `home`; any other value is unchanged.
+fn expand_home(dir: &str, home: Option<&str>) -> Result<String, String> {
+    let rest = match dir.strip_prefix('~') {
+        Some(rest) if rest.is_empty() || rest.starts_with('/') => rest,
+        _ => return Ok(dir.to_string()),
+    };
+    match home {
+        Some(home) if !home.is_empty() => Ok(format!("{home}{rest}")),
+        _ => Err("--root ~ needs HOME to be set".to_string()),
+    }
 }
 
 /// Run the server on the given streams; the exit code.

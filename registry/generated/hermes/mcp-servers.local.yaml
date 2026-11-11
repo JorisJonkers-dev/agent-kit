@@ -20,6 +20,11 @@ mcp_servers:
     args: []
     timeout: 60
 
+  code-nav:
+    command: "code-nav"
+    args: ["--root", "~/Projects/JorisJonkers-dev"]
+    timeout: 60
+
   grimoire:
     url: "https://grimoire.jorisjonkers.dev/mcp"
     headers:

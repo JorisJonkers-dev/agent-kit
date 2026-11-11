@@ -30,6 +30,15 @@
         ],
         "timeout": 60000
       },
+      "code-nav": {
+        "type": "local",
+        "command": [
+          "code-nav",
+          "--root",
+          "~/Projects/JorisJonkers-dev"
+        ],
+        "timeout": 60000
+      },
       "grimoire": {
         "type": "remote",
         "url": "https://grimoire.jorisjonkers.dev/mcp",

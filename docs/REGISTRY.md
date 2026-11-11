@@ -42,6 +42,23 @@ was never rendered. Both are one test.
 nowhere. That is what the `knowledge` MCP entry is now, and a test asserts it
 does not creep back into a generated artifact.
 
+## code-nav and its roots
+
+`code-nav` is a read-only MCP server (it writes nothing, opens no socket), so
+every agent id may use it. Its `args` are its allowlist: `--root` and a path,
+repeated. The registry holds the personal roots only
+(`args: ["--root", "~/Projects/JorisJonkers-dev"]`), and the renderer refuses
+one that names a work root. A work root goes in the work machine's overlay:
+
+```yaml
+instances:
+  gold-band:
+    mcp_servers:
+      code-nav: {command: code-nav, args: ["--root", "~/Projects/nedap"]}
+```
+
+The personal instance never takes a work root.
+
 ## The package proxy
 
 The top-level `package_proxy:` key declares the estate's packages proxy

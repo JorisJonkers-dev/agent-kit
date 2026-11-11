@@ -1946,6 +1946,25 @@ mcp_servers:
       package: "kubernetes-mcp-server"
       version: "0.1.1"
 
+  - name: code-nav
+    transport: stdio
+    purpose: Read-only search, outline and expand over the live working tree of the personal repositories.
+    command: code-nav
+    args: ["--root", "~/Projects/JorisJonkers-dev"]
+    timeout: 60
+    surfaces: [workstation]
+    cloud: false
+    trust: local
+    requires_binary: code-nav
+    # Built from the kit's own cargo workspace (a std-only crate), so the
+    # install runs from the checkout rather than from a package registry.
+    install: 'cargo install --locked --path "${KIT_ROOT}/scripts/crates/code-nav" --root "${HOME}/.local"'
+    note: >-
+      A read level server: it writes nothing and opens no socket, so every
+      agent id can use it. The roots here are personal only; work roots
+      belong in the work machine's overlay under
+      instances.gold-band.mcp_servers.code-nav and never in this file.
+
   - name: github
     transport: http
     purpose: Issues, branches, pull requests.

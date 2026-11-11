@@ -272,6 +272,14 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError(f"mcp server {name} transport must be http or stdio")
         if transport == "stdio" and not server.get("command"):
             raise RegistryError(f"stdio mcp server {name} must name a command")
+        # A server's args are its allowlist of roots (code-nav). A work root
+        # here would ship to every personal machine, so it is refused.
+        for arg in server.get("args") or []:
+            if "nedap" in str(arg).lower():
+                raise RegistryError(
+                    f"mcp server {name}: args name a work root; "
+                    "work roots belong in the work machine overlay, never in the public registry",
+                )
         if session_only(server) and (
             transport != "http" or server.get("surfaces") != ["workstation"] or server.get("cloud") is not False
         ):
@@ -3719,6 +3727,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# This script lives in <kit>/installer, and the first-party skills it")
     w("# copies live in <kit>/skills.")
     w('KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"')
+    # run_sh runs `bash -c "$1"`, so an install command that names the
+    # checkout (code-nav's cargo install) only sees it when it is exported.
+    w("export KIT_ROOT")
     w("# The work profile lives in the default Claude directory, whatever")
     w("# CLAUDE_CONFIG_DIR the calling shell carries (a personal session exports")
     w("# its own). Dropping it keeps every claude call below on that directory.")

@@ -45,6 +45,14 @@ tool_timeout_sec = 60.0
 startup_timeout_sec = 30.0
 
 [[mcp_servers]]
+name = "code-nav"
+transport = "stdio"
+command = "code-nav"
+args = ["--root", "~/Projects/JorisJonkers-dev"]
+tool_timeout_sec = 60.0
+startup_timeout_sec = 30.0
+
+[[mcp_servers]]
 name = "grimoire"
 transport = "streamable-http"
 url = "https://grimoire.jorisjonkers.dev/mcp"

@@ -766,6 +766,36 @@ fn arguments_configure_roots_and_the_default_limit() {
 }
 
 #[test]
+fn a_leading_tilde_in_a_root_expands_against_home() {
+    let home = Some("/home/me");
+    let c = parse_args_with_home(&args(&["--root", "~/x"]), home).unwrap();
+    assert_eq!(c.roots, [PathBuf::from("/home/me/x")]);
+    let c = parse_args_with_home(&args(&["--root", "~"]), home).unwrap();
+    assert_eq!(c.roots, [PathBuf::from("/home/me")]);
+    // Only a bare `~` or `~/` expands; `~user/x` and a plain path are left alone.
+    for unchanged in ["~user/x", "/abs/x", "rel/x", "a~/x"] {
+        let c = parse_args_with_home(&args(&["--root", unchanged]), home).unwrap();
+        assert_eq!(c.roots, [PathBuf::from(unchanged)], "{unchanged}");
+    }
+}
+
+#[test]
+fn a_tilde_root_without_home_is_an_error() {
+    for home in [None, Some("")] {
+        for root in ["~", "~/x"] {
+            assert_eq!(
+                parse_args_with_home(&args(&["--root", root]), home).unwrap_err(),
+                "--root ~ needs HOME to be set",
+                "{root} with {home:?}"
+            );
+        }
+        // A root that needs no expansion is fine without HOME.
+        let c = parse_args_with_home(&args(&["--root", "/abs/x"]), home).unwrap();
+        assert_eq!(c.roots, [PathBuf::from("/abs/x")]);
+    }
+}
+
+#[test]
 fn cli_serves_over_the_given_streams() {
     let f = fixture();
     let root = f.root.display().to_string();

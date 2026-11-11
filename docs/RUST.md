@@ -78,7 +78,7 @@ code-nav --root ~/Projects/owner/repo [--root DIR ...] [--limit N]
   and other private keys; `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.kdbx`,
   `*.keystore`; `.netrc`, `.npmrc`, `.pypirc`, credential files; anything under
   `.ssh`, `.gnupg`, `.aws`, `.git` or `.kube`, and `*.env`, `*.tfvars`, `.envrc`, `kubeconfig`) are refused. Relative paths are taken against the
-  first root.
+  first root. `--root` expands a leading `~` against HOME.
 * **Tool `search`** (`query`, optional `path` and `limit`). A line matches
   when it contains the query, ignoring case. **Rank:** score 1, plus 4 when the
   query is a whole identifier on the line, plus 2 when the file name contains

@@ -1413,11 +1413,11 @@ converge_mcp() {
   fi
   out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \
     "${args[@]}" \
-    --declared claude=memory-api,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf,hindsight \
-    --declared codex=memory-api,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf,hindsight \
-    --declared vibe=memory-api,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf,hindsight \
-    --declared vibe-private=memory-api,memory-private,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf,hindsight \
-    --declared opencode=memory-api,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf \
+    --declared claude=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
+    --declared codex=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
+    --declared vibe=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
+    --declared vibe-private=memory-api,memory-private,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
+    --declared opencode=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf \
     --retired memory-mcp,vuetify --private memory-private 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
@@ -1543,6 +1543,7 @@ install_profile_launcher() {
 # This script lives in <kit>/installer, and the first-party skills it
 # copies live in <kit>/skills.
 KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export KIT_ROOT
 # The work profile lives in the default Claude directory, whatever
 # CLAUDE_CONFIG_DIR the calling shell carries (a personal session exports
 # its own). Dropping it keeps every claude call below on that directory.
@@ -3757,6 +3758,34 @@ for install in installs:
       fi
     fi
 
+    # Read-only search, outline and expand over the live working
+    # tree of the personal repositories.
+    if [ "${CLOUD}" = 1 ]; then
+      log "code-nav: not set up in cloud mode"
+    else
+      if ! command -v code-nav >/dev/null 2>&1; then
+        run_sh 'cargo install --locked --path "${KIT_ROOT}/scripts/crates/code-nav" --root "${HOME}/.local"' || true
+        command -v code-nav >/dev/null 2>&1 \
+          || warn "code-nav: code-nav is not on PATH; skipping"
+      fi
+      if command -v claude >/dev/null 2>&1; then
+        run claude_each_profile claude mcp remove --scope user code-nav >/dev/null 2>&1 || true
+        if run_redacted "claude mcp add code-nav" claude_each_profile claude mcp add --scope user code-nav -- code-nav --root ~/Projects/JorisJonkers-dev; then
+          ok "code-nav registered (claude)"
+        else
+          fail "code-nav registration failed (claude)"
+        fi
+      fi
+      if command -v codex >/dev/null 2>&1; then
+        run codex mcp remove code-nav >/dev/null 2>&1 || true
+        if run_redacted "codex mcp add code-nav" codex mcp add code-nav -- code-nav --root ~/Projects/JorisJonkers-dev; then
+          ok "code-nav registered (codex)"
+        else
+          fail "code-nav registration failed (codex)"
+        fi
+      fi
+    fi
+
     # Grimoire, the D&D 5e table companion at
     # grimoire.jorisjonkers.dev, through its MCP server.
     if [ "${CLOUD}" = 1 ]; then
@@ -3901,7 +3930,7 @@ for install in installs:
           || fail "local Hermes retired MCP cleanup failed"
         if [ "${CLOUD}" = 1 ]; then
           uv run --no-project --exclude-newer "7 days" --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
-            "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove n8n --remove kubernetes --remove grimoire --remove outline \
+            "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove n8n --remove kubernetes --remove code-nav --remove grimoire --remove outline \
             || fail "local Hermes MCP cleanup failed"
         fi
       fi
@@ -3917,7 +3946,7 @@ for install in installs:
         log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"
       else
         vibe_remove=()
-        [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove n8n --remove kubernetes --remove grimoire --remove outline)
+        [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove n8n --remove kubernetes --remove code-nav --remove grimoire --remove outline)
         uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" --remove memory-private ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
@@ -3994,7 +4023,7 @@ for install in installs:
       # Check all expected servers are registered
       expected_servers=(memory-api n8n-mcp playwright drawio overleaf)
       if [ "${CLOUD}" != 1 ]; then
-        expected_servers+=(n8n kubernetes grimoire outline)
+        expected_servers+=(n8n kubernetes code-nav grimoire outline)
       fi
       for want in "${expected_servers[@]}"; do
         case " ${skipped_mcp_names[*]-} " in *" ${want} "*) continue ;; esac
