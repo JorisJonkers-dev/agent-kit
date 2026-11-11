@@ -1,0 +1,13 @@
+[package]
+name = "agent-launcher"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Starts each Gold Band agent id with its reach level's tool configuration and refuses a level the agent cannot hold on this OS."
+
+# Registry dependencies are pinned exactly, each at a version at least seven
+# days old (docs/RUST.md); crate-age checks every transitive version. These
+# three are already in the lockfile through ticket-sync.
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_yaml = "=0.9.34"

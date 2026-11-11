@@ -1,0 +1,16 @@
+# The reach-level support record (spec #392, ADR-0013), read by the
+# agent-launcher crate (docs/RUST.md).
+#
+# agents:  for each agent, the command that starts it and, for each reach level
+#          (read, read-web, research, write-scoped, run-one-command, write,
+#          full), the tool arguments that make it hold the level and one cell
+#          per OS (linux, mac): verified, unverified or unsupported. A cell is
+#          verified separately on each OS, with the check that proves it.
+# ids:     each agent id: its agent, reach level, optional skill_set, the hosts
+#          it runs on, and an output_dir for research and write-scoped. An id
+#          may only name a verified cell on every host it lists.
+#
+# No cell is verified yet. The per-agent tickets (B1-14 to B1-16) add each
+# agent's cells with the check that proves them, and the ids that use them.
+agents: {}
+ids: {}

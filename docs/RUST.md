@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Eight members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Ten members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -26,6 +26,8 @@ on the Linux workstation.
   code-navigation MCP server (below). `crates/workflow-lint` is the Gold Band
   workflow lint (below). `crates/ticket-sync` is the ticket sync tool (below);
   it takes serde, serde_json and serde_yaml, each pinned exactly.
+  `crates/agent-launcher` is the reach-level launcher (below); it takes serde
+  and serde_yaml, each pinned exactly.
   `crates/litellm-gate` is the node-side check that a LiteLLM per-key budget is
   not exhausted: one probe request through curl with the key on stdin, exit 1
   when the budget is spent or the proxy cannot be asked.
@@ -109,6 +111,35 @@ when its first timestamp is at or after `--since` and before `--until`
 are the `output_tokens` of the assistant turns that call tools, up to the first
 turn that calls an editing tool. The test fixtures are synthetic transcripts
 under `crates/transcript-mix/fixtures`.
+
+## agent-launcher
+
+`agent-launcher` starts one Gold Band agent id with its reach level's tool
+configuration, and refuses, before it starts anything, a level the agent cannot
+hold on this OS. It reads the support record, `registry/reach-levels.yaml`:
+
+* `agents:` each agent's `command` and, per reach level (`read`, `read-web`,
+  `research`, `write-scoped`, `run-one-command`, `write`, `full`), its tool
+  `args` and a `support:` cell for each OS (`linux`, `mac`), one of `verified`,
+  `unverified` or `unsupported`. A cell is verified separately on each OS; a
+  level proven on the Mac is never assumed on Linux.
+* `ids:` each agent id, naming its `agent`, its `reach` level, an optional
+  `skill_set`, the `hosts` it runs on and, for `research` and `write-scoped`,
+  its `output_dir`.
+
+```bash
+cargo run --manifest-path scripts/Cargo.toml -p agent-launcher -- validate registry/reach-levels.yaml
+cargo run --manifest-path scripts/Cargo.toml -p agent-launcher -- run registry/reach-levels.yaml <id> -- [agent args]
+```
+
+`validate` exits `1` for an id with no reach level, an unknown agent or level, a
+`research` or `write-scoped` id without an output directory, an id whose cell
+is not `verified` on a host it names, two ids for one agent, level and skill
+set, or a cell missing an OS. `run` exits `1` and starts nothing when the cell
+for this OS is not verified or the id is not declared for it; otherwise it
+runs the agent with `AGENT_KIT_REACH` (and `AGENT_KIT_OUTPUT_DIR`) set and
+exits with its status. The operating-system write limit (ADR-0013) is a
+separate interface that plugs in beside it.
 
 ## Measuring line coverage
 
