@@ -25,7 +25,7 @@ export function planFilePathOrNull(repository: Pick<ResolvedRepository, 'root' |
   if (draft.split('/').some((part) => part === '..' || part === '.' || part === '')) return null
   return tracker === 'local-markdown'
     ? join(repository.root, '.scratch', draft, PLAN_FILE)
-    : join(repository.commonDir, 'critique', 'plans', draft.replaceAll('/', '--'), PLAN_FILE)
+    : join(repository.commonDir, 'critique', 'plans', draft.replaceAll('/', '~'), PLAN_FILE)
 }
 
 /**
@@ -37,7 +37,7 @@ export function namedPlanPath(repository: Pick<ResolvedRepository, 'root' | 'com
   const absolute = isAbsolute(path) ? path : resolve(repository.root, path)
   const inside = (base: string): boolean => {
     const rel = relative(base, absolute)
-    return !rel.startsWith('..') && !isAbsolute(rel)
+    return rel !== '..' && !rel.startsWith('../') && !isAbsolute(rel)
   }
   if (!inside(repository.root) && !inside(repository.commonDir)) {
     throw new CritiqueError('outside-repository', `${path} is outside the repository and its git directory, where a plan lives`)

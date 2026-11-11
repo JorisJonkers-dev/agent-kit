@@ -3665,7 +3665,7 @@ which closes #243 and #244; architecture-expansion section 5.5 and ADR-0005):
   the file exists, so the skill knows where to write a draft.
 - **Where the plan lives.** `.scratch/<draft>/refactoring-plan.md` when the
   tracker is local markdown; otherwise `<git common dir>/critique/plans/<draft>/refactoring-plan.md`
-  (a `/` in the draft name becomes `--`). Neither is a place a commit holds,
+  (a `/` in the draft name becomes `~`, which no draft name holds, so two drafts never share a folder). Neither is a place a commit holds,
   and the runner never writes the file. A draft name with an empty, `.` or
   `..` segment names no folder: `prepare` refuses it, `state` reports no path.
   `prepare` also takes `plan`, a path inside the working tree or the git common

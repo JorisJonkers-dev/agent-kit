@@ -5830,13 +5830,13 @@ function planFilePath(repository, tracker, draft) {
 }
 function planFilePathOrNull(repository, tracker, draft) {
   if (draft.split("/").some((part) => part === ".." || part === "." || part === "")) return null;
-  return tracker === "local-markdown" ? join10(repository.root, ".scratch", draft, PLAN_FILE) : join10(repository.commonDir, "critique", "plans", draft.replaceAll("/", "--"), PLAN_FILE);
+  return tracker === "local-markdown" ? join10(repository.root, ".scratch", draft, PLAN_FILE) : join10(repository.commonDir, "critique", "plans", draft.replaceAll("/", "~"), PLAN_FILE);
 }
 function namedPlanPath(repository, path) {
   const absolute = isAbsolute4(path) ? path : resolve2(repository.root, path);
   const inside = (base) => {
     const rel = relative2(base, absolute);
-    return !rel.startsWith("..") && !isAbsolute4(rel);
+    return rel !== ".." && !rel.startsWith("../") && !isAbsolute4(rel);
   };
   if (!inside(repository.root) && !inside(repository.commonDir)) {
     throw new CritiqueError("outside-repository", `${path} is outside the repository and its git directory, where a plan lives`);
@@ -6803,7 +6803,17 @@ var PLAN_RULES = [
   "premature-service-split",
   "single-adapter-seam",
   "deletion-without-decision",
-  "plan-consequence"
+  "plan-consequence",
+  // The deep roster's coupling and test-seams lenses.
+  "internals-dependence",
+  "decision-spread",
+  "unexplained-co-change",
+  "pass-through",
+  "wide-interface",
+  "needs-real-infrastructure",
+  "coupled-to-internals",
+  "no-assertion-or-pasted-value",
+  "no-fake"
 ];
 var PLAN_CHECK_PATH = "check/plan.json";
 function planTarget(location, stepIds) {

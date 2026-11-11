@@ -150,7 +150,7 @@ interface Options {
 function planPath(h: Harness, tracker: 'github' | 'local-markdown', draft = 'widgets'): string {
   return tracker === 'local-markdown'
     ? join(h.repo, '.scratch', draft, 'refactoring-plan.md')
-    : join(h.repo, '.git', 'critique', 'plans', draft.replaceAll('/', '--'), 'refactoring-plan.md')
+    : join(h.repo, '.git', 'critique', 'plans', draft.replaceAll('/', '~'), 'refactoring-plan.md')
 }
 
 /**
@@ -400,13 +400,13 @@ describe('a plan prepare', () => {
     expect(run.artifact).toMatchObject({ reference: '.git/critique/plans/widgets/refactoring-plan.md' })
   })
 
-  it('stores a draft name with a slash under the git directory with -- in its place', async () => {
+  it('stores a draft name with a slash under the git directory with ~ in its place', async () => {
     const h = await fixture({ plan: null, tracker: 'github' })
     await h.writeText(planPath(h, 'github', 'team/widgets'), PLAN)
 
     const run = await prepared(h, { flow: 'draft:team/widgets' })
 
-    expect(run.artifact).toMatchObject({ reference: '.git/critique/plans/team--widgets/refactoring-plan.md' })
+    expect(run.artifact).toMatchObject({ reference: '.git/critique/plans/team~widgets/refactoring-plan.md' })
   })
 
   it('charges the run to the draft flow the plan belongs to', async () => {
@@ -523,6 +523,19 @@ describe('the plan evidence rule', () => {
 
     expect(verdicts[0]).toMatchObject({ verdict: 'hint' })
     expect(JSON.stringify(verdicts[0])).toContain('unknown-check')
+  })
+})
+
+describe('the deep roster of a plan run', () => {
+  it('judges a coupling or test-seams finding by the same rule, naming its lens check as the rule', async () => {
+    const h = await fixture()
+    const { result } = await reviewed(
+      h,
+      { coupling: [planFinding('F1', { check: 'no-fake', location: 'S02: no-fake' })] },
+      { depth: 'deep' },
+    )
+
+    expect(result.findings.map((raised) => raised.pre_verdict?.reason_code)).toEqual([undefined])
   })
 })
 

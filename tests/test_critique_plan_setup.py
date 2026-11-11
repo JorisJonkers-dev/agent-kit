@@ -170,4 +170,6 @@ def test_the_runner_knows_exactly_the_rules_the_lenses_declare() -> None:
     ).read_text()
     block = source.split("export const PLAN_RULES = [", 1)[1].split("] as const", 1)[0]
     known = re.findall(r"'([a-z0-9-]+)'", block)
-    assert known == [*SAFETY, *ANCHORING, "plan-consequence"]
+    assert known[: len(SAFETY) + len(ANCHORING) + 1] == [*SAFETY, *ANCHORING, "plan-consequence"]
+    for lens in ("coupling", "test-seams"):
+        assert {i for i, _ in _checks(CRITIQUE / "lenses" / f"{lens}.md")} <= set(known), lens

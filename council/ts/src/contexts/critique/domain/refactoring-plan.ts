@@ -370,6 +370,16 @@ export const PLAN_RULES = [
   'single-adapter-seam',
   'deletion-without-decision',
   'plan-consequence',
+  // The deep roster's coupling and test-seams lenses.
+  'internals-dependence',
+  'decision-spread',
+  'unexplained-co-change',
+  'pass-through',
+  'wide-interface',
+  'needs-real-infrastructure',
+  'coupled-to-internals',
+  'no-assertion-or-pasted-value',
+  'no-fake',
 ] as const
 
 /** The packet path of the checker's report on the plan, which says which steps the plan has. */
