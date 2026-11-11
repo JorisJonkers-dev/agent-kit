@@ -345,7 +345,9 @@ def _gold_band_adapter_problems(name: str, adapter: Any) -> list[str]:
     return problems
 
 
-def _gold_band_problems(declared: list[dict[str, Any]], allowed: set[str]) -> list[str]:
+def _gold_band_problems(
+    declared: list[dict[str, Any]], allowed: set[str], retired: set[str] = frozenset()
+) -> list[str]:
     """One line per problem with the declared agents; empty when they may be written."""
     problems: list[str] = []
     seen: set[str] = set()
@@ -361,6 +363,8 @@ def _gold_band_problems(declared: list[dict[str, Any]], allowed: set[str]) -> li
         seen.add(raw)
         if "codex" in raw.lower():
             problems.append(f"{raw}: Codex is refused on the personal instance")
+        if raw in retired:
+            problems.append(f"{raw}: declared and retired at once")
         if raw not in allowed:
             problems.append(f"{raw}: not in gold_band_instances.{GOLD_BAND_INSTANCE}.agents")
         problems += [f"{raw}: unknown field {key}" for key in agent if key not in GOLD_BAND_AGENT_FIELDS]
@@ -424,7 +428,8 @@ def _gold_band_running() -> bool:
     if flag is not None:
         return flag == "1"
     try:
-        return subprocess.run(["pgrep", "-x", GOLD_BAND_PROCESS], capture_output=True, check=False).returncode == 0
+        pattern = rf"(^|/){GOLD_BAND_PROCESS}( |$)"
+        return subprocess.run(["pgrep", "-f", pattern], capture_output=True, check=False).returncode == 0
     except OSError:
         return False
 
@@ -433,7 +438,7 @@ def gold_band(args: argparse.Namespace) -> int:
     settings = args.settings or _gold_band_settings_path()
     try:
         declared, retired, allowed = _gold_band_registry(args.registry)
-        problems = _gold_band_problems(declared, allowed)
+        problems = _gold_band_problems(declared, allowed, retired)
         if problems:
             for problem in problems:
                 print(f"gold-band-agents: {problem}")
@@ -463,7 +468,9 @@ def gold_band(args: argparse.Namespace) -> int:
     for name, value in current.items():
         if name in installed:
             merged[name] = installed[name]
-        elif name in skipped_ids or (name in keep and name not in retired and "codex" not in name.lower()):
+        elif name in retired or "codex" in name.lower():
+            removed.append(name)
+        elif name in skipped_ids or name in keep:
             merged[name] = value
         else:
             removed.append(name)
