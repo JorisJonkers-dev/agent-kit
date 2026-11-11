@@ -248,6 +248,43 @@ and that a deleted report, rewritten output, a rewritten command, a stale
 report and a report from another run or attempt each end the run in failure.
 Its stub does the tampering itself, since the limit is not in play there.
 
+## The critique stage templates
+
+`installer/gold-band/workflows/critique-<stage>.json` wraps each critique
+stage as a Gold Band workflow whose nodes run the critique runner, so the
+runner stays the executor: it keeps its read-only tripwire, packet
+confinement, time limits and family allowlist, and Gold Band only sequences
+the stages and pauses on the manual check (spec #392, stories 102 and 111).
+The stages are `decisions`, `spec`, `tickets`, `ticket-review`,
+`feature-review`, `adr-review`, `decision-recovery` and `architecture-review`;
+`critique-spec-stage.json` is the older template that sends the spec to the
+critics directly and loses the runner's guarantees, so it stays for personal
+repositories only.
+
+Every template has the same path:
+
+1. `gate-critique-<stage>-start`, the run-start shim: it refuses the run when
+   the repository rule or the family allowlist (including its code
+   permission) forbids an agent id the workflow binds, before any model node
+   runs;
+2. `prepare`, `fan-out`, then (after the orchestrator's `<stage>-verdicts`
+   node) `refute` and `record`, each a gate node, the pinned
+   `gold-band-gate run` wrapper around `critique <command> --strict`,
+   followed by the read-only copier that verifies its report. `--strict`
+   makes a refusal (`"status": "refused"`) exit 4, so a refused prepare ends
+   the run instead of reading as a pass;
+3. `<stage>-verdicts` answers with the findings it could not settle. An empty
+   list goes straight to `refute`; any other answer goes to the
+   `<stage>-needs-human` manual check first, and the run pauses there.
+
+Nothing in a template reimplements a runner guarantee. A critic that writes
+outside its packet is voided by the runner's tripwire, a search outside the
+packet returns nothing, and a critic past its time limit is stopped by the
+runner; `council/ts/src/critique-cli/template-run.test.ts` proves each through
+the same `--strict` command line a gate node runs. The headless proof (`gold-band-proof prove`) checks each template's sequencing: a clean
+run ends in success, a finding pauses at the manual check, and a failing gate
+(including a refused run-start) ends the run in failure.
+
 ## The generated roles
 
 Gold Band reads a role as a **profile**: a Markdown file with YAML front

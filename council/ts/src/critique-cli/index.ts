@@ -74,6 +74,9 @@ search-server is the read-only MCP stdio server a Vibe critic searches its
 packet copy through (ADR-0006); the runner starts it, never the owner.
 `
 
+/** The exit code of a refused result under `--strict`: a Gold Band gate node reads any non-zero exit as red. */
+export const REFUSED_EXIT_CODE = 4
+
 /** The exit code of a result whose status is `failed`: a check failed, though the command did not. */
 export const FAILED_EXIT_CODE = 3
 
@@ -86,7 +89,8 @@ const HOOKS = {
 
 /** The runner's command line: one command, one JSON object in, one JSON object out. */
 export async function runCritiqueCli(argv: readonly string[], runtime: CritiqueCliRuntime): Promise<CritiqueCliResult> {
-  const [name, flag, value, ...rest] = argv
+  const strict = argv.length > 1 && argv[argv.length - 1] === '--strict' && argv[0] !== 'hook'
+  const [name, flag, value, ...rest] = strict ? argv.slice(0, -1) : argv
   if (name === '--help' || name === '-h') return { exitCode: 0, stderr: '', stdout: CRITIQUE_USAGE }
   if (name === 'hook') {
     const hook = flag !== undefined && value === undefined && Object.hasOwn(HOOKS, flag) ? HOOKS[flag as keyof typeof HOOKS] : undefined
@@ -105,7 +109,7 @@ export async function runCritiqueCli(argv: readonly string[], runtime: CritiqueC
     // The gate fails open: input that is not JSON is the gate's to log and allow, not an error.
     const lenient = method === 'gate' || method === 'sessionStart'
     const result = await runtime.commands[method].run(lenient ? parseLeniently(text) : parseInput(text))
-    const exitCode = result.status === 'failed' ? FAILED_EXIT_CODE : 0
+    const exitCode = result.status === 'failed' ? FAILED_EXIT_CODE : strict && result.status === 'refused' ? REFUSED_EXIT_CODE : 0
     return { exitCode, stderr: '', stdout: `${JSON.stringify(result, null, 2)}\n` }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
