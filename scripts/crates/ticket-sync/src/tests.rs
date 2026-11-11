@@ -778,19 +778,19 @@ fn without_an_approval_the_close_closes_nothing() {
     let c = closings(&p, &m, &disp).unwrap();
     let d = scratch("no-approval");
     let mut done = Vec::new();
-    let err = close(&d.join("approval"), &c, &mut f, &mut done).unwrap_err();
+    let err = close(&d.join("approval"), "o/r", &c, &mut f, &mut done).unwrap_err();
     assert!(err.contains("no approval recorded") && err.contains("--approve-plan"), "{err}");
     assert!(done.is_empty() && f.log.is_empty());
     assert_eq!(open_issues(&f), vec![1, 10, 11, 12, 13, 14, 50, 51, 52, 60]);
     // An unreadable approval is no approval either.
     std::fs::write(d.join("bad"), "not json").unwrap();
-    assert!(close(&d.join("bad"), &c, &mut f, &mut done).is_err());
+    assert!(close(&d.join("bad"), "o/r", &c, &mut f, &mut done).is_err());
     // Nor is the approval of an empty plan.
-    assert!(approve(&d.join("empty"), &[]).unwrap_err().contains("nothing to approve"));
+    assert!(approve(&d.join("empty"), "o/r", &[]).unwrap_err().contains("nothing to approve"));
     // An approval that cannot be written is an error, not a silent success.
     std::fs::write(d.join("file"), "x").unwrap();
-    assert!(approve(&d.join("file/sub/approval"), &c).unwrap_err().contains("file"));
-    assert!(approve(&d, &c).is_err());
+    assert!(approve(&d.join("file/sub/approval"), "o/r", &c).unwrap_err().contains("file"));
+    assert!(approve(&d, "o/r", &c).is_err());
     assert!(f.log.is_empty());
 }
 
@@ -800,15 +800,15 @@ fn an_approval_of_another_plan_closes_nothing() {
     let p = plan(&m, &stories_map(), &mut f).unwrap();
     let c = closings(&p, &m, &disp).unwrap();
     let d = scratch("stale-approval");
-    approve(&d.join("approval"), &c[..2]).unwrap();
-    let err = close(&d.join("approval"), &c, &mut f, &mut Vec::new()).unwrap_err();
-    assert!(err.contains("different plan") && err.contains(&fingerprint(&c)), "{err}");
+    approve(&d.join("approval"), "o/r", &c[..2]).unwrap();
+    let err = close(&d.join("approval"), "o/r", &c, &mut f, &mut Vec::new()).unwrap_err();
+    assert!(err.contains("not for the current close plan") && err.contains(&fingerprint("o/r", &c)), "{err}");
     assert!(f.log.is_empty());
     // The comment is part of the plan: a changed mapping needs a new approval.
-    approve(&d.join("approval"), &c).unwrap();
+    approve(&d.join("approval"), "o/r", &c).unwrap();
     let mut changed = c.clone();
     changed[0].comment.push('!');
-    assert!(close(&d.join("approval"), &changed, &mut f, &mut Vec::new()).is_err());
+    assert!(close(&d.join("approval"), "o/r", &changed, &mut f, &mut Vec::new()).is_err());
     assert!(f.log.is_empty());
 }
 
@@ -818,9 +818,9 @@ fn with_an_approval_the_close_closes_exactly_the_plan() {
     let p = plan(&m, &stories_map(), &mut f).unwrap();
     let c = closings(&p, &m, &disp).unwrap();
     let d = scratch("approved");
-    approve(&d.join("state/approval"), &c).unwrap();
+    approve(&d.join("state/approval"), "o/r", &c).unwrap();
     let mut done = Vec::new();
-    close(&d.join("state/approval"), &c, &mut f, &mut done).unwrap();
+    close(&d.join("state/approval"), "o/r", &c, &mut f, &mut done).unwrap();
     assert_eq!(done, vec![50, 51, 52]);
     assert_eq!(
         f.log,
@@ -833,11 +833,21 @@ fn with_an_approval_the_close_closes_exactly_the_plan() {
     // Nothing outside the plan was touched.
     assert_eq!(open_issues(&f), vec![1, 10, 11, 12, 13, 14, 60]);
     // A failing close stops there and reports what was closed.
+    // The approval is used up: a reopened issue gives a plan that needs a new one.
+    assert!(!d.join("state/approval").exists());
+    f.issues.get_mut(&50).unwrap().open = true;
+    f.log.clear();
+    let p = plan(&m, &stories_map(), &mut f).unwrap();
+    let again = closings(&p, &m, &disp).unwrap();
+    assert!(close(&d.join("state/approval"), "o/r", &again, &mut f, &mut Vec::new()).unwrap_err().contains("no approval"));
+    assert!(f.log.is_empty());
+    // A failing close stops there and keeps the approval.
     let (_, mut f2, _) = closing_fixture();
     f2.fail_on = Some("close");
+    approve(&d.join("state/approval"), "o/r", &c).unwrap();
     let mut done2 = Vec::new();
-    assert_eq!(close(&d.join("state/approval"), &c, &mut f2, &mut done2).unwrap_err(), "close failed");
-    assert!(done2.is_empty());
+    assert_eq!(close(&d.join("state/approval"), "o/r", &c, &mut f2, &mut done2).unwrap_err(), "close failed");
+    assert!(done2.is_empty() && d.join("state/approval").exists());
 }
 
 #[test]
@@ -856,7 +866,7 @@ fn the_command_approves_then_closes_and_only_then() {
     let mut out = Vec::new();
     sync(&opts(Mode::DryRun), &mut f, &mut out).unwrap();
     let text = String::from_utf8(out).unwrap();
-    assert!(text.contains("close     #51 (completed): Delivered: done (shipped)") && text.contains("close plan: 2 issues, fingerprint "), "{text}");
+    assert!(text.contains("close     #51 (completed): Delivered: done (shipped)") && text.contains("close plan for o/r: 2 issues, fingerprint "), "{text}");
     assert!(!d.join("approval").exists());
     // Closing without an approval fails and closes nothing.
     let mut out = Vec::new();
@@ -882,7 +892,69 @@ fn the_command_approves_then_closes_and_only_then() {
     // A failure part-way still reports what was closed.
     let (_, mut f2, _) = closing_fixture();
     f2.fail_on = Some("close");
+    sync(&opts(Mode::ApprovePlan), &mut f2, &mut Vec::new()).unwrap();
     let mut out = Vec::new();
     assert_eq!(sync(&opts(Mode::Close), &mut f2, &mut out).unwrap_err(), "close failed");
     assert!(out.is_empty());
+}
+
+#[test]
+fn an_approval_is_bound_to_its_repository_and_its_exact_plan() {
+    let (m, mut f, disp) = closing_fixture();
+    let p = plan(&m, &stories_map(), &mut f).unwrap();
+    let c = closings(&p, &m, &disp).unwrap();
+    let d = scratch("bound");
+    let a = d.join("approval");
+    // Another repository cannot reuse it, and its fingerprint differs.
+    approve(&a, "o/r", &c).unwrap();
+    assert_ne!(fingerprint("o/r", &c), fingerprint("other/r", &c));
+    assert!(close(&a, "other/r", &c, &mut f, &mut Vec::new()).is_err());
+    // The recorded issue list is enforced too: a hand-edited file closes nothing.
+    let text = std::fs::read_to_string(&a).unwrap();
+    let issue_list = format!("{:?}", c.iter().map(|c| c.number).collect::<Vec<_>>());
+    assert!(text.contains(&c[0].number.to_string()));
+    let forged = text.replacen(&format!("{}", c[0].number), "999", 1);
+    std::fs::write(&a, forged).unwrap();
+    assert!(close(&a, "o/r", &c, &mut f, &mut Vec::new()).is_err(), "{issue_list}");
+    assert!(f.log.is_empty());
+    // Moving text between the comment of one closing and the next one cannot keep the fingerprint.
+    let two = vec![
+        Closing { number: 50, comment: "S".into(), completed: false },
+        Closing { number: 51, comment: "D".into(), completed: true },
+    ];
+    let one = vec![Closing { number: 50, comment: "S;51;true;1:D;".into(), completed: false }];
+    assert_ne!(fingerprint("o/r", &two), fingerprint("o/r", &one));
+}
+
+#[test]
+fn only_clear_evidence_counts_as_delivered() {
+    let (m, mut f, _) = closing_fixture();
+    let p = plan(&m, &stories_map(), &mut f).unwrap();
+    for (why, completed) in [("done (shipped)", true), ("done", true), ("covered by Hindsight", true), ("doneness check pending", false), ("covered? maybe", false), ("shipped", false)] {
+        let disp = BTreeMap::from([(50, why.to_string())]);
+        assert_eq!(closings(&p, &m, &disp).unwrap()[0].completed, completed, "{why}");
+    }
+}
+
+#[test]
+fn the_close_command_exits_non_zero_without_an_approval() {
+    let held = fake_exe::lock();
+    let d = scratch("exit");
+    let (t, sp) = (d.join("t.yaml"), d.join("spec.md"));
+    std::fs::write(&t, "spec: 1\nlabels: []\nbranches:\n  B0:\n    title: T\n    issue: 9\n    what: w\ntickets: []\n").unwrap();
+    std::fs::write(&sp, SPEC).unwrap();
+    let gh = script(
+        &held,
+        &d,
+        r#"case "$*" in
+*"-X GET repos/o/r/issues/"*) echo '{"number":9,"id":1009,"title":"T (spec #1)","body":"x","state":"open"}';;
+*"--paginate"*) echo '[]';;
+*) echo "WRITE $*" >> writes.log; echo '{}';;
+esac"#,
+    );
+    let none = d.join("none");
+    let args = ["--repo", "o/r", "--tickets", t.to_str().unwrap(), "--spec", sp.to_str().unwrap(), "--approval", none.to_str().unwrap(), "--close"];
+    let (code, out, err) = go(&args, &gh);
+    assert_eq!((code, out.as_str()), (1, ""));
+    assert!(err.contains("no approval recorded"), "{err}");
 }

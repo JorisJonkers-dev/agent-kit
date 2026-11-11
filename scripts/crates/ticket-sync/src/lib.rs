@@ -119,19 +119,19 @@ pub fn sync(o: &Options, client: &mut dyn Client, out: &mut dyn Write) -> Result
         Mode::DryRun => {
             say(out, &p.render(&model))?;
             let closings = close::closings(&p, &model, &model::dispositions(&spec_text))?;
-            say(out, &close::render(&closings))?;
+            say(out, &close::render(&o.repo, &closings))?;
             say(out, "dry run: nothing was written\n")
         }
         Mode::ApprovePlan => {
             let closings = close::closings(&p, &model, &model::dispositions(&spec_text))?;
-            say(out, &close::render(&closings))?;
-            close::approve(Path::new(&o.approval), &closings)?;
+            say(out, &close::render(&o.repo, &closings))?;
+            close::approve(Path::new(&o.approval), &o.repo, &closings)?;
             say(out, &format!("approval recorded in {}\n", o.approval))
         }
         Mode::Close => {
             let closings = close::closings(&p, &model, &model::dispositions(&spec_text))?;
             let mut closed = Vec::new();
-            let result = close::close(Path::new(&o.approval), &closings, client, &mut closed);
+            let result = close::close(Path::new(&o.approval), &o.repo, &closings, client, &mut closed);
             for n in &closed {
                 say(out, &format!("closed #{n}\n"))?;
             }

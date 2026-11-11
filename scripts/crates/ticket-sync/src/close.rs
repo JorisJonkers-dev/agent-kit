@@ -22,7 +22,7 @@ pub struct Closing {
 
 /// Dispositions that mean the work was delivered, with evidence.
 fn is_delivered(why: &str) -> bool {
-    why.starts_with("done") || why.starts_with("covered")
+    ["done (", "done:", "covered by "].iter().any(|p| why.starts_with(p)) || why == "done"
 }
 
 /// The closings of a plan, in plan order. Every comment links the ticket that
@@ -55,56 +55,71 @@ pub fn closings(plan: &Plan, model: &Model, dispositions: &BTreeMap<u64, String>
 
 /// A stable fingerprint of what would be closed and said (FNV-1a, 64 bit).
 /// It detects a plan that changed after it was read; it is not a secret.
-pub fn fingerprint(closings: &[Closing]) -> String {
+/// It covers the repository too, and every field is length-prefixed so that
+/// two different plans cannot produce the same byte stream.
+pub fn fingerprint(repo: &str, closings: &[Closing]) -> String {
     let mut hash: u64 = 0xcbf29ce484222325;
-    for c in closings {
-        for byte in format!("{}\t{}\t{}\n", c.number, c.completed, c.comment).bytes() {
+    let mut feed = |s: String| {
+        for byte in s.bytes() {
             hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
         }
+    };
+    feed(format!("{}:{repo};", repo.len()));
+    for c in closings {
+        feed(format!("{};{};{}:{};", c.number, c.completed, c.comment.len(), c.comment));
     }
     format!("{hash:016x}")
 }
 
-pub fn render(closings: &[Closing]) -> String {
+pub fn render(repo: &str, closings: &[Closing]) -> String {
     let mut out = String::new();
     for c in closings {
         let how = if c.completed { "completed" } else { "not planned" };
         out.push_str(&format!("close     #{} ({how}): {}\n", c.number, c.comment));
     }
-    out.push_str(&format!("close plan: {} issues, fingerprint {}\n", closings.len(), fingerprint(closings)));
+    out.push_str(&format!("close plan for {repo}: {} issues, fingerprint {}\n", closings.len(), fingerprint(repo, closings)));
     out
 }
 
 #[derive(Serialize, Deserialize)]
 struct Approval {
+    repo: String,
     fingerprint: String,
     issues: Vec<u64>,
 }
 
-/// Record the owner's approval of exactly this close plan.
-pub fn approve(path: &Path, closings: &[Closing]) -> Result<()> {
+/// Record the owner's approval of exactly this close plan for this repository.
+pub fn approve(path: &Path, repo: &str, closings: &[Closing]) -> Result<()> {
     if closings.is_empty() {
         return Err("the close plan is empty: there is nothing to approve".into());
     }
-    let approval = Approval { fingerprint: fingerprint(closings), issues: closings.iter().map(|c| c.number).collect() };
+    let approval = Approval { repo: repo.to_string(), fingerprint: fingerprint(repo, closings), issues: closings.iter().map(|c| c.number).collect() };
     let dir = path.parent().unwrap_or(Path::new(""));
     std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let text = serde_json::to_string_pretty(&approval).expect("an approval serialises") + "\n";
     std::fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// Close what the plan lists, but only under an approval of this same plan.
-/// Returns the numbers closed. Nothing is touched when the check fails.
-pub fn close(path: &Path, closings: &[Closing], client: &mut dyn Client, done: &mut Vec<u64>) -> Result<()> {
+/// Close what the plan lists, but only under an approval of this same plan in
+/// this same repository. `done` collects the numbers closed. Nothing is
+/// touched when the check fails. A fully carried-out close uses the approval
+/// up: a later plan, such as a reopened issue, needs a new one.
+pub fn close(path: &Path, repo: &str, closings: &[Closing], client: &mut dyn Client, done: &mut Vec<u64>) -> Result<()> {
     let text = std::fs::read_to_string(path).map_err(|_| format!("no approval recorded at {}: run --approve-plan first", path.display()))?;
     let approval: Approval = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
-    let now = fingerprint(closings);
-    if approval.fingerprint != now {
-        return Err(format!("the recorded approval ({}) is for a different plan than the current one ({now}); read the plan and approve it again", approval.fingerprint));
+    let now = fingerprint(repo, closings);
+    let issues: Vec<u64> = closings.iter().map(|c| c.number).collect();
+    if approval.repo != repo || approval.fingerprint != now || approval.issues != issues {
+        return Err(format!(
+            "the recorded approval ({} for {}) is not for the current close plan ({now} for {repo}); read the plan and approve it again",
+            approval.fingerprint, approval.repo
+        ));
     }
     for c in closings {
         client.close(c.number, &c.comment, c.completed)?;
         done.push(c.number);
     }
+    // A leftover approval is harmless to refuse later, so a failed removal is not an error.
+    let _ = std::fs::remove_file(path);
     Ok(())
 }
