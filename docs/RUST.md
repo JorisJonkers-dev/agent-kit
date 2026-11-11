@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Twelve members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Thirteen members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -36,7 +36,14 @@ on the Linux workstation.
   `crates/ticket-export` is the issue export wrapper (below); it takes serde_json
   and serde_yaml, each pinned exactly.
   `crates/transcript-mix` is the transcript tool-mix analyser (below), std-only
-  with the JSON parser borrowed from `code-nav-eval`. New Rust joins this
+  with the JSON parser borrowed from `code-nav-eval`.
+  `crates/gold-band-report` is the gate report format shared by the Gold Band
+  shims: a report struct with its stable-key JSON, an atomic write into a
+  report directory, a std-only SHA-256 and a std-only RFC 3339 time. It takes
+  serde_json, pinned exactly. `crates/gold-band-run-start` is the run-start shim
+  (below): it checks the repository rule, the family allowlist and the Codex
+  grant before any model node runs, and writes its report through
+  gold-band-report. New Rust joins this
   workspace as a new member, never as its own Cargo project.
 
 ```bash
@@ -387,3 +394,14 @@ field, so the lint defines the smallest declaration: an agent id (a worker's
 that contains the marker `memory-write`, case-insensitive, for example
 `claude-acp+memory-write`. A binding without the marker reads memory only.
 Fixture workflows live in `crates/workflow-lint/tests/fixtures/`.
+
+## The Gold Band run-start shim
+
+`crates/gold-band-run-start` is a library plus a CLI
+(`gold-band-run-start check --instance gold-band|gold-band-personal ...`, the
+flags are in [GOLD-BAND.md](GOLD-BAND.md)) that every Gold Band workflow runs in
+its first node. Exit 0 clean, 1 refused, 2 bad usage or unreadable input; it
+writes `<report-dir>/run-start.json` through `crates/gold-band-report`. Git, the
+clock, the environment and the output streams sit behind one `Host` trait:
+tests fake it, and the real host is exercised too, against a temporary git
+repository, so only `src/main.rs` is outside the coverage count.

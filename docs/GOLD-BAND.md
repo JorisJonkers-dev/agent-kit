@@ -113,3 +113,55 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
   `settings.json.bak`.
 * Nothing is written while the desktop app runs (setup stops and says so), and
   a machine without Gold Band gets no settings file. `--check` only reports.
+
+## The run-start shim
+
+Every Gold Band workflow opens with a cheap, read-only node that runs one
+pinned wrapper, `gold-band-run-start` (`scripts/crates/gold-band-run-start`,
+ADR-0014). It decides from the working copy and the owner's records, never
+from model output, whether the run may go on. The node is a worker whose
+agent runs the wrapper and answers with the report as its output artifact. Its
+success condition is `exit_code` equal to `0`, and it has no failure edge, so a
+refused check ends the run in failure before any model node starts.
+
+```bash
+gold-band-run-start check --instance gold-band|gold-band-personal \
+    --repo DIR --workflow-name NAME --run-id ID --attempt N \
+    --workflow FILE --families FILE [--allowlist FILE] [--grants FILE] \
+    [--now RFC3339] --report-dir DIR
+```
+
+It runs three checks and prints every problem on stderr, one per line,
+prefixed `gold-band-run-start:`:
+
+* **`repository-rule`.** Against every remote (`git remote -v`). The work
+  instance (`gold-band`) allows only a repository whose every remote is owned
+  by `nedap` (any case; https, ssh and scp URLs) and refuses one with no
+  remote. The personal instance (`gold-band-personal`) refuses any
+  `nedap`-owned remote and allows no remote at all. A remote with no
+  `host/owner/repo` is refused: its owner cannot be shown.
+* **`family-allowlist`.** The family of every agent id the workflow binds (a
+  worker's `provider`, the `modelBindings` joined by `executionSlotId`, an
+  ai-dynamic node's strategy) against the repository's entry in
+  `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json` (or
+  `~/.config/agent-kit/`), and the entry's `code` permission, since a workflow
+  with a worker sends code. `history` is never required. No entry means the
+  personal default: every family, code. On a `nedap` repository the file is not
+  read: only `claude-work` and `codex` are allowed. An agent id missing from the
+  families file (`<agent id><TAB><family>` lines) is refused.
+* **`grant`.** Work instance only: every bound agent id containing `codex` needs
+  a live grant for the run `<workflow name>@<host/owner/repo>@<run id>` in the
+  gateway's grants record (`model-gateway-grants.json`): client `codex`, that
+  workflow, not ended, and not past `expires_at`. The refusal names the nodes
+  and prints the `model-gateway grant write --json` call to ask the owner with.
+  The cap counts Codex node starts in the per-node grant check, not here.
+
+Exit codes: `0` every check passed, `1` refused, `2` bad usage or unreadable
+input (a missing file, malformed JSON, a directory that is not a repository).
+The report, `<report-dir>/run-start.json`, is written in all three cases when
+the report directory is usable, through the shared `gold-band-report` crate:
+`run_id`, `attempt`, `command`, `exit_code`, `output_hash` (SHA-256 of the
+printed output), `timestamp` (UTC) and, only when the run did not pass,
+`failed_check` (`repository-rule`, `family-allowlist`, `grant`, `usage` or
+`input`). `tests/test_gold_band_run_start.py` proves the refusals headless
+against the pinned `gold-band` binary with stub agents.
