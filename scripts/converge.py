@@ -317,14 +317,14 @@ def plugins(args: argparse.Namespace) -> int:
     return converge(surfaces, lambda _, name: name in retired, spared, args.check)
 
 
-def _gold_band_data_dir(gold_band_home: str | None, fallback_home: str) -> Path:
+def _gold_band_data_dir(gold_band_home: str | None, fallback_home: Callable[[], str]) -> Path:
     """The app's data dir: `.gold-band` under `GOLD_BAND_HOME` (blank counts as unset), else under the home."""
-    return Path(gold_band_home if gold_band_home and gold_band_home.strip() else fallback_home) / ".gold-band"
+    return Path(gold_band_home if gold_band_home and gold_band_home.strip() else fallback_home()) / ".gold-band"
 
 
 def _gold_band_settings_path() -> Path:
     """``${GOLD_BAND_HOME:-~}/.gold-band/settings.json``: the app keeps its data in ``.gold-band`` under that home."""
-    return _gold_band_data_dir(os.environ.get("GOLD_BAND_HOME"), str(Path.home())) / "settings.json"
+    return _gold_band_data_dir(os.environ.get("GOLD_BAND_HOME"), lambda: str(Path.home())) / "settings.json"
 
 
 def _gold_band_registry(
@@ -619,7 +619,7 @@ def _processes_proc(root: Path) -> list[_Process]:
             found.append(_Process(int(entry.name), argv, None))
             continue
         values = {e.partition(b"=")[0]: e.partition(b"=")[2].decode(errors="replace") for e in env}
-        data = _gold_band_data_dir(values.get(b"GOLD_BAND_HOME"), values.get(b"HOME") or str(Path.home()))
+        data = _gold_band_data_dir(values.get(b"GOLD_BAND_HOME"), lambda: values.get(b"HOME") or str(Path.home()))
         found.append(_Process(int(entry.name), argv, str(data)))
     return found
 
