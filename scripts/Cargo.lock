@@ -46,6 +46,8 @@ dependencies = [
 name = "gold-band-proof"
 version = "0.1.0"
 dependencies = [
+ "gold-band-gate",
+ "gold-band-report",
  "serde_json",
  "workflow-lint",
 ]

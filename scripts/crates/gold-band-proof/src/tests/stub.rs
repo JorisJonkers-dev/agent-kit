@@ -1,11 +1,30 @@
 //! Tests for the stub ACP agent, driven through its public API.
 
+use std::fs;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use serde_json::{json, Value};
 
 use crate::stub::{
-    fenced_findings, findings_document, model_option, serve, Stub, FAIL, MODELS_ENV, NEEDS_HUMAN,
-    VERDICT_ENV,
+    fenced_findings, findings_document, model_option, serve, serve_with_role, Role, Stub, FAIL,
+    MODELS_ENV, NEEDS_HUMAN, REPORT_DIR_ENV, ROLE_ENV, VERDICT_ENV,
 };
+
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+fn temp_dir(label: &str) -> PathBuf {
+    let tick = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let dir = std::env::temp_dir().join(format!(
+        "gold-band-proof-stub-{}-{}-{}",
+        std::process::id(),
+        tick,
+        label
+    ));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).expect("temp dir");
+    dir
+}
 
 fn request(id: u64, method: &str, params: Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })
@@ -21,12 +40,75 @@ fn one(stub: &mut Stub, request: &Value, verdict: &str, models: &str) -> Value {
     frames.into_iter().next().unwrap()
 }
 
+/// The answer text one prompt streams, asserting the turn ends after it.
+fn prompt_text(stub: &mut Stub, verdict: &str) -> String {
+    let frames = stub.handle(
+        &request(
+            2,
+            "session/prompt",
+            json!({ "sessionId": "stub-session-1" }),
+        ),
+        verdict,
+        "",
+    );
+    assert_eq!(
+        frames.len(),
+        2,
+        "expected an update and an end for {verdict}"
+    );
+    assert_eq!(frames[1]["result"]["stopReason"], "end_turn");
+    frames[0]["params"]["update"]["content"]["text"]
+        .as_str()
+        .expect("the update carries text")
+        .to_string()
+}
+
+/// The JSON document inside one fenced json block.
+fn fenced_body(text: &str) -> Value {
+    let body = text
+        .strip_prefix("```json\n")
+        .unwrap_or_else(|| panic!("not a fenced json block: {text}"))
+        .strip_suffix("\n```")
+        .unwrap_or_else(|| panic!("not a closed json block: {text}"));
+    serde_json::from_str(body).unwrap_or_else(|error| panic!("not JSON ({error}): {body}"))
+}
+
 #[test]
 fn the_environment_names_are_the_ones_gold_band_sets() {
     assert_eq!(VERDICT_ENV, "STUB_ACP_VERDICT");
     assert_eq!(MODELS_ENV, "STUB_ACP_MODELS");
+    assert_eq!(ROLE_ENV, "STUB_ACP_ROLE");
+    assert_eq!(REPORT_DIR_ENV, "STUB_ACP_REPORT_DIR");
     assert_eq!(NEEDS_HUMAN, "needs-human");
     assert_eq!(FAIL, "fail");
+}
+
+#[test]
+fn role_parse_reads_every_spelling() {
+    assert_eq!(Role::parse(""), Role::Findings);
+    assert_eq!(Role::parse("findings"), Role::Findings);
+    assert_eq!(Role::parse(" answer "), Role::Answer);
+    assert_eq!(Role::parse("gate:build"), Role::Gate("build".to_string()));
+    assert_eq!(Role::parse("copy:lint"), Role::Copy("lint".to_string()));
+    assert_eq!(Role::parse("gate:"), Role::Findings);
+    assert_eq!(Role::parse("copy:"), Role::Findings);
+    assert_eq!(Role::parse("nonsense"), Role::Findings);
+}
+
+#[test]
+fn role_text_round_trips_through_parse() {
+    assert_eq!(Role::Findings.as_text(), "findings");
+    assert_eq!(Role::Answer.as_text(), "answer");
+    assert_eq!(Role::Gate("build".to_string()).as_text(), "gate:build");
+    assert_eq!(Role::Copy("lint".to_string()).as_text(), "copy:lint");
+    for role in [
+        Role::Findings,
+        Role::Answer,
+        Role::Gate("build".to_string()),
+        Role::Copy("lint".to_string()),
+    ] {
+        assert_eq!(Role::parse(&role.as_text()), role);
+    }
 }
 
 #[test]
@@ -411,4 +493,149 @@ fn both_documents_carry_every_key_the_finding_schema_requires() {
         let name = name.as_str().unwrap();
         assert!(evidence.get(name).is_some(), "the evidence lacks {name}");
     }
+}
+
+#[test]
+fn the_answer_role_answers_ok() {
+    let mut stub = Stub::with_role(Role::Answer, String::new());
+    assert_eq!(
+        fenced_body(&prompt_text(&mut stub, "")),
+        json!({ "ok": true })
+    );
+}
+
+#[test]
+fn the_gate_role_answers_the_exit_code_the_wrapper_earned() {
+    let dir = temp_dir("gate-pass");
+    let mut stub = Stub::with_role(
+        Role::Gate("build".to_string()),
+        dir.to_string_lossy().into_owned(),
+    );
+    assert_eq!(
+        fenced_body(&prompt_text(&mut stub, "clean")),
+        json!({ "exit_code": 0 })
+    );
+    assert!(dir.join("build/gate-report.json").is_file());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_gate_role_answers_one_when_the_verdict_fails_it() {
+    let dir = temp_dir("gate-fail");
+    let mut stub = Stub::with_role(
+        Role::Gate("build".to_string()),
+        dir.to_string_lossy().into_owned(),
+    );
+    assert_eq!(
+        fenced_body(&prompt_text(&mut stub, "gate-fail=build")),
+        json!({ "exit_code": 1 })
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_gate_role_answers_two_when_the_report_directory_cannot_be_created() {
+    let dir = temp_dir("gate-blocked");
+    fs::write(dir.join("build"), "not a directory").expect("blocker written");
+    let mut stub = Stub::with_role(
+        Role::Gate("build".to_string()),
+        dir.to_string_lossy().into_owned(),
+    );
+    assert_eq!(
+        fenced_body(&prompt_text(&mut stub, "clean")),
+        json!({ "exit_code": 2 })
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_copy_role_answers_the_report_the_gate_wrote() {
+    let dir = temp_dir("copy-pass");
+    let report_dir = dir.to_string_lossy().into_owned();
+    let mut gate = Stub::with_role(Role::Gate("build".to_string()), report_dir.clone());
+    assert_eq!(
+        fenced_body(&prompt_text(&mut gate, "clean")),
+        json!({ "exit_code": 0 })
+    );
+    let mut copy = Stub::with_role(Role::Copy("build".to_string()), report_dir);
+    let report = fenced_body(&prompt_text(&mut copy, "clean"));
+    assert_eq!(report["exit_code"], json!(0));
+    assert_eq!(report["run_id"], "proof-run");
+    assert_eq!(report["attempt"], json!(1));
+    assert_eq!(report["command"], "true");
+    assert_eq!(report["output_hash"].as_str().map(str::len), Some(64));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_copy_role_answers_one_when_the_gate_failed() {
+    let dir = temp_dir("copy-failed");
+    let report_dir = dir.to_string_lossy().into_owned();
+    let mut gate = Stub::with_role(Role::Gate("build".to_string()), report_dir.clone());
+    assert_eq!(
+        fenced_body(&prompt_text(&mut gate, "gate-fail=build")),
+        json!({ "exit_code": 1 })
+    );
+    let mut copy = Stub::with_role(Role::Copy("build".to_string()), report_dir);
+    assert_eq!(
+        fenced_body(&prompt_text(&mut copy, "gate-fail=build")),
+        json!({
+            "run_id": "",
+            "attempt": 0,
+            "command": "",
+            "exit_code": 1,
+            "output_hash": "",
+            "timestamp": "",
+        })
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_copy_role_answers_a_failing_report_without_a_report() {
+    let dir = temp_dir("copy-missing");
+    let mut copy = Stub::with_role(
+        Role::Copy("build".to_string()),
+        dir.to_string_lossy().into_owned(),
+    );
+    let report = fenced_body(&prompt_text(&mut copy, "clean"));
+    assert_eq!(report["exit_code"], json!(1));
+    assert_eq!(report["run_id"], "");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_fail_verdict_fails_every_role() {
+    let dir = temp_dir("fail-roles");
+    let report_dir = dir.to_string_lossy().into_owned();
+    for role in [
+        Role::Answer,
+        Role::Gate("build".to_string()),
+        Role::Copy("build".to_string()),
+    ] {
+        let mut stub = Stub::with_role(role.clone(), report_dir.clone());
+        let frames = stub.handle(&request(2, "session/prompt", json!({})), " fail ", "");
+        assert_eq!(frames.len(), 1, "{role:?}");
+        assert_eq!(frames[0]["error"]["code"], json!(-32000), "{role:?}");
+        assert_eq!(frames[0]["error"]["message"], "stub failure", "{role:?}");
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn serve_with_role_answers_as_the_role_it_was_given() {
+    let input = concat!(
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"session/new\",\"params\":{}}\n",
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/prompt\",\"params\":{}}\n",
+    );
+    let mut output: Vec<u8> = Vec::new();
+    serve_with_role(input.as_bytes(), &mut output, "", "", &Role::Answer, "").unwrap();
+    let text = String::from_utf8(output).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3);
+    let update: Value = serde_json::from_str(lines[1]).unwrap();
+    let answer = update["params"]["update"]["content"]["text"]
+        .as_str()
+        .unwrap();
+    assert_eq!(fenced_body(answer), json!({ "ok": true }));
 }

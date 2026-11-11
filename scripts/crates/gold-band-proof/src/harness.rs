@@ -12,6 +12,7 @@ use serde_json::{json, Map, Value};
 
 use crate::record::{Outcome, Record, ScenarioResult};
 use crate::refuse;
+use crate::stub::Role;
 
 /// What the harness needs to know about a workflow to stand the stub in for it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,6 +27,8 @@ pub struct WorkflowInfo {
     pub profiles: BTreeSet<String>,
     /// Whether any node has `"manual_check": true`.
     pub has_manual_check: bool,
+    /// For each agent id, what the stub standing in for it answers with.
+    pub roles: BTreeMap<String, Role>,
 }
 
 /// One run of the workflow: the stub's verdict and the exit code expected.
@@ -33,7 +36,7 @@ pub struct WorkflowInfo {
 pub struct ScenarioSpec {
     /// The scenario name, such as `clean`.
     pub name: String,
-    /// The stub verdict: `clean` (or empty), `needs-human` or `fail`.
+    /// The stub verdict: `clean` (or empty), `needs-human`, `fail` or `gate-fail=<name>`.
     pub verdict: String,
     /// The exit code `gold-band run` must return.
     pub expected_exit: i32,
@@ -91,6 +94,7 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
     let mut models: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut profiles = BTreeSet::new();
     let mut has_manual_check = false;
+    let mut answers = BTreeSet::new();
     if let Some(Value::Array(nodes)) = definition.get("nodes") {
         for node in nodes {
             let Some(object) = node.as_object() else {
@@ -105,6 +109,9 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
                         .and_then(Value::as_str)
                         .map(str::to_string),
                 );
+                if answers_with_ok(object) {
+                    answers.insert(provider.to_string());
+                }
             }
             if let Some(profile) = object.get("profile").and_then(Value::as_str) {
                 profiles.insert(profile.to_string());
@@ -135,16 +142,53 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
             }
         }
     }
+    let roles = agent_ids
+        .iter()
+        .map(|agent_id| (agent_id.clone(), role_for(agent_id, &answers)))
+        .collect();
     Ok(WorkflowInfo {
         id,
         agent_ids,
         models,
         profiles,
         has_manual_check,
+        roles,
     })
 }
 
-/// The scenarios every workflow gets: `clean` (verdict `clean`, exit 0) always, and `needs-human` (exit 2) when the workflow has a manual-check node.
+/// Whether a node's `output.schema` is a JSON object without a `findings` key.
+fn answers_with_ok(node: &Map<String, Value>) -> bool {
+    match node.get("output").and_then(|output| output.get("schema")) {
+        Some(Value::Object(schema)) => !schema.contains_key("findings"),
+        _ => false,
+    }
+}
+
+/// The role an agent id plays: a `gate-` or `copy-` prefix names a shim, else
+/// the schema of the nodes it runs decides between an answer and findings.
+fn role_for(agent_id: &str, answers: &BTreeSet<String>) -> Role {
+    if let Some(name) = agent_id
+        .strip_prefix("gate-")
+        .filter(|name| !name.is_empty())
+    {
+        return Role::Gate(name.to_string());
+    }
+    if let Some(name) = agent_id
+        .strip_prefix("copy-")
+        .filter(|name| !name.is_empty())
+    {
+        return Role::Copy(name.to_string());
+    }
+    if answers.contains(agent_id) {
+        Role::Answer
+    } else {
+        Role::Findings
+    }
+}
+
+/// The scenarios every workflow gets: `clean` (verdict `clean`, exit 0) always,
+/// `needs-human` (exit 2) when the workflow has a manual-check node, and one
+/// `gate-fail-<name>` (exit 1) per gate shim, sorted by name.
 pub fn default_scenarios(info: &WorkflowInfo) -> Vec<ScenarioSpec> {
     let mut scenarios = vec![ScenarioSpec {
         name: "clean".to_string(),
@@ -158,10 +202,32 @@ pub fn default_scenarios(info: &WorkflowInfo) -> Vec<ScenarioSpec> {
             expected_exit: 2,
         });
     }
+    for name in gate_names(info) {
+        scenarios.push(ScenarioSpec {
+            name: format!("gate-fail-{}", name),
+            verdict: format!("gate-fail={}", name),
+            expected_exit: 1,
+        });
+    }
     scenarios
 }
 
-/// Parses `NAME:VERDICT:EXIT` (verdict one of `clean`, `needs-human`, `fail`; exit an integer).
+/// The gate names the workflow's roles name, sorted.
+fn gate_names(info: &WorkflowInfo) -> Vec<String> {
+    let mut names: Vec<String> = info
+        .roles
+        .values()
+        .filter_map(|role| match role {
+            Role::Gate(name) => Some(name.clone()),
+            _ => None,
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// Parses `NAME:VERDICT:EXIT` (verdict one of `clean`, `needs-human`, `fail` or
+/// `gate-fail=NAME`; exit an integer).
 pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
     let parts: Vec<&str> = text.split(':').collect();
     if parts.len() != 3 {
@@ -174,19 +240,16 @@ pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
     if name.is_empty() {
         return Err(format!("the scenario `{}` has an empty name", text));
     }
-    if !name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
-    {
+    if !is_name(name) {
         return Err(format!(
             "the scenario name `{}` may only hold letters, digits, `.`, `_` and `-`",
             name
         ));
     }
     let verdict = parts[1];
-    if !matches!(verdict, "clean" | "needs-human" | "fail") {
+    if !is_known_verdict(verdict) {
         return Err(format!(
-            "the scenario `{}` has the unknown verdict `{}` (use clean, needs-human or fail)",
+            "the scenario `{}` has the unknown verdict `{}` (use clean, needs-human, fail or gate-fail=NAME)",
             name, verdict
         ));
     }
@@ -202,6 +265,28 @@ pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
         verdict: verdict.to_string(),
         expected_exit,
     })
+}
+
+/// Whether a verdict is one the stub understands: `clean`, `needs-human`,
+/// `fail`, or `gate-fail=` and a non-empty gate name.
+fn is_known_verdict(verdict: &str) -> bool {
+    if matches!(verdict, "clean" | "needs-human" | "fail") {
+        return true;
+    }
+    match verdict.strip_prefix("gate-fail=") {
+        Some(name) => is_name(name),
+        None => false,
+    }
+}
+
+/// Whether `c` may appear in a scenario name or a gate name.
+fn is_name_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-'
+}
+
+/// Whether `text` is a non-empty name of letters, digits, `.`, `_` and `-`.
+fn is_name(text: &str) -> bool {
+    !text.is_empty() && text.chars().all(is_name_char)
 }
 
 /// Gold Band's exit code for a printed run state: completed and success is 0, completed otherwise 1, paused 2, running 4.
@@ -267,7 +352,9 @@ pub fn prepare(
         )
     })?;
     let settings_path = gold_band_dir.join("settings.json");
-    fs::write(&settings_path, settings_json(info, stub_exe, verdict)).map_err(|error| {
+    let reports = root.join("reports");
+    let settings = settings_json(info, stub_exe, verdict, &reports);
+    fs::write(&settings_path, settings).map_err(|error| {
         format!(
             "cannot write the Gold Band settings {}: {}",
             settings_path.display(),
@@ -279,6 +366,13 @@ pub fn prepare(
         fs::write(&path, profile_text(profile))
             .map_err(|error| format!("cannot write the profile {}: {}", path.display(), error))?;
     }
+    fs::create_dir_all(&reports).map_err(|error| {
+        format!(
+            "cannot create the report directory {}: {}",
+            reports.display(),
+            error
+        )
+    })?;
     fs::create_dir_all(&workspace).map_err(|error| {
         format!(
             "cannot create the workspace {}: {}",
@@ -452,9 +546,11 @@ fn scenario_list(info: &WorkflowInfo, extra: &[ScenarioSpec]) -> Vec<ScenarioSpe
     scenarios
 }
 
-/// The settings document that makes every agent id of the workflow the stub.
-fn settings_json(info: &WorkflowInfo, stub_exe: &Path, verdict: &str) -> String {
+/// The settings document that makes every agent id of the workflow the stub,
+/// answering as its role and keeping its gate reports under `report_dir`.
+fn settings_json(info: &WorkflowInfo, stub_exe: &Path, verdict: &str, report_dir: &Path) -> String {
     let command = stub_exe.to_string_lossy().into_owned();
+    let report_dir = report_dir.to_string_lossy().into_owned();
     let mut agents = Map::new();
     for agent_id in &info.agent_ids {
         let models = info
@@ -462,6 +558,7 @@ fn settings_json(info: &WorkflowInfo, stub_exe: &Path, verdict: &str) -> String 
             .get(agent_id)
             .map(|set| set.iter().cloned().collect::<Vec<String>>().join(","))
             .unwrap_or_default();
+        let role = info.roles.get(agent_id).cloned().unwrap_or(Role::Findings);
         agents.insert(
             agent_id.clone(),
             json!({
@@ -472,6 +569,8 @@ fn settings_json(info: &WorkflowInfo, stub_exe: &Path, verdict: &str) -> String 
                     "env": {
                         "STUB_ACP_VERDICT": verdict,
                         "STUB_ACP_MODELS": models,
+                        "STUB_ACP_ROLE": role.as_text(),
+                        "STUB_ACP_REPORT_DIR": &report_dir,
                     },
                 },
             }),

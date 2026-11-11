@@ -12,6 +12,7 @@ use crate::harness::{
     prove, run_scenario, ProveOptions, ScenarioSpec, WorkflowInfo, SKIP_NO_BINARY,
 };
 use crate::record::Outcome;
+use crate::stub::Role;
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -42,6 +43,7 @@ fn info() -> WorkflowInfo {
         models,
         profiles,
         has_manual_check: false,
+        roles: BTreeMap::new(),
     }
 }
 
@@ -164,6 +166,71 @@ fn inspect_reads_the_spec_stage_template() {
     assert!(info.has_manual_check);
 }
 
+/// The checked-in Workflow B, whose nodes are model nodes and gate shims.
+fn workflow_b() -> WorkflowInfo {
+    inspect(include_str!(
+        "../../../../../installer/gold-band/workflows/workflow-b.json"
+    ))
+    .expect("workflow-b inspected")
+}
+
+#[test]
+fn inspect_gives_every_agent_of_workflow_b_its_role() {
+    let info = workflow_b();
+    assert_eq!(info.id, "workflow-b");
+    let roles: Vec<(String, Role)> = info
+        .roles
+        .iter()
+        .map(|(agent_id, role)| (agent_id.clone(), role.clone()))
+        .collect();
+    assert_eq!(
+        roles,
+        vec![
+            ("copy-build".to_string(), Role::Copy("build".to_string())),
+            ("copy-lint".to_string(), Role::Copy("lint".to_string())),
+            ("copy-test".to_string(), Role::Copy("test".to_string())),
+            ("gate-build".to_string(), Role::Gate("build".to_string())),
+            ("gate-lint".to_string(), Role::Gate("lint".to_string())),
+            ("gate-test".to_string(), Role::Gate("test".to_string())),
+            ("opencode".to_string(), Role::Answer),
+            ("vibe".to_string(), Role::Answer),
+        ]
+    );
+    assert_eq!(info.roles.len(), info.agent_ids.len());
+}
+
+#[test]
+fn inspect_decides_a_role_for_every_agent_id() {
+    let text = r#"{"id":"roles","nodes":[
+        {"provider":"gate-"},
+        {"provider":"copy-"},
+        {"provider":"critic","output":{"schema":{"findings":[]}}},
+        {"provider":"bare"},
+        {"provider":"noschema","output":{"kind":"json"}},
+        {"provider":"ok","output":{"schema":{"ok":true}}},
+        {"provider":"text","output":{"schema":"not an object"}}
+    ],"modelBindings":{"bindings":[{"agentId":"bound"}]}}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(info.roles["gate-"], Role::Findings);
+    assert_eq!(info.roles["copy-"], Role::Findings);
+    assert_eq!(info.roles["critic"], Role::Findings);
+    assert_eq!(info.roles["bare"], Role::Findings);
+    assert_eq!(info.roles["noschema"], Role::Findings);
+    assert_eq!(info.roles["ok"], Role::Answer);
+    assert_eq!(info.roles["text"], Role::Findings);
+    assert_eq!(info.roles["bound"], Role::Findings);
+}
+
+#[test]
+fn inspect_gives_the_spec_stage_template_findings_roles() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../installer/gold-band/workflows/critique-spec-stage.json");
+    let info = inspect(&fs::read_to_string(&path).expect("template read")).expect("inspected");
+    for agent_id in &info.agent_ids {
+        assert_eq!(info.roles[agent_id], Role::Findings, "{agent_id}");
+    }
+}
+
 #[test]
 fn inspect_reads_a_bare_definition() {
     let text = r#"{"id":"bare","nodes":[{"provider":"vibe","model":"m1","profile":"pf"},{"provider":"agy"}],"modelBindings":{"bindings":[{"agentId":"vibe","modelId":"m2"},{"agentId":"solo"}]}}"#;
@@ -246,6 +313,27 @@ fn default_scenarios_with_a_manual_check() {
 }
 
 #[test]
+fn default_scenarios_add_a_failing_gate_for_every_gate_shim() {
+    assert_eq!(
+        default_scenarios(&workflow_b()),
+        vec![
+            spec("clean", "clean", 0),
+            spec("gate-fail-build", "gate-fail=build", 1),
+            spec("gate-fail-lint", "gate-fail=lint", 1),
+            spec("gate-fail-test", "gate-fail=test", 1),
+        ]
+    );
+}
+
+#[test]
+fn default_scenarios_ignore_a_copier_role() {
+    let mut info = info();
+    info.roles
+        .insert("vibe".to_string(), Role::Copy("build".to_string()));
+    assert_eq!(default_scenarios(&info), vec![spec("clean", "clean", 0)]);
+}
+
+#[test]
 fn parse_scenario_reads_a_spec() {
     assert_eq!(
         parse_scenario("clean:clean:0").expect("parsed"),
@@ -290,9 +378,35 @@ fn parse_scenario_rejects_a_name_with_other_characters() {
 }
 
 #[test]
+fn parse_scenario_reads_a_gate_failure() {
+    assert_eq!(
+        parse_scenario("gate-fail-build:gate-fail=build:1").expect("parsed"),
+        spec("gate-fail-build", "gate-fail=build", 1)
+    );
+    assert_eq!(
+        parse_scenario("g:gate-fail=a.b_c-1:1").expect("parsed"),
+        spec("g", "gate-fail=a.b_c-1", 1)
+    );
+}
+
+#[test]
+fn parse_scenario_rejects_a_gate_failure_without_a_name() {
+    let message = parse_scenario("g:gate-fail=:1").expect_err("rejected");
+    assert!(message.contains("unknown verdict"), "{}", message);
+    assert!(message.contains("gate-fail=NAME"), "{}", message);
+}
+
+#[test]
+fn parse_scenario_rejects_a_gate_failure_with_other_characters() {
+    let message = parse_scenario("g:gate-fail=build run:1").expect_err("rejected");
+    assert!(message.contains("gate-fail=NAME"), "{}", message);
+}
+
+#[test]
 fn parse_scenario_rejects_an_unknown_verdict() {
     let message = parse_scenario("clean:broken:0").expect_err("rejected");
     assert!(message.contains("unknown verdict `broken`"), "{}", message);
+    assert!(message.contains("gate-fail=NAME"), "{}", message);
 }
 
 #[test]
@@ -370,6 +484,12 @@ fn prepare_writes_the_home_and_the_workspace() {
     assert_eq!(adapter["displayName"], "Stub ACP (vibe)");
     assert_eq!(adapter["env"]["STUB_ACP_VERDICT"], "clean");
     assert_eq!(adapter["env"]["STUB_ACP_MODELS"], "m1");
+    assert_eq!(adapter["env"]["STUB_ACP_ROLE"], "findings");
+    assert_eq!(
+        adapter["env"]["STUB_ACP_REPORT_DIR"],
+        root.join("reports").to_str().expect("utf8")
+    );
+    assert!(root.join("reports").is_dir());
     assert_eq!(
         settings["agents"]["agy"]["adapter"]["env"]["STUB_ACP_MODELS"],
         ""
@@ -401,6 +521,48 @@ fn prepare_writes_the_home_and_the_workspace() {
     );
     assert_eq!(String::from_utf8_lossy(&count.stdout).trim(), "1");
 
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn prepare_writes_the_role_of_each_agent() {
+    let dir = temp_dir("prepare-roles");
+    let root = dir.join("root");
+    let mut info = info();
+    info.roles
+        .insert("vibe".to_string(), Role::Gate("build".to_string()));
+    info.roles
+        .insert("agy".to_string(), Role::Copy("build".to_string()));
+    let (home, _) = prepare(&root, &info, Path::new("/bin/true"), "clean").expect("prepared");
+    let text = fs::read_to_string(home.join(".gold-band/settings.json")).expect("settings");
+    let settings: Value = serde_json::from_str(&text).expect("settings parsed");
+    assert_eq!(
+        settings["agents"]["vibe"]["adapter"]["env"]["STUB_ACP_ROLE"],
+        "gate:build"
+    );
+    assert_eq!(
+        settings["agents"]["agy"]["adapter"]["env"]["STUB_ACP_ROLE"],
+        "copy:build"
+    );
+    assert_eq!(
+        settings["agents"]["agy"]["adapter"]["env"]["STUB_ACP_REPORT_DIR"],
+        root.join("reports").to_str().expect("utf8")
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn prepare_fails_when_the_report_directory_cannot_be_created() {
+    let dir = temp_dir("prepare-reports");
+    let root = dir.join("root");
+    fs::create_dir_all(&root).expect("root created");
+    fs::write(root.join("reports"), "not a directory").expect("reports written");
+    let message = prepare(&root, &info(), Path::new("/bin/true"), "clean").expect_err("failed");
+    assert!(
+        message.contains("cannot create the report directory"),
+        "{}",
+        message
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 

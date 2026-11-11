@@ -1264,6 +1264,52 @@ fn stub_acp_answers_a_canned_request() {
 }
 
 #[test]
+fn stub_acp_answers_as_the_role_the_environment_names() {
+    let dir = temp_dir("stubrole");
+    let reports = dir.join("reports");
+    let vars = vars(&[
+        ("STUB_ACP_ROLE", "answer"),
+        ("STUB_ACP_REPORT_DIR", reports.to_str().expect("utf8")),
+    ]);
+    let get = |name: &str| vars.get(name).cloned();
+    let env = env_for(&get, &dir);
+    let request = concat!(
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"session/new\",\"params\":{}}\n",
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/prompt\",\"params\":{}}\n",
+    );
+    let output = drive(&["stub-acp"], &env, request);
+    assert_eq!(output.code, 0, "{}", output.err);
+    assert!(output.out.contains("\\\"ok\\\": true"), "{}", output.out);
+    assert!(!output.out.contains("findings"), "{}", output.out);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn stub_acp_runs_a_gate_for_a_gate_role() {
+    let dir = temp_dir("stubgate");
+    let reports = dir.join("reports");
+    let vars = vars(&[
+        ("STUB_ACP_ROLE", "gate:build"),
+        ("STUB_ACP_REPORT_DIR", reports.to_str().expect("utf8")),
+    ]);
+    let get = |name: &str| vars.get(name).cloned();
+    let env = env_for(&get, &dir);
+    let request = concat!(
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"session/new\",\"params\":{}}\n",
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/prompt\",\"params\":{}}\n",
+    );
+    let output = drive(&["stub-acp"], &env, request);
+    assert_eq!(output.code, 0, "{}", output.err);
+    assert!(
+        output.out.contains("\\\"exit_code\\\": 0"),
+        "{}",
+        output.out
+    );
+    assert!(reports.join("build/gate-report.json").is_file());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn stub_acp_reports_an_io_error() {
     let dir = temp_dir("stubio");
     let get = |_: &str| None::<String>;

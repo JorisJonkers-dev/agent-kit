@@ -8,8 +8,15 @@ description = "The headless proof harness for Gold Band workflows: a stub ACP ag
 # serde_json is pinned to the exact version workflow-lint and ticket-sync
 # already use, so scripts/Cargo.lock gains no new registry version (standards
 # ADR-0014, docs/RUST.md).
+#
+# The gate shim's wrapper and copier are what a gate node runs, so the stub
+# stands in for one by calling them; gold-band-report is named directly for the
+# Clock the wrapper's Host needs. Both are workspace members, so the lockfile
+# gains no registry crate for them.
 [dependencies]
 serde_json = "=1.0.154"
+gold-band-gate = { path = "../gold-band-gate" }
+gold-band-report = { path = "../gold-band-report" }
 
 [[bin]]
 name = "gold-band-proof"

@@ -2,13 +2,23 @@
 //!
 //! The stub stands in for every agent id of a Gold Band workflow in a headless
 //! proof. It answers the ACP handshake, hands out sessions, offers a model
-//! picker and, on every prompt, streams one fenced findings document back. The
-//! verdict is a parameter, so the same stub proves the clean path, the
-//! needs-human path and the failing path.
+//! picker and, on every prompt, streams one fenced json block back. What that
+//! block holds is the stub's [`Role`]: the findings document a critic answers
+//! with, `{"ok": true}` for a model node, the exit code a gate shim earned, or
+//! the report a copier shim verified. The verdict is a parameter, so the same
+//! stub proves the clean path, the needs-human path, the failing path and a
+//! failing gate.
 
+use std::cell::RefCell;
 use std::collections::BTreeSet;
+use std::ffi::OsString;
+use std::fs;
 use std::io::{BufRead, Write};
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
+use gold_band_gate::{Host, Outcome, RealHost};
+use gold_band_report::Clock;
 use serde_json::{json, Value};
 
 /// The environment variable naming the verdict the stub reports.
@@ -17,11 +27,67 @@ pub const VERDICT_ENV: &str = "STUB_ACP_VERDICT";
 /// The environment variable holding the comma separated model ids to offer.
 pub const MODELS_ENV: &str = "STUB_ACP_MODELS";
 
+/// The environment variable naming the role the stub answers as.
+pub const ROLE_ENV: &str = "STUB_ACP_ROLE";
+
+/// The environment variable naming the directory the stub keeps gate reports in.
+pub const REPORT_DIR_ENV: &str = "STUB_ACP_REPORT_DIR";
+
 /// The verdict that makes the stub report one major finding.
 pub const NEEDS_HUMAN: &str = "needs-human";
 
 /// The verdict that makes the stub fail the prompt instead of answering it.
 pub const FAIL: &str = "fail";
+
+/// The run id every gate and copier the stub runs reports under.
+const RUN_ID: &str = "proof-run";
+
+/// The attempt number every gate and copier the stub runs reports under.
+const ATTEMPT: &str = "1";
+
+/// The seconds a gate command the stub runs may take.
+const TIMEOUT_SECS: &str = "30";
+
+/// What a stub agent answers a prompt with.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Role {
+    /// The findings document a critic answers with.
+    Findings,
+    /// `{"ok": true}`, for a model node whose schema has no findings key.
+    Answer,
+    /// A gate shim: run the gate wrapper and answer its exit code.
+    Gate(String),
+    /// A copier shim: run the verify and answer the report it prints.
+    Copy(String),
+}
+
+impl Role {
+    /// The role a `STUB_ACP_ROLE` value names; anything unknown or empty is
+    /// [`Role::Findings`].
+    pub fn parse(text: &str) -> Role {
+        let text = text.trim();
+        if text == "answer" {
+            return Role::Answer;
+        }
+        if let Some(name) = text.strip_prefix("gate:").filter(|name| !name.is_empty()) {
+            return Role::Gate(name.to_string());
+        }
+        if let Some(name) = text.strip_prefix("copy:").filter(|name| !name.is_empty()) {
+            return Role::Copy(name.to_string());
+        }
+        Role::Findings
+    }
+
+    /// The role as `STUB_ACP_ROLE` spells it.
+    pub fn as_text(&self) -> String {
+        match self {
+            Role::Findings => "findings".to_string(),
+            Role::Answer => "answer".to_string(),
+            Role::Gate(name) => format!("gate:{}", name),
+            Role::Copy(name) => format!("copy:{}", name),
+        }
+    }
+}
 
 /// The findings document for a verdict: one finding for `needs-human`, the
 /// empty verdict for anything else.
@@ -52,9 +118,43 @@ pub fn findings_document(verdict: &str) -> Value {
 
 /// The findings document for a verdict, wrapped in a json code fence.
 pub fn fenced_findings(verdict: &str) -> String {
+    fenced(&findings_document(verdict))
+}
+
+/// A JSON value as one fenced json block.
+fn fenced(value: &Value) -> String {
     // A document built from literals always serialises.
-    let body = serde_json::to_string_pretty(&findings_document(verdict)).unwrap_or_default();
-    format!("```json\n{body}\n```")
+    fenced_text(&serde_json::to_string_pretty(value).unwrap_or_default())
+}
+
+/// Text as one fenced json block.
+fn fenced_text(body: &str) -> String {
+    format!("```json\n{}\n```", body)
+}
+
+/// A report-shaped refusal: the fields a copier's success condition reads,
+/// carrying the exit code the verify earned.
+fn report_document(exit_code: i32) -> Value {
+    json!({
+        "run_id": "",
+        "attempt": 0,
+        "command": "",
+        "exit_code": exit_code,
+        "output_hash": "",
+        "timestamp": "",
+    })
+}
+
+/// The command a gate runs: `false` when the verdict names this gate as
+/// failing, else `true`. The copier derives its `--command` from the same
+/// function, so the two always agree.
+fn gate_command(verdict: &str, name: &str) -> Vec<String> {
+    let failing = verdict.trim().strip_prefix("gate-fail=") == Some(name);
+    if failing {
+        vec!["false".to_string()]
+    } else {
+        vec!["true".to_string()]
+    }
 }
 
 /// The ACP model picker for the comma separated model ids, with `current`
@@ -83,18 +183,56 @@ pub fn model_option(models: &str, current: Option<&str>) -> Vec<Value> {
     })]
 }
 
-/// The stub agent: the sessions it knows and the next session id to hand out.
+/// A host that runs commands for real but keeps what the wrapper prints,
+/// because stdout is the ACP stream.
+#[derive(Default)]
+struct CapturingHost {
+    /// The text the wrapper printed on stdout; stderr is discarded.
+    out: RefCell<String>,
+}
+
+impl Clock for CapturingHost {
+    fn unix_seconds(&self) -> u64 {
+        RealHost.unix_seconds()
+    }
+}
+
+impl Host for CapturingHost {
+    fn execute(&self, argv: &[String], timeout: Duration, output: &Path) -> Outcome {
+        RealHost.execute(argv, timeout, output)
+    }
+
+    fn print(&self, stderr: bool, text: &str) {
+        if !stderr {
+            self.out.borrow_mut().push_str(text);
+        }
+    }
+}
+
+/// The stub agent: the sessions it knows, the next session id to hand out, the
+/// role it answers as and the directory its gate reports live under.
 pub struct Stub {
     sessions: BTreeSet<String>,
     next_session: u64,
+    role: Role,
+    report_dir: String,
 }
 
 impl Stub {
-    /// A stub that knows no sessions and has handed out no ids yet.
+    /// A stub that knows no sessions, has handed out no ids yet and answers as
+    /// a critic.
     pub fn new() -> Stub {
+        Stub::with_role(Role::Findings, String::new())
+    }
+
+    /// A stub that answers as `role` and keeps its gate reports under
+    /// `report_dir`.
+    pub fn with_role(role: Role, report_dir: String) -> Stub {
         Stub {
             sessions: BTreeSet::new(),
             next_session: 0,
+            role,
+            report_dir,
         }
     }
 
@@ -149,7 +287,7 @@ impl Stub {
         }
     }
 
-    /// The frames for a prompt: the fenced findings, or the failure error.
+    /// The frames for a prompt: the role's answer, or the failure error.
     fn prompt(&mut self, request: &Value, params: Option<&Value>, verdict: &str) -> Vec<Value> {
         let session_id = param_str(params, "sessionId")
             .filter(|id| !id.is_empty())
@@ -159,6 +297,7 @@ impl Stub {
         if verdict.trim() == FAIL {
             return vec![error(request, -32000, "stub failure")];
         }
+        let text = self.answer(verdict);
         vec![
             notify(
                 "session/update",
@@ -166,12 +305,74 @@ impl Stub {
                     "sessionId": session_id,
                     "update": {
                         "sessionUpdate": "agent_message_chunk",
-                        "content": { "type": "text", "text": fenced_findings(verdict) },
+                        "content": { "type": "text", "text": text },
                     },
                 }),
             ),
             reply(request, json!({ "stopReason": "end_turn" })),
         ]
+    }
+
+    /// The answer text for a prompt: one fenced json block, chosen by the role.
+    fn answer(&self, verdict: &str) -> String {
+        match &self.role {
+            Role::Findings => fenced_findings(verdict),
+            Role::Answer => fenced(&json!({ "ok": true })),
+            Role::Gate(name) => fenced(&self.gate_answer(verdict, name)),
+            Role::Copy(name) => self.copy_answer(verdict, name),
+        }
+    }
+
+    /// The answer to a gate prompt: run the wrapper and report its exit code.
+    fn gate_answer(&self, verdict: &str, name: &str) -> Value {
+        let Some(dir) = self.report_dir_for(name) else {
+            return json!({ "exit_code": 2 });
+        };
+        let mut args: Vec<OsString> = vec![
+            "run".into(),
+            "--run-id".into(),
+            RUN_ID.into(),
+            "--attempt".into(),
+            ATTEMPT.into(),
+            "--timeout-secs".into(),
+            TIMEOUT_SECS.into(),
+            "--report-dir".into(),
+            dir.into_os_string(),
+            "--".into(),
+        ];
+        args.extend(gate_command(verdict, name).into_iter().map(OsString::from));
+        let host = CapturingHost::default();
+        json!({ "exit_code": gold_band_gate::run_with(args, &host) })
+    }
+
+    /// The answer to a copier prompt: the report the verify printed, or a
+    /// report-shaped refusal carrying its exit code.
+    fn copy_answer(&self, verdict: &str, name: &str) -> String {
+        let dir = Path::new(&self.report_dir).join(name);
+        let args: Vec<OsString> = vec![
+            "verify".into(),
+            "--run-id".into(),
+            RUN_ID.into(),
+            "--attempt".into(),
+            ATTEMPT.into(),
+            "--command".into(),
+            gate_command(verdict, name).join(" ").into(),
+            "--report-dir".into(),
+            dir.into_os_string(),
+        ];
+        let host = CapturingHost::default();
+        let code = gold_band_gate::run_with(args, &host);
+        if code == 0 {
+            return fenced_text(host.out.borrow().trim());
+        }
+        fenced(&report_document(code))
+    }
+
+    /// The report directory for one shim, created; `None` when it cannot be.
+    fn report_dir_for(&self, name: &str) -> Option<PathBuf> {
+        let dir = Path::new(&self.report_dir).join(name);
+        fs::create_dir_all(&dir).ok()?;
+        Some(dir)
     }
 }
 
@@ -181,7 +382,8 @@ impl Default for Stub {
     }
 }
 
-/// Serve the stub over a reader and a writer until the reader ends.
+/// Serve the stub over a reader and a writer until the reader ends, answering
+/// as a critic.
 ///
 /// Blank lines and lines that are not a JSON object are skipped; every frame is
 /// written as one line of compact JSON and flushed.
@@ -191,7 +393,23 @@ pub fn serve<R: BufRead, W: Write>(
     verdict: &str,
     models: &str,
 ) -> std::io::Result<()> {
-    let mut stub = Stub::new();
+    serve_with_role(input, output, verdict, models, &Role::Findings, "")
+}
+
+/// Serve the stub over a reader and a writer until the reader ends, answering
+/// as `role` and keeping its gate reports under `report_dir`.
+///
+/// Blank lines and lines that are not a JSON object are skipped; every frame is
+/// written as one line of compact JSON and flushed.
+pub fn serve_with_role<R: BufRead, W: Write>(
+    input: R,
+    output: &mut W,
+    verdict: &str,
+    models: &str,
+    role: &Role,
+    report_dir: &str,
+) -> std::io::Result<()> {
+    let mut stub = Stub::with_role(role.clone(), report_dir.to_string());
     for line in input.lines() {
         let line = line?;
         let Ok(request) = serde_json::from_str::<Value>(&line) else {

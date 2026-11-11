@@ -14,8 +14,23 @@ a temporary directory:
 * a `settings.json` that declares **every agent id the workflow names** (node
   `provider`s and `modelBindings` agent ids) with the harness itself, run as
   `gold-band-proof stub-acp`, as its command. The stub is a small ACP agent
-  that answers every prompt with a fixed findings document, so no model and no
-  network is spent;
+  that answers every prompt with one fenced json block, so no model and no
+  network is spent. What the block holds is the agent's **role**, which the
+  harness reads off the workflow and passes as `STUB_ACP_ROLE`:
+
+  | Role | Agent id | The stub answers |
+  | --- | --- | --- |
+  | `findings` | anything else | the findings document for the verdict |
+  | `answer` | a node whose `output.schema` is an object without a `findings` key | `{"ok": true}` |
+  | `gate:<name>` | `gate-<name>` | `{"exit_code": N}`, the exit code `gold-band-gate run` earned |
+  | `copy:<name>` | `copy-<name>` | the gate report `gold-band-gate verify` printed, or a report-shaped refusal carrying its exit code |
+
+  A gate shim runs `true`, or `false` when the scenario's verdict is
+  `gate-fail=<name>`, under the fixed run id `proof-run`, attempt `1` and a
+  30-second timeout, with its report directory at
+  `<root>/reports/<name>` (`STUB_ACP_REPORT_DIR` names `<root>/reports`). The
+  copier verifies the same command, so a failed gate leaves a report the
+  copier refuses with `failed-command`;
 * a minimal profile file for each profile the workflow's nodes name (Gold Band
   refuses a node whose profile is missing);
 * a workspace that is a git repository with one empty commit and a
@@ -30,10 +45,11 @@ mapping: completed and success is 0, completed otherwise 1, paused 2).
 | --- | --- | --- | --- |
 | `clean` | empty findings | 0 | always |
 | `needs-human` | one major finding | 2 (paused; the printed run state names the paused node) | the workflow has a `manual_check` node |
+| `gate-fail-<name>` | the gate's command fails | 1 | the workflow has a `gate-<name>` agent, one scenario per gate, sorted by name |
 
 More scenarios come from `--scenario NAME:VERDICT:EXIT` (verdicts: `clean`,
-`needs-human`, `fail`; `fail` makes the stub answer a prompt with a protocol
-error, which Gold Band pauses as `runtime-abnormal`).
+`needs-human`, `fail`, `gate-fail=NAME`; `fail` makes the stub answer a prompt
+with a protocol error, which Gold Band pauses as `runtime-abnormal`).
 
 ## The proof record
 
@@ -82,7 +98,7 @@ prints the skip reason and passes without proving anything.
 
 ## Not covered
 
-The stub answers with a findings document, so the proof checks structure and
-routing (the spec-stage template). A workflow whose nodes need other output
-(for example Workflow B's gates) adds its own scenarios and, when the findings
-shape does not fit, its own stub reply in the ticket that ports it.
+The stub answers with a findings document, `{"ok": true}`, a gate exit code or
+a gate report, so the proof checks structure and routing for the spec-stage
+template and for Workflow B's gates. A workflow whose nodes need another output
+shape adds its own role and its own stub reply in the ticket that ports it.

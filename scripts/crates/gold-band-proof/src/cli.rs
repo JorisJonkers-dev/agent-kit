@@ -30,6 +30,7 @@ usage: gold-band-proof prove --workflow FILE [--gold-band BIN] [--gold-band-comm
                              [--gold-band BIN] [-- <gold-band run arguments>]
 
 prove  run the workflow headless against the stub agent and record the proof
+       (a scenario verdict is clean, needs-human, fail or gate-fail=NAME)
 check  refuse unless a passing proof of the workflow is recorded
 run    check, then start `gold-band run` for the workflow
 ";
@@ -371,7 +372,9 @@ fn run_command(options: &Options, env: &Env, stderr: &mut dyn Write) -> i32 {
 fn stub_acp(env: &Env, stdin: &mut dyn BufRead, mut stdout: &mut dyn Write) -> i32 {
     let verdict = (env.get)(stub::VERDICT_ENV).unwrap_or_default();
     let models = (env.get)(stub::MODELS_ENV).unwrap_or_default();
-    match stub::serve(stdin, &mut stdout, &verdict, &models) {
+    let role = stub::Role::parse(&(env.get)(stub::ROLE_ENV).unwrap_or_default());
+    let report_dir = (env.get)(stub::REPORT_DIR_ENV).unwrap_or_default();
+    match stub::serve_with_role(stdin, &mut stdout, &verdict, &models, &role, &report_dir) {
         Ok(()) => 0,
         Err(_) => 1,
     }

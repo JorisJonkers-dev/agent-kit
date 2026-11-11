@@ -29,8 +29,8 @@
         "type": "worker",
         "id": "writer",
         "executionSlotId": "slot-writer",
-        "provider": "opencode",
-        "model": "opencode-go/glm-5.3-flash",
+        "provider": "vibe-study",
+        "model": "deepseek-v4-1-flash-1017",
         "profile": "pf-builtin-dev",
         "goal": "You are the one writer. Implement the ticket until the tests the test author wrote pass: change non-test files only, never edit or delete a test, and add nothing the tests and the requirement do not ask for. Answer with one fenced json block holding ok and nothing else.",
         "output": {
@@ -229,8 +229,8 @@
       },
       {
         "executionSlotId": "slot-writer",
-        "agentId": "opencode",
-        "modelId": "opencode-go/glm-5.3-flash"
+        "agentId": "vibe-study",
+        "modelId": "deepseek-v4-1-flash-1017"
       },
       {
         "executionSlotId": "slot-gate-build",
