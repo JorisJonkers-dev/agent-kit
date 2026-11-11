@@ -311,10 +311,9 @@ def test_the_running_guard_refuses_to_write(
     monkeypatch.setenv("AGENT_KIT_GOLD_BAND_RUNNING", "1")
     machine = Machine(tmp_path, monkeypatch)
     assert machine.run() == 3
-    assert (
-        "gold-band-roles: Gold Band is running; quit it and re-run setup (nothing was written)"
-        in capsys.readouterr().out
-    )
+    out = capsys.readouterr().out
+    assert "gold-band-roles: Gold Band instance gold-band-personal" in out
+    assert "quit it and re-run setup (nothing was written)" in out
     assert not machine.profiles.exists()
 
 

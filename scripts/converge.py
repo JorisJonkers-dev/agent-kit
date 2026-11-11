@@ -68,7 +68,7 @@ REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
 # The Gold Band instance whose settings.json this kit converges, and the app
 # process whose running state makes a write unsafe.
 GOLD_BAND_INSTANCE = "gold-band-personal"
-GOLD_BAND_PROCESS = "gold-band-desktop"
+GOLD_BAND_PROCESS_NAMES = ("gold-band-desktop", "Gold Band")
 GOLD_BAND_RUNNING_ENV = "AGENT_KIT_GOLD_BAND_RUNNING"
 GOLD_BAND_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # An adapter env value is a reference the app resolves at launch, never a
@@ -98,19 +98,21 @@ GOLD_BAND_ROLE_FIELDS = ("file", "id", "name", "summary", "source", "lenses")
 GOLD_BAND_ROLES_CLOSING = KIT_ROOT / "scripts" / "gold-band" / "roles-closing.md"
 # The app strips adapter.command and adapter.args from a built-in id when it
 # saves settings.json and re-injects them on load, so setup writes neither.
-GOLD_BAND_BUILT_INS = frozenset({
-    "claude-acp",
-    "codex-acp",
-    "cursor",
-    "gemini",
-    "codebuddy-code",
-    "goose",
-    "qwen-code",
-    "opencode",
-    "kimi",
-    "amp-acp",
-    "pi-acp",
-})
+GOLD_BAND_BUILT_INS = frozenset(
+    {
+        "claude-acp",
+        "codex-acp",
+        "cursor",
+        "gemini",
+        "codebuddy-code",
+        "goose",
+        "qwen-code",
+        "opencode",
+        "kimi",
+        "amp-acp",
+        "pi-acp",
+    }
+)
 
 
 class _CannotConverge(Exception):
@@ -227,9 +229,13 @@ def _names(value: str) -> set[str]:
     return {n for n in value.split(",") if n}
 
 
-def converge(surfaces: list[Surface], retired: Callable[[Surface, str], bool],
-             spared: Callable[[Surface, str], bool], check: bool,
-             private: Callable[[Surface, str], bool] = lambda _s, _n: False) -> int:
+def converge(
+    surfaces: list[Surface],
+    retired: Callable[[Surface, str], bool],
+    spared: Callable[[Surface, str], bool],
+    check: bool,
+    private: Callable[[Surface, str], bool] = lambda _s, _n: False,
+) -> int:
     """Remove each retired or misplaced private entry, and each other one not spared; then read every surface back."""
     removals: list[tuple[Surface, str, str]] = []
     for surface in surfaces:
@@ -275,13 +281,16 @@ def mcp(args: argparse.Namespace) -> int:
             # must not stop every other surface from converging.
             print(f"{_tilde(args.opencode)} is not plain JSON; opencode not converged")
             unreadable = 1
-    return converge(
-        surfaces,
-        lambda _, name: name in retired,
-        lambda s, name: name in declared.get(s.kind, set()) or name.startswith(DECLARED_SOURCES) or name in keep,
-        args.check,
-        lambda s, name: name in private and name not in declared.get(s.kind, set()),
-    ) or unreadable
+    return (
+        converge(
+            surfaces,
+            lambda _, name: name in retired,
+            lambda s, name: name in declared.get(s.kind, set()) or name.startswith(DECLARED_SOURCES) or name in keep,
+            args.check,
+            lambda s, name: name in private and name not in declared.get(s.kind, set()),
+        )
+        or unreadable
+    )
 
 
 def plugins(args: argparse.Namespace) -> int:
@@ -327,9 +336,7 @@ def _gold_band_registry(path: Path) -> tuple[list[dict[str, Any]], set[str], set
     personal = instances.get(GOLD_BAND_INSTANCE) if isinstance(instances, dict) else None
     allowed = personal.get("agents") if isinstance(personal, dict) else None
     if not isinstance(allowed, list) or not all(isinstance(name, str) for name in allowed):
-        raise _CannotConverge(
-            f"{path}: gold_band_instances.{GOLD_BAND_INSTANCE}.agents must be a list of ids"
-        )
+        raise _CannotConverge(f"{path}: gold_band_instances.{GOLD_BAND_INSTANCE}.agents must be a list of ids")
     return agents, set(retired), set(allowed)
 
 
@@ -400,9 +407,7 @@ def _gold_band_expand(value: str) -> str:
 def _gold_band_entry(agent: dict[str, Any]) -> dict[str, Any]:
     """The settings entry for a declared agent: its written fields, expanded."""
     entry = {
-        key: value
-        for key, value in agent.items()
-        if key in GOLD_BAND_AGENT_FIELDS and key not in ("id", "binary")
+        key: value for key, value in agent.items() if key in GOLD_BAND_AGENT_FIELDS and key not in ("id", "binary")
     }
     adapter = entry.get("adapter")
     if not isinstance(adapter, dict):
@@ -439,16 +444,87 @@ def _gold_band_document(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return doc, agents
 
 
-def _gold_band_running() -> bool:
-    """Whether the desktop app holds settings.json open, so a write would be lost."""
+@dataclass(frozen=True)
+class _Process:
+    """One process of the current user: its pid, executable and, where the OS shows it, GOLD_BAND_HOME."""
+
+    pid: int
+    exe: str
+    home: str | None
+
+
+def _processes_proc(root: Path) -> list[_Process]:
+    found: list[_Process] = []
+    for entry in sorted(root.iterdir()):
+        if not entry.name.isdigit():
+            continue
+        try:
+            if entry.stat().st_uid != os.getuid():
+                continue
+            argv = (entry / "cmdline").read_bytes().split(b"\0")[0].decode(errors="replace")
+        except OSError:
+            continue
+        try:
+            env = (entry / "environ").read_bytes().split(b"\0")
+        except OSError:
+            # Its data directory is hidden, so it counts as holding ours.
+            found.append(_Process(int(entry.name), argv, None))
+            continue
+        values = {e.partition(b"=")[0]: e.partition(b"=")[2].decode(errors="replace") for e in env}
+        home = values.get(b"GOLD_BAND_HOME") or str(Path(values.get(b"HOME") or Path.home()) / ".gold-band")
+        found.append(_Process(int(entry.name), argv, home))
+    return found
+
+
+def _processes_ps() -> list[_Process]:
+    # macOS: the other macOS user's instance (the work one) is not this user's process.
+    out = subprocess.run(
+        ["ps", "-U", str(os.getuid()), "-o", "pid=,comm="], capture_output=True, text=True, check=False
+    ).stdout
+    found: list[_Process] = []
+    for line in out.splitlines():
+        pid, _, exe = line.strip().partition(" ")
+        if pid.isdigit():
+            found.append(_Process(int(pid), exe.strip(), None))
+    return found
+
+
+def _gold_band_processes() -> list[_Process]:
+    """Every process of the current user, read from /proc where it exists and from ps otherwise."""
+    root = Path("/proc")
+    try:
+        return _processes_proc(root) if (root / "self").exists() else _processes_ps()
+    except OSError:
+        return []
+
+
+def _gold_band_running(data_dir: Path) -> str | None:
+    """The running instance that holds ``data_dir``, or None.
+
+    An instance is a process whose executable is named like the desktop app,
+    matched by name and never by install path, and whose data directory is the
+    one being written. Where the OS does not show a process's data directory
+    the process counts, since a wrongly held write is worse than a refusal.
+    """
     flag = os.environ.get(GOLD_BAND_RUNNING_ENV)
     if flag is not None:
-        return flag == "1"
-    try:
-        pattern = rf"(^|/){GOLD_BAND_PROCESS}( |$)"
-        return subprocess.run(["pgrep", "-f", pattern], capture_output=True, check=False).returncode == 0
-    except OSError:
-        return False
+        return f"{GOLD_BAND_INSTANCE} (set by {GOLD_BAND_RUNNING_ENV})" if flag == "1" else None
+    ours = data_dir.expanduser().resolve()
+    for proc in _gold_band_processes():
+        if Path(proc.exe).name not in GOLD_BAND_PROCESS_NAMES:
+            continue
+        if proc.home is not None and Path(proc.home).expanduser().resolve() != ours:
+            continue
+        return f"{GOLD_BAND_INSTANCE} (process {proc.pid}, data {ours})"
+    return None
+
+
+def _gold_band_stopped(tool: str, running: str, written: list[str], pending: list[str]) -> int:
+    """Report an instance that started between write groups; a second run finishes the rest."""
+    print(f"{tool}: Gold Band instance {running} started during setup; quit it and re-run setup")
+    print(f"{tool}: written: {', '.join(written) or 'nothing'}")
+    print(f"{tool}: not yet written: {', '.join(pending)}")
+    return 3
 
 
 def gold_band(args: argparse.Namespace) -> int:
@@ -460,8 +536,12 @@ def gold_band(args: argparse.Namespace) -> int:
             for problem in problems:
                 print(f"gold-band-agents: {problem}")
             return 1
-        if not args.check and _gold_band_running():
-            print("gold-band-agents: Gold Band is running; quit it and re-run setup (nothing was written)")
+        running = None if args.check else _gold_band_running(settings.parent)
+        if running:
+            print(
+                f"gold-band-agents: Gold Band instance {running} is running; "
+                "quit it and re-run setup (nothing was written)"
+            )
             return 3
         doc, current = _gold_band_document(settings)
     except _CannotConverge as exc:
@@ -511,6 +591,10 @@ def gold_band(args: argparse.Namespace) -> int:
     if args.check:
         return 0
 
+    # The one write group of this surface: the guard runs again right before it.
+    running = _gold_band_running(settings.parent)
+    if running:
+        return _gold_band_stopped("gold-band-agents", running, [], [settings.name])
     if settings.is_file():
         shutil.copy2(settings, settings.with_name(settings.name + ".bak"))
     settings.parent.mkdir(parents=True, exist_ok=True)
@@ -678,8 +762,12 @@ def gold_band_roles(args: argparse.Namespace) -> int:
             for problem in problems:
                 print(f"gold-band-roles: {problem}")
             return 1
-        if not args.check and _gold_band_running():
-            print("gold-band-roles: Gold Band is running; quit it and re-run setup (nothing was written)")
+        running = None if args.check else _gold_band_running(profiles.parent.parent)
+        if running:
+            print(
+                f"gold-band-roles: Gold Band instance {running} is running; "
+                "quit it and re-run setup (nothing was written)"
+            )
             return 3
         critique = args.critique or (KIT_ROOT / source if source else None)
         if critique is None:
@@ -731,12 +819,21 @@ def gold_band_roles(args: argparse.Namespace) -> int:
     if args.check:
         return 0
 
+    # Each profile is one write group, and the guard runs before every group.
+    groups = [(stem, True) for stem in added + changed] + [(stem, False) for stem, _ in removed]
+    written: list[str] = []
     try:
-        profiles.mkdir(mode=0o700, parents=True, exist_ok=True)
-        for stem in added + changed:
-            _gold_band_role_write(profiles / f"{stem}.md", rendered[stem])
-        for stem, _reason in removed:
-            (profiles / f"{stem}.md").unlink()
+        for index, (stem, write) in enumerate(groups):
+            running = _gold_band_running(profiles.parent.parent)
+            if running:
+                pending = [f"{each}.md" for each, _ in groups[index:]]
+                return _gold_band_stopped("gold-band-roles", running, written, pending)
+            if write:
+                profiles.mkdir(mode=0o700, parents=True, exist_ok=True)
+                _gold_band_role_write(profiles / f"{stem}.md", rendered[stem])
+            else:
+                (profiles / f"{stem}.md").unlink()
+            written.append(f"{stem}.md")
     except OSError as exc:
         print(f"gold-band-roles: cannot converge: {exc}")
         return 3
