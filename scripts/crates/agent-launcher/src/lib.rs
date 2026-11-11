@@ -97,11 +97,12 @@ pub struct Plan {
 }
 
 /// The directory setup builds for `id`'s skill set: `<root>/skill-sets/<id>`,
-/// where the root is `gold_band_home` when it is set and not empty, else
-/// `<home>/.gold-band`, else there is none.
+/// where the root is `.gold-band` under `gold_band_home` when it is set and
+/// not blank (the app keeps its data there), else `<home>/.gold-band`, else
+/// there is none.
 pub fn skills_dir(gold_band_home: Option<&str>, home: Option<&str>, id: &str) -> Option<PathBuf> {
     let root = match gold_band_home {
-        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
+        Some(dir) if !dir.trim().is_empty() => PathBuf::from(dir).join(".gold-band"),
         _ => match home {
             Some(dir) if !dir.is_empty() => PathBuf::from(dir).join(".gold-band"),
             _ => return None,

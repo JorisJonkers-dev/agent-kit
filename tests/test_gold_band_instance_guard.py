@@ -87,7 +87,7 @@ def test_proc_listing_reads_executable_and_data_dir(tmp_path: Path, monkeypatch:
     _proc_entry(root, "14", ["/x/gold-band-desktop"], {"HOME": "/home/other"})
     (root / "15").mkdir()  # cmdline unreadable: gone mid-scan
     got = {p.pid: p for p in converge._processes_proc(root)}
-    assert got[11] == Process(11, "/x/gold-band-desktop", "/data/gb")
+    assert got[11] == Process(11, "/x/gold-band-desktop", "/data/gb/.gold-band")
     assert got[12].home == str(tmp_path / "home" / ".gold-band")
     assert got[13].home is None  # hidden data dir counts as ours
     assert got[14].home == "/home/other/.gold-band"

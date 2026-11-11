@@ -305,12 +305,22 @@ def test_a_change_copies_the_settings_file_to_a_backup(tmp_path: Path, monkeypat
     assert machine.settings.stat().st_mode & 0o777 == 0o600
 
 
+def test_the_settings_path_without_gold_band_home_is_under_the_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert converge._gold_band_settings_path() == tmp_path / ".gold-band" / "settings.json"
+    monkeypatch.setenv("GOLD_BAND_HOME", "  ")
+    assert converge._gold_band_settings_path() == tmp_path / ".gold-band" / "settings.json"
+
+
 def test_the_settings_path_defaults_to_gold_band_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "gb"
     monkeypatch.setenv("GOLD_BAND_HOME", str(home))
     machine = Machine(tmp_path, monkeypatch)
     assert machine.run(settings=False) == 0
-    assert json.loads((home / "settings.json").read_text())["agents"]["opencode"] == OPENCODE_ENTRY
+    assert not (home / "settings.json").exists()
+    assert json.loads((home / ".gold-band" / "settings.json").read_text())["agents"]["opencode"] == OPENCODE_ENTRY
 
 
 def test_the_registry_path_defaults_to_the_kits_own(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
