@@ -62,12 +62,12 @@ findings document valid against the finding schema.
 
 ```bash
 # Without a binary, only the template tests run:
-uv run --no-project --with pytest --with pyyaml --with tomlkit --with jsonschema \
+uv run --no-project --exclude-newer "7 days" --with pytest --with pyyaml --with tomlkit --with jsonschema \
   python -m pytest -q tests/test_gold_band_spec_workflow.py
 
 # The headless proof needs the binary:
 GOLD_BAND_BIN=/path/to/gold-band \
-  uv run --no-project --with pytest --with pyyaml --with tomlkit --with jsonschema \
+  uv run --no-project --exclude-newer "7 days" --with pytest --with pyyaml --with tomlkit --with jsonschema \
   python -m pytest -q tests/test_gold_band_spec_workflow.py
 ```
 

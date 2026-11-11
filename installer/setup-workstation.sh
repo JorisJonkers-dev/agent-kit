@@ -1460,7 +1460,7 @@ gold_band_validate() {
     warn "uv is not on PATH; the Gold Band declarations are not validated"
     return 0
   fi
-  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-validate \
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-validate \
     --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] && return 0
@@ -1511,7 +1511,7 @@ gold_band_converge() {
   fi
   local args=(--keep "${HOME}/.config/agent-kit/keep.yaml" --settings "${HOME}/.gold-band/settings.json")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
-  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \
     "${args[@]}" \
     --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
@@ -1542,7 +1542,7 @@ gold_band_roles() {
   fi
   local args=(--critique "${KIT_ROOT}/skills/workstation/critique" --profiles "${HOME}/.gold-band/context/profiles" --keep "${HOME}/.config/agent-kit/keep.yaml")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
-  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-roles \
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-roles \
     "${args[@]}" 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || fail "the Gold Band profiles did not converge (see above)"

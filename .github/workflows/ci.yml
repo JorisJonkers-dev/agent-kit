@@ -207,7 +207,7 @@
     'steps':
       - 'uses': 'actions/checkout@v6'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
-      - 'run': 'uv run --no-project --with pytest --with pyyaml --with tomlkit --with jsonschema python -m pytest -q tests/test_gold_band_spec_workflow.py'
+      - 'run': 'uv run --no-project --exclude-newer "7 days" --with pytest --with pyyaml --with tomlkit --with jsonschema python -m pytest -q tests/test_gold_band_spec_workflow.py'
 
   'pipeline-complete':
     'name': 'Pipeline Complete'

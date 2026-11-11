@@ -9,7 +9,8 @@ before any file could be written. Every OpenRouter and every OpenCode model
 per-key LiteLLM budgets are the guard, not this registry. The reach support
 record (#339) flattens into the same file, so an id whose agent kind does
 not support its reach, whose support cell is unverified, or that shares its
-kind, reach and skill set with another id is refused with its own line. A failure that is no verdict -- a ``uv`` that cannot run, or
+kind, reach and skill set with another id is refused with its own line. A
+failure that is no verdict -- a ``uv`` that cannot run, or
 converge.py's own failure (exit 3) -- stops the run with its own message,
 never the refusal's. The flattening cases call converge.py's function
 directly; each refusal case runs the whole checked-in setup script against a
@@ -37,7 +38,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import converge  # noqa: E402
 from setup_harness import Run, setup_run  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # The flattening: every field kind into the crate's line protocol
@@ -335,7 +335,8 @@ def test_regression_a_registry_that_is_not_a_mapping_cannot_be_validated(tmp_pat
     """A registry whose document is a list is the wrong shape, not zero agents (#332 review)."""
     registry = tmp_path / "estate-tooling.yaml"
     registry.write_text("- just\n- a\n- list\n")
-    assert converge.gold_band_validate(converge.KIT_ROOT, registry, cargo=True) == converge.GOLD_BAND_CANNOT_VALIDATE_EXIT
+    code = converge.gold_band_validate(converge.KIT_ROOT, registry, cargo=True)
+    assert code == converge.GOLD_BAND_CANNOT_VALIDATE_EXIT
 
 
 @pytest.mark.parametrize("broken", [

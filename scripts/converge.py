@@ -84,15 +84,20 @@ Usage::
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py plugins \\
         --keep PATH --declared-markets NAME,... --declared-plugins ID,... \\
         --retired-markets NAME,... --retired-plugins ID,... [--check]
-    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-validate \\
+    uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit \\
+        python scripts/converge.py gold-band-validate \\
         [--registry PATH]
-    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
+    uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit \\
+        python scripts/converge.py gold-band \\
         --keep PATH [--settings PATH] [--registry PATH] [--check]
-    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-roles \\
+    uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit \\
+        python scripts/converge.py gold-band-roles \\
         --critique DIR --keep PATH [--profiles PATH] [--check]
-    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-launch \\
+    uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit \\
+        python scripts/converge.py gold-band-launch \\
         --id ID [--registry PATH]
-    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-running
+    uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit \\
+        python scripts/converge.py gold-band-running
 
 ``gold-band-running`` is the guard the crate re-checks with immediately
 before the rename (#334): exit 0 means Gold Band is not running, exit 1
@@ -881,9 +886,9 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--keep", type=Path, required=True)
     r.add_argument("--check", action="store_true")
 
-    l = sub.add_parser("gold-band-launch")
-    l.add_argument("--id", required=True)
-    l.add_argument("--registry", type=Path, default=None)
+    launch = sub.add_parser("gold-band-launch")
+    launch.add_argument("--id", required=True)
+    launch.add_argument("--registry", type=Path, default=None)
     sub.add_parser("gold-band-running")
     args = parser.parse_args(argv)
     # The guard's answer needs no canary, no crate and no timeout: it is the

@@ -115,7 +115,7 @@ def _rendered(home: Path) -> dict[str, bytes]:
     return {path.name: path.read_bytes() for path in sorted(_profiles(home).iterdir())}
 
 
-def _assert_the_six(home: Path, extra: set[str] = set()) -> None:
+def _assert_the_six(home: Path, extra: frozenset[str] = frozenset()) -> None:
     """The six generated profiles and nothing else but ``extra``, each carrying
     its crate-declared front matter id, in a directory the step made 0700."""
     profiles = _profiles(home)

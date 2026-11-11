@@ -19,7 +19,7 @@ import copy
 import json
 import re
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +48,7 @@ def _pi(data: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 def _iso(days_old: int) -> str:
-    stamp = datetime.now(timezone.utc) - timedelta(days=days_old)
+    stamp = datetime.now(UTC) - timedelta(days=days_old)
     return stamp.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
@@ -121,7 +121,7 @@ def test_setup_installs_both_pins_scripts_off_behind_a_cutoff_seven_days_back(tm
     # microseconds would fail the lower bound whenever the run reaches the
     # Pi block inside the second it started, because the printed cutoff is
     # that second floored while `started` never went below its fraction.
-    started = datetime.now(timezone.utc).replace(microsecond=0)
+    started = datetime.now(UTC).replace(microsecond=0)
     run = _pi_run(tmp_path, _times([30, 30]))
     installs = _pi_installs(run.calls)
     assert len(installs) == 1, run.calls
@@ -132,7 +132,7 @@ def test_setup_installs_both_pins_scripts_off_behind_a_cutoff_seven_days_back(tm
     cutoff = datetime.fromisoformat(found.group(1).replace("Z", "+00:00"))
     # Computed at setup time: now minus 7 days, UTC, so nothing published in
     # the last 7 days can resolve while npm honours it.
-    assert started - timedelta(days=7) <= cutoff <= datetime.now(timezone.utc) - timedelta(days=7)
+    assert started - timedelta(days=7) <= cutoff <= datetime.now(UTC) - timedelta(days=7)
     assert "pi: installed at its pins" in run.stdout
     assert f"pi: pi-acp -> {run.home}/{EXPECTED_PATH}" in run.stdout
 

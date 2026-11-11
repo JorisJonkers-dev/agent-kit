@@ -104,7 +104,11 @@ def test_the_template_passes_workflow_lint() -> None:
     if shutil.which("cargo") is None:
         pytest.skip("Rust toolchain (cargo) is absent: workflow-lint cannot be built and run")
     lint = subprocess.run(
-        ["cargo", "run", "-q", "--manifest-path", str(LINT_MANIFEST), "-p", "workflow-lint", "--", str(TEMPLATE)],
+        [
+            "cargo", "run", "-q", "--manifest-path", str(LINT_MANIFEST), "-p", "workflow-lint", "--",
+            # The template binds Vibe and Antigravity, which are personal-instance agents.
+            "--instance", "gold-band-personal", str(TEMPLATE),
+        ],
         capture_output=True,
         text=True,
         timeout=GOLD_BAND_TIMEOUT_SECONDS,
@@ -214,8 +218,13 @@ def _gold_band_run(home: Path, workspace: Path, verdict: str) -> subprocess.Comp
     # Without the current schema version Gold Band runs its version-0
     # migration, which rejects custom agent ids, and then silently loads no
     # agents at all (gold-band-src src/config/mod.rs, migrate_managed_agent_directories).
-    settings = {"settingsSchemaVersion": GOLD_BAND_SETTINGS_SCHEMA_VERSION, "agents": {"vibe": _agent("Stub ACP (Vibe)", verdict, _bound_models("vibe")),
-                                                                         "agy": _agent("Stub ACP (Agy)", verdict, _bound_models("agy"))}}
+    settings = {
+        "settingsSchemaVersion": GOLD_BAND_SETTINGS_SCHEMA_VERSION,
+        "agents": {
+            "vibe": _agent("Stub ACP (Vibe)", verdict, _bound_models("vibe")),
+            "agy": _agent("Stub ACP (Agy)", verdict, _bound_models("agy")),
+        },
+    }
     (band_home / "settings.json").write_text(json.dumps(settings))
     # The template's nodes name the spec red-team profile; Gold Band refuses a
     # node whose profile is missing, so render the six roles (#345) first.
@@ -353,4 +362,4 @@ def test_without_cargo_the_headless_proof_skips_rather_than_errors() -> None:
     if GOLD_BAND_BIN is not None and shutil.which("cargo") is None:
         assert NO_HEADLESS_PROOF and HEADLESS_SKIP_REASON == SKIP_NO_CARGO
     assert "cargo" in SKIP_NO_CARGO
-    assert NO_HEADLESS_PROOF == (GOLD_BAND_BIN is None or shutil.which("cargo") is None)
+    assert (GOLD_BAND_BIN is None or shutil.which("cargo") is None) == NO_HEADLESS_PROOF

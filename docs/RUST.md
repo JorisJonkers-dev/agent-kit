@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Eight members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Twelve members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP

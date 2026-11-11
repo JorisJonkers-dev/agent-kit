@@ -1934,7 +1934,8 @@ def _gold_band_validate_fn(w: Any) -> None:
     w('    warn "uv is not on PATH; the Gold Band declarations are not validated"')
     w("    return 0")
     w("  fi")
-    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-validate \\')
+    w('  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
+      '"${KIT_ROOT}/scripts/converge.py" gold-band-validate \\')
     w('    --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?')
     w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
     w('  [ "${rc}" = 0 ] && return 0')
@@ -2007,7 +2008,8 @@ def _gold_band_converge_fn(w: Any) -> None:
     w("  fi")
     w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml" --settings "${HOME}/.gold-band/settings.json")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
-    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \\')
+    w('  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
+      '"${KIT_ROOT}/scripts/converge.py" gold-band \\')
     w('    "${args[@]}" \\')
     w('    --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?')
     w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
@@ -2077,7 +2079,7 @@ def _gold_band_roles_fn(data: dict[str, Any], w: Any) -> None:
       ' --profiles "${HOME}/.gold-band/context/profiles"'
       ' --keep "${HOME}/.config/agent-kit/keep.yaml")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
-    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python'
+    w('  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python'
       ' "${KIT_ROOT}/scripts/converge.py" gold-band-roles \\')
     w('    "${args[@]}" 2>&1) || rc=$?')
     w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
@@ -3120,16 +3122,16 @@ def _cask_stray_binary(name: str, binary: str) -> tuple[list[str], list[str]]:
         f'  if [ -e "${{{v}_bin}}" ] || [ -L "${{{v}_bin}}" ]; then',
         f'    {v}_bak="${{{v}_bin}}.bak-$(date +%Y%m%d%H%M%S)"',
         f'    run mv "${{{v}_bin}}" "${{{v}_bak}}"',
-        f'    if [ "${{CHECK_ONLY}}" != 1 ]; then',
+        '    if [ "${CHECK_ONLY}" != 1 ]; then',
         f'      log "{name}: moved ${{{v}_bin}} aside to ${{{v}_bak}}"',
-        f'    fi',
-        f'  fi',
+        '    fi',
+        '  fi',
     ]
     restore = [
         f'    if [ -n "${{{v}_bak}}" ]; then',
         f'      run mv "${{{v}_bak}}" "${{{v}_bin}}"',
         f'      log "{name}: restored ${{{v}_bin}} from ${{{v}_bak}}"',
-        f'    fi',
+        '    fi',
     ]
     return stray, restore
 

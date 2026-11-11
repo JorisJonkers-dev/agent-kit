@@ -1,7 +1,5 @@
 # Gold Band workflows run outside the model gateway
 
-Status: proposed.
-
 ADR-0007 put every delegation on one model gateway: a shared catalogue of
 client models, one ledger, per-workflow and per-day caps for the
 metered-personal cost class, and one batch rule. Gold Band workflows do not
