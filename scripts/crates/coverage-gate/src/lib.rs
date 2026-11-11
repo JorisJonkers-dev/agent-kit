@@ -22,10 +22,11 @@
 //! Each tool is asked for an lcov report, and only for the projects with a
 //! changed file of their language. A changed file passes only when every
 //! instrumented line in it ran; an uncovered file that was not changed never
-//! fails the gate. A changed file the report does not list is not measured
-//! (a test, a document, a file `--ignore` names) and is printed as such; a
-//! file `--ignore` names (a substring of its repository-relative path) is
-//! left out of the measuring.
+//! fails the gate. A changed source file the report does not list fails too,
+//! since nothing shows its lines ran (an untested new module). A
+//! `src/main.rs` (the one exit-wrapper line a crate documents) and a file
+//! `--ignore` names (a substring of its repository-relative path) are left
+//! out of the measuring and printed as not measured.
 //!
 //! Exit 0 is full coverage (or nothing to measure), 1 is an uncovered line or
 //! a coverage tool that failed, and 2 is bad usage, a repository with no
@@ -407,7 +408,7 @@ struct Measured {
     covered: Vec<String>,
     /// Changed files with lines that did not run, and which lines.
     uncovered: Vec<(String, Vec<u32>)>,
-    /// Changed files the report does not list.
+    /// Changed files the report does not list: nothing shows they ran.
     unlisted: Vec<String>,
 }
 
@@ -534,7 +535,8 @@ fn gate(host: &dyn Host, args: &Args) -> Result<i32, (i32, String)> {
     let mut by_project: BTreeMap<Project, Vec<String>> = BTreeMap::new();
     let mut skipped: Vec<String> = Vec::new();
     for file in changed {
-        let ignored = args.ignore.iter().any(|text| file.contains(text.as_str()));
+        let ignored = file.ends_with("src/main.rs")
+            || args.ignore.iter().any(|text| file.contains(text.as_str()));
         match owner(&projects, &file) {
             Some(project) if !ignored => by_project.entry(project.clone()).or_default().push(file),
             _ => skipped.push(file),
@@ -552,7 +554,13 @@ fn gate(host: &dyn Host, args: &Args) -> Result<i32, (i32, String)> {
             }
         };
         covered += measured.covered.len();
-        skipped.extend(measured.unlisted);
+        for file in measured.unlisted {
+            host.print(
+                true,
+                &format!("{NAME}: {file}: not in the coverage report, so no line of it is known to run\n"),
+            );
+            failed = true;
+        }
         for (file, lines) in measured.uncovered {
             host.print(
                 true,

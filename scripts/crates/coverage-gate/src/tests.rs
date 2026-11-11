@@ -542,8 +542,19 @@ fn a_scratch_directory_that_cannot_be_made_is_exit_1() {
 // ---- what is measured --------------------------------------------------
 
 #[test]
-fn a_changed_file_the_report_does_not_list_is_not_measured() {
-    let host = rust_repo(&["src/lib.rs", "src/lib_test.rs"]);
+fn a_changed_source_file_the_report_does_not_list_fails() {
+    let host = rust_repo(&["src/lib.rs", "src/new.rs"]);
+    host.lcov("SF:src/lib.rs\nDA:1,1\nend_of_record\n");
+    assert_eq!(gate_at(&host, &[]), 1);
+    assert_eq!(
+        *host.err.borrow(),
+        "coverage-gate: src/new.rs: not in the coverage report, so no line of it is known to run\n"
+    );
+}
+
+#[test]
+fn a_main_rs_is_never_measured() {
+    let host = rust_repo(&["src/lib.rs", "crates/x/src/main.rs"]);
     host.lcov("SF:src/lib.rs\nDA:1,1\nend_of_record\n");
     assert_eq!(gate_at(&host, &[]), 0);
     assert_eq!(
@@ -622,11 +633,11 @@ fn an_absolute_sf_path_inside_the_repository_is_made_relative() {
 fn an_absolute_sf_path_outside_the_repository_is_ignored() {
     let host = rust_repo(&["src/lib.rs"]);
     host.lcov("SF:/elsewhere/src/lib.rs\nDA:1,0\nend_of_record\n");
-    assert_eq!(gate_at(&host, &[]), 0);
-    assert_eq!(
-        *host.out.borrow(),
-        "coverage-gate: 0 changed files at 100% line coverage (1 changed files not measured)\n"
-    );
+    assert_eq!(gate_at(&host, &[]), 1);
+    assert!(host
+        .err
+        .borrow()
+        .contains("src/lib.rs: not in the coverage report"));
 }
 
 #[test]

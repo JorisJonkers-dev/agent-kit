@@ -498,8 +498,9 @@ coverage-gate --repo-dir DIR [--base REF] [--ignore TEXT]...
   report, read by one parser. A repository with none of them is refused (exit
   2) with a message naming the three.
 * **The verdict.** Exit 0 when every instrumented line of every changed file
-  ran (a changed file the report does not list, a language without a tool, or
-  a file `--ignore` names, is printed as not measured); exit 1 and one
+  ran (a `src/main.rs`, a language without a tool, or a file `--ignore`
+  names, is printed as not measured); a changed source file the report does
+  not list fails, since nothing shows it ran; exit 1 and one
   `coverage-gate: FILE: uncovered lines N-M` line per file otherwise, or when
   the tool itself fails; exit 2 for bad usage or a change that cannot be
   listed.
