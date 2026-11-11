@@ -57,6 +57,8 @@ export type CritiqueErrorCode =
   | 'already-recorded'
   /** A run that already had its refute round. */
   | 'already-refuted'
+  /** A run whose rewritten records were already cold-read. */
+  | 'already-cold-read'
   /** A line of the user's ledger that record could not have written. */
   | 'invalid-ledger'
   /** This machine's setup results file. */

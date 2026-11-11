@@ -85,6 +85,7 @@ is `stays outside` in the `direct` lane.
 | Name | Path | What it does | Target | Lanes | Notes |
 | --- | --- | --- | --- | --- | --- |
 | adr-reviewer | `skills/workstation/critique/roles/adr-reviewer.md` | Reviews a decision log as an official reviewer: whether each record carries its decision, never whether the choice was right. | role | direct | Direct lane (#475). |
+| cold-reader | `skills/workstation/critique/roles/cold-reader.md` | Reads one rewritten decision record cold and answers what was decided, what was rejected and when to revisit. | role | direct | Direct lane (#476). |
 | decision-recoverer | `skills/workstation/critique/roles/decision-recoverer.md` | Proposes the decisions a repository's code embodies and no record states, each traced to two sites of the code, as Y-statements with every clause marked observed or inferred. | role | direct | Direct lane (#480). |
 | diff-reviewer | `skills/workstation/critique/roles/diff-reviewer.md` | Reviews one ticket's staged diff for bugs a third party can check. | role | direct, gold-band, gold-band-personal | Gold Band profile, rendered by the `gold-band-roles` crate (#345). |
 | feature-reviewer | `skills/workstation/critique/roles/feature-reviewer.md` | Reviews the whole feature diff against its spec and tickets. | role | direct, gold-band, gold-band-personal | Gold Band profile (#345). |

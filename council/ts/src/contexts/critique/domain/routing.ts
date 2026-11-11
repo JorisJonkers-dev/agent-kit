@@ -113,6 +113,32 @@ function readTriageRouting(fields: JsonFields, clients: Readonly<Record<string, 
   return { ...rules, model: { ...rules.model, client_config: client } }
 }
 
+/**
+ * Routing's `cold_read`: the client a rewritten decision record is cold-read
+ * through, and the caps its one launch per record runs under. The reader
+ * answers a question rather than reviewing, so its client is a Vibe client
+ * and its answer is plain text.
+ */
+export interface ColdReadRouting {
+  /** A Vibe client of routing's `clients`. */
+  readonly client: string
+  readonly client_config: VibeCriticClient
+  readonly max_price_usd: number
+  readonly time_limit_s: number
+}
+
+/** The cold reader asks its question through Vibe, so its client must be a Vibe client routing defines. */
+function readColdReadRouting(fields: JsonFields, clients: Readonly<Record<string, CriticClient>>): ColdReadRouting {
+  const client = fields.string('client')
+  const config = clients[client]
+  if (config?.kind !== 'vibe') {
+    throw new JsonShapeError(
+      `cold_read.client must name a vibe client of clients; ${client} is ${config === undefined ? 'not defined' : `an ${config.kind} client`}`,
+    )
+  }
+  return { client, client_config: config, max_price_usd: fields.number('max_price_usd'), time_limit_s: fields.number('time_limit_s') }
+}
+
 export interface RosterSlot {
   readonly client: string
   readonly role: string
@@ -167,6 +193,8 @@ export interface Routing {
   readonly packet: PacketLimits
   /** Ticket-review risk triage: the risk rules and the triage model; routing without it cannot triage. */
   readonly triage?: TriageRouting
+  /** The client a rewritten decision record is cold-read through; routing without it cannot cold-read. */
+  readonly cold_read?: ColdReadRouting
   /** What the PR gate reads: the feature branch patterns. Without it, every branch a push updates is gated. */
   readonly gate?: GateRouting
 }
@@ -230,6 +258,7 @@ export function parseRouting(text: string): Routing {
       ticket_size: stage.has('ticket_size') ? readTicketSize(stage.object('ticket_size')) : DEFAULT_TICKET_SIZE,
     })),
     ...(triage === undefined ? {} : { triage }),
+    ...(file.has('cold_read') ? { cold_read: readColdReadRouting(file.object('cold_read'), clients) } : {}),
     version: file.literal('version', 1),
     ...(file.has('stats') ? { stats: readStatsThresholds(file.object('stats')) } : {}),
     ...(file.has('gate') ? { gate: readGateRouting(file.object('gate')) } : {}),

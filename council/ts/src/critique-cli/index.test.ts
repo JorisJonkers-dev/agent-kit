@@ -104,6 +104,28 @@ describe('critique runner command line', () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ errors: expect.arrayContaining([{ message: expect.any(String) as unknown, rule: 'missing-section' }]) as unknown, status: 'failed' })
   })
 
+  it('exits 3 when check-rewrite finds a changed decision sentence', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.writeText(join(h.repo, 'docs', 'adr', '0001-a.md'), '# A\n\nWe decided today.\n')
+
+    const result = await runCritiqueCli(
+      [
+        'check-rewrite',
+        '--json',
+        JSON.stringify({
+          original_sentences: ['We decided.'],
+          repo: h.repo,
+          rewritten: [{ decision_sentences: ['We decided today.'], path: 'docs/adr/0001-a.md' }],
+        }),
+      ],
+      cli(h),
+    )
+
+    expect(result.exitCode).toBe(3)
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'failed' })
+  })
+
   it('reports critique stats from the ledger', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)

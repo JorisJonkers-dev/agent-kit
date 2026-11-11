@@ -28,7 +28,7 @@ for a review of the decision records), which tells you how to drive it.
 The runner takes one command and one JSON object, and prints one JSON object:
 
 ```sh
-node <this directory>/critique.mjs <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|stats|triage|state|setup> --input FILE
+node <this directory>/critique.mjs <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|stats|triage|state|setup> --input FILE
 node <this directory>/critique.mjs --help
 ```
 
@@ -51,8 +51,26 @@ decision-log checker: it takes `{ "repo" }`, reports numbering gaps and
 duplicates, unknown status values, links and supersede targets that resolve
 to nothing, and records in force citing a superseded one, and on any of
 these prints `"status": "failed"` and exits 3. Prepare for `adr-review`
-freezes the same report as `check/adrs.json`. `stats` reads the ledger and writes nothing;
-`/critique-stats` drives it. `triage` decides whether a ticket's change
+freezes the same report as `check/adrs.json`. `check-rewrite` is the
+rewrite check a stage runs after it edits a decision record in place: it
+takes the decision sentences quoted from the frozen packet, the rewritten
+files and the decision sentences labelled in each, and confirms each
+original sentence stays byte-identical in exactly one rewritten file, that
+no rewritten file labels a decision sentence that is not an original one,
+and that a split marks the original record superseded by the split files;
+on any of these it prints `"status": "failed"` and exits 3. `cold-read` is
+the independent check on a rewrite: it takes `{ "run_dir", "files" }`, the
+run directory and the rewritten ADRs as repository paths, and for each file
+builds a one-file packet under `<run_dir>/cold-read/<n>/artifact/` holding
+only that rewritten ADR, runs the `cold-reader` role on it through the
+Mistral Small client routing's `cold_read` section names (0.03 USD per
+check, logged like any critic's launch so it counts in the flow's spend),
+and writes `<run_dir>/cold-read.json`: per file `path`, `status` (`answered`
+or `unavailable`), `answers` (`decided`, `rejected`, `revisit`), `missing`
+and, when it could not run, a `reason`. It does not judge the answers; the
+orchestrator compares them with the record. A run is cold-read once.
+`stats` reads the ledger and writes nothing; `/critique-stats` drives it.
+`triage` decides whether a ticket's change
 is `risky` or `low-risk` for ticket review, and names the signal that
 decided it. `state` computes one feature's flow state (keyed by its spec, or
 by a draft name before `/to-spec`) and returns the single next step: a

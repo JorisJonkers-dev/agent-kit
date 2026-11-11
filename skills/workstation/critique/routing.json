@@ -97,6 +97,11 @@
     "labels": ["risk:high"],
     "model": { "client": "vibe-mistral-small", "max_price_usd": 0.03, "time_limit_s": 60 }
   },
+  "cold_read": {
+    "client": "vibe-mistral-small",
+    "max_price_usd": 0.03,
+    "time_limit_s": 60
+  },
   "gate": {
     "feature_branches": [
       "feat/**",
