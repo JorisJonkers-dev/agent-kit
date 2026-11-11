@@ -73,9 +73,14 @@ def test_an_id_that_names_the_set_gets_exactly_the_four_skills(
 
 def test_an_id_that_does_not_name_the_set_gets_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     registry = _registry()
-    registry["gold_band"]["agents"][1].pop("skill_set")
+    vibe = registry["gold_band"]["agents"][1]
+    vibe.pop("skill_set")
+    vibe.update(primaryAgentDir=".vibe", compatibleAgentDirs=[".agents"])
     edited = tmp_path / "registry.yaml"
     edited.write_text(yaml.safe_dump(registry))
     settings = _converge(tmp_path, monkeypatch, edited)
     assert not (settings.parent / "skill-sets" / "vibe").exists()
+    entry = json.loads(settings.read_text())["agents"]["vibe"]
+    assert entry["primaryAgentDir"] == ".vibe"
+    assert entry["compatibleAgentDirs"] == [".agents"]
     assert (settings.parent / "skill-sets" / "opencode").is_dir()
