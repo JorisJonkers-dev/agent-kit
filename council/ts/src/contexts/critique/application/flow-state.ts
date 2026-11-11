@@ -23,6 +23,7 @@ import { gateIndexPath } from './feature-gate.js'
 import { LedgerSource } from './ledger-source.js'
 import { ledgerPath, manifestPath, reportPath } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
+import { draftOf, planFilePathOrNull } from './plan-file.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
 import { ticketReviewIndexPath } from './ticket-review.js'
 import { TrackerResolver, type TrackedArtifact, type TrackedTicket, type Tracker } from './tracker.js'
@@ -100,6 +101,7 @@ export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
       invocations,
       keys,
       ledger,
+      plan: await this.plan(located, draft),
       repository,
       spec: spec?.reference ?? null,
       tickets: tickets as readonly TrackedTicket[],
@@ -110,6 +112,19 @@ export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
     const state = flowState({ ...before, events: [...before.events, ...events] })
     await this.deps.files.writeText(path, `${JSON.stringify(state, null, 2)}\n`)
     return { next: nextStep(state), source: saved ? 'refreshed' : 'rebuilt', state, state_path: path, status: 'read' }
+  }
+
+  /**
+   * Where the draft's plan file lives by the repository's tracker convention,
+   * and whether it exists: a plan file marks the draft as a refactor. A spec
+   * flow looks for the plan of the draft it grew from.
+   */
+  private async plan(located: Pick<LocatedFlow, 'repository' | 'tracker' | 'flow'>, linked: string | undefined): Promise<FlowSources['plan']> {
+    const name = draftOf(located.flow) ?? linked
+    if (name === undefined) return { exists: false, path: null }
+    // A draft name that names no folder has no plan file; prepare refuses it when a plan is asked for.
+    const path = planFilePathOrNull(located.repository, located.tracker.kind, name)
+    return path === null ? { exists: false, path: null } : { exists: await this.deps.files.exists(path), path }
   }
 
   /** The saved state, or undefined when it no longer reads as one, so it is rebuilt. */
@@ -151,6 +166,7 @@ export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
       flow: gather.flow,
       gates,
       head_commit: await this.deps.git.resolveCommit(repository.root, 'HEAD'),
+      plan: gather.plan,
       now: this.deps.clock.now().toISOString(),
       repository: repository.key,
       reviews,
@@ -208,6 +224,7 @@ interface Gather {
   readonly spec: string | null
   readonly draft: string | null
   readonly ledger: Ledger
+  readonly plan: FlowSources['plan']
   readonly invocations: readonly LoggedInvocation[]
   readonly repository: ResolvedRepository
   readonly tickets: readonly TrackedTicket[]

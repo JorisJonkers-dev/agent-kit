@@ -17,6 +17,7 @@ describe('the critique stage table', () => {
       'decision-recovery': { candidateQuestions: 10, doNotStart: null, evidence: 'recovery', flowKey: 'run', packet: 'recovery', removal: 'runs', secondRound: false },
       decisions: { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'decisions', flowKey: 'draft', packet: 'decisions', removal: 'features', secondRound: false },
       'feature-review': { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
+      plan: { candidateQuestions: null, doNotStart: '/to-spec', evidence: 'plan', flowKey: 'draft', packet: 'plan', removal: 'features', secondRound: true },
       spec: { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'spec', flowKey: 'spec', packet: 'document', removal: 'features', secondRound: true },
       'ticket-review': { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
       tickets: { candidateQuestions: null, doNotStart: '/implement', evidence: 'tickets', flowKey: 'spec', packet: 'tickets', removal: 'features', secondRound: true },

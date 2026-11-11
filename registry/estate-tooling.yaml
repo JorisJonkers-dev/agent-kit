@@ -1327,6 +1327,20 @@ local_skills:
       Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
       allow), so setup installs both side by side in every agent home.
 
+  - name: critique-plan
+    path: skills/workstation/critique-plan
+    purpose: >-
+      Critique a refactoring plan after /improve-codebase-architecture and
+      before /to-spec: the plan is drafted when none exists, critics from
+      other model families check its steps, their order and their anchors, and
+      the orchestrator asks the owner whatever would change the target.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner in skills/workstation/critique/ (state, check-plan,
+      prepare, fan-out, refute, record, allow), so setup installs both side by
+      side in every agent home. Its runs are the feature flow's plan stage.
+
   - name: review-spec
     path: skills/workstation/review-spec
     purpose: >-

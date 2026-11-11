@@ -3650,6 +3650,59 @@ architecture-expansion section 5.4):
   its table, files no issue, and offers `/improve-codebase-architecture` on
   the candidate the owner picks.
 
+## What #486 settled
+
+The `plan` stage, the `plan-critic` role and `/critique-plan` (agent-kit#486,
+which closes #243 and #244; architecture-expansion section 5.5 and ADR-0005):
+
+- **The stage.** A critique stage of the feature flow, so its flow key is the
+  draft's (`draft:<name>`, named by the caller as for `decisions`) and its spend
+  counts there. It needs the code permission. A draft is a refactor when its
+  plan file exists, and `state` then reports `refactor: true` and names the
+  `plan` stage in place of `decisions`; with no plan file it names `decisions`
+  as before. A plan file also counts as the grilling being done, and a recorded
+  plan run is followed by `/to-spec`. `state` reports `plan_path` whether or not
+  the file exists, so the skill knows where to write a draft.
+- **Where the plan lives.** `.scratch/<draft>/refactoring-plan.md` when the
+  tracker is local markdown; otherwise `<git common dir>/critique/plans/<draft>/refactoring-plan.md`
+  (a `/` in the draft name becomes `--`). Neither is a place a commit holds,
+  and the runner never writes the file. A draft name with an empty, `.` or
+  `..` segment names no folder: `prepare` refuses it, `state` reports no path.
+  `prepare` also takes `plan`, a path inside the working tree or the git common
+  directory, in place of the convention. A missing file is the refusal `no-plan`.
+- **The packet.** The plan under `artifact/refactoring-plan.md`; `check/plan.json`,
+  the result `check-plan` gives for it (with the repository, so anchored ADRs are
+  checked); `tree/MANIFEST.tsv`, `facts/INDEX.md` and a sample of the tree at
+  `head`, the files the plan names in its Anchor and Touches first; and under
+  `references/` the ADRs in force and the glossary. It reads no tracker and no
+  history, and is cut by the same packet cap, refused as `packet-over-cap` when
+  its documents alone pass it.
+- **Depth.** Routing's thresholds are `steps` (above 8) and `stored_data_steps`
+  (above 0: a migrate or contract step whose Touches or Technique names a table,
+  column, migration, schema or database), plus the spec stage's risk terms.
+  A second round is due after more than three accepted critical findings.
+- **The role and lenses.** `plan-critic` has one rule of its own
+  (`plan-consequence`) and two lenses whose checks fix a severity each:
+  `incremental-safety` (`mixed-change` major, `no-safety-net` critical,
+  `big-bang-change` major, `broken-main-order` critical, `no-rollback` critical,
+  `scaffold-left` major) and `evidence-anchoring` (`unanchored-step` major,
+  `stale-hotspot` minor, `adr-contradiction` critical, `closes-import-cycle`
+  major, `premature-service-split` major, `single-adapter-seam` minor,
+  `deletion-without-decision` major). Both lenses are on the list of files
+  allowed to declare severities; the runner sets a finding's severity from its
+  check, whatever the critic wrote.
+- **The evidence rule `plan`.** A finding's location names one step the plan has
+  and one rule id, as `S03: mixed-change` (else the hints `no-plan-step` and
+  `no-plan-rule`); the evidence quotes the plan (`no-step-quote`) and has an ADR
+  quote, a fact or a trace beside the step quote (`no-plan-anchor`).
+- **Routing.** DeepSeek Flash with `incremental-safety` and Mistral Large with
+  `evidence-anchoring`; deep adds GLM with `coupling` and `test-seams`. The
+  work-only roster has the same two lenses on Codex and Claude.
+- **Not enforced by the runner.** `/to-spec` runs only when the plan's Open
+  decisions section is empty: the skill says so and the report says "Do not
+  start /to-spec" while a critical question is unanswered; the runner does not
+  read the section.
+
 ## What #228 and #229 settled
 
 The editorial rewrite flow and `check-rewrite` (agent-kit#228):

@@ -40,9 +40,14 @@ export class CheckPlanCommand implements CritiqueCommand<CheckPlanResult | Refus
     if (repository?.status === 'refused') return repository
     const path = repository === undefined ? input.plan : resolve(repository.root, input.plan)
     if (!(await this.deps.files.exists(path))) throw new CritiqueError('invalid-input', `check-plan input: ${path} does not exist`)
+    return this.checkFile(path, repository?.root)
+  }
+
+  /** The check of one plan file that exists, with the decision log of `root` when a repository is given. */
+  async checkFile(path: string, root: string | undefined): Promise<CheckPlanResult> {
     const text = await this.deps.files.readText(path)
     const size = stageRouting(await this.routing.load(), { stage: 'tickets' }).ticket_size
-    const check = checkPlan(text, size, repository === undefined ? undefined : await this.adrs(repository.root))
+    const check = checkPlan(text, size, root === undefined ? undefined : await this.adrs(root))
     return { status: planCheckStatus(check), ...check }
   }
 

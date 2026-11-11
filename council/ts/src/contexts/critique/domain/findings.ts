@@ -91,6 +91,10 @@ export const HINT_CODES = [
   'verdict-word',
   'no-rule-or-consequence',
   'no-observable',
+  'no-plan-step',
+  'no-plan-rule',
+  'no-step-quote',
+  'no-plan-anchor',
 ] as const
 export type HintCode = (typeof HINT_CODES)[number]
 

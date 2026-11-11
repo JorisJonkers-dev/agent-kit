@@ -139,7 +139,7 @@ Reply in at most about eight lines:
 
 ```
 <spec or draft:name> · <phase>[ · critique skipped on purpose]
-Stages: decisions <status> (<run ids>) · spec … · tickets … · feature review …
+Stages: decisions <status> (<run ids>) · plan … (a refactor only) · spec … · tickets … · feature review …
 Tickets: #183 reviewed, landed · #184 skipped-low-risk, landed · #185 not-reviewed
 Build tracker: <page address or path>
 Questions: <n> open; critical <finding_id> (<stage>, run <run_id>): <question>
@@ -168,10 +168,16 @@ The last two lines come from `next`:
 | `next.stage` | Stage skill | Inputs you give it |
 |---|---|---|
 | `decisions` | `review-grill` | `"flow": "draft:<name>"` for its prepare, so the run joins the draft's flow |
+| `plan` | `critique-plan` | `"flow": "draft:<name>"` for its prepare; with `previous_run_id`, `"previous_run_dir"` for the second round |
 | `spec` | `review-spec` | the spec; with `previous_run_id`, `"previous_run_dir"` = that run's directory in the runs folder, for the second round |
 | `tickets` | `review-tickets` | the spec |
 | `ticket-review` | `review-implementation` | `next.ticket` and the spec |
 | `feature-review` | shown as `/flow finish` | (see `/flow finish`) |
+
+A draft is a refactor when its plan file exists (`state.refactor`, at
+`state.plan_path`): its next stage is `plan` in place of `decisions`. After
+`/improve-codebase-architecture` has grilled a candidate, suggest
+`/critique-plan`, which drafts the plan when none exists.
 
 With `resume_run_id`, the stage owes a run that was prepared but not
 recorded: finish that run rather than prepare another. Its directory in the
@@ -396,7 +402,7 @@ Would fall back now:
 - Show amounts with two decimals.
 - When `vibe.flows` has two entries, add the split to the Vibe line:
   `(spec $x.xx, draft $y.yy)`. Each flow key is held to the cap on its
-  own: the decisions stage charges the draft's, every later stage the
+  own: the decisions and plan stages charge the draft's, every later stage the
   spec's, so a stage's line can differ from the total.
 - List only the `stages` whose `vibe` or `antigravity` is not null, in the
   runner's order. For each:

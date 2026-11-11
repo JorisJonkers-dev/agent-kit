@@ -8,6 +8,7 @@ import { heldRanges, type PacketFile, type PacketWindow } from './manifest.js'
 import { mergeRanges, type LineRange } from './tree-sample.js'
 import { isCodeStage, type CritiqueStage } from './stage.js'
 import { evidenceRule, type EvidenceRule } from './stage-table.js'
+import { PLAN_CHECK_PATH, planStepIds, planTarget } from './refactoring-plan.js'
 import { ticketTarget } from './tickets.js'
 
 /** One packet file's text, as it was frozen before any critic ran. */
@@ -35,6 +36,8 @@ export interface PacketIndex {
   readonly tree: boolean
   /** At the tickets stage, the ids of the spec's tickets, which a finding's location must name. */
   readonly tickets: readonly string[]
+  /** At the plan stage, the ids of the plan's steps, which a finding's location must name. */
+  readonly steps: readonly string[]
 }
 
 export function indexPacket(packet: readonly PacketText[], tickets: readonly string[] = []): PacketIndex {
@@ -44,6 +47,7 @@ export function indexPacket(packet: readonly PacketText[], tickets: readonly str
     shown: new Map(
       packet.flatMap((file) => (file.kind === 'diff' ? [...diffShownLines(file.text)].map(([path, ranges]) => [`${TREE_DIR}/${path}`, ranges] as const) : [])),
     ),
+    steps: planStepIds(packet.find((file) => file.path === PLAN_CHECK_PATH)?.text ?? ''),
     tickets,
     tree: packet.some((file) => file.kind === 'tree'),
     windows: new Map(packet.flatMap((file) => (file.window === undefined ? [] : [[file.path, file.window] as const]))),
@@ -125,6 +129,7 @@ const EVIDENCE_RULES: Readonly<Record<Exclude<EvidenceRule, 'recovery'>, (findin
   architecture: architectureRule,
   code: (finding) => codeRule(finding.evidence),
   decisions: (finding, found) => decisionsRule(finding.category, found),
+  plan: (finding, found, packet) => planRule(finding, found, packet),
   // A record finding quotes the record it is about, which is among the decisions under review.
   records: (_finding, found) => (found.spec ? undefined : 'no-record-quote'),
   spec: (finding, found) => specRule(finding.category, found),
@@ -240,6 +245,20 @@ function architectureRule(finding: FindingBody, found: EvidenceFound, packet: Pa
   return /\bobservable\b/i.test(finding.suggestion ?? '') ? undefined : 'no-observable'
 }
 
+/**
+ * The plan stage's rule (#486): a finding breaks one named rule at one step,
+ * so its location names both and the orchestrator can re-check that rule on
+ * that step; it quotes the step in the plan, and beside the step either a
+ * quote of an ADR or a fact the runner computed, or a trace.
+ */
+function planRule(finding: FindingBody, found: EvidenceFound, packet: PacketIndex): HintCode | undefined {
+  const target = planTarget(finding.location, packet.steps)
+  if (target.step === undefined) return 'no-plan-step'
+  if (target.rule === undefined) return 'no-plan-rule'
+  if (!found.spec) return 'no-step-quote'
+  return found.decision || found.fact || finding.evidence.some((item) => item.kind === 'trace') ? undefined : 'no-plan-anchor'
+}
+
 /** #181's code-stage rule: a code finding needs a failing test, or a trace that cites a file and line. */
 function codeRule(evidence: readonly Evidence[]): HintCode | undefined {
   const checkable = evidence.some(
@@ -298,6 +317,7 @@ const CODE_CATEGORIES: Readonly<Record<EvidenceRule, readonly { readonly categor
   ],
   code: [],
   decisions: [],
+  plan: [],
   records: [],
   recovery: [],
   spec: [],
@@ -390,6 +410,10 @@ const HINT_REASONS: Readonly<Record<HintCode, string>> = {
   'no-ticket-rule': 'the location names no ticket rule',
   'no-layer-config': 'the check assumes a layer rule and the packet holds no layer config: ask whether the layering is intended, as an unasked question with a trace',
   'no-trace': 'an unasked question needs a trace that cites a file and line',
+  'no-plan-step': 'the location names no step of the plan',
+  'no-plan-rule': 'the location names no plan rule',
+  'no-step-quote': 'no quote of the step from the plan',
+  'no-plan-anchor': 'beside the step quote, no ADR quote, no fact row and no trace',
   'no-observable': 'no observable named: say what would show a fix worked',
   'no-rule-or-consequence': 'taste: neither a declared rule, a fact nor a traced consequence backs it',
   'verdict-word': 'a verdict word with no fact and no quoted decision: state the number, or quote the decision that gives the threshold',

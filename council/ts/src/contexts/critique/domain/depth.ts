@@ -20,6 +20,9 @@ export interface DepthEvidence {
   readonly sourceLines?: number
   /** At decision recovery and architecture review: how many context maps the repository has. */
   readonly contextMaps?: number
+  /** At the plan stage: how many steps the plan has, and how many of its migrate and contract steps touch stored data. */
+  readonly planSteps?: number
+  readonly storedDataSteps?: number
 }
 
 /** A code stage's change in numbers: its changed lines, and how many touched paths match a risk path. */
@@ -40,6 +43,7 @@ const STAGE_MEASURES: Readonly<Record<CritiqueStage, Readonly<Record<string, Mea
   'architecture-review': { context_maps: ({ contextMaps = 0 }) => contextMaps, source_lines: ({ sourceLines = 0 }) => sourceLines },
   'adr-review': { adrs: ({ adrs = 0 }) => adrs },
   'decision-recovery': { context_maps: ({ contextMaps = 0 }) => contextMaps, source_lines: ({ sourceLines = 0 }) => sourceLines },
+  plan: { steps: ({ planSteps = 0 }) => planSteps, stored_data_steps: ({ storedDataSteps = 0 }) => storedDataSteps },
   decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
   'feature-review': {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },

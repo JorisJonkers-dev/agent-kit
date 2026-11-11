@@ -42,6 +42,8 @@ import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { DecisionsPacketReader } from './decisions-packet.js'
 import { ArchitecturePacketReader } from './architecture-packet.js'
+import { draftOf, namedPlanPath, planFilePath } from './plan-file.js'
+import { PlanPacketReader } from './plan-packet.js'
 import { RecoveryPacketReader } from './recovery-packet.js'
 import { manifestPath, reportPath } from './locations.js'
 import { insideRepository } from './paths.js'
@@ -95,6 +97,8 @@ interface PrepareInput {
   readonly staged: boolean
   /** The ticket a ticket review delivers. */
   readonly ticket: string | undefined
+  /** The plan stage's plan file; undefined means the one the draft's tracker convention names. */
+  readonly plan: string | undefined
 }
 
 /** What a code stage's prepare reports about the commits it froze. */
@@ -130,6 +134,9 @@ interface PacketContents {
   /** Only for decision recovery and architecture review: how many lines of source the repository tracks, and how many context maps it has. */
   readonly source_lines?: number
   readonly context_maps?: number
+  /** Only for the plan stage: how many steps the plan has, and how many of its migrate and contract steps touch stored data. */
+  readonly steps?: number
+  readonly stored_data_steps?: number
   /** Only for the decisions stage: whether the decisions under review include a decision record. */
   readonly holdsAdr?: boolean
   /** Only for a repository packet: what of the tree it sent. */
@@ -188,6 +195,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   private readonly adrPackets: AdrPacketReader
   private readonly recoveryPackets: RecoveryPacketReader
   private readonly architecturePackets: ArchitecturePacketReader
+  private readonly planPackets: PlanPacketReader
   private readonly routing: RoutingSource
   private readonly staged: StagedDiffReader
 
@@ -200,6 +208,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     this.adrPackets = new AdrPacketReader(deps)
     this.recoveryPackets = new RecoveryPacketReader(deps)
     this.architecturePackets = new ArchitecturePacketReader(deps)
+    this.planPackets = new PlanPacketReader(deps)
     this.routing = new RoutingSource(deps)
     this.staged = new StagedDiffReader(deps)
   }
@@ -215,6 +224,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       depth: fields.has('depth') ? fields.oneOf('depth', DEPTHS) : undefined,
       head: fields.optionalString('head') ?? 'HEAD',
       orchestratorFamily: fields.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
+      plan: fields.optionalString('plan'),
       previousRunDir: fields.has('previous_run_dir') ? fields.string('previous_run_dir') : undefined,
       references: fields.has('references') ? fields.strings('references') : undefined,
       repo: fields.string('repo'),
@@ -266,6 +276,8 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
             ...(contents.adrs === undefined ? {} : { adrs: contents.adrs }),
             ...(contents.source_lines === undefined ? {} : { sourceLines: contents.source_lines }),
             ...(contents.context_maps === undefined ? {} : { contextMaps: contents.context_maps }),
+            ...(contents.steps === undefined ? {} : { planSteps: contents.steps }),
+            ...(contents.stored_data_steps === undefined ? {} : { storedDataSteps: contents.stored_data_steps }),
           }
         : { labels: artifact.labels, text: contents.files.map((file) => file.text).join('\n\n'), tickets: ticketCheck.tickets.length },
       input.depth,
@@ -354,6 +366,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     }
     // An architecture review reads no tracker and no history: its critics judge the design by what the project declared.
     if (packet === 'architecture') return this.architecturePackets.read(repository.root, { head: input.head, limits: (await this.routing.load()).packet })
+    if (packet === 'plan') return this.planContents(repository, input)
     if (packet === 'recovery') {
       // The tracker is read only for the issues the history cites, so a tracker it cannot read leaves them out and refuses nothing.
       const tracker = entry.history ? await this.trackers.resolve(repository) : undefined
@@ -369,6 +382,29 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     const request = { ...input, spec: input.spec }
     if (packet === 'code') return this.codePackets.read(repository, tracker, { ...request, limits: (await this.routing.load()).packet })
     return packet === 'tickets' ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request)
+  }
+
+  /**
+   * The plan stage's packet. The plan is the file the caller names, else the
+   * one its draft's tracker convention puts it in, named by the flow key
+   * `draft:<name>`; no spec exists yet, so nothing else is read.
+   */
+  private async planContents(repository: ResolvedRepository, input: PrepareInput): Promise<Refusal | PacketContents> {
+    const draft = draftOf(input.flow)
+    if (input.plan === undefined && draft === undefined) {
+      throw new CritiqueError('invalid-input', 'plan needs plan: the plan file, or flow: the draft flow draft:<name> whose plan file the tracker convention names')
+    }
+    let path: string
+    if (input.plan === undefined) {
+      const tracker = await this.trackers.resolve(repository)
+      if (tracker.status === 'refused') return tracker
+      path = planFilePath(repository, tracker.kind, draft ?? '')
+    } else {
+      path = namedPlanPath(repository, input.plan)
+    }
+    const read = await this.planPackets.read(repository.root, { head: input.head, limits: (await this.routing.load()).packet, path })
+    if (read.status === 'refused') return read
+    return { artifact: read.artifact, files: read.files, repository: read.repository, status: 'read', steps: read.steps, stored_data_steps: read.stored_data_steps }
   }
 
   /**

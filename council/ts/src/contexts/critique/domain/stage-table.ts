@@ -13,15 +13,19 @@ import type { CodeStage, CritiqueStage, ReviewStage } from './stage.js'
  * artifact of its own and no tracker item.
  * `architecture`: the same tree, facts and decision records, and beside them
  * the README and the build configuration as references, and never history.
+ * `plan`: a refactoring plan under `artifact/` with the checker's report under
+ * `check/plan.json`, the tree and facts at the head the plan targets (the files
+ * the plan anchors and touches first), and the ADRs in force and the glossary as
+ * references; no tracker item.
  */
-export type PacketBuilder = 'decisions' | 'document' | 'tickets' | 'code' | 'adrs' | 'recovery' | 'architecture'
+export type PacketBuilder = 'decisions' | 'document' | 'tickets' | 'code' | 'adrs' | 'recovery' | 'architecture' | 'plan'
 
 /** Which evidence rule fan-out applies to a stage's findings once every quote is found in the packet. */
 /**
  * `records` is no stage's own: it is the rule for the decision records a
  * role reviews at a stage whose own rule is another.
  */
-export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code' | 'adrs' | 'records' | 'recovery' | 'architecture'
+export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code' | 'adrs' | 'records' | 'recovery' | 'architecture' | 'plan'
 
 /**
  * The flow key a stage's run charges, unless the caller names one.
@@ -51,7 +55,7 @@ export interface StageBehaviour {
    * open or the ticket graph has a cycle; null for a review stage, which sits
    * before no command of a feature's flow.
    */
-  readonly doNotStart: '/to-tickets' | '/implement' | null
+  readonly doNotStart: '/to-spec' | '/to-tickets' | '/implement' | null
   readonly flowKey: FlowKey
   readonly removal: RemovalRule
   /**
@@ -82,7 +86,7 @@ export type StageTable = {
     readonly evidence: S extends CodeStage ? 'code' : Exclude<EvidenceRule, 'code'>
     readonly flowKey: S extends ReviewStage ? 'run' : Exclude<FlowKey, 'run'>
     readonly removal: S extends ReviewStage ? 'runs' : Exclude<RemovalRule, 'runs'>
-    readonly doNotStart: S extends ReviewStage ? null : '/to-tickets' | '/implement'
+    readonly doNotStart: S extends ReviewStage ? null : '/to-spec' | '/to-tickets' | '/implement'
   }
 }
 
@@ -115,6 +119,8 @@ export const STAGE_TABLE: StageTable = {
   'decision-recovery': { candidateQuestions: RECOVERY_QUESTION_CAP, doNotStart: null, evidence: 'recovery', flowKey: 'run', packet: 'recovery', removal: 'runs', secondRound: false },
   // A decisions run's accepted findings are questions for the owner and change
   // no artifact, so it never calls for a second round.
+  // A plan takes the decisions stage's place for a refactor, so it sits before /to-spec; its accepted findings revise the plan, so it may need a second round.
+  plan: { candidateQuestions: null, doNotStart: '/to-spec', evidence: 'plan', flowKey: 'draft', packet: 'plan', removal: 'features', secondRound: true },
   decisions: { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'decisions', flowKey: 'draft', packet: 'decisions', removal: 'features', secondRound: false },
   'feature-review': { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
   spec: { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'spec', flowKey: 'spec', packet: 'document', removal: 'features', secondRound: true },
