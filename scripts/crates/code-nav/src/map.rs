@@ -134,6 +134,16 @@ fn read_text(path: &Path) -> Option<String> {
     fs::read_to_string(path).ok().filter(|text| !text.contains('\0'))
 }
 
+/// True when the first 8 KiB of `path` hold no NUL byte, so binary files do not
+/// spend the file cap.
+fn has_no_nul_head(path: &Path) -> bool {
+    use std::io::Read;
+    let mut head = [0u8; 8192];
+    let Ok(mut file) = fs::File::open(path) else { return false };
+    let n = file.read(&mut head).unwrap_or(0);
+    !head[..n].contains(&0)
+}
+
 /// Collect the admissible regular files under `path` into `files`, up to `max_files`.
 fn visit(path: &Path, max_files: usize, files: &mut Vec<PathBuf>) {
     if files.len() >= max_files {
@@ -154,7 +164,7 @@ fn visit(path: &Path, max_files: usize, files: &mut Vec<PathBuf>) {
             }
             visit(&child, max_files, files);
         }
-    } else if meta.is_file() && meta.len() <= MAX_FILE_BYTES {
+    } else if meta.is_file() && meta.len() <= MAX_FILE_BYTES && has_no_nul_head(path) {
         files.push(path.to_path_buf());
     }
 }

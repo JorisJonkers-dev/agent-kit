@@ -1008,14 +1008,17 @@ fn a_walk_that_hit_the_file_cap_says_so() {
 fn the_map_holds_one_file_text_at_a_time() {
     let f = map_fixture();
     write(&f.root.join("blob.rs"), "fn nul() {}\0");
+    write(&f.root.join("late.rs"), &format!("{}\0fn late() {{}}", "x".repeat(9000)));
     let mut reads: Vec<String> = Vec::new();
     let repo = map::map_with(std::slice::from_ref(&f.root), 10, 10, &mut |path| {
         reads.push(path.file_name().unwrap().to_string_lossy().into_owned());
         fs::read_to_string(path).ok().filter(|t| !t.contains('\0'))
     });
-    // Four files, each read once per pass and handed back before the next
-    // read: the mapper keeps no text between reads, only the symbol table.
-    assert_eq!(reads, ["a.rs", "b.rs", "blob.rs", "core.rs", "a.rs", "b.rs", "blob.rs", "core.rs"]);
-    assert_eq!(repo.symbols[0].name, "parse");
-    assert_eq!(repo.total_files, 3);
+    // Each file is read once per pass, one at a time. A file with a NUL in its
+    // head (blob.rs) never reaches the reader or spends the cap; one with the
+    // NUL past the head (late.rs) is read and then refused as not text.
+    assert_eq!(reads, ["a.rs", "b.rs", "core.rs", "late.rs", "a.rs", "b.rs", "core.rs", "late.rs"]);
+    let counts: Vec<(&str, usize)> = repo.symbols.iter().take(3).map(|s| (s.name.as_str(), s.refs)).collect();
+    assert_eq!(counts, [("parse", 3), ("Config", 2), ("helper", 1)]);
+    assert!(!repo.walk_capped);
 }
