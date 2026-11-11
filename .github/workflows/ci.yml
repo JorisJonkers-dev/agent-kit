@@ -135,6 +135,92 @@
         'if': '${{ !cancelled() }}'
         'run': 'shellcheck installer/cloud/setup-script.sh installer/cloud-session.sh'
 
+  # The Gold Band headless proof (issue #447): the spec-stage template, and any
+  # workflow beside it in installer/gold-band/workflows/, runs headless against
+  # the stub agent on Linux and macOS. The Gold Band binary is supplied per OS
+  # through repository variables (a URL and its SHA-256, so the build is
+  # pinned); without one the job prints why and proves nothing, and a real run
+  # of the workflow stays refused. docs/gold-band-proof.md.
+  'gold-band-proof':
+    'name': 'Gold Band Headless Proof'
+    'strategy':
+      'fail-fast': false
+      'matrix':
+        'include':
+          - 'os': 'ubuntu-latest'
+            'platform': 'linux'
+            'suffix': 'LINUX'
+            'url': '${{ vars.GOLD_BAND_BIN_URL_LINUX }}'
+            'sha256': '${{ vars.GOLD_BAND_BIN_SHA256_LINUX }}'
+          - 'os': 'macos-latest'
+            'platform': 'macos'
+            'suffix': 'MACOS'
+            'url': '${{ vars.GOLD_BAND_BIN_URL_MACOS }}'
+            'sha256': '${{ vars.GOLD_BAND_BIN_SHA256_MACOS }}'
+    'runs-on': '${{ matrix.os }}'
+    'env':
+      'GOLD_BAND_COMMIT': '${{ vars.GOLD_BAND_COMMIT }}'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
+      # Cargo reads .cargo/config.toml from the working directory upward, and
+      # the repository's points at a crate-gate that is not running here, so
+      # the build runs from the runner's temp directory: resolution goes
+      # through the packages proxy that setup-package-proxy configured.
+      - 'name': 'Build the harness'
+        'working-directory': '${{ runner.temp }}'
+        'env':
+          'CARGO_TARGET_DIR': '${{ runner.temp }}/proof-target'
+          'CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX': 'sparse+https://packages.jorisjonkers.dev/cargo/'
+          'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
+        'run': 'cargo build --locked --manifest-path "$GITHUB_WORKSPACE/scripts/Cargo.toml" -p gold-band-proof'
+      - 'name': 'Fetch the supplied Gold Band binary'
+        'env':
+          'GOLD_BAND_URL': '${{ matrix.url }}'
+          'GOLD_BAND_SHA256': '${{ matrix.sha256 }}'
+        'run': |
+          set -euo pipefail
+          if [ -z "$GOLD_BAND_URL" ]; then
+            echo "gold band: no binary supplied for ${{ matrix.platform }} (repository variable GOLD_BAND_BIN_URL_${{ matrix.suffix }} is empty); the headless proof is skipped"
+            exit 0
+          fi
+          if [ -z "$GOLD_BAND_SHA256" ]; then
+            echo "::error::a Gold Band binary URL is supplied for ${{ matrix.platform }} without its SHA-256"
+            exit 1
+          fi
+          curl --fail --silent --show-error --location "$GOLD_BAND_URL" --output "$RUNNER_TEMP/gold-band"
+          echo "$GOLD_BAND_SHA256  $RUNNER_TEMP/gold-band" | shasum -a 256 -c -
+          chmod +x "$RUNNER_TEMP/gold-band"
+          echo "GOLD_BAND_BIN=$RUNNER_TEMP/gold-band" >> "$GITHUB_ENV"
+      - 'name': 'Prove every checked-in workflow headless'
+        'run': |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/proof-target/debug/gold-band-proof"
+          commit_args=()
+          [ -z "$GOLD_BAND_COMMIT" ] || commit_args=(--gold-band-commit "$GOLD_BAND_COMMIT")
+          for workflow in installer/gold-band/workflows/*.json; do
+            "$proof" prove --workflow "$workflow" --record-dir "$RUNNER_TEMP/proofs" ${commit_args[@]+"${commit_args[@]}"}
+          done
+      # A real run needs a recorded, passing proof: with the binary the check
+      # passes, without it the skipped proof must refuse (exit 5).
+      - 'name': 'A real run is allowed only after a passing proof'
+        'run': |
+          set -uo pipefail
+          proof="$RUNNER_TEMP/proof-target/debug/gold-band-proof"
+          expected=5
+          [ -z "${GOLD_BAND_BIN:-}" ] || expected=0
+          for workflow in installer/gold-band/workflows/*.json; do
+            "$proof" check --workflow "$workflow" --record-dir "$RUNNER_TEMP/proofs" --build-record "$RUNNER_TEMP/none.json"
+            code=$?
+            if [ "$code" -ne "$expected" ]; then
+              echo "::error::check of $workflow exited $code, expected $expected"
+              exit 1
+            fi
+          done
+
   # Holds a marketplace pin bump that adds code to run. Not in Pipeline
   # Complete, so it stops Renovate's automerge but not a reviewed manual merge.
   'marketplace-pins':
@@ -206,6 +292,7 @@
       - 'runtime-package'
       - 'shell-lint'
       - 'workflow-lint'
+      - 'gold-band-proof'
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 're-actors/alls-green@release/v1'

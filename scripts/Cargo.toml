@@ -20,6 +20,7 @@ members = [
     "crates/code-nav",
     "crates/workflow-lint",
     "crates/ticket-sync",
+    "crates/gold-band-proof",
     "crates/transcript-mix",
     "crates/agent-launcher",
     "crates/build-tracker",

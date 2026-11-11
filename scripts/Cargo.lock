@@ -43,6 +43,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gold-band-proof"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "workflow-lint",
+]
+
+[[package]]
 name = "gold-band-registry"
 version = "0.1.0"
 

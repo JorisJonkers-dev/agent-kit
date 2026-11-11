@@ -431,6 +431,21 @@ as the registry's; it never changes a repository rule, host or bank. A missing
 file is an empty overlay.
 _Avoid_: profile, local registry
 
+**Headless proof**:
+A Gold Band workflow run headless against a stub agent that stands in for
+every agent id, before any real run: the test asserts the run state and the
+exit code (0 success, 1 run failed, 2 paused) of each scenario. It is made by
+`gold-band-proof prove` (docs/gold-band-proof.md).
+_Avoid_: dry run, smoke test
+
+**Proof record**:
+The file `gold-band-proof prove` writes for one Gold Band workflow: the
+workflow's id and hash, the Gold Band commit, each scenario's expected and
+actual exit code, and either a passing outcome or the reason the proof was
+skipped. A real run of the workflow is refused when its record is missing,
+skipped, failed, or for a different workflow hash or Gold Band build.
+_Avoid_: test result, stamp
+
 **Direct lane**:
 Work that runs through an agent started directly (Claude Code, Codex, Vibe and
 the others) or through the model gateway, on any repository. Nothing is

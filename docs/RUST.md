@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Fifteen members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Sixteen members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -24,7 +24,8 @@ on the Linux workstation.
   instances and the overlay (docs/REGISTRY.md). `crates/code-nav-eval` runs the
   frozen code-navigation question set. `crates/code-nav` is the read-only
   code-navigation MCP server (below). `crates/workflow-lint` is the Gold Band
-  workflow lint (below). `crates/ticket-sync` is the ticket sync tool (below);
+  workflow lint (below). `crates/gold-band-proof` is the Gold Band headless proof harness
+  (docs/gold-band-proof.md; serde_json only). `crates/ticket-sync` is the ticket sync tool (below);
   it takes serde, serde_json and serde_yaml, each pinned exactly.
   `crates/agent-launcher` is the reach-level launcher (below); it takes serde
   and serde_yaml, each pinned exactly.
