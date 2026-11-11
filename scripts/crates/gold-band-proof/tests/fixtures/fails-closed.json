@@ -1,0 +1,70 @@
+{
+  "workflow": {
+    "description": "Fixture for the headless proof harness: one critic whose findings must be empty, and a failure edge that ends the run as failed (exit 1) instead of pausing it.",
+    "version": "0.1",
+    "id": "proof-fixture-fails-closed",
+    "entry": "fixture-critic",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "fixture-critic",
+        "executionSlotId": "slot-fixture-critic",
+        "provider": "fixture",
+        "model": "fixture-model",
+        "profile": "pf-fixture",
+        "goal": "Answer with one fenced json block holding a findings document and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "fixture-findings",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "fixture-critic",
+        "to": "$end",
+        "on": "success"
+      },
+      {
+        "from": "fixture-critic",
+        "to": "$end",
+        "on": "failure"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-fixture-critic",
+        "agentId": "fixture",
+        "modelId": "fixture-model"
+      }
+    ]
+  }
+}

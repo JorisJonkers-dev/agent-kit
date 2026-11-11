@@ -1,0 +1,21 @@
+[package]
+name = "gold-band-proof"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The headless proof harness for Gold Band workflows: a stub ACP agent, the proof record, and the refusal of a real run whose proof is missing or skipped (issue #447)."
+
+# serde_json is pinned to the exact version workflow-lint and ticket-sync
+# already use, so scripts/Cargo.lock gains no new registry version (standards
+# ADR-0014, docs/RUST.md).
+[dependencies]
+serde_json = "=1.0.154"
+
+[[bin]]
+name = "gold-band-proof"
+path = "src/main.rs"
+
+# The lint the checked-in workflows must pass; a workspace member, so no new
+# registry version enters the lockfile.
+[dev-dependencies]
+workflow-lint = { path = "../workflow-lint" }
