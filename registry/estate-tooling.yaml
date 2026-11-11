@@ -1444,7 +1444,7 @@ local_skills:
       machine, the client models each offers with their family, difficulty
       tier and capability notes, and the caps and thresholds a delegation
       is held to.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       model-gateway.mjs is built from council/ts by its build and pinned in
@@ -1458,7 +1458,7 @@ local_skills:
       rate each task's difficulty tier, split it, pick the cheapest cost
       class whose model covers the tier, send one batch and verify what
       comes back, with few Claude tokens.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Drives the gateway in skills/workstation/model-gateway/ and links to
@@ -1472,7 +1472,7 @@ local_skills:
       personal instance, or fall back to direct delegation through the
       delegate skill when no instance is available or the instance's
       repository rule refuses the repository.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Checks the personal instance's repository rule first, then whether the
