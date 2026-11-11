@@ -17,16 +17,23 @@
 //!   `AGENT_KIT_OUTPUT_DIR` when the id has one) in its environment, and
 //!   exits with its status. A refused id exits 1 and starts nothing.
 //!
-//! The operating-system write limit (ADR-0013) is a separate interface that
-//! plugs in here; this crate holds the reach levels and the support record.
+//! The operating-system write limit (ADR-0013) is the `writelimit` module: one
+//! interface, with Landlock as the Linux backend. `run` refuses to start an
+//! agent whose limit this OS cannot hold.
 
 mod record;
+mod writelimit;
 
 use std::ffi::{OsStr, OsString};
 use std::fs;
+use std::os::unix::fs::DirBuilderExt;
+use std::os::unix::process::CommandExt;
+use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub use record::{cell, id_rule_problems, parse, problems, Record, LEVELS, OSES};
+pub use writelimit::{policy_for, Arm, Armed, Guard, Landlock, Policy, Scope, WriteLimit};
 
 /// The crate's name, which prefixes every message line.
 pub const NAME: &str = env!("CARGO_PKG_NAME");
@@ -100,6 +107,43 @@ pub fn run_on<I>(args: I, os: &str) -> i32
 where
     I: IntoIterator<Item = OsString>,
 {
+    run_with(args, os, &Landlock, &Context::from_env())
+}
+
+/// What a launch knows about where it runs.
+#[derive(Debug, Default)]
+pub struct Context {
+    /// The agent's state directories (`AGENT_KIT_STATE_DIRS`, colon separated).
+    pub state_dirs: Vec<PathBuf>,
+    /// The gate-output directory (`AGENT_KIT_GATE_DIR`).
+    pub gate_dir: Option<PathBuf>,
+    /// The git worktree the agent runs in: the current directory.
+    pub worktree: PathBuf,
+    /// Where each run's temporary directory is made.
+    pub temp_root: PathBuf,
+}
+
+impl Context {
+    /// The context of this process.
+    pub fn from_env() -> Context {
+        let state = std::env::var_os("AGENT_KIT_STATE_DIRS").unwrap_or_default();
+        Context {
+            state_dirs: std::env::split_paths(&state)
+                .filter(|p| !p.as_os_str().is_empty())
+                .collect(),
+            gate_dir: std::env::var_os("AGENT_KIT_GATE_DIR").map(PathBuf::from),
+            worktree: PathBuf::from("."),
+            temp_root: std::env::temp_dir(),
+        }
+    }
+}
+
+/// [`run_on`] with the write-limit backend named, so tests can stand in for
+/// one that is unavailable.
+pub fn run_with<I>(args: I, os: &str, limit: &dyn WriteLimit, context: &Context) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+{
     let args: Vec<OsString> = args.into_iter().collect();
     match args.as_slice() {
         [cmd, file] if cmd == OsStr::new("validate") => validate_file(file),
@@ -109,7 +153,7 @@ where
                 [dash, extra @ ..] if dash == OsStr::new("--") => extra,
                 _ => return bad_usage(),
             };
-            launch(file, &id.to_string_lossy(), extra, os)
+            launch(file, &id.to_string_lossy(), extra, os, limit, context)
         }
         _ => bad_usage(),
     }
@@ -148,7 +192,14 @@ fn validate_file(file: &OsStr) -> i32 {
     }
 }
 
-fn launch(file: &OsStr, id: &str, extra: &[OsString], os: &str) -> i32 {
+fn launch(
+    file: &OsStr,
+    id: &str,
+    extra: &[OsString],
+    os: &str,
+    limit: &dyn WriteLimit,
+    context: &Context,
+) -> i32 {
     let record = match load(file) {
         Ok(record) => record,
         Err(code) => return code,
@@ -160,6 +211,87 @@ fn launch(file: &OsStr, id: &str, extra: &[OsString], os: &str) -> i32 {
             return 1;
         }
     };
+    // The temporary directory is made before the limit, which names it, and
+    // removed after the agent ends.
+    static RUNS: AtomicUsize = AtomicUsize::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.subsec_nanos());
+    let temp = context.temp_root.join(format!(
+        "{NAME}-{}-{}-{nanos}",
+        std::process::id(),
+        RUNS.fetch_add(1, Ordering::Relaxed)
+    ));
+    let outcome = start(&plan, extra, &temp, limit, context);
+    let _ = fs::remove_dir_all(&temp);
+    match outcome {
+        Ok((code, restored)) if restored.is_empty() => code,
+        Ok((_, restored)) => {
+            eprintln!(
+                "{NAME}: the agent changed files that tell git where its directories are; put back: {}",
+                restored.join(", ")
+            );
+            1
+        }
+        Err(message) => {
+            eprintln!("{NAME}: {message}; nothing started");
+            1
+        }
+    }
+}
+
+/// The directories a launch knows, for the write-limit table.
+fn scope_of(plan: &Plan, temp: &std::path::Path, context: &Context) -> Scope {
+    Scope {
+        state_dirs: context.state_dirs.clone(),
+        temp_dir: temp.to_path_buf(),
+        output_dir: plan.output_dir.as_ref().map(PathBuf::from),
+        gate_dir: context.gate_dir.clone(),
+        worktree: context.worktree.clone(),
+    }
+}
+
+/// Makes `dir` new and private (mode 0700) beneath `root`: a path someone else
+/// planted there is refused, not followed.
+fn private_dir(root: &std::path::Path, dir: &std::path::Path) -> Result<(), String> {
+    match fs::create_dir_all(root) {
+        Err(e) => Err(format!("cannot create {}: {e}", root.display())),
+        Ok(()) => fs::DirBuilder::new()
+            .mode(0o700)
+            .create(dir)
+            .map_err(|e| format!("cannot create {}: {e}", dir.display())),
+    }
+}
+
+/// What runs in the child between fork and exec.
+fn child_hook(armed: Armed) -> impl FnMut() -> std::io::Result<()> + Send + Sync + 'static {
+    move || armed.arm()
+}
+
+/// Puts the write limit on, then starts the agent; its exit code, or why not.
+fn start(
+    plan: &Plan,
+    extra: &[OsString],
+    temp: &std::path::Path,
+    limit: &dyn WriteLimit,
+    context: &Context,
+) -> Result<(i32, Vec<String>), String> {
+    let scope = scope_of(plan, temp, context);
+    let policy = policy_for(&plan.level, &scope)?;
+    // The directories the policy grants must exist to be granted.
+    for dir in scope.output_dir.iter().chain(scope.gate_dir.iter()) {
+        fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    }
+    private_dir(&context.temp_root, &scope.temp_dir)?;
+    let guard = policy.as_ref().map(Guard::take);
+    let armed = match &policy {
+        Some(policy) => Some(
+            limit
+                .prepare(policy)
+                .map_err(|e| format!("no write limit for reach level {}: {e}", plan.level))?,
+        ),
+        None => None,
+    };
     let mut command = Command::new(&plan.argv[0]);
     command
         .args(&plan.argv[1..])
@@ -168,12 +300,20 @@ fn launch(file: &OsStr, id: &str, extra: &[OsString], os: &str) -> i32 {
     if let Some(dir) = &plan.output_dir {
         command.env("AGENT_KIT_OUTPUT_DIR", dir);
     }
+    command.env("TMPDIR", temp);
+    if let Some(armed) = armed {
+        // SAFETY: `armed` only makes syscalls between fork and exec.
+        unsafe { command.pre_exec(child_hook(armed)) };
+    }
     match command.status() {
-        Ok(status) => status.code().unwrap_or(1),
-        Err(error) => {
-            eprintln!("{NAME}: cannot start {}: {error}", plan.argv[0]);
-            1
+        Ok(status) => {
+            let restored = guard.map(|g| g.restore()).unwrap_or_default();
+            Ok((status.code().unwrap_or(1), restored))
         }
+        Err(error) => Err(format!(
+            "cannot start {} (or put the write limit on it): {error}",
+            plan.argv[0]
+        )),
     }
 }
 
