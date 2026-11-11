@@ -32,10 +32,12 @@ tool, language servers, definitions or references.
 
 ## Causes
 
-Wiring is not a cause. All 12 `*-lsp` plugins that carry `lspServers` are
-`true` under `enabledPlugins` (`liquid-lsp`, the thirteenth, carries none, see cause 6), and
-`command -v` finds the binary for each of those 12 servers. The tool is
-listed to the agent in every session; it is just never chosen.
+Wiring is not a cause. All 13 `*-lsp` plugins are `true` under
+`enabledPlugins`. Twelve declare their server in the `lspServers` field of
+their `agent-kit-official` marketplace entry (read from the local marketplace
+checkout under `~/.local/share/agent-kit/marketplaces`); `liquid-lsp` ships its
+own `.lsp.json`. `command -v` finds the binary for each of the 12 servers. The
+tool is listed to the agent in every session; it is just never chosen.
 
 ### 1. The tool is deferred: agents see its name, not its schema
 
@@ -54,8 +56,8 @@ Configuration key: none; the deferral is the harness default and
 
 Predicted change: put the tool's one-line purpose and its call shape in
 always-loaded instructions, or make the tool non-deferred where the harness
-allows it. Prediction: the first `LSP` call appears in sessions that
-navigate code, where today it is 0 of 14.
+allows it. Prediction: at least one `LSP` call appears in half of the
+sessions that edit source, where today it is 0 of 14.
 
 ### 2. Nothing in the instructions says when to use it
 
@@ -69,22 +71,20 @@ search and reads instead.
 Predicted change: a short rule ("for definitions, references and callers of a
 symbol use the language-server tool before searching text") in the estate
 `CLAUDE.md`. Prediction: share of code-finding calls that are the
-language-server tool rises from 0 of 245 to a measurable share on the next
-`transcript-mix` run.
+language-server tool rises from 0 of 245 to at least 10 percent on the next
+`transcript-mix` run over a comparable window.
 
 ### 3. Text search is cheaper to start and already habitual
 
 Evidence: code finding runs through `Bash` search (108 calls) and `Read`
-(136) in the 287 tasks; `Grep` is almost unused because `Bash` search is
-chosen first. Sessions with the highest counts: 5d394416 (1019 `Bash`
-calls), 45ff56cf (406), 4567a865 (392), 23a4abad (328). A text search needs
+(136) in the 287 tasks; `Grep` is almost unused, with search done through `Bash`. Total `Bash` calls (all uses, not only search) in the busiest top-level
+sessions: 5d394416 (1019), 45ff56cf (406), 4567a865 (392), 23a4abad (329). A text search needs
 no file path, line or column; the language-server tool needs a position
 inside a file.
 
 Predicted change: the code-navigation server of B7-05 onward, which takes
 a symbol name, not a position. Prediction: exploration tokens per edited
-task (7,238,440 over 48 edited tasks in this sample) fall once symbol-name
-navigation exists. A tool that needs a position will keep losing to
+task (7,238,440 is the total over all 287 tasks) fall (about 25,200 per task today, averaged over the 287) once symbol-name navigation exists. A tool that needs a position will keep losing to
 `grep`.
 
 ### 4. Many tasks never touch code the servers cover
@@ -108,21 +108,24 @@ LSP-backed MCP server) for the container surface only, install null on the
 workstation.
 
 Predicted change: expose navigation to every agent through the MCP server
-of B7-05, which is listed for every reach level, instead of per-harness
+of B7-05, which is listed for every reach level (spec #392 story 158, so every agent id can use it), instead of per-harness
 plugins. Prediction: non-Claude agents show non-zero navigation calls once
 it is listed for them. Not verified: no transcripts from those agents were
 available.
 
-### 6. Minor wiring gaps
+### 6. Minor configuration drift
 
-Evidence: `liquid-lsp` has no `lspServers` entry in the marketplace, so it
-registers nothing; the registry marks its language enabled. This does not
-explain the 0 of 14 (no Liquid code in the sample) but it is a second
-instance of "plugin enabled, tool absent", which the registry comment
-already warns looks the same from inside a session.
+Evidence: `registry/estate-tooling.yaml` (`language_servers`, `liquid-lsp`)
+has `enabled: false` (docs/SETUP.md: off by default, never installed), yet
+`~/.claude/settings.json` has `enabledPlugins` key
+`liquid-lsp@agent-kit-official` set to `true`, and its `shopify` binary is not
+installed. A plugin enabled without its binary registers no tools, the "plugin
+enabled, tool absent" state the registry comment warns about. This does not
+explain the 0 of 14 (no Liquid work in the sample).
 
-Predicted change: drop or fix `liquid-lsp` in `language_servers`.
-Prediction: none for use; it removes a false positive from future audits.
+Predicted change: set that `enabledPlugins` key to `false` to match the
+registry. Prediction: no change in use; it removes a false positive from
+future audits.
 
 ## Ranking
 
