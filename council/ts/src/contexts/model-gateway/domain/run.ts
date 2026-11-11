@@ -200,13 +200,31 @@ function shown(value: unknown): string {
 export const WRITE_RULE = 'Edit only files inside the working directory. Do not commit.'
 
 /**
+ * What a writing delegate that commits its own change is told: where it may
+ * edit, that it commits the change on the branch it is on, and that pushing is
+ * never its to do.
+ */
+export const CODEX_WRITE_RULE =
+  'Edit only files inside the working directory. When the change is done, commit it on the branch you are on with a Conventional Commits message. Never push.'
+
+/**
  * The prompt the delegate receives: the caller's prompt, for a writing run
  * the rule about where it edits, and the instruction that ends its answer
- * with a SUMMARY line the gateway can cut to the summary's limit.
+ * with a SUMMARY line the gateway can cut to the summary's limit. A `worker`
+ * is a client that commits its own change: its rule says so, and the brief
+ * the repository keeps for it comes first, above the caller's prompt.
  */
-export function wrappedPrompt(prompt: string, summaryMaxChars: number, mode: RunMode = 'read-only'): string {
-  const rule = mode === 'write' ? `\n\n${WRITE_RULE}` : ''
-  return `${prompt}${rule}\n\nEnd your answer with a line "SUMMARY:" followed by at most ${String(summaryMaxChars)} characters that summarise the result.`
+export function wrappedPrompt(
+  prompt: string,
+  summaryMaxChars: number,
+  mode: RunMode = 'read-only',
+  worker?: { readonly brief?: string },
+): string {
+  const writing = mode === 'write'
+  const rule = writing ? `\n\n${worker === undefined ? WRITE_RULE : CODEX_WRITE_RULE}` : ''
+  const brief = writing ? worker?.brief : undefined
+  const body = brief === undefined || brief === '' ? prompt : `${brief}\n\n---\n\n${prompt}`
+  return `${body}${rule}\n\nEnd your answer with a line "SUMMARY:" followed by at most ${String(summaryMaxChars)} characters that summarise the result.`
 }
 
 /**

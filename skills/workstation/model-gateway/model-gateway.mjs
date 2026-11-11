@@ -542,11 +542,19 @@ function shown(value) {
   return value === void 0 ? "missing" : JSON.stringify(value);
 }
 var WRITE_RULE = "Edit only files inside the working directory. Do not commit.";
-function wrappedPrompt(prompt, summaryMaxChars, mode = "read-only") {
-  const rule = mode === "write" ? `
+var CODEX_WRITE_RULE = "Edit only files inside the working directory. When the change is done, commit it on the branch you are on with a Conventional Commits message. Never push.";
+function wrappedPrompt(prompt, summaryMaxChars, mode = "read-only", worker) {
+  const writing = mode === "write";
+  const rule = writing ? `
 
-${WRITE_RULE}` : "";
-  return `${prompt}${rule}
+${worker === void 0 ? WRITE_RULE : CODEX_WRITE_RULE}` : "";
+  const brief = writing ? worker?.brief : void 0;
+  const body = brief === void 0 || brief === "" ? prompt : `${brief}
+
+---
+
+${prompt}`;
+  return `${body}${rule}
 
 End your answer with a line "SUMMARY:" followed by at most ${String(summaryMaxChars)} characters that summarise the result.`;
 }
@@ -2646,7 +2654,8 @@ var codex = {
       "-s",
       input.mode === "write" ? "workspace-write" : "read-only",
       "-C",
-      paths.workDir
+      paths.workDir,
+      ...input.mode === "write" ? (paths.gitWritable ?? []).flatMap((dir) => ["--add-dir", dir]) : []
     ],
     command: binary,
     cwd: paths.workDir,
@@ -3485,6 +3494,8 @@ function summaryOf2(run) {
 }
 
 // src/contexts/model-gateway/application/run.ts
+var CODEX_BRIEF_FILE = "codex-brief.md";
+var CODEX_BRIEF_MAX_CHARS = 2e4;
 function isWriting(input) {
   return input.mode === "write" && input.repo !== void 0 && input.base !== void 0 && input.check !== void 0;
 }
@@ -3590,6 +3601,7 @@ var RunCommand = class {
         input: reservation === void 0 ? input : { ...input, max_price_usd: reservation.estimate.usd, time_limit_s: Math.min(input.time_limit_s, reservation.time_limit_s) },
         runDir,
         workDir: workplace.dir,
+        ...root === void 0 ? {} : { repo: root },
         ...workplace.branch === void 0 ? {} : { branch: workplace.branch },
         ...watched.length === 0 ? {} : { watched },
         ...reservation?.ends_at === void 0 ? {} : { endsAt: reservation.ends_at }
@@ -3667,13 +3679,15 @@ var RunCommand = class {
   /** One launched run, up to the point where its result is known: its prompt on disk, the launch and the client's full output. */
   async delegate(run) {
     const { config, entry, input, runDir } = run;
+    const codex2 = await this.codexWorker(run);
     const paths = {
       exportDir: join6(runDir, "vibe"),
       promptPath: join6(runDir, "prompt.md"),
       runDir,
-      workDir: run.workDir
+      workDir: run.workDir,
+      ...codex2.gitWritable === void 0 ? {} : { gitWritable: codex2.gitWritable }
     };
-    const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode);
+    const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode, codex2.worker);
     await this.deps.files.writeText(paths.promptPath, prompt);
     await this.deps.files.writeText(join6(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
 `);
@@ -3706,6 +3720,48 @@ var RunCommand = class {
     return result2;
   }
   /**
+   * What a Codex writing run gets beyond the prompt: the git directories its
+   * sandbox may write, so it can commit in the worktree, and the brief the
+   * repository keeps for it. Every other run gets neither, and its prompt is
+   * the one it always got.
+   */
+  async codexWorker(run) {
+    const input = run.input;
+    if (input.client !== "codex" || !isWriting(input)) return {};
+    const gitWritable = await this.codexGitWritable(run.workDir, run.repo ?? input.repo);
+    if (gitWritable === void 0) return {};
+    const brief = await this.codexBrief(run.workDir);
+    return { gitWritable, worker: brief === void 0 ? {} : { brief } };
+  }
+  /**
+   * The git directories a Codex writing run may write: the worktree's own git
+   * directory, which sits outside the worktree, and the repository's shared
+   * object, ref and log directories. The common directory itself is never
+   * named, so `.git/hooks` and `.git/config` stay read-only. Undefined when
+   * git cannot say where they are: the run then goes on as it did before, and
+   * the gateway stages whatever the delegate left uncommitted.
+   */
+  async codexGitWritable(workDir, repo) {
+    try {
+      const gitDir = await this.deps.git.gitDir(workDir);
+      const common = await this.commonDir(repo);
+      if (gitDir === common) return void 0;
+      return [gitDir, join6(common, "objects"), join6(common, "refs"), join6(common, "logs")];
+    } catch {
+      return void 0;
+    }
+  }
+  /** The brief the worktree keeps for a Codex writing run, cut at the limit; undefined when it keeps none. */
+  async codexBrief(workDir) {
+    const path = join6(workDir, CODEX_BRIEF_FILE);
+    try {
+      if (!await this.deps.files.exists(path)) return void 0;
+      return (await this.deps.files.readText(path)).slice(0, CODEX_BRIEF_MAX_CHARS);
+    } catch {
+      return void 0;
+    }
+  }
+  /**
    * What happens to a writing run's worktree once the delegate has ended. A
    * delegate that finished has its work staged first, and listed, and only
    * then gets the caller's check run in the worktree: whatever the check
@@ -3729,7 +3785,7 @@ var RunCommand = class {
   async finishWrite(run, input, delegateReason, watched) {
     const base = { branch: String(run.branch), worktree: run.workDir };
     const foreign = await this.foreignChange(watched);
-    const staged = delegateReason === void 0 ? await this.stage(run.workDir) : void 0;
+    const staged = delegateReason === void 0 ? await this.stage(run.workDir, input.base) : void 0;
     if (foreign !== void 0) {
       return {
         reason: "foreign-worktree-change",
@@ -3753,19 +3809,21 @@ var RunCommand = class {
   }
   /**
    * Stages everything in the worktree and lists what that staged: the
-   * delegate's diff, taken before the check can add to it. A git that cannot
-   * stage leaves nothing staged; one that cannot list leaves the worktree
-   * staged but unlisted, which the result says with `null` rather than an
-   * empty list that would read as a delegate that changed nothing.
+   * delegate's diff, taken before the check can add to it. The listing is
+   * taken against the run's base, so a change the delegate committed itself on
+   * the worktree's branch is listed too. A git that cannot stage leaves
+   * nothing staged; one that cannot list leaves the worktree staged but
+   * unlisted, which the result says with `null` rather than an empty list that
+   * would read as a delegate that changed nothing.
    */
-  async stage(workDir) {
+  async stage(workDir, base) {
     try {
       await this.deps.git.stageAll(workDir);
     } catch (error) {
       return { error: messageOf3(error), files: [], reason: "stage-failed" };
     }
     try {
-      return { files: await this.deps.git.stagedFiles(workDir) };
+      return { files: await this.deps.git.stagedFiles(workDir, base) };
     } catch (error) {
       return { error: messageOf3(error), files: null, reason: "stage-list-failed" };
     }
@@ -4311,6 +4369,12 @@ var NodeModelGatewayGit = class {
     if (result2.exitCode !== 0 || commonDir === "") throw new Error(messageOf4(result2));
     return commonDir;
   }
+  async gitDir(path) {
+    const result2 = await this.git(path, ["rev-parse", "--path-format=absolute", "--git-dir"]);
+    const gitDir = result2.stdout.trim();
+    if (result2.exitCode !== 0 || gitDir === "") throw new Error(messageOf4(result2));
+    return gitDir;
+  }
   async remotes(path) {
     const result2 = await this.git(path, ["config", "--get-regexp", String.raw`^remote\..*\.url$`]);
     if (result2.exitCode === 1) return [];
@@ -4332,8 +4396,14 @@ var NodeModelGatewayGit = class {
     const result2 = await this.git(path, ["add", "-A"], WORKTREE_TIMEOUT_MS);
     if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
   }
-  async stagedFiles(path) {
-    const result2 = await this.git(path, ["diff", "--cached", "--name-only", "-z"]);
+  async stagedFiles(path, base) {
+    const result2 = await this.git(path, [
+      "diff",
+      "--cached",
+      "--name-only",
+      "-z",
+      ...base === void 0 ? [] : ["--end-of-options", base, "--"]
+    ]);
     if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
     return result2.stdout.split("\0").filter((name) => name !== "");
   }
@@ -5239,7 +5309,7 @@ and "check" (a command, run with sh -c in the worktree). The gateway creates a
 worktree off the base on a new branch gateway/<run id> under the repository's
 git common directory, runs the delegate there with write permission, stages
 what it wrote, and then runs the check, so what the check writes is not part of
-the staged diff. It never commits, merges or pushes. The result adds
+the staged diff. The gateway never commits, merges or pushes; a Codex worker may commit inside its worktree. The result adds
 "worktree", "branch", "staged_files" and "check" (command, exit_code and
 output_path); a check that fails is "failed" with reason "check-failed", and a
 run that times out leaves its worktree unstaged. Every writing worktree is kept

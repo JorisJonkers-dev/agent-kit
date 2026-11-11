@@ -43,6 +43,12 @@ import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
 
 export { DELEGATION_MARK, READ_ONLY_AGENT }
 
+/** The brief a repository keeps for a Codex writing run, in the worktree the run works in. */
+const CODEX_BRIEF_FILE = 'codex-brief.md'
+
+/** How much of that brief a run carries: a longer one is cut here. */
+const CODEX_BRIEF_MAX_CHARS = 20_000
+
 
 /** A writing run's input, narrowed: its repository, base and check are all named. */
 type WritingInput = RunInput & { readonly mode: 'write'; readonly repo: string; readonly base: string; readonly check: string }
@@ -147,6 +153,8 @@ interface Delegation {
   readonly input: RunInput
   readonly runDir: string
   readonly workDir: string
+  /** The repository root the run works in, when it names a repository. */
+  readonly repo?: string
   readonly branch?: string
   /** The worktrees of the repository a writing run watches, with what they held before the delegate ran. */
   readonly watched?: readonly WatchedWorktree[]
@@ -330,6 +338,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
         input: reservation === undefined ? input : { ...input, max_price_usd: reservation.estimate.usd, time_limit_s: Math.min(input.time_limit_s, reservation.time_limit_s) },
         runDir,
         workDir: workplace.dir,
+        ...(root === undefined ? {} : { repo: root }),
         ...(workplace.branch === undefined ? {} : { branch: workplace.branch }),
         ...(watched.length === 0 ? {} : { watched }),
         ...(reservation?.ends_at === undefined ? {} : { endsAt: reservation.ends_at }),
@@ -410,13 +419,15 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
   /** One launched run, up to the point where its result is known: its prompt on disk, the launch and the client's full output. */
   private async delegate(run: Delegation): Promise<RunResult> {
     const { config, entry, input, runDir } = run
+    const codex = await this.codexWorker(run)
     const paths: LaunchPaths = {
       exportDir: join(runDir, 'vibe'),
       promptPath: join(runDir, 'prompt.md'),
       runDir,
       workDir: run.workDir,
+      ...(codex.gitWritable === undefined ? {} : { gitWritable: codex.gitWritable }),
     }
-    const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode)
+    const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode, codex.worker)
     await this.deps.files.writeText(paths.promptPath, prompt)
     await this.deps.files.writeText(join(runDir, 'input.json'), `${JSON.stringify(input, null, 2)}\n`)
     const launched = await this.launch(run.binary, input, paths, prompt)
@@ -449,6 +460,51 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
       ...finished?.report,
     }
     return result
+  }
+
+  /**
+   * What a Codex writing run gets beyond the prompt: the git directories its
+   * sandbox may write, so it can commit in the worktree, and the brief the
+   * repository keeps for it. Every other run gets neither, and its prompt is
+   * the one it always got.
+   */
+  private async codexWorker(run: Delegation): Promise<{ gitWritable?: readonly string[]; worker?: { brief?: string } }> {
+    const input = run.input
+    if (input.client !== 'codex' || !isWriting(input)) return {}
+    const gitWritable = await this.codexGitWritable(run.workDir, run.repo ?? input.repo)
+    if (gitWritable === undefined) return {}
+    const brief = await this.codexBrief(run.workDir)
+    return { gitWritable, worker: brief === undefined ? {} : { brief } }
+  }
+
+  /**
+   * The git directories a Codex writing run may write: the worktree's own git
+   * directory, which sits outside the worktree, and the repository's shared
+   * object, ref and log directories. The common directory itself is never
+   * named, so `.git/hooks` and `.git/config` stay read-only. Undefined when
+   * git cannot say where they are: the run then goes on as it did before, and
+   * the gateway stages whatever the delegate left uncommitted.
+   */
+  private async codexGitWritable(workDir: string, repo: string): Promise<readonly string[] | undefined> {
+    try {
+      const gitDir = await this.deps.git.gitDir(workDir)
+      const common = await this.commonDir(repo)
+      if (gitDir === common) return undefined
+      return [gitDir, join(common, 'objects'), join(common, 'refs'), join(common, 'logs')]
+    } catch {
+      return undefined
+    }
+  }
+
+  /** The brief the worktree keeps for a Codex writing run, cut at the limit; undefined when it keeps none. */
+  private async codexBrief(workDir: string): Promise<string | undefined> {
+    const path = join(workDir, CODEX_BRIEF_FILE)
+    try {
+      if (!(await this.deps.files.exists(path))) return undefined
+      return (await this.deps.files.readText(path)).slice(0, CODEX_BRIEF_MAX_CHARS)
+    } catch {
+      return undefined
+    }
   }
 
   /**
@@ -487,7 +543,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
      * did not finish leaves nothing staged.
      */
     const foreign = await this.foreignChange(watched)
-    const staged = delegateReason === undefined ? await this.stage(run.workDir) : undefined
+    const staged = delegateReason === undefined ? await this.stage(run.workDir, input.base) : undefined
     if (foreign !== undefined) {
       return {
         reason: 'foreign-worktree-change',
@@ -514,19 +570,21 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
 
   /**
    * Stages everything in the worktree and lists what that staged: the
-   * delegate's diff, taken before the check can add to it. A git that cannot
-   * stage leaves nothing staged; one that cannot list leaves the worktree
-   * staged but unlisted, which the result says with `null` rather than an
-   * empty list that would read as a delegate that changed nothing.
+   * delegate's diff, taken before the check can add to it. The listing is
+   * taken against the run's base, so a change the delegate committed itself on
+   * the worktree's branch is listed too. A git that cannot stage leaves
+   * nothing staged; one that cannot list leaves the worktree staged but
+   * unlisted, which the result says with `null` rather than an empty list that
+   * would read as a delegate that changed nothing.
    */
-  private async stage(workDir: string): Promise<{ files: readonly string[] | null; reason?: string; error?: string }> {
+  private async stage(workDir: string, base: string): Promise<{ files: readonly string[] | null; reason?: string; error?: string }> {
     try {
       await this.deps.git.stageAll(workDir)
     } catch (error) {
       return { error: messageOf(error), files: [], reason: 'stage-failed' }
     }
     try {
-      return { files: await this.deps.git.stagedFiles(workDir) }
+      return { files: await this.deps.git.stagedFiles(workDir, base) }
     } catch (error) {
       return { error: messageOf(error), files: null, reason: 'stage-list-failed' }
     }

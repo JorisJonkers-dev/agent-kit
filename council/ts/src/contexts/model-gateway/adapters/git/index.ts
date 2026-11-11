@@ -51,6 +51,13 @@ export class NodeModelGatewayGit implements ModelGatewayGitPort {
     return commonDir
   }
 
+  async gitDir(path: string): Promise<string> {
+    const result = await this.git(path, ['rev-parse', '--path-format=absolute', '--git-dir'])
+    const gitDir = result.stdout.trim()
+    if (result.exitCode !== 0 || gitDir === '') throw new Error(messageOf(result))
+    return gitDir
+  }
+
   async remotes(path: string): Promise<readonly GitRemote[]> {
     const result = await this.git(path, ['config', '--get-regexp', String.raw`^remote\..*\.url$`])
     if (result.exitCode === 1) return []
@@ -76,8 +83,14 @@ export class NodeModelGatewayGit implements ModelGatewayGitPort {
     if (result.exitCode !== 0) throw new Error(messageOf(result))
   }
 
-  async stagedFiles(path: string): Promise<readonly string[]> {
-    const result = await this.git(path, ['diff', '--cached', '--name-only', '-z'])
+  async stagedFiles(path: string, base?: string): Promise<readonly string[]> {
+    const result = await this.git(path, [
+      'diff',
+      '--cached',
+      '--name-only',
+      '-z',
+      ...(base === undefined ? [] : ['--end-of-options', base, '--']),
+    ])
     if (result.exitCode !== 0) throw new Error(messageOf(result))
     return result.stdout.split('\0').filter((name) => name !== '')
   }

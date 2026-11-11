@@ -65,6 +65,12 @@ function flag(command: ProcessCommand | undefined, name: string): string | undef
   return at === -1 ? undefined : command?.args[at + 1]
 }
 
+/** The values of every occurrence of one flag of a launch, in the order it names them. */
+function flags(command: ProcessCommand | undefined, name: string): readonly string[] {
+  const args = command?.args ?? []
+  return args.flatMap((arg, i) => (args[i - 1] === name ? [arg] : []))
+}
+
 /** The tools a launch enables, in the order it names them. */
 function enabledTools(command: ProcessCommand | undefined): readonly string[] {
   const args = command?.args ?? []
@@ -330,5 +336,60 @@ describe('the gateway launch path, for a caller inside this process', () => {
       message: 'vibe sets MISTRAL_API_KEY itself, so extras.env may not name it',
     })
     expect(w.process.commands).toEqual([])
+  })
+})
+
+describe('the git directories a Codex writing run may write', () => {
+  /** The git directories a writing run names: the worktree's own, and the repository's shared ones. */
+  const GIT_WRITABLE: readonly string[] = ['/repo/.git/worktrees/run-1', '/repo/.git/objects', '/repo/.git/refs', '/repo/.git/logs']
+
+  /** A launch of the workspace's work directory, with the git directories a test names. */
+  function withGitWritable(request: ClientRunRequest, gitWritable: readonly string[]): ClientRunRequest {
+    return { ...request, paths: { ...request.paths, gitWritable } }
+  }
+
+  it('adds each of them right after the work directory, so the sandbox can commit in the worktree', async () => {
+    const w = await workspace([{ stdout: '' }])
+    const request = w.request({ binary: 'codex', client: 'codex', mode: 'write' })
+
+    await w.run.launch(withGitWritable(request, GIT_WRITABLE))
+
+    const [command] = w.process.commands
+    const args = command?.args ?? []
+    const at = args.indexOf('-C')
+    expect(args[at + 1]).toBe(join(w.dir, 'work'))
+    expect(args.slice(at + 2)).toEqual(GIT_WRITABLE.flatMap((dir) => ['--add-dir', dir]))
+    expect(flags(command, '--add-dir')).toEqual(GIT_WRITABLE)
+    expect(flag(command, '-s')).toBe('workspace-write')
+  })
+
+  it('adds none for a read-only run, which may not write them', async () => {
+    const w = await workspace([{ stdout: '' }])
+    const request = w.request({ binary: 'codex', client: 'codex' })
+
+    await w.run.launch(withGitWritable(request, GIT_WRITABLE))
+
+    expect(flags(w.process.commands[0], '--add-dir')).toEqual([])
+    expect(flag(w.process.commands[0], '-s')).toBe('read-only')
+  })
+
+  it('adds none for a writing run that names no git directory', async () => {
+    const w = await workspace([{ stdout: '' }])
+
+    await w.run.launch(w.request({ binary: 'codex', client: 'codex', mode: 'write' }))
+
+    expect(flags(w.process.commands[0], '--add-dir')).toEqual([])
+    expect(flag(w.process.commands[0], '-s')).toBe('workspace-write')
+  })
+
+  it('leaves another client’s launch alone, since only Codex has a sandbox to widen', async () => {
+    const w = await workspace([{ stdout: '{"type":"result","result":"fine"}' }])
+    const request = w.request({ binary: 'claude', client: 'claude', mode: 'write' })
+
+    await w.run.launch(withGitWritable(request, GIT_WRITABLE))
+
+    const [command] = w.process.commands
+    expect(command?.args).not.toContain('--add-dir')
+    expect(command?.args).not.toContain(GIT_WRITABLE[0])
   })
 })

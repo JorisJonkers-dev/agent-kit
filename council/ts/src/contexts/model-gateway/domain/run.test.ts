@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { ModelGatewayError } from './config.js'
 import {
+  CODEX_WRITE_RULE,
   compactTimestamp,
   DEFAULT_TIME_LIMIT_S,
   finalAnswerOf,
@@ -171,6 +172,39 @@ describe('the prompt of a writing run', () => {
     )
     expect(WRITE_RULE).toBe('Edit only files inside the working directory. Do not commit.')
     expect(wrappedPrompt('fix it', 100)).not.toContain('commit')
+  })
+})
+
+describe('the prompt of a Codex worker', () => {
+  const SUMMARY = 'End your answer with a line "SUMMARY:" followed by at most 100 characters that summarise the result.'
+
+  it('leaves the prompt of a run with no worker as it was', () => {
+    expect(wrappedPrompt('fix it', 100, 'write')).toBe(`fix it\n\n${WRITE_RULE}\n\n${SUMMARY}`)
+    expect(wrappedPrompt('read this', 100)).toBe(`read this\n\n${SUMMARY}`)
+  })
+
+  it('tells a worker that commits its own change, instead of the rule that it may not', () => {
+    expect(wrappedPrompt('fix it', 100, 'write', {})).toBe(`fix it\n\n${CODEX_WRITE_RULE}\n\n${SUMMARY}`)
+    expect(CODEX_WRITE_RULE).toBe(
+      'Edit only files inside the working directory. When the change is done, commit it on the branch you are on with a Conventional Commits message. Never push.',
+    )
+  })
+
+  it('puts the brief the repository keeps for it first, above the caller’s prompt', () => {
+    expect(wrappedPrompt('fix it', 100, 'write', { brief: 'the brief' })).toBe(
+      `the brief\n\n---\n\nfix it\n\n${CODEX_WRITE_RULE}\n\n${SUMMARY}`,
+    )
+  })
+
+  it('adds nothing for a brief that is empty or missing', () => {
+    expect(wrappedPrompt('fix it', 100, 'write', { brief: '' })).toBe(wrappedPrompt('fix it', 100, 'write', {}))
+    expect(wrappedPrompt('fix it', 100, 'write', {})).toContain(CODEX_WRITE_RULE)
+    expect(wrappedPrompt('fix it', 100, 'write', {})).not.toContain('---')
+  })
+
+  it('changes nothing for a worker in a read-only run, which carries no brief and no rule', () => {
+    expect(wrappedPrompt('read this', 100, 'read-only', { brief: 'the brief' })).toBe(wrappedPrompt('read this', 100))
+    expect(wrappedPrompt('read this', 100, 'read-only', { brief: 'the brief' })).not.toContain('the brief')
   })
 })
 

@@ -239,6 +239,22 @@ describe('NodeModelGatewayGit', () => {
     return root
   }
 
+  it('names the git directory of a checkout: the repository’s own, and the one a linked worktree keeps under it', async () => {
+    const root = await committed()
+    const worktree = join(root, '..', `${basename(root)}-worktree`)
+    cleanups.push(() => rm(worktree, { force: true, recursive: true }))
+    await git(root, 'worktree', 'add', '-q', worktree)
+
+    expect(await repositories.gitDir(root)).toBe(join(await realpath(root), '.git'))
+    expect(await repositories.gitDir(worktree)).toBe(join(await realpath(root), '.git', 'worktrees', basename(worktree)))
+  })
+
+  it('fails with git’s own message when it cannot name a git directory', async () => {
+    const dir = await tempDir()
+
+    await expect(repositories.gitDir(dir)).rejects.toThrow(/not a git repository/)
+  })
+
   it('checks HEAD out detached into an empty directory, and removes it with git, directory and all', async () => {
     const root = await committed()
     const target = await tempDir()
@@ -298,6 +314,28 @@ describe('NodeModelGatewayGit', () => {
     await repositories.removeWorktree(root, target)
     await repositories.deleteBranch(root, 'gateway/run-1')
     await expect(repositories.deleteBranch(root, 'gateway/run-1')).rejects.toThrow(/gateway\/run-1/)
+  })
+
+  it('lists a change the delegate committed on the worktree’s branch beside the staged one, when it is given the base', async () => {
+    const root = await committed()
+    const target = join(await tempDir(), 'worktrees', 'run-1')
+    await repositories.createWorktree(root, target, 'gateway/run-1', 'HEAD')
+    await writeFile(join(target, 'committed.ts'), 'x')
+    await git(target, 'add', 'committed.ts')
+    await git(target, '-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-q', '-m', 'the delegate’s own commit')
+    await writeFile(join(target, 'staged.ts'), 'y')
+    await repositories.stageAll(target)
+
+    expect(await repositories.stagedFiles(target, 'HEAD~1')).toEqual(['committed.ts', 'staged.ts'])
+    expect(await repositories.stagedFiles(target)).toEqual(['staged.ts'])
+  })
+
+  it('fails with git’s own message when the base it is given is no ref', async () => {
+    const root = await committed()
+    const target = join(await tempDir(), 'worktrees', 'run-1')
+    await repositories.createWorktree(root, target, 'gateway/run-1', 'HEAD')
+
+    await expect(repositories.stagedFiles(target, 'no-such-ref')).rejects.toThrow(/no-such-ref/)
   })
 
   it('fails with git\'s own message when the base is unknown, the branch exists, or there is nothing to stage in', async () => {
