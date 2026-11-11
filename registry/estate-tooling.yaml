@@ -287,7 +287,7 @@ gold_band:
     # account key from the secret store at launch and starts nothing, saying
     # why, when the key is missing. The key is never written to a file.
     - id: vibe-study
-      binary: vibe-study
+      binary: vibe-acp
       adapter:
         displayName: Vibe (Study)
         command: ~/.local/bin/vibe-study

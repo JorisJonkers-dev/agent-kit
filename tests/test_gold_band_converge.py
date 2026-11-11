@@ -509,6 +509,8 @@ def test_the_kits_registry_declares_vibe_and_vibe_study_without_a_key(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine = Machine(tmp_path, monkeypatch, binaries=("opencode", "vibe-acp", "vibe-study"))
+    monkeypatch.setenv("MISTRAL_STUDY_API_KEY", "sentinel-study-key")
+    monkeypatch.setenv("MISTRAL_API_KEY", "sentinel-personal-key")
     assert machine.run(registry=False) == 0
     agents = machine.agents()
     home = str(Path.home())
@@ -525,5 +527,5 @@ def test_the_kits_registry_declares_vibe_and_vibe_study_without_a_key(
         "env": {},
     }
     text = machine.settings.read_text()
-    assert "MISTRAL" not in text
-    assert "KEY" not in text.upper().replace("KEEP", "")
+    assert "sentinel" not in text
+    assert "sentinel" not in converge.REGISTRY_PATH.read_text()

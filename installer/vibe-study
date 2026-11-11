@@ -165,10 +165,10 @@ export MISTRAL_API_KEY="${key}"
 if [ "${1:-}" = --acp ]; then
   shift
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  if command -v vibe-acp >/dev/null 2>&1; then
-    exec vibe-acp "$@"
-  elif [ -x "${here}/vibe-acp" ]; then
+  if [ -x "${here}/vibe-acp" ]; then
     exec "${here}/vibe-acp" "$@"
+  elif command -v vibe-acp >/dev/null 2>&1; then
+    exec vibe-acp "$@"
   fi
   fail "vibe-acp is not installed; nothing launched"
 fi

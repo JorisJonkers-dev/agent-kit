@@ -303,7 +303,7 @@ launcher behind the passphrase gate. See [ADR-0023](https://github.com/JorisJonk
 - **`vibe`** is Vibe itself, with no wrapper. Its home lists every
   workstation MCP server except `memory-private`, and its `AGENTS.md` names
   only `memory-api`.
-- **`vibe-study`** runs Vibe in the same home, with the Study account key
+- **`vibe-study`** (`vibe-study --acp` starts Vibe's ACP server instead, for Gold Band, with the same refusals) runs Vibe in the same home, with the Study account key
   (`MISTRAL_STUDY_API_KEY`) handed over as `MISTRAL_API_KEY`, which overrides
   Vibe's machine-wide personal login. Sign in once with `vibe-study --login`:
   it runs Vibe's own browser sign-in (`vibe --setup`) in a throwaway Vibe
