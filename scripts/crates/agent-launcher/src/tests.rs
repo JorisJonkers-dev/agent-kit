@@ -269,9 +269,11 @@ fn a_permitted_id_starts_its_agent_with_its_reach_and_arguments() {
 fn an_id_with_a_skill_set_exports_it_and_its_directory() {
     let dir = scratch("skills");
     let gold_band_home = dir.join("gold-band");
+    let out = dir.join("out");
     let file = dir.join("reach.yaml");
-    fs::write(&file, with_skill_set(&with_command(SKILL_COMMAND), "review")).unwrap();
-    let marker = dir.join("marker");
+    let text = with_skill_set(&with_command(SKILL_COMMAND), "review").replace("/tmp/research", &out.to_string_lossy());
+    fs::write(&file, text).unwrap();
+    let marker = out.join("marker");
     std::env::set_var("GOLD_BAND_HOME", &gold_band_home);
     let code = run_on(
         [OsString::from("run"), file.into_os_string(), "fake-research".into(), "--".into(), marker.clone().into_os_string()],
@@ -288,9 +290,10 @@ fn an_id_with_a_skill_set_exports_it_and_its_directory() {
 #[test]
 fn an_id_without_a_skill_set_exports_neither() {
     let dir = scratch("no-skills");
+    let out = dir.join("out");
     let file = dir.join("reach.yaml");
-    fs::write(&file, with_command(SKILL_COMMAND)).unwrap();
-    let marker = dir.join("marker");
+    fs::write(&file, with_command(SKILL_COMMAND).replace("/tmp/research", &out.to_string_lossy())).unwrap();
+    let marker = out.join("marker");
     std::env::set_var("AGENT_KIT_SKILL_SET", "stale");
     std::env::set_var("AGENT_KIT_SKILLS_DIR", "/stale/skill-sets/fake-research");
     let code = run_on(
