@@ -732,3 +732,114 @@ fn write_refuses_a_git_directory_that_is_not_laid_out_as_git_makes_it() {
     std::os::unix::fs::symlink(t.common.join("hooks"), t.common.join("objects")).unwrap();
     assert!(refusal("write", &s).contains("is a symlink"));
 }
+
+#[test]
+fn write_refuses_hooks_the_agent_could_reach() {
+    let s_of = |t: &Tree| scope(t);
+
+    // core.hooksPath inside the worktree (relative, as Husky sets it) or absolute.
+    let t = tree("hp-relative");
+    fs::write(t.common.join("config"), "[core]\n\thooksPath = .husky\n").unwrap();
+    assert!(refusal("write", &s_of(&t)).contains("lies inside the writable"));
+    let t = tree("hp-absolute");
+    let inside = t.common.join("objects/hooks");
+    fs::write(
+        t.common.join("config"),
+        format!("[core]\n\tHooksPath = \"{}\"\n", inside.display()),
+    )
+    .unwrap();
+    assert!(refusal("write", &s_of(&t)).contains("lies inside the writable"));
+
+    // A hooksPath outside the grants, even under ~, is fine.
+    let t = tree("hp-outside");
+    fs::write(
+        t.common.join("config"),
+        format!(
+            "[core]\n\thooksPath = {}\n",
+            t.root.join("global-hooks").display()
+        ),
+    )
+    .unwrap();
+    assert!(policy_for("write", &s_of(&t)).is_ok());
+    let t = tree("hp-home");
+    fs::write(
+        t.common.join("config"),
+        "[core]\n\thooksPath = ~/.config/git/hooks\n",
+    )
+    .unwrap();
+    assert!(policy_for("write", &s_of(&t)).is_ok());
+    assert_eq!(expand_home("/abs"), PathBuf::from("/abs"));
+    assert_eq!(hooks_path("[core]\n\tbare = false\n"), None);
+
+    // common/hooks that is a symlink into the worktree.
+    let t = tree("hooks-link");
+    fs::create_dir_all(t.worktree.join("hooks")).unwrap();
+    fs::remove_dir_all(t.common.join("hooks")).unwrap();
+    std::os::unix::fs::symlink(t.worktree.join("hooks"), t.common.join("hooks")).unwrap();
+    assert!(refusal("write", &s_of(&t)).contains("lies inside the writable"));
+
+    // common/config that is a symlink into the worktree.
+    let t = tree("config-link");
+    fs::write(t.worktree.join("cfg"), "[core]\n").unwrap();
+    fs::remove_file(t.common.join("config")).unwrap();
+    std::os::unix::fs::symlink(t.worktree.join("cfg"), t.common.join("config")).unwrap();
+    assert!(refusal("write", &s_of(&t)).contains("lies inside the writable"));
+
+    // A worktree root that is the hooks directory itself.
+    let t = tree("root-hooks");
+    let mut s = s_of(&t);
+    fs::write(
+        t.common.join("hooks/.git"),
+        format!("gitdir: {}\n", t.admin.display()),
+    )
+    .unwrap();
+    fs::write(
+        t.admin.join("gitdir"),
+        format!("{}\n", t.common.join("hooks/.git").display()),
+    )
+    .unwrap();
+    s.worktree = t.common.join("hooks");
+    assert!(refusal("write", &s).contains("lies inside the writable"));
+}
+
+#[test]
+fn write_refuses_refs_and_logs_symlinks_and_a_misnamed_admin_directory() {
+    for shared in ["refs", "logs"] {
+        let t = tree(&format!("link-{shared}"));
+        fs::remove_dir_all(t.common.join(shared)).unwrap();
+        std::os::unix::fs::symlink(t.common.join("hooks"), t.common.join(shared)).unwrap();
+        assert!(
+            refusal("write", &scope(&t)).contains("is a symlink"),
+            "{shared}"
+        );
+    }
+    // An admin directory not under a `worktrees` directory.
+    let t = tree("misnamed");
+    let moved = t.common.join("wt/w1");
+    fs::create_dir_all(t.common.join("wt")).unwrap();
+    fs::rename(&t.admin, &moved).unwrap();
+    fs::write(
+        t.worktree.join(".git"),
+        format!("gitdir: {}\n", moved.display()),
+    )
+    .unwrap();
+    fs::write(moved.join("commondir"), "../..\n").unwrap();
+    assert!(refusal("write", &scope(&t)).contains("not laid out"));
+}
+
+#[test]
+fn a_guarded_file_that_cannot_be_put_back_is_reported_as_such() {
+    let dir = scratch("guard-fail");
+    let sub = dir.join("sub");
+    fs::create_dir_all(&sub).unwrap();
+    let file = sub.join("f");
+    fs::write(&file, "v1").unwrap();
+    let guard = Guard::take(&Policy {
+        guarded: vec![file.clone()],
+        ..Policy::default()
+    });
+    fs::remove_dir_all(&sub).unwrap();
+    let report = guard.restore();
+    assert_eq!(report.len(), 1);
+    assert!(report[0].contains("could NOT be put back"), "{report:?}");
+}

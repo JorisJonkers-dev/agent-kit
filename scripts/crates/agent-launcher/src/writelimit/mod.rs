@@ -59,7 +59,7 @@ impl Guard {
     }
 
     /// Puts back every guarded file the agent changed, replaced or removed,
-    /// and names each one.
+    /// and names each one; a file that could not be put back says so.
     pub fn restore(&self) -> Vec<String> {
         let mut restored = Vec::new();
         for (path, bytes) in &self.0 {
@@ -68,8 +68,10 @@ impl Guard {
             }
             let _ = fs::remove_dir_all(path);
             let _ = fs::remove_file(path);
-            let _ = fs::write(path, bytes);
-            restored.push(path.display().to_string());
+            match fs::write(path, bytes) {
+                Ok(()) => restored.push(path.display().to_string()),
+                Err(e) => restored.push(format!("{} (could NOT be put back: {e})", path.display())),
+            }
         }
         restored
     }
@@ -195,6 +197,7 @@ fn worktree_dirs(worktree: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String
     if common.starts_with(&root)
         || common.starts_with(&admin)
         || admin.parent().and_then(Path::parent) != Some(common.as_path())
+        || admin.parent().and_then(Path::file_name) != Some(std::ffi::OsStr::new("worktrees"))
     {
         return Err(format!(
             "write: {} is not laid out as git makes a worktree's directory; not trusting it",
@@ -210,9 +213,9 @@ fn worktree_dirs(worktree: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String
             dot_git.display()
         ));
     }
-    let config = fs::read_to_string(common.join("config"))
-        .map_err(|e| format!("write: cannot read the repository config: {e}"))?
-        .to_ascii_lowercase();
+    let config_text = fs::read_to_string(common.join("config"))
+        .map_err(|e| format!("write: cannot read the repository config: {e}"))?;
+    let config = config_text.to_ascii_lowercase();
     if config.contains("worktreeconfig") || config.contains("include") {
         return Err("write: the repository config enables extensions.worktreeConfig or includes another file, so a config the agent can write could change hooks; remove it".into());
     }
@@ -231,8 +234,46 @@ fn worktree_dirs(worktree: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String
         }
         dirs.push(dir);
     }
+    // The hooks git will run, and the config that names them, must be out of
+    // every grant (a symlinked `hooks`, a hooksPath such as `.husky`).
+    let mut protected = vec![common.join("hooks"), common.join("config")];
+    if let Some(path) = hooks_path(&config_text) {
+        protected.push(dirs[0].join(expand_home(&path)));
+    }
+    for path in protected {
+        let real = fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+        if let Some(grant) = dirs
+            .iter()
+            .find(|g| real.starts_with(g) || g.starts_with(&real))
+        {
+            return Err(format!(
+                "write: {} (hooks or config git uses) lies inside the writable {}; refusing",
+                real.display(),
+                grant.display()
+            ));
+        }
+    }
     let guarded = vec![dot_git, admin.join("commondir"), admin.join("gitdir")];
     Ok((dirs, guarded))
+}
+
+/// The value of `core.hooksPath` in a repository config, if set. Keys are
+/// matched case-insensitively in any section; a quoted value loses its quotes.
+fn hooks_path(config: &str) -> Option<String> {
+    config.lines().find_map(|line| {
+        let (key, value) = line.trim().split_once('=')?;
+        key.trim()
+            .eq_ignore_ascii_case("hookspath")
+            .then(|| value.trim().trim_matches('"').to_string())
+    })
+}
+
+/// `~/x` as the home directory's `x`; anything else unchanged.
+fn expand_home(path: &str) -> PathBuf {
+    match (path.strip_prefix("~/"), std::env::var_os("HOME")) {
+        (Some(rest), Some(home)) => PathBuf::from(home).join(rest),
+        _ => PathBuf::from(path),
+    }
 }
 
 #[cfg(target_os = "linux")]

@@ -228,7 +228,7 @@ fn launch(
         Ok((code, restored)) if restored.is_empty() => code,
         Ok((_, restored)) => {
             eprintln!(
-                "{NAME}: the agent changed files that tell git where its directories are; put back: {}",
+                "{NAME}: the agent changed files that tell git where its directories are: {}",
                 restored.join(", ")
             );
             1

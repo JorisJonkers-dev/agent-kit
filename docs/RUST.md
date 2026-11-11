@@ -200,7 +200,13 @@ shared git directory itself fails under `write`. Before every `write` launch the
 git makes (`<common>/worktrees/<name>` with the common directory outside the
 worktree, `gitdir` pointing back at the worktree, `objects`, `refs` and `logs`
 not symlinks), so a pointer an agent changed and a killed launcher never put
-back is refused rather than trusted. A directory granted from
+back is refused rather than trusted. The launcher also refuses `write`
+when the shared `hooks`, the shared `config` or the effective `core.hooksPath`
+(relative paths against the worktree, `~` expanded) resolve inside, or to a
+parent of, anything it would grant. A guarded file that cannot be put back is
+reported as such and the exit code is 1. The check reads paths before the
+grants are opened, so a path swapped in that gap is not caught (the agent only
+starts after both). A directory granted from
 configuration may not lie inside a `.git` directory. Also, `write` is refused in a primary checkout (its `.git`
 directory holds hooks and config beside everything else) and in a repository
 whose config enables `extensions.worktreeConfig` or includes another file (a `config.worktree` in the worktree's own
