@@ -150,7 +150,7 @@ fn spawn_and_wait(argv: &[String], timeout: Duration, output: &Path) -> io::Resu
         }
         if Instant::now() >= deadline {
             let _ = Command::new("kill")
-                .args(["-KILL", "--", &format!("-{}", child.id())])
+                .args(["-s", "KILL", "--", &format!("-{}", child.id())])
                 .stderr(Stdio::null())
                 .status();
             let _ = child.kill();
@@ -526,7 +526,9 @@ fn report_problems(call: &Check, report: &Report, now: u64, dir: &Path) -> Vec<P
     problems.extend(hash_problem(report, dir));
     if report.exit_code != 0 || report.failed_check.is_some() {
         let how = match (report.exit_code, &report.failed_check) {
-            (EXIT_TIMEOUT, _) => " (the command timed out)".to_string(),
+            (EXIT_TIMEOUT, Some(check)) if check == FAILED_TIMEOUT => {
+                " (the command timed out)".to_string()
+            }
             (_, Some(check)) => format!(" ({check})"),
             _ => String::new(),
         };

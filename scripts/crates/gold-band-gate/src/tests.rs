@@ -704,6 +704,22 @@ fn a_timed_out_report_fails_naming_the_timeout() {
 }
 
 #[test]
+fn a_command_that_exits_124_itself_is_not_called_a_timeout() {
+    let d = dir("v-own-124");
+    let host = fake(Outcome::Exited(124), "");
+    assert_eq!(
+        wrapper(&host, &d, &["--", "cargo", "test", "--locked"]),
+        124
+    );
+    let (code, host) = checked(&d, &[]);
+    assert_eq!(code, 1);
+    assert_eq!(
+        problems(&host),
+        ["gold-band-gate: failed-command: the command exited 124"]
+    );
+}
+
+#[test]
 fn a_cannot_start_report_names_its_failed_check() {
     let d = dir("v-nostart");
     let host = fake(Outcome::CannotStart("nope".into()), "");
