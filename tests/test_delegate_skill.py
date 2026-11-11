@@ -90,7 +90,7 @@ def test_the_skill_is_declared_for_every_agent_the_registry_allows() -> None:
     registry = yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text())
     skill = next(s for s in registry["local_skills"] if s["name"] == "delegate")
     assert skill["path"] == "skills/workstation/delegate"
-    assert set(skill["agents"]) == {"claude", "codex", "vibe", "antigravity"}
+    assert set(skill["agents"]) == {"claude", "codex", "vibe", "antigravity", "opencode"}
     assert skill["surfaces"] == ["workstation"]
     assert "pending" not in skill
 

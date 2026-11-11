@@ -401,7 +401,7 @@ def test_a_plan_limit_with_a_window_the_schema_does_not_know_fails_validation(tm
 def test_the_model_gateway_skill_is_declared_for_claude_codex_and_the_other_agents() -> None:
     skill = next(s for s in _registry()["local_skills"] if s["name"] == "model-gateway")
     assert skill["path"] == "skills/workstation/model-gateway"
-    assert set(skill["agents"]) == {"claude", "codex", "vibe", "antigravity"}
+    assert set(skill["agents"]) == {"claude", "codex", "vibe", "antigravity", "opencode"}
     assert skill["surfaces"] == ["workstation"]
     assert "pending" not in skill
 

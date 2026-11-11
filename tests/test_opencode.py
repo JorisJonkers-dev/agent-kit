@@ -110,6 +110,27 @@ def test_setup_writes_the_opencode_surface(run: Run) -> None:
         assert (home / "skills" / skill / "SKILL.md").is_file(), skill
 
 
+@pytest.mark.parametrize("platform", ["Darwin", "Linux"])
+def test_the_listings_equal_what_the_registry_declares(tmp_path: Path, platform: str) -> None:
+    """After a run, OpenCode holds exactly the declared MCP servers and the declared kit skills, on both OSes.
+
+    No plugin is listed here and the vendored skills are cloned from the network,
+    so the skills folder holds the kit's skills and nothing else.
+    """
+    result = setup_run(tmp_path, platform, stubs={"opencode": OPENCODE_V2})
+    home = _opencode_home(result)
+    held_servers = set(_servers(json.loads((home / "opencode.json").read_text())))
+    assert held_servers == set(render_registry.declared_servers(_registry(), "opencode"))
+    held_skills = {folder.name for folder in (home / "skills").iterdir()}
+    assert held_skills == set(_opencode_skills())
+
+
+def test_opencode_gets_every_skill_the_other_agents_get() -> None:
+    """The gateway, delegation and research skills are not left to the other agents."""
+    claude = {s["name"] for s in _registry()["local_skills"] if "claude" in (s.get("agents") or [])}
+    assert claude == set(_opencode_skills())
+
+
 def test_the_pointer_names_only_shared_memory(run: Run) -> None:
     text = (_opencode_home(run) / "AGENTS.md").read_text()
     assert "<!-- managed by agent-kit setup-workstation.sh -->" in text
