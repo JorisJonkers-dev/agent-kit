@@ -299,6 +299,15 @@ gold_band:
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
+  # Per-agent skill sets: a set name to the local skills it holds, each a
+  # `name` in `local_skills:` below. An agent names one with `skill_set:`,
+  # which is registry-only and never written to settings.json: setup builds
+  # ONE directory per agent id at `<settings.json's directory>/skill-sets/
+  # <agent id>/`, holding exactly that set's skills, and points the entry's
+  # primaryAgentDir at it with no compatibleAgentDirs. An agent that names a
+  # set may not also declare primaryAgentDir, projectPrimaryAgentDir or
+  # compatibleAgentDirs. See docs/GOLD-BAND.md.
+  skill_sets: {}
   # Agent ids setup removes even when the keep file names them.
   retired_agents: []
   # The roles both instances hold, rendered from the critique skill's own role

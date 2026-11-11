@@ -33,6 +33,17 @@ fn with_command(command: &str) -> String {
         .join("\n")
 }
 
+/// A command that records the skill set variables it was started with.
+const SKILL_COMMAND: &str =
+    "[sh, -c, 'printf \"%s:%s\" \"$AGENT_KIT_SKILL_SET\" \"$AGENT_KIT_SKILLS_DIR\" > \"$1\"']";
+
+fn with_skill_set(text: &str, name: &str) -> String {
+    text.replace(
+        "    output_dir: /tmp/research\n",
+        &format!("    output_dir: /tmp/research\n    skill_set: {name}\n"),
+    )
+}
+
 fn record(text: &str) -> Record {
     parse(text).expect("parses")
 }
@@ -157,6 +168,32 @@ fn plan_builds_the_command_with_the_level_arguments() {
 }
 
 #[test]
+fn plan_carries_the_ids_skill_set() {
+    let r = record(&with_skill_set(GOOD, "review"));
+    assert_eq!(plan(&r, "fake-research", "linux").unwrap().skill_set.as_deref(), Some("review"));
+    assert_eq!(plan(&record(GOOD), "fake-research", "linux").unwrap().skill_set, None);
+}
+
+#[test]
+fn skills_dir_prefers_gold_band_home_and_falls_back_to_home() {
+    let id = "fake-research";
+    assert_eq!(
+        skills_dir(Some("/gb"), Some("/home/u"), id),
+        Some(PathBuf::from("/gb/skill-sets/fake-research"))
+    );
+    assert_eq!(
+        skills_dir(None, Some("/home/u"), id),
+        Some(PathBuf::from("/home/u/.gold-band/skill-sets/fake-research"))
+    );
+    assert_eq!(
+        skills_dir(Some(""), Some("/home/u"), id),
+        Some(PathBuf::from("/home/u/.gold-band/skill-sets/fake-research"))
+    );
+    assert_eq!(skills_dir(Some(""), Some(""), id), None);
+    assert_eq!(skills_dir(None, None, id), None);
+}
+
+#[test]
 fn plan_refuses_what_the_agent_cannot_hold_on_this_os() {
     let r = record(GOOD);
     assert!(plan(&r, "ghost", "linux").unwrap_err().contains("unknown agent id"));
@@ -226,6 +263,47 @@ fn a_permitted_id_starts_its_agent_with_its_reach_and_arguments() {
         fs::read_to_string(&marker).unwrap(),
         format!("research:{}:--out", out.display())
     );
+}
+
+#[test]
+fn an_id_with_a_skill_set_exports_it_and_its_directory() {
+    let dir = scratch("skills");
+    let gold_band_home = dir.join("gold-band");
+    let out = dir.join("out");
+    let file = dir.join("reach.yaml");
+    let text = with_skill_set(&with_command(SKILL_COMMAND), "review").replace("/tmp/research", &out.to_string_lossy());
+    fs::write(&file, text).unwrap();
+    let marker = out.join("marker");
+    std::env::set_var("GOLD_BAND_HOME", &gold_band_home);
+    let code = run_on(
+        [OsString::from("run"), file.into_os_string(), "fake-research".into(), "--".into(), marker.clone().into_os_string()],
+        "linux",
+    );
+    std::env::remove_var("GOLD_BAND_HOME");
+    assert_eq!(code, 0);
+    assert_eq!(
+        fs::read_to_string(&marker).unwrap(),
+        format!("review:{}", gold_band_home.join("skill-sets").join("fake-research").display())
+    );
+}
+
+#[test]
+fn an_id_without_a_skill_set_exports_neither() {
+    let dir = scratch("no-skills");
+    let out = dir.join("out");
+    let file = dir.join("reach.yaml");
+    fs::write(&file, with_command(SKILL_COMMAND).replace("/tmp/research", &out.to_string_lossy())).unwrap();
+    let marker = out.join("marker");
+    std::env::set_var("AGENT_KIT_SKILL_SET", "stale");
+    std::env::set_var("AGENT_KIT_SKILLS_DIR", "/stale/skill-sets/fake-research");
+    let code = run_on(
+        [OsString::from("run"), file.into_os_string(), "fake-research".into(), "--".into(), marker.clone().into_os_string()],
+        "linux",
+    );
+    std::env::remove_var("AGENT_KIT_SKILL_SET");
+    std::env::remove_var("AGENT_KIT_SKILLS_DIR");
+    assert_eq!(code, 0);
+    assert_eq!(fs::read_to_string(&marker).unwrap(), ":");
 }
 
 #[test]

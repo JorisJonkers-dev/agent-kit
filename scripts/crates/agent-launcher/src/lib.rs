@@ -14,8 +14,10 @@
 //!   stderr, 2 bad usage or an unreadable or malformed file;
 //! * `agent-launcher run <RECORD> <ID> [-- ARGS...]`: starts the id's agent
 //!   with its tool arguments then ARGS, with `AGENT_KIT_REACH` (and
-//!   `AGENT_KIT_OUTPUT_DIR` when the id has one) in its environment, and
-//!   exits with its status. A refused id exits 1 and starts nothing.
+//!   `AGENT_KIT_OUTPUT_DIR` when the id has one, and `AGENT_KIT_SKILL_SET`
+//!   with `AGENT_KIT_SKILLS_DIR` when it names a skill set) in its
+//!   environment, and exits with its status. A refused id exits 1 and starts
+//!   nothing.
 //!
 //! The operating-system write limit (ADR-0013) is the `writelimit` module: one
 //! interface, with Landlock as the Linux backend. `run` refuses to start an
@@ -76,8 +78,10 @@ pub fn plan(record: &Record, id: &str, os: &str) -> Result<Plan, String> {
     let mut argv = spec.command.clone();
     argv.extend(spec.levels[&level].args.clone());
     Ok(Plan {
+        id: id.to_string(),
         argv,
         level,
+        skill_set: entry.skill_set.clone(),
         output_dir: entry.output_dir.clone(),
     })
 }
@@ -85,9 +89,25 @@ pub fn plan(record: &Record, id: &str, os: &str) -> Result<Plan, String> {
 /// What a permitted id starts.
 #[derive(Debug, PartialEq)]
 pub struct Plan {
+    pub id: String,
     pub argv: Vec<String>,
     pub level: String,
+    pub skill_set: Option<String>,
     pub output_dir: Option<String>,
+}
+
+/// The directory setup builds for `id`'s skill set: `<root>/skill-sets/<id>`,
+/// where the root is `gold_band_home` when it is set and not empty, else
+/// `<home>/.gold-band`, else there is none.
+pub fn skills_dir(gold_band_home: Option<&str>, home: Option<&str>, id: &str) -> Option<PathBuf> {
+    let root = match gold_band_home {
+        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
+        _ => match home {
+            Some(dir) if !dir.is_empty() => PathBuf::from(dir).join(".gold-band"),
+            _ => return None,
+        },
+    };
+    Some(root.join("skill-sets").join(id))
 }
 
 fn usage() -> String {
@@ -326,6 +346,20 @@ fn start(
     if let Some(armed) = armed {
         // SAFETY: `armed` only makes syscalls between fork and exec.
         unsafe { command.pre_exec(child_hook(armed)) };
+    }
+    match &plan.skill_set {
+        Some(name) => {
+            command.env("AGENT_KIT_SKILL_SET", name);
+            let gold_band_home = std::env::var("GOLD_BAND_HOME").ok();
+            let home = std::env::var("HOME").ok();
+            if let Some(dir) = skills_dir(gold_band_home.as_deref(), home.as_deref(), &plan.id) {
+                command.env("AGENT_KIT_SKILLS_DIR", dir);
+            }
+        }
+        None => {
+            command.env_remove("AGENT_KIT_SKILL_SET");
+            command.env_remove("AGENT_KIT_SKILLS_DIR");
+        }
     }
     match command.status() {
         Ok(status) => {
