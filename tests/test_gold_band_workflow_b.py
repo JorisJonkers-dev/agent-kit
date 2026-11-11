@@ -7,7 +7,7 @@ family implements until they pass, and build, tests and lint each run through
 the gate shim -- a gate node that runs the pinned ``gold-band-gate`` wrapper,
 then a read-only copier that verifies the report it printed.
 
-No gate node has a failure edge, so a red, hung or forged gate ends the run in
+No gate node has a failure edge, so a failing gate ends the run in
 failure rather than routing somewhere else. The repair rounds, critics and CI
 wait are added by later tickets.
 

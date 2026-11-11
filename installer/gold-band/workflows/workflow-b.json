@@ -1,6 +1,6 @@
 {
   "workflow": {
-    "description": "Workflow B's main path for the personal instance, proven headless with stubs (issue #448): a test author from one family writes failing tests from the ticket, one writer from another family implements until they pass, then build, tests and lint each run through the gate shim (a gate node that runs the pinned gold-band-gate wrapper, then a read-only copier that verifies its report). No gate node has a failure edge, so a red, hung or forged gate ends the run in failure; the repair rounds, critics and CI wait are added by later tickets.",
+    "description": "Workflow B's main path for the personal instance, proven headless with stubs (issue #448): a test author from one family writes failing tests from the ticket, one writer from another family implements until they pass, then build, tests and lint each run through the gate shim (a gate node that runs the pinned gold-band-gate wrapper, then a read-only copier that verifies its report). No gate node has a failure edge, so a failing gate ends the run in failure; the repair rounds, critics and CI wait are added by later tickets.",
     "version": "0.1",
     "id": "workflow-b",
     "entry": "test-author",
