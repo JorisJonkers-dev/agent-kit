@@ -391,6 +391,22 @@ agent except Codex and the work Claude agent, and refuses repositories with a
 machine it runs under a second operating-system user account.
 _Avoid_: personal lane, personal mode
 
+**Run-start shim**:
+The cheap, read-only first node of every Gold Band workflow. It runs one pinned
+wrapper, `gold-band-run-start`, which checks the instance's repository rule
+against every remote, the family allowlist and code permission for every bound
+agent id, and, in the work instance, a live grant for each bound Codex agent
+id. It decides from the working copy and the owner's records, never from model
+output, and a failed check ends the run before any model node runs.
+_Avoid_: preflight, guard node, setup check
+
+**Gate report**:
+The JSON record a Gold Band shim writes beside the run: run id, attempt,
+command, exit code, a SHA-256 of the output it printed, a UTC timestamp and,
+only when it refused, the check that failed. The run-start shim and the gate
+shim share this one format.
+_Avoid_: shim log, test report, receipt
+
 **Overlay**:
 A per-machine file beside the keep file, `~/.config/agent-kit/overlay.yaml`,
 holding the work instance's employer-specific MCP servers and settings, so

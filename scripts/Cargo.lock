@@ -40,6 +40,21 @@ name = "gold-band-registry"
 version = "0.1.0"
 
 [[package]]
+name = "gold-band-report"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "gold-band-run-start"
+version = "0.1.0"
+dependencies = [
+ "gold-band-report",
+ "serde_json",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

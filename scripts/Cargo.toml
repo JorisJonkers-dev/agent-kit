@@ -24,4 +24,6 @@ members = [
     "crates/agent-launcher",
     "crates/build-tracker",
     "crates/ticket-export",
+    "crates/gold-band-report",
+    "crates/gold-band-run-start",
 ]

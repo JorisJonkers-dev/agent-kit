@@ -1,0 +1,81 @@
+{
+  "workflow": {
+    "description": "The run-start shim proof (issue #444): node one runs the pinned gold-band-run-start wrapper and answers with its report; node two is a model node that writes a marker file when it runs. A failed shim check has no failure edge, so it ends the run before the model node.",
+    "version": "0.1",
+    "id": "run-start-proof",
+    "entry": "run-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "run-start",
+        "executionSlotId": "slot-run-start",
+        "provider": "SHIM_AGENT",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper and answer with the report it wrote, as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "run-start-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "model-work",
+        "executionSlotId": "slot-model-work",
+        "provider": "MODEL_AGENT",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Do the model work. Answer with one fenced json block holding ok.",
+        "output": {
+          "kind": "json",
+          "artifact": "model-result",
+          "schema": {
+            "ok": true
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "run-start",
+        "to": "model-work",
+        "on": "success"
+      },
+      {
+        "from": "model-work",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-run-start",
+        "agentId": "SHIM_AGENT",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-model-work",
+        "agentId": "MODEL_AGENT",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}

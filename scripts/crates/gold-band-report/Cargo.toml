@@ -1,0 +1,14 @@
+[package]
+name = "gold-band-report"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The gate report every Gold Band shim writes: run id, attempt, command, exit code, output hash and timestamp (issues #444 and #445)."
+
+# The one dependency this crate is allowed, pinned to the exact version the
+# other members share: serde_json 1.0.154 is older than the 7-day crate
+# cooldown (standards ADR-0014, docs/RUST.md) and brings no registry version
+# that scripts/Cargo.lock does not already hold. SHA-256 and the civil-date
+# conversion are written in std, so no hashing or time crate joins the lock.
+[dependencies]
+serde_json = "=1.0.154"
