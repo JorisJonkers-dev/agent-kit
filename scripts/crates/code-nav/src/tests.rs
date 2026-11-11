@@ -808,6 +808,16 @@ fn a_missing_root_among_several_is_skipped_with_a_warning() {
 }
 
 #[test]
+fn an_existing_root_that_is_not_a_directory_stays_fatal() {
+    let f = fixture();
+    let file = f.root.join("README.md");
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let code = cli(&args(&["--root", file.to_str().unwrap()]), &mut &b""[..], &mut out, &mut err);
+    assert_eq!(code, 2);
+    assert!(String::from_utf8(err).unwrap().contains("not a directory"));
+}
+
+#[test]
 fn all_roots_missing_refuses_to_start() {
     let f = fixture();
     let a = args(&["--root", f.root.join("x").to_str().unwrap(), "--root", f.root.join("y").to_str().unwrap()]);
