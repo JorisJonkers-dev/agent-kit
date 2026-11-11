@@ -1,0 +1,267 @@
+{
+  "workflow": {
+    "description": "Workflow B's main path for the personal instance, proven headless with stubs (issue #448): a test author from one family writes failing tests from the ticket, one writer from another family implements until they pass, then build, tests and lint each run through the gate shim (a gate node that runs the pinned gold-band-gate wrapper, then a read-only copier that verifies its report). No gate node has a failure edge, so a failing gate ends the run in failure; the repair rounds, critics and CI wait are added by later tickets.",
+    "version": "0.1",
+    "id": "workflow-b",
+    "entry": "test-author",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "test-author",
+        "executionSlotId": "slot-test-author",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the test author, from a different family than the writer. Read the ticket's acceptance criteria in the requirement document and write failing tests for them, one test per criterion, in the repository's own test style. Write tests only: no implementation, no change to any non-test file. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "tests-written",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "writer",
+        "executionSlotId": "slot-writer",
+        "provider": "vibe-study",
+        "model": "deepseek-v4-1-flash-1017",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the one writer. Implement the ticket until the tests the test author wrote pass: change non-test files only, never edit or delete a test, and add nothing the tests and the requirement do not ask for. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "implementation",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-build",
+        "executionSlotId": "slot-gate-build",
+        "provider": "gate-build",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper for the build and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-build-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-build",
+        "executionSlotId": "slot-copy-build",
+        "provider": "copy-build",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the build and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-build-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-test",
+        "executionSlotId": "slot-gate-test",
+        "provider": "gate-test",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper for the tests and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-test-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-test",
+        "executionSlotId": "slot-copy-test",
+        "provider": "copy-test",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the tests and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-test-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-lint",
+        "executionSlotId": "slot-gate-lint",
+        "provider": "gate-lint",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper for the linter and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-lint-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-lint",
+        "executionSlotId": "slot-copy-lint",
+        "provider": "copy-lint",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the linter and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-lint-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "test-author",
+        "to": "writer",
+        "on": "success"
+      },
+      {
+        "from": "writer",
+        "to": "gate-build",
+        "on": "success"
+      },
+      {
+        "from": "gate-build",
+        "to": "copy-build",
+        "on": "success"
+      },
+      {
+        "from": "copy-build",
+        "to": "gate-test",
+        "on": "success"
+      },
+      {
+        "from": "gate-test",
+        "to": "copy-test",
+        "on": "success"
+      },
+      {
+        "from": "copy-test",
+        "to": "gate-lint",
+        "on": "success"
+      },
+      {
+        "from": "gate-lint",
+        "to": "copy-lint",
+        "on": "success"
+      },
+      {
+        "from": "copy-lint",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-test-author",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      },
+      {
+        "executionSlotId": "slot-writer",
+        "agentId": "vibe-study",
+        "modelId": "deepseek-v4-1-flash-1017"
+      },
+      {
+        "executionSlotId": "slot-gate-build",
+        "agentId": "gate-build",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-build",
+        "agentId": "copy-build",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-test",
+        "agentId": "gate-test",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-test",
+        "agentId": "copy-test",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-lint",
+        "agentId": "gate-lint",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-lint",
+        "agentId": "copy-lint",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}

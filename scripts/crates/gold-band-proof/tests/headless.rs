@@ -18,6 +18,10 @@ fn template() -> PathBuf {
     manifest_dir().join("../../../installer/gold-band/workflows/critique-spec-stage.json")
 }
 
+fn workflow_b() -> PathBuf {
+    manifest_dir().join("../../../installer/gold-band/workflows/workflow-b.json")
+}
+
 fn fixture() -> PathBuf {
     manifest_dir().join("tests/fixtures/fails-closed.json")
 }
@@ -92,6 +96,51 @@ fn the_spec_stage_template_ends_with_exit_0_and_pauses_with_exit_2() {
         "{stdout}"
     );
     assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
+#[test]
+fn workflow_b_ends_in_success_on_the_happy_path_and_in_failure_when_a_gate_fails() {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("workflow-b");
+    let output = prove(&workflow_b(), &records, &[], &gold_band);
+    let stdout = text(&output.stdout);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&output.stderr)
+    );
+    assert!(
+        stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+    for gate in ["build", "test", "lint"] {
+        assert!(
+            stdout.contains(&format!(
+                "gate-fail-{gate}: expected exit 1, got 1 (completed/failure)"
+            )),
+            "{stdout}"
+        );
+    }
+    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
+#[test]
+fn a_run_that_expects_success_from_a_failing_gate_fails_the_proof() {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("workflow-b-wrong");
+    let output = prove(
+        &workflow_b(),
+        &records,
+        &["--scenario", "gate-fail-test:gate-fail=test:0"],
+        &gold_band,
+    );
+    assert_eq!(output.status.code(), Some(1), "{}", text(&output.stdout));
+    assert!(
+        text(&output.stderr).contains("gate-fail-test: expected exit 0, got 1"),
+        "{}",
+        text(&output.stderr)
+    );
 }
 
 #[test]
