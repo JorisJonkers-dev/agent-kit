@@ -31,7 +31,8 @@ it is the owner's to rescale if the exchange rate matters.
 The proxy is internal only: its host is `audience: authenticated`, so the edge
 signs a caller in first. A request carries an auth-api service token as
 `Authorization: Bearer` (`LITELLM_EDGE_TOKEN`, pasted once at setup like the
-keys; no `LITELLM` service exists in auth-api yet, so it is minted by hand) and its virtual key in
+keys; the owner mints it with `POST /api/v1/auth/service-tokens {"service":"LITELLM","label":"<device>"}`
+once [auth-api#150](https://github.com/JorisJonkers-dev/auth-api/pull/150) (issue auth-api#149) is deployed) and its virtual key in
 `x-litellm-api-key`. Pi, Vibe and OpenCode will be configured from `routes.json`
 with those two values. The Pi and launcher wiring that reads it lands with the
 Gold Band instances (B1); this repository ships the table and the gate.
