@@ -213,8 +213,7 @@
           expected=5
           [ -z "${GOLD_BAND_BIN:-}" ] || expected=0
           for workflow in installer/gold-band/workflows/*.json; do
-            "$proof" check --workflow "$workflow" --record-dir "$RUNNER_TEMP/proofs" --build-record "$RUNNER_TEMP/none.json"
-            code=$?
+            "$proof" check --workflow "$workflow" --record-dir "$RUNNER_TEMP/proofs" --build-record "$RUNNER_TEMP/none.json" && code=0 || code=$?
             if [ "$code" -ne "$expected" ]; then
               echo "::error::check of $workflow exited $code, expected $expected"
               exit 1
