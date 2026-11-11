@@ -63,9 +63,18 @@ function shownStatus(ticket: Ticket, merged: ReadonlySet<number>): Shown {
  * One section per milestone, in the state's order. A ticket sits in the
  * first milestone whose closing ticket depends on it, directly or through
  * other tickets; the rest go in Other. A state without milestones has one
- * section.
+ * section. A state with groups has one section per group instead.
  */
 function sections(state: BuildTrackerState, tickets: readonly BoardTicket[]): readonly BoardSection[] {
+  if (state.groups !== undefined) {
+    const byNumber = new Map(tickets.map((ticket) => [ticket.number, ticket]))
+    return state.groups.map((group) =>
+      section(
+        group.name,
+        group.tickets.flatMap((number) => byNumber.get(number) ?? []),
+      ),
+    )
+  }
   if (state.milestones.length === 0) return [section(SINGLE_SECTION, tickets)]
   const byNumber = new Map(tickets.map((ticket) => [ticket.number, ticket]))
   const milestoneOf = new Map<number, number>()
