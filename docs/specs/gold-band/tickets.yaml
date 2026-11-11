@@ -1440,6 +1440,112 @@ tickets:
   what: Record the waves after Wave 2 as ordered groups of inventory rows, each row with its target decided; publish their tickets under this spec.
   ac:
   - Every row in a wave has one decided target; the wave tickets are published.
+- key: B3-11
+  issue: 627
+  branch: B3
+  stories:
+  - 106
+  title: 'Wave 3: workflows over the Rust runners'
+  blocked_by:
+  - B3-10
+  - B4-22a
+  - B4-22b
+  - B2-04
+  supersedes: []
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Port the rows of Wave 3 in docs/gold-band-port-inventory.md (critique, critique-stats, flow, build-tracker) as Gold Band workflow templates whose nodes call the Rust runner crates through the gate shim.'
+  ac:
+  - 'Headless proof of each template against stub agents ends in the expected state.'
+  - 'Each template runs the same commands as the direct lane and holds no logic of its own.'
+- key: B3-12
+  issue: 628
+  branch: B3
+  stories:
+  - 106
+  title: 'Wave 4: human-gate workflows'
+  blocked_by:
+  - B3-10
+  - B2-04
+  - B2-11
+  supersedes: []
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Port the rows of Wave 4 (grill-me, grill-with-docs, brainstorming, to-spec, to-tickets, pr-composer) as workflows whose question rounds and confirmations are manual-check nodes, resolved in the app or over IM.'
+  ac:
+  - 'Each workflow''s file carries the unrolled node sequence for its question rounds, as one manual-check node per round, up to the round cap the file states.'
+  - 'Headless proof of each workflow pauses (exit 2) at every manual-check node and ends in the expected state once answered.'
+  - 'pr-composer''s push or create step is reachable only after its confirmation node.'
+- key: B3-13
+  issue: 629
+  branch: B3
+  stories:
+  - 106
+  title: 'Wave 5: general skill sets on agent ids'
+  blocked_by:
+  - B3-10
+  - B1-18
+  - B3-09
+  supersedes: []
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Install the general skill sets of Wave 5 (agent-session-bootstrap, kb-first, token-economy, from both skill groups) on the agent ids that bind them, each skill set on exactly one agent id''s skill directory per reach level.'
+  ac:
+  - 'Resolving the skill set for an agent id that names a general skill set returns it, and for an id that does not, none.'
+  - 'The direct-lane copies are unchanged after setup runs.'
+- key: B3-14
+  issue: 630
+  branch: B3
+  stories:
+  - 106
+  title: 'Wave 6: MCP servers of the personal instance'
+  blocked_by:
+  - B3-10
+  - B1-20
+  supersedes: []
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Register the ten personal-instance MCP servers of Wave 6 through Gold Band''s MCP configuration, each listed only for agent ids whose reach level allows it.'
+  ac:
+  - 'Each server of Wave 6 is registered in the personal instance and absent from the work instance.'
+  - 'A server is listed only for agent ids whose reach level allows it, checked by the registry validation.'
+- key: B3-15
+  issue: 631
+  branch: B3
+  stories:
+  - 106
+  title: 'Wave 7: MCP servers of both instances'
+  blocked_by:
+  - B3-10
+  - B1-20
+  - B7-09
+  - B5-01
+  supersedes: []
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Register the seven MCP servers of Wave 7 (code-nav, hindsight, git-host, code-intel, frontend-docs, ui-docs, cluster) in both instances, the work instance reading only what its overlay lists, hindsight read-only for agents.'
+  ac:
+  - 'Each server of Wave 7 is registered in the instance its lanes name, and the work instance lists only servers its overlay names.'
+  - 'The hindsight registration exposes no write tool to an agent.'
 - key: B4-01a
   issue: 474
   branch: B4
