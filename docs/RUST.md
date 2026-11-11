@@ -87,6 +87,14 @@ code-nav --root ~/Projects/owner/repo [--root DIR ...] [--limit N]
   200, and a capped result says how many matches it left out. The walk skips
   symlinks, `.git`, `node_modules`, `target`, `.venv`, files over 1 MiB and
   anything that is not UTF-8 text.
+* **Tool `map`** (optional `path` and `limit`). The repository map: symbols
+  and the files that declare them, ranked by references. A symbol's references
+  are the whole-identifier occurrences of its name across the scanned files,
+  minus its declarations (`impl` blocks are not symbols). Symbols sort by
+  references, then fewer path components, path and line; a file scores the sum
+  of its symbols' references. Each list is capped at `limit` (default as for
+  `search`) and a capped result says how much it left out. The walk follows
+  `search`'s skips and stops after 20,000 files.
 
 ## ticket-sync
 
