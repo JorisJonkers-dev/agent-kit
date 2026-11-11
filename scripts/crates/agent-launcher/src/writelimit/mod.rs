@@ -90,6 +90,8 @@ pub struct Scope {
     pub gate_dir: Option<PathBuf>,
     /// The git worktree the agent runs in (`write`).
     pub worktree: PathBuf,
+    /// Other git config files (system, global) whose `core.hooksPath` git would honour.
+    pub other_configs: Vec<PathBuf>,
 }
 
 /// Devices every agent writes to.
@@ -127,7 +129,7 @@ pub fn policy_for(level: &str, scope: &Scope) -> Result<Option<Policy>, String> 
         }
         "run-one-command" => dirs.push(need(&scope.gate_dir, level, "a gate-output directory")?),
         "write" => {
-            let (more, files) = worktree_dirs(&scope.worktree)?;
+            let (more, files) = worktree_dirs(&scope.worktree, &scope.other_configs)?;
             dirs.extend(more);
             guarded = files;
         }
@@ -159,7 +161,10 @@ fn need(dir: &Option<PathBuf>, level: &str, what: &str) -> Result<PathBuf, Strin
 /// directories, but never the shared `hooks` or `config`. Landlock only grants,
 /// so a primary checkout (whose `.git` directory holds hooks and config beside
 /// everything else) cannot be limited and is refused.
-fn worktree_dirs(worktree: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String> {
+fn worktree_dirs(
+    worktree: &Path,
+    other_configs: &[PathBuf],
+) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String> {
     let root = fs::canonicalize(worktree)
         .map_err(|e| format!("write: cannot resolve worktree {}: {e}", worktree.display()))?;
     let dot_git = root.join(".git");
@@ -237,11 +242,27 @@ fn worktree_dirs(worktree: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String
     // The hooks git will run, and the config that names them, must be out of
     // every grant (a symlinked `hooks`, a hooksPath such as `.husky`).
     let mut protected = vec![common.join("hooks"), common.join("config")];
-    if let Some(path) = hooks_path(&config_text) {
-        protected.push(dirs[0].join(expand_home(&path)));
+    let others = other_configs
+        .iter()
+        .filter_map(|p| fs::read_to_string(p).ok());
+    for text in std::iter::once(config_text).chain(others) {
+        // Git uses the last one it reads, so every occurrence is checked.
+        for path in hooks_paths(&text) {
+            protected.push(dirs[0].join(expand_home(&path)));
+        }
     }
     for path in protected {
-        let real = fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+        let real = match fs::canonicalize(&path) {
+            Ok(real) => real,
+            // A link that leads nowhere may be made to lead somewhere later.
+            Err(_) if fs::symlink_metadata(&path).is_ok() => {
+                return Err(format!(
+                    "write: {} is a dangling link; refusing",
+                    path.display()
+                ))
+            }
+            Err(_) => path.clone(),
+        };
         if let Some(grant) = dirs
             .iter()
             .find(|g| real.starts_with(g) || g.starts_with(&real))
@@ -257,15 +278,18 @@ fn worktree_dirs(worktree: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String
     Ok((dirs, guarded))
 }
 
-/// The value of `core.hooksPath` in a repository config, if set. Keys are
-/// matched case-insensitively in any section; a quoted value loses its quotes.
-fn hooks_path(config: &str) -> Option<String> {
-    config.lines().find_map(|line| {
-        let (key, value) = line.trim().split_once('=')?;
-        key.trim()
-            .eq_ignore_ascii_case("hookspath")
-            .then(|| value.trim().trim_matches('"').to_string())
-    })
+/// Every `hooksPath` value in a git config. Keys are matched
+/// case-insensitively in any section; a quoted value loses its quotes.
+fn hooks_paths(config: &str) -> Vec<String> {
+    config
+        .lines()
+        .filter_map(|line| {
+            let (key, value) = line.trim().split_once('=')?;
+            key.trim()
+                .eq_ignore_ascii_case("hookspath")
+                .then(|| value.trim().trim_matches('"').to_string())
+        })
+        .collect()
 }
 
 /// `~/x` as the home directory's `x`; anything else unchanged.

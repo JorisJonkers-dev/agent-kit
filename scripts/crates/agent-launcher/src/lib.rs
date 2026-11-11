@@ -110,6 +110,24 @@ where
     run_with(args, os, &Landlock, &Context::from_env())
 }
 
+/// The system and global git config files for this user.
+fn global_configs() -> Vec<PathBuf> {
+    configs_in(
+        std::env::var_os("HOME").map(PathBuf::from),
+        std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from),
+    )
+}
+
+/// The git config files for a home directory and an XDG config directory
+/// (which defaults to `~/.config`).
+fn configs_in(home: Option<PathBuf>, xdg: Option<PathBuf>) -> Vec<PathBuf> {
+    let xdg = xdg.or_else(|| home.as_ref().map(|h| h.join(".config")));
+    let mut found = vec![PathBuf::from("/etc/gitconfig")];
+    found.extend(home.map(|h| h.join(".gitconfig")));
+    found.extend(xdg.map(|x| x.join("git/config")));
+    found
+}
+
 /// What a launch knows about where it runs.
 #[derive(Debug, Default)]
 pub struct Context {
@@ -119,6 +137,8 @@ pub struct Context {
     pub gate_dir: Option<PathBuf>,
     /// The git worktree the agent runs in: the current directory.
     pub worktree: PathBuf,
+    /// The system and global git config files.
+    pub other_configs: Vec<PathBuf>,
     /// Where each run's temporary directory is made.
     pub temp_root: PathBuf,
 }
@@ -133,6 +153,7 @@ impl Context {
                 .collect(),
             gate_dir: std::env::var_os("AGENT_KIT_GATE_DIR").map(PathBuf::from),
             worktree: PathBuf::from("."),
+            other_configs: global_configs(),
             temp_root: std::env::temp_dir(),
         }
     }
@@ -248,6 +269,7 @@ fn scope_of(plan: &Plan, temp: &std::path::Path, context: &Context) -> Scope {
         output_dir: plan.output_dir.as_ref().map(PathBuf::from),
         gate_dir: context.gate_dir.clone(),
         worktree: context.worktree.clone(),
+        other_configs: context.other_configs.clone(),
     }
 }
 

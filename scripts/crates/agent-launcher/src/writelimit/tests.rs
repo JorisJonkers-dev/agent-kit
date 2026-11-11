@@ -769,7 +769,7 @@ fn write_refuses_hooks_the_agent_could_reach() {
     .unwrap();
     assert!(policy_for("write", &s_of(&t)).is_ok());
     assert_eq!(expand_home("/abs"), PathBuf::from("/abs"));
-    assert_eq!(hooks_path("[core]\n\tbare = false\n"), None);
+    assert!(hooks_paths("[core]\n\tbare = false\n").is_empty());
 
     // common/hooks that is a symlink into the worktree.
     let t = tree("hooks-link");
@@ -842,4 +842,60 @@ fn a_guarded_file_that_cannot_be_put_back_is_reported_as_such() {
     let report = guard.restore();
     assert_eq!(report.len(), 1);
     assert!(report[0].contains("could NOT be put back"), "{report:?}");
+}
+
+#[test]
+fn every_hooks_path_is_checked_and_global_config_counts() {
+    // Git uses the last value, so the first being harmless is no excuse.
+    let t = tree("hp-twice");
+    let outside = t.root.join("safe");
+    fs::write(
+        t.common.join("config"),
+        format!(
+            "[core]\n\thooksPath = {}\n\thooksPath = .husky\n",
+            outside.display()
+        ),
+    )
+    .unwrap();
+    assert!(refusal("write", &scope(&t)).contains("lies inside the writable"));
+
+    // A relative hooksPath in the global config runs from the worktree.
+    let t = tree("hp-global");
+    let global = t.root.join("gitconfig");
+    fs::write(&global, "[core]\n\thooksPath = .githooks\n").unwrap();
+    let mut s = scope(&t);
+    s.other_configs = vec![global, t.root.join("no-such-config")];
+    assert!(refusal("write", &s).contains("lies inside the writable"));
+
+    // A hooksPath that is a link leading nowhere is refused.
+    let t = tree("hp-dangling");
+    let link = t.root.join("link");
+    std::os::unix::fs::symlink(t.worktree.join("missing"), &link).unwrap();
+    fs::write(
+        t.common.join("config"),
+        format!("[core]\n\thooksPath = {}\n", link.display()),
+    )
+    .unwrap();
+    assert!(refusal("write", &scope(&t)).contains("dangling link"));
+}
+
+#[test]
+fn the_context_names_the_users_git_configs() {
+    let c = Context::from_env();
+    assert!(c.other_configs.contains(&PathBuf::from("/etc/gitconfig")));
+}
+
+#[test]
+fn git_config_files_follow_home_and_xdg() {
+    let p = |s: &str| Some(PathBuf::from(s));
+    let etc = PathBuf::from("/etc/gitconfig");
+    assert_eq!(crate::configs_in(None, None), vec![etc.clone()]);
+    assert_eq!(
+        crate::configs_in(p("/h"), None),
+        vec![etc.clone(), "/h/.gitconfig".into(), "/h/.config/git/config".into()]
+    );
+    assert_eq!(
+        crate::configs_in(p("/h"), p("/x")),
+        vec![etc, "/h/.gitconfig".into(), "/x/git/config".into()]
+    );
 }
