@@ -23,7 +23,7 @@ git remote -v
 Refuse the repository when any remote's owner is `nedap`, in any case, so
 `git@github.com:nedap/<repo>.git` and `https://github.com/nedap/<repo>.git` are
 both refused. A repository with no remote is allowed. On a refusal, start no run
-and send the repository nowhere else: go to "Fall back to direct delegation" and
+and do not start a run on the instance: go to "Fall back to direct delegation" and
 report the refusal message given there.
 
 ## Check the instance
@@ -57,8 +57,8 @@ gold-band run \
 
 The run's own first node, the run-start shim, re-checks the repository rule and
 the family allowlist before any model node runs, and may still refuse. When it
-refuses, report its refusal text as it stands and fall back as for a refused
-rule. Do not start the work instance, and do not retry the run on another
+refuses, report its refusal text as it stands (not the rule message below) and
+fall back to direct delegation. Do not start the work instance, and do not retry the run on another
 instance.
 
 ## Fall back to direct delegation

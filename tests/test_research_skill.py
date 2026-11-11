@@ -126,3 +126,27 @@ def test_the_skill_is_short_and_carries_no_assistant_attribution() -> None:
     assert len(text.splitlines()) < 120
     assert "Co-Authored-By" not in text
     assert "Generated with" not in text
+
+
+# ---------------------------------------------------------------------------
+# Order and refusal paths
+# ---------------------------------------------------------------------------
+
+
+def test_the_rule_is_checked_before_the_instance_and_the_instance_before_the_run() -> None:
+    text = _text()
+    assert text.index("## Check the repository rule") < text.index("## Check the instance")
+    assert text.index("command -v gold-band") < text.index("gold-band run")
+
+
+def test_a_nedap_remote_in_any_form_is_refused_and_no_remote_is_allowed() -> None:
+    text = _flat()
+    assert "git remote -v" in text
+    assert "git@github.com:nedap/<repo>.git" in text
+    assert "https://github.com/nedap/<repo>.git" in text
+    assert "A repository with no remote is allowed." in text
+
+
+def test_a_run_start_refusal_is_quoted_as_it_stands_then_falls_back() -> None:
+    text = _flat()
+    assert "report its refusal text as it stands (not the rule message below)" in text
