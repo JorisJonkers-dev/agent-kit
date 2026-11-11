@@ -12,8 +12,8 @@ mkdir -p "$out_dir" "$stage/rendered" "$stage/package/home"
 
 (
   cd "$root/council/ts"
-  npm ci
-  npm run build
+  pnpm install --frozen-lockfile
+  pnpm run build
 )
 
 "$python_bin" "$root/scripts/render_agent_kit.py" --output "$stage/rendered"

@@ -1,0 +1,6 @@
+# Install policy: no package version younger than 7 days is installed.
+minimumReleaseAge: 10080 # 7 days, in minutes
+blockExoticSubdeps: true
+strictDepBuilds: true
+allowBuilds:
+  esbuild: true

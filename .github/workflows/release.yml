@@ -43,6 +43,9 @@
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
+      - 'uses': 'pnpm/action-setup@v4'
+        'with':
+          'package_json_file': 'council/ts/package.json'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
       - 'uses': 'oras-project/setup-oras@v2'
       - 'run': 'uv sync --frozen'

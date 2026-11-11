@@ -473,7 +473,7 @@ council:
 # The critique runner and the files it reads, pinned the way council.files pins
 # council's. skills/workstation/critique/ is itself the copy setup installs (there is no
 # repo copy beside it), so the pin is on it. Its SKILL.md is the skill's text,
-# not the runner's, and is left out. `npm run build` in council/ts rebuilds
+# not the runner's, and is left out. `pnpm run build` in council/ts rebuilds
 # critique.mjs: update its sha256 here in the same commit.
 critique:
   files:
@@ -581,7 +581,7 @@ critique:
       mode: "0644"
 # The build tracker's runner, pinned the way critique.files pins the critique
 # runner. skills/workstation/build-tracker/ is the copy setup installs; its SKILL.md is the
-# skill's text and is left out. `npm run build` in council/ts rebuilds
+# skill's text and is left out. `pnpm run build` in council/ts rebuilds
 # build-tracker.mjs: update its sha256 here in the same commit.
 build_tracker:
   files:
@@ -591,7 +591,7 @@ build_tracker:
 # The model gateway's runner and shipped defaults, pinned the way
 # critique.files pins the critique runner. skills/workstation/model-gateway/ is
 # the copy setup installs; its SKILL.md is the skill's text and is left out.
-# `npm run build` in council/ts rebuilds model-gateway.mjs: update its sha256
+# `pnpm run build` in council/ts rebuilds model-gateway.mjs: update its sha256
 # here in the same commit. defaults.json is validated against
 # defaults.schema.json by scripts/validate_manifest.py.
 model_gateway:
