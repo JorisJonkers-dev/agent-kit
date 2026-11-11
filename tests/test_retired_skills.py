@@ -23,12 +23,13 @@ RENAMED = {
     "review-ticket": "review-implementation",
     "review-feature": "review-pr",
 }
+DROPPED = ("add-public-service", "deploy-status", "fleet-change", "open-pr", "prepare-rollback", "run-tests")
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
 
 
 def _seed(home: Path) -> None:
     for h in HOMES:
-        for old in (*RENAMED, "someone-elses-skill"):
+        for old in (*RENAMED, *DROPPED, "someone-elses-skill"):
             d = home / h / "skills" / old
             d.mkdir(parents=True)
             (d / "SKILL.md").write_text("old\n")
@@ -36,9 +37,11 @@ def _seed(home: Path) -> None:
 
 def test_registry_retires_each_old_name_and_names_its_replacement() -> None:
     data = yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text())
-    assert {r["name"]: r["renamed_to"] for r in data["retired_skills"]} == RENAMED
+    assert {r["name"]: r["renamed_to"] for r in data["retired_skills"] if "renamed_to" in r} == RENAMED
+    assert {r["name"] for r in data["retired_skills"] if "renamed_to" not in r} == set(DROPPED)
     shipped = {s["name"] for s in data["local_skills"]}
     assert shipped.isdisjoint(RENAMED)
+    assert shipped.isdisjoint(DROPPED)
     assert set(RENAMED.values()) <= shipped
 
 
@@ -46,6 +49,8 @@ def test_setup_removes_the_old_directories_and_installs_the_new(tmp_path: Path) 
     run = setup_run(tmp_path, "Darwin", prepare_home=_seed)
     for h in HOMES:
         skills = run.home / h / "skills"
+        for old in DROPPED:
+            assert not (skills / old).exists(), (h, old)
         for old, new in RENAMED.items():
             assert not (skills / old).exists(), (h, old)
             assert (skills / new / "SKILL.md").is_file(), (h, new)
@@ -55,7 +60,7 @@ def test_setup_removes_the_old_directories_and_installs_the_new(tmp_path: Path) 
 def test_check_mode_removes_nothing(tmp_path: Path) -> None:
     run = setup_run(tmp_path, "Darwin", args=("--check",), prepare_home=_seed)
     for h in HOMES:
-        for old in RENAMED:
+        for old in (*RENAMED, *DROPPED):
             assert (run.home / h / "skills" / old / "SKILL.md").is_file(), (h, old)
     assert "would remove retired skill" in run.stdout
 

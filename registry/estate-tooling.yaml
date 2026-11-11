@@ -884,6 +884,13 @@ retired_skills:
     renamed_to: review-implementation
   - name: review-feature
     renamed_to: review-pr
+  # Replaced by the estate-* skills.
+  - name: add-public-service
+  - name: deploy-status
+  - name: fleet-change
+  - name: open-pr
+  - name: prepare-rollback
+  - name: run-tests
 
 # -------------------------------------------------------------------
 # Hindsight Coding Agents: Hindsight's own plugin for Claude Code and

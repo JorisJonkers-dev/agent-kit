@@ -29,7 +29,7 @@ const validConfig = {
       name: 'implementation',
       mcpProfile: 'minimal',
       skillCards: [validCard],
-      fullSkills: ['kb-first', 'run-tests'],
+      fullSkills: ['kb-first', 'topics'],
     },
   ],
 } satisfies AttachmentProfilesConfig
@@ -56,7 +56,7 @@ describe('parseAttachmentProfilesConfig', () => {
             risk: 'low' satisfies SkillCardRisk,
           },
         ],
-        fullSkills: ['kb-first', 'run-tests'],
+        fullSkills: ['kb-first', 'topics'],
       },
     ])
     expect(catalog.profileByName.get('implementation')?.mcpProfile).toBe('minimal')

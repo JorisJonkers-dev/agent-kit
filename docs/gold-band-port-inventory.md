@@ -40,16 +40,15 @@ cargo run --manifest-path scripts/Cargo.toml -p inventory-check -- .
 | review-spec | `skills/workstation/review-spec/` | Critiques a spec after `/to-spec`: critics from other families review it read-only. | workflow | direct, gold-band, gold-band-personal | Ported as Wave 2 templates over the runner. |
 | review-tickets | `skills/workstation/review-tickets/` | Checks a spec's tickets after `/to-tickets`: deterministic checker plus one critic linting structure. | workflow | direct, gold-band, gold-band-personal | Ported as Wave 2 templates over the runner. |
 | token-economy | `skills/workstation/token-economy/` | Token-budget discipline: progressive disclosure, bounded recall, narrow MCP profiles, cache-friendly ordering. | skill set | direct, gold-band, gold-band-personal | |
-| estate-project-intent | `skills/workstation/estate-project-intent/` | Writes and validates a Project's deploy-kit Intent and wires its publishing, reading the canonical docs live. | skill set | direct, gold-band-personal | Replaces add-public-service and fleet-change (#467). |
-| estate-delivery-status | `skills/workstation/estate-delivery-status/` | Answers whether a release landed from the estate compose run, the commit status and the deployment. | skill set | direct, gold-band-personal | Replaces the six retired repo skills. |
-| estate-rollback | `skills/workstation/estate-rollback/` | Plans a pause, rollback or resume of one estate Project and hands the owner the exact gh workflow run command; never dispatches it. | skill set | direct, gold-band-personal | Replaces the six retired repo skills. |
-| estate-bootstrap | `skills/workstation/estate-bootstrap/` | Starts or audits a repository against the estate templates, shared workflows and standards, reporting gaps with evidence. | skill set | direct, gold-band-personal | Replaces the six retired repo skills. |
+| estate-project-intent | `skills/workstation/estate-project-intent/` | Writes and validates a Project's deploy-kit Intent and wires its publishing, reading the canonical docs live. | skill set | direct, gold-band-personal | Replaces two of the six repo skills retired by #471. |
+| estate-delivery-status | `skills/workstation/estate-delivery-status/` | Answers whether a release landed from the estate compose run, the commit status and the deployment. | skill set | direct, gold-band-personal | Replaces the six repo skills retired by #471. |
+| estate-rollback | `skills/workstation/estate-rollback/` | Plans a pause, rollback or resume of one estate Project and hands the owner the exact gh workflow run command; never dispatches it. | skill set | direct, gold-band-personal | Replaces the six repo skills retired by #471. |
+| estate-bootstrap | `skills/workstation/estate-bootstrap/` | Starts or audits a repository against the estate templates, shared workflows and standards, reporting gaps with evidence. | skill set | direct, gold-band-personal | Replaces the six repo skills retired by #471. |
 
 ### skills/repo
 
 | Name | Path | What it does | Target | Lanes | Notes |
 | --- | --- | --- | --- | --- | --- |
-| add-public-service | `skills/repo/add-public-service/` | Adds an SSO-protected service to the estate stack across `fleet.yaml`, auth-api and app-ui. | stays outside | direct | Retired: replaced by the four estate-* skills. The directory goes when its removal ticket lands. |
 | agent-session-bootstrap | `skills/repo/agent-session-bootstrap/` | Repo-source variant of the session-configuration checklist, rendered per CLI target. | skill set | direct, gold-band, gold-band-personal | |
 | council | `skills/repo/council/` | The council skill's repo source (Claude and Codex targets). | stays outside | direct | Whole council family stays outside (decision 6). |
 | council-amend | `skills/repo/council-amend/` | Amends an existing council brief, design, task DAG or run after feedback. | stays outside | direct | Whole council family stays outside (decision 6). |
@@ -59,12 +58,7 @@ cargo run --manifest-path scripts/Cargo.toml -p inventory-check -- .
 | council-run | `skills/repo/council-run/` | Executes an approved council plan or task DAG through supervised workers. | stays outside | direct | Whole council family stays outside (decision 6). |
 | council-supervise | `skills/repo/council-supervise/` | Supervises a single cross-CLI delegate with bounded scope and progress relay. | stays outside | direct | Whole council family stays outside (decision 6). |
 | council-triage | `skills/repo/council-triage/` | Decides whether work belongs in a normal session, a council split skill, or a full council run. | stays outside | direct | Whole council family stays outside (decision 6). |
-| deploy-status | `skills/repo/deploy-status/` | Fetches and summarises the gate status for a homelab-deploy pull request. | stays outside | direct | Retired: replaced by the four estate-* skills. The directory goes when its removal ticket lands. |
-| fleet-change | `skills/repo/fleet-change/` | Edits `platform/inventory/fleet.yaml` safely: renders generated YAML, runs tooling tests, commits the output. | stays outside | direct | Retired: replaced by the four estate-* skills. The directory goes when its removal ticket lands. |
 | kb-first | `skills/repo/kb-first/` | Repo-source variant of the memory-first consultation and capture skill. | skill set | direct, gold-band, gold-band-personal | |
-| open-pr | `skills/repo/open-pr/` | Opens a pull request the way this repo requires: assignee, label, impersonal PR-body voice, no assistant attribution. | stays outside | direct | Retired: replaced by the four estate-* skills. The directory goes when its removal ticket lands. |
-| prepare-rollback | `skills/repo/prepare-rollback/` | Prepares a rollback branch pinning one service to a prior artifact version; returns a compare URL, never merges. | stays outside | direct | Retired: replaced by the four estate-* skills. The directory goes when its removal ticket lands. |
-| run-tests | `skills/repo/run-tests/` | Runs the right tests before pushing a change in the fleet monorepo. | stays outside | direct | Retired: replaced by the four estate-* skills. The directory goes when its removal ticket lands. |
 | token-economy | `skills/repo/token-economy/` | Repo-source variant of the token-budget discipline skill. | skill set | direct, gold-band, gold-band-personal | |
 
 ## Hooks
