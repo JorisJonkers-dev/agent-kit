@@ -2596,6 +2596,39 @@ gold_band_converge() {
 }
 gold_band_converge
 
+# Renders the registry's declared roles from the critique skill's own role and
+# lens files into the instance's context/profiles directory (templating off),
+# removes a retired or undeclared one unless the keep file names it, and leaves
+# the app's own profiles alone. Where Gold Band is installed, Linux only.
+gold_band_roles() {
+  local out rc=0 line bin
+  if [ "$(uname -s)" != Linux ]; then
+    log "gold band roles: only the Linux personal instance is converged here, skipped"
+    return 0
+  fi
+  if [ "${CLOUD}" = 1 ]; then
+    log "gold band roles: not converged in a cloud session"
+    return 0
+  fi
+  bin="${GOLD_BAND_BIN_DIR:-${HOME}/.local/bin}/gold-band"
+  if [ ! -x "${bin}" ]; then
+    log "gold band roles: Gold Band is not installed, its profiles are left alone"
+    return 0
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; the Gold Band roles are not converged"
+    return 0
+  fi
+  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"
+    --profiles "${GOLD_BAND_HOME:-${HOME}/.gold-band}/context/profiles")
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-roles \
+    "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  [ "${rc}" = 0 ] || fail "the Gold Band roles did not converge (see above)"
+}
+gold_band_roles
+
 # -----------------------------------------------------------------
 # 2. Claude Code profiles.
 #

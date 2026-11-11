@@ -242,3 +242,35 @@ headless, that a green, red, unstartable and hung command end as they should
 and that a deleted report, rewritten output, a rewritten command, a stale
 report and a report from another run or attempt each end the run in failure.
 Its stub does the tampering itself, since the limit is not in play there.
+
+## The generated roles
+
+Gold Band reads a role as a **profile**: a Markdown file with YAML front
+matter in `${GOLD_BAND_HOME:-~/.gold-band}/context/profiles/<name>.md` (not
+`presets/profiles`, which its profile resolver never looks at). After the agent
+map, setup converges that directory onto the registry's declared roles
+(`scripts/converge.py gold-band-roles`), on both instances, in the account that
+runs setup:
+
+* `gold_band.roles` in `registry/estate-tooling.yaml` declares each role: its
+  file stem, its front matter id (`pf-...`), a name and summary, its role file
+  under `skills/workstation/critique/roles/` and the lens files it uses. Six are
+  declared: the decision-gap critic, the spec red team, the ticket linter, the
+  diff reviewer, the feature reviewer and the adversarial verifier.
+* Each profile is the role file, the shared preamble and output contract, the
+  finding schema and the role's lenses, copied verbatim, then
+  `scripts/gold-band/roles-closing.md`. Templating is off
+  (`dynamicTemplate: false`) and the text is copied, never formatted, so braces
+  survive byte for byte. The timestamps are fixed, so a second run prints
+  `profiles unchanged` and writes nothing.
+* The closing section says what the role cannot enforce: the runner's read-only
+  proof, packet confinement, quote check, schema check, refute round, family
+  allowlist and `nedap` refusal, and plan-limit routing do not exist on a Gold
+  Band path.
+* A profile file the registry does not declare is removed unless the keep file
+  (`~/.config/agent-kit/keep.yaml`) names its stem (`my-role` or `my-role.md`).
+  A stem or id in `gold_band.retired_roles` is removed even when kept. Gold
+  Band's own `pf-builtin-*` profiles are never touched.
+* Nothing is written while the desktop app runs (setup stops and says so), a
+  machine without Gold Band gets no profiles directory, and `--check` only
+  reports.
