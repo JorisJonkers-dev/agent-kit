@@ -15,14 +15,15 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Seven members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Eight members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
   server is missing from docs/gold-band-port-inventory.md, has two targets or no
   lanes. `crates/gold-band-registry` is std-only too and validates the Gold Band
   instances and the overlay (docs/REGISTRY.md). `crates/code-nav-eval` runs the
-  frozen code-navigation question set. `crates/workflow-lint` is the Gold Band
+  frozen code-navigation question set. `crates/code-nav` is the read-only
+  code-navigation MCP server (below). `crates/workflow-lint` is the Gold Band
   workflow lint (below). `crates/ticket-sync` is the ticket sync tool (below);
   it takes serde, serde_json and serde_yaml, each pinned exactly.
   `crates/litellm-gate` is the node-side check that a LiteLLM per-key budget is
@@ -39,6 +40,33 @@ The workspace aims at **100 percent line coverage** of every crate: the unit
 tests in `src/tests.rs` execute each of its lines, with one exception that each
 crate names in a comment beside the code, the single executable line in
 `src/main.rs` (the exit wrapper).
+
+## code-nav
+
+`code-nav` is a read-only MCP server over stdio that searches the live working
+tree (no index). It takes no registry dependency: its JSON comes from
+`code-nav-eval`.
+
+```bash
+code-nav --root ~/Projects/owner/repo [--root DIR ...] [--limit N]
+```
+
+* **Boundary.** The `--root` directories are the allowlist, canonicalised at
+  start; the caller passes only roots that fit the instance's repository rule.
+  A path outside every root, a symlink that leaves them and a secret file
+  (`.env` and `.env.*` except `.env.example`, `.sample` and `.template`; SSH
+  and other private keys; `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.kdbx`,
+  `*.keystore`; `.netrc`, `.npmrc`, `.pypirc`, credential files; anything under
+  `.ssh`, `.gnupg` or `.aws`) are refused. Relative paths are taken against the
+  first root.
+* **Tool `search`** (`query`, optional `path` and `limit`). A line matches
+  when it contains the query, ignoring case. **Rank:** score 1, plus 4 when the
+  query is a whole identifier on the line, plus 2 when the file name contains
+  it; highest first, ties to fewer path components, then path, then line.
+  **Cap:** the default is 20 (`--limit` changes it), a call may ask for 1 to
+  200, and a capped result says how many matches it left out. The walk skips
+  symlinks, `.git`, `node_modules`, `target`, `.venv`, files over 1 MiB and
+  anything that is not UTF-8 text.
 
 ## ticket-sync
 

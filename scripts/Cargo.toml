@@ -17,6 +17,7 @@ members = [
     "crates/litellm-gate",
     "crates/gold-band-registry",
     "crates/code-nav-eval",
+    "crates/code-nav",
     "crates/workflow-lint",
     "crates/ticket-sync",
 ]

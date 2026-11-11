@@ -1,0 +1,12 @@
+[package]
+name = "code-nav"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "A read-only code-navigation MCP server over stdio: ranked, capped search of an allowlist of roots."
+
+# std only; the one dependency is the workspace's own JSON parser, which lives
+# in code-nav-eval so that no registry crate comes into scope for the 7-day
+# crate cooldown (docs/RUST.md).
+[dependencies]
+code-nav-eval = { path = "../code-nav-eval" }
