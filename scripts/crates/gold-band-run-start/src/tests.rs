@@ -601,6 +601,16 @@ fn work_refuses_a_codex_run_with_no_grant_and_says_how_to_ask() {
 }
 
 #[test]
+fn a_quote_in_the_run_id_cannot_end_the_suggested_call_early() {
+    let mut c = codex_case("quote");
+    c.set("grants", &c.path("absent.json"));
+    c.set("run-id", "a'b");
+    let o = c.go();
+    let text = o.refused("grant");
+    assert!(text.contains("@a'\\''b"), "{text}");
+}
+
+#[test]
 fn a_live_grant_for_this_run_passes() {
     let mut c = codex_case("live");
     c.grants(&grants_of(&[

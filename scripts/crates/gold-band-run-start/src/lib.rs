@@ -805,6 +805,9 @@ fn grant_problems(
         "{{\"workflow\":{},\"client\":\"{CODEX_CLIENT}\",\"cap_usd\":5,\"question\":\"<what you asked the owner>\",\"answer\":\"<what the owner answered>\"}}",
         Value::String(name.clone())
     );
+    // The call is meant to be pasted into a shell inside single quotes, so a
+    // quote in the run id must not end them early.
+    let ask = ask.replace('\'', "'\\''");
     let lapsed = if lapsed.is_empty() {
         String::new()
     } else {
