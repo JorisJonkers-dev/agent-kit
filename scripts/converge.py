@@ -69,6 +69,8 @@ REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
 # process whose running state makes a write unsafe.
 GOLD_BAND_INSTANCE = "gold-band-personal"
 GOLD_BAND_PROCESS_NAMES = ("gold-band-desktop", "Gold Band")
+# Exit code of a refusal because an instance runs; setup stops on it.
+GOLD_BAND_RUNNING_EXIT = 4
 GOLD_BAND_RUNNING_ENV = "AGENT_KIT_GOLD_BAND_RUNNING"
 GOLD_BAND_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # An adapter env value is a reference the app resolves at launch, never a
@@ -98,21 +100,19 @@ GOLD_BAND_ROLE_FIELDS = ("file", "id", "name", "summary", "source", "lenses")
 GOLD_BAND_ROLES_CLOSING = KIT_ROOT / "scripts" / "gold-band" / "roles-closing.md"
 # The app strips adapter.command and adapter.args from a built-in id when it
 # saves settings.json and re-injects them on load, so setup writes neither.
-GOLD_BAND_BUILT_INS = frozenset(
-    {
-        "claude-acp",
-        "codex-acp",
-        "cursor",
-        "gemini",
-        "codebuddy-code",
-        "goose",
-        "qwen-code",
-        "opencode",
-        "kimi",
-        "amp-acp",
-        "pi-acp",
-    }
-)
+GOLD_BAND_BUILT_INS = frozenset({
+    "claude-acp",
+    "codex-acp",
+    "cursor",
+    "gemini",
+    "codebuddy-code",
+    "goose",
+    "qwen-code",
+    "opencode",
+    "kimi",
+    "amp-acp",
+    "pi-acp",
+})
 
 
 class _CannotConverge(Exception):
@@ -229,13 +229,9 @@ def _names(value: str) -> set[str]:
     return {n for n in value.split(",") if n}
 
 
-def converge(
-    surfaces: list[Surface],
-    retired: Callable[[Surface, str], bool],
-    spared: Callable[[Surface, str], bool],
-    check: bool,
-    private: Callable[[Surface, str], bool] = lambda _s, _n: False,
-) -> int:
+def converge(surfaces: list[Surface], retired: Callable[[Surface, str], bool],
+             spared: Callable[[Surface, str], bool], check: bool,
+             private: Callable[[Surface, str], bool] = lambda _s, _n: False) -> int:
     """Remove each retired or misplaced private entry, and each other one not spared; then read every surface back."""
     removals: list[tuple[Surface, str, str]] = []
     for surface in surfaces:
@@ -281,16 +277,13 @@ def mcp(args: argparse.Namespace) -> int:
             # must not stop every other surface from converging.
             print(f"{_tilde(args.opencode)} is not plain JSON; opencode not converged")
             unreadable = 1
-    return (
-        converge(
-            surfaces,
-            lambda _, name: name in retired,
-            lambda s, name: name in declared.get(s.kind, set()) or name.startswith(DECLARED_SOURCES) or name in keep,
-            args.check,
-            lambda s, name: name in private and name not in declared.get(s.kind, set()),
-        )
-        or unreadable
-    )
+    return converge(
+        surfaces,
+        lambda _, name: name in retired,
+        lambda s, name: name in declared.get(s.kind, set()) or name.startswith(DECLARED_SOURCES) or name in keep,
+        args.check,
+        lambda s, name: name in private and name not in declared.get(s.kind, set()),
+    ) or unreadable
 
 
 def plugins(args: argparse.Namespace) -> int:
@@ -336,7 +329,9 @@ def _gold_band_registry(path: Path) -> tuple[list[dict[str, Any]], set[str], set
     personal = instances.get(GOLD_BAND_INSTANCE) if isinstance(instances, dict) else None
     allowed = personal.get("agents") if isinstance(personal, dict) else None
     if not isinstance(allowed, list) or not all(isinstance(name, str) for name in allowed):
-        raise _CannotConverge(f"{path}: gold_band_instances.{GOLD_BAND_INSTANCE}.agents must be a list of ids")
+        raise _CannotConverge(
+            f"{path}: gold_band_instances.{GOLD_BAND_INSTANCE}.agents must be a list of ids"
+        )
     return agents, set(retired), set(allowed)
 
 
@@ -407,7 +402,9 @@ def _gold_band_expand(value: str) -> str:
 def _gold_band_entry(agent: dict[str, Any]) -> dict[str, Any]:
     """The settings entry for a declared agent: its written fields, expanded."""
     entry = {
-        key: value for key, value in agent.items() if key in GOLD_BAND_AGENT_FIELDS and key not in ("id", "binary")
+        key: value
+        for key, value in agent.items()
+        if key in GOLD_BAND_AGENT_FIELDS and key not in ("id", "binary")
     }
     adapter = entry.get("adapter")
     if not isinstance(adapter, dict):
@@ -524,7 +521,7 @@ def _gold_band_stopped(tool: str, running: str, written: list[str], pending: lis
     print(f"{tool}: Gold Band instance {running} started during setup; quit it and re-run setup")
     print(f"{tool}: written: {', '.join(written) or 'nothing'}")
     print(f"{tool}: not yet written: {', '.join(pending)}")
-    return 3
+    return GOLD_BAND_RUNNING_EXIT
 
 
 def gold_band(args: argparse.Namespace) -> int:
@@ -542,7 +539,7 @@ def gold_band(args: argparse.Namespace) -> int:
                 f"gold-band-agents: Gold Band instance {running} is running; "
                 "quit it and re-run setup (nothing was written)"
             )
-            return 3
+            return GOLD_BAND_RUNNING_EXIT
         doc, current = _gold_band_document(settings)
     except _CannotConverge as exc:
         print(f"gold-band-agents: cannot converge: {exc}")
@@ -768,7 +765,7 @@ def gold_band_roles(args: argparse.Namespace) -> int:
                 f"gold-band-roles: Gold Band instance {running} is running; "
                 "quit it and re-run setup (nothing was written)"
             )
-            return 3
+            return GOLD_BAND_RUNNING_EXIT
         critique = args.critique or (KIT_ROOT / source if source else None)
         if critique is None:
             raise _CannotConverge(f"{args.registry}: gold_band.roles_source must be a path")

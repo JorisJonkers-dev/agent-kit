@@ -140,7 +140,7 @@ def test_a_running_instance_stops_agents_setup_with_nothing_written(
     machine = agents.Machine(tmp_path, monkeypatch, settings={"agents": {}})
     _listing(monkeypatch, Process(7, "gold-band-desktop", str(machine.settings.parent)))
     before = machine.settings.read_bytes()
-    assert machine.run() == 3
+    assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
     out = capsys.readouterr().out
     assert "gold-band-personal" in out and "process 7" in out
     assert machine.settings.read_bytes() == before
@@ -154,7 +154,7 @@ def test_an_instance_starting_before_the_agents_write_stops_it(
     answers = iter([None, "gold-band-personal (process 7)"])
     monkeypatch.setattr(converge, "_gold_band_running", lambda _dir: next(answers))
     before = machine.settings.read_bytes()
-    assert machine.run() == 3
+    assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
     out = capsys.readouterr().out
     assert "started during setup" in out
     assert "written: nothing" in out
@@ -174,7 +174,7 @@ def test_roles_stop_between_groups_report_them_and_a_second_run_finishes(
     answers = iter([None, None, "gold-band-personal (process 7)"])
     real = converge._gold_band_running
     monkeypatch.setattr(converge, "_gold_band_running", lambda _dir: next(answers, "gold-band-personal (process 7)"))
-    assert machine.run() == 3
+    assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
     out = capsys.readouterr().out
     assert "started during setup" in out
     assert f"written: {stems[0]}.md" in out
@@ -192,10 +192,11 @@ def test_roles_removal_is_a_write_group_too(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     machine = roles.Machine(tmp_path, monkeypatch)
+    _listing(monkeypatch)
     assert machine.run() == 0
     stale = machine.hand_made("stale", "old\n")
     answers = iter([None, "gold-band-personal (process 7)"])
     monkeypatch.setattr(converge, "_gold_band_running", lambda _dir: next(answers))
-    assert machine.run() == 3
+    assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
     assert "not yet written: stale.md" in capsys.readouterr().out
     assert stale.exists()

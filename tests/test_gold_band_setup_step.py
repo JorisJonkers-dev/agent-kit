@@ -62,7 +62,7 @@ def test_a_failed_converge_fails_the_run(tmp_path: Path) -> None:
         tmp_path,
         "Linux",
         prepare_home=_installed,
-        stubs={"uv": 'echo "uv $*" >> "$0.calls"; echo "gold-band-agents: Gold Band is running"; exit 3'},
+        stubs={"uv": 'echo "uv $*" >> "$0.calls"; echo "gold-band-agents: cannot converge"; exit 3'},
     )
     assert "the Gold Band agent map did not converge (see above)" in run.stdout + run.stderr
     assert run.returncode != 0
@@ -132,3 +132,15 @@ def test_the_mac_and_a_cloud_session_do_not_converge_roles(tmp_path: Path) -> No
     cloud = setup_run(tmp_path / "cloud", "Linux", prepare_home=_installed, args=("--cloud",))
     assert _roles_calls(mac.calls) == []
     assert _roles_calls(cloud.calls) == []
+
+
+def test_a_running_instance_stops_setup_before_other_write_groups(tmp_path: Path) -> None:
+    run = setup_run(
+        tmp_path,
+        "Linux",
+        prepare_home=_installed,
+        stubs={"uv": 'echo "uv $*" >> "$0.calls"; echo "gold-band-agents: Gold Band instance running"; exit 4'},
+    )
+    assert "Gold Band is running: setup stopped" in run.stdout + run.stderr
+    assert run.returncode != 0
+    assert "Setup summary" not in run.stdout + run.stderr
