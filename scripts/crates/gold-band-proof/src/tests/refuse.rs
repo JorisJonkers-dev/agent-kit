@@ -337,3 +337,22 @@ fn check_refuses_when_the_workflow_cannot_be_read() {
     assert!(message.contains("absent.json"), "{}", message);
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn check_refuses_a_record_that_belongs_to_another_workflow() {
+    let dir = temp_dir("otherid");
+    let path = workflow_file(&dir, "{\"id\":\"release\"}");
+    let workflow = load_workflow(&path).expect("workflow loaded");
+    let mut record = record_for(&workflow, Outcome::Passed);
+    record.workflow_id = "other".to_string();
+    let written = write_record(&dir, &record).expect("record written");
+    fs::rename(written, crate::record::record_path(&dir, "release")).expect("moved");
+    assert_eq!(
+        check(&dir, &path, None),
+        Err(
+            "refused: the proof record found for workflow `release` belongs to workflow `other`"
+                .to_string()
+        )
+    );
+    let _ = fs::remove_dir_all(&dir);
+}

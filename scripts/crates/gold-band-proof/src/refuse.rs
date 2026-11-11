@@ -65,6 +65,12 @@ pub fn check(dir: &Path, workflow: &Path, installed_commit: Option<&str>) -> Res
         }
         Outcome::Passed => {}
     }
+    if record.workflow_id != workflow.id {
+        return Err(format!(
+            "refused: the proof record found for workflow `{}` belongs to workflow `{}`",
+            workflow.id, record.workflow_id
+        ));
+    }
     if record.workflow_sha256 != workflow.sha256 {
         return Err(format!(
             "refused: workflow `{}` changed since its headless proof was recorded",

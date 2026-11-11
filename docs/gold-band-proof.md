@@ -29,7 +29,7 @@ mapping: completed and success is 0, completed otherwise 1, paused 2).
 | Scenario | Stub verdict | Expected exit | Added when |
 | --- | --- | --- | --- |
 | `clean` | empty findings | 0 | always |
-| `needs-human` | one major finding | 2 (paused at the manual check) | the workflow has a `manual_check` node |
+| `needs-human` | one major finding | 2 (paused; the printed run state names the paused node) | the workflow has a `manual_check` node |
 
 More scenarios come from `--scenario NAME:VERDICT:EXIT` (verdicts: `clean`,
 `needs-human`, `fail`; `fail` makes the stub answer a prompt with a protocol

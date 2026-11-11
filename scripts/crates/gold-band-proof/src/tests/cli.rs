@@ -1367,3 +1367,28 @@ fn prove_and_run_without_a_proof_directory_are_usage_errors() {
     }
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn run_refuses_a_second_workflow_after_the_separator() {
+    let dir = temp_dir("secondworkflow");
+    let workflow = workflow_file(&dir, MINIMAL_WORKFLOW);
+    let get = |_: &str| None::<String>;
+    let env = env_for(&get, &dir);
+    for second in ["--workflow", "--workflow=other.json"] {
+        let output = drive(
+            &[
+                "run",
+                "--workflow",
+                workflow.to_str().expect("utf8"),
+                "--",
+                second,
+                "other.json",
+            ],
+            &env,
+            "",
+        );
+        assert_eq!(output.code, 2, "{}", output.err);
+        assert!(output.err.contains("cannot be repeated"), "{}", output.err);
+    }
+    let _ = fs::remove_dir_all(&dir);
+}

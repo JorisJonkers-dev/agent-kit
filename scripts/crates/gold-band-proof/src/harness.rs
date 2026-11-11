@@ -605,13 +605,12 @@ fn disagreement_note(
         }
         return Some(note);
     }
-    let status = run_status?;
-    let state_exit = exit_for_state(status, run_outcome)?;
-    if state_exit != code {
+    let state_exit = run_status.and_then(|status| exit_for_state(status, run_outcome));
+    if state_exit != Some(code) {
         return Some(format!(
-            "exit {} disagrees with the printed run state {}/{}",
+            "exit {} is not backed by a printed run state ({}/{})",
             code,
-            status,
+            run_status.unwrap_or("none"),
             run_outcome.unwrap_or("none")
         ));
     }

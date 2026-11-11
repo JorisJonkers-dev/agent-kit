@@ -565,7 +565,10 @@ fn run_scenario_reports_a_run_without_a_state() {
     );
     assert_eq!(result.exit_code, Some(0));
     assert_eq!(result.run_status, None);
-    assert_eq!(result.note, None);
+    assert_eq!(
+        result.note.as_deref(),
+        Some("exit 0 is not backed by a printed run state (none/none)")
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -654,7 +657,7 @@ fn run_scenario_notes_a_disagreeing_run_state() {
     assert_eq!(result.exit_code, Some(0));
     assert_eq!(
         result.note.as_deref(),
-        Some("exit 0 disagrees with the printed run state completed/failure")
+        Some("exit 0 is not backed by a printed run state (completed/failure)")
     );
     let _ = fs::remove_dir_all(&dir);
 }
@@ -676,7 +679,7 @@ fn run_scenario_notes_a_disagreeing_state_without_an_outcome() {
     );
     assert_eq!(
         result.note.as_deref(),
-        Some("exit 0 disagrees with the printed run state completed/none")
+        Some("exit 0 is not backed by a printed run state (completed/none)")
     );
     let _ = fs::remove_dir_all(&dir);
 }
@@ -697,7 +700,10 @@ fn run_scenario_ignores_an_unknown_run_state() {
         10,
     );
     assert_eq!(result.run_status.as_deref(), Some("weird"));
-    assert_eq!(result.note, None);
+    assert_eq!(
+        result.note.as_deref(),
+        Some("exit 0 is not backed by a printed run state (weird/none)")
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 

@@ -178,6 +178,13 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
                     return Err("`--` is only for `run`".to_string());
                 }
                 extra = args[index + 1..].to_vec();
+                // A second workflow would run unproven; the proof covers only the one named.
+                if extra.iter().any(|argument| {
+                    let argument = argument.to_string_lossy();
+                    argument == "--workflow" || argument.starts_with("--workflow=")
+                }) {
+                    return Err("`--workflow` cannot be repeated after `--`".to_string());
+                }
                 index = args.len();
             }
             "--workflow" => workflow = Some(PathBuf::from(value(args, &mut index, &flag)?)),
