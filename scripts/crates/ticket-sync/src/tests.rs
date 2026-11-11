@@ -5,8 +5,10 @@
 use crate::body::{body, labels, normalize, ranges, title};
 use crate::client::*;
 use crate::model::{stories, Model, Result, SPEC_KEY};
+use crate::close::{approve, close, closings, fingerprint, Closing};
+use crate::model::dispositions;
 use crate::plan::{apply, plan, Action, Applied};
-use crate::{parse_args, record_numbers, run, sync, Options};
+use crate::{approval_path, parse_args, record_numbers, run, sync, Mode, Options};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -197,10 +199,10 @@ impl Client for Fake {
         self.log.push(format!("unblock {number} {b}"));
         Ok(())
     }
-    fn close(&mut self, number: u64, comment: &str) -> Result<()> {
+    fn close(&mut self, number: u64, comment: &str, completed: bool) -> Result<()> {
         self.check("close")?;
         self.issues.get_mut(&number).unwrap().open = false;
-        self.log.push(format!("close {number}: {comment}"));
+        self.log.push(format!("close {number} completed={completed}: {comment}"));
         Ok(())
     }
 }
@@ -223,7 +225,7 @@ fn a_run_against_the_published_state_plans_nothing() {
     f.issues.get_mut(&50).unwrap().open = false;
     p = plan(&m, &stories_map(), &mut f).unwrap();
     assert!(p.is_empty());
-    assert!(p.render(&m, false).contains("nothing to do"));
+    assert!(p.render(&m).contains("nothing to do"));
 }
 
 #[test]
@@ -242,7 +244,7 @@ fn a_dry_run_lists_every_kind_of_change_and_writes_nothing() {
     // Issues outside the graph, linked under a graph parent, are left alone.
     f.subs.entry(10).or_default().push(888);
     let p = plan(&m, &stories_map(), &mut f).unwrap();
-    let text = p.render(&m, false);
+    let text = p.render(&m);
     for expect in [
         "create    B1: B1 Next (spec #1)",
         "create    B1-01: Third",
@@ -254,12 +256,11 @@ fn a_dry_run_lists_every_kind_of_change_and_writes_nothing() {
         "block     B0-02 #13 blocked by B0-01 #11",
         "block     B1-01 (new) blocked by B0-02 #13",
         "link      B1 (new) under SPEC #1",
-        "close     #50 superseded by B0-01 #11  (needs --approve-close)",
+        "close     #50 superseded by B0-01 #11  (needs an approved plan: --approve-plan, then --close)",
         "plan: 2 create, 1 retitle, 1 rebody, 1 unlink, 3 link, 1 unblock, 2 block, 1 close",
     ] {
         assert!(text.contains(expect), "missing {expect:?} in\n{text}");
     }
-    assert!(p.render(&m, true).contains("superseded by B0-01 #11\n"));
     assert!(f.log.is_empty(), "planning must not write");
 }
 
@@ -276,27 +277,27 @@ fn applying_converges_and_the_next_plan_is_empty() {
     let st = stories_map();
     let p = plan(&m, &st, &mut f).unwrap();
     let mut done = Applied::default();
-    apply(&p, &mut m, &st, &mut f, true, &mut done).unwrap();
+    apply(&p, &mut m, &st, &mut f, &mut done).unwrap();
     assert_eq!(done.created, vec![("B1".to_string(), 101), ("B1-01".to_string(), 102)]);
-    assert_eq!(done.closed, vec![50]);
-    assert_eq!(done.skipped_closes, 0);
-    assert!(f.log.iter().any(|l| l == "close 50: Superseded by #11 (B0-01) of spec #1."));
+    assert_eq!(done.skipped_closes, 1);
+    assert!(f.issues[&50].open && !f.log.iter().any(|l| l.starts_with("close")), "an apply never closes");
     assert!(f.log.contains(&"create 102 [\"ready-for-agent\", \"area: agents\", \"type: feature\"]".to_string()));
     // The child body names the branch number that did not exist at plan time.
     assert!(f.issues[&102].body.starts_with("## Parent\n\n#101 (B1 Next), spec #1"));
     let again = plan(&m, &st, &mut f).unwrap();
-    assert!(again.is_empty(), "second run planned {:?}", again.actions);
+    // Only the close, which waits for its own approved action, is left.
+    assert_eq!(again.actions, vec![Action::Close { number: 50, by: "B0-01".into() }], "second run planned {:?}", again.actions);
 }
 
 #[test]
-fn a_close_waits_for_approval() {
+fn an_apply_leaves_the_closes_alone() {
     let (m, mut f) = full_published();
     let mut m = m;
     let st = stories_map();
     let p = plan(&m, &st, &mut f).unwrap();
     let mut done = Applied::default();
-    apply(&p, &mut m, &st, &mut f, false, &mut done).unwrap();
-    assert_eq!((done.closed.len(), done.skipped_closes), (0, 1));
+    apply(&p, &mut m, &st, &mut f, &mut done).unwrap();
+    assert_eq!(done.skipped_closes, 1);
     assert!(f.issues[&50].open);
 }
 
@@ -308,7 +309,7 @@ fn errors_from_github_stop_the_plan_and_the_apply() {
         assert_eq!(plan(&m, &stories_map(), &mut f).unwrap_err(), format!("{op} failed"));
     }
     let st = stories_map();
-    for op in ["create", "edit", "add_sub_issue", "remove_sub_issue", "add_blocked_by", "remove_blocked_by", "close", "issue"] {
+    for op in ["create", "edit", "add_sub_issue", "remove_sub_issue", "add_blocked_by", "remove_blocked_by", "issue"] {
         let mut m = model();
         m.set_number("B0-02", 13);
         let mut f = Fake::published(&m);
@@ -320,13 +321,13 @@ fn errors_from_github_stop_the_plan_and_the_apply() {
         f.deps.get_mut(&13).unwrap().retain(|n| *n != 11);
         let p = plan(&m, &st, &mut f).unwrap();
         f.fail_on = Some(op);
-        assert_eq!(apply(&p, &mut m, &st, &mut f, true, &mut Applied::default()).unwrap_err(), format!("{op} failed"), "{op}");
+        assert_eq!(apply(&p, &mut m, &st, &mut f, &mut Applied::default()).unwrap_err(), format!("{op} failed"), "{op}");
     }
     // The spec issue itself must exist.
     let (mut m, mut f) = full_published();
     f.issues.remove(&1);
     assert!(plan(&m, &stories_map(), &mut f).is_err());
-    assert!(apply(&Default::default(), &mut m, &st, &mut f, false, &mut Applied::default()).is_err());
+    assert!(apply(&Default::default(), &mut m, &st, &mut f, &mut Applied::default()).is_err());
 }
 
 #[test]
@@ -393,17 +394,25 @@ fn s(a: &[&str]) -> Vec<OsString> {
 
 #[test]
 fn arguments() {
-    let o = parse_args(s(&["--repo", "o/r", "--tickets", "t", "--spec", "s", "--apply", "--approve-close"])).unwrap().unwrap();
-    assert_eq!(o, Options { repo: "o/r".into(), tickets: "t".into(), spec: "s".into(), apply: true, approve_close: true });
+    let o = parse_args(s(&["--repo", "o/r", "--tickets", "t", "--spec", "s", "--approval", "a", "--apply"])).unwrap().unwrap();
+    assert_eq!(o, Options { repo: "o/r".into(), tickets: "t".into(), spec: "s".into(), approval: "a".into(), mode: Mode::Apply });
+    assert_eq!(parse_args(s(&["--approve-plan"])).unwrap().unwrap().mode, Mode::ApprovePlan);
+    assert_eq!(parse_args(s(&["--close"])).unwrap().unwrap().mode, Mode::Close);
     let d = parse_args(s(&[])).unwrap().unwrap();
-    assert!(!d.apply && d.tickets.ends_with("tickets.yaml") && d.spec.ends_with("spec.md") && d.repo.ends_with("agent-kit"));
+    assert!(d.mode == Mode::DryRun && d.approval.ends_with("agent-kit/ticket-sync-close-approval") && d.tickets.ends_with("tickets.yaml") && d.spec.ends_with("spec.md") && d.repo.ends_with("agent-kit"));
     assert!(parse_args(s(&["-h"])).unwrap().is_none());
     assert!(parse_args(s(&["--help"])).unwrap().is_none());
-    for flag in ["--repo", "--tickets", "--spec"] {
+    for flag in ["--repo", "--tickets", "--spec", "--approval"] {
         assert!(parse_args(s(&[flag])).unwrap_err().contains("needs a value"));
     }
     assert!(parse_args(s(&["--wat"])).unwrap_err().contains("unknown argument"));
-    assert!(parse_args(s(&["--approve-close"])).unwrap_err().contains("--apply"));
+    for pair in [["--apply", "--close"], ["--close", "--approve-plan"], ["--approve-plan", "--apply"]] {
+        assert!(parse_args(s(&pair)).unwrap_err().contains("mutually exclusive"), "{pair:?}");
+    }
+    // The approval file lives under XDG_STATE_HOME, else under the home directory.
+    assert_eq!(approval_path(Some("/state".into()), Some("/h".into())), "/state/agent-kit/ticket-sync-close-approval");
+    assert_eq!(approval_path(Some(String::new()), Some("/h".into())), "/h/.local/state/agent-kit/ticket-sync-close-approval");
+    assert_eq!(approval_path(None, None), "/.local/state/agent-kit/ticket-sync-close-approval");
 }
 
 // ---- the real client over a fake runner ----
@@ -455,10 +464,13 @@ fn the_gh_client_sends_the_documented_requests() {
     assert_eq!(last(&calls), "api -X POST repos/o/r/issues/1/dependencies/blocked_by --input - | {\"issue_id\":2}");
     c.remove_blocked_by(1, 2).unwrap();
     assert_eq!(last(&calls), "api -X DELETE repos/o/r/issues/1/dependencies/blocked_by/2 | ");
-    c.close(1, "bye").unwrap();
-    assert_eq!(calls.borrow().len(), 7 + 1);
-    assert_eq!(calls.borrow()[calls.borrow().len() - 2].1.as_deref(), Some("{\"state\":\"closed\",\"state_reason\":\"not_planned\"}"));
-    assert_eq!(last(&calls), "api -X POST repos/o/r/issues/1/comments --input - | {\"body\":\"bye\"}");
+    c.close(1, "bye", false).unwrap();
+    assert_eq!(calls.borrow().len(), 6 + 2);
+    // The comment goes first, then the close.
+    assert_eq!(calls.borrow()[6].1.as_deref(), Some("{\"body\":\"bye\"}"));
+    assert_eq!(last(&calls), "api -X PATCH repos/o/r/issues/1 --input - | {\"state\":\"closed\",\"state_reason\":\"not_planned\"}");
+    c.close(1, "done", true).unwrap();
+    assert!(last(&calls).ends_with("{\"state\":\"closed\",\"state_reason\":\"completed\"}"));
 }
 
 #[test]
@@ -561,7 +573,7 @@ esac"#,
 
     let (code, out, _) = go(&["--repo", "o/r", "--tickets", t, "--spec", sp, "--apply"], &gh);
     assert_eq!(code, 0);
-    assert!(out.contains("applied: 2 actions, 1 created, 0 closed, 0 closes held back"), "{out}");
+    assert!(out.contains("applied: 2 actions, 1 created, 0 closes left for --close"), "{out}");
     assert!(std::fs::read_to_string(&tickets).unwrap().contains("  B0:\n    title: T\n    issue: 9\n"));
 
     // Now published: an apply that creates nothing leaves the file alone.
@@ -593,7 +605,7 @@ fn the_command_reports_what_went_wrong() {
     assert!(code == 1 && err.contains("denied"), "{err}");
     // Output that cannot be written, and a file that cannot be rewritten.
     let mut f = Fake::published(&model());
-    let o = Options { repo: "o/r".into(), tickets: t.to_str().unwrap().into(), spec: sp.to_str().unwrap().into(), apply: false, approve_close: false };
+    let o = Options { repo: "o/r".into(), tickets: t.to_str().unwrap().into(), spec: sp.to_str().unwrap().into(), approval: d.join("approval").to_str().unwrap().into(), mode: Mode::DryRun };
     assert_eq!(sync(&o, &mut f, &mut Broken).unwrap_err(), "closed");
     let mut out = Vec::new();
     let (mut m, mut f2) = full_published();
@@ -604,7 +616,7 @@ fn the_command_reports_what_went_wrong() {
     let mut perm = std::fs::metadata(&ro).unwrap().permissions();
     perm.set_readonly(true);
     std::fs::set_permissions(&ro, perm).unwrap();
-    let o = Options { tickets: ro.to_str().unwrap().into(), apply: true, ..o };
+    let o = Options { tickets: ro.to_str().unwrap().into(), mode: Mode::Apply, ..o };
     let mut f3 = Fake::published(&model());
     let err = sync(&o, &mut f3, &mut out).unwrap_err();
     assert!(err.contains("ro.yaml"), "{err}");
@@ -623,14 +635,14 @@ fn story_and_lookup_failures_surface_from_plan_and_apply() {
     m2.set_number("B0-02", 13);
     let mut f2 = Fake::published(&m2);
     let p = plan(&m2, &less, &mut f2).unwrap();
-    assert!(apply(&p, &mut m2, &less, &mut f2, true, &mut Applied::default()).unwrap_err().contains("story 4"));
+    assert!(apply(&p, &mut m2, &less, &mut f2, &mut Applied::default()).unwrap_err().contains("story 4"));
     // Apply: the rebody of a branch whose story is missing.
     let (mut m3, mut f3) = full_published();
     f3.issues.get_mut(&10).unwrap().body = "stale".into();
     let p = plan(&m3, &st, &mut f3).unwrap();
     let mut no1 = st.clone();
     no1.remove(&1);
-    assert!(apply(&p, &mut m3, &no1, &mut f3, true, &mut Applied::default()).unwrap_err().contains("story 1"));
+    assert!(apply(&p, &mut m3, &no1, &mut f3, &mut Applied::default()).unwrap_err().contains("story 1"));
     // Plan: the superseded issue cannot be read.
     let (m4, mut f4) = full_published();
     f4.issues.remove(&50);
@@ -639,7 +651,7 @@ fn story_and_lookup_failures_surface_from_plan_and_apply() {
     let (mut m5, mut f5) = full_published();
     let p = plan(&m5, &st, &mut f5).unwrap();
     f5.issues.remove(&13);
-    assert!(apply(&p, &mut m5, &st, &mut f5, true, &mut Applied::default()).unwrap_err().contains("no issue 13"));
+    assert!(apply(&p, &mut m5, &st, &mut f5, &mut Applied::default()).unwrap_err().contains("no issue 13"));
 }
 
 #[test]
@@ -647,9 +659,9 @@ fn the_client_reports_failed_posts() {
     let (mut c, _) = gh(vec![Err("no create".into())]);
     assert_eq!(c.create("t", "b", &[]).unwrap_err(), "no create");
     let (mut c, _) = gh(vec![Err("no comment".into())]);
-    assert_eq!(c.close(1, "x").unwrap_err(), "no comment");
-    let (mut c, _) = gh(vec![Ok("{}".into()), Err("no comment".into())]);
-    assert_eq!(c.close(1, "x").unwrap_err(), "no comment");
+    assert_eq!(c.close(1, "x", false).unwrap_err(), "no comment");
+    let (mut c, _) = gh(vec![Ok("{}".into()), Err("no close".into())]);
+    assert_eq!(c.close(1, "x", false).unwrap_err(), "no close");
 }
 
 #[test]
@@ -692,4 +704,185 @@ esac"#,
     // Usage that cannot be written.
     let mut err = Vec::new();
     assert_eq!(run(s(&["--help"]), "gh", &mut Broken, &mut err), 1);
+}
+
+// ---- the approved close, at the client interface ----
+
+/// A published graph whose B0-01 supersedes #50 (a superseded issue), #51 (a
+/// delivered one) and #52 (an absorbed one), with an unrelated open #60.
+fn closing_fixture() -> (Model, Fake, BTreeMap<u64, String>) {
+    let (mut m, mut f) = full_published();
+    m.tickets[0].supersedes = vec![50, 51, 52];
+    for n in [51, 52, 60] {
+        f.put(n, "Other", "other", true);
+    }
+    let disp = dispositions(
+        "| Issue | Title | Branch | Disposition | Stories |\n| :- | :- | :- | :- | :- |\n\
+         | #50 | Old | B0 | Close: umbrella superseded by this spec | 1 |\n\
+         | #51 | Shipped | B0 | Close: done (installer from GitHub releases) | 132 |\n\
+         | #52 | Review | B0 | Close: absorbed by the review stages | 88 |\n\
+         | #60 | Keep | B0 | Rewrite: something else | 1 |\n| #61 | Odd | not a row |\n",
+    );
+    (m, f, disp)
+}
+
+fn open_issues(f: &Fake) -> Vec<u64> {
+    f.issues.values().filter(|i| i.open).map(|i| i.number).collect()
+}
+
+#[test]
+fn the_spec_dispositions_are_read_from_its_table() {
+    let (_, _, disp) = closing_fixture();
+    assert_eq!(disp.len(), 3);
+    assert_eq!(disp[&51], "done (installer from GitHub releases)");
+}
+
+#[test]
+fn every_closing_comment_links_its_ticket_and_delivered_ones_carry_evidence() {
+    let (m, mut f, disp) = closing_fixture();
+    let p = plan(&m, &stories_map(), &mut f).unwrap();
+    let c = closings(&p, &m, &disp).unwrap();
+    assert_eq!(
+        c,
+        vec![
+            Closing { number: 50, comment: "Superseded by #11 (B0-01) of spec #1.".into(), completed: false },
+            Closing { number: 51, comment: "Delivered: done (installer from GitHub releases). Tracked by #11 (B0-01) of spec #1.".into(), completed: true },
+            Closing { number: 52, comment: "Superseded by #11 (B0-01) of spec #1 (absorbed by the review stages).".into(), completed: false },
+        ]
+    );
+    // Without a table row the plain mapping comment is used; a repeat is closed once.
+    let mut m2 = m.clone();
+    m2.tickets[1].supersedes = vec![50];
+    let p2 = plan(&m2, &stories_map(), &mut f).unwrap();
+    let c2 = closings(&p2, &m2, &BTreeMap::new()).unwrap();
+    assert_eq!(c2.iter().map(|c| c.number).collect::<Vec<_>>(), vec![50, 51, 52]);
+    assert_eq!(c2[0].comment, "Superseded by #11 (B0-01) of spec #1.");
+    // Closing is refused for a graph issue, and for a ticket not yet published.
+    let mut m3 = m.clone();
+    m3.tickets[0].supersedes = vec![13];
+    let mut f3 = Fake::published(&m3);
+    f3.put(13, "Graph", "g", true);
+    let p3 = plan(&m3, &stories_map(), &mut f3).unwrap();
+    assert!(closings(&p3, &m3, &disp).unwrap_err().contains("part of the ticket graph"));
+    let mut m4 = model();
+    m4.tickets[1].supersedes = vec![50];
+    let mut f4 = Fake::published(&m4);
+    let p4 = plan(&m4, &stories_map(), &mut f4).unwrap();
+    assert!(closings(&p4, &m4, &disp).unwrap_err().contains("B0-02 is not published"));
+}
+
+#[test]
+fn without_an_approval_the_close_closes_nothing() {
+    let (m, mut f, disp) = closing_fixture();
+    let p = plan(&m, &stories_map(), &mut f).unwrap();
+    let c = closings(&p, &m, &disp).unwrap();
+    let d = scratch("no-approval");
+    let mut done = Vec::new();
+    let err = close(&d.join("approval"), &c, &mut f, &mut done).unwrap_err();
+    assert!(err.contains("no approval recorded") && err.contains("--approve-plan"), "{err}");
+    assert!(done.is_empty() && f.log.is_empty());
+    assert_eq!(open_issues(&f), vec![1, 10, 11, 12, 13, 14, 50, 51, 52, 60]);
+    // An unreadable approval is no approval either.
+    std::fs::write(d.join("bad"), "not json").unwrap();
+    assert!(close(&d.join("bad"), &c, &mut f, &mut done).is_err());
+    // Nor is the approval of an empty plan.
+    assert!(approve(&d.join("empty"), &[]).unwrap_err().contains("nothing to approve"));
+    // An approval that cannot be written is an error, not a silent success.
+    std::fs::write(d.join("file"), "x").unwrap();
+    assert!(approve(&d.join("file/sub/approval"), &c).unwrap_err().contains("file"));
+    assert!(approve(&d, &c).is_err());
+    assert!(f.log.is_empty());
+}
+
+#[test]
+fn an_approval_of_another_plan_closes_nothing() {
+    let (m, mut f, disp) = closing_fixture();
+    let p = plan(&m, &stories_map(), &mut f).unwrap();
+    let c = closings(&p, &m, &disp).unwrap();
+    let d = scratch("stale-approval");
+    approve(&d.join("approval"), &c[..2]).unwrap();
+    let err = close(&d.join("approval"), &c, &mut f, &mut Vec::new()).unwrap_err();
+    assert!(err.contains("different plan") && err.contains(&fingerprint(&c)), "{err}");
+    assert!(f.log.is_empty());
+    // The comment is part of the plan: a changed mapping needs a new approval.
+    approve(&d.join("approval"), &c).unwrap();
+    let mut changed = c.clone();
+    changed[0].comment.push('!');
+    assert!(close(&d.join("approval"), &changed, &mut f, &mut Vec::new()).is_err());
+    assert!(f.log.is_empty());
+}
+
+#[test]
+fn with_an_approval_the_close_closes_exactly_the_plan() {
+    let (m, mut f, disp) = closing_fixture();
+    let p = plan(&m, &stories_map(), &mut f).unwrap();
+    let c = closings(&p, &m, &disp).unwrap();
+    let d = scratch("approved");
+    approve(&d.join("state/approval"), &c).unwrap();
+    let mut done = Vec::new();
+    close(&d.join("state/approval"), &c, &mut f, &mut done).unwrap();
+    assert_eq!(done, vec![50, 51, 52]);
+    assert_eq!(
+        f.log,
+        vec![
+            "close 50 completed=false: Superseded by #11 (B0-01) of spec #1.".to_string(),
+            "close 51 completed=true: Delivered: done (installer from GitHub releases). Tracked by #11 (B0-01) of spec #1.".to_string(),
+            "close 52 completed=false: Superseded by #11 (B0-01) of spec #1 (absorbed by the review stages).".to_string(),
+        ]
+    );
+    // Nothing outside the plan was touched.
+    assert_eq!(open_issues(&f), vec![1, 10, 11, 12, 13, 14, 60]);
+    // A failing close stops there and reports what was closed.
+    let (_, mut f2, _) = closing_fixture();
+    f2.fail_on = Some("close");
+    let mut done2 = Vec::new();
+    assert_eq!(close(&d.join("state/approval"), &c, &mut f2, &mut done2).unwrap_err(), "close failed");
+    assert!(done2.is_empty());
+}
+
+#[test]
+fn the_command_approves_then_closes_and_only_then() {
+    let (m, f, _) = closing_fixture();
+    let mut f = f;
+    let d = scratch("command");
+    let (t, sp) = (d.join("t.yaml"), d.join("spec.md"));
+    let mut yaml = YAML.replace("  supersedes:\n  - 50\n", "  supersedes:\n  - 50\n  - 51\n");
+    yaml = yaml.replace("- key: B0-02\n", "- key: B0-02\n  issue: 13\n").replace("    title: B1 Next\n", "    title: B1 Next\n    issue: 12\n").replace("- key: B1-01\n", "- key: B1-01\n  issue: 14\n");
+    std::fs::write(&t, &yaml).unwrap();
+    std::fs::write(&sp, format!("{SPEC}\n| #50 | Old | B0 | Close: superseded by this spec | 1 |\n| #51 | Shipped | B0 | Close: done (shipped) | 2 |\n")).unwrap();
+    assert_eq!(Model::parse(&yaml).unwrap().number("B1-01"), m.number("B1-01"));
+    let opts = |mode| Options { repo: "o/r".into(), tickets: t.to_str().unwrap().into(), spec: sp.to_str().unwrap().into(), approval: d.join("approval").to_str().unwrap().into(), mode };
+    // A dry run shows the close plan and its fingerprint, and records nothing.
+    let mut out = Vec::new();
+    sync(&opts(Mode::DryRun), &mut f, &mut out).unwrap();
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains("close     #51 (completed): Delivered: done (shipped)") && text.contains("close plan: 2 issues, fingerprint "), "{text}");
+    assert!(!d.join("approval").exists());
+    // Closing without an approval fails and closes nothing.
+    let mut out = Vec::new();
+    assert!(sync(&opts(Mode::Close), &mut f, &mut out).unwrap_err().contains("no approval recorded"));
+    assert!(out.is_empty() && f.log.is_empty());
+    // Approving writes the file only.
+    let mut out = Vec::new();
+    sync(&opts(Mode::ApprovePlan), &mut f, &mut out).unwrap();
+    assert!(String::from_utf8(out).unwrap().contains("approval recorded in "));
+    assert!(d.join("approval").exists() && f.log.is_empty());
+    // An apply still closes nothing.
+    sync(&opts(Mode::Apply), &mut f, &mut Vec::new()).unwrap();
+    assert!(!f.log.iter().any(|l| l.starts_with("close")));
+    // With the approval in place the close runs, and the output says what closed.
+    let mut out = Vec::new();
+    sync(&opts(Mode::Close), &mut f, &mut out).unwrap();
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains("closed #50\nclosed #51\nclosed 2 issues\n"), "{text}");
+    assert_eq!(open_issues(&f), vec![1, 10, 11, 12, 13, 14, 52, 60]);
+    // The plan is now empty, so the approval no longer matches and nothing more closes.
+    assert!(sync(&opts(Mode::Close), &mut f, &mut Vec::new()).is_err());
+    assert_eq!(f.log.iter().filter(|l| l.starts_with("close")).count(), 2);
+    // A failure part-way still reports what was closed.
+    let (_, mut f2, _) = closing_fixture();
+    f2.fail_on = Some("close");
+    let mut out = Vec::new();
+    assert_eq!(sync(&opts(Mode::Close), &mut f2, &mut out).unwrap_err(), "close failed");
+    assert!(out.is_empty());
 }
