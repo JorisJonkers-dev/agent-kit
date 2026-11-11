@@ -51,6 +51,12 @@ def test_the_instance_data_directory_can_be_moved(tmp_path: Path) -> None:
     assert f"--settings {data}/.gold-band/settings.json" in call
 
 
+def test_a_blank_data_directory_is_the_default_one(tmp_path: Path) -> None:
+    run = setup_run(tmp_path, "Linux", prepare_home=_installed, extra_env={"GOLD_BAND_HOME": "  "})
+    (call,) = _converge_calls(run.calls)
+    assert f"--settings {run.home}/.gold-band/settings.json" in call
+
+
 def test_check_mode_asks_for_a_report_only(tmp_path: Path) -> None:
     run = setup_run(tmp_path, "Linux", prepare_home=_installed, args=("--check",))
     (call,) = _converge_calls(run.calls)

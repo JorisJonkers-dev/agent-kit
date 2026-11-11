@@ -2587,8 +2587,10 @@ gold_band_converge() {
     warn "uv is not on PATH; the Gold Band agent map is not converged"
     return 0
   fi
+  local band_home="${GOLD_BAND_HOME:-}"
+  [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"
   local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"
-    --settings "${GOLD_BAND_HOME:-${HOME}}/.gold-band/settings.json")
+    --settings "${band_home}/.gold-band/settings.json")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
   out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \
     "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
@@ -2624,8 +2626,10 @@ gold_band_roles() {
     warn "uv is not on PATH; the Gold Band roles are not converged"
     return 0
   fi
+  local band_home="${GOLD_BAND_HOME:-}"
+  [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"
   local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"
-    --profiles "${GOLD_BAND_HOME:-${HOME}}/.gold-band/context/profiles")
+    --profiles "${band_home}/.gold-band/context/profiles")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
   out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-roles \
     "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
