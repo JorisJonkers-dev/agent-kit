@@ -3003,7 +3003,8 @@ var codex = {
       "-s",
       input.mode === "write" ? "workspace-write" : "read-only",
       "-C",
-      paths.workDir
+      paths.workDir,
+      ...input.mode === "write" ? (paths.gitWritable ?? []).flatMap((dir) => ["--add-dir", dir]) : []
     ],
     command: binary,
     cwd: paths.workDir,
@@ -3327,6 +3328,12 @@ var NodeModelGatewayGit = class {
     if (result.exitCode !== 0 || commonDir === "") throw new Error(messageOf4(result));
     return commonDir;
   }
+  async gitDir(path) {
+    const result = await this.git(path, ["rev-parse", "--path-format=absolute", "--git-dir"]);
+    const gitDir = result.stdout.trim();
+    if (result.exitCode !== 0 || gitDir === "") throw new Error(messageOf4(result));
+    return gitDir;
+  }
   async remotes(path) {
     const result = await this.git(path, ["config", "--get-regexp", String.raw`^remote\..*\.url$`]);
     if (result.exitCode === 1) return [];
@@ -3348,8 +3355,14 @@ var NodeModelGatewayGit = class {
     const result = await this.git(path, ["add", "-A"], WORKTREE_TIMEOUT_MS);
     if (result.exitCode !== 0) throw new Error(messageOf4(result));
   }
-  async stagedFiles(path) {
-    const result = await this.git(path, ["diff", "--cached", "--name-only", "-z"]);
+  async stagedFiles(path, base) {
+    const result = await this.git(path, [
+      "diff",
+      "--cached",
+      "--name-only",
+      "-z",
+      ...base === void 0 ? [] : ["--end-of-options", base]
+    ]);
     if (result.exitCode !== 0) throw new Error(messageOf4(result));
     return result.stdout.split("\0").filter((name) => name !== "");
   }
