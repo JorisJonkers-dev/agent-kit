@@ -244,6 +244,10 @@ exited zero. Three nodes make the shape, and
 3. **The next node**, reached only when both succeeded. Neither shim node has
    a failure edge, so any failure ends the run.
 
+Workflow B's coverage gate is one such pair (`gate-coverage`, `copy-coverage`):
+the wrapper runs `coverage-gate --repo-dir DIR` (docs/RUST.md), which demands
+100 percent line coverage on the files the change touches.
+
 ```bash
 gold-band-gate run --run-id ID --attempt N --timeout-secs S \
     --report-dir DIR -- COMMAND [ARGS...]

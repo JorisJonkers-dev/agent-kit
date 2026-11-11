@@ -3,7 +3,7 @@
 The template at ``installer/gold-band/workflows/workflow-b.json`` is the
 Gold Band shape of Workflow B's main path for the personal instance: a test
 author from one model family writes the failing tests, one writer from another
-family implements until they pass, and build, tests and lint each run through
+family implements until they pass, and build, tests, lint and coverage each run through
 the gate shim -- a gate node that runs the pinned ``gold-band-gate`` wrapper,
 then a read-only copier that verifies the report it printed.
 
@@ -39,11 +39,13 @@ MAIN_PATH = [
     "copy-test",
     "gate-lint",
     "copy-lint",
+    "gate-coverage",
+    "copy-coverage",
 ]
 
 #: The gate shim's two halves, by suffix: the wrapper that runs the command and
 #: the read-only copier that verifies the report it printed.
-GATE_SUFFIXES = ["build", "test", "lint"]
+GATE_SUFFIXES = ["build", "test", "lint", "coverage"]
 
 #: The families the personal instance may not bind: the ticket's main path is
 #: proven with the two families below and nothing else.

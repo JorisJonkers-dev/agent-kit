@@ -1,0 +1,9 @@
+[package]
+name = "coverage-gate"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The coverage gate: fails unless every file a change touches has 100 percent line coverage, from the repository's own cargo llvm-cov, vitest or pytest-cov (issue #449)."
+
+# Standard library only: nothing in the lockfile has an age to question.
+[dependencies]
