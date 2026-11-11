@@ -574,18 +574,18 @@ fn bad_tool_calls_are_tool_errors() {
 }
 
 #[test]
-fn tools_list_names_all_three_tools() {
+fn tools_list_names_all_four_tools() {
     let f = fixture();
     let replies = exchange(&f, 20, &[r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#]);
     assert!(parse_json_ok(&replies[0]));
     let json = code_nav_eval::parse_json(&replies[0]).unwrap();
     let tools = json.get("result").and_then(|r| r.get("tools")).and_then(Json::as_arr).unwrap();
     let names: Vec<&str> = tools.iter().filter_map(|t| t.get("name").and_then(Json::as_str)).collect();
-    assert_eq!(names, ["search", "outline", "expand"]);
+    assert_eq!(names, ["search", "outline", "expand", "map"]);
     for tool in tools {
         let description = tool.get("description").and_then(Json::as_str).unwrap();
         assert!(description.contains("never read"), "{description}");
-        assert!(tool.get("inputSchema").and_then(|s| s.get("required")).and_then(Json::as_arr).is_some());
+        assert!(tool.get("inputSchema").and_then(|s| s.get("properties")).is_some());
     }
     let required = |tool: &Json| -> Vec<String> {
         tool.get("inputSchema")
@@ -600,6 +600,7 @@ fn tools_list_names_all_three_tools() {
     assert_eq!(required(&tools[0]), ["query"]);
     assert_eq!(required(&tools[1]), ["path"]);
     assert_eq!(required(&tools[2]), ["path", "symbol"]);
+    assert!(tools[3].get("inputSchema").and_then(|s| s.get("required")).is_none());
 }
 
 #[test]
@@ -884,4 +885,140 @@ fn an_enclosing_blocks_closer_is_not_part_of_the_symbol() {
 fn impl_names_survive_nested_generics() {
     let text = "impl<T: Into<String>> Foo<T> {\n}\nimpl<T";
     assert_eq!(ranges(&outline::symbols(text)), [(1, "impl", "Foo<T>", 1, 2)]);
+}
+
+// --------------------------------------------------------------------- map
+
+/// A small repo whose most-referenced symbols are known: `parse` is called
+/// three times, `Config` is used twice (once by an `impl`), `helper` once, and
+/// `run` and `go` never.
+fn map_fixture() -> Fixture {
+    let f = fixture();
+    let root = temp_dir().join("mapped");
+    write(&root.join("core.rs"), "pub fn parse() {}\npub struct Config {}\n");
+    write(&root.join("a.rs"), "fn run() { parse(); parse(); let c = Config; }\nimpl Config {}\n");
+    write(&root.join("b.rs"), "fn helper() {}\nfn go() { parse(); helper(); }\n");
+    let boundary = Boundary::new(std::slice::from_ref(&root)).unwrap();
+    Fixture { root, boundary, ..f }
+}
+
+#[test]
+fn the_map_ranks_symbols_by_how_often_they_are_referenced() {
+    let f = map_fixture();
+    let repo = map::map(std::slice::from_ref(&f.root), 10);
+    let top: Vec<(&str, usize)> = repo.symbols.iter().map(|s| (s.name.as_str(), s.refs)).collect();
+    // Ties go to the path that sorts first: `a.rs` before `b.rs`.
+    assert_eq!(top, [("parse", 3), ("Config", 2), ("helper", 1), ("run", 0), ("go", 0)]);
+    assert_eq!(repo.symbols[0].kind, "fn");
+    assert_eq!(repo.symbols[0].line, 1);
+    let files: Vec<(String, usize, usize)> = repo
+        .files
+        .iter()
+        .map(|file| (file.path.file_name().unwrap().to_string_lossy().into_owned(), file.refs, file.symbols))
+        .collect();
+    assert_eq!(files, [("core.rs".to_string(), 5, 2), ("b.rs".to_string(), 1, 2), ("a.rs".to_string(), 0, 1)]);
+    assert_eq!((repo.total_files, repo.total_symbols, repo.walk_capped), (3, 5, false));
+}
+
+#[test]
+fn the_map_caps_both_lists_and_counts_what_it_left_out() {
+    let f = map_fixture();
+    let repo = map::map(std::slice::from_ref(&f.root), 2);
+    assert_eq!((repo.files.len(), repo.symbols.len(), repo.total_files, repo.total_symbols), (2, 2, 3, 5));
+    assert_eq!(repo.symbols[1].name, "Config");
+}
+
+#[test]
+fn the_map_stops_at_the_file_cap() {
+    let f = map_fixture();
+    let repo = map::map_capped(std::slice::from_ref(&f.root), 10, 1);
+    assert!(repo.walk_capped);
+    assert_eq!(repo.total_files, 1);
+    // Exactly as many files as the cap is not a capped walk.
+    assert!(!map::map_capped(std::slice::from_ref(&f.root), 10, 3).walk_capped);
+}
+
+#[test]
+fn the_map_never_reads_what_the_boundary_refuses() {
+    let f = fixture();
+    write(&f.outside.join("loot.rs"), "fn outside_fn() {}\n");
+    write(&f.root.join(".env.rs"), "fn secret_fn() {}\n");
+    write(&f.root.join("target/gen.rs"), "fn target_fn() {}\n");
+    write(&f.root.join("node_modules/dep.rs"), "fn module_fn() {}\n");
+    write(&f.root.join("blob.rs"), "fn nul_fn() {}\0\n");
+    symlink(f.outside.join("loot.rs"), f.root.join("link.rs")).unwrap();
+    let repo = map::map(std::slice::from_ref(&f.root), 200);
+    let names: Vec<&str> = repo.symbols.iter().map(|s| s.name.as_str()).collect();
+    for refused in ["outside_fn", "secret_fn", "target_fn", "module_fn", "nul_fn"] {
+        assert!(!names.contains(&refused), "{refused}");
+    }
+    assert!(names.contains(&"make_widget") && names.contains(&"Circle"));
+    // `impl Circle` is not a symbol of its own.
+    assert_eq!(names.iter().filter(|n| **n == "Circle").count(), 1);
+    let missing = map::map(&[f.root.join("nowhere")], 5);
+    assert_eq!((missing.total_files, missing.total_symbols), (0, 0));
+}
+
+#[test]
+fn the_map_tool_prints_ranked_files_and_symbols() {
+    let f = map_fixture();
+    let root = f.root.display().to_string();
+    let replies = exchange(&f, 20, &[&tool_call("map", "{}"), &tool_call("map", r#"{"path":"b.rs","limit":1}"#)]);
+    let expected = format!(
+        "files:\n{root}/core.rs (5 refs, 2 symbols)\n{root}/b.rs (1 refs, 2 symbols)\n{root}/a.rs (0 refs, 1 symbols)\n\
+         symbols:\n{root}/core.rs:1 fn parse (3 refs)\n{root}/core.rs:2 struct Config (2 refs)\n\
+         {root}/b.rs:1 fn helper (1 refs)\n{root}/a.rs:1 fn run (0 refs)\n{root}/b.rs:2 fn go (0 refs)"
+    );
+    assert_eq!(text_of(&replies[0]), expected);
+    // One file, capped at one symbol; only b.rs is read, so helper is referenced once.
+    let capped = text_of(&replies[1]);
+    assert!(capped.contains(&format!("files:\n{root}/b.rs (1 refs, 2 symbols)\nsymbols:\n{root}/b.rs:1 fn helper (1 refs)\n")), "{capped}");
+    assert!(capped.ends_with("showing 1 of 1 files and 1 of 2 symbols; narrow the path"), "{capped}");
+}
+
+#[test]
+fn the_map_tool_reports_empty_refused_and_capped_walks() {
+    let f = fixture();
+    let outside = f.outside.join("loot.txt").display().to_string();
+    let replies = exchange(
+        &f,
+        20,
+        &[
+            &tool_call("map", r#"{"path":"src/notes.txt"}"#),
+            &tool_call("map", &format!(r#"{{"path":"{outside}"}}"#)),
+            &tool_call("map", r#"{"path":".env"}"#),
+        ],
+    );
+    assert_eq!(text_of(&replies[0]), "no symbols");
+    assert!(!replies[0].contains(r#""isError":true"#));
+    assert!(text_of(&replies[1]).contains("outside the allowed roots"));
+    assert!(replies[1].contains(r#""isError":true"#));
+    assert!(text_of(&replies[2]).contains("secret file"));
+}
+
+#[test]
+fn a_walk_that_hit_the_file_cap_says_so() {
+    let repo = map::RepoMap { files: vec![], symbols: vec![map::Entry { path: "x.rs".into(), line: 1, kind: "fn".into(), name: "f".into(), refs: 0 }], total_files: 0, total_symbols: 1, walk_capped: true };
+    assert!(server::render_map(&repo).ends_with("stopped after the file cap; narrow the path"));
+    let none = map::RepoMap { symbols: vec![], total_symbols: 0, ..repo };
+    assert_eq!(server::render_map(&none), "no symbols\nstopped after the file cap; narrow the path");
+}
+
+#[test]
+fn the_map_holds_one_file_text_at_a_time() {
+    let f = map_fixture();
+    write(&f.root.join("blob.rs"), "fn nul() {}\0");
+    write(&f.root.join("late.rs"), &format!("{}\0fn late() {{}}", "x".repeat(9000)));
+    let mut reads: Vec<String> = Vec::new();
+    let repo = map::map_with(std::slice::from_ref(&f.root), 10, 10, &mut |path| {
+        reads.push(path.file_name().unwrap().to_string_lossy().into_owned());
+        fs::read_to_string(path).ok().filter(|t| !t.contains('\0'))
+    });
+    // Each file is read once per pass, one at a time. A file with a NUL in its
+    // head (blob.rs) never reaches the reader or spends the cap; one with the
+    // NUL past the head (late.rs) is read and then refused as not text.
+    assert_eq!(reads, ["a.rs", "b.rs", "core.rs", "late.rs", "a.rs", "b.rs", "core.rs", "late.rs"]);
+    let counts: Vec<(&str, usize)> = repo.symbols.iter().take(3).map(|s| (s.name.as_str(), s.refs)).collect();
+    assert_eq!(counts, [("parse", 3), ("Config", 2), ("helper", 1)]);
+    assert!(!repo.walk_capped);
 }

@@ -1,14 +1,15 @@
 //! code-nav: a read-only code-navigation MCP server over stdio.
 //!
 //! The server searches the live working tree (no index, so no stale result)
-//! under an allowlist of canonical roots. Four modules, each a small seam:
+//! under an allowlist of canonical roots. Five modules, each a small seam:
 //!
 //! * [`boundary`] decides which paths may be read: a root outside the
 //!   allowlist, a symlink that leaves it and a secret file are refused.
 //! * [`search`] finds and ranks matching lines and caps the result.
 //! * [`outline`] lists the symbols a file declares and expands one of them.
+//! * [`map`] ranks a tree's files and symbols by how often they are referenced.
 //! * [`server`] speaks MCP (newline-delimited JSON-RPC) and exposes `search`,
-//!   `outline` and `expand`.
+//!   `outline`, `expand` and `map`.
 //!
 //! Usage: `code-nav --root DIR [--root DIR ...] [--limit N]`. The roots are
 //! the allowlist; the caller (setup, per instance) passes only roots that fit
@@ -18,6 +19,7 @@
 //! config passes the argument literally, with no shell to expand it.
 
 pub mod boundary;
+pub mod map;
 pub mod outline;
 pub mod search;
 pub mod server;

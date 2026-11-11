@@ -29,7 +29,7 @@ pub const MAX_FILE_BYTES: u64 = 1024 * 1024;
 /// Longest line text returned, in characters.
 const MAX_LINE_CHARS: usize = 200;
 /// Directories never entered.
-const SKIPPED_DIRS: [&str; 4] = [".git", "node_modules", "target", ".venv"];
+pub(crate) const SKIPPED_DIRS: [&str; 4] = [".git", "node_modules", "target", ".venv"];
 
 /// One matching line.
 #[derive(Debug, Clone, PartialEq)]

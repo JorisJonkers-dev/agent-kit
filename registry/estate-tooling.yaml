@@ -1992,7 +1992,7 @@ mcp_servers:
 
   - name: code-nav
     transport: stdio
-    purpose: Read-only search, outline and expand over the live working tree of the personal repositories.
+    purpose: Read-only search, outline, expand and a ranked repository map over the live working tree of the personal repositories.
     command: code-nav
     args: ["--root", "~/Projects/JorisJonkers-dev"]
     timeout: 60

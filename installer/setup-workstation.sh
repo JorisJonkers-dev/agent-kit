@@ -3762,8 +3762,8 @@ for install in installs:
       fi
     fi
 
-    # Read-only search, outline and expand over the live working
-    # tree of the personal repositories.
+    # Read-only search, outline, expand and a ranked repository map
+    # over the live working tree of the personal repositories.
     if [ "${CLOUD}" = 1 ]; then
       log "code-nav: not set up in cloud mode"
     else
