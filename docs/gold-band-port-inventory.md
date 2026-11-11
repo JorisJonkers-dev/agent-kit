@@ -5,6 +5,8 @@ Gold Band port. Each row has exactly one target (`workflow`, `role`,
 `skill set`, `MCP server` or `stays outside`) and the lanes it is offered in:
 `direct`, `gold-band` or `gold-band-personal`. The decisions are from spec #392.
 
+Waves after Wave 2 are cut at the end, in `## Waves`.
+
 The document is checked by `scripts/crates/inventory-check`. Run it from the
 repository root:
 
@@ -137,3 +139,105 @@ Rows for work with no directory yet.
 | brainstorming | (no directory yet) | Explores user intent, requirements and design before implementation. | workflow | direct, gold-band, gold-band-personal | Same human-gate mapping; each exploration round is one manual-check node. Also kept in the direct lane. |
 | to-spec | (no directory yet) | Turns decisions into a spec through question rounds. | workflow | direct, gold-band, gold-band-personal | Same human-gate mapping; each question round is one manual-check node. Also kept in the direct lane. |
 | to-tickets | (no directory yet) | Cuts a spec's tickets through question rounds. | workflow | direct, gold-band, gold-band-personal | Same human-gate mapping; each question round is one manual-check node. Also kept in the direct lane. |
+
+## Waves
+
+Every row with a Gold Band lane that does not stay outside sits in exactly one wave,
+in the order the waves run; the check fails on a row in no wave, in two, or with a
+target that differs from its row above. Rows with only the `direct` lane (the review
+stages `recover-decisions`, `critique-plan` and `review-architecture`, their roles, and
+the Vibe delegate agents) are kept in the direct lane and are in no wave. The wave
+tickets are in `docs/specs/gold-band/tickets.yaml` (B3-11 to B3-15).
+
+
+### Wave 2: critique templates and their roles
+
+Done in #363 (B3-02) and #345: the critique stage templates over the runner, the six roles as Gold Band profiles, and the critic agents as bindings. Wave 1, the three delegation workflows, is done in #350 and has no inventory rows.
+
+| Row | Target | Ticket |
+| --- | --- | --- |
+| skills/workstation/critique-adrs | workflow | B3-02 |
+| skills/workstation/review-grill | workflow | B3-02 |
+| skills/workstation/review-implementation | workflow | B3-02 |
+| skills/workstation/review-pr | workflow | B3-02 |
+| skills/workstation/review-spec | workflow | B3-02 |
+| skills/workstation/review-tickets | workflow | B3-02 |
+| Roles/diff-reviewer | role | B1-03c |
+| Roles/feature-reviewer | role | B1-03c |
+| Roles/gap-critic | role | B1-03c |
+| Roles/refuter | role | B1-03c |
+| Roles/spec-redteam | role | B1-03c |
+| Roles/ticket-linter | role | B1-03c |
+| Roles/Vibe critic agents | role | B1-03c |
+
+### Wave 3: workflows over the Rust runners
+
+First after Wave 2 because the Rust runners (B4-22a for the critique runner, B4-22b for the build tracker) are the executors every later template calls, and these four are the runner's own entry points. Each template calls the crate behind the same commands; none holds logic of its own.
+
+| Row | Target | Ticket |
+| --- | --- | --- |
+| skills/workstation/critique | workflow | B3-11 |
+| skills/workstation/critique-stats | workflow | B3-11 |
+| skills/workstation/flow | workflow | B3-11 |
+| skills/workstation/build-tracker | workflow | B3-11 |
+
+### Wave 4: human-gate workflows
+
+After Wave 3 because each question round is a manual-check node and the headless proof harness (B2-04) and Workflow C (B2-11) must exist to prove them. Loops: grill-me, grill-with-docs, brainstorming, to-spec and to-tickets all assume question rounds repeating until the human is satisfied; Gold Band has no per-node loop counter, so the ticket carries the unrolled node sequence as an acceptance criterion. Each mapping is recorded in the Planned notes before this wave starts.
+
+| Row | Target | Ticket |
+| --- | --- | --- |
+| Planned/grill-me | workflow | B3-12 |
+| Planned/grill-with-docs | workflow | B3-12 |
+| Planned/brainstorming | workflow | B3-12 |
+| Planned/to-spec | workflow | B3-12 |
+| Planned/to-tickets | workflow | B3-12 |
+| skills/workstation/pr-composer | workflow | B3-12 |
+
+### Wave 5: skill sets
+
+After the workflows because a skill set is installed on an agent id (B1-18) and rides under the nodes that bind it. The four estate skills are already built (B3-04 to B3-07) and placed by B3-09; the general skill sets follow.
+
+| Row | Target | Ticket |
+| --- | --- | --- |
+| skills/workstation/estate-project-intent | skill set | B3-09 |
+| skills/workstation/estate-delivery-status | skill set | B3-09 |
+| skills/workstation/estate-rollback | skill set | B3-09 |
+| skills/workstation/estate-bootstrap | skill set | B3-09 |
+| skills/workstation/agent-session-bootstrap | skill set | B3-13 |
+| skills/repo/agent-session-bootstrap | skill set | B3-13 |
+| skills/workstation/kb-first | skill set | B3-13 |
+| skills/repo/kb-first | skill set | B3-13 |
+| skills/workstation/token-economy | skill set | B3-13 |
+| skills/repo/token-economy | skill set | B3-13 |
+
+### Wave 6: MCP servers of the personal instance
+
+After the skill sets because MCP servers are listed per agent id by reach level (B1-20), and these ten are offered only in the personal instance.
+
+| Row | Target | Ticket |
+| --- | --- | --- |
+| MCP servers/memory-api | MCP server | B3-14 |
+| MCP servers/n8n | MCP server | B3-14 |
+| MCP servers/n8n-mcp | MCP server | B3-14 |
+| MCP servers/kubernetes | MCP server | B3-14 |
+| MCP servers/github | MCP server | B3-14 |
+| MCP servers/grimoire | MCP server | B3-14 |
+| MCP servers/outline | MCP server | B3-14 |
+| MCP servers/playwright | MCP server | B3-14 |
+| MCP servers/drawio | MCP server | B3-14 |
+| MCP servers/overleaf | MCP server | B3-14 |
+
+### Wave 7: MCP servers of both instances
+
+Last because each needs an owner-run dependency first: the code-nav server (B7-09), the Nedap bank (B5-01) for hindsight, and the runner image's build-time URLs for the rest. The work instance reads only what its overlay lists.
+
+| Row | Target | Ticket |
+| --- | --- | --- |
+| MCP servers/code-nav | MCP server | B3-15 |
+| MCP servers/hindsight | MCP server | B3-15 |
+| MCP servers/git-host | MCP server | B3-15 |
+| MCP servers/code-intel | MCP server | B3-15 |
+| MCP servers/frontend-docs | MCP server | B3-15 |
+| MCP servers/ui-docs | MCP server | B3-15 |
+| MCP servers/cluster | MCP server | B3-15 |

@@ -35,11 +35,24 @@ const GOOD: &str = "\
 | Name | Path | What | Target | Lanes | Notes |
 | --- | --- | --- | --- | --- | --- |
 | m | p | w | MCP server | direct | |
+
+## Waves
+
+### Wave 2: first
+
+| Row | Target | Notes |
+| --- | --- | --- |
+| skills/workstation/s | workflow | |
+
+### Wave 3: second
+
+| Row | Target | Notes |
+| --- | --- | --- |
+| Roles/r | role | |
 ";
 
 fn fixture(tag: &str, inventory: &str) -> std::path::PathBuf {
-    let root =
-        std::env::temp_dir().join(format!("inventory-check-{tag}-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("inventory-check-{tag}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(root.join("skills/workstation/s")).unwrap();
     fs::create_dir_all(root.join("skills/repo")).unwrap();
@@ -224,8 +237,7 @@ fn blank_name_row_is_still_checked() {
 
 #[test]
 fn planned_rows_need_no_directory() {
-    let doc =
-        format!("{GOOD}\n## Planned\n\n{HEAD}| estate-x | - | w | skill set | direct | |\n");
+    let doc = format!("{GOOD}\n## Planned\n\n{HEAD}| estate-x | - | w | skill set | direct | |\n");
     assert_eq!(problems_of("planned", &doc), Vec::<String>::new());
 }
 
@@ -243,4 +255,69 @@ fn run_reports_usage_problems_and_success() {
     fs::write(root.join(INVENTORY), "").unwrap();
     assert_eq!(run(args(&[&root])), 1);
     let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn gold_band_row_in_no_wave_fails() {
+    let doc = GOOD.replace("| Roles/r | role | |\n", "");
+    assert!(has(
+        &problems_of("nowave", &doc),
+        "Roles/r: Gold Band row is in no wave"
+    ));
+}
+
+#[test]
+fn row_in_two_waves_fails() {
+    let doc = GOOD.replace(
+        "| Roles/r | role | |\n",
+        "| Roles/r | role | |\n| skills/workstation/s | workflow | |\n",
+    );
+    assert!(has(
+        &problems_of("twowaves", &doc),
+        "Waves/skills/workstation/s: row is listed 2 times"
+    ));
+}
+
+#[test]
+fn wave_row_must_exist_port_and_agree_on_target() {
+    let ghost = GOOD.replace(
+        "| Roles/r | role | |",
+        "| Roles/ghost | role | |\n| Roles/r | role | |",
+    );
+    assert!(has(
+        &problems_of("ghost", &ghost),
+        "Roles/ghost is not an inventory row"
+    ));
+    let direct = GOOD.replace(
+        "| Roles/r | role | |",
+        "| Roles/r | role | |\n| skills/workstation/critique | workflow | |",
+    );
+    assert!(has(
+        &problems_of("direct", &direct),
+        "skills/workstation/critique has no Gold Band lane to port"
+    ));
+    let outside = GOOD.replace(
+        "| Roles/r | role | |",
+        "| Roles/r | role | |\n| Roles/a | stays outside | |",
+    );
+    assert!(has(
+        &problems_of("outside", &outside),
+        "Roles/a has no Gold Band lane to port"
+    ));
+    let target = GOOD.replace("| Roles/r | role | |", "| Roles/r | workflow | |");
+    assert!(has(
+        &problems_of("target", &target),
+        "target \"workflow\" is not the inventory's \"role\""
+    ));
+}
+
+#[test]
+fn short_wave_row_fails_and_waves_are_not_inventory_rows() {
+    let doc = GOOD.replace(
+        "| Roles/r | role | |",
+        "| Roles/r | role |\n| Roles/r | role | |",
+    );
+    let p = problems_of("shortwave", &doc);
+    assert!(has(&p, "has 2 cells, not 3"));
+    assert!(!has(&p, "row has 3 cells"));
 }

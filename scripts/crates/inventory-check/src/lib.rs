@@ -13,11 +13,14 @@
 //! * a name has one row per section;
 //! * every row has exactly one target from [`TARGETS`]: none, or two, fails;
 //! * every row has at least one lane, each from [`LANES`];
-//! * a hook, and any row that stays outside, carries no Gold Band lane.
+//! * a hook, and any row that stays outside, carries no Gold Band lane;
+//! * `## Waves` groups the rows that port: each `### Wave N` table lists rows
+//!   as `<section>/<name>` with their target, every row with a Gold Band lane
+//!   sits in exactly one wave, and no other row sits in any.
 //!
 //! Usage: `inventory-check <REPO_ROOT>`. Exit 0 clean, 1 problems, 2 bad usage.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
@@ -38,6 +41,8 @@ pub const OUTSIDE: &str = "stays outside";
 pub const LANES: [&str; 3] = ["direct", "gold-band", "gold-band-personal"];
 const HOOKS: &str = "Hooks";
 const CELLS: usize = 6;
+const WAVES: &str = "Waves";
+const WAVE_CELLS: usize = 3;
 
 /// One table row: the cells between the pipes, trimmed.
 fn cells(line: &str) -> Option<Vec<&str>> {
@@ -57,6 +62,8 @@ fn rows(text: &str) -> Vec<(String, Vec<&str>)> {
             section = title.split_whitespace().next().unwrap_or("").to_string();
         } else if let Some(title) = line.strip_prefix("## ") {
             section = title.trim().to_string();
+        } else if section.starts_with("Wave") {
+            continue;
         } else if let Some(c) = cells(line) {
             let head = c[0].eq_ignore_ascii_case("name");
             let rule = !c[0].is_empty() && c[0].chars().all(|ch| ch == '-');
@@ -66,6 +73,85 @@ fn rows(text: &str) -> Vec<(String, Vec<&str>)> {
         }
     }
     out
+}
+
+/// The rows of the `## Waves` tables, each with its wave heading.
+fn wave_rows(text: &str) -> Vec<(String, Vec<&str>)> {
+    let (mut in_waves, mut wave) = (false, String::new());
+    let mut out = Vec::new();
+    for line in text.lines() {
+        if let Some(title) = line.strip_prefix("## ") {
+            in_waves = title.trim() == WAVES;
+        } else if let (true, Some(title)) = (in_waves, line.strip_prefix("### ")) {
+            wave = title.trim().to_string();
+        } else if let (true, Some(c)) = (in_waves, cells(line)) {
+            let head = c[0].eq_ignore_ascii_case("row");
+            let rule = !c[0].is_empty() && c[0].chars().all(|ch| ch == '-');
+            if !head && !rule {
+                out.push((wave.clone(), c));
+            }
+        }
+    }
+    out
+}
+
+/// Problems between the wave tables and the inventory rows.
+fn wave_problems(text: &str, table: &[(String, Vec<&str>)]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut placed: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (wave, c) in wave_rows(text) {
+        if c.len() != WAVE_CELLS {
+            out.push(format!(
+                "{WAVES}/{wave}: row {:?} has {} cells, not {WAVE_CELLS}",
+                c[0],
+                c.len()
+            ));
+            continue;
+        }
+        placed
+            .entry(c[0].to_string())
+            .or_default()
+            .push(wave.clone());
+        let found = table
+            .iter()
+            .find(|(s, r)| format!("{s}/{}", r[0]) == c[0] && r.len() == CELLS);
+        let Some((_, row)) = found else {
+            out.push(format!("{WAVES}/{wave}: {} is not an inventory row", c[0]));
+            continue;
+        };
+        if !has_gold_lane(row[4]) || row[3] == OUTSIDE {
+            out.push(format!(
+                "{WAVES}/{wave}: {} has no Gold Band lane to port",
+                c[0]
+            ));
+        }
+        if c[1] != row[3] {
+            out.push(format!(
+                "{WAVES}/{wave}: {} target {:?} is not the inventory's {:?}",
+                c[0], c[1], row[3]
+            ));
+        }
+    }
+    for (name, waves) in placed.iter().filter(|(_, w)| w.len() > 1) {
+        out.push(format!(
+            "{WAVES}/{name}: row is listed {} times",
+            waves.len()
+        ));
+    }
+    for (section, c) in table.iter().filter(|(_, c)| c.len() == CELLS) {
+        if has_gold_lane(c[4])
+            && c[3] != OUTSIDE
+            && !placed.contains_key(&format!("{section}/{}", c[0]))
+        {
+            out.push(format!("{section}/{}: Gold Band row is in no wave", c[0]));
+        }
+    }
+    out
+}
+
+/// Whether a lanes cell names a Gold Band lane.
+fn has_gold_lane(lanes: &str) -> bool {
+    lanes.split(',').any(|l| l.trim().starts_with("gold-band"))
 }
 
 /// Names of the sub-directories of `dir`.
@@ -167,7 +253,7 @@ fn row_problems(section: &str, c: &[&str]) -> Vec<String> {
             ));
         }
     }
-    let gold = named.iter().any(|l| l.starts_with("gold-band"));
+    let gold = has_gold_lane(lanes);
     if (section == HOOKS || target == OUTSIDE) && gold {
         out.push(format!(
             "{section}/{name}: a row that stays outside carries a Gold Band lane"
@@ -244,6 +330,7 @@ pub fn check(root: &Path) -> Vec<String> {
         }
         problems.extend(row_problems(section, c));
     }
+    problems.extend(wave_problems(&text, &table));
     problems
 }
 
