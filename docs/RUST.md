@@ -173,8 +173,51 @@ is not `verified` on a host it names, two ids for one agent, level and skill
 set, or a cell missing an OS. `run` exits `1` and starts nothing when the cell
 for this OS is not verified or the id is not declared for it; otherwise it
 runs the agent with `AGENT_KIT_REACH` (and `AGENT_KIT_OUTPUT_DIR`) set and
-exits with its status. The operating-system write limit (ADR-0013) is a
-separate interface that plugs in beside it.
+exits with its status.
+
+`run` also puts the operating-system write limit (ADR-0013) on the agent. The
+launcher has one interface (`WriteLimit`) with a backend per OS; on Linux the
+backend is Landlock, called directly through libc (`libc` is pinned at
+0.2.186, published 2026-04-23). The writable paths come from ADR-0013's table:
+
+| Reach level | The agent may write |
+| :- | :- |
+| every level | its state directories (`AGENT_KIT_STATE_DIRS`, colon separated; one that does not exist is skipped), a temporary directory made for the run (`TMPDIR` points at it, removed afterwards) and the `/dev/null` and `/dev/tty` devices |
+| `read`, `read-web` | nothing more |
+| `research`, `write-scoped` | its id's `output_dir` |
+| `run-one-command` | its gate-output directory (`AGENT_KIT_GATE_DIR`) |
+| `write` | the current directory, which must be a linked git worktree, its own git administration directory, and the shared `objects`, `refs` and `logs`; never the shared `hooks` or `config` |
+| `full` | anything (no limit) |
+
+Landlock only grants, so the files inside the worktree that tell git where its
+directories are (`.git`, and the worktree's `commondir` and `gitdir`) cannot
+be carved out: the launcher records them before the agent starts, puts back any
+the agent changed, replaced or removed when it ends, and exits 1 saying so.
+The `write` grant also covers the worktree's own git directory and the shared
+`objects`, `refs` and `logs` (so a commit works and the agent can move
+branches); `git fetch`, `gc` and anything else that needs a lock file in the
+shared git directory itself fails under `write`. Before every `write` launch the launcher also checks the git layout is the one
+git makes (`<common>/worktrees/<name>` with the common directory outside the
+worktree, `gitdir` pointing back at the worktree, `objects`, `refs` and `logs`
+not symlinks), so a pointer an agent changed and a killed launcher never put
+back is refused rather than trusted. The launcher also refuses `write`
+when the shared `hooks`, the shared `config` or the effective `core.hooksPath`
+(every occurrence, in the repository config and the system and global git configs; relative paths against the worktree, `~/` expanded) resolve inside, or to a
+parent of, anything it would grant. A guarded file that cannot be put back is
+reported as such and the exit code is 1. The check reads paths before the
+grants are opened, so a path swapped in that gap is not caught (the agent only
+starts after both). The limit protects what git runs
+outside the sandbox: git the agent runs itself (with `-c` or `GIT_CONFIG_*`)
+stays inside the same Landlock limit. A directory granted from
+configuration may not lie inside a `.git` directory. Also, `write` is refused in a primary checkout (its `.git`
+directory holds hooks and config beside everything else) and in a repository
+whose config enables `extensions.worktreeConfig` or includes another file (a `config.worktree` in the worktree's own
+git directory could set `core.hooksPath`). Reads and the network are never
+limited. The launcher refuses to start the agent, exit 1, when Landlock is
+missing, disabled, or older than ABI 3 (Linux 6.2); it never runs an agent
+without its limit. The tests run without root and need a kernel with Landlock
+ABI 3. On macOS the `sandbox-exec` backend is not built yet, so a limited level
+is refused there.
 
 ## build-tracker
 

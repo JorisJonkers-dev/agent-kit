@@ -208,19 +208,23 @@ fn bad_usage_exits_2() {
     assert_eq!(run(args(&["run", "f", "id", "extra"])), 2);
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn a_permitted_id_starts_its_agent_with_its_reach_and_arguments() {
     let dir = scratch("start");
-    let record = write_record(&dir);
-    let marker = dir.join("marker");
+    // The research level may write only its output directory, so the marker goes there.
+    let out = dir.join("out");
+    let record = dir.join("reach.yaml");
+    fs::write(&record, GOOD.replace("/tmp/research", &out.to_string_lossy())).unwrap();
+    let marker = out.join("marker");
     let code = run_on(
-        [OsString::from("run"), record, "fake-research".into(), "--".into(), marker.clone().into_os_string()],
+        [OsString::from("run"), record.into_os_string(), "fake-research".into(), "--".into(), marker.clone().into_os_string()],
         "linux",
     );
     assert_eq!(code, 0);
     assert_eq!(
         fs::read_to_string(&marker).unwrap(),
-        "research:/tmp/research:--out"
+        format!("research:{}:--out", out.display())
     );
 }
 
