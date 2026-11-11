@@ -22,7 +22,7 @@ min=${COVERAGE_MIN_LINES:-100}
 # and test code (a tests.rs module or a tests/ directory). Test modules live
 # in their own files for this reason; the standard is coverage of the
 # production source, not of the tests that exercise it.
-ignore='(/\.cargo/|/rustc/|/nix/store/|src/main\.rs$|/tests\.rs$|/tests/)'
+ignore='(/\.cargo/|/test-support/|/rustc/|/nix/store/|src/main\.rs$|/tests\.rs$|/tests/)'
 
 command -v rustc >/dev/null && PATH="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin:$PATH"
 
