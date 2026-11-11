@@ -90,3 +90,26 @@ Linux x86_64 (NixOS), 2026-11-10, from commit `987fc3e298b15d725a7f0e9b609b0f77d
 * **Reported version:** the CLI has no `--version`; the version (0.19.1) is the
   source manifest's, recorded with the commit in the build record.
 
+
+## The personal instance's agent map
+
+After the build, setup converges the `agents` map of the personal instance's
+`settings.json` (`${GOLD_BAND_HOME:-~/.gold-band}/settings.json`) onto the
+registry (`scripts/converge.py gold-band`). The app's map replaces its own
+built-in list, so the result is exactly the declared agents plus the ones the
+keep file (`~/.config/agent-kit/keep.yaml`) names:
+
+* `gold_band.agents` in `registry/estate-tooling.yaml` declares each agent, and
+  each id must be one `gold_band_instances.gold-band-personal.agents` names.
+  OpenCode is the first. For an id the app ships itself, `adapter.command` and
+  `adapter.args` are not written: the app strips them when it saves.
+* An undeclared agent is removed unless the keep file names it. An id that
+  names Codex and any id in `gold_band.retired_agents` are removed even when
+  kept.
+* An agent whose `binary` is not on PATH is skipped and reported
+  (`skipped: <id> (<binary> is not installed)`); its existing entry is left alone.
+* Every other key of `settings.json` keeps its value and its order. A second
+  run prints `settings unchanged` and writes nothing. A change keeps one
+  `settings.json.bak`.
+* Nothing is written while the desktop app runs (setup stops and says so), and
+  a machine without Gold Band gets no settings file. `--check` only reports.

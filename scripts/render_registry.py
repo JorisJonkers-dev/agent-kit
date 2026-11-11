@@ -2730,6 +2730,12 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     A machine without the clone skips the surface and says so; a skipped
     surface never fails setup. A too-young or unprovable crate stops the build
     and is a failure, reported with the crate. Under --check it only reports.
+
+    Then, where Gold Band is installed, converge the personal instance's agent
+    map onto the registry's ``gold_band.agents`` plus the keep file
+    (scripts/converge.py gold-band). The map replaces the app's runtime list,
+    so a machine without the app is left alone rather than given a settings
+    file it never asked for.
     """
     gold_band = data.get("gold_band")
     if not gold_band:
@@ -2766,6 +2772,42 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w("  fi")
     w("}")
     w("gold_band_setup")
+    w("")
+    w("# Converges the personal instance's agent map onto the registry's gold_band")
+    w("# agents plus the keep file. The map REPLACES the app's runtime list, so a")
+    w("# machine without Gold Band is left alone rather than given a settings file")
+    w("# it never asked for. Linux only: the Mac instance is not converged here.")
+    w("gold_band_converge() {")
+    w("  local out rc=0 line bin")
+    w('  if [ "$(uname -s)" != Linux ]; then')
+    w('    log "gold band agents: only the Linux personal instance is converged here, skipped"')
+    w("    return 0")
+    w("  fi")
+    w('  if [ "${CLOUD}" = 1 ]; then')
+    w('    log "gold band agents: not converged in a cloud session"')
+    w("    return 0")
+    w("  fi")
+    w('  bin="${GOLD_BAND_BIN_DIR:-${HOME}/.local/bin}/gold-band"')
+    w('  if [ ! -x "${bin}" ]; then')
+    w('    log "gold band agents: Gold Band is not installed, its agent map is left alone"')
+    w("    return 0")
+    w("  fi")
+    w("  if ! command -v uv >/dev/null 2>&1; then")
+    w('    warn "uv is not on PATH; the Gold Band agent map is not converged"')
+    w("    return 0")
+    w("  fi")
+    w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"')
+    w('    --settings "${GOLD_BAND_HOME:-${HOME}/.gold-band}/settings.json")')
+    w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
+    w(
+        '  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
+        '"${KIT_ROOT}/scripts/converge.py" gold-band \\'
+    )
+    w('    "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?')
+    w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  [ "${rc}" = 0 ] || fail "the Gold Band agent map did not converge (see above)"')
+    w("}")
+    w("gold_band_converge")
     w("")
 
 
