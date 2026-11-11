@@ -459,16 +459,15 @@ fn findings_that_are_not_an_array_are_rejected() {
 
 #[test]
 fn no_findings_needs_a_non_empty_reason() {
-    let why = "no findings and no `no_findings_reason`";
-    assert_eq!(parse_document(r#"{"findings":[]}"#).unwrap_err(), why);
-    assert_eq!(
-        parse_document(r#"{"findings":[],"no_findings_reason":""}"#).unwrap_err(),
-        why
-    );
-    assert_eq!(
-        parse_document(r#"{"findings":[],"no_findings_reason":5}"#).unwrap_err(),
-        why
-    );
+    let missing = "no findings and no `no_findings_reason`";
+    let bad = "`no_findings_reason` is not a non-empty string";
+    assert_eq!(parse_document(r#"{"findings":[]}"#).unwrap_err(), missing);
+    for text in [
+        r#"{"findings":[],"no_findings_reason":""}"#,
+        r#"{"findings":[],"no_findings_reason":5}"#,
+    ] {
+        assert_eq!(parse_document(text).unwrap_err(), bad);
+    }
     assert_eq!(
         parse_document(r#"{"findings":[],"no_findings_reason":"nothing to report"}"#).unwrap(),
         Vec::<Value>::new()
@@ -476,12 +475,15 @@ fn no_findings_needs_a_non_empty_reason() {
 }
 
 #[test]
-fn findings_with_a_reason_that_is_not_a_string_are_rejected() {
-    let text = json!({ "findings": [finding(IN_DIFF)], "no_findings_reason": 5 }).to_string();
-    assert_eq!(
-        parse_document(&text).unwrap_err(),
-        "`no_findings_reason` is not a string"
-    );
+fn findings_with_a_bad_reason_are_rejected() {
+    for reason in [json!(5), json!("")] {
+        let text =
+            json!({ "findings": [finding(IN_DIFF)], "no_findings_reason": reason }).to_string();
+        assert_eq!(
+            parse_document(&text).unwrap_err(),
+            "`no_findings_reason` is not a non-empty string"
+        );
+    }
 }
 
 #[test]

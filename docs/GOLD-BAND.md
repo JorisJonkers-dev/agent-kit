@@ -315,7 +315,8 @@ wrong or invent a quote, so a finding drives a repair only when it can be
 checked. The finding check node is a gate node between the critics and the
 repair nodes: the pinned `gold-band-gate run` wrapper around
 `gold-band-findings check`, followed by the read-only copier
-(`scripts/crates/gold-band-findings`).
+(`gold-band-gate verify`). The crate is `scripts/crates/gold-band-findings`; wiring the
+node into Workflow B's graph belongs to the critics ticket (#451).
 
 ```bash
 gold-band-findings check --run-id ID --attempt N --diff FILE --ticket FILE \
@@ -331,12 +332,15 @@ or `quote-not-found`. A hint is kept in the report and never sent back to the
 writer.
 
 It writes `DIR/findings-check.json` and prints it: `run_id`, `attempt`,
-`actionable` (the number kept), `hint_count`, `kept` and `hints`, each entry with
-the `source` index of its findings file. A repair node is reached only when
+`actionable` (the number kept), `hint_count`, `kept` and `hints`. A kept entry is
+`{source, finding}`; a hint is `{source, id, reason, detail, finding}`, where
+`source` is the index of its findings file. A repair node is reached only when
 `actionable` is above zero, so a run with hints alone does not go back to the
 writer. Exit `0`: the check ran. Exit `1`: a critic's answer is not a finding
-document (not JSON, an unknown key, or no findings with no reason), so it is not
-read as "no findings". Exit `2`: bad usage or an unreadable input.
+document (not JSON, an unknown key, `findings` not an array, or a missing or empty
+`no_findings_reason` where it is required or given), so it is not
+read as "no findings". Exit `2`: bad usage, an unreadable input or an unwritable report directory. The
+old `findings-check.json` is removed before each run.
 
 ## The critique stage templates
 

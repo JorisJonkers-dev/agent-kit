@@ -255,16 +255,14 @@ pub fn parse_document(text: &str) -> Result<Vec<Value>, String> {
         .get("findings")
         .and_then(Value::as_array)
         .ok_or("`findings` is not an array")?;
-    if findings.is_empty() {
-        match obj.get("no_findings_reason").and_then(Value::as_str) {
-            Some(r) if !r.is_empty() => {}
-            _ => return Err("no findings and no `no_findings_reason`".to_string()),
+    match obj.get("no_findings_reason") {
+        None if findings.is_empty() => {
+            return Err("no findings and no `no_findings_reason`".to_string())
         }
-    } else if obj
-        .get("no_findings_reason")
-        .is_some_and(|r| !r.is_string())
-    {
-        return Err("`no_findings_reason` is not a string".to_string());
+        Some(r) if r.as_str().is_none_or(str::is_empty) => {
+            return Err("`no_findings_reason` is not a non-empty string".to_string())
+        }
+        _ => {}
     }
     Ok(findings.clone())
 }
@@ -397,6 +395,8 @@ pub fn run_with(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i3
         Ok(p) => p,
         Err(why) => return usage(err, &why),
     };
+    // A report left by an earlier attempt must not outlive a refused one.
+    let _ = fs::remove_file(Path::new(&parsed.report_dir).join(REPORT_FILE));
     let read = |path: &String| read_bounded(path);
     let (diff, ticket) = match (read(&parsed.diff), read(&parsed.ticket)) {
         (Ok(d), Ok(t)) => (d, t),
