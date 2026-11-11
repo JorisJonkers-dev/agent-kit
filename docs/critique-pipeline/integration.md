@@ -3615,3 +3615,65 @@ architecture-expansion section 5.3):
   alternative with its reason and a cost), notes "it was an accident" for a
   refactoring plan, writes nothing under the decision log before the owner
   accepts, and ends by suggesting `/critique-adrs` on the ADRs it wrote.
+
+## What #228 and #229 settled
+
+The editorial rewrite flow and `check-rewrite` (agent-kit#228):
+
+- **The command.** `critique check-rewrite` takes `{ repo,
+  original_sentences, rewritten, split? }`: the decision sentences the
+  orchestrator quoted from the frozen packet, one `rewritten` entry per
+  edited file (`path` and the `decision_sentences` labelled in it), and for
+  a split `split` with `original` and `files`. It reads the rewritten files
+  from the working tree, writes nothing and sends nothing, and is refused
+  for a repository whose remotes are refused like every other command. A
+  rewritten file missing from the working tree is `invalid-input`. It
+  prints `"status": "failed"` and exits 3 on any failed check.
+- **The three checks and their failure names.** `sentence-preserved`: every
+  original sentence is byte-identical in exactly one rewritten file
+  (`missing` or `duplicated`, with `found_in`). `no-new-decision-sentence`:
+  a labelled sentence that is not an original one. `split-superseded`: the
+  split files the original record does not name on a Superseded by or
+  Replaced by line (by link or ADR number), in `unmarked`. Only the
+  sentences the orchestrator labels are checked against the originals; an
+  unlabelled new sentence is caught only if it displaces an original.
+- **The allowed list.** The in-place edit kinds are `status-and-links`,
+  `broken-reference`, `glossary-alignment`, `reorder`, `cited-fact` and
+  `split`. The change list is one line per edit, naming the record, the
+  finding id or pre-check result, and the kind. A change outside the list
+  is never an in-place edit: it becomes a draft superseding or amending ADR
+  written from the owner's answer.
+- **A failing ADR.** The skill restores the record's original text from the
+  frozen packet (`<packet_dir>/artifact/<path>`; a split failure also
+  deletes the records the split created) and asks the owner the
+  new-decision question: a new decision or a mistake. A mistake keeps the
+  restored record; a deferral leaves it restored. The question and its two
+  outcomes live in `/critique-adrs` step 7.
+- **`adr-record` again.** There is no runner command for a standalone
+  `adr-record` critic. `/critique-adrs` re-checks every rewritten ADR
+  itself against the `adr-record` lens (`lenses/adr-record.md`) and labels
+  the decision sentences check-rewrite reads. #229's cold read is the
+  independent check on the same rewrite.
+- **Skill steps.** `/critique-adrs` now ends: 6 Fix the records, 7 Check
+  the rewrite, 8 Ask the owner, 9 Record, 10 Second round, 11 Return. Step 7
+  runs the cold read after `check-rewrite` passes, before step 8.
+- **The cold read (#229).** `critique cold-read` takes `{ run_dir, files }`:
+  the run directory and the rewritten ADRs as repository paths. It reads the
+  run manifest for the repository, flow and run id, and each rewritten ADR
+  from the working tree, and for each file builds a one-file packet under
+  `<run_dir>/cold-read/<n>/artifact/<basename>` holding only that rewritten
+  ADR: no glossary, no other records, no tree, no spec. The `cold-reader`
+  role (`roles/cold-reader.md`) runs on it through the Mistral Small client
+  routing's `cold_read` section names (`vibe-mistral-small`), capped at 0.03
+  USD per check, and each launch is logged like any critic's, so its spend
+  counts in the run's flow spend. The client answers `{ decided, rejected,
+  revisit }`; an empty or missing answer is an omission, and an unparseable
+  reply, a client failure or a skipped client is `unavailable` with a
+  reason, never a pass. The result is `<run_dir>/cold-read.json`, per file
+  `path`, `status`, `answers`, `missing` and `reason`, plus `run_id`. The
+  command does not judge the answers: the orchestrator compares each with
+  the ADR's own decision sentence, rejected alternatives and revisit
+  condition, and on an omission restores that ADR's original text from the
+  frozen packet (a split also deletes the records it created) and lists the
+  ADR in the report. A run is cold-read once; a second call is refused
+  `already-cold-read`.

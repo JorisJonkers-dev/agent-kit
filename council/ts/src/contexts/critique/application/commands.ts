@@ -1,10 +1,13 @@
+import type { ColdReadResult } from '../domain/cold-read.js'
 import type { GateResult } from '../domain/gate.js'
 import type { Refusal } from '../domain/outcomes.js'
 import { AllowCommand, type AllowResult } from './allow.js'
 import { BudgetCommand, type BudgetResult } from './budget-view.js'
 import { CheckAdrsCommand, type CheckAdrsResult } from './check-adrs.js'
 import { CheckPlanCommand, type CheckPlanResult } from './check-plan.js'
+import { CheckRewriteCommand, type CheckRewriteResult } from './check-rewrite.js'
 import { CheckTicketsCommand, type CheckTicketsResult } from './check-tickets.js'
+import { ColdReadCommand } from './cold-read.js'
 import { FactsCommand, type FactsResult } from './facts.js'
 import { FanOutCommand, type FanOutResult } from './fan-out.js'
 import { GateCommand } from './gate.js'
@@ -30,7 +33,9 @@ export interface CritiqueCommands {
   readonly budget: CritiqueCommand<BudgetResult | Refusal>
   readonly checkAdrs: CritiqueCommand<CheckAdrsResult | Refusal>
   readonly checkPlan: CritiqueCommand<CheckPlanResult | Refusal>
+  readonly checkRewrite: CritiqueCommand<CheckRewriteResult | Refusal>
   readonly checkTickets: CritiqueCommand<CheckTicketsResult | Refusal>
+  readonly coldRead: CritiqueCommand<ColdReadResult>
   readonly stats: CritiqueCommand<StatsResult | Refusal>
   readonly state: CritiqueCommand<StateResult | Refusal>
   readonly reviews: CritiqueCommand<ReviewsResult | Refusal>
@@ -46,7 +51,9 @@ export function createCritiqueCommands(deps: CritiqueDeps): CritiqueCommands {
     budget: new BudgetCommand(deps),
     checkAdrs: new CheckAdrsCommand(deps),
     checkPlan: new CheckPlanCommand(deps),
+    checkRewrite: new CheckRewriteCommand(deps),
     checkTickets: new CheckTicketsCommand(deps),
+    coldRead: new ColdReadCommand(deps),
     facts: new FactsCommand(deps),
     fanOut: new FanOutCommand(deps),
     gate: new GateCommand(deps),

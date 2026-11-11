@@ -237,6 +237,11 @@ function numbering(records: readonly AdrEntry[]): AdrNumbering {
   }
 }
 
+/** Whether one record marks itself superseded by another: it names the other in a clause saying it was superseded or replaced, by link or ADR number. */
+export function markedSupersededBy(record: AdrSource, target: string): boolean {
+  return references(record).some((reference) => reference.replaced && namesRecord(reference, target))
+}
+
 /** Every target a record names outside fenced blocks, in text order. */
 function references(source: AdrSource): readonly Reference[] {
   return withoutFences(source.text)
@@ -263,6 +268,13 @@ function references(source: AdrSource): readonly Reference[] {
           : [{ kind, path: repositoryPath(source.path, target), record, ...flags, target }]
       })
     })
+}
+
+/** Whether a target a record names is the record at `path`, by repository path or by the number its file name starts with. */
+function namesRecord(reference: Reference, path: string): boolean {
+  if (reference.path === path) return true
+  const number = RECORD_NUMBER.exec(posix.basename(path))?.[1]
+  return number !== undefined && reference.number === Number(number)
 }
 
 /** The repository path a link in a record names, without its anchor; null when it climbs out of the repository. */

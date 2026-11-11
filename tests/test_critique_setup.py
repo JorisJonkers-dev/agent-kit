@@ -346,6 +346,98 @@ def test_the_pipeline_readme_names_critique_adrs_for_the_adr_review_stage() -> N
     assert "none yet" not in row
 
 
+# /critique-adrs rewrites (#228)
+# ---------------------------------------------------------------------------
+
+
+def test_critique_adrs_runs_check_rewrite_after_the_editorial_edits() -> None:
+    text = _critique_adrs()
+    assert "check-rewrite" in text
+    assert "byte-identical in exactly one rewritten file" in text
+    assert "no rewritten file labels a decision sentence that is not an original one" in text
+    assert "a split marks the original superseded by the split files" in text
+
+
+def test_critique_adrs_labels_every_in_place_edit_with_a_kind_from_the_allowed_list() -> None:
+    text = _critique_adrs()
+    assert "the allowed list" in text
+    kinds = ("`status-and-links`", "`broken-reference`", "`glossary-alignment`", "`reorder`", "`cited-fact`", "`split`")
+    for kind in kinds:
+        assert kind in text, kind
+    assert "one line per edit" in text
+    assert "its kind from the allowed list" in text
+
+
+def test_critique_adrs_makes_a_change_outside_the_allowed_list_a_draft_never_an_in_place_edit() -> None:
+    text = _critique_adrs()
+    assert "A change outside the allowed list is never an in-place edit" in text
+    assert "a draft superseding or amending ADR" in text
+    assert "written from the owner's answer" in text
+
+
+def test_critique_adrs_restores_the_original_text_of_a_failing_adr_and_asks_the_new_decision_question() -> None:
+    text = _critique_adrs()
+    assert "restore the original text of the record it names from the frozen packet" in text
+    assert "the new-decision question" in text
+    assert "a new decision or a mistake" in text
+
+
+def test_critique_adrs_runs_adr_record_again_on_every_rewritten_adr() -> None:
+    text = _critique_adrs()
+    assert "`adr-record` runs again on every rewritten ADR" in text
+
+
+# /critique-adrs cold read (#229)
+# ---------------------------------------------------------------------------
+
+
+def test_critique_adrs_runs_the_cold_read_after_check_rewrite_passes() -> None:
+    text = _critique_adrs()
+    assert "When check-rewrite passes, the cold read is the independent check on the rewrite" in text
+    assert "node <critique dir>/critique.mjs cold-read --input <file.json>" in text
+    assert (
+        "Its input is `run_dir` (this run's directory) and `files` (the rewritten ADRs, "
+        "as repository paths)."
+    ) in text
+    assert (
+        "compare each answer with the ADR's own decision sentence, its rejected alternatives "
+        "and its revisit condition"
+    ) in text
+
+
+def test_critique_adrs_treats_a_wrong_or_missing_answer_as_an_omission() -> None:
+    text = _critique_adrs()
+    assert "The command does not judge the answers." in text
+    assert "An answer that is wrong, and a missing one (listed in `missing`), is an omission" in text
+    assert "A file reported `unavailable` is reported, never treated as a pass" in text
+
+
+def test_critique_adrs_restores_the_adr_and_lists_it_in_the_report_on_an_omission() -> None:
+    text = _critique_adrs()
+    assert "restore that ADR's original text from the frozen packet" in text
+    assert "a split also deletes the records the split created" in text
+    assert "list the ADR in the report `record` writes in step 9" in text
+
+
+def test_critique_adrs_says_the_cold_read_packet_holds_only_the_rewritten_adr_and_caps_it_at_three_cents() -> None:
+    text = _critique_adrs()
+    assert "holding only that rewritten ADR: no glossary, no other records, no tree, no spec" in text
+    assert "capped at 0.03 USD per check" in text
+    assert "its spend counts in the run's flow spend" in text
+
+
+def test_shipped_routing_defines_the_cold_read_client_and_its_cap() -> None:
+    """#229: the cold reader is the priced Mistral Small client, capped at three cents a check."""
+    cold_read = json.loads(ROUTING.read_text())["cold_read"]
+    assert cold_read["client"] == "vibe-mistral-small"
+    assert cold_read["max_price_usd"] == 0.03
+    assert isinstance(cold_read["time_limit_s"], int) and cold_read["time_limit_s"] > 0
+
+
+def test_the_cold_reader_role_ships_beside_the_other_roles() -> None:
+    assert (KIT_ROOT / "skills" / "workstation" / "critique" / "roles" / "cold-reader.md").is_file()
+
+
 def test_shipped_routing_caps_the_repository_packet_at_adr_0004s_starting_limits() -> None:
     """#221: the phase-0 live check retunes these in routing, so the runner reads them from there."""
     packet = json.loads(ROUTING.read_text())["packet"]
