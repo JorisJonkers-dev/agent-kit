@@ -118,11 +118,22 @@ fn roots_must_be_existing_directories() {
 }
 
 #[test]
+fn overlapping_roots_collapse_and_secret_roots_are_refused() {
+    let f = fixture();
+    let b = Boundary::new(&[f.root.join("src"), f.root.clone(), f.root.join("src"), f.root.join("deep")]).unwrap();
+    assert_eq!(b.roots(), &[f.root.clone()]);
+    assert!(Boundary::new(&[f.root.join("keys")]).is_ok());
+    fs::create_dir_all(f.root.join(".ssh")).unwrap();
+    assert!(Boundary::new(&[f.root.join(".ssh")]).unwrap_err().contains("secret"));
+    assert!(matches!(f.boundary.admit(Path::new(".git/config")), Err(Refusal::SecretFile(_))));
+}
+
+#[test]
 fn secret_names_are_recognised() {
     for secret in [
         ".env", ".env.local", ".ENV", "a/.env.production", "id_rsa", "id_ed25519", "id_ecdsa", ".netrc", ".npmrc",
         "x/credentials", "creds/server.key", "a.p12", ".ssh", ".ssh/config", "home/.aws/config", ".gnupg/pubring.kbx",
-        "store.kdbx", "Secrets.json",
+        "store.kdbx", "Secrets.json", ".git/config", ".envrc", "prod.env", ".kube/config", "kubeconfig", "a.tfvars",
     ] {
         assert!(is_secret(Path::new(secret)), "{secret}");
     }

@@ -52,12 +52,12 @@ code-nav --root ~/Projects/owner/repo [--root DIR ...] [--limit N]
 ```
 
 * **Boundary.** The `--root` directories are the allowlist, canonicalised at
-  start; the caller passes only roots that fit the instance's repository rule.
+  start (overlapping roots collapse, a secret root is refused); the caller passes only roots that fit the instance's repository rule.
   A path outside every root, a symlink that leaves them and a secret file
   (`.env` and `.env.*` except `.env.example`, `.sample` and `.template`; SSH
   and other private keys; `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.kdbx`,
   `*.keystore`; `.netrc`, `.npmrc`, `.pypirc`, credential files; anything under
-  `.ssh`, `.gnupg` or `.aws`) are refused. Relative paths are taken against the
+  `.ssh`, `.gnupg`, `.aws`, `.git` or `.kube`, and `*.env`, `*.tfvars`, `.envrc`, `kubeconfig`) are refused. Relative paths are taken against the
   first root.
 * **Tool `search`** (`query`, optional `path` and `limit`). A line matches
   when it contains the query, ignoring case. **Rank:** score 1, plus 4 when the

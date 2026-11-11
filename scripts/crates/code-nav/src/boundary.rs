@@ -46,6 +46,14 @@ impl Boundary {
             if !c.is_dir() {
                 return Err(format!("root {} is not a directory", root.display()));
             }
+            if is_secret(&c) {
+                return Err(format!("root {} is a secret location", root.display()));
+            }
+            // Overlapping roots would search a file twice.
+            if canonical.iter().any(|r| c.starts_with(r)) {
+                continue;
+            }
+            canonical.retain(|r: &PathBuf| !r.starts_with(&c));
             canonical.push(c);
         }
         if canonical.is_empty() {
@@ -107,12 +115,14 @@ fn normalise(path: &Path) -> PathBuf {
 }
 
 /// Directories whose whole content is secret.
-const SECRET_DIRS: [&str; 3] = [".ssh", ".gnupg", ".aws"];
+const SECRET_DIRS: [&str; 5] = [".ssh", ".gnupg", ".aws", ".git", ".kube"];
 /// File names that are secret as they stand.
-const SECRET_NAMES: [&str; 7] =
-    [".netrc", ".npmrc", ".pypirc", ".git-credentials", "credentials", "credentials.json", "secrets.json"];
+const SECRET_NAMES: [&str; 13] = [
+    ".netrc", ".npmrc", ".pypirc", ".git-credentials", "credentials", "credentials.json", "credentials.toml",
+    "secrets.json", ".envrc", ".pgpass", ".htpasswd", "kubeconfig", "terraform.tfstate",
+];
 /// Extensions of key and certificate-store files.
-const SECRET_EXTENSIONS: [&str; 6] = ["pem", "key", "p12", "pfx", "kdbx", "keystore"];
+const SECRET_EXTENSIONS: [&str; 10] = ["pem", "key", "p12", "pfx", "kdbx", "keystore", "jks", "ppk", "env", "tfvars"];
 /// `.env` variants that hold no value and may be read.
 const ENV_TEMPLATES: [&str; 3] = [".env.example", ".env.sample", ".env.template"];
 
