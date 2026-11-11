@@ -22,7 +22,7 @@ the vibe critic agents keep their pinned models.
 | `skills/workstation/model-gateway/SKILL.md` | The skill's text. Setup installs the whole folder in every agent home. |
 
 `model_gateway.files` pins the bundle and both JSON files, and leaves
-`SKILL.md` out, exactly as `build_tracker.files` does. `npm run build` in
+`SKILL.md` out, exactly as `build_tracker.files` does. `pnpm run build` in
 `council/ts` rebuilds the bundle: update its sha256 in the same commit.
 
 ## The command
