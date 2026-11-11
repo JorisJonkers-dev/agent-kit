@@ -2804,8 +2804,10 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w('    warn "uv is not on PATH; the Gold Band agent map is not converged"')
     w("    return 0")
     w("  fi")
+    w('  local band_home="${GOLD_BAND_HOME:-}"')
+    w('  [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"')
     w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"')
-    w('    --settings "${GOLD_BAND_HOME:-${HOME}/.gold-band}/settings.json")')
+    w('    --settings "${band_home}/.gold-band/settings.json")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
     w(
         '  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
@@ -2844,8 +2846,10 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w('    warn "uv is not on PATH; the Gold Band roles are not converged"')
     w("    return 0")
     w("  fi")
+    w('  local band_home="${GOLD_BAND_HOME:-}"')
+    w('  [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"')
     w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"')
-    w('    --profiles "${GOLD_BAND_HOME:-${HOME}/.gold-band}/context/profiles")')
+    w('    --profiles "${band_home}/.gold-band/context/profiles")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
     w(
         '  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '

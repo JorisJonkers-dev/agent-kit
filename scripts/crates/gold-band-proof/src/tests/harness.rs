@@ -187,9 +187,17 @@ fn inspect_gives_every_agent_of_workflow_b_its_role() {
         roles,
         vec![
             ("copy-build".to_string(), Role::Copy("build".to_string())),
+            (
+                "copy-coverage".to_string(),
+                Role::Copy("coverage".to_string())
+            ),
             ("copy-lint".to_string(), Role::Copy("lint".to_string())),
             ("copy-test".to_string(), Role::Copy("test".to_string())),
             ("gate-build".to_string(), Role::Gate("build".to_string())),
+            (
+                "gate-coverage".to_string(),
+                Role::Gate("coverage".to_string())
+            ),
             ("gate-lint".to_string(), Role::Gate("lint".to_string())),
             ("gate-test".to_string(), Role::Gate("test".to_string())),
             ("vibe".to_string(), Role::Answer),
@@ -319,6 +327,7 @@ fn default_scenarios_add_a_failing_gate_for_every_gate_shim() {
         vec![
             spec("clean", "clean", 0),
             spec("gate-fail-build", "gate-fail=build", 1),
+            spec("gate-fail-coverage", "gate-fail=coverage", 1),
             spec("gate-fail-lint", "gate-fail=lint", 1),
             spec("gate-fail-test", "gate-fail=test", 1),
         ]

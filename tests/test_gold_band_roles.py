@@ -507,7 +507,7 @@ def test_the_profiles_path_defaults_to_gold_band_home(tmp_path: Path, monkeypatc
     monkeypatch.setenv("GOLD_BAND_HOME", str(home))
     machine = Machine(tmp_path, monkeypatch)
     assert machine.run(profiles=False) == 0
-    assert (home / "context" / "profiles" / "alpha-critic.md").read_text() == EXPECTED_ALPHA
+    assert (home / ".gold-band" / "context" / "profiles" / "alpha-critic.md").read_text() == EXPECTED_ALPHA
 
 
 def test_the_real_registry_renders_the_six_declared_roles(
@@ -519,7 +519,7 @@ def test_the_real_registry_renders_the_six_declared_roles(
     keep.write_text("keep: []\n")
     # No --registry, --critique or --closing: the kit's own files are the defaults.
     assert converge.main(["gold-band-roles", "--keep", str(keep)]) == 0
-    profiles = home / "context" / "profiles"
+    profiles = home / ".gold-band" / "context" / "profiles"
     section = yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text())["gold_band"]
     critique = KIT_ROOT / section["roles_source"]
     closing = (KIT_ROOT / "scripts" / "gold-band" / "roles-closing.md").read_text()

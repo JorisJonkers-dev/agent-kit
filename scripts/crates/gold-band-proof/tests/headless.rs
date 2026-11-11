@@ -114,7 +114,7 @@ fn workflow_b_ends_in_success_on_the_happy_path_and_in_failure_when_a_gate_fails
         stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
         "{stdout}"
     );
-    for gate in ["build", "test", "lint"] {
+    for gate in ["build", "test", "lint", "coverage"] {
         assert!(
             stdout.contains(&format!(
                 "gate-fail-{gate}: expected exit 1, got 1 (completed/failure)"
@@ -171,7 +171,10 @@ fn every_critique_stage_template_ends_in_its_expected_state() {
                 "{stage} {step}: {stdout}"
             );
         }
-        assert!(stdout.contains("gold-band-proof: passed"), "{stage}: {stdout}");
+        assert!(
+            stdout.contains("gold-band-proof: passed"),
+            "{stage}: {stdout}"
+        );
     }
 }
 

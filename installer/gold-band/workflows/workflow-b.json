@@ -1,6 +1,6 @@
 {
   "workflow": {
-    "description": "Workflow B's main path for the personal instance, proven headless with stubs (issue #448): a test author from one family writes failing tests from the ticket, one writer from another family implements until they pass, then build, tests and lint each run through the gate shim (a gate node that runs the pinned gold-band-gate wrapper, then a read-only copier that verifies its report). No gate node has a failure edge, so a failing gate ends the run in failure; the repair rounds, critics and CI wait are added by later tickets.",
+    "description": "Workflow B's main path for the personal instance, proven headless with stubs (issue #448): a test author from one family writes failing tests from the ticket, one writer from another family implements until they pass, then build, tests, lint and the coverage gate (100 percent line coverage on the changed files, issue #449) each run through the gate shim (a gate node that runs the pinned gold-band-gate wrapper, then a read-only copier that verifies its report). No gate node has a failure edge, so a failing gate ends the run in failure; the repair rounds, critics and CI wait are added by later tickets.",
     "version": "0.1",
     "id": "workflow-b",
     "entry": "test-author",
@@ -175,6 +175,51 @@
           "path": "$.exit_code",
           "equals": 0
         }
+      },
+      {
+        "type": "worker",
+        "id": "gate-coverage",
+        "executionSlotId": "slot-gate-coverage",
+        "provider": "gate-coverage",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper for the coverage gate and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-coverage-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-coverage",
+        "executionSlotId": "slot-copy-coverage",
+        "provider": "copy-coverage",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the coverage gate and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-coverage-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
       }
     ],
     "edges": [
@@ -215,6 +260,16 @@
       },
       {
         "from": "copy-lint",
+        "to": "gate-coverage",
+        "on": "success"
+      },
+      {
+        "from": "gate-coverage",
+        "to": "copy-coverage",
+        "on": "success"
+      },
+      {
+        "from": "copy-coverage",
         "to": "$end",
         "on": "success"
       }
@@ -260,6 +315,16 @@
       {
         "executionSlotId": "slot-copy-lint",
         "agentId": "copy-lint",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-coverage",
+        "agentId": "gate-coverage",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-coverage",
+        "agentId": "copy-coverage",
         "modelId": "stub-model"
       }
     ]

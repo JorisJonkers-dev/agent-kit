@@ -179,7 +179,7 @@ fn skills_dir_prefers_gold_band_home_and_falls_back_to_home() {
     let id = "fake-research";
     assert_eq!(
         skills_dir(Some("/gb"), Some("/home/u"), id),
-        Some(PathBuf::from("/gb/skill-sets/fake-research"))
+        Some(PathBuf::from("/gb/.gold-band/skill-sets/fake-research"))
     );
     assert_eq!(
         skills_dir(None, Some("/home/u"), id),
@@ -187,6 +187,10 @@ fn skills_dir_prefers_gold_band_home_and_falls_back_to_home() {
     );
     assert_eq!(
         skills_dir(Some(""), Some("/home/u"), id),
+        Some(PathBuf::from("/home/u/.gold-band/skill-sets/fake-research"))
+    );
+    assert_eq!(
+        skills_dir(Some("  "), Some("/home/u"), id),
         Some(PathBuf::from("/home/u/.gold-band/skill-sets/fake-research"))
     );
     assert_eq!(skills_dir(Some(""), Some(""), id), None);
@@ -283,7 +287,7 @@ fn an_id_with_a_skill_set_exports_it_and_its_directory() {
     assert_eq!(code, 0);
     assert_eq!(
         fs::read_to_string(&marker).unwrap(),
-        format!("review:{}", gold_band_home.join("skill-sets").join("fake-research").display())
+        format!("review:{}", gold_band_home.join(".gold-band").join("skill-sets").join("fake-research").display())
     );
 }
 
