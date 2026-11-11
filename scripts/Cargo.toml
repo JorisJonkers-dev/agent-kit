@@ -19,4 +19,5 @@ members = [
     "crates/code-nav-eval",
     "crates/workflow-lint",
     "crates/ticket-sync",
+    "crates/transcript-mix",
 ]

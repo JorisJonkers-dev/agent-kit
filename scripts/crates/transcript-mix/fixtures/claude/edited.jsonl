@@ -1,0 +1,6 @@
+{"type": "user", "timestamp": "2026-11-02T09:00:00Z", "message": {"content": "synthetic task"}}
+{"type": "assistant", "timestamp": "2026-11-02T09:00:05Z", "message": {"usage": {"input_tokens": 50, "output_tokens": 100}, "content": [{"type": "tool_use", "id": "t", "name": "Grep", "input": {"pattern": "foo"}}, {"type": "tool_use", "id": "t", "name": "Glob", "input": {"pattern": "*.rs"}}]}}
+{"type": "assistant", "timestamp": "2026-11-02T09:00:09Z", "message": {"usage": {"input_tokens": 50, "output_tokens": 200}, "content": [{"type": "tool_use", "id": "t", "name": "Read", "input": {"file_path": "a.rs"}}]}}
+{"type": "assistant", "timestamp": "2026-11-02T09:00:15Z", "message": {"usage": {"input_tokens": 50, "output_tokens": 40}, "content": [{"type": "tool_use", "id": "t", "name": "mcp__hindsight__search_knowledge_pages", "input": {"q": "x"}}]}}
+{"type": "assistant", "timestamp": "2026-11-02T09:00:20Z", "message": {"usage": {"input_tokens": 50, "output_tokens": 999}, "content": [{"type": "tool_use", "id": "t", "name": "Edit", "input": {"file_path": "a.rs"}}]}}
+{"type": "assistant", "timestamp": "2026-11-02T09:00:30Z", "message": {"usage": {"input_tokens": 50, "output_tokens": 500}, "content": [{"type": "tool_use", "id": "t", "name": "Read", "input": {"file_path": "b.rs"}}]}}

@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Seven members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Eight members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -27,7 +27,9 @@ on the Linux workstation.
   it takes serde, serde_json and serde_yaml, each pinned exactly.
   `crates/litellm-gate` is the node-side check that a LiteLLM per-key budget is
   not exhausted: one probe request through curl with the key on stdin, exit 1
-  when the budget is spent or the proxy cannot be asked. New Rust joins this
+  when the budget is spent or the proxy cannot be asked.
+  `crates/transcript-mix` is the transcript tool-mix analyser (below), std-only
+  with the JSON parser borrowed from `code-nav-eval`. New Rust joins this
   workspace as a new member, never as its own Cargo project.
 
 ```bash
@@ -60,6 +62,25 @@ sits behind the `Client` trait: tests fake it, and the real client drives `gh ap
 Coverage is measured with `cargo llvm-cov` (or `-C instrument-coverage` with
 the matching `llvm-cov`); the unit tests cover every line except the one
 executable line in `src/main.rs`.
+
+## transcript-mix
+
+`transcript-mix` reads agent transcripts and reports, per agent, which tools
+were used to find code (search, reads, the language-server tool, the knowledge
+pages) and how many tokens each task spent exploring.
+
+```bash
+cargo run --manifest-path scripts/Cargo.toml -p transcript-mix -- \
+    --root <DIR> --since 2026-11-01 --until 2026-12-01
+```
+
+`<DIR>` holds one directory per agent, each with `*.jsonl` transcripts (one
+transcript is one task; Claude Code's line format). A task is in the window
+when its first timestamp is at or after `--since` and before `--until`
+(`YYYY-MM-DD` or RFC 3339; `--until` defaults to no limit). Exploration tokens
+are the `output_tokens` of the assistant turns that call tools, up to the first
+turn that calls an editing tool. The test fixtures are synthetic transcripts
+under `crates/transcript-mix/fixtures`.
 
 ## Measuring line coverage
 
