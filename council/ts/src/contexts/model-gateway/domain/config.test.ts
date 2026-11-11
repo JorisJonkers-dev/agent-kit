@@ -495,4 +495,11 @@ describe('applyOverride', () => {
       'models[0] (claude:new) is new, so it needs family, tier and notes',
     )
   })
+
+  it('refuses a model entry of a family it does not know', () => {
+    const override = { models: [{ client: 'claude', model: 'new', family: 'nonesuch', tier: 'routine', notes: 'n' }] }
+    expect(messageOf(() => applyOverride(shipped(), override))).toMatch(
+      /^models\[0\]\.family \("nonesuch"\) is not a known family: /,
+    )
+  })
 })

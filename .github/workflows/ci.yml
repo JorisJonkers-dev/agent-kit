@@ -206,6 +206,10 @@
     'continue-on-error': true
     'steps':
       - 'uses': 'actions/checkout@v6'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
       - 'run': 'uv run --no-project --exclude-newer "7 days" --with pytest --with pyyaml --with tomlkit --with jsonschema python -m pytest -q tests/test_gold_band_spec_workflow.py'
 
