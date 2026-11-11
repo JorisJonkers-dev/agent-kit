@@ -244,6 +244,31 @@ gold_band:
   tag: "v0.19.1"
   commit: "987fc3e298b15d725a7f0e9b609b0f77dba63a74"
   linux_script: "scripts/gold-band/build-linux.sh"
+  # The agents the personal instance holds (ADR-0011), by the id Gold Band
+  # keys its agent map with. Each id must be one `gold_band_instances.
+  # gold-band-personal.agents` names; Codex is refused. Setup converges the
+  # `agents` map of the instance's settings.json onto this list plus the keep
+  # file (the settings map REPLACES the app's runtime list, it is not merged
+  # with the built-in catalog). `binary` is registry-only: an agent whose
+  # binary is not on PATH is skipped and reported, never written.
+  agents:
+    # The first declared agent, and the app's own built-in id for OpenCode:
+    # the app strips adapter.command and adapter.args from a built-in id when
+    # it saves settings.json and re-injects them on load, so setup writes
+    # neither.
+    - id: opencode
+      binary: opencode
+      adapter:
+        displayName: OpenCode
+        env: {}
+      icon: opencode
+      primaryAgentDir: .opencode
+      compatibleAgentDirs: [.agents]
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
+  # Agent ids setup removes even when the keep file names them.
+  retired_agents: []
 
 # -------------------------------------------------------------------
 # Claude Code profiles.

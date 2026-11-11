@@ -2563,6 +2563,39 @@ gold_band_setup() {
 }
 gold_band_setup
 
+# Converges the personal instance's agent map onto the registry's gold_band
+# agents plus the keep file. The map REPLACES the app's runtime list, so a
+# machine without Gold Band is left alone rather than given a settings file
+# it never asked for. Linux only: the Mac instance is not converged here.
+gold_band_converge() {
+  local out rc=0 line bin
+  if [ "$(uname -s)" != Linux ]; then
+    log "gold band agents: only the Linux personal instance is converged here, skipped"
+    return 0
+  fi
+  if [ "${CLOUD}" = 1 ]; then
+    log "gold band agents: not converged in a cloud session"
+    return 0
+  fi
+  bin="${GOLD_BAND_BIN_DIR:-${HOME}/.local/bin}/gold-band"
+  if [ ! -x "${bin}" ]; then
+    log "gold band agents: Gold Band is not installed, its agent map is left alone"
+    return 0
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; the Gold Band agent map is not converged"
+    return 0
+  fi
+  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"
+    --settings "${GOLD_BAND_HOME:-${HOME}/.gold-band}/settings.json")
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \
+    "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  [ "${rc}" = 0 ] || fail "the Gold Band agent map did not converge (see above)"
+}
+gold_band_converge
+
 # -----------------------------------------------------------------
 # 2. Claude Code profiles.
 #
