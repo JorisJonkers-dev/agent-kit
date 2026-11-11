@@ -478,7 +478,7 @@ council:
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs
-      sha256: 4bc5084023add702e0c9ad8a2364043e783d31f1595b8084eed4c4c68abbfd73
+      sha256: a7d8874f30764b625af51d642a3ff99a70fa61ea59b43ce507344a8b26339953
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
       sha256: 4bcf6d9cefbef0eb638d5dac328c84a22f120e7799cd834f677daaa48fcef65c
@@ -600,7 +600,7 @@ build_tracker:
 model_gateway:
   files:
     - path: skills/workstation/model-gateway/model-gateway.mjs
-      sha256: 24f6151422e54ca64bba12958bb7b265f8b9674a9385d1d6b2a6ab05ac98e637
+      sha256: 1ff9f6e729e21b38f547f0592c11e4fe8b3445508289574050c7c0d51d2df4a4
       mode: "0755"
     - path: skills/workstation/model-gateway/defaults.json
       sha256: cd3e03f27609ad8411b80fb8f2e508d2e4154ae72d38eb6fcdf780b6e9d40b17
