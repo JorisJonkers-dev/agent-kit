@@ -89,7 +89,7 @@ cargo run --manifest-path scripts/Cargo.toml -p ticket-sync -- --apply # write
 
 It plans creations, title and body edits, sub-issue links (spec, branch,
 ticket) and native blocked-by links, and lists the superseded issues it would
-close. Closing needs `--apply --approve-close` together. Only graph issues are
+close. Closing is its own action: `--approve-plan` records an approval of the printed close plan (repository, issues, comments), and `--close` closes only under an approval of the plan it computes now, then uses the approval up; `--apply` never closes. Only graph issues are
 ever unlinked; an unrelated issue under a graph parent is left alone. GitHub
 sits behind the `Client` trait: tests fake it, and the real client drives `gh api`.
 
