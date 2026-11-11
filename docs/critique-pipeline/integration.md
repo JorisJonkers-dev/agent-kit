@@ -3616,6 +3616,40 @@ architecture-expansion section 5.3):
   refactoring plan, writes nothing under the decision log before the owner
   accepts, and ends by suggesting `/critique-adrs` on the ADRs it wrote.
 
+## What #483 settled
+
+The `architecture-review` stage and `/review-architecture` (agent-kit#483,
+architecture-expansion section 5.4):
+
+- **The stage.** A review stage, so each run is a flow of its own and takes
+  no `flow`. It needs the code permission (`code-not-allowed` without it).
+  Its packet is the recovery packet without history: the sampled `tree/`,
+  `tree/MANIFEST.tsv`, `facts/INDEX.md`, and under `references/` every ADR in
+  force, the glossary, any `CONTEXT-MAP.md`, the README and the root build
+  configuration (twelve files at most, 8 KiB each, layer-rule configs first).
+- **The evidence rule `architecture`.** After the fabricated-evidence check:
+  an `unasked-question` needs a trace citing a file and line (else
+  `no-trace`); a finding of a `dependency-direction` check that is
+  not a question needs a layer-rule config among the references (else
+  `no-layer-config`); a verdict word with neither a fact nor a quoted
+  decision is `verdict-word`; no declared rule, fact or traced consequence is
+  `no-rule-or-consequence`; and a finding whose suggestion names no
+  "observable" is `no-observable`. All are hints the orchestrator rules on.
+- **Routing.** Gemini Flash with `dependency-direction` and `coupling`,
+  Mistral Large with `domain-language` and `aggregates`; deep adds GLM with
+  `test-seams` and `quality-scenarios` and DeepSeek Flash as
+  `decision-recoverer`, whose findings follow the recovery rule through the
+  stage's role override. Deep above 20,000 lines of tracked source or with a
+  `CONTEXT-MAP.md`. No second round.
+- **Verdicts and questions.** The stage table marks its candidates as mixed:
+  only an `undocumented-decision` finding is never accepted, and the ten
+  owner questions are shared across needs-human findings of both kinds, the
+  rest deferred. The report adds an Architecture candidates section: the
+  accepted findings with their lines, evidence and observable.
+- **The skill.** `skills/workstation/review-architecture/SKILL.md` rules by
+  its table, files no issue, and offers `/improve-codebase-architecture` on
+  the candidate the owner picks.
+
 ## What #228 and #229 settled
 
 The editorial rewrite flow and `check-rewrite` (agent-kit#228):

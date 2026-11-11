@@ -76,7 +76,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), 'invalid-run', parseManifest)
     const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), 'invalid-run', parseFanOutResult)
     for (const verdict of input.verdicts) {
-      const error = stageVerdictError(manifest.stage, verdict) ?? verdictProblem(manifest.stage, verdict, manifest.packet_files)
+      const error = stageVerdictError(manifest.stage, verdict, merged.findings.find((finding) => finding.id === verdict.finding_id)?.category) ?? verdictProblem(manifest.stage, verdict, manifest.packet_files)
       if (error !== undefined) throw new CritiqueError('invalid-input', error)
     }
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)))

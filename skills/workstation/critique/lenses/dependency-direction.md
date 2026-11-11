@@ -3,8 +3,8 @@
 Check that dependencies point inward, from outer layers (adapters, the
 application's entry points, frameworks) to inner ones (the domain), and never
 the other way. A layer list, an architecture test or an ADR that names the
-layers is the declared rule; without one, a finding needs a visible
-consequence (see the design-evidence rules).
+layers is the declared rule; without one, the observation is an unasked
+question with a trace, not a defect (see the design-evidence rules).
 
 - `inward-import`: Find an import from an inner layer into an outer one, such
   as the domain importing an adapter, a database driver or an HTTP client.

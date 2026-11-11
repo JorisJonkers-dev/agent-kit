@@ -33,6 +33,7 @@ offers it.
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
 | `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Large with `adr-reviewer` and `adr-record`, Gemini Flash with `adr-reviewer` and `decision-log` | GLM with `adr-reviewer`, both lenses | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
 | `decision-recovery` | `/recover-decisions` | on demand, outside any feature | DeepSeek Flash, Mistral Large (`decision-recoverer`) | none | Recovered decisions the code embodies and no record states, each traced to two sites of the code; a question for any that is significant and new, ten at most, and an ADR written from your answer |
+| `architecture-review` | `/review-architecture` | on demand, outside any feature | Gemini Flash (`architecture-critic`, `dependency-direction` and `coupling`), Mistral Large (`architecture-critic`, `domain-language` and `aggregates`) | GLM (`architecture-critic`, `test-seams` and `quality-scenarios`), DeepSeek Flash (`decision-recoverer`) | Cited candidates for `/improve-codebase-architecture`, each with its lines, its facts and the observable that would show a fix worked; a question for any fix that would change a rule, ten at most across both kinds; no issue is filed |
 
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
@@ -117,6 +118,23 @@ its first line, so `tree/<path>:<line>` keeps its number, and a citation
 outside what the packet holds is rejected. A quote from `facts/` is a fact,
 never a recorded decision. `/flow reviews` lists recent review
 runs with their verdicts and spend, and never calls a review due.
+
+`architecture-review` is the third review stage, for `/review-architecture`.
+Its packet is the recovery stage's tree, `tree/MANIFEST.tsv`, `facts/INDEX.md`
+and records, and under `references/` also the README and the root build
+configuration (at most twelve files, 8 KiB each, a layer-rule config such as
+`.dependency-cruiser.cjs`, `.importlinter` or `tach.toml` first). It reads no
+history and needs the code permission (`code-not-allowed` without it). The
+evidence rule `architecture` pre-verdicts a finding mechanically: an
+`unasked-question` needs a trace that cites a file and line; a finding of a
+`dependency-direction` check that is not a question needs a layer-rule config
+in the packet (`no-layer-config`); a verdict word with no fact and no quoted
+decision is `verdict-word`; a finding with no declared rule, fact or traced
+consequence is `no-rule-or-consequence`; and a finding names the observable
+that would show a fix worked (`no-observable`). In a deep run the
+`decision-recoverer` critic's findings are judged by the recovery rule, are
+never accepted and share the run's ten owner questions. Depth is deep above
+20,000 lines of tracked source or with a `CONTEXT-MAP.md`.
 
 A ticket review and a feature review send a **code packet**, computed at the
 reviewed commit by rule. Its diff leaves out the hunks of every vendored,

@@ -88,6 +88,7 @@ describe('the stages whose Vibe critics would be dropped now', () => {
       ['feature-review', SPEC, PLAN_SPENT],
       ['adr-review', null, PLAN_SPENT],
       ['decision-recovery', null, PLAN_SPENT],
+      ['architecture-review', null, PLAN_SPENT],
     ])
   })
 
@@ -97,7 +98,7 @@ describe('the stages whose Vibe critics would be dropped now', () => {
 
     const result = await budgetOf(h)
 
-    expect(result.stages.map((stage) => stage.vibe)).toEqual([null, null, null, null, null, null, null])
+    expect(result.stages.map((stage) => stage.vibe)).toEqual([null, null, null, null, null, null, null, null])
   })
 
   it("charges an adr-review run to its own run id, never to the feature's spec or draft", async () => {
@@ -267,6 +268,7 @@ describe('the stages that would fall back now', () => {
       ['feature-review', null, []],
       ['adr-review', null, []],
       ['decision-recovery', null, []],
+      ['architecture-review', null, []],
     ])
   })
 
@@ -284,6 +286,7 @@ describe('the stages that would fall back now', () => {
       ['feature-review', null, []],
       ['adr-review', RESERVE, [{ client: 'agy-gemini-flash-high', to: 'vibe-glm' }]],
       ['decision-recovery', null, []],
+      ['architecture-review', RESERVE, [{ client: 'agy-gemini-flash-high', to: 'vibe-glm' }]],
     ])
   })
 
@@ -302,6 +305,7 @@ describe('the stages that would fall back now', () => {
       ['feature-review', cap],
       ['adr-review', cap],
       ['decision-recovery', null],
+      ['architecture-review', cap],
     ])
   })
 

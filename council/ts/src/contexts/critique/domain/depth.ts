@@ -16,9 +16,9 @@ export interface DepthEvidence {
   readonly tickets?: number
   /** At an ADR review: how many records are under review. */
   readonly adrs?: number
-  /** At decision recovery: how many lines of source the repository tracks. */
+  /** At decision recovery and architecture review: how many lines of source the repository tracks. */
   readonly sourceLines?: number
-  /** At decision recovery: how many context maps the repository has. */
+  /** At decision recovery and architecture review: how many context maps the repository has. */
   readonly contextMaps?: number
 }
 
@@ -37,6 +37,7 @@ type Measure = (evidence: DepthEvidence) => number
  * not know is rejected.
  */
 const STAGE_MEASURES: Readonly<Record<CritiqueStage, Readonly<Record<string, Measure>>>> = {
+  'architecture-review': { context_maps: ({ contextMaps = 0 }) => contextMaps, source_lines: ({ sourceLines = 0 }) => sourceLines },
   'adr-review': { adrs: ({ adrs = 0 }) => adrs },
   'decision-recovery': { context_maps: ({ contextMaps = 0 }) => contextMaps, source_lines: ({ sourceLines = 0 }) => sourceLines },
   decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
