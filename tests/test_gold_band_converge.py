@@ -271,9 +271,9 @@ def test_a_changed_entry_is_reported(
 def test_a_declared_agent_with_no_adapter_or_binary_is_written_as_an_empty_entry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}}, registry=_registry(agents=[{"id": "claude"}]))
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}}, registry=_registry(agents=[{"id": "vibe"}]))
     assert machine.run() == 0
-    assert machine.agents() == {"claude": {}}
+    assert machine.agents() == {"vibe": {}}
 
 
 def test_a_leading_tilde_in_the_adapter_expands_to_the_home_directory(

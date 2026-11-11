@@ -267,6 +267,43 @@ gold_band:
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
+    # The Claude agents. Neither id is the app's built-in `claude-acp`, so the
+    # adapter command is written here, pinned to the version the catalog ships.
+    # `config_dir` is registry-only: setup writes it as the adapter's
+    # CLAUDE_CONFIG_DIR, which the adapter forwards to Claude Code, so an
+    # ambient CLAUDE_CONFIG_DIR in the launcher's environment cannot switch
+    # the identity. The personal agent holds the personal profile; the work
+    # agent (`instance: gold-band`, converged on the work instance with
+    # `converge.py gold-band --instance gold-band`) holds the default one.
+    - id: claude
+      binary: npx
+      config_dir: ~/.claude-personal
+      adapter:
+        displayName: Claude
+        command: npx
+        args: [-y, "@agentclientprotocol/claude-agent-acp@0.87.0"]
+        env: {}
+      icon: claude
+      primaryAgentDir: .claude-personal
+      compatibleAgentDirs: []
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
+    - id: claude-work
+      instance: gold-band
+      binary: npx
+      config_dir: ~/.claude
+      adapter:
+        displayName: Claude (work)
+        command: npx
+        args: [-y, "@agentclientprotocol/claude-agent-acp@0.87.0"]
+        env: {}
+      icon: claude
+      primaryAgentDir: .claude
+      compatibleAgentDirs: []
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
     # Vibe speaks ACP through its own `vibe-acp` server, with the personal
     # login Vibe keeps itself. The adapter env is forwarded, so no key is
     # written here.

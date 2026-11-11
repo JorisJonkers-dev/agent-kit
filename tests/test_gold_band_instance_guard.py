@@ -152,7 +152,7 @@ def test_an_instance_starting_before_the_agents_write_stops_it(
 ) -> None:
     machine = agents.Machine(tmp_path, monkeypatch, settings={"agents": {}})
     answers = iter([None, "gold-band-personal (process 7)"])
-    monkeypatch.setattr(converge, "_gold_band_running", lambda _dir: next(answers))
+    monkeypatch.setattr(converge, "_gold_band_running", lambda _dir, _instance=None: next(answers))
     before = machine.settings.read_bytes()
     assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
     out = capsys.readouterr().out
@@ -173,7 +173,9 @@ def test_roles_stop_between_groups_report_them_and_a_second_run_finishes(
     # Clear at the start and before the first group, running before the second.
     answers = iter([None, None, "gold-band-personal (process 7)"])
     real = converge._gold_band_running
-    monkeypatch.setattr(converge, "_gold_band_running", lambda _dir: next(answers, "gold-band-personal (process 7)"))
+    monkeypatch.setattr(
+        converge, "_gold_band_running", lambda _dir, _instance=None: next(answers, "gold-band-personal (process 7)")
+    )
     assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
     out = capsys.readouterr().out
     assert "started during setup" in out
@@ -196,7 +198,7 @@ def test_roles_removal_is_a_write_group_too(
     assert machine.run() == 0
     stale = machine.hand_made("stale", "old\n")
     answers = iter([None, "gold-band-personal (process 7)"])
-    monkeypatch.setattr(converge, "_gold_band_running", lambda _dir: next(answers))
+    monkeypatch.setattr(converge, "_gold_band_running", lambda _dir, _instance=None: next(answers))
     assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
     assert "not yet written: stale.md" in capsys.readouterr().out
     assert stale.exists()
