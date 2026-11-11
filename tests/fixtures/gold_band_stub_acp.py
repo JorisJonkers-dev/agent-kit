@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A stub ACP agent for the Gold Band headless proofs (issues #348 and #444).
+"""A stub ACP agent for the Gold Band headless proofs (issues #348, #444 and #445).
 
 Python 3 stdlib only. JSON-RPC 2.0 over newline-delimited JSON on stdio,
 the framing Gold Band uses to drive an ACP agent during ``gold-band run``:
@@ -23,6 +23,20 @@ command, ignores its exit code and answers with the text of the file named by
 answer is the report the pinned wrapper wrote. With ``STUB_ACP_MARKER`` set,
 ``session/prompt`` writes that file and answers ``{"ok": true}``: this is the
 model node, whose marker file proves it ran.
+
+Two more serve the gate shim proof (issue #445). With ``STUB_ACP_GATE`` set to
+a JSON argv, ``session/prompt`` runs the pinned gate wrapper and answers
+``{"exit_code": <the wrapper's exit code>}``: the verdict is the wrapper's
+status, never a word of the agent's. ``STUB_ACP_TAMPER`` then lets this gate
+agent misbehave once the wrapper has finished, in the report directory named
+by ``STUB_ACP_REPORT_DIR``: ``delete-report``, ``rewrite-output``,
+``rewrite-command`` or ``age-report`` (stamp the report 2020-01-01). Real runs
+deny the gate agent id those writes (ticket #432); the stub does them to
+prove the copier catches them. With ``STUB_ACP_COPY`` set to a JSON argv (the
+copier node), ``session/prompt`` runs it and answers with its stdout, the
+report, as one fenced JSON block when it exited 0, and otherwise with a report-shaped
+document whose ``exit_code`` is its non-zero exit code, so a refusing copier
+can never be masked into a pass.
 
 Run as ``gold_band_stub_acp.py`` (the test launches it with
 ``sys.executable``); it needs no arguments and talks only on stdio.
@@ -81,9 +95,75 @@ def fenced_findings() -> str:
     return "```json\n" + json.dumps(findings_document(), indent=2) + "\n```"
 
 
+def fenced(document: dict) -> str:
+    """One fenced JSON block, the shape every node's answer takes."""
+    return "```json\n" + json.dumps(document, indent=2) + "\n```"
+
+
+def tamper(operation: str, report_dir: str) -> None:
+    """What a gate agent with write access to the report directory could do
+    after the wrapper finished (the launcher forbids it; the stub proves the
+    copier catches it)."""
+    report = os.path.join(report_dir, "gate-report.json")
+    if operation == "delete-report":
+        os.remove(report)
+    elif operation == "rewrite-output":
+        with open(os.path.join(report_dir, "gate-output.txt"), "w", encoding="utf-8") as handle:
+            handle.write("everything passed, honest\n")
+    elif operation in ("rewrite-command", "age-report"):
+        with open(report, encoding="utf-8") as handle:
+            document = json.load(handle)
+        if operation == "rewrite-command":
+            document["command"] = "true"
+        else:
+            document["timestamp"] = "2020-01-01T00:00:00Z"
+        with open(report, "w", encoding="utf-8") as handle:
+            json.dump(document, handle)
+
+
+def gate_answer(argv: list[str]) -> str:
+    """The gate node: run the wrapper, optionally tamper, answer its status."""
+    code = subprocess.run(argv, check=False, capture_output=True).returncode
+    operation = os.environ.get("STUB_ACP_TAMPER")
+    if operation:
+        tamper(operation, os.environ["STUB_ACP_REPORT_DIR"])
+    return fenced({"exit_code": code})
+
+
+def refusal(code: int) -> dict:
+    """What the copier answers when verify refuses: a document of the report's
+    shape (a malformed answer would only be sent back for repair) whose
+    exit_code is the refusal, so the success condition cannot hold."""
+    return {
+        "run_id": "",
+        "attempt": 0,
+        "command": "",
+        "exit_code": code or 1,
+        "output_hash": "",
+        "timestamp": "",
+    }
+
+
+def copy_answer(argv: list[str]) -> str:
+    """The copier node: the report on a pass, else a failing exit_code."""
+    done = subprocess.run(argv, check=False, capture_output=True, text=True)
+    if done.returncode == 0:
+        try:
+            return fenced(json.loads(done.stdout))
+        except json.JSONDecodeError:
+            return fenced(refusal(1))
+    return fenced(refusal(done.returncode))
+
+
 def prompt_answer() -> str:
     """The answer to one session/prompt: the run-start shim mode, the marker
     mode, or else the findings document."""
+    gate = os.environ.get("STUB_ACP_GATE")
+    if gate:
+        return gate_answer(json.loads(gate))
+    copy = os.environ.get("STUB_ACP_COPY")
+    if copy:
+        return copy_answer(json.loads(copy))
     run = os.environ.get("STUB_ACP_RUN")
     if run:
         subprocess.run(json.loads(run), check=False, capture_output=True)

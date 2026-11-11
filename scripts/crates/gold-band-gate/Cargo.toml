@@ -1,0 +1,12 @@
+[package]
+name = "gold-band-gate"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The gate shim: a pinned wrapper that runs one deterministic gate command and writes a gate report, and the read-only copier that fails the run on a missing, stale, other-attempt or mismatching report (issue #445)."
+
+# The path dependency stays inside this workspace; the gate report format,
+# its SHA-256 and its clock come from gold-band-report, so the lockfile gains
+# no registry crate for this member.
+[dependencies]
+gold-band-report = { path = "../gold-band-report" }

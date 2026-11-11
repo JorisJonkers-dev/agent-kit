@@ -26,4 +26,5 @@ members = [
     "crates/ticket-export",
     "crates/gold-band-report",
     "crates/gold-band-run-start",
+    "crates/gold-band-gate",
 ]
