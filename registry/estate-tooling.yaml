@@ -267,6 +267,38 @@ gold_band:
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
+    # Vibe speaks ACP through its own `vibe-acp` server, with the personal
+    # login Vibe keeps itself. The adapter env is forwarded, so no key is
+    # written here.
+    - id: vibe
+      binary: vibe-acp
+      adapter:
+        displayName: Vibe
+        command: ~/.local/bin/vibe-acp
+        args: []
+        env: {}
+      icon: vibe
+      primaryAgentDir: .vibe
+      compatibleAgentDirs: [.agents]
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
+    # The same server through the vibe-study launcher: it reads the Study
+    # account key from the secret store at launch and starts nothing, saying
+    # why, when the key is missing. The key is never written to a file.
+    - id: vibe-study
+      binary: vibe-study
+      adapter:
+        displayName: Vibe (Study)
+        command: ~/.local/bin/vibe-study
+        args: [--acp]
+        env: {}
+      icon: vibe
+      primaryAgentDir: .vibe
+      compatibleAgentDirs: [.agents]
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
   # Agent ids setup removes even when the keep file names them.
   retired_agents: []
   # The roles both instances hold, rendered from the critique skill's own role

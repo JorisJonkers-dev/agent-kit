@@ -103,6 +103,11 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
   each id must be one `gold_band_instances.gold-band-personal.agents` names.
   OpenCode is the first. For an id the app ships itself, `adapter.command` and
   `adapter.args` are not written: the app strips them when it saves.
+  `vibe` runs Vibe's ACP server (`vibe-acp`) on the personal login Vibe keeps
+  itself. `vibe-study` runs `vibe-study --acp`: the launcher reads the Study
+  account key from the secret store at launch and hands it to `vibe-acp`, so no
+  key is written to a Gold Band file. With the key missing it starts nothing
+  and says to run `vibe-study --login`.
 * An undeclared agent is removed unless the keep file names it. An id that
   names Codex and any id in `gold_band.retired_agents` are removed even when
   kept.

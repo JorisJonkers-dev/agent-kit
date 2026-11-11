@@ -42,6 +42,9 @@ class Workstation:
         vibe = self.bin / "vibe"
         vibe.write_text(FAKE_VIBE)
         vibe.chmod(0o755)
+        acp = self.bin / "vibe-acp"
+        acp.write_text(FAKE_VIBE + "printf 'ACP=yes\\n'\n")
+        acp.chmod(0o755)
         # The real passphrase gate and secret store, installed the way setup installs them.
         shutil.copy(GATE, self.bin / "agent-kit-private")
         (self.bin / "agent-kit-private").chmod(0o755)
@@ -453,3 +456,48 @@ def test_the_key_is_stored_under_the_same_account_agent_kit_keys_uses(tmp_path: 
     kc = Keychain(tmp_path)
     assert kc.login(LOGNAME="alice", USER="bob").returncode == 0
     assert "agent-kit.MISTRAL_STUDY_API_KEY alice" in (kc.keychain / "accounts.log").read_text()
+
+
+def test_vibe_study_acp_starts_the_acp_server_with_the_study_key(tmp_path: Path) -> None:
+    ws = Workstation(tmp_path)
+    ws.store_study_key()
+    result = ws.run(STUDY, "--acp", MISTRAL_API_KEY="personal-key", MEMORY_PRIVATE_TOKEN=TOKEN)
+    assert result.returncode == 0, result.stderr
+    assert _seen(result) == {
+        "VIBE_HOME": f"{ws.home}/.vibe",
+        "MISTRAL_API_KEY": STUDY_KEY,
+        "MEMORY_PRIVATE_TOKEN": "unset",
+        "ARGS": "",
+        "ACP": "yes",
+    }
+
+
+def test_vibe_study_acp_launches_nothing_and_says_why_without_the_study_key(tmp_path: Path) -> None:
+    ws = Workstation(tmp_path)
+    result = ws.run(STUDY, "--acp", MISTRAL_API_KEY="personal-key")
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "vibe-study --login" in result.stderr
+
+
+def test_vibe_study_acp_finds_vibe_acp_beside_itself(tmp_path: Path) -> None:
+    ws = Workstation(tmp_path)
+    ws.store_study_key()
+    only = tmp_path / "only"
+    only.mkdir()
+    for name in ("vibe-study", "vibe-acp", "agent-kit-secret"):
+        shutil.copy((ws.bin if name == "vibe-acp" else KIT_ROOT / "installer") / name, only / name)
+    (ws.bin / "vibe-acp").unlink()
+    result = ws.run(only / "vibe-study", "--acp")
+    assert result.returncode == 0, result.stderr
+    assert _seen(result)["MISTRAL_API_KEY"] == STUDY_KEY
+
+
+def test_vibe_study_acp_refuses_when_vibe_acp_is_not_installed(tmp_path: Path) -> None:
+    ws = Workstation(tmp_path)
+    ws.store_study_key()
+    (ws.bin / "vibe-acp").unlink()
+    result = ws.run(STUDY, "--acp")
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "vibe-acp is not installed" in result.stderr
