@@ -177,6 +177,30 @@ def test_the_overlay_may_add_servers_and_settings_to_the_work_instance(tmp_path:
 
 
 @needs_crate
+def test_the_overlay_may_give_the_work_instance_a_code_nav_work_root(tmp_path: Path) -> None:
+    overlay = _overlay(
+        tmp_path,
+        "instances:\n  gold-band:\n    mcp_servers:\n"
+        '      code-nav: {command: code-nav, args: ["--root", "~/Projects/nedap"]}\n',
+    )
+
+    assert gbi.validate(_registry(), overlay) == []
+
+
+@needs_crate
+def test_the_personal_instance_never_takes_a_code_nav_root(tmp_path: Path) -> None:
+    overlay = _overlay(
+        tmp_path,
+        "instances:\n  gold-band-personal:\n    mcp_servers:\n"
+        '      code-nav: {command: code-nav, args: ["--root", "~/Projects/JorisJonkers-dev"]}\n',
+    )
+
+    refused = gbi.validate(_registry(), overlay)
+
+    assert any("mcp_servers to the work instance gold-band only" in line for line in refused), refused
+
+
+@needs_crate
 @pytest.mark.parametrize(
     "body,expected",
     [

@@ -766,6 +766,71 @@ fn arguments_configure_roots_and_the_default_limit() {
 }
 
 #[test]
+fn a_leading_tilde_in_a_root_expands_against_home() {
+    let home = Some("/home/me");
+    let c = parse_args_with_home(&args(&["--root", "~/x"]), home).unwrap();
+    assert_eq!(c.roots, [PathBuf::from("/home/me/x")]);
+    let c = parse_args_with_home(&args(&["--root", "~"]), home).unwrap();
+    assert_eq!(c.roots, [PathBuf::from("/home/me")]);
+    // Only a bare `~` or `~/` expands; `~user/x` and a plain path are left alone.
+    for unchanged in ["~user/x", "/abs/x", "rel/x", "a~/x"] {
+        let c = parse_args_with_home(&args(&["--root", unchanged]), home).unwrap();
+        assert_eq!(c.roots, [PathBuf::from(unchanged)], "{unchanged}");
+    }
+}
+
+#[test]
+fn a_tilde_root_without_home_is_an_error() {
+    for home in [None, Some("")] {
+        for root in ["~", "~/x"] {
+            assert_eq!(
+                parse_args_with_home(&args(&["--root", root]), home).unwrap_err(),
+                "--root ~ needs HOME to be set",
+                "{root} with {home:?}"
+            );
+        }
+        // A root that needs no expansion is fine without HOME.
+        let c = parse_args_with_home(&args(&["--root", "/abs/x"]), home).unwrap();
+        assert_eq!(c.roots, [PathBuf::from("/abs/x")]);
+    }
+}
+
+#[test]
+fn a_missing_root_among_several_is_skipped_with_a_warning() {
+    let f = fixture();
+    let missing = f.root.join("no-such-clone");
+    let a = args(&["--root", missing.to_str().unwrap(), "--root", f.root.to_str().unwrap()]);
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let code = cli(&a, &mut &b""[..], &mut out, &mut err);
+    assert_eq!(code, 0);
+    let err = String::from_utf8(err).unwrap();
+    assert!(err.contains("warning") && err.contains("no-such-clone") && err.contains("skipped"), "{err}");
+}
+
+#[test]
+fn an_existing_root_that_is_not_a_directory_stays_fatal() {
+    let f = fixture();
+    let file = f.root.join("README.md");
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let code = cli(&args(&["--root", file.to_str().unwrap()]), &mut &b""[..], &mut out, &mut err);
+    assert_eq!(code, 2);
+    assert!(String::from_utf8(err).unwrap().contains("not a directory"));
+}
+
+#[test]
+fn all_roots_missing_refuses_to_start() {
+    let f = fixture();
+    let a = args(&["--root", f.root.join("x").to_str().unwrap(), "--root", f.root.join("y").to_str().unwrap()]);
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    assert_eq!(cli(&a, &mut &b""[..], &mut out, &mut err), 2);
+    let err = String::from_utf8(err).unwrap();
+    assert!(err.contains("none of the roots exists")
+            && err.contains(&f.root.join("x").display().to_string())
+            && err.contains(&f.root.join("y").display().to_string()),
+        "{err}");
+}
+
+#[test]
 fn cli_serves_over_the_given_streams() {
     let f = fixture();
     let root = f.root.display().to_string();

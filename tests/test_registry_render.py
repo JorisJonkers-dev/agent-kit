@@ -283,6 +283,56 @@ def test_kubernetes_registers_the_launcher_for_every_agent_and_no_port_forward_r
         assert "kubernetes-mcp-readonly" in text and "18080" not in text, generated
 
 
+CODE_NAV_ROOT = "~/Projects/JorisJonkers-dev"
+
+
+def test_code_nav_is_a_read_only_stdio_server_over_the_personal_roots() -> None:
+    servers = [s for s in _registry()["mcp_servers"] if s["name"] == "code-nav"]
+    assert len(servers) == 1
+    server = servers[0]
+    assert server["transport"] == "stdio"
+    assert server["command"] == "code-nav"
+    assert server["surfaces"] == ["workstation"]
+    assert server["cloud"] is False
+    assert server["requires_binary"] == "code-nav"
+    # The args are the allowlist: one --root, one personal path.
+    assert server["args"][0] == "--root"
+    assert len(server["args"]) == 2 and server["args"][1] == CODE_NAV_ROOT
+    assert "nedap" not in json.dumps(server).lower()
+
+
+def test_code_nav_registers_the_personal_root_for_every_agent() -> None:
+    script = render_registry.render_setup_script(_registry())
+    assert f"claude mcp add --scope user code-nav -- code-nav --root {CODE_NAV_ROOT}" in script
+    assert f"codex mcp add code-nav -- code-nav --root {CODE_NAV_ROOT}" in script
+    for generated in (
+        "registry/generated/vibe/mcp-servers.toml",
+        "registry/generated/opencode/opencode.json",
+        "registry/generated/antigravity/mcp_config.json",
+        "registry/generated/hermes/mcp-servers.local.yaml",
+    ):
+        text = (KIT_ROOT / generated).read_text()
+        assert "code-nav" in text and CODE_NAV_ROOT in text, generated
+
+
+def test_a_work_root_in_the_registry_is_refused() -> None:
+    data = _registry()
+    server = next(s for s in data["mcp_servers"] if s["name"] == "code-nav")
+    server["args"] = ["--root", "/Users/x/Projects/Nedap"]
+    with pytest.raises(render_registry.RegistryError, match="work roots belong in the work machine overlay"):
+        render_registry.validate(data)
+
+
+def test_no_generated_artifact_names_a_work_root() -> None:
+    """A work root in the public registry would ship to every personal machine."""
+    paths = [KIT_ROOT / "installer" / "setup-workstation.sh"]
+    paths += [p for p in (KIT_ROOT / "registry" / "generated").rglob("*") if p.is_file()]
+    for path in paths:
+        for line in path.read_text().splitlines():
+            if "--root" in line or "code-nav" in line:
+                assert "nedap" not in line.lower(), f"{path}: {line}"
+
+
 def _retire(tmp_path: Path, check_only: int = 0) -> subprocess.CompletedProcess:
     script = render_registry.render_setup_script(_registry())
     start = script.index("retire_port_forward_agents() {")

@@ -12,7 +12,10 @@
 //!
 //! Usage: `code-nav --root DIR [--root DIR ...] [--limit N]`. The roots are
 //! the allowlist; the caller (setup, per instance) passes only roots that fit
-//! the instance's repository rule. `--limit` sets the default result cap.
+//! the instance's repository rule. A root that does not exist is skipped with a
+//! warning; with none left the server exits 2. `--limit` sets the default result cap. A
+//! root of `~` or `~/...` is expanded against `HOME`, because a registry
+//! config passes the argument literally, with no shell to expand it.
 
 pub mod boundary;
 pub mod outline;
@@ -23,7 +26,7 @@ use std::ffi::OsString;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
-/// What the command line configures.
+/// What the command line configures. A root's leading `~` is already expanded.
 #[derive(Debug, PartialEq)]
 pub struct Config {
     pub roots: Vec<PathBuf>,
@@ -34,12 +37,20 @@ const USAGE: &str = "usage: code-nav --root DIR [--root DIR ...] [--limit N]";
 
 /// Parse the command line. `Err` is the message to print.
 pub fn parse_args(args: &[String]) -> Result<Config, String> {
+    parse_args_with_home(args, std::env::var("HOME").ok().as_deref())
+}
+
+/// Parse the command line, expanding a root's leading `~` against `home`.
+pub fn parse_args_with_home(args: &[String], home: Option<&str>) -> Result<Config, String> {
     let mut roots = Vec::new();
     let mut limit = search::DEFAULT_LIMIT;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
-            "--root" => roots.push(PathBuf::from(it.next().ok_or("--root needs a directory")?)),
+            "--root" => {
+                let dir = it.next().ok_or("--root needs a directory")?;
+                roots.push(PathBuf::from(expand_home(dir, home)?));
+            }
             "--limit" => {
                 let n: usize = it
                     .next()
@@ -59,6 +70,18 @@ pub fn parse_args(args: &[String]) -> Result<Config, String> {
     Ok(Config { roots, limit })
 }
 
+/// Expand a leading `~` or `~/` against `home`; any other value is unchanged.
+fn expand_home(dir: &str, home: Option<&str>) -> Result<String, String> {
+    let rest = match dir.strip_prefix('~') {
+        Some(rest) if rest.is_empty() || rest.starts_with('/') => rest,
+        _ => return Ok(dir.to_string()),
+    };
+    match home {
+        Some(home) if !home.is_empty() => Ok(format!("{home}{rest}")),
+        _ => Err("--root ~ needs HOME to be set".to_string()),
+    }
+}
+
 /// Run the server on the given streams; the exit code.
 pub fn cli(args: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let config = match parse_args(args) {
@@ -68,7 +91,18 @@ pub fn cli(args: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &
             return 2;
         }
     };
-    let boundary = match boundary::Boundary::new(&config.roots) {
+    // A root that does not exist (a machine without that clone) is skipped
+    // with a warning; only when none remains does the server refuse to start.
+    let (present, missing): (Vec<PathBuf>, Vec<PathBuf>) =
+        config.roots.iter().cloned().partition(|r| r.exists());
+    for root in &missing {
+        let _ = writeln!(err, "code-nav: warning: root {} does not exist, skipped", root.display());
+    }
+    if present.is_empty() {
+        let _ = writeln!(err, "code-nav: none of the roots exists");
+        return 2;
+    }
+    let boundary = match boundary::Boundary::new(&present) {
         Ok(b) => b,
         Err(e) => {
             let _ = writeln!(err, "code-nav: {e}");

@@ -22,6 +22,14 @@
       "args": [],
       "timeoutSeconds": 60
     },
+    "code-nav": {
+      "command": "code-nav",
+      "args": [
+        "--root",
+        "~/Projects/JorisJonkers-dev"
+      ],
+      "timeoutSeconds": 60
+    },
     "grimoire": {
       "command": "/bin/sh",
       "args": [
