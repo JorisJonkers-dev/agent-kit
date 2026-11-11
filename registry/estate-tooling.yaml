@@ -1330,6 +1330,22 @@ local_skills:
       record, allow), so setup installs both side by side in every agent
       home. Its runs are review-stage runs, each a flow of its own.
 
+  - name: review-architecture
+    path: skills/workstation/review-architecture
+    purpose: >-
+      Review a repository's architecture against the rules it declared:
+      critics from other model families read a sample of the code beside its
+      decision records, README and build configuration, the orchestrator
+      rules on their findings, and the accepted ones become cited candidates
+      with the observable that would show a fix worked, for
+      /improve-codebase-architecture. No issue is filed.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner in skills/workstation/critique/ (prepare, fan-out,
+      record, allow), so setup installs both side by side in every agent
+      home. Its runs are review-stage runs, each a flow of its own.
+
   - name: review-pr
     path: skills/workstation/review-pr
     purpose: >-

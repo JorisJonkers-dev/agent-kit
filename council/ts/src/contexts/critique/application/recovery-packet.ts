@@ -57,6 +57,26 @@ function limited(request: RecoveryPacketRequest): { readonly head: string; reado
   return { head: request.head, limits: { ...request.limits, cap_bytes: Math.max(1, request.limits.cap_bytes - HISTORY_RESERVE_BYTES) } }
 }
 
+/** The decision records a repository packet holds as references: the glossary, a context map and every ADR in force, with how many of the last two. */
+export async function decisionReferences(
+  deps: Pick<CritiqueDeps, 'files'>,
+  root: string,
+): Promise<{ readonly documents: readonly UnfrozenFile[]; readonly adrs: number; readonly maps: number }> {
+  const { files } = deps
+  const present = await files.listFiles(root)
+  const paths = await logRecords(files, root)
+  const read = await Promise.all(paths.map(async (source) => ({ source, text: await files.readText(join(root, source)) })))
+  // A record that is proposed, rejected, superseded or deprecated is no decision the code can be checked against.
+  const records = read.filter((record) => inForce(record.text))
+  const glossary = GLOSSARIES.find((name) => present.includes(name))
+  const maps = present.filter((path) => path === CONTEXT_MAP)
+  const references = [...(glossary === undefined ? [] : [glossary]), ...maps, ...records.map((record) => record.source)]
+  const documents: UnfrozenFile[] = await Promise.all(
+    references.map(async (source) => ({ kind: 'reference' as const, path: join('references', source), source, text: await files.readText(join(root, source)) })),
+  )
+  return { adrs: records.length, documents, maps: maps.length }
+}
+
 /**
  * Reads what a decision-recovery run freezes: the repository's tree
  * sampled by rule, `tree/MANIFEST.tsv` and `facts/`, every ADR in force,
@@ -71,39 +91,19 @@ export class RecoveryPacketReader {
   constructor(private readonly deps: Pick<CritiqueDeps, 'files' | 'git'>) {}
 
   async read(root: string, request: RecoveryPacketRequest): Promise<RecoveryPacket | Refusal> {
-    const { files } = this.deps
-    const present = await files.listFiles(root)
-    const records = await this.records(root)
-    const glossary = GLOSSARIES.find((name) => present.includes(name))
-    const maps = present.filter((path) => path === CONTEXT_MAP)
-    const references = [...(glossary === undefined ? [] : [glossary]), ...maps, ...records.map((record) => record.source)]
-    const documents: UnfrozenFile[] = await Promise.all(
-      references.map(async (source) => ({
-        kind: 'reference' as const,
-        path: join('references', source),
-        source,
-        text: await files.readText(join(root, source)),
-      })),
-    )
+    const { adrs, documents, maps } = await decisionReferences(this.deps, root)
     const sampled = await sampleTree(this.deps, root, { artifactText: documents.map((file) => file.text).join('\n\n'), files: documents }, limited(request), sourceSample)
     if (sampled.status === 'refused') return sampled
     const history = request.history === undefined ? [] : await this.history(root, sampled, request.history.tracker)
     return {
-      adrs: records.length,
+      adrs,
       artifact: { labels: [], reference: RECOVERY_ARTIFACT, text: documents.map((file) => file.text).join('\n\n'), tracker: 'none' },
-      context_maps: maps.length,
+      context_maps: maps,
       files: [...sampled.files, ...history],
       repository: { ...sampled.repository, packet_bytes: [...sampled.files, ...history].reduce((sum, file) => sum + Buffer.byteLength(file.text), 0) },
       source_lines: sourceLines(sampled.tracked),
       status: 'read',
     }
-  }
-
-  /** The ADRs in force: a record that is proposed, rejected, superseded or deprecated is no decision the code can be checked against. */
-  private async records(root: string): Promise<readonly { readonly source: string }[]> {
-    const paths = await logRecords(this.deps.files, root)
-    const read = await Promise.all(paths.map(async (source) => ({ source, text: await this.deps.files.readText(join(root, source)) })))
-    return read.filter((record) => inForce(record.text))
   }
 
   /** An issue a commit message cites, or nothing when the tracker cannot read it: a number that is no issue, or a tracker of local files. */

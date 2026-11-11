@@ -41,6 +41,7 @@ import { CodePacketReader, ticketFile, type CodeTreeSample, type UnfrozenFile } 
 import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { DecisionsPacketReader } from './decisions-packet.js'
+import { ArchitecturePacketReader } from './architecture-packet.js'
 import { RecoveryPacketReader } from './recovery-packet.js'
 import { manifestPath, reportPath } from './locations.js'
 import { insideRepository } from './paths.js'
@@ -126,7 +127,7 @@ interface PacketContents {
   readonly specReference?: string
   /** Only for an ADR review: how many records are under review. */
   readonly adrs?: number
-  /** Only for decision recovery: how many lines of source the repository tracks, and how many context maps it has. */
+  /** Only for decision recovery and architecture review: how many lines of source the repository tracks, and how many context maps it has. */
   readonly source_lines?: number
   readonly context_maps?: number
   /** Only for the decisions stage: whether the decisions under review include a decision record. */
@@ -186,6 +187,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   private readonly decisionsPackets: DecisionsPacketReader
   private readonly adrPackets: AdrPacketReader
   private readonly recoveryPackets: RecoveryPacketReader
+  private readonly architecturePackets: ArchitecturePacketReader
   private readonly routing: RoutingSource
   private readonly staged: StagedDiffReader
 
@@ -197,6 +199,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     this.decisionsPackets = new DecisionsPacketReader(deps.files)
     this.adrPackets = new AdrPacketReader(deps)
     this.recoveryPackets = new RecoveryPacketReader(deps)
+    this.architecturePackets = new ArchitecturePacketReader(deps)
     this.routing = new RoutingSource(deps)
     this.staged = new StagedDiffReader(deps)
   }
@@ -349,6 +352,8 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       const code = codeAllowed ? { code: { head: input.head, limits: (await this.routing.load()).packet } } : {}
       return this.adrPackets.read(repository.root, { ...input, ...code })
     }
+    // An architecture review reads no tracker and no history: its critics judge the design by what the project declared.
+    if (packet === 'architecture') return this.architecturePackets.read(repository.root, { head: input.head, limits: (await this.routing.load()).packet })
     if (packet === 'recovery') {
       // The tracker is read only for the issues the history cites, so a tracker it cannot read leaves them out and refuses nothing.
       const tracker = entry.history ? await this.trackers.resolve(repository) : undefined

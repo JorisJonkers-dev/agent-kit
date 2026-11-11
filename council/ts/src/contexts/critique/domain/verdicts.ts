@@ -2,7 +2,7 @@ import type { CriticRun } from './critic.js'
 import type { DepthChoice } from './depth.js'
 import type { GateRecord } from './feature-review.js'
 import type { CriticFamily } from './family.js'
-import { MECHANICAL_REJECTIONS, SEVERITIES, type RunFinding, type Severity } from './findings.js'
+import { MECHANICAL_REJECTIONS, SEVERITIES, type Category, type RunFinding, type Severity } from './findings.js'
 import type { PacketFile } from './manifest.js'
 import type { RefuteRecord } from './refute.js'
 import type { DroppedCritic } from './routing.js'
@@ -99,9 +99,11 @@ export function secondRoundDue(run: AdjudicatedRun): boolean {
  * finding is a question for the owner, so the answer goes on the accepted
  * verdict, and needs-human is never given.
  */
-export function stageVerdictError(stage: CritiqueStage, verdict: Verdict): string | undefined {
+export function stageVerdictError(stage: CritiqueStage, verdict: Verdict, category?: Category): string | undefined {
   const id = verdict.finding_id
-  if (STAGE_TABLE[stage].candidateQuestions !== null && verdict.verdict === 'accepted') {
+  const behaviour = STAGE_TABLE[stage]
+  const candidate = behaviour.candidateQuestions !== null && (behaviour.mixedCandidates !== true || category === 'undocumented-decision')
+  if (candidate && verdict.verdict === 'accepted') {
     return `${id}: a recovered decision is never accepted: only the owner's answer writes a record, so give it needs-human, or rejected with the reason it fails`
   }
   if (stage === 'decisions') {

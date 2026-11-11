@@ -139,6 +139,7 @@ export function renderReport(run: AdjudicatedRun): string {
     '## Findings',
     '',
     ...(run.findings.length === 0 ? ['none', ''] : run.findings.flatMap((f) => findingSection(run, f))),
+    ...architectureSection(run),
     ...refuteSection(run.refutes),
     ...deferredSection(run),
     '## Dissent',
@@ -146,6 +147,34 @@ export function renderReport(run: AdjudicatedRun): string {
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
     '',
   ].join('\n')
+}
+
+/**
+ * An architecture review's accepted findings as cited candidates, in the
+ * order raised: each with its lines, its evidence (the declared rule it
+ * quotes, the facts it cites, the trace of its consequence) and the
+ * observable that would show a fix worked. Nothing here files an issue: the
+ * owner picks one candidate to take to `/improve-codebase-architecture`. A
+ * recovered decision is never among them.
+ */
+function architectureSection(run: AdjudicatedRun): readonly string[] {
+  if (STAGE_TABLE[run.stage].evidence !== 'architecture') return []
+  const accepted = run.findings.filter((f) => f.verdict.verdict === 'accepted' && f.category !== 'undocumented-decision')
+  return [
+    '## Architecture candidates',
+    '',
+    ...(accepted.length === 0
+      ? ['none', '']
+      : accepted.flatMap((f) => [
+          `### ${f.id} [${f.severity}] ${f.location}`,
+          '',
+          f.claim,
+          '',
+          ...f.evidence.map((e) => `- ${e.kind}${e.file === undefined ? '' : ` (${e.file})`}: ${e.value}`),
+          `- ${f.suggestion ?? 'Observable: none named'}`,
+          '',
+        ])),
+  ]
 }
 
 /**

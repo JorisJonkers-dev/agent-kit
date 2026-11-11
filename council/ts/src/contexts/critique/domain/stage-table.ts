@@ -11,15 +11,17 @@ import type { CodeStage, CritiqueStage, ReviewStage } from './stage.js'
  * `recovery`: the repository's tree, its facts and its decision records as
  * references, and its history when the allowlist entry allows it, with no
  * artifact of its own and no tracker item.
+ * `architecture`: the same tree, facts and decision records, and beside them
+ * the README and the build configuration as references, and never history.
  */
-export type PacketBuilder = 'decisions' | 'document' | 'tickets' | 'code' | 'adrs' | 'recovery'
+export type PacketBuilder = 'decisions' | 'document' | 'tickets' | 'code' | 'adrs' | 'recovery' | 'architecture'
 
 /** Which evidence rule fan-out applies to a stage's findings once every quote is found in the packet. */
 /**
  * `records` is no stage's own: it is the rule for the decision records a
  * role reviews at a stage whose own rule is another.
  */
-export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code' | 'adrs' | 'records' | 'recovery'
+export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code' | 'adrs' | 'records' | 'recovery' | 'architecture'
 
 /**
  * The flow key a stage's run charges, unless the caller names one.
@@ -59,6 +61,12 @@ export interface StageBehaviour {
    * candidate is ever accepted without the owner. Null for every other stage.
    */
   readonly candidateQuestions: number | null
+  /**
+   * Set when the stage's recovered candidates sit among findings that may be
+   * accepted: only a finding of category `undocumented-decision` is a candidate
+   * then, never accepted, and the cap counts every question the run asks.
+   */
+  readonly mixedCandidates?: true
 }
 
 /**
@@ -85,6 +93,8 @@ export type StageTable = {
  */
 const ROLE_EVIDENCE: Readonly<Partial<Record<CritiqueStage, Readonly<Record<string, EvidenceRule>>>>> = {
   decisions: { 'adr-reviewer': 'records' },
+  // A deep architecture review adds a decision recoverer, whose candidates follow the recovery rules.
+  'architecture-review': { 'decision-recoverer': 'recovery' },
 }
 
 /** The evidence rule for a finding the critic of `role` raised at `stage`: the role's own there, else the stage's. */
@@ -96,6 +106,8 @@ export function evidenceRule(stage: CritiqueStage, role: string | undefined): Ev
 export const RECOVERY_QUESTION_CAP = 10
 
 export const STAGE_TABLE: StageTable = {
+  // A deep run's recovered candidates are never accepted and share the run's ten owner questions with the findings that need the owner; the rest are accepted or rejected as findings.
+  'architecture-review': { candidateQuestions: RECOVERY_QUESTION_CAP, doNotStart: null, evidence: 'architecture', flowKey: 'run', mixedCandidates: true, packet: 'architecture', removal: 'runs', secondRound: false },
   // With the code permission on, the ADR packet is a repository packet (#221);
   // with it off, the evidence rule skips what needs code (#249).
   'adr-review': { candidateQuestions: null, doNotStart: null, evidence: 'adrs', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },

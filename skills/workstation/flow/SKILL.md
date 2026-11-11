@@ -425,7 +425,7 @@ asks. Otherwise offer to return to `/flow`.
 
 ## /flow reviews
 
-The **review stages** (`adr-review` and `decision-recovery`) look at a repository's decision
+The **review stages** (`adr-review`, `decision-recovery` and `architecture-review`) look at a repository's decision
 records or code, not at one feature. They sit outside the feature's flow:
 `/flow` never names one as the next step, and a review is never due. Each
 review run is a flow of its own, keyed by its run id, with its own Vibe cap,

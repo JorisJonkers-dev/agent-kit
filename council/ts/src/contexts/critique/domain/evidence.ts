@@ -1,3 +1,4 @@
+import { DEPENDENCY_CHECKS, VERDICT_WORDS, isLayerConfigPath } from './architecture.js'
 import { NEEDS_TREE, type DeclaredCheck } from './checks.js'
 import type { Category, Evidence, FindingBody, HintCode, MechanicalRejection, PreVerdict } from './findings.js'
 import type { JsonFields } from './json.js'
@@ -121,6 +122,7 @@ export function evidenceFound(finding: FindingBody, packet: PacketIndex): Eviden
 /** Each evidence rule, as the stage table names it: the hint a finding earns, or nothing when it has something checkable. */
 const EVIDENCE_RULES: Readonly<Record<Exclude<EvidenceRule, 'recovery'>, (finding: FindingBody, found: EvidenceFound, packet: PacketIndex) => HintCode | undefined>> = {
   adrs: adrRule,
+  architecture: architectureRule,
   code: (finding) => codeRule(finding.evidence),
   decisions: (finding, found) => decisionsRule(finding.category, found),
   // A record finding quotes the record it is about, which is among the decisions under review.
@@ -218,6 +220,26 @@ function traceSites(evidence: readonly Evidence[], packet: PacketIndex): Readonl
   return sites
 }
 
+/**
+ * The architecture-review stage's rule. An unasked question needs only a
+ * trace that cites a file and line. Any other finding needs a rule the
+ * project declared (a quote of a record, the glossary or a config) or a fact
+ * the runner computed, or a trace showing the consequence; a finding whose
+ * check assumes a layer rule needs one in the packet, since without it the
+ * observation is a question; a verdict word needs a fact or a quoted decision
+ * beside it; and a fix is named by the observable that would show it worked.
+ */
+function architectureRule(finding: FindingBody, found: EvidenceFound, packet: PacketIndex): HintCode | undefined {
+  const traced = codeRule(finding.evidence) === undefined && finding.evidence.some((item) => item.kind === 'trace')
+  if (finding.category === 'unasked-question') return traced ? undefined : 'no-trace'
+  if (finding.check !== undefined && DEPENDENCY_CHECKS.includes(finding.check) && !packet.files.some((file) => isLayerConfigPath(file.path))) {
+    return 'no-layer-config'
+  }
+  if (VERDICT_WORDS.test(finding.claim) && !found.fact && !found.decision) return 'verdict-word'
+  if (!found.decision && !found.fact && !traced) return 'no-rule-or-consequence'
+  return /\bobservable\b/i.test(finding.suggestion ?? '') ? undefined : 'no-observable'
+}
+
 /** #181's code-stage rule: a code finding needs a failing test, or a trace that cites a file and line. */
 function codeRule(evidence: readonly Evidence[]): HintCode | undefined {
   const checkable = evidence.some(
@@ -269,6 +291,7 @@ function decisionsRule(category: Category, found: EvidenceFound): HintCode | und
  * them, and the report says so.
  */
 const CODE_CATEGORIES: Readonly<Record<EvidenceRule, readonly { readonly category: Category; readonly about: string }[]>> = {
+  architecture: [],
   adrs: [
     { about: 'a decision that names code, config or a command, checked against the code', category: 'drift' },
     { about: 'an assumption, revisit condition or promised consequence, checked against the code', category: 'stale' },
@@ -365,6 +388,11 @@ const HINT_REASONS: Readonly<Record<HintCode, string>> = {
   'no-test-or-trace': 'no failing test and no trace with a file and line',
   'no-ticket-id': 'the location names no ticket of the spec',
   'no-ticket-rule': 'the location names no ticket rule',
+  'no-layer-config': 'the check assumes a layer rule and the packet holds no layer config: ask whether the layering is intended, as an unasked question with a trace',
+  'no-trace': 'an unasked question needs a trace that cites a file and line',
+  'no-observable': 'no observable named: say what would show a fix worked',
+  'no-rule-or-consequence': 'taste: neither a declared rule, a fact nor a traced consequence backs it',
+  'verdict-word': 'a verdict word with no fact and no quoted decision: state the number, or quote the decision that gives the threshold',
   'not-a-candidate': 'not an undocumented-decision candidate: this stage recovers decisions only',
   'not-a-decision-gap': 'neither an unasked question nor a contradiction',
 }

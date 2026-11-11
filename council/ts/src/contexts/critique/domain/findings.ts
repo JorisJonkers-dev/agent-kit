@@ -86,6 +86,11 @@ export const HINT_CODES = [
   'one-file-contradiction',
   'needs-tree',
   'not-a-candidate',
+  'no-layer-config',
+  'no-trace',
+  'verdict-word',
+  'no-rule-or-consequence',
+  'no-observable',
 ] as const
 export type HintCode = (typeof HINT_CODES)[number]
 

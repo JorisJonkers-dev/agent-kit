@@ -13,6 +13,7 @@ describe('the critique stage table', () => {
   it('gives each stage its per-stage behaviour', () => {
     expect(STAGE_TABLE).toEqual({
       'adr-review': { candidateQuestions: null, doNotStart: null, evidence: 'adrs', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },
+      'architecture-review': { candidateQuestions: 10, doNotStart: null, evidence: 'architecture', flowKey: 'run', mixedCandidates: true, packet: 'architecture', removal: 'runs', secondRound: false },
       'decision-recovery': { candidateQuestions: 10, doNotStart: null, evidence: 'recovery', flowKey: 'run', packet: 'recovery', removal: 'runs', secondRound: false },
       decisions: { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'decisions', flowKey: 'draft', packet: 'decisions', removal: 'features', secondRound: false },
       'feature-review': { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
@@ -48,6 +49,7 @@ describe('the critique stage table', () => {
     // @ts-expect-error -- tickets has no entry, so this is not a stage table
     const partial: StageTable = {
       'adr-review': STAGE_TABLE['adr-review'],
+      'architecture-review': STAGE_TABLE['architecture-review'],
       'decision-recovery': STAGE_TABLE['decision-recovery'],
       decisions: STAGE_TABLE.decisions,
       'feature-review': STAGE_TABLE['feature-review'],
