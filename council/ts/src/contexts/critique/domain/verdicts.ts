@@ -2,7 +2,7 @@ import type { CriticRun } from './critic.js'
 import type { DepthChoice } from './depth.js'
 import type { GateRecord } from './feature-review.js'
 import type { CriticFamily } from './family.js'
-import type { RunFinding, Severity } from './findings.js'
+import { MECHANICAL_REJECTIONS, SEVERITIES, type RunFinding, type Severity } from './findings.js'
 import type { PacketFile } from './manifest.js'
 import type { RefuteRecord } from './refute.js'
 import type { DroppedCritic } from './routing.js'
@@ -101,12 +101,39 @@ export function secondRoundDue(run: AdjudicatedRun): boolean {
  */
 export function stageVerdictError(stage: CritiqueStage, verdict: Verdict): string | undefined {
   const id = verdict.finding_id
+  if (STAGE_TABLE[stage].candidateQuestions !== null && verdict.verdict === 'accepted') {
+    return `${id}: a recovered decision is never accepted: only the owner's answer writes a record, so give it needs-human, or rejected with the reason it fails`
+  }
   if (stage === 'decisions') {
     if (verdict.verdict === 'needs-human') return `${id}: the decisions stage asks every accepted gap as a question; give it accepted, not needs-human`
     if (verdict.answered !== undefined && verdict.verdict !== 'accepted') return `${id}: only an accepted verdict can be answered at the decisions stage`
     return undefined
   }
   return verdict.answered !== undefined && verdict.verdict !== 'needs-human' ? `${id}: only a needs-human verdict can be answered` : undefined
+}
+
+/** The candidates a recovery run asks the owner about, and the ones it defers. */
+export interface CandidateQuestions {
+  readonly asked: readonly AdjudicatedFinding[]
+  readonly deferred: readonly AdjudicatedFinding[]
+}
+
+/**
+ * At a stage whose findings are candidates for the owner to confirm: the
+ * needs-human candidates ranked by severity, which is their confidence
+ * (critical first, then in finding order), the first `candidateQuestions` of
+ * them asked and the rest deferred to the report. Undefined at every other
+ * stage.
+ */
+export function candidateQuestions(run: Pick<AdjudicatedRun, 'stage' | 'findings'>): CandidateQuestions | undefined {
+  const cap = STAGE_TABLE[run.stage].candidateQuestions
+  if (cap === null) return undefined
+  const ranked = run.findings
+    .map((finding, position) => ({ finding, position }))
+    .filter(({ finding }) => finding.verdict.verdict === 'needs-human')
+    .sort((a, b) => SEVERITIES.indexOf(a.finding.severity) - SEVERITIES.indexOf(b.finding.severity) || a.position - b.position)
+    .map(({ finding }) => finding)
+  return { asked: ranked.slice(0, cap), deferred: ranked.slice(cap) }
 }
 
 /**
@@ -145,7 +172,7 @@ export function familiesOf(run: AdjudicatedRun, finding: RunFinding): readonly C
 export function isDissent(run: AdjudicatedRun, finding: AdjudicatedFinding): boolean {
   return (
     finding.verdict.verdict === 'rejected' &&
-    finding.verdict.reason_code !== 'fabricated-evidence' &&
+    !(MECHANICAL_REJECTIONS as readonly string[]).includes(finding.verdict.reason_code ?? '') &&
     (finding.severity === 'critical' || familiesOf(run, finding).length >= 2)
   )
 }

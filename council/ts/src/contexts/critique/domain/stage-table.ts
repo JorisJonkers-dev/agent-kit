@@ -8,15 +8,18 @@ import type { CodeStage, CritiqueStage, ReviewStage } from './stage.js'
  * repository's decision records under review, with its glossary and any
  * other records as references, and no tracker; when the repository allows
  * code, also a sample of its tree, the tree's manifest and its facts.
+ * `recovery`: the repository's tree, its facts and its decision records as
+ * references, and its history when the allowlist entry allows it, with no
+ * artifact of its own and no tracker item.
  */
-export type PacketBuilder = 'decisions' | 'document' | 'tickets' | 'code' | 'adrs'
+export type PacketBuilder = 'decisions' | 'document' | 'tickets' | 'code' | 'adrs' | 'recovery'
 
 /** Which evidence rule fan-out applies to a stage's findings once every quote is found in the packet. */
 /**
  * `records` is no stage's own: it is the rule for the decision records a
  * role reviews at a stage whose own rule is another.
  */
-export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code' | 'adrs' | 'records'
+export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code' | 'adrs' | 'records' | 'recovery'
 
 /**
  * The flow key a stage's run charges, unless the caller names one.
@@ -49,6 +52,13 @@ export interface StageBehaviour {
   readonly doNotStart: '/to-tickets' | '/implement' | null
   readonly flowKey: FlowKey
   readonly removal: RemovalRule
+  /**
+   * For a stage whose findings are candidates for the owner to confirm: the
+   * most candidates asked at once. The report ranks them by severity, which
+   * is their confidence, asks that many and lists the rest as deferred; no
+   * candidate is ever accepted without the owner. Null for every other stage.
+   */
+  readonly candidateQuestions: number | null
 }
 
 /**
@@ -82,15 +92,20 @@ export function evidenceRule(stage: CritiqueStage, role: string | undefined): Ev
   return (role === undefined ? undefined : ROLE_EVIDENCE[stage]?.[role]) ?? STAGE_TABLE[stage].evidence
 }
 
+/** How many recovered candidates one run asks the owner about; the rest are deferred in the report. */
+export const RECOVERY_QUESTION_CAP = 10
+
 export const STAGE_TABLE: StageTable = {
   // With the code permission on, the ADR packet is a repository packet (#221);
   // with it off, the evidence rule skips what needs code (#249).
-  'adr-review': { doNotStart: null, evidence: 'adrs', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },
+  'adr-review': { candidateQuestions: null, doNotStart: null, evidence: 'adrs', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },
+  // A recovered decision is never accepted: only the owner's answer makes an ADR, so no round revises anything.
+  'decision-recovery': { candidateQuestions: RECOVERY_QUESTION_CAP, doNotStart: null, evidence: 'recovery', flowKey: 'run', packet: 'recovery', removal: 'runs', secondRound: false },
   // A decisions run's accepted findings are questions for the owner and change
   // no artifact, so it never calls for a second round.
-  decisions: { doNotStart: '/to-tickets', evidence: 'decisions', flowKey: 'draft', packet: 'decisions', removal: 'features', secondRound: false },
-  'feature-review': { doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
-  spec: { doNotStart: '/to-tickets', evidence: 'spec', flowKey: 'spec', packet: 'document', removal: 'features', secondRound: true },
-  'ticket-review': { doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
-  tickets: { doNotStart: '/implement', evidence: 'tickets', flowKey: 'spec', packet: 'tickets', removal: 'features', secondRound: true },
+  decisions: { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'decisions', flowKey: 'draft', packet: 'decisions', removal: 'features', secondRound: false },
+  'feature-review': { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
+  spec: { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'spec', flowKey: 'spec', packet: 'document', removal: 'features', secondRound: true },
+  'ticket-review': { candidateQuestions: null, doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
+  tickets: { candidateQuestions: null, doNotStart: '/implement', evidence: 'tickets', flowKey: 'spec', packet: 'tickets', removal: 'features', secondRound: true },
 }

@@ -1,5 +1,5 @@
 import { NEEDS_TREE, type DeclaredCheck } from './checks.js'
-import type { Category, Evidence, FindingBody, HintCode, PreVerdict } from './findings.js'
+import type { Category, Evidence, FindingBody, HintCode, MechanicalRejection, PreVerdict } from './findings.js'
 import type { JsonFields } from './json.js'
 import { lineCount, lineReferences, packetCandidates, type LineReference } from './line-references.js'
 import { diffShownLines } from './diff-window.js'
@@ -59,6 +59,8 @@ export interface EvidenceFound {
   readonly spec: boolean
   /** A quote found in a reference: the decision source. */
   readonly decision: boolean
+  /** A quote found in `history/`: a commit message or an issue. */
+  readonly history: boolean
   /** A quote found in a fact the runner computed, which is never spec text or a decision. */
   readonly fact: boolean
   /** An input, failing test or trace: a concrete scenario. */
@@ -85,7 +87,10 @@ export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet
     const missing = missingLine(finding, packet)
     if (missing !== undefined) return fabricated(missing)
   }
-  const hint = found.items === 0 ? 'no-evidence' : EVIDENCE_RULES[evidenceRule(stage, role)](finding, found, packet)
+  const rule = evidenceRule(stage, role)
+  // A candidate's rejections are mechanical, not hints.
+  if (rule === 'recovery') return recoveryVerdict(finding, found, packet)
+  const hint = found.items === 0 ? 'no-evidence' : EVIDENCE_RULES[rule](finding, found, packet)
   return hint === undefined ? undefined : { reason: HINT_REASONS[hint], reason_code: hint, verdict: 'hint' }
 }
 
@@ -96,7 +101,7 @@ export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet
  * first quote no packet file holds.
  */
 export function evidenceFound(finding: FindingBody, packet: PacketIndex): EvidenceFound | number {
-  const found = { decision: false, fact: false, items: finding.evidence.length, scenario: false, spec: false }
+  const found = { decision: false, fact: false, history: false, items: finding.evidence.length, scenario: false, spec: false }
   for (const [index, evidence] of finding.evidence.entries()) {
     if (evidence.kind !== 'quote') {
       found.scenario = true
@@ -108,12 +113,13 @@ export function evidenceFound(finding: FindingBody, packet: PacketIndex): Eviden
     found.spec ||= holders.some((file) => file.kind === 'artifact')
     found.decision ||= holders.some((file) => file.kind === 'reference')
     found.fact ||= holders.some((file) => file.kind === 'fact')
+    found.history ||= holders.some((file) => file.kind === 'history')
   }
   return found
 }
 
 /** Each evidence rule, as the stage table names it: the hint a finding earns, or nothing when it has something checkable. */
-const EVIDENCE_RULES: Readonly<Record<EvidenceRule, (finding: FindingBody, found: EvidenceFound, packet: PacketIndex) => HintCode | undefined>> = {
+const EVIDENCE_RULES: Readonly<Record<Exclude<EvidenceRule, 'recovery'>, (finding: FindingBody, found: EvidenceFound, packet: PacketIndex) => HintCode | undefined>> = {
   adrs: adrRule,
   code: (finding) => codeRule(finding.evidence),
   decisions: (finding, found) => decisionsRule(finding.category, found),
@@ -171,6 +177,45 @@ function firstUnheld(reference: LineReference, held: readonly { readonly first: 
   const last = holding(reference.last)
   if (last === undefined) return reference.last
   return first === last ? undefined : first.last + 1
+}
+
+/** A candidate that gives its reason says in these words when no commit message or issue states one. */
+const NO_RATIONALE = /\bno rationale found\b/i
+
+/**
+ * The decision-recovery stage's rule: every finding is a candidate, an
+ * `undocumented-decision`, and is rejected mechanically when it cites no
+ * file of `tree/`, cites only one (a single site may be an accident), or
+ * gives a "because" with neither a quote of `history/` nor the plain
+ * statement "no rationale found". A candidate that clears all three has
+ * evidence for the owner to confirm; nothing here accepts it.
+ */
+function recoveryVerdict(finding: FindingBody, found: EvidenceFound, packet: PacketIndex): PreVerdict | undefined {
+  if (finding.category !== 'undocumented-decision') return { reason: HINT_REASONS['not-a-candidate'], reason_code: 'not-a-candidate', verdict: 'hint' }
+  const sites = traceSites(finding.evidence, packet)
+  if (sites.size === 0) return rejected('no-code-trace', 'cites no file of tree/ in a trace: the decision is not traced to the code')
+  if (sites.size === 1) return rejected('single-site', `traces to one site only (${[...sites].join('')}): one site may be an accident, so it needs two`)
+  if (!found.history && !NO_RATIONALE.test(finding.claim)) {
+    return rejected('invented-rationale', 'gives a "because" with no quote from history/ and no statement that no rationale was found')
+  }
+  return undefined
+}
+
+function rejected(reasonCode: MechanicalRejection, reason: string): PreVerdict {
+  return { reason, reason_code: reasonCode, verdict: 'rejected' }
+}
+
+/** The distinct files of `tree/` the trace steps of a finding cite, by packet path. */
+function traceSites(evidence: readonly Evidence[], packet: PacketIndex): ReadonlySet<string> {
+  const sites = new Set<string>()
+  for (const item of evidence) {
+    if (item.kind !== 'trace') continue
+    for (const reference of lineReferences(item.value)) {
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate))
+      if (path?.startsWith(`${TREE_DIR}/`) === true) sites.add(path)
+    }
+  }
+  return sites
 }
 
 /** #181's code-stage rule: a code finding needs a failing test, or a trace that cites a file and line. */
@@ -231,6 +276,7 @@ const CODE_CATEGORIES: Readonly<Record<EvidenceRule, readonly { readonly categor
   code: [],
   decisions: [],
   records: [],
+  recovery: [],
   spec: [],
   tickets: [],
 }
@@ -319,6 +365,7 @@ const HINT_REASONS: Readonly<Record<HintCode, string>> = {
   'no-test-or-trace': 'no failing test and no trace with a file and line',
   'no-ticket-id': 'the location names no ticket of the spec',
   'no-ticket-rule': 'the location names no ticket rule',
+  'not-a-candidate': 'not an undocumented-decision candidate: this stage recovers decisions only',
   'not-a-decision-gap': 'neither an unasked question nor a contradiction',
 }
 

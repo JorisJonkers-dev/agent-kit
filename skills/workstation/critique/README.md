@@ -32,6 +32,7 @@ offers it.
 | `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
 | `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Large with `adr-reviewer` and `adr-record`, Gemini Flash with `adr-reviewer` and `decision-log` | GLM with `adr-reviewer`, both lenses | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
+| `decision-recovery` | `/recover-decisions` | on demand, outside any feature | DeepSeek Flash, Mistral Large (`decision-recoverer`) | none | Recovered decisions the code embodies and no record states, each traced to two sites of the code; a question for any that is significant and new, ten at most, and an ADR written from your answer |
 
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
@@ -55,6 +56,28 @@ or list-item date line, or a frontmatter `date:` key, precedes the last commit
 that changed a path it names). Both are
 computed facts for the owner, not errors: they never make `check-adrs`
 fail.
+`decision-recovery` is the second review stage, for `/recover-decisions`.
+Its packet holds a sample of the repository's tree (the files the records
+name first, each module's entry file, then the rest of the source,
+shallowest first) with `tree/MANIFEST.tsv` and `facts/INDEX.md`, every ADR
+in force, `CONTEXT.md` and a `CONTEXT-MAP.md` under `references/`, and no
+artifact of its own. It needs the code permission and is refused without it
+(`code-not-allowed`). Only with the history permission on does it also hold
+`history/log.txt` (the commit messages and changed files for the sampled
+files, newest first) and `history/issues/` (the issues those messages cite,
+where the tracker can be read); with it off no commit message or issue text
+is read, and a candidate can only say "no rationale found". Each finding is a
+Y-statement for one decision, every clause marked observed or inferred, with
+its severity as the critic's confidence. The runner rejects mechanically,
+and no verdict overturns it: `no-code-trace` (no trace into `tree/`),
+`single-site` (traces to one file only) and `invented-rationale` (a
+"because" with neither a quote of `history/` nor the words "no rationale
+found"). Deep runs above 20,000 lines of tracked source or with a
+`CONTEXT-MAP.md`. A recovered decision is never accepted: the orchestrator
+rejects it (`not-significant`, `duplicates-adr`, `invented-rationale`) or
+leaves it a question; record asks ten at most, ranked by confidence, and the
+report lists the rest as deferred. Its run directory holds the candidates; no
+file under the decision log is written before the owner accepts one.
 `critique check-plan --json '{"plan": "refactoring-plan.md"}'` (or with `"repo"`,
 and `plan` relative to it) checks a refactoring plan and exits 3 while it breaks
 a rule. The plan holds the sections `## Goal`, `## Target`, `## Safety net`,

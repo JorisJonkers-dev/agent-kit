@@ -16,6 +16,10 @@ export interface DepthEvidence {
   readonly tickets?: number
   /** At an ADR review: how many records are under review. */
   readonly adrs?: number
+  /** At decision recovery: how many lines of source the repository tracks. */
+  readonly sourceLines?: number
+  /** At decision recovery: how many context maps the repository has. */
+  readonly contextMaps?: number
 }
 
 /** A code stage's change in numbers: its changed lines, and how many touched paths match a risk path. */
@@ -34,6 +38,7 @@ type Measure = (evidence: DepthEvidence) => number
  */
 const STAGE_MEASURES: Readonly<Record<CritiqueStage, Readonly<Record<string, Measure>>>> = {
   'adr-review': { adrs: ({ adrs = 0 }) => adrs },
+  'decision-recovery': { context_maps: ({ contextMaps = 0 }) => contextMaps, source_lines: ({ sourceLines = 0 }) => sourceLines },
   decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
   'feature-review': {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },

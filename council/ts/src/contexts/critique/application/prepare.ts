@@ -4,6 +4,7 @@ import { quotaReached } from '../domain/budget.js'
 import { criticIdentity, type CriticIdentity } from '../domain/critic.js'
 import { chooseDepth, type DepthChoice } from '../domain/depth.js'
 import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
+import type { AllowlistEntry } from '../domain/family-allowlist.js'
 import {
   compactTimestamp,
   listedFiles,
@@ -29,7 +30,7 @@ import {
   type WorkGrant,
   type WorkRosterRequest,
 } from '../domain/routing.js'
-import { CRITIQUE_STAGES, DEPTHS, isCodeStage, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
+import { CRITIQUE_STAGES, DEPTHS, needsCodePermission, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
 import { STAGE_TABLE } from '../domain/stage-table.js'
 import { sizeReport, summariseCheck, type TicketSize } from '../domain/tickets.js'
 import { riskPathHits, type CodeChange } from '../domain/triage.js'
@@ -40,6 +41,7 @@ import { CodePacketReader, ticketFile, type CodeTreeSample, type UnfrozenFile } 
 import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { DecisionsPacketReader } from './decisions-packet.js'
+import { RecoveryPacketReader } from './recovery-packet.js'
 import { manifestPath, reportPath } from './locations.js'
 import { insideRepository } from './paths.js'
 import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
@@ -124,6 +126,9 @@ interface PacketContents {
   readonly specReference?: string
   /** Only for an ADR review: how many records are under review. */
   readonly adrs?: number
+  /** Only for decision recovery: how many lines of source the repository tracks, and how many context maps it has. */
+  readonly source_lines?: number
+  readonly context_maps?: number
   /** Only for the decisions stage: whether the decisions under review include a decision record. */
   readonly holdsAdr?: boolean
   /** Only for a repository packet: what of the tree it sent. */
@@ -180,6 +185,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   private readonly codePackets: CodePacketReader
   private readonly decisionsPackets: DecisionsPacketReader
   private readonly adrPackets: AdrPacketReader
+  private readonly recoveryPackets: RecoveryPacketReader
   private readonly routing: RoutingSource
   private readonly staged: StagedDiffReader
 
@@ -190,6 +196,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     this.codePackets = new CodePacketReader(deps)
     this.decisionsPackets = new DecisionsPacketReader(deps.files)
     this.adrPackets = new AdrPacketReader(deps)
+    this.recoveryPackets = new RecoveryPacketReader(deps)
     this.routing = new RoutingSource(deps)
     this.staged = new StagedDiffReader(deps)
   }
@@ -225,14 +232,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     if (entry === undefined) {
       return refusal('not-opted-in', `${repository.key} has no family allowlist entry on this machine; record one with allow`)
     }
-    if (isCodeStage(stage) && !entry.code) {
+    if (needsCodePermission(stage) && !entry.code) {
       return refusal(
         'code-not-allowed',
         `${repository.key} allows documents but not code; record the code permission with allow and "code": true`,
       )
     }
     const snapshot = input.staged ? await this.staged.snapshot(repository.root) : undefined
-    const contents = await this.contents(repository, snapshot === undefined ? input : { ...input, head: snapshot.commit }, entry.code)
+    const contents = await this.contents(repository, snapshot === undefined ? input : { ...input, head: snapshot.commit }, entry)
     if (contents.status === 'refused') return contents
     const { artifact, change, ticketCheck } = contents
     const code = contents.code === undefined || snapshot === undefined ? contents.code : { ...contents.code, staged_diff: snapshot.sha256 }
@@ -249,7 +256,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       stage,
       stageRoutes.depth_signals,
       ticketCheck === undefined
-        ? { labels: artifact.labels, text: artifact.text, ...measured, ...(contents.adrs === undefined ? {} : { adrs: contents.adrs }) }
+        ? {
+            labels: artifact.labels,
+            text: artifact.text,
+            ...measured,
+            ...(contents.adrs === undefined ? {} : { adrs: contents.adrs }),
+            ...(contents.source_lines === undefined ? {} : { sourceLines: contents.source_lines }),
+            ...(contents.context_maps === undefined ? {} : { contextMaps: contents.context_maps }),
+          }
         : { labels: artifact.labels, text: contents.files.map((file) => file.text).join('\n\n'), tickets: ticketCheck.tickets.length },
       input.depth,
     )
@@ -318,20 +332,31 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   /**
    * What the stage freezes. The decisions stage reads no tracker: grilling
    * comes before any spec, and neither does an ADR review, which samples
-   * the tree beside its records only when the repository allows code. Every
+   * the tree beside its records only when the repository allows code, and
+   * decision recovery reads the tracker only for the issues its history cites. Every
    * other stage reads its spec, or its ticket, from the repository's tracker.
    */
   private async contents(
     repository: ResolvedRepository,
     input: PrepareInput,
-    codeAllowed: boolean,
+    entry: Pick<AllowlistEntry, 'code' | 'history'>,
   ): Promise<Refusal | PacketContents> {
     const { stage } = input
+    const codeAllowed = entry.code
     const packet = STAGE_TABLE[stage].packet
     if (packet === 'decisions') return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary })
     if (packet === 'adrs') {
       const code = codeAllowed ? { code: { head: input.head, limits: (await this.routing.load()).packet } } : {}
       return this.adrPackets.read(repository.root, { ...input, ...code })
+    }
+    if (packet === 'recovery') {
+      // The tracker is read only for the issues the history cites, so a tracker it cannot read leaves them out and refuses nothing.
+      const tracker = entry.history ? await this.trackers.resolve(repository) : undefined
+      return this.recoveryPackets.read(repository.root, {
+        head: input.head,
+        history: entry.history ? { tracker: tracker?.status === 'resolved' ? tracker : undefined } : undefined,
+        limits: (await this.routing.load()).packet,
+      })
     }
     const tracker = await this.trackers.resolve(repository)
     if (tracker.status === 'refused') return tracker

@@ -6,6 +6,7 @@ import type {
   GitDagExecutorPort,
   GitHistoryPort,
   GitLastChange,
+  GitLogEntry,
   GitMergeTree,
   GitPorcelainEntry,
   GitReconcileRequest,
@@ -210,6 +211,26 @@ export class GitCliAdapter implements GitDagExecutorPort, GitHistoryPort {
       .map((line) => {
         const [commit = '', date = ''] = line.trim().split('\0')
         return { commit, date }
+      })
+  }
+
+  async commitLog(cwd: string, revision: string, paths: readonly string[], limit: number): Promise<readonly GitLogEntry[]> {
+    if (paths.length === 0) return []
+    const format = '--format=%x1e%H%x00%cI%x00%s%x00%b%x00'
+    const args = ['--literal-pathspecs', 'log', `--max-count=${String(limit)}`, format, '--name-only', '--end-of-options', revision, '--', ...paths]
+    const result = await this.git(cwd, args)
+    return result.stdout
+      .split('\x1e')
+      .filter((record) => record.trim().length > 0)
+      .map((record) => {
+        const [commit = '', date = '', subject = '', body = '', files = ''] = record.split('\0')
+        return {
+          body: body.trim(),
+          commit,
+          date,
+          files: files.split('\n').filter((file) => file.length > 0),
+          subject,
+        }
       })
   }
 

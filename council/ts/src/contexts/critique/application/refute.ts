@@ -90,7 +90,7 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
       if (problem !== undefined) throw new CritiqueError('invalid-input', problem)
       const accepted = given?.verdict === 'accepted'
       if (accepted && finding.pre_verdict?.verdict === 'rejected') {
-        throw new CritiqueError('invalid-input', `${finding.id} was rejected as fabricated-evidence, which a verdict cannot overturn`)
+        throw new CritiqueError('invalid-input', `${finding.id} was rejected as ${finding.pre_verdict.reason_code}, which a verdict cannot overturn`)
       }
       // The severity that counts is the orchestrator's override, else the one fan-out fixed.
       const severity = given?.severity ?? finding.severity

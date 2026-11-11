@@ -432,6 +432,44 @@
         "labels": ["risk:high"]
       }
     },
+    "decision-recovery": {
+      "distinct_families": true,
+      "work": [
+        {
+          "client": "codex-work",
+          "role": "decision-recoverer",
+          "lenses": [],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        },
+        {
+          "client": "claude-work",
+          "role": "decision-recoverer",
+          "lenses": [],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
+      "base": [
+        {
+          "client": "vibe-deepseek-flash",
+          "role": "decision-recoverer",
+          "lenses": [],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        },
+        {
+          "client": "vibe-mistral-large",
+          "role": "decision-recoverer",
+          "lenses": [],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
+      "depth_signals": {
+        "thresholds": { "source_lines": 20000, "context_maps": 0 }
+      }
+    },
     "adr-review": {
       "distinct_families": true,
       "work": [

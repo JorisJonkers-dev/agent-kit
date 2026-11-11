@@ -112,6 +112,18 @@ export interface GitLastChange {
   readonly date: string
 }
 
+/** One commit as the log of some paths reads it: its message, and which of those paths it changed. */
+export interface GitLogEntry {
+  readonly commit: string
+  /** The committer date, ISO 8601. */
+  readonly date: string
+  readonly subject: string
+  /** The message after its subject line, trimmed; empty when it has none. */
+  readonly body: string
+  /** The named paths the commit changed, in the order git lists them. */
+  readonly files: readonly string[]
+}
+
 /**
  * Reading history: when a path last changed. The facts a decision record is
  * checked against (that a file it names changed after the decision) come
@@ -122,6 +134,13 @@ export interface GitHistoryPort {
   lastChange(cwd: string, path: string): Promise<GitLastChange | null>
   /** Every commit reachable from `revision` that changed the path, newest first: its id and committer date only, never an author or a message. */
   fileCommits(cwd: string, revision: string, path: string): Promise<readonly GitLastChange[]>
+  /**
+   * The newest `limit` commits reachable from `revision` that changed any of
+   * the paths, newest first, each with its message and the paths it changed.
+   * A message is the author's own text, so a caller sends it only where the
+   * repository's history permission allows.
+   */
+  commitLog(cwd: string, revision: string, paths: readonly string[], limit: number): Promise<readonly GitLogEntry[]>
 }
 
 /**

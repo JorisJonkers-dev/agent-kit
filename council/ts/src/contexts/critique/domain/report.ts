@@ -6,6 +6,7 @@ import type { RefuteRecord } from './refute.js'
 import type { DroppedCritic } from './routing.js'
 import { STAGE_TABLE } from './stage-table.js'
 import {
+  candidateQuestions,
   countVerdicts,
   degradedTicketReview,
   familiesOf,
@@ -37,14 +38,17 @@ const MINOR_MAX_CHARS = 300
  */
 export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
   const serious = run.findings.filter((f) => f.severity !== 'minor')
+  const candidates = candidateQuestions(run)
   const lists = {
     accepted: serious.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(run, f, acceptedTail(f.verdict))),
     dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ''}`)),
-    questions: serious
-      .filter((f) => f.verdict.verdict === 'needs-human')
-      .map((f) => findingLine(run, f, questionTail(f.verdict))),
+    // A recovered candidate's severity is its confidence, so a low one is still a question, asked last.
+    deferred: (candidates?.deferred ?? []).map((f) => findingLine(run, f)),
+    questions: (candidates?.asked ?? serious.filter((f) => f.verdict.verdict === 'needs-human')).map((f) =>
+      findingLine(run, f, questionTail(f.verdict)),
+    ),
   }
-  const hidden = { accepted: 0, dissent: 0, questions: 0 }
+  const hidden = { accepted: 0, deferred: 0, dissent: 0, questions: 0 }
   const render = (): string =>
     [
       ...gateLines(run),
@@ -74,6 +78,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       '',
       ...bullets(lists.questions, hidden.questions),
       '',
+      ...(candidates === undefined ? [] : ['## Deferred', '', ...bullets(lists.deferred, hidden.deferred), '']),
       '## Minor',
       '',
       ...bullets(minorLines(run), 0),
@@ -135,11 +140,30 @@ export function renderReport(run: AdjudicatedRun): string {
     '',
     ...(run.findings.length === 0 ? ['none', ''] : run.findings.flatMap((f) => findingSection(run, f))),
     ...refuteSection(run.refutes),
+    ...deferredSection(run),
     '## Dissent',
     '',
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
     '',
   ].join('\n')
+}
+
+/**
+ * The candidates a recovery run did not ask about, past its cap: each stays
+ * in this report and in the run directory until the owner is asked, and
+ * writes nothing to the decision log.
+ */
+function deferredSection(run: AdjudicatedRun): readonly string[] {
+  const candidates = candidateQuestions(run)
+  if (candidates === undefined) return []
+  return [
+    '## Deferred candidates',
+    '',
+    ...(candidates.deferred.length === 0
+      ? ['none']
+      : candidates.deferred.map((f) => `- ${f.id} [${f.severity}] ${f.location}: ${clip(f.claim, CLAIM_MAX_CHARS)}`)),
+    '',
+  ]
 }
 
 /** The refute round, when the run had one: each accepted critical finding's outcome and who refuted it. */

@@ -3572,3 +3572,46 @@ architecture-expansion section 5.5):
   tie them to that expand.
 - **Not checked.** A fact anchor is recognised by its form, a backticked
   path; whether the path has a row in the facts index is not looked up.
+
+## What #480 settled
+
+The `decision-recovery` stage and `/recover-decisions` (agent-kit#480,
+architecture-expansion section 5.3):
+
+- **The stage.** A review stage, so each run is a flow of its own and takes
+  no `flow`. It needs the code permission (`code-not-allowed` without it).
+  Its packet is a repository packet with no artifact: the sampled `tree/`
+  (named files, entry files, then the rest of the source, shallowest first),
+  `tree/MANIFEST.tsv`, `facts/INDEX.md`, and under `references/` every ADR in
+  force, the glossary and any `CONTEXT-MAP.md`.
+- **History.** Only with the allowlist entry's history permission does the
+  packet add `history/log.txt`, from the git port's `commitLog` (message
+  and changed files for the sampled files, 200 commits and 40 KiB at most),
+  and `history/issues/`, the issues those messages cite (20 at most), read
+  through the tracker; a number the tracker cannot read is left out.
+  Without the permission no message or issue text is read.
+- **The evidence rule `recovery`.** Every finding is a candidate in the
+  category `undocumented-decision`; another category is a hint
+  (`not-a-candidate`). After the usual fabricated-evidence check, a
+  candidate is rejected mechanically, and no verdict overturns it, when it
+  cites no file of `tree/` in a trace (`no-code-trace`), cites one file only
+  (`single-site`), or gives a reason with neither a quote of `history/` nor
+  the words "no rationale found" in its claim (`invented-rationale`). A
+  candidate with two traces and "no rationale found" passes.
+- **Routing.** DeepSeek Flash and Mistral Large as `decision-recoverer`, no
+  lens; the work roster is Codex and the work Claude agent. Depth is deep
+  above 20,000 lines of tracked source (`source_lines`, source by
+  extension) or with a `CONTEXT-MAP.md` (`context_maps` above 0).
+- **Verdicts and questions.** A recovered decision is never accepted
+  (`candidateQuestions` in the stage table is the cap, 10): record takes
+  `needs-human` or `rejected`. It ranks the `needs-human` candidates by
+  severity, the critic's confidence, then in finding order, names the first
+  ten as `questions` and the rest as `deferred`, which the summary and the
+  report list; it refuses an answer for a deferred one. No second round.
+- **The skill.** `skills/workstation/recover-decisions/SKILL.md` rules by
+  the table (`not-significant`, `duplicates-adr`, `invented-rationale`),
+  asks the owner at most ten questions, writes an ADR in house format with no
+  status line only from the owner's answer (it always holds a rejected
+  alternative with its reason and a cost), notes "it was an accident" for a
+  refactoring plan, writes nothing under the decision log before the owner
+  accepts, and ends by suggesting `/critique-adrs` on the ADRs it wrote.

@@ -25,7 +25,7 @@ export function sha256(content: string | Uint8Array): string {
  * packet adds a sampled `tree` and the `fact`s the runner computed: the
  * tree's manifest and everything under `facts/`.
  */
-export const PACKET_FILE_KINDS = ['artifact', 'reference', 'tree', 'diff', 'ticket', 'spec', 'check', 'feature', 'fact'] as const
+export const PACKET_FILE_KINDS = ['artifact', 'reference', 'tree', 'diff', 'ticket', 'spec', 'check', 'feature', 'fact', 'history'] as const
 export type PacketFileKind = (typeof PACKET_FILE_KINDS)[number]
 
 export interface PacketFile {

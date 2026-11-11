@@ -4,7 +4,7 @@ import { ADR_DIRECTORY, GLOSSARIES } from '../domain/decision-docs.js'
 import type { ArtifactSource } from '../domain/manifest.js'
 import { refusal, type Refusal } from '../domain/outcomes.js'
 import { ADR_CHECK_PATH } from '../domain/adr-log.js'
-import { FACTS_INDEX_PATH, MANIFEST_PATH, NO_FACTS, sampleRepository, type PacketLimits } from '../domain/repository-packet.js'
+import { FACTS_INDEX_PATH, MANIFEST_PATH, NO_FACTS, sampleRepository, type PacketLimits, type TrackedFile } from '../domain/repository-packet.js'
 import { checkLog, logRecords, type CheckAdrsResult } from './check-adrs.js'
 import { TREE_DIR, type UnfrozenFile } from './code-packet.js'
 import { insideRepository } from './paths.js'
@@ -94,47 +94,9 @@ export class AdrPacketReader {
 
   /** Adds the sampled tree, its manifest and the facts to a documents-only packet. */
   private async withTree(root: string, packet: AdrPacket, code: NonNullable<AdrPacketRequest['code']>): Promise<AdrPacket | Refusal> {
-    const commit = await this.deps.git.resolveCommit(root, code.head)
-    const { excluded, tracked } = await readTrackedTree(this.deps, root, commit, code.limits)
-    const sample = sampleRepository({
-      artifactText: packet.artifact.text,
-      commit,
-      documentBytes: packet.files.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
-      documents: packet.files.map((file) => file.source),
-      excluded,
-      // No scan computes facts yet: #232 and #233 compute them here, and
-      // freeze each of `sample.facts` as `facts/<name>`, kind `fact`.
-      facts: NO_FACTS,
-      limits: code.limits,
-      tracked,
-    })
-    if (sample.status === 'refused') return sample
-    const source = commit
-    const files: UnfrozenFile[] = [
-      ...packet.files,
-      { kind: 'fact', path: MANIFEST_PATH, source, text: sample.manifest },
-      { kind: 'fact', path: FACTS_INDEX_PATH, source, text: sample.index },
-      ...sample.tree.map(
-        (file): UnfrozenFile => ({
-          kind: 'tree',
-          path: join(TREE_DIR, file.path),
-          source: file.path,
-          text: file.text,
-          ...(file.window === undefined ? {} : { window: file.window }),
-        }),
-      ),
-    ]
-    return {
-      ...packet,
-      files,
-      repository: {
-        cap_bytes: code.limits.cap_bytes,
-        dropped_files: sample.dropped,
-        head_commit: commit,
-        packet_bytes: files.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
-        tree_files: sample.tree.length,
-      },
-    }
+    const sampled = await sampleTree(this.deps, root, { artifactText: packet.artifact.text, files: packet.files }, code)
+    if (sampled.status === 'refused') return sampled
+    return { ...packet, files: sampled.files, repository: sampled.repository }
   }
 
   /** The first of `GLOSSARY.md` and `CONTEXT.md` the repository has, as decision docs pick it. */
@@ -148,4 +110,77 @@ export class AdrPacketReader {
 /** What check-adrs reports on the whole log, settled before any critic reads the records. */
 function checkReportFile(check: CheckAdrsResult): UnfrozenFile {
   return { kind: 'check', path: ADR_CHECK_PATH, source: `check-adrs ${ADR_DIRECTORY}`, text: `${JSON.stringify(check, null, 2)}\n` }
+}
+
+/** A packet of documents, and the text that names the files of the tree to sample first. */
+export interface DocumentPacket {
+  readonly artifactText: string
+  readonly files: readonly UnfrozenFile[]
+}
+
+/** A documents packet with a sample of the repository's tree beside it. */
+export interface SampledTree {
+  readonly status: 'sampled'
+  readonly files: readonly UnfrozenFile[]
+  readonly repository: PreparedRepository
+  /** Every tracked path that may be sent, with its text, for what a stage measures of the repository. */
+  readonly tracked: readonly TrackedFile[]
+}
+
+/**
+ * Adds a repository packet's tree to a packet of documents: `tree/MANIFEST.tsv`,
+ * a sample of the tree at the commit chosen by rule (the files the documents
+ * name first), and `facts/INDEX.md` with what was sent and what the cap
+ * dropped. Vendored, generated and lock files are never read.
+ */
+export async function sampleTree(
+  deps: Pick<CritiqueDeps, 'git'>,
+  root: string,
+  packet: DocumentPacket,
+  code: { readonly head: string; readonly limits: PacketLimits },
+  rest?: (tracked: readonly TrackedFile[]) => readonly string[],
+): Promise<SampledTree | Refusal> {
+  const commit = await deps.git.resolveCommit(root, code.head)
+  const { excluded, tracked } = await readTrackedTree(deps, root, commit, code.limits)
+  const sample = sampleRepository({
+    artifactText: packet.artifactText,
+    commit,
+    documentBytes: packet.files.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
+    documents: packet.files.map((file) => file.source),
+    excluded,
+    // No scan computes facts yet: #232 and #233 compute them here, and
+    // freeze each of `sample.facts` as `facts/<name>`, kind `fact`.
+    facts: NO_FACTS,
+    limits: code.limits,
+    ...(rest === undefined ? {} : { rest: rest(tracked) }),
+    tracked,
+  })
+  if (sample.status === 'refused') return sample
+  const source = commit
+  const files: UnfrozenFile[] = [
+    ...packet.files,
+    { kind: 'fact', path: MANIFEST_PATH, source, text: sample.manifest },
+    { kind: 'fact', path: FACTS_INDEX_PATH, source, text: sample.index },
+    ...sample.tree.map(
+      (file): UnfrozenFile => ({
+        kind: 'tree',
+        path: join(TREE_DIR, file.path),
+        source: file.path,
+        text: file.text,
+        ...(file.window === undefined ? {} : { window: file.window }),
+      }),
+    ),
+  ]
+  return {
+    files,
+    repository: {
+      cap_bytes: code.limits.cap_bytes,
+      dropped_files: sample.dropped,
+      head_commit: commit,
+      packet_bytes: files.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
+      tree_files: sample.tree.length,
+    },
+    status: 'sampled',
+    tracked,
+  }
 }

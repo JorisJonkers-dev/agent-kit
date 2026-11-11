@@ -14,6 +14,7 @@ import type {
   GhLinkedIssue,
   GitCommitLink,
   GitLastChange,
+  GitLogEntry,
   GitMergeTree,
   GitPorcelainEntry,
   GitRemote,
@@ -129,6 +130,8 @@ export class FixedClock implements ClockPort {
 export class FakeGit implements CritiqueGitPort {
   /** The committer date of each commit, as `commit(date)` set it. */
   private readonly dates = new Map<string, string>()
+  /** The message of each commit, as `commit(date, message)` set it. */
+  private readonly messages = new Map<string, string>()
   private readonly history: { readonly id: string; readonly tree: ReadonlyMap<string, string>; readonly parents: readonly string[] }[] = []
   /** Each branch's tip, as `checkout`, `setBranch` and `commit()` left it. */
   private readonly branches = new Map<string, string>()
@@ -176,13 +179,14 @@ export class FakeGit implements CritiqueGitPort {
   }
 
   /** Records the working tree as a new commit on HEAD's line, stages it as `git commit -a` leaves it, and returns its id. */
-  async commit(date = '2026-01-01T00:00:00+00:00'): Promise<string> {
+  async commit(date = '2026-01-01T00:00:00+00:00', message = ''): Promise<string> {
     const id = `c${String(this.history.filter((entry) => entry.id.startsWith('c')).length + 1)}`
     const tree = await this.workingTree()
     const parent = this.line.at(-1)
     const parents = [...(parent === undefined ? [] : [parent]), ...(this.mergeHead === undefined ? [] : [this.mergeHead])]
     this.history.push({ id, parents, tree })
     this.dates.set(id, date)
+    this.messages.set(id, message)
     this.line.push(id)
     this.index = tree
     this.mergeHead = undefined
@@ -213,6 +217,25 @@ export class FakeGit implements CritiqueGitPort {
       if (slice(this.treeOfCommit(id)) !== slice(before)) changes.push({ commit: id, date: this.dates.get(id) ?? '' })
     }
     return Promise.resolve(changes)
+  }
+
+  /**
+   * Every commit on HEAD's line up to the revision, newest first, that changed
+   * any of the paths (or a file under one), with its message and the paths it
+   * changed; the message's first line is its subject.
+   */
+  async commitLog(_cwd: string, revision: string, paths: readonly string[], limit: number): Promise<readonly GitLogEntry[]> {
+    const entries: GitLogEntry[] = []
+    for (const id of this.line.slice(0, this.line.indexOf(revision) + 1).reverse()) {
+      const parent = this.history.find((entry) => entry.id === id)?.parents[0]
+      const before = parent === undefined ? new Map<string, string>() : this.treeOfCommit(parent)
+      const after = this.treeOfCommit(id)
+      const files = paths.filter((path) => before.get(path) !== after.get(path))
+      if (files.length === 0) continue
+      const [subject = '', ...rest] = (this.messages.get(id) ?? '').split('\n')
+      entries.push({ body: rest.join('\n').trim(), commit: id, date: this.dates.get(id) ?? '', files, subject })
+    }
+    return Promise.resolve(entries.slice(0, limit))
   }
 
   /** Points a branch at a commit without moving HEAD, as a fetch moves a remote-tracking branch. */

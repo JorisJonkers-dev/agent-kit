@@ -46,6 +46,7 @@ export type {
   GitHistoryPort,
   GitIndexPort,
   GitLastChange,
+  GitLogEntry,
   GitMergeTree,
   GitPorcelainEntry,
   GitPort,
