@@ -1424,6 +1424,20 @@ local_skills:
       its SKILL.md for fields and codes. Council's triage and design skills
       point at it instead of carrying their own difficulty and model rubric.
 
+  - name: research
+    path: skills/workstation/research
+    purpose: >-
+      The front door for research: start a Gold Band Workflow A run in the
+      personal instance, or fall back to direct delegation through the
+      delegate skill when no instance is available or the instance's
+      repository rule refuses the repository.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Checks the personal instance's repository rule first, then whether the
+      headless runner and the Workflow A file are present. The run-start shim
+      re-checks the rule and the family allowlist before any model node runs.
+
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # old knowledge service's curator/tagging admin surface -- closed-
   # vocabulary topic slugs, an unclassified-notes inbox, `rename_tag`,
