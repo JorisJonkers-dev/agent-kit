@@ -674,7 +674,8 @@ def _gold_band_skills(
         changed = [
             skill
             for skill in skills
-            if skill in held and _gold_band_skill_tree(target / skill) != _gold_band_skill_tree(kit / sources[skill])
+            if skill in held
+            and ((target / skill).is_symlink() or _gold_band_skill_tree(target / skill) != _gold_band_skill_tree(kit / sources[skill]))
         ]
         removed = sorted(held - set(skills))
         if not (added or changed or removed):

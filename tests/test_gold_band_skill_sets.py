@@ -545,3 +545,18 @@ def test_a_retired_ids_directory_goes_even_when_kept(tmp_path: Path, monkeypatch
     (machine.directory("old")).mkdir(parents=True)
     assert machine.run() == 0
     assert not machine.directory("old").exists()
+
+
+def test_a_skill_that_is_a_link_to_an_identical_directory_is_replaced_by_a_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
+    assert machine.run() == 0
+    skill = machine.directory("vibe") / "council"
+    outside = tmp_path / "outside"
+    shutil.copytree(skill, outside)
+    shutil.rmtree(skill)
+    skill.symlink_to(outside)
+    assert machine.run() == 0
+    assert not skill.is_symlink()
+    assert (skill / "SKILL.md").is_file()
