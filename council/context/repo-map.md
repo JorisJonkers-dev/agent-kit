@@ -20,7 +20,7 @@ copies it to `.council/context/` and overwrites any edit made there.
 - `installer/`: `setup-workstation.sh`, generated from
   `registry/estate-tooling.yaml` by `scripts/render_registry.py`, and the
   scripts it sources; `installer/cloud/` holds the cloud environment files.
-- `scripts/`: renderers, validators, release helpers and `deploy/`.
+- `scripts/`: renderers, validators, release helpers.
 - `provenance/`: lock files for adapted upstream sources.
 - `registry/`: the tooling registry and the artifacts rendered from it.
 - `docs/`: setup, registry, cloud, portability and critique-pipeline docs, and

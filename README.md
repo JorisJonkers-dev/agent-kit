@@ -94,7 +94,7 @@ knowledge hooks from a machine that still has them, on every run.
   commands setup puts on `PATH` (such as `kubernetes-mcp-readonly`). `installer/cloud/` holds the setup script and environment
   variables pasted into a Claude Code cloud environment.
 - `scripts/`: the renderers (`render_agent_kit.py`, `render_registry.py`),
-  validators, release helpers, and the `deploy/` helpers the deploy skills use.
+  validators and release helpers.
 - `provenance/`: lock files recording the upstream sources adapted here.
 - `docs/`: setup, registry, cloud, portability and critique-pipeline docs, and
   the ADRs.
