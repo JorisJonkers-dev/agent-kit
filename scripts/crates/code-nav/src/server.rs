@@ -1,18 +1,24 @@
-//! The MCP surface: newline-delimited JSON-RPC 2.0 over stdio, one tool.
+//! The MCP surface: newline-delimited JSON-RPC 2.0 over stdio, three tools.
 //!
 //! The server is read-only and opens no socket. It answers `initialize`,
-//! `ping`, `tools/list` and `tools/call` for the one tool, `search`;
+//! `ping`, `tools/list` and `tools/call` for `search`, `outline` and `expand`;
 //! notifications get no reply.
 
 use crate::boundary::Boundary;
-use crate::search::{search, MAX_LIMIT};
+use crate::outline;
+use crate::search::{search, MAX_FILE_BYTES, MAX_LIMIT};
 use code_nav_eval::{json_string, parse_json, Json};
+use std::fs;
 use std::io::{BufRead, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const PROTOCOL_VERSION: &str = "2024-11-05";
 
-const TOOL_LIST: &str = r#"{"tools":[{"name":"search","description":"Search the working tree for lines containing a query, ignoring case. Results are ranked (whole-identifier matches and file-name matches first, then shallower paths) and capped. Secret files and symlinks that leave the allowed roots are never read.","inputSchema":{"type":"object","properties":{"query":{"type":"string","description":"Text to find"},"path":{"type":"string","description":"A directory or file under an allowed root; default is every allowed root"},"limit":{"type":"integer","minimum":1,"maximum":200,"description":"Result cap; the server's default when omitted"}},"required":["query"]}}]}"#;
+/// Source lines one `expand` call returns before it says it capped.
+const MAX_EXPAND_LINES: usize = 400;
+
+// One line: the transport is newline-delimited, so a reply may hold no newline.
+const TOOL_LIST: &str = r#"{"tools":[{"name":"search","description":"Search the working tree for lines containing a query, ignoring case. Results are ranked (whole-identifier matches and file-name matches first, then shallower paths) and capped. Read-only; secret files and symlinks that leave the allowed roots are never read.","inputSchema":{"type":"object","properties":{"query":{"type":"string","description":"Text to find"},"path":{"type":"string","description":"A directory or file under an allowed root; default is every allowed root"},"limit":{"type":"integer","minimum":1,"maximum":200,"description":"Result cap; the server's default when omitted"}},"required":["query"]}},{"name":"outline","description":"List the symbols a file declares, one line each: line, kind, name and range. Read-only; secret files and symlinks that leave the allowed roots are never read.","inputSchema":{"type":"object","properties":{"path":{"type":"string","description":"A file under an allowed root"}},"required":["path"]}},{"name":"expand","description":"Return one symbol's source lines, numbered, without the rest of the file. Read-only; secret files and symlinks that leave the allowed roots are never read.","inputSchema":{"type":"object","properties":{"path":{"type":"string","description":"A file under an allowed root"},"symbol":{"type":"string","description":"The symbol name, exactly as outline prints it"}},"required":["path","symbol"]}}]}"#;
 
 /// Serve requests from `input` until it ends.
 pub fn serve(boundary: &Boundary, default_limit: usize, input: &mut dyn BufRead, out: &mut dyn Write) -> Result<(), String> {
@@ -84,10 +90,16 @@ fn text_result(text: &str, is_error: bool) -> String {
 
 fn call(boundary: &Boundary, default_limit: usize, params: Option<&Json>) -> String {
     let name = params.and_then(|p| p.get("name")).and_then(Json::as_str).unwrap_or("");
-    if name != "search" {
-        return text_result(&format!("unknown tool: {name}"), true);
-    }
     let args = params.and_then(|p| p.get("arguments"));
+    match name {
+        "search" => search_tool(boundary, default_limit, args),
+        "outline" => outline_tool(boundary, args),
+        "expand" => expand_tool(boundary, args),
+        other => text_result(&format!("unknown tool: {other}"), true),
+    }
+}
+
+fn search_tool(boundary: &Boundary, default_limit: usize, args: Option<&Json>) -> String {
     let Some(query) = args.and_then(|a| a.get("query")).and_then(Json::as_str).filter(|q| !q.is_empty()) else {
         return text_result("query is required", true);
     };
@@ -96,7 +108,7 @@ fn call(boundary: &Boundary, default_limit: usize, params: Option<&Json>) -> Str
         .and_then(Json::as_u64)
         .map_or(default_limit, |n| (n as usize).clamp(1, MAX_LIMIT));
     let scope: Vec<PathBuf> = match args.and_then(|a| a.get("path")).and_then(Json::as_str) {
-        Some(path) => match boundary.admit(std::path::Path::new(path)) {
+        Some(path) => match boundary.admit(Path::new(path)) {
             Ok(canonical) => vec![canonical],
             Err(refusal) => return text_result(&refusal.to_string(), true),
         },
@@ -113,4 +125,90 @@ fn call(boundary: &Boundary, default_limit: usize, params: Option<&Json>) -> Str
         text.push_str(&format!("showing {} of {} matches; narrow the query or path\n", results.hits.len(), results.total));
     }
     text_result(text.trim_end(), false)
+}
+
+fn outline_tool(boundary: &Boundary, args: Option<&Json>) -> String {
+    let text = match path_arg(args).and_then(|path| admitted_text(boundary, path)) {
+        Ok((_, text)) => text,
+        Err(message) => return text_result(&message, true),
+    };
+    let found = outline::symbols(&text);
+    if found.is_empty() {
+        return text_result("no symbols", false);
+    }
+    let mut out = String::new();
+    for symbol in &found {
+        out.push_str(&format!("{} {} {} ({}-{})\n", symbol.line, symbol.kind, symbol.name, symbol.start, symbol.end));
+    }
+    text_result(out.trim_end(), false)
+}
+
+fn expand_tool(boundary: &Boundary, args: Option<&Json>) -> String {
+    let path = match path_arg(args) {
+        Ok(path) => path,
+        Err(message) => return text_result(&message, true),
+    };
+    let Some(name) = args.and_then(|a| a.get("symbol")).and_then(Json::as_str) else {
+        return text_result("symbol is required", true);
+    };
+    let (canonical, text) = match admitted_text(boundary, path) {
+        Ok(found) => found,
+        Err(message) => return text_result(&message, true),
+    };
+    let found = outline::expand(&text, name);
+    if found.is_empty() {
+        return text_result(&format!("no symbol named {name} in {}", canonical.display()), true);
+    }
+    let mut out = String::new();
+    let mut shown = 0;
+    let mut capped = false;
+    for (symbol, source) in &found {
+        if shown >= MAX_EXPAND_LINES {
+            capped = true;
+            break;
+        }
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&format!("{}:{}-{} {} {}\n", canonical.display(), symbol.start, symbol.end, symbol.kind, symbol.name));
+        for (offset, line) in source.lines().enumerate() {
+            if shown == MAX_EXPAND_LINES {
+                capped = true;
+                break;
+            }
+            out.push_str(&format!("{}\t{}\n", symbol.start + offset, line));
+            shown += 1;
+        }
+    }
+    if capped {
+        out.push_str(&format!("output capped at {MAX_EXPAND_LINES} lines\n"));
+    }
+    text_result(out.trim_end(), false)
+}
+
+/// The `path` argument, or the message to report.
+fn path_arg(args: Option<&Json>) -> Result<&str, String> {
+    args.and_then(|a| a.get("path")).and_then(Json::as_str).ok_or_else(|| "path is required".to_string())
+}
+
+/// The canonical path and text of the `path` argument, or the message to report.
+fn admitted_text(boundary: &Boundary, path: &str) -> Result<(PathBuf, String), String> {
+    let canonical = boundary.admit(Path::new(path)).map_err(|refusal| refusal.to_string())?;
+    let text = read_text(path, &canonical)?;
+    Ok((canonical, text))
+}
+
+/// The text of an admitted file, or the message to report.
+fn read_text(path: &str, canonical: &Path) -> Result<String, String> {
+    if !canonical.is_file() {
+        return Err(format!("{path} is not a file"));
+    }
+    // A file that vanished since the check reads as empty and fails below.
+    if fs::metadata(canonical).map(|meta| meta.len()).unwrap_or(0) > MAX_FILE_BYTES {
+        return Err("file is too large".to_string());
+    }
+    match fs::read_to_string(canonical) {
+        Ok(text) if !text.contains('\0') => Ok(text),
+        _ => Err("not a text file".to_string()),
+    }
 }

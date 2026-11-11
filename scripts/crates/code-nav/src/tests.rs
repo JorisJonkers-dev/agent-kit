@@ -1,10 +1,79 @@
 use super::*;
 use crate::boundary::{is_secret, Boundary, Refusal};
 use crate::search::{search, DEFAULT_LIMIT, MAX_FILE_BYTES, MAX_LIMIT};
+use code_nav_eval::Json;
 use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// A Rust file: an attribute above a struct, an impl with nested fns, a fn.
+const SHAPES_RS: &str = "\
+use std::fmt;
+
+#[derive(Debug)]
+pub struct Circle {
+    radius: f64,
+}
+
+impl Circle {
+    pub fn area(&self) -> f64 {
+        3.14 * self.radius
+    }
+
+    fn scale(&mut self, by: f64) {
+        self.radius *= by;
+    }
+}
+
+fn main() {
+    let c = Circle { radius: 1.0 };
+    println!(\"{}\", c.area());
+}
+";
+
+/// A Python file: indentation alone delimits the defs and the class.
+const APP_PY: &str = "\
+import os
+
+
+def load(path):
+    with open(path) as f:
+        return f.read()
+
+
+class Store:
+    def put(self, key):
+        self.key = key
+
+    def get(self):
+        return self.key
+";
+
+/// A JavaScript file: modifiers before the keyword.
+const APP_JS: &str = "\
+export async function fetchAll(urls) {
+  return Promise.all(urls.map(fetchOne));
+}
+
+function fetchOne(url) {
+  return url;
+}
+";
+
+/// A file that declares nothing.
+const NOTES_TXT: &str = "just prose\nno declarations here\n";
+
+/// A file whose first symbol runs past the expand cap, with a second of the
+/// same name behind it.
+fn long_rs() -> String {
+    let mut text = String::from("fn dup() {\n");
+    for i in 0..399 {
+        text.push_str(&format!("    let a{i} = {i};\n"));
+    }
+    text.push_str("}\n\nfn dup() {\n    let b = 2;\n}\n");
+    text
+}
 
 fn temp_dir() -> PathBuf {
     static N: AtomicUsize = AtomicUsize::new(0);
@@ -31,6 +100,11 @@ fn fixture() -> Fixture {
     let outside = base.join("elsewhere");
     write(&root.join("src/widget.rs"), "pub fn make_widget() {}\n// widgets are made here\nlet gadget = 1;\n");
     write(&root.join("src/gadget.rs"), "fn gadget_factory() { widget(); }\n");
+    write(&root.join("src/shapes.rs"), SHAPES_RS);
+    write(&root.join("src/app.py"), APP_PY);
+    write(&root.join("src/app.js"), APP_JS);
+    write(&root.join("src/notes.txt"), NOTES_TXT);
+    write(&root.join("src/long.rs"), &long_rs());
     write(&root.join("README.md"), "A widget library.\n");
     write(&root.join("deep/er/than/widget_notes.txt"), "widget\n");
     write(&root.join(".env"), "TOKEN=widget\n");
@@ -47,7 +121,7 @@ fn fixture() -> Fixture {
     symlink(root.join("README.md"), root.join("link-in.md")).unwrap();
     symlink(root.join("nowhere"), root.join("dangling")).unwrap();
     symlink(root.join(".env"), root.join("innocent.txt")).unwrap();
-    let boundary = Boundary::new(&[root.clone()]).unwrap();
+    let boundary = Boundary::new(std::slice::from_ref(&root)).unwrap();
     Fixture { root, outside, boundary }
 }
 
@@ -114,14 +188,14 @@ fn roots_must_be_existing_directories() {
     assert!(Boundary::new(&[]).unwrap_err().contains("no roots"));
     assert!(Boundary::new(&[f.root.join("nope")]).unwrap_err().contains("nope"));
     assert!(Boundary::new(&[f.root.join("README.md")]).unwrap_err().contains("not a directory"));
-    assert_eq!(f.boundary.roots(), &[f.root.clone()]);
+    assert_eq!(f.boundary.roots(), std::slice::from_ref(&f.root));
 }
 
 #[test]
 fn overlapping_roots_collapse_and_secret_roots_are_refused() {
     let f = fixture();
     let b = Boundary::new(&[f.root.join("src"), f.root.clone(), f.root.join("src"), f.root.join("deep")]).unwrap();
-    assert_eq!(b.roots(), &[f.root.clone()]);
+    assert_eq!(b.roots(), std::slice::from_ref(&f.root));
     assert!(Boundary::new(&[f.root.join("keys")]).is_ok());
     fs::create_dir_all(f.root.join(".ssh")).unwrap();
     assert!(Boundary::new(&[f.root.join(".ssh")]).unwrap_err().contains("secret"));
@@ -195,8 +269,8 @@ fn the_default_cap_is_documented_and_limits_are_clamped() {
     for i in 0..(MAX_LIMIT + 30) {
         write(&base.join(format!("f{i:04}.txt")), "needle\n");
     }
-    assert_eq!(search(&[base.clone()], "needle", 0).hits.len(), 1);
-    assert_eq!(search(&[base.clone()], "needle", 5000).hits.len(), MAX_LIMIT);
+    assert_eq!(search(std::slice::from_ref(&base), "needle", 0).hits.len(), 1);
+    assert_eq!(search(std::slice::from_ref(&base), "needle", 5000).hits.len(), MAX_LIMIT);
     let r = search(&[base], "needle", DEFAULT_LIMIT);
     assert_eq!(r.hits.len(), DEFAULT_LIMIT);
     assert_eq!(r.total, MAX_LIMIT + 30);
@@ -216,10 +290,10 @@ fn search_never_reads_what_the_boundary_refuses() {
 fn search_matches_ignoring_case_and_clips_long_lines() {
     let base = temp_dir();
     write(&base.join("a.txt"), &format!("  NEEDLE {}\n", "x".repeat(500)));
-    let r = search(&[base.clone()], "needle", 5);
+    let r = search(std::slice::from_ref(&base), "needle", 5);
     assert_eq!(r.hits[0].text.chars().count(), 200);
     assert!(r.hits[0].text.starts_with("NEEDLE"));
-    assert!(search(&[base.clone()], "absent", 5).hits.is_empty());
+    assert!(search(std::slice::from_ref(&base), "absent", 5).hits.is_empty());
     // A single file as scope, and a scope that does not exist.
     assert_eq!(search(&[base.join("a.txt")], "needle", 5).total, 1);
     assert_eq!(search(&[base.join("gone")], "needle", 5).total, 0);
@@ -251,10 +325,134 @@ fn an_unreadable_directory_is_skipped() {
     let base = temp_dir();
     write(&base.join("locked/a.txt"), "needle\n");
     fs::set_permissions(base.join("locked"), fs::Permissions::from_mode(0o000)).unwrap();
-    let total = search(&[base.clone()], "needle", 5).total;
+    let total = search(std::slice::from_ref(&base), "needle", 5).total;
     fs::set_permissions(base.join("locked"), fs::Permissions::from_mode(0o755)).unwrap();
     // Root can read it anyway; anyone else cannot.
     assert!(total <= 1);
+}
+
+// ----------------------------------------------------------------- outline
+
+fn ranges(found: &[outline::Symbol]) -> Vec<(usize, &str, &str, usize, usize)> {
+    found.iter().map(|s| (s.line, s.kind.as_str(), s.name.as_str(), s.start, s.end)).collect()
+}
+
+#[test]
+fn symbols_read_rust_attributes_impls_and_nested_fns() {
+    // The struct's range starts at its attribute; the impl's runs to its
+    // closing brace; the nested fns are symbols of their own.
+    assert_eq!(
+        ranges(&outline::symbols(SHAPES_RS)),
+        [
+            (4, "struct", "Circle", 3, 6),
+            (8, "impl", "Circle", 8, 16),
+            (9, "fn", "area", 9, 11),
+            (13, "fn", "scale", 13, 15),
+            (18, "fn", "main", 18, 21),
+        ]
+    );
+}
+
+#[test]
+fn symbols_follow_python_indentation() {
+    // Blank lines do not end a block; the next def at the same indent does.
+    assert_eq!(
+        ranges(&outline::symbols(APP_PY)),
+        [(4, "def", "load", 4, 6), (9, "class", "Store", 9, 14), (10, "def", "put", 10, 11), (13, "def", "get", 13, 14)]
+    );
+}
+
+#[test]
+fn symbols_read_modifiers_before_the_keyword() {
+    assert_eq!(
+        ranges(&outline::symbols(APP_JS)),
+        [(1, "function", "fetchAll", 1, 3), (5, "function", "fetchOne", 5, 7)]
+    );
+}
+
+#[test]
+fn every_modifier_and_keyword_is_recognised() {
+    let text = "\
+#![allow(dead_code)]
+pub(crate) fn one() {}
+const fn two() {}
+const MAX: usize = 3;
+unsafe fn three() {}
+static mut FOUR: u8 = 0;
+public final class Six {}
+private abstract class Seven {}
+protected default interface Eight {}
+type Alias = u8;
+mod inner;
+trait Shape {}
+enum Kind { A }
+func nine() {}
+@decorator
+def ten():
+    pass
+function eleven()
+  return 1
+end
+const handlers = [
+  function twelve() {},
+];
+fn thirteen(
+    a: u8,
+) {}
+";
+    let found = outline::symbols(text);
+    let names: Vec<&str> = found.iter().map(|s| s.name.as_str()).collect();
+    assert_eq!(
+        names,
+        ["one", "two", "three", "Six", "Seven", "Eight", "Alias", "inner", "Shape", "Kind", "nine", "ten", "eleven", "twelve", "thirteen"]
+    );
+    // `#![` is no attribute, so `one` starts on its own line; `@decorator`
+    // is, so `ten` starts above its def.
+    assert_eq!(found[0].start, 2);
+    assert_eq!(found[11].start, 15);
+    // `)`, `]` and `end` close the block they follow.
+    assert_eq!((found[12].start, found[12].end), (18, 20));
+    assert_eq!((found[13].start, found[13].end), (22, 23));
+    assert_eq!((found[14].start, found[14].end), (24, 26));
+}
+
+#[test]
+fn a_truncated_line_declares_nothing() {
+    for line in ["fn", "impl", "pub(crate fn", "impl<T Foo {", "pub use std::fmt;", "let x = 1;", ""] {
+        assert!(outline::symbols(line).is_empty(), "{line}");
+    }
+}
+
+#[test]
+fn an_impl_is_named_for_its_type_or_trait() {
+    let text = "impl<T> Foo for Bar {\n    fn get(&self) {}\n}\n";
+    assert_eq!(ranges(&outline::symbols(text)), [(1, "impl", "Foo for Bar", 1, 3), (2, "fn", "get", 2, 3)]);
+    // A body that opens on a later line still names the impl.
+    assert_eq!(ranges(&outline::symbols("impl<T> Foo for Bar")), [(1, "impl", "Foo for Bar", 1, 1)]);
+}
+
+#[test]
+fn a_one_line_declaration_ends_on_its_own_line() {
+    let found = outline::symbols("fn x() {}\n\nfn y() {\n    x();\n}\n\n\n");
+    assert_eq!(ranges(&found), [(1, "fn", "x", 1, 1), (3, "fn", "y", 3, 5)]);
+}
+
+#[test]
+fn expand_returns_one_symbol_without_the_rest_of_the_file() {
+    let found = outline::expand(SHAPES_RS, "area");
+    assert_eq!(found.len(), 1);
+    let (symbol, source) = &found[0];
+    assert_eq!((symbol.line, symbol.start, symbol.end), (9, 9, 11));
+    assert_eq!(source, "    pub fn area(&self) -> f64 {\n        3.14 * self.radius\n    }");
+    for absent in ["scale", "main", "struct", "impl"] {
+        assert!(!source.contains(absent), "{absent} in {source}");
+    }
+    // An ambiguous name returns every match, in file order.
+    let both = outline::expand(SHAPES_RS, "Circle");
+    assert_eq!(both.len(), 2);
+    assert!(both[0].1.starts_with("#[derive(Debug)]\npub struct Circle {"));
+    assert!(both[1].1.starts_with("impl Circle {"));
+    assert!(outline::expand(SHAPES_RS, "absent").is_empty());
 }
 
 // ------------------------------------------------------------------ server
@@ -267,8 +465,15 @@ fn exchange(f: &Fixture, default_limit: usize, requests: &[&str]) -> Vec<String>
     String::from_utf8(out).unwrap().lines().map(String::from).collect()
 }
 
-fn tool_call(args: &str) -> String {
-    format!(r#"{{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{{"name":"search","arguments":{args}}}}}"#)
+fn tool_call(tool: &str, args: &str) -> String {
+    format!(r#"{{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{{"name":"{tool}","arguments":{args}}}}}"#)
+}
+
+/// The text block of a tool result.
+fn text_of(reply: &str) -> String {
+    let json = code_nav_eval::parse_json(reply).unwrap();
+    let content = json.get("result").and_then(|r| r.get("content")).and_then(Json::as_arr).unwrap();
+    content[0].get("text").and_then(Json::as_str).unwrap().to_string()
 }
 
 #[test]
@@ -317,7 +522,7 @@ fn malformed_and_unknown_requests_get_json_rpc_errors() {
 #[test]
 fn the_search_tool_returns_ranked_capped_text() {
     let f = fixture();
-    let replies = exchange(&f, 2, &[&tool_call(r#"{"query":"widget"}"#), &tool_call(r#"{"query":"widget","limit":50}"#), &tool_call(r#"{"query":"zzz"}"#)]);
+    let replies = exchange(&f, 2, &[&tool_call("search", r#"{"query":"widget"}"#), &tool_call("search", r#"{"query":"widget","limit":50}"#), &tool_call("search", r#"{"query":"zzz"}"#)]);
     let capped = &replies[0];
     assert!(capped.contains(r#""isError":false"#));
     assert!(capped.contains("widget_notes.txt:1: widget"));
@@ -336,10 +541,10 @@ fn the_search_tool_scopes_to_a_path_and_refuses_what_the_boundary_refuses() {
         &f,
         20,
         &[
-            &tool_call(r#"{"query":"widget","path":"src"}"#),
-            &tool_call(&format!(r#"{{"query":"widget","path":"{outside}"}}"#)),
-            &tool_call(r#"{"query":"widget","path":"link-out.txt"}"#),
-            &tool_call(r#"{"query":"widget","path":".env"}"#),
+            &tool_call("search", r#"{"query":"widget","path":"src"}"#),
+            &tool_call("search", &format!(r#"{{"query":"widget","path":"{outside}"}}"#)),
+            &tool_call("search", r#"{"query":"widget","path":"link-out.txt"}"#),
+            &tool_call("search", r#"{"query":"widget","path":".env"}"#),
         ],
     );
     assert!(replies[0].contains("src/widget.rs") && !replies[0].contains("README"));
@@ -356,8 +561,8 @@ fn bad_tool_calls_are_tool_errors() {
         &f,
         20,
         &[
-            &tool_call(r#"{}"#),
-            &tool_call(r#"{"query":""}"#),
+            &tool_call("search", r#"{}"#),
+            &tool_call("search", r#"{"query":""}"#),
             r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"write","arguments":{}}}"#,
             r#"{"jsonrpc":"2.0","id":1,"method":"tools/call"}"#,
         ],
@@ -366,6 +571,155 @@ fn bad_tool_calls_are_tool_errors() {
     assert!(replies[2].contains("unknown tool: write"));
     assert!(replies[3].contains("unknown tool"));
     assert!(replies.iter().all(|r| r.contains(r#""isError":true"#)));
+}
+
+#[test]
+fn tools_list_names_all_three_tools() {
+    let f = fixture();
+    let replies = exchange(&f, 20, &[r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#]);
+    assert!(parse_json_ok(&replies[0]));
+    let json = code_nav_eval::parse_json(&replies[0]).unwrap();
+    let tools = json.get("result").and_then(|r| r.get("tools")).and_then(Json::as_arr).unwrap();
+    let names: Vec<&str> = tools.iter().filter_map(|t| t.get("name").and_then(Json::as_str)).collect();
+    assert_eq!(names, ["search", "outline", "expand"]);
+    for tool in tools {
+        let description = tool.get("description").and_then(Json::as_str).unwrap();
+        assert!(description.contains("never read"), "{description}");
+        assert!(tool.get("inputSchema").and_then(|s| s.get("required")).and_then(Json::as_arr).is_some());
+    }
+    let required = |tool: &Json| -> Vec<String> {
+        tool.get("inputSchema")
+            .and_then(|s| s.get("required"))
+            .and_then(Json::as_arr)
+            .unwrap()
+            .iter()
+            .filter_map(Json::as_str)
+            .map(String::from)
+            .collect()
+    };
+    assert_eq!(required(&tools[0]), ["query"]);
+    assert_eq!(required(&tools[1]), ["path"]);
+    assert_eq!(required(&tools[2]), ["path", "symbol"]);
+}
+
+#[test]
+fn the_outline_tool_lists_a_files_symbols() {
+    let f = fixture();
+    let replies = exchange(
+        &f,
+        20,
+        &[
+            &tool_call("outline", r#"{"path":"src/shapes.rs"}"#),
+            &tool_call("outline", r#"{"path":"src/app.py"}"#),
+            &tool_call("outline", r#"{"path":"src/notes.txt"}"#),
+        ],
+    );
+    assert_eq!(
+        text_of(&replies[0]),
+        "4 struct Circle (3-6)\n8 impl Circle (8-16)\n9 fn area (9-11)\n13 fn scale (13-15)\n18 fn main (18-21)"
+    );
+    assert!(text_of(&replies[1]).starts_with("4 def load (4-6)\n9 class Store (9-14)"));
+    assert!(replies[2].contains(r#""isError":false"#));
+    assert_eq!(text_of(&replies[2]), "no symbols");
+}
+
+#[test]
+fn the_expand_tool_returns_one_symbol_without_the_rest_of_the_file() {
+    let f = fixture();
+    let replies = exchange(
+        &f,
+        20,
+        &[
+            &tool_call("expand", r#"{"path":"src/shapes.rs","symbol":"area"}"#),
+            &tool_call("expand", r#"{"path":"src/shapes.rs","symbol":"Circle"}"#),
+            &tool_call("expand", r#"{"path":"src/shapes.rs","symbol":"absent"}"#),
+        ],
+    );
+    let area = text_of(&replies[0]);
+    let path = f.root.join("src/shapes.rs").display().to_string();
+    assert_eq!(
+        area,
+        format!("{path}:9-11 fn area\n9\t    pub fn area(&self) -> f64 {{\n10\t        3.14 * self.radius\n11\t    }}")
+    );
+    for absent in ["scale", "main", "struct", "impl"] {
+        assert!(!area.contains(absent), "{absent} in {area}");
+    }
+    // An ambiguous name returns every match, one block each.
+    let both = text_of(&replies[1]);
+    assert!(both.starts_with(&format!("{path}:3-6 struct Circle\n3\t#[derive(Debug)]\n")));
+    assert!(both.contains(&format!("\n\n{path}:8-16 impl Circle\n8\timpl Circle {{")));
+    assert!(replies[2].contains(r#""isError":true"#));
+    assert_eq!(text_of(&replies[2]), format!("no symbol named absent in {path}"));
+}
+
+#[test]
+fn outline_and_expand_refuse_what_search_refuses() {
+    let f = fixture();
+    let outside = f.outside.join("loot.txt").display().to_string();
+    for (path, why) in [(outside.as_str(), "outside the allowed roots"), ("link-out.txt", "symlink"), (".env", "secret file")] {
+        let replies = exchange(
+            &f,
+            20,
+            &[
+                &tool_call("search", &format!(r#"{{"query":"widget","path":"{path}"}}"#)),
+                &tool_call("outline", &format!(r#"{{"path":"{path}"}}"#)),
+                &tool_call("expand", &format!(r#"{{"path":"{path}","symbol":"widget"}}"#)),
+            ],
+        );
+        assert!(replies[0].contains(why), "{path}: {}", replies[0]);
+        assert_eq!(replies[1], replies[0]);
+        assert_eq!(replies[2], replies[0]);
+        assert!(replies[0].contains(r#""isError":true"#));
+    }
+}
+
+#[test]
+fn outline_and_expand_report_bad_files_and_missing_arguments() {
+    let f = fixture();
+    let replies = exchange(
+        &f,
+        20,
+        &[
+            &tool_call("outline", r#"{"path":"src"}"#),
+            &tool_call("outline", r#"{"path":"big.txt"}"#),
+            &tool_call("outline", r#"{"path":"blob.bin"}"#),
+            &tool_call("outline", r#"{"path":"latin1.txt"}"#),
+            &tool_call("outline", r#"{"path":"nope.rs"}"#),
+            &tool_call("outline", r#"{}"#),
+            &tool_call("expand", r#"{"path":"src/shapes.rs"}"#),
+            &tool_call("expand", r#"{"symbol":"area"}"#),
+        ],
+    );
+    let expected = [
+        "src is not a file",
+        "file is too large",
+        "not a text file",
+        "not a text file",
+        "does not exist",
+        "path is required",
+        "symbol is required",
+        "path is required",
+    ];
+    for (reply, message) in replies.iter().zip(expected) {
+        assert!(reply.contains(r#""isError":true"#), "{reply}");
+        assert!(text_of(reply).ends_with(message), "{reply}");
+    }
+}
+
+#[test]
+fn expand_caps_its_output_at_four_hundred_lines() {
+    let f = fixture();
+    let replies = exchange(&f, 20, &[&tool_call("expand", r#"{"path":"src/long.rs","symbol":"dup"}"#)]);
+    let text = text_of(&replies[0]);
+    let lines: Vec<&str> = text.lines().collect();
+    // The header, 400 numbered source lines, then the cap message.
+    assert_eq!(lines.len(), 402);
+    assert!(lines[0].ends_with(":1-401 fn dup"));
+    assert_eq!(lines[1], "1\tfn dup() {");
+    assert_eq!(lines[400], "400\t    let a398 = 398;");
+    assert_eq!(lines[401], "output capped at 400 lines");
+    // The second symbol of the same name is left out entirely.
+    assert!(!text.contains("let b = 2"));
 }
 
 #[test]
@@ -416,7 +770,7 @@ fn cli_serves_over_the_given_streams() {
     let f = fixture();
     let root = f.root.display().to_string();
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let input = tool_call(r#"{"query":"gadget_factory"}"#) + "\n";
+    let input = tool_call("search", r#"{"query":"gadget_factory"}"#) + "\n";
     let code = cli(&args(&["--root", &root, "--limit", "3"]), &mut input.as_bytes(), &mut out, &mut err);
     assert_eq!(code, 0, "{}", String::from_utf8_lossy(&err));
     assert!(String::from_utf8(out).unwrap().contains("src/gadget.rs:1"));
