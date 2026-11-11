@@ -19,6 +19,14 @@ name = "build-tracker"
 version = "0.1.0"
 
 [[package]]
+name = "ci-wait"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "serde_yaml",
+]
+
+[[package]]
 name = "code-nav"
 version = "0.1.0"
 dependencies = [

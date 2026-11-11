@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Sixteen members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Seventeen members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -47,7 +47,8 @@ on the Linux workstation.
   gold-band-report. `crates/gold-band-gate` is the gate shim (below): the
   wrapper that runs one gate command with a timeout and writes the gate report,
   and the read-only copier that verifies it. It takes no registry crate, only
-  gold-band-report. New Rust joins this
+  gold-band-report. `crates/ci-wait` is the CI-wait gate (below); it takes
+  serde_json and serde_yaml, each pinned exactly. New Rust joins this
   workspace as a new member, never as its own Cargo project.
 
 ```bash
@@ -426,3 +427,27 @@ tests fake it for every outcome, and the real host is exercised too (a real
 echo, exit code, signal death, hung command killed at the deadline, missing
 and non-executable command), so only `src/main.rs` is outside the coverage
 count. `tests/test_gold_band_gate.py` proves the shim headless.
+
+## ci-wait
+
+`ci-wait` waits until every check run of one commit is terminal and prints one
+JSON object; it is usable from a direct session and as a Workflow B gate.
+
+```bash
+ci-wait --repo-dir DIR --sha SHA [--repo OWNER/NAME] [--timeout-secs N] [--poll-secs N]
+```
+
+* **Setup file.** `DIR/docs/agents/setup.yaml` is required (a repository
+  without a valid one, or with a flaky job lacking a name, a reason or a
+  reviewer, exits 2 before any GitHub call). `--repo` defaults to its tracker repo.
+* **Verdict.** `{"verdict":"green"|"red","reason":...,"repo","sha","jobs":[{name,
+  status,conclusion,reran}],"reruns":[{job,reason}]}`. Exit 0 only for green, 1
+  for red (a failed job, a failed rerun, a timeout, no checks ever registered,
+  an unreadable answer), 2 for bad usage or a refused repository. Green needs
+  at least one check run, all passing (success, neutral or skipped) on two
+  consecutive looks.
+* **Reruns.** A failed job listed under `flaky_jobs` is rerun once per
+  invocation (`POST repos/OWNER/NAME/actions/jobs/ID/rerun`); if it fails again
+  the verdict is red. A failed job not listed is red at once and never rerun.
+* **Tests.** The GitHub seam and the clock are traits faked in the unit tests;
+  the real `gh` bridge is driven through a fake program, with no live call.
