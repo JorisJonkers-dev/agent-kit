@@ -192,8 +192,8 @@ fn inspect_gives_every_agent_of_workflow_b_its_role() {
             ("gate-build".to_string(), Role::Gate("build".to_string())),
             ("gate-lint".to_string(), Role::Gate("lint".to_string())),
             ("gate-test".to_string(), Role::Gate("test".to_string())),
-            ("opencode".to_string(), Role::Answer),
             ("vibe".to_string(), Role::Answer),
+            ("vibe-study".to_string(), Role::Answer),
         ]
     );
     assert_eq!(info.roles.len(), info.agent_ids.len());
