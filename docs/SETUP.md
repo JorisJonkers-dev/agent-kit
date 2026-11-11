@@ -472,7 +472,8 @@ setup re-run is needed. Setup also removes the old port-forward launchd agent
 machine that has them.
 
 The GitHub MCP server comes from the `github` **plugin**
-(`external_plugins/github` in the official plugin marketplace), which setup
+(`external_plugins/github` in the official plugin marketplace; setup
+installs it from `agent-kit-official`), which setup
 cannot rewrite. Its `.mcp.json` is:
 
 ```json
@@ -484,21 +485,20 @@ Claude Code expands `${GITHUB_PERSONAL_ACCESS_TOKEN}` from the environment it
 was started in. When the variable is unset or empty the header goes out as
 `Authorization: Bearer ` with no token, and `https://api.githubcopilot.com/mcp/`
 answers `HTTP 400: Error POSTing to endpoint: bad request: Authorization header
-is badly formatted`. That reads like an unconfigured server; the cause is the
-missing variable. The plugin offers no other credential route: it does not read
-`gh auth`, and it does not run an OAuth flow.
+is badly formatted`. The empty token is inferred from the header template, not captured on the wire. That reads like an unconfigured server; the cause is the
+missing variable. The plugin's `.mcp.json` names no other credential: nothing in it reads
+`gh auth` or starts an OAuth flow.
 
 To get the tools, start Claude Code with the variable set to a GitHub token
 that can reach the repositories you work on, for example
 `GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token)" claude`. Setup never writes
-that token anywhere, and neither should a profile file you commit. Reports of
-the same 400 on other platforms, which have other causes (a token that is set
-but mangled, or a client that does not expand the template), are tracked
-upstream at
+that token anywhere, and neither should a profile file you commit. The same 400 is
+reported upstream with other triggers:
 [anthropics/claude-code#84367](https://github.com/anthropics/claude-code/issues/84367)
-(closed as stale) and
+(closed as not planned) describes a stray `}` leaking into the header after
+the template is expanded, and
 [anthropics/claude-code#107604](https://github.com/anthropics/claude-code/issues/107604)
-(open). A session without the variable has no github MCP tools; use `gh`
+(open) the desktop Code tab. A session without the variable has no github MCP tools; use `gh`
 instead.
 
 ## Package proxy
