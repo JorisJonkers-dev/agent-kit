@@ -1,0 +1,88 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"page\": \"/home/ann/.local/state/agent-kit/build-tracker/github.com/acme/widgets/10/page.html\",\n  \"spec\": \"acme/widgets#10\",\n  \"state\": \"/home/ann/.local/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json\",\n  \"status\": \"path\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"page\": \"/home/ann/.local/state/agent-kit/build-tracker/github.com/acme/widgets/10/page.html\",\n  \"spec\": \"acme/widgets#10\",\n  \"state\": \"/home/ann/.local/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json\",\n  \"status\": \"path\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"page\": \"/home/ann/.local/state/agent-kit/build-tracker/github.com/acme/widgets/10/page.html\",\n  \"spec\": \"acme/widgets#10\",\n  \"state\": \"/home/ann/.local/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json\",\n  \"status\": \"path\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"page\": \"/srv/xdg/agent-kit/build-tracker/github.com/acme/widgets/10/page.html\",\n  \"spec\": \"acme/widgets#10\",\n  \"state\": \"/srv/xdg/agent-kit/build-tracker/github.com/acme/widgets/10/state.json\",\n  \"status\": \"path\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"no-state-home\",\"message\":\"neither XDG_STATE_HOME nor HOME is an absolute path, so there is no place outside the repository for the state; set one of them\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker path: neither XDG_STATE_HOME nor HOME is an absolute path, so there is no place outside the repository for the state; set one of them\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"no-state-home\",\"message\":\"neither XDG_STATE_HOME nor HOME is an absolute path, so there is no place outside the repository for the state; set one of them\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker path: neither XDG_STATE_HOME nor HOME is an absolute path, so there is no place outside the repository for the state; set one of them\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"no-state-home\",\"message\":\"neither XDG_STATE_HOME nor HOME is an absolute path, so there is no place outside the repository for the state; set one of them\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker path: neither XDG_STATE_HOME nor HOME is an absolute path, so there is no place outside the repository for the state; set one of them\n",
+      "files": {}
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"page\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets.core/7/page.html\",\n  \"spec\": \"Acme/Widgets.Core#7\",\n  \"state\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets.core/7/state.json\",\n  \"status\": \"path\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"page\": \"@SANDBOX@/state/agent-kit/build-tracker/github.example.org/acme/widgets/7/page.html\",\n  \"spec\": \"github.example.org/Acme/Widgets#7\",\n  \"state\": \"@SANDBOX@/state/agent-kit/build-tracker/github.example.org/acme/widgets/7/state.json\",\n  \"status\": \"path\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"page\": \"@SANDBOX@/state/agent-kit/build-tracker/http.example.org/acme/widgets/7/page.html\",\n  \"spec\": \"http.example.org/acme/widgets#7\",\n  \"state\": \"@SANDBOX@/state/agent-kit/build-tracker/http.example.org/acme/widgets/7/state.json\",\n  \"status\": \"path\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-spec\",\"message\":\"http://github.com/acme/widgets/pull/7 is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker path: http://github.com/acme/widgets/pull/7 is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-spec\",\"message\":\"https://github.com/acme/widgets/issues/0 is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker path: https://github.com/acme/widgets/issues/0 is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-spec\",\"message\":\"#0 is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker path: #0 is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-spec\",\"message\":\"acme/widgets#07 is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker path: acme/widgets#07 is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\n",
+      "files": {}
+    }
+  ]
+}

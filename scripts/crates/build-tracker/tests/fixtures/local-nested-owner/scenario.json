@@ -1,0 +1,48 @@
+{
+  "repo": "widgets",
+  "remote": "https://token@git.example.org:8443/group/sub/widgets",
+  "steps": [
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "docs/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "docs/spec.md",
+        "--landed",
+        "1"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/git.example.org/group/sub/widgets/docs-spec-md-2d77c443/state.json",
+        "--out",
+        "@SANDBOX@/out/mini.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/git.example.org/group/sub/widgets/docs-spec-md-2d77c443/state.json",
+        "--out",
+        "@SANDBOX@/out/mini-outside.html"
+      ],
+      "cwd": "home"
+    }
+  ]
+}

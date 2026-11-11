@@ -1,0 +1,36 @@
+{
+  "repo": "widgets",
+  "remote": "git@github.com:acme/widgets.git",
+  "steps": [
+    {
+      "argv": [
+        "sync",
+        "--spec",
+        "acme/widgets#10"
+      ]
+    },
+    {
+      "argv": [
+        "sync",
+        "--spec",
+        "acme/widgets#10"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "--out",
+        "@SANDBOX@/out/page.html"
+      ]
+    },
+    {
+      "argv": [
+        "sync",
+        "--spec",
+        "acme/widgets#11"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# A stand-in for `gh api` that answers from files: for
+#   gh api --hostname HOST [--paginate --slurp] repos/OWNER/REPO/PATH[?query]
+# it prints $GH_FIXTURE/HOST/repos_OWNER_REPO_PATH.json (the query dropped, every
+# / written as _), or exits 1 printing the contents of the matching .fail file
+# to stderr, or "gh: Not Found (HTTP 404)" when there is neither.
+set -u
+[ "${1:-}" = api ] || { echo "fake gh: only api is supported" >&2; exit 2; }
+shift
+host=
+endpoint=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --hostname) host=$2; shift 2 ;;
+        --paginate | --slurp) shift ;;
+        *) endpoint=$1; shift ;;
+    esac
+done
+key=${endpoint%%\?*}
+key=${key//\//_}
+base=$GH_FIXTURE/$host/$key
+if [ -f "$base.json" ]; then
+    cat "$base.json"
+elif [ -f "$base.fail" ]; then
+    cat "$base.fail" >&2
+    exit 1
+else
+    echo "gh: Not Found (HTTP 404)" >&2
+    exit 1
+fi

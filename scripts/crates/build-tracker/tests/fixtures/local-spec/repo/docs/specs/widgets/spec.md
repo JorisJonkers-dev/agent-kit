@@ -1,0 +1,3 @@
+# Widgets spec
+
+The widgets.

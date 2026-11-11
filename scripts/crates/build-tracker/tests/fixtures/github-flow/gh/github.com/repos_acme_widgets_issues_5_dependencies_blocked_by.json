@@ -1,0 +1,22 @@
+[
+  [
+    {
+      "number": 4,
+      "title": "blocker 4",
+      "state": "open",
+      "html_url": "https://github.com/acme/widgets/issues/4"
+    },
+    {
+      "number": 3,
+      "title": "outside",
+      "state": "closed",
+      "html_url": "https://github.com/other-org/tools/issues/3"
+    },
+    {
+      "number": 2,
+      "title": "outside",
+      "state": "open",
+      "html_url": "https://ghe.example.com/acme/lib/issues/2"
+    }
+  ]
+]

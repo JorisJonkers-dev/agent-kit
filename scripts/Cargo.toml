@@ -22,4 +22,5 @@ members = [
     "crates/ticket-sync",
     "crates/transcript-mix",
     "crates/agent-launcher",
+    "crates/build-tracker",
 ]

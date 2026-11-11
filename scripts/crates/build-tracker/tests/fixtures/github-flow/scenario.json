@@ -1,0 +1,197 @@
+{
+  "repo": "widgets",
+  "remote": "https://github.com/acme/widgets.git",
+  "steps": [
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#10"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "#10"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "10"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        " https://github.com/acme/widgets/issues/10?x=1#top "
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "Acme/Widgets#10"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "ghe.example.com/acme/widgets#10"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "env": {
+        "XDG_STATE_HOME": null
+      }
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "env": {
+        "XDG_STATE_HOME": "relative/state"
+      }
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10",
+        "--milestone",
+        "Phase A: store=2",
+        "--milestone",
+        "Phase B = #4"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "#10"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "--out",
+        "@SANDBOX@/out/page.html"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "2=running:building now",
+        "3=review",
+        "#1=merged"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "4=owner:needs: a human & <b>\"x\"</b>",
+        "3=todo:",
+        "5=todo:ünï 😀 note"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "--out",
+        "@SANDBOX@/out/page.html"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "2=running",
+        "99=merged"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "2=done"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "three"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "0=merged"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "a=b"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "=running"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "#2=running:a:b:c\nd"
+      ]
+    },
+    {
+      "argv": [
+        "sync",
+        "--spec",
+        "acme/widgets#10"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "../../state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "--out",
+        "../../out/relative.html"
+      ]
+    }
+  ]
+}

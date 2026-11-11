@@ -15,6 +15,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-tracker"
+version = "0.1.0"
+
+[[package]]
 name = "code-nav"
 version = "0.1.0"
 dependencies = [

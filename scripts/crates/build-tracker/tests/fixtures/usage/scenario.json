@@ -1,0 +1,228 @@
+{
+  "repo": "widgets",
+  "remote": "https://github.com/acme/widgets.git",
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ]
+    },
+    {
+      "argv": [
+        "-h"
+      ]
+    },
+    {
+      "argv": [
+        "--help",
+        "x"
+      ]
+    },
+    {
+      "argv": []
+    },
+    {
+      "argv": [
+        ""
+      ]
+    },
+    {
+      "argv": [
+        "publish",
+        "--state",
+        "s"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--milestone",
+        "A=1"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "#1",
+        "--spec",
+        "#2"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "#1",
+        "--milestone"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "#1",
+        "extra"
+      ]
+    },
+    {
+      "argv": [
+        "sync",
+        "--spec",
+        "#1",
+        "--milestone",
+        "A=1"
+      ]
+    },
+    {
+      "argv": [
+        "path"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "s"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "s",
+        "--out",
+        "o",
+        "extra"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "s",
+        "--out",
+        "o",
+        "--force",
+        "x"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "s",
+        "--state",
+        "t",
+        "--out",
+        "o"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--out",
+        "o",
+        "--state"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "s"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "1=merged"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "#10",
+        "--spec",
+        "#10"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--landed",
+        "2"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "#10",
+        "--landed"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "#10",
+        "2"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--",
+        "x"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "--milestone"
+      ]
+    },
+    {
+      "argv": [
+        "constructor"
+      ]
+    },
+    {
+      "argv": [
+        "toString",
+        "--spec",
+        "#1"
+      ]
+    },
+    {
+      "argv": [
+        "__proto__"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/none.json",
+        "-x"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/none.json",
+        "--state-x"
+      ]
+    }
+  ]
+}

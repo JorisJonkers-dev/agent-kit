@@ -1,0 +1,22 @@
+[
+  [
+    {
+      "number": 1,
+      "title": "blocker 1",
+      "state": "open",
+      "html_url": "https://github.com/acme/widgets/issues/1"
+    },
+    {
+      "number": 2,
+      "title": "blocker 2",
+      "state": "open",
+      "html_url": "https://github.com/acme/widgets/issues/2"
+    },
+    {
+      "number": 7,
+      "title": "gadget core",
+      "state": "open",
+      "html_url": "https://github.com/acme/gadgets/issues/7"
+    }
+  ]
+]

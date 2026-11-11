@@ -1,0 +1,1137 @@
+{
+  "repo": "widgets",
+  "remote": "https://github.com/acme/widgets.git",
+  "steps": [
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/missing.json",
+        "--out",
+        "@SANDBOX@/out/page.html"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/missing.json",
+        "2=running"
+      ]
+    },
+    {
+      "argv": [
+        "sync",
+        "--spec",
+        "acme/widgets#10"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/good.json",
+        "--out",
+        "@SANDBOX@/out/good.html"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/good.json",
+        "1=review:⏳ waiting",
+        "2=owner"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "[1,2]\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "[1,2]\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":2,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":\"1\",\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":\"1\",\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":null,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":10,\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":10,\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":{\"path\":\"\"},\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":3,\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}],\"subtitle\":[]}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}],\"subtitle\":[]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":[],\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"one\":{}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"01\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"01\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"+1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":\"x\"},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[\"2\"],\"status\":\"todo\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[\"2\"],\"status\":\"todo\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[1.5],\"status\":\"todo\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"status\":\"todo\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"ready\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"ready\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"live\":\"yes\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"note\":7}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"file\":7}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"file\":7}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"blocked_by\":[],\"status\":\"todo\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[9],\"status\":\"todo\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":{}}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":{}}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[\"x\"]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"closes\":4,\"name\":\"A\"},{\"closes\":9,\"name\":\"B\"}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"one\",\"blocked_by\":[],\"status\":\"todo\"},\"2\":{\"title\":\"two\",\"blocked_by\":[1],\"status\":\"running\"},\"4\":{\"title\":\"four\",\"blocked_by\":[],\"status\":\"merged\"}},\"milestones\":[{\"closes\":4,\"name\":\"A\"},{\"closes\":9,\"name\":\"B\"}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"external\":\"x\"}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"external\":[\"\"]}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"external\":[{\"state\":\"open\"}]}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "1=merged"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"external\":[{\"state\":\"open\"}]}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"external\":[{\"ref\":\"a/b#1\",\"state\":\"gone\"}]}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\":1,\"spec\":\"acme/widgets#10\",\"title\":\"Good\",\"tickets\":{\"1\":{\"title\":\"x\",\"blocked_by\":[],\"status\":\"todo\",\"external\":[{\"ref\":\"a/b#1\",\"state\":null}]}},\"milestones\":[{\"name\":\"A\",\"closes\":4}]}\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": ""
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "   "
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"a\""
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"a\":"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"a\":1"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"a\":1,"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "[1,"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "[1 2]"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{a:1}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "not json {"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\": 1,"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "\"abc"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "\"a\nb\""
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "\"\\x\""
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "\"\\u12\""
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "-"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "1."
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "1e"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "01"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "[1,]"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"a\":1,}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "tru"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "nul"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "trux"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{} x"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "[1] 2"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"a\" 1}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{1:2}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{'a':1}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "["
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "]"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\": x}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "éx"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"a\":\"😀\" x}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\": 1, \"tickets\": {}, \"spec\": ?}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"a\":\n1 x}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"a\":\r\n1 x}"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "\"\\"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "[1.5e+]"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "[-x]"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/bad.json",
+        "--out",
+        "@SANDBOX@/out/bad.html"
+      ],
+      "write": {
+        "state/bad.json": "{\"version\": 1, \"title\": \"t\", \"tickets\": {}, \"spec\": \"a/b#1\"} trailing"
+      }
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/dir.json",
+        "1=merged"
+      ],
+      "mkdir": [
+        "state/dir.json"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/dir.json",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/good.json",
+        "--out",
+        "@SANDBOX@/out/blocked/page.html"
+      ],
+      "remove": [
+        "out/blocked"
+      ],
+      "write": {
+        "out/blocked": "a file, not a folder"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/good.json",
+        "--out",
+        "@SANDBOX@/state/dir.json/page.html"
+      ]
+    }
+  ]
+}

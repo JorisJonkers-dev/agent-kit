@@ -1,0 +1,22 @@
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--body); padding-block:24px 48px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); overflow-wrap:anywhere; }
+main { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:minmax(0, 1fr); gap:20px; }
+h1 { font-family:var(--display); font-size:1.9rem; margin:0; text-wrap:balance; }
+.sub { color:var(--muted); margin:4px 0 0; }
+.strip { display:flex; flex-wrap:wrap; gap:8px; }
+.graph { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; overflow-x:auto; }
+.graph pre { margin:0; }
+section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
+h2 { font-family:var(--display); font-size:1.15rem; margin:0 0 8px; }
+h2 small { font-family:var(--mono); font-size:.75rem; color:var(--muted); font-weight:400; margin-left:6px; }
+ul { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+li { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 8px; min-width:0; }
+li a, li .n { font-family:var(--mono); color:var(--accent); text-decoration:none; font-variant-numeric:tabular-nums; }
+li a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.t { min-width:0; }
+.meta { flex-basis:100%; color:var(--muted); font-size:.8rem; padding-left:92px; }
+.pill { display:inline-block; min-width:78px; text-align:center; font-size:.72rem; letter-spacing:.04em; text-transform:uppercase; border-radius:999px; padding:2px 8px; font-family:var(--mono); }
+.merged { background:var(--ok); color:var(--on-status); } .running { background:var(--run); color:var(--on-status); } .review { background:var(--rev); color:var(--on-status); }
+.ready { border:1.5px solid var(--accent); color:var(--accent); } .owner { background:var(--bad); color:var(--on-status); } .blocked { background:var(--off); color:var(--muted); }
+.live { font-size:.7rem; font-family:var(--mono); color:var(--bad); border:1px solid var(--bad); border-radius:4px; padding:0 5px; }
+@media (max-width:520px) { .meta { padding-left:0; } }

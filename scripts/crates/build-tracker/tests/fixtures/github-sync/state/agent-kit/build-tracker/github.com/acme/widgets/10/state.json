@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "spec": "acme/widgets#10",
+  "title": "Spec: widgets",
+  "subtitle": "kept subtitle",
+  "extra": {
+    "x": [
+      1,
+      2,
+      {
+        "y": null
+      }
+    ],
+    "z": 1.5e-7
+  },
+  "milestones": [
+    {
+      "name": "First",
+      "closes": 3
+    }
+  ],
+  "tickets": {
+    "1": {
+      "title": "widget store",
+      "blocked_by": [],
+      "status": "running",
+      "note": "was running",
+      "live": true,
+      "custom": "kept"
+    },
+    "2": {
+      "note": "n2",
+      "status": "review",
+      "title": "old name",
+      "blocked_by": [
+        1
+      ]
+    },
+    "3": {
+      "title": "widget search",
+      "blocked_by": [
+        1,
+        2
+      ],
+      "status": "owner",
+      "note": "ask",
+      "external": [
+        {
+          "ref": "acme/gadgets#7",
+          "state": "open"
+        }
+      ]
+    },
+    "4": {
+      "title": "live check",
+      "blocked_by": [
+        3
+      ],
+      "status": "running",
+      "live": true
+    },
+    "10": {
+      "status": "todo",
+      "title": "ten",
+      "blocked_by": []
+    },
+    "99": {
+      "title": "gone from the tracker",
+      "blocked_by": [],
+      "status": "running",
+      "note": "kept"
+    }
+  }
+}
