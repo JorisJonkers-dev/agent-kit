@@ -160,7 +160,9 @@ fn plan_builds_the_command_with_the_level_arguments() {
 fn plan_refuses_what_the_agent_cannot_hold_on_this_os() {
     let r = record(GOOD);
     assert!(plan(&r, "ghost", "linux").unwrap_err().contains("unknown agent id"));
-    assert!(plan(&r, "fake-read", "mac").unwrap_err().contains("unverified"));
+    assert!(plan(&r, "fake-read", "mac").unwrap_err().contains("not declared for mac"));
+    let widened = record(&GOOD.replace("hosts: [linux]", "hosts: [linux, mac]"));
+    assert!(plan(&widened, "fake-read", "mac").unwrap_err().contains("unverified on mac"));
     assert!(plan(&r, "fake-read", "linux").is_ok());
 }
 
@@ -173,13 +175,13 @@ fn plan_refuses_an_os_the_id_is_not_declared_for() {
 #[test]
 fn plan_refuses_a_broken_id() {
     let no_level = "agents: {a: {command: [x]}}\nids: {a-one: {agent: a}}";
-    assert!(plan(&record(no_level), "a-one", "linux").unwrap_err().contains("no agent or no reach level"));
+    assert!(plan(&record(no_level), "a-one", "linux").unwrap_err().contains("no reach level"));
     let no_agent = "ids: {a-one: {agent: ghost, reach: read}}";
     assert!(plan(&record(no_agent), "a-one", "linux").unwrap_err().contains("unknown agent"));
     let no_command = "agents: {a: {levels: {read: {support: {linux: verified, mac: verified}}}}}\nids: {a-one: {agent: a, reach: read, hosts: [linux]}}";
     assert!(plan(&record(no_command), "a-one", "linux").unwrap_err().contains("no command"));
     let no_dir = GOOD.replace("    output_dir: /tmp/research\n", "");
-    assert!(plan(&record(&no_dir), "fake-research", "linux").unwrap_err().contains("no output_dir"));
+    assert!(plan(&record(&no_dir), "fake-research", "linux").unwrap_err().contains("needs an output_dir"));
 }
 
 fn write_record(dir: &std::path::Path) -> OsString {
@@ -273,5 +275,32 @@ fn this_os_is_one_the_record_knows() {
     assert!(OSES.contains(&this_os()));
     assert_eq!(os_name("macos"), "mac");
     assert_eq!(os_name("linux"), "linux");
+    assert_eq!(os_name("windows"), "unsupported");
     assert_eq!(LEVELS.len(), 7);
+}
+
+#[test]
+fn run_refuses_an_id_the_validation_would_refuse() {
+    let dir = scratch("strict");
+    let marker = dir.join("marker");
+    let file = dir.join("reach.yaml");
+    let cases = [
+        (GOOD.replace("/tmp/research", "/tmp/../etc"), "fake-research"),
+        (GOOD.replace("    reach: read\n", "    reach: read\n    output_dir: /tmp/x\n"), "fake-read"),
+        (with_command("['']"), "fake-read"),
+    ];
+    for (text, id) in cases {
+        fs::write(&file, text).unwrap();
+        let code = run_on(
+            [OsString::from("run"), file.clone().into_os_string(), id.into(), "--".into(), marker.clone().into_os_string()],
+            "linux",
+        );
+        assert_eq!(code, 1);
+        assert!(!marker.exists(), "the agent must not have started");
+    }
+}
+
+#[test]
+fn an_os_with_no_cells_is_refused() {
+    assert!(plan(&record(GOOD), "fake-read", "unsupported").is_err());
 }

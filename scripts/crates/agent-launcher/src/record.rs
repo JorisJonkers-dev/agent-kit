@@ -124,10 +124,19 @@ pub fn problems(record: &Record) -> Vec<String> {
             }
         }
     }
-    for (id, entry) in &record.ids {
-        id_problems(record, id, entry, &mut out);
+    for id in record.ids.keys() {
+        out.extend(id_rule_problems(record, id));
     }
     duplicate_ids(record, &mut out);
+    out
+}
+
+/// The rule problems of one id alone (not of its neighbours).
+pub fn id_rule_problems(record: &Record, id: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(entry) = record.ids.get(id) {
+        id_problems(record, id, entry, &mut out);
+    }
     out
 }
 

@@ -26,7 +26,7 @@ use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::process::Command;
 
-pub use record::{cell, parse, problems, Record, LEVELS, OSES};
+pub use record::{cell, id_rule_problems, parse, problems, Record, LEVELS, OSES};
 
 /// The crate's name, which prefixes every message line.
 pub const NAME: &str = env!("CARGO_PKG_NAME");
@@ -36,12 +36,13 @@ pub fn this_os() -> &'static str {
     os_name(std::env::consts::OS)
 }
 
-/// The record's name for a Rust OS name: `mac` for macOS, `linux` otherwise.
+/// The record's name for a Rust OS name: `mac` for macOS, `linux` for Linux, and
+/// `unsupported` (no cell can be verified for it) for any other OS.
 pub fn os_name(rust_os: &str) -> &'static str {
-    if rust_os == "macos" {
-        "mac"
-    } else {
-        "linux"
+    match rust_os {
+        "macos" => "mac",
+        "linux" => "linux",
+        _ => "unsupported",
     }
 }
 
@@ -51,33 +52,25 @@ pub fn plan(record: &Record, id: &str, os: &str) -> Result<Plan, String> {
         .ids
         .get(id)
         .ok_or_else(|| format!("unknown agent id {id:?}"))?;
-    let (Some(agent), Some(level)) = (entry.agent.as_deref(), entry.reach.as_deref()) else {
-        return Err(format!("{id}: has no agent or no reach level"));
-    };
-    let spec = record
-        .agents
-        .get(agent)
-        .ok_or_else(|| format!("{id}: unknown agent {agent:?}"))?;
-    let state = cell(record, agent, level, os);
-    if state != "verified" {
-        return Err(format!(
-            "{id}: {agent} cannot hold reach level {level} on {os} ({state}); nothing started"
-        ));
+    if let Some(first) = id_rule_problems(record, id).into_iter().next() {
+        return Err(format!("{first}; nothing started"));
     }
     if !entry.hosts.iter().any(|h| h == os) {
         return Err(format!("{id}: not declared for {os}; nothing started"));
     }
-    if spec.command.is_empty() {
+    // The id's own rules held above, so its agent and level are named, known
+    // and verified on every host it lists, this OS among them.
+    let agent = entry.agent.clone().unwrap_or_default();
+    let level = entry.reach.clone().unwrap_or_default();
+    let spec = &record.agents[&agent];
+    if spec.command.first().map_or(true, String::is_empty) {
         return Err(format!("{id}: agent {agent} has no command"));
     }
-    if matches!(level, "research" | "write-scoped") && entry.output_dir.is_none() {
-        return Err(format!("{id}: reach level {level} has no output_dir"));
-    }
     let mut argv = spec.command.clone();
-    argv.extend(spec.levels[level].args.iter().cloned());
+    argv.extend(spec.levels[&level].args.clone());
     Ok(Plan {
         argv,
-        level: level.to_string(),
+        level,
         output_dir: entry.output_dir.clone(),
     })
 }
