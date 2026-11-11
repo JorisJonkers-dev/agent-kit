@@ -118,8 +118,11 @@ pub fn sync(o: &Options, client: &mut dyn Client, out: &mut dyn Write) -> Result
     match o.mode {
         Mode::DryRun => {
             say(out, &p.render(&model))?;
-            let closings = close::closings(&p, &model, &model::dispositions(&spec_text))?;
-            say(out, &close::render(&o.repo, &closings))?;
+            // The close plan needs published tickets; before the first apply it is only a note.
+            match close::closings(&p, &model, &model::dispositions(&spec_text)) {
+                Ok(closings) => say(out, &close::render(&o.repo, &closings))?,
+                Err(e) => say(out, &format!("close plan not available yet: {e}\n"))?,
+            }
             say(out, "dry run: nothing was written\n")
         }
         Mode::ApprovePlan => {
@@ -130,6 +133,9 @@ pub fn sync(o: &Options, client: &mut dyn Client, out: &mut dyn Write) -> Result
         }
         Mode::Close => {
             let closings = close::closings(&p, &model, &model::dispositions(&spec_text))?;
+            if closings.is_empty() {
+                return say(out, "nothing to close\n");
+            }
             let mut closed = Vec::new();
             let result = close::close(Path::new(&o.approval), &o.repo, &closings, client, &mut closed);
             for n in &closed {

@@ -85,6 +85,7 @@ pub fn render(repo: &str, closings: &[Closing]) -> String {
 struct Approval {
     repo: String,
     fingerprint: String,
+    /// For the reader of the file; the fingerprint is what is enforced.
     issues: Vec<u64>,
 }
 
@@ -108,8 +109,7 @@ pub fn close(path: &Path, repo: &str, closings: &[Closing], client: &mut dyn Cli
     let text = std::fs::read_to_string(path).map_err(|_| format!("no approval recorded at {}: run --approve-plan first", path.display()))?;
     let approval: Approval = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
     let now = fingerprint(repo, closings);
-    let issues: Vec<u64> = closings.iter().map(|c| c.number).collect();
-    if approval.repo != repo || approval.fingerprint != now || approval.issues != issues {
+    if approval.repo != repo || approval.fingerprint != now {
         return Err(format!(
             "the recorded approval ({} for {}) is not for the current close plan ({now} for {repo}); read the plan and approve it again",
             approval.fingerprint, approval.repo
@@ -119,7 +119,5 @@ pub fn close(path: &Path, repo: &str, closings: &[Closing], client: &mut dyn Cli
         client.close(c.number, &c.comment, c.completed)?;
         done.push(c.number);
     }
-    // A leftover approval is harmless to refuse later, so a failed removal is not an error.
-    let _ = std::fs::remove_file(path);
-    Ok(())
+    std::fs::remove_file(path).map_err(|e| format!("closed {} issues, but the approval at {} could not be used up: {e}; remove it before another close", done.len(), path.display()))
 }

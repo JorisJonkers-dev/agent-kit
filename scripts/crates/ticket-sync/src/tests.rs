@@ -886,8 +886,11 @@ fn the_command_approves_then_closes_and_only_then() {
     let text = String::from_utf8(out).unwrap();
     assert!(text.contains("closed #50\nclosed #51\nclosed 2 issues\n"), "{text}");
     assert_eq!(open_issues(&f), vec![1, 10, 11, 12, 13, 14, 52, 60]);
-    // The plan is now empty, so the approval no longer matches and nothing more closes.
-    assert!(sync(&opts(Mode::Close), &mut f, &mut Vec::new()).is_err());
+    // Nothing is left to close, and the approval is used up.
+    let mut out = Vec::new();
+    sync(&opts(Mode::Close), &mut f, &mut out).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(), "nothing to close\n");
+    assert!(!d.join("approval").exists());
     assert_eq!(f.log.iter().filter(|l| l.starts_with("close")).count(), 2);
     // A failure part-way still reports what was closed.
     let (_, mut f2, _) = closing_fixture();
@@ -909,13 +912,12 @@ fn an_approval_is_bound_to_its_repository_and_its_exact_plan() {
     approve(&a, "o/r", &c).unwrap();
     assert_ne!(fingerprint("o/r", &c), fingerprint("other/r", &c));
     assert!(close(&a, "other/r", &c, &mut f, &mut Vec::new()).is_err());
-    // The recorded issue list is enforced too: a hand-edited file closes nothing.
+    // A hand-edited approval no longer matches either.
     let text = std::fs::read_to_string(&a).unwrap();
-    let issue_list = format!("{:?}", c.iter().map(|c| c.number).collect::<Vec<_>>());
-    assert!(text.contains(&c[0].number.to_string()));
-    let forged = text.replacen(&format!("{}", c[0].number), "999", 1);
+    let forged = text.replacen(&fingerprint("o/r", &c), "0000000000000000", 1);
+    assert_ne!(forged, text);
     std::fs::write(&a, forged).unwrap();
-    assert!(close(&a, "o/r", &c, &mut f, &mut Vec::new()).is_err(), "{issue_list}");
+    assert!(close(&a, "o/r", &c, &mut f, &mut Vec::new()).is_err());
     assert!(f.log.is_empty());
     // Moving text between the comment of one closing and the next one cannot keep the fingerprint.
     let two = vec![
@@ -941,13 +943,13 @@ fn the_close_command_exits_non_zero_without_an_approval() {
     let held = fake_exe::lock();
     let d = scratch("exit");
     let (t, sp) = (d.join("t.yaml"), d.join("spec.md"));
-    std::fs::write(&t, "spec: 1\nlabels: []\nbranches:\n  B0:\n    title: T\n    issue: 9\n    what: w\ntickets: []\n").unwrap();
+    std::fs::write(&t, "spec: 1\nlabels: []\nbranches:\n  B0:\n    title: T\n    issue: 9\n    what: w\ntickets:\n- key: B0-01\n  issue: 11\n  branch: B0\n  title: First\n  supersedes:\n  - 50\n  lanes: []\n  hosts: []\n  what: w\n  ac: []\n").unwrap();
     std::fs::write(&sp, SPEC).unwrap();
     let gh = script(
         &held,
         &d,
         r#"case "$*" in
-*"-X GET repos/o/r/issues/"*) echo '{"number":9,"id":1009,"title":"T (spec #1)","body":"x","state":"open"}';;
+*"-X GET repos/o/r/issues/"*) for a in "$@"; do n="${a##*/}"; done; echo "{\"number\":$n,\"id\":$((n+1000)),\"title\":\"T\",\"body\":\"x\",\"state\":\"open\"}";;
 *"--paginate"*) echo '[]';;
 *) echo "WRITE $*" >> writes.log; echo '{}';;
 esac"#,
@@ -957,4 +959,41 @@ esac"#,
     let (code, out, err) = go(&args, &gh);
     assert_eq!((code, out.as_str()), (1, ""));
     assert!(err.contains("no approval recorded"), "{err}");
+    assert!(!d.join("writes.log").exists(), "nothing was written to GitHub");
+}
+
+#[test]
+fn a_dry_run_before_the_first_apply_still_succeeds_and_an_empty_close_is_a_no_op() {
+    // B0-02 supersedes #50 but is not published yet: the dry run says so and goes on.
+    let d = scratch("unpublished");
+    let (t, sp) = (d.join("t.yaml"), d.join("spec.md"));
+    std::fs::write(&t, YAML.replace("- key: B0-02\n", "- key: B0-02\n  supersedes:\n  - 50\n")).unwrap();
+    std::fs::write(&sp, SPEC).unwrap();
+    let o = Options { repo: "o/r".into(), tickets: t.to_str().unwrap().into(), spec: sp.to_str().unwrap().into(), approval: d.join("approval").to_str().unwrap().into(), mode: Mode::DryRun };
+    let mut f = Fake::published(&model());
+    let mut out = Vec::new();
+    sync(&o, &mut f, &mut out).unwrap();
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains("close plan not available yet: #50: its ticket B0-02 is not published yet") && text.contains("dry run: nothing was written"), "{text}");
+    // With nothing to close, --close succeeds without needing an approval.
+    std::fs::write(&t, YAML).unwrap();
+    f.issues.get_mut(&50).unwrap().open = false;
+    let mut out = Vec::new();
+    sync(&Options { mode: Mode::Close, ..o }, &mut f, &mut out).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(), "nothing to close\n");
+}
+
+#[test]
+fn a_used_up_approval_that_cannot_be_removed_is_reported() {
+    use std::os::unix::fs::PermissionsExt;
+    let (m, mut f, disp) = closing_fixture();
+    let p = plan(&m, &stories_map(), &mut f).unwrap();
+    let c = closings(&p, &m, &disp).unwrap();
+    let d = scratch("sticky");
+    let a = d.join("locked/approval");
+    approve(&a, "o/r", &c).unwrap();
+    std::fs::set_permissions(d.join("locked"), std::fs::Permissions::from_mode(0o500)).unwrap();
+    let err = close(&a, "o/r", &c, &mut f, &mut Vec::new()).unwrap_err();
+    std::fs::set_permissions(d.join("locked"), std::fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(err.contains("closed 3 issues") && err.contains("could not be used up"), "{err}");
 }
