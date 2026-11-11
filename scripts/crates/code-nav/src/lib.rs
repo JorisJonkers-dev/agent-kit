@@ -12,7 +12,8 @@
 //!
 //! Usage: `code-nav --root DIR [--root DIR ...] [--limit N]`. The roots are
 //! the allowlist; the caller (setup, per instance) passes only roots that fit
-//! the instance's repository rule. `--limit` sets the default result cap. A
+//! the instance's repository rule. A root that does not exist is skipped with a
+//! warning; with none left the server exits 2. `--limit` sets the default result cap. A
 //! root of `~` or `~/...` is expanded against `HOME`, because a registry
 //! config passes the argument literally, with no shell to expand it.
 
@@ -90,7 +91,18 @@ pub fn cli(args: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &
             return 2;
         }
     };
-    let boundary = match boundary::Boundary::new(&config.roots) {
+    // A root that does not exist (a machine without that clone) is skipped
+    // with a warning; only when none remains does the server refuse to start.
+    let (present, missing): (Vec<PathBuf>, Vec<PathBuf>) =
+        config.roots.iter().cloned().partition(|r| r.exists());
+    for root in &missing {
+        let _ = writeln!(err, "code-nav: warning: root {} does not exist, skipped", root.display());
+    }
+    if present.is_empty() {
+        let _ = writeln!(err, "code-nav: none of the roots exists");
+        return 2;
+    }
+    let boundary = match boundary::Boundary::new(&present) {
         Ok(b) => b,
         Err(e) => {
             let _ = writeln!(err, "code-nav: {e}");

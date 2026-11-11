@@ -796,6 +796,28 @@ fn a_tilde_root_without_home_is_an_error() {
 }
 
 #[test]
+fn a_missing_root_among_several_is_skipped_with_a_warning() {
+    let f = fixture();
+    let missing = f.root.join("no-such-clone");
+    let a = args(&["--root", missing.to_str().unwrap(), "--root", f.root.to_str().unwrap()]);
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let code = cli(&a, &mut &b""[..], &mut out, &mut err);
+    assert_eq!(code, 0);
+    let err = String::from_utf8(err).unwrap();
+    assert!(err.contains("warning") && err.contains("no-such-clone") && err.contains("skipped"), "{err}");
+}
+
+#[test]
+fn all_roots_missing_refuses_to_start() {
+    let f = fixture();
+    let a = args(&["--root", f.root.join("x").to_str().unwrap(), "--root", f.root.join("y").to_str().unwrap()]);
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    assert_eq!(cli(&a, &mut &b""[..], &mut out, &mut err), 2);
+    let err = String::from_utf8(err).unwrap();
+    assert!(err.contains("none of the roots exists") && err.contains("x") && err.contains("y"), "{err}");
+}
+
+#[test]
 fn cli_serves_over_the_given_streams() {
     let f = fixture();
     let root = f.root.display().to_string();
