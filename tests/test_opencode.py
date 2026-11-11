@@ -114,14 +114,14 @@ def test_setup_writes_the_opencode_surface(run: Run) -> None:
 def test_the_listings_equal_what_the_registry_declares(tmp_path: Path, platform: str) -> None:
     """After a run, OpenCode holds exactly the declared MCP servers and the declared kit skills, on both OSes.
 
-    No plugin is listed here and the vendored skills are cloned from the network,
-    so the skills folder holds the kit's skills and nothing else.
+    The stubbed claude lists no plugin and the stubbed git clones nothing, so the
+    skills folder holds the kit's skills and nothing else.
     """
     result = setup_run(tmp_path, platform, stubs={"opencode": OPENCODE_V2})
     home = _opencode_home(result)
     held_servers = set(_servers(json.loads((home / "opencode.json").read_text())))
     assert held_servers == set(render_registry.declared_servers(_registry(), "opencode"))
-    held_skills = {folder.name for folder in (home / "skills").iterdir()}
+    held_skills = {folder.name for folder in (home / "skills").iterdir() if folder.is_dir()}
     assert held_skills == set(_opencode_skills())
 
 
