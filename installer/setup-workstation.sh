@@ -7843,6 +7843,432 @@ if [ -d "${OPENCODE_HOME}/skills/review-feature" ]; then
     ok "removed retired skill review-feature from ${dest}"
   fi
 fi
+if [ -d "${CLAUDE_HOME}/skills/add-public-service" ]; then
+  dest="${CLAUDE_HOME}/skills/add-public-service"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill add-public-service from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/add-public-service" ]; then
+  dest="${CODEX_HOME}/skills/add-public-service"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill add-public-service from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/add-public-service" ]; then
+  dest="${VIBE_HOME}/skills/add-public-service"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill add-public-service from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/add-public-service" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/add-public-service"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill add-public-service from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/add-public-service" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/add-public-service"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill add-public-service from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/add-public-service" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/add-public-service"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill add-public-service from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/add-public-service" ]; then
+  dest="${OPENCODE_HOME}/skills/add-public-service"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill add-public-service from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/deploy-status" ]; then
+  dest="${CLAUDE_HOME}/skills/deploy-status"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill deploy-status from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/deploy-status" ]; then
+  dest="${CODEX_HOME}/skills/deploy-status"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill deploy-status from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/deploy-status" ]; then
+  dest="${VIBE_HOME}/skills/deploy-status"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill deploy-status from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/deploy-status" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/deploy-status"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill deploy-status from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/deploy-status" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/deploy-status"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill deploy-status from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/deploy-status" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/deploy-status"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill deploy-status from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/deploy-status" ]; then
+  dest="${OPENCODE_HOME}/skills/deploy-status"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill deploy-status from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/fleet-change" ]; then
+  dest="${CLAUDE_HOME}/skills/fleet-change"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill fleet-change from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/fleet-change" ]; then
+  dest="${CODEX_HOME}/skills/fleet-change"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill fleet-change from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/fleet-change" ]; then
+  dest="${VIBE_HOME}/skills/fleet-change"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill fleet-change from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/fleet-change" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/fleet-change"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill fleet-change from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/fleet-change" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/fleet-change"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill fleet-change from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/fleet-change" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/fleet-change"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill fleet-change from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/fleet-change" ]; then
+  dest="${OPENCODE_HOME}/skills/fleet-change"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill fleet-change from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/open-pr" ]; then
+  dest="${CLAUDE_HOME}/skills/open-pr"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill open-pr from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/open-pr" ]; then
+  dest="${CODEX_HOME}/skills/open-pr"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill open-pr from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/open-pr" ]; then
+  dest="${VIBE_HOME}/skills/open-pr"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill open-pr from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/open-pr" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/open-pr"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill open-pr from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/open-pr" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/open-pr"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill open-pr from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/open-pr" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/open-pr"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill open-pr from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/open-pr" ]; then
+  dest="${OPENCODE_HOME}/skills/open-pr"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill open-pr from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/prepare-rollback" ]; then
+  dest="${CLAUDE_HOME}/skills/prepare-rollback"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill prepare-rollback from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/prepare-rollback" ]; then
+  dest="${CODEX_HOME}/skills/prepare-rollback"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill prepare-rollback from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/prepare-rollback" ]; then
+  dest="${VIBE_HOME}/skills/prepare-rollback"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill prepare-rollback from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/prepare-rollback" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/prepare-rollback"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill prepare-rollback from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/prepare-rollback" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/prepare-rollback"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill prepare-rollback from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/prepare-rollback" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/prepare-rollback"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill prepare-rollback from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/prepare-rollback" ]; then
+  dest="${OPENCODE_HOME}/skills/prepare-rollback"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill prepare-rollback from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/run-tests" ]; then
+  dest="${CLAUDE_HOME}/skills/run-tests"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill run-tests from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/run-tests" ]; then
+  dest="${CODEX_HOME}/skills/run-tests"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill run-tests from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/run-tests" ]; then
+  dest="${VIBE_HOME}/skills/run-tests"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill run-tests from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/run-tests" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/run-tests"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill run-tests from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/run-tests" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/run-tests"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill run-tests from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/run-tests" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/run-tests"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill run-tests from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/run-tests" ]; then
+  dest="${OPENCODE_HOME}/skills/run-tests"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill run-tests from ${dest}"
+  fi
+fi
 
 # The read-only Vibe critic agents, into the shared Vibe home only. Like
 # its skills, a failed split leaves the home alone this run.

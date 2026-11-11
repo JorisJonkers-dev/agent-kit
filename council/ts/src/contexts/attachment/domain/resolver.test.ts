@@ -27,7 +27,7 @@ const catalog = parseAttachmentProfilesConfig(
   {
     profiles: [
       {
-        fullSkills: ['kb-first', 'run-tests'],
+        fullSkills: ['kb-first', 'topics'],
         mcpProfile: 'minimal',
         name: 'minimal',
         skillCards: [
@@ -45,11 +45,11 @@ const catalog = parseAttachmentProfilesConfig(
         ],
       },
       {
-        fullSkills: ['fleet-change'],
+        fullSkills: ['cluster-ops'],
         mcpProfile: 'cluster',
         name: 'cluster',
         skillCards: [
-          card('fleet-change', 'cluster', ['fleet.yaml', 'kubernetes', 'traefik'], ['documentation only']),
+          card('cluster-ops', 'cluster', ['fleet.yaml', 'kubernetes', 'traefik'], ['documentation only']),
           card('service-registry', 'cluster', ['public service', 'sso protected']),
         ],
       },
@@ -96,7 +96,7 @@ describe('resolveAttachments', () => {
     })
     expect(first.activeSkills).toEqual(['design-review', 'accessibility-pass', 'frontend-build'])
     expect(first.selectedSkillCards.map((skill) => skill.name)).toEqual(['design-review', 'accessibility-pass'])
-    expect(first.activeSkills).not.toContain('fleet-change')
+    expect(first.activeSkills).not.toContain('cluster-ops')
     expect(first.activeSkills).not.toContain('ci-diagnostic')
     expect(first.activeSkills).not.toContain('dependency-map')
     expect(first.contextProfile.profile).toBe('implementer')
@@ -114,7 +114,7 @@ describe('resolveAttachments', () => {
     )
 
     expect(resolved.mcpProfile).toBe('cluster')
-    expect(resolved.activeSkills).toEqual(['fleet-change', 'service-registry'])
+    expect(resolved.activeSkills).toEqual(['cluster-ops', 'service-registry'])
     expect(resolved.selectedProfiles).toEqual(['cluster'])
   })
 
@@ -160,7 +160,7 @@ describe('resolveAttachments', () => {
     )
 
     expect(resolved.mcpProfile).toBe('minimal')
-    expect(resolved.activeSkills).toEqual(['kb-first', 'run-tests'])
+    expect(resolved.activeSkills).toEqual(['kb-first', 'topics'])
     expect(resolved.selectedSkillCards).toEqual([])
     expect(resolved.rejectedSkillCards).toContainEqual({
       name: 'kb-first',
@@ -181,7 +181,7 @@ describe('resolveAttachments', () => {
     )
 
     expect(resolved.mcpProfile).toBe('minimal')
-    expect(resolved.activeSkills).toEqual(['kb-first', 'run-tests'])
+    expect(resolved.activeSkills).toEqual(['kb-first', 'topics'])
     expect(resolved.selectedProfiles).toEqual(['minimal'])
     expect(resolved.selectedSkillCards).toEqual([])
   })
@@ -197,9 +197,9 @@ describe('resolveAttachments', () => {
     )
 
     expect(resolved.mcpProfile).toBe('minimal')
-    expect(resolved.activeSkills).toEqual(['kb-first', 'run-tests'])
+    expect(resolved.activeSkills).toEqual(['kb-first', 'topics'])
     expect(resolved.rejectedSkillCards).toContainEqual({
-      name: 'fleet-change',
+      name: 'cluster-ops',
       reason: 'negative-trigger',
       score: 14,
     })

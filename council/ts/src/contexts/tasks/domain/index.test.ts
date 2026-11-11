@@ -13,7 +13,7 @@ import type { JsonRecord } from '../../../shared-kernel/common.js'
 import { TASK_ATTACHMENT_ACTIVE_SKILLS_MAX } from '../../../shared-kernel/index.js'
 
 const fullAttachment: JsonRecord = {
-  activeSkills: ['kb-first', 'run-tests'],
+  activeSkills: ['kb-first', 'topics'],
   mcpProfile: 'code-intel',
 }
 
@@ -93,7 +93,7 @@ describe('tasks markdown bijection', () => {
   "attachment": {
     "activeSkills": [
       "kb-first",
-      "run-tests"
+      "topics"
     ],
     "mcpProfile": "code-intel"
   },
