@@ -513,7 +513,7 @@ describe('build-tracker command line', () => {
     const result = await runBuildTrackerCli(['--help'], defaultBuildTrackerRuntime())
 
     expect(result).toEqual({ exitCode: 0, stderr: '', stdout: BUILD_TRACKER_USAGE })
-    expect(BUILD_TRACKER_USAGE).toContain('build-tracker render --state FILE --out FILE')
+    expect(BUILD_TRACKER_USAGE).toContain('build-tracker render (--state FILE | --tickets FILE [--repo OWNER/REPO]) --out FILE')
     expect(BUILD_TRACKER_USAGE).toContain('build-tracker set --state FILE <ticket>=<status>[:note] ...')
     expect(BUILD_TRACKER_USAGE).toContain('build-tracker init --spec SPEC [--milestone <name>=<ticket> ...]')
     expect(BUILD_TRACKER_USAGE).toContain('build-tracker sync --spec SPEC')

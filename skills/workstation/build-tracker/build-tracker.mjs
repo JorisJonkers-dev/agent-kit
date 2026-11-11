@@ -449,6 +449,15 @@ function shownStatus(ticket, merged) {
   return waiting ? "blocked" : "ready";
 }
 function sections(state, tickets) {
+  if (state.groups !== void 0) {
+    const byNumber2 = new Map(tickets.map((ticket) => [ticket.number, ticket]));
+    return state.groups.map(
+      (group) => section(
+        group.name,
+        group.tickets.flatMap((number) => byNumber2.get(number) ?? [])
+      )
+    );
+  }
   if (state.milestones.length === 0) return [section(SINGLE_SECTION, tickets)];
   const byNumber = new Map(tickets.map((ticket) => [ticket.number, ticket]));
   const milestoneOf = /* @__PURE__ */ new Map();
@@ -817,15 +826,265 @@ var RefreshCommand = class {
 
 // src/contexts/build-tracker/application/render.ts
 import { resolve as resolve2 } from "node:path";
+
+// src/contexts/build-tracker/domain/yaml-subset.ts
+var KEY = /^([A-Za-z_][\w-]*):(?: (.*))?$/;
+var INTEGER = /^-?\d+$/;
+function parseYamlSubset(source) {
+  const lines = [];
+  source.split(/\r?\n/).forEach((raw, index) => {
+    const body = raw.trimStart();
+    if (body === "" || body.startsWith("#")) return;
+    if (/^ *\t/.test(raw)) throw refused(index + 1, "a tab cannot indent");
+    lines.push({ indent: raw.length - body.length, no: index + 1, text: body.trimEnd() });
+  });
+  const [first] = lines;
+  if (first === void 0) throw refused(1, "the file is empty");
+  const reader = new Reader(lines);
+  const value = reader.node(first);
+  const rest = reader.peek();
+  if (rest !== void 0) throw refused(rest.no, "this line does not fit its parent");
+  return value;
+}
+var Reader = class {
+  constructor(lines) {
+    this.lines = lines;
+  }
+  lines;
+  position = 0;
+  peek() {
+    return this.lines[this.position];
+  }
+  /** The block that starts at `line`, the next line, whose indentation is its own. */
+  node(line) {
+    return isItem(line.text) ? this.list(line.indent) : this.map(line.indent);
+  }
+  list(indent) {
+    const items = [];
+    for (let line = this.peek(); line?.indent === indent && isItem(line.text); line = this.peek()) {
+      const rest = line.text.slice(1).trimStart();
+      if (rest === "") {
+        this.position += 1;
+        const next = this.peek();
+        if (next === void 0 || next.indent <= indent) throw refused(line.no, "a list item has no value");
+        items.push(this.node(next));
+      } else if (KEY.test(rest)) {
+        const inner = indent + (line.text.length - rest.length);
+        this.lines[this.position] = { indent: inner, no: line.no, text: rest };
+        items.push(this.map(inner));
+      } else {
+        this.position += 1;
+        items.push(scalar(rest, line.no));
+      }
+    }
+    return items;
+  }
+  map(indent) {
+    const entries = {};
+    for (let line = this.peek(); line?.indent === indent; line = this.peek()) {
+      if (isItem(line.text)) break;
+      const match = KEY.exec(line.text);
+      if (match === null) throw refused(line.no, "expected `key: value`");
+      const key = String(match[1]);
+      if (Object.hasOwn(entries, key)) throw refused(line.no, `the key ${key} appears twice`);
+      this.position += 1;
+      const rest = match[2]?.trim() ?? "";
+      if (rest !== "") {
+        entries[key] = scalar(rest, line.no);
+        continue;
+      }
+      const next = this.peek();
+      const nested = next !== void 0 && (next.indent > indent || next.indent === indent && isItem(next.text));
+      entries[key] = nested ? this.node(next) : null;
+    }
+    const stray = this.peek();
+    if (stray !== void 0 && stray.indent > indent) throw refused(stray.no, "unexpected indentation");
+    return entries;
+  }
+};
+function isItem(text) {
+  return text === "-" || text.startsWith("- ");
+}
+function scalar(text, no) {
+  if (text.startsWith("'")) {
+    const end = closingQuote(text);
+    if (end !== text.length - 1) throw refused(no, "a single-quoted value must end with its quote");
+    return text.slice(1, end).replaceAll("''", "'");
+  }
+  if (text.startsWith('"')) {
+    try {
+      const value = JSON.parse(text);
+      if (typeof value === "string") return value;
+    } catch {
+    }
+    throw refused(no, "a double-quoted value must be a JSON string");
+  }
+  if (text === "[]") return [];
+  if (/^[[{|>&*!%@`]/.test(text)) throw refused(no, "this YAML form is not supported in a ticket file");
+  const plain = text.replace(/\s+#.*$/, "");
+  if (/: |:$/.test(plain)) throw refused(no, "a plain value cannot hold `: `; quote it");
+  if (plain === "null" || plain === "~") return null;
+  if (plain === "true") return true;
+  if (plain === "false") return false;
+  return INTEGER.test(plain) ? Number(plain) : plain;
+}
+function closingQuote(text) {
+  for (let index = 1; index < text.length; index += 1) {
+    if (text[index] !== "'") continue;
+    if (text[index + 1] === "'") index += 1;
+    else return index;
+  }
+  return -1;
+}
+function refused(no, reason) {
+  return new BuildTrackerError("invalid-tickets", `the ticket file is not readable at line ${String(no)}: ${reason}`);
+}
+function isYamlObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// src/contexts/build-tracker/domain/tickets-file.ts
+function parseTicketsFile(text) {
+  const root = parseYamlSubset(text);
+  if (!isYamlObject(root)) throw invalid2("the file is not a mapping");
+  const spec = positiveInteger(root.spec, "spec");
+  if (!isYamlObject(root.branches)) throw invalid2("branches must be a mapping of branch ids");
+  const branches = Object.entries(root.branches).map(([id, value]) => {
+    if (!isYamlObject(value)) throw invalid2(`branch ${id} is not a mapping`);
+    return { id, issue: positiveInteger(value.issue, `branch ${id}: issue`), title: requiredText(value.title, `branch ${id}: title`) };
+  });
+  if (!Array.isArray(root.tickets)) throw invalid2("tickets must be a list");
+  const tickets = root.tickets.map((value, index) => {
+    if (!isYamlObject(value)) throw invalid2(`ticket ${String(index + 1)} is not a mapping`);
+    const key = requiredText(value.key, `ticket ${String(index + 1)}: key`);
+    const where = `ticket ${key}`;
+    if (!Array.isArray(value.blocked_by) || !value.blocked_by.every((item) => typeof item === "string")) {
+      throw invalid2(`${where}: blocked_by must be a list of ticket keys`);
+    }
+    return {
+      blockedBy: value.blocked_by,
+      branch: requiredText(value.branch, `${where}: branch`),
+      issue: positiveInteger(value.issue, `${where}: issue`),
+      key,
+      title: requiredText(value.title, `${where}: title`)
+    };
+  });
+  checkGraph(branches, tickets);
+  return { branches, spec, tickets };
+}
+function checkGraph(branches, tickets) {
+  const keys = /* @__PURE__ */ new Set();
+  const issues = /* @__PURE__ */ new Set();
+  for (const ticket of tickets) {
+    if (keys.has(ticket.key)) throw invalid2(`the key ${ticket.key} appears twice`);
+    if (issues.has(ticket.issue)) throw invalid2(`the issue #${String(ticket.issue)} appears twice`);
+    keys.add(ticket.key);
+    issues.add(ticket.issue);
+  }
+  const branchIds = new Set(branches.map((branch) => branch.id));
+  for (const ticket of tickets) {
+    if (!branchIds.has(ticket.branch)) throw invalid2(`ticket ${ticket.key} is on branch ${ticket.branch}, which the file does not define`);
+    const stray = ticket.blockedBy.find((blocker) => !keys.has(blocker));
+    if (stray !== void 0) throw invalid2(`ticket ${ticket.key} is blocked by ${stray}, which is not a ticket of the file`);
+  }
+}
+function stateFromTickets(file, repository, title, states) {
+  const issueOf = new Map(file.tickets.map((ticket) => [ticket.key, ticket.issue]));
+  const tickets = file.tickets.map(
+    (entry) => ({
+      blockedBy: entry.blockedBy.map((key) => issueOf.get(key) ?? 0),
+      external: [],
+      file: void 0,
+      live: /\(live\)/i.test(entry.title),
+      note: "",
+      number: entry.issue,
+      status: states.get(entry.issue) === "closed" ? "merged" : "todo",
+      title: `${entry.key} ${entry.title}`
+    })
+  );
+  const groups = file.branches.map((branch) => ({
+    name: branch.title,
+    tickets: file.tickets.filter((entry) => entry.branch === branch.id).map((entry) => entry.issue)
+  }));
+  return {
+    groups,
+    milestones: [],
+    spec: { kind: "github", number: file.spec, repository },
+    subtitle: `${String(tickets.length)} tickets in ${String(groups.length)} branches`,
+    tickets: tickets.sort((left, right) => left.number - right.number),
+    title
+  };
+}
+function positiveInteger(value, field) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) throw invalid2(`${field} must be an issue number`);
+  return value;
+}
+function requiredText(value, field) {
+  if (typeof value !== "string" || value === "") throw invalid2(`${field} must be text`);
+  return value;
+}
+function invalid2(reason) {
+  return new BuildTrackerError("invalid-tickets", `the ticket file is invalid: ${reason}`);
+}
+
+// src/contexts/build-tracker/application/render.ts
+var ISSUE_READS_AT_ONCE = 8;
 var RenderCommand = class {
   constructor(deps) {
     this.deps = deps;
   }
   deps;
   async run(input) {
+    if (input.tickets !== void 0) return this.runTickets(input.tickets, input.repo, input.out);
     const { state } = await loadState(this.deps.files, input.state);
     const counts = await writePage(this.deps, input.out, state, await this.ticketFiles(input.state, state));
     return { counts, out: input.out, status: "rendered" };
+  }
+  /**
+   * One page for every ticket of a spec, grouped by branch, from its ticket
+   * file and the state of each ticket's issue on GitHub. It reads and writes
+   * no state file: the ticket file and the issue tracker are the source.
+   */
+  async runTickets(path, repo, out) {
+    const file = await this.readTickets(path);
+    const repository = await this.repository(repo);
+    const spec = await this.issue(repository, file.spec);
+    const states = /* @__PURE__ */ new Map();
+    for (let start = 0; start < file.tickets.length; start += ISSUE_READS_AT_ONCE) {
+      const batch = file.tickets.slice(start, start + ISSUE_READS_AT_ONCE);
+      const issues = await Promise.all(batch.map((ticket) => this.issue(repository, ticket.issue)));
+      issues.forEach((issue, index) => states.set(batch[index]?.issue ?? 0, issue.state));
+    }
+    const state = stateFromTickets(file, repository, spec.title, states);
+    const counts = await writePage(this.deps, out, state, void 0);
+    return { counts, out, status: "rendered" };
+  }
+  async readTickets(path) {
+    let text;
+    try {
+      text = await this.deps.files.readText(resolve2(this.deps.cwd, path));
+    } catch (error) {
+      throw new BuildTrackerError("invalid-tickets", `the ticket file at ${path} cannot be read: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return parseTicketsFile(text);
+  }
+  /** The repository the issues are in: `--repo owner/repo`, else the working directory's remote. */
+  async repository(repo) {
+    if (repo !== void 0) {
+      const named = parseIssueReference(`${repo}#1`);
+      if (named === void 0) throw new BuildTrackerError("invalid-spec", `--repo must be owner/repo, not ${repo}`);
+      return repositoryName(named.repository.host, named.repository.owner, named.repository.repo);
+    }
+    const remote = (await this.deps.repositories.locate(this.deps.cwd))?.remote;
+    if (remote === void 0) throw new BuildTrackerError("invalid-spec", "the working directory has no git remote; name the repository with --repo owner/repo");
+    return remote;
+  }
+  async issue(repository, number) {
+    try {
+      return await this.deps.issues.issue(repository, number);
+    } catch (error) {
+      throw new BuildTrackerError("tracker-unreachable", `the issue tracker could not be read: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   /**
    * Where a local spec's ticket files are shown, read from the repository
@@ -1041,7 +1300,7 @@ var BUILD_TRACKER_USAGE = `usage: build-tracker init --spec SPEC [--milestone <n
        build-tracker sync --spec SPEC
        build-tracker path --spec SPEC
        build-tracker refresh --spec SPEC [--landed <ticket> ...]
-       build-tracker render --state FILE --out FILE
+       build-tracker render (--state FILE | --tickets FILE [--repo OWNER/REPO]) --out FILE
        build-tracker set --state FILE <ticket>=<status>[:note] ...
 
 SPEC is a GitHub issue (#12, owner/repo#12 or its URL) whose sub-issues are
@@ -1062,7 +1321,12 @@ refresh brings the spec's page up to date in one step, as /flow runs it: init
 --landed ticket (12, #12, or a local ticket's 01) turns merged, keeping its
 note; then the page is rendered at the path path prints.
 
-render writes the build tracker page for the state file. set changes the
+render writes the build tracker page for the state file. With --tickets it
+writes one page for every ticket of a spec instead, grouped by branch: the
+ticket file (docs/specs/<name>/tickets.yaml) names the tickets and branches,
+GitHub says which issues are closed (shown merged), and --repo names the
+repository the issues are in (the working directory's remote when it is
+left out). It reads and writes no state file. set changes the
 named tickets' statuses in the state file; a note after the status replaces
 the ticket's note, an empty one removes it, and none keeps it. The statuses
 are todo, running, review, merged and owner.
@@ -1089,9 +1353,12 @@ var COMMANDS = {
     run: (commands, flags) => commands.refresh.run({ landed: flags.landed ?? [], spec: flag(flags, "spec") })
   },
   render: {
-    flags: { out: "required", state: "required" },
+    fits: (flags) => Object.hasOwn(flags, "state") !== Object.hasOwn(flags, "tickets") && (!Object.hasOwn(flags, "repo") || Object.hasOwn(flags, "tickets")),
+    flags: { out: "required", repo: "optional", state: "optional", tickets: "optional" },
     positionals: false,
-    run: (commands, flags) => commands.render.run({ out: flag(flags, "out"), state: flag(flags, "state") })
+    run: (commands, flags) => commands.render.run(
+      Object.hasOwn(flags, "tickets") ? { out: flag(flags, "out"), repo: flags.repo?.[0], tickets: flag(flags, "tickets") } : { out: flag(flags, "out"), state: flag(flags, "state") }
+    )
   },
   set: {
     flags: { state: "required" },
@@ -1138,13 +1405,13 @@ function parseArguments(args, spec) {
     const name = arg.slice(2);
     const kind = Object.hasOwn(spec.flags, name) ? spec.flags[name] : void 0;
     const value = args[index + 1];
-    if (kind === void 0 || kind === "required" && Object.hasOwn(flags, name) || value === void 0) return void 0;
+    if (kind === void 0 || kind !== "repeatable" && Object.hasOwn(flags, name) || value === void 0) return void 0;
     flags[name] = [...flags[name] ?? [], value];
     index += 1;
   }
   const flagsOk = Object.entries(spec.flags).every(([name, kind]) => kind !== "required" || Object.hasOwn(flags, name));
   const positionalsOk = spec.positionals ? positionals.length > 0 : positionals.length === 0;
-  return flagsOk && positionalsOk ? { flags, positionals } : void 0;
+  return flagsOk && positionalsOk && (spec.fits?.(flags) ?? true) ? { flags, positionals } : void 0;
 }
 function flag(flags, name) {
   return flags[name]?.[0] ?? "";

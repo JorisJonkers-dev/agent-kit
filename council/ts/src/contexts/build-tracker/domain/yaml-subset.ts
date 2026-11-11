@@ -8,7 +8,11 @@ import { BuildTrackerError } from './state.js'
  * are refused, so a file this reader accepts means to a full YAML reader
  * what it means here.
  */
-export type YamlValue = string | number | boolean | null | readonly YamlValue[] | { readonly [key: string]: YamlValue }
+export type YamlValue = string | number | boolean | null | readonly YamlValue[] | YamlMap
+
+export interface YamlMap {
+  readonly [key: string]: YamlValue
+}
 
 interface Line {
   indent: number
@@ -25,12 +29,13 @@ export function parseYamlSubset(source: string): YamlValue {
   source.split(/\r?\n/).forEach((raw, index) => {
     const body = raw.trimStart()
     if (body === '' || body.startsWith('#')) return
-    if (/^\t/.test(raw) || /^ *\t/.test(raw)) throw refused(index + 1, 'a tab cannot indent')
+    if (/^ *\t/.test(raw)) throw refused(index + 1, 'a tab cannot indent')
     lines.push({ indent: raw.length - body.length, no: index + 1, text: body.trimEnd() })
   })
-  if (lines.length === 0) throw refused(1, 'the file is empty')
+  const [first] = lines
+  if (first === undefined) throw refused(1, 'the file is empty')
   const reader = new Reader(lines)
-  const value = reader.node(lines[0]?.indent ?? 0)
+  const value = reader.node(first)
   const rest = reader.peek()
   if (rest !== undefined) throw refused(rest.no, 'this line does not fit its parent')
   return value
@@ -45,10 +50,9 @@ class Reader {
     return this.lines[this.position]
   }
 
-  node(indent: number): YamlValue {
-    const line = this.peek()
-    if (line === undefined || line.indent !== indent) throw refused(line?.no ?? this.lines.length, 'unexpected indentation')
-    return isItem(line.text) ? this.list(indent) : this.map(indent)
+  /** The block that starts at `line`, the next line, whose indentation is its own. */
+  node(line: Line): YamlValue {
+    return isItem(line.text) ? this.list(line.indent) : this.map(line.indent)
   }
 
   private list(indent: number): YamlValue {
@@ -59,7 +63,7 @@ class Reader {
         this.position += 1
         const next = this.peek()
         if (next === undefined || next.indent <= indent) throw refused(line.no, 'a list item has no value')
-        items.push(this.node(next.indent))
+        items.push(this.node(next))
       } else if (KEY.test(rest)) {
         const inner = indent + (line.text.length - rest.length)
         this.lines[this.position] = { indent: inner, no: line.no, text: rest }
@@ -88,7 +92,7 @@ class Reader {
       }
       const next = this.peek()
       const nested = next !== undefined && (next.indent > indent || (next.indent === indent && isItem(next.text)))
-      entries[key] = nested ? this.node(next.indent) : null
+      entries[key] = nested ? this.node(next) : null
     }
     const stray = this.peek()
     if (stray !== undefined && stray.indent > indent) throw refused(stray.no, 'unexpected indentation')
@@ -139,6 +143,6 @@ function refused(no: number, reason: string): BuildTrackerError {
   return new BuildTrackerError('invalid-tickets', `the ticket file is not readable at line ${String(no)}: ${reason}`)
 }
 
-export function isYamlObject(value: YamlValue | undefined): value is { readonly [key: string]: YamlValue } {
+export function isYamlObject(value: YamlValue | undefined): value is YamlMap {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
