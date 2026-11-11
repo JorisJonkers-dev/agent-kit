@@ -26,7 +26,7 @@ const INTEGER = /^-?\d+$/
 
 export function parseYamlSubset(source: string): YamlValue {
   const lines: Line[] = []
-  source.split(/\r?\n/).forEach((raw, index) => {
+  source.replace(/^\uFEFF/, '').split(/\r?\n/).forEach((raw, index) => {
     const body = raw.trimStart()
     if (body === '' || body.startsWith('#')) return
     if (/^ *\t/.test(raw)) throw refused(index + 1, 'a tab cannot indent')
@@ -83,9 +83,9 @@ class Reader {
       const match = KEY.exec(line.text)
       if (match === null) throw refused(line.no, 'expected `key: value`')
       const key = String(match[1])
-      if (Object.hasOwn(entries, key)) throw refused(line.no, `the key ${key} appears twice`)
+      if (key === '__proto__' || Object.hasOwn(entries, key)) throw refused(line.no, `the key ${key} appears twice`)
       this.position += 1
-      const rest = match[2]?.trim() ?? ''
+      const rest = (match[2] ?? '').replace(/^#.*$/, '').trim()
       if (rest !== '') {
         entries[key] = scalar(rest, line.no)
         continue
@@ -107,12 +107,12 @@ function isItem(text: string): boolean {
 function scalar(text: string, no: number): YamlValue {
   if (text.startsWith("'")) {
     const end = closingQuote(text)
-    if (end !== text.length - 1) throw refused(no, 'a single-quoted value must end with its quote')
+    if (end < 0 || !/^\s*(?:#.*)?$/.test(text.slice(end + 1))) throw refused(no, 'a single-quoted value must end with its quote')
     return text.slice(1, end).replaceAll("''", "'")
   }
   if (text.startsWith('"')) {
     try {
-      const value: unknown = JSON.parse(text)
+      const value: unknown = JSON.parse(text.replace(/^("(?:[^"\\]|\\.)*")\s*(?:#.*)?$/, '$1'))
       if (typeof value === 'string') return value
     } catch {
       // Falls through to the refusal.

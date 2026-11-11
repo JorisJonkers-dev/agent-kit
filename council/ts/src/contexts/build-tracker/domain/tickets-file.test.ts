@@ -140,6 +140,10 @@ describe('parseTicketsFile refusals', () => {
     )
   })
 
+  it('refuses a file with branches but no tickets', () => {
+    expectRefused(yaml('spec: 100', 'branches:', '  B0:', '    issue: 101', '    title: Foundation', 'tickets: []'))
+  })
+
   it('refuses branches that are not a mapping', () => {
     expectRefused(yaml('spec: 100', 'branches: []', 'tickets: []'))
   })

@@ -127,6 +127,17 @@ describe('parseYamlSubset refusals', () => {
     expectRefused("a: 'x")
   })
 
+  it('reads a comment after a quoted value, a comment in place of a value and a leading byte order mark', () => {
+    expect(parseYamlSubset("a: 'x' # c\nb: \"y\" # c\nc: # c\n")).toEqual({ a: 'x', b: 'y', c: null })
+    expect(parseYamlSubset('\uFEFFa: 1')).toEqual({ a: 1 })
+  })
+
+  it('refuses text after a quoted value and a __proto__ key', () => {
+    expectRefused("a: 'x' y")
+    expectRefused('a: "x" y')
+    expectRefused('__proto__: 1')
+  })
+
   it('refuses a double-quoted value that is not a JSON string', () => {
     expectRefused('a: "x')
   })

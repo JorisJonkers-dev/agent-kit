@@ -50,6 +50,7 @@ export function parseTicketsFile(text: string): TicketsFile {
       title: requiredText(value.title, `${where}: title`),
     }
   })
+  if (tickets.length === 0) throw invalid('the file has no tickets')
   checkGraph(branches, tickets)
   return { branches, spec, tickets }
 }
