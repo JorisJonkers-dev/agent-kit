@@ -488,3 +488,18 @@ def test_an_agent_declared_and_retired_at_once_is_refused(
     assert machine.run() == 1
     assert "opencode: declared and retired at once" in capsys.readouterr().out
     assert machine.settings.read_bytes() == before
+
+
+def test_an_unreadable_settings_file_cannot_converge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}}, registry=_registry())
+    machine.settings.chmod(0)
+    try:
+        if machine.settings.open().readable():
+            pytest.skip("permissions are not enforced for this user")
+    except PermissionError:
+        pass
+    assert machine.run() == 3
+    assert "cannot converge" in capsys.readouterr().out
+    machine.settings.chmod(0o600)

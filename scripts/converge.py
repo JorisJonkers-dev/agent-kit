@@ -410,7 +410,7 @@ def _gold_band_document(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         return {}, {}
     try:
         doc = json.loads(path.read_text())
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise _CannotConverge(f"{path} is not a JSON object") from exc
     if not isinstance(doc, dict):
         raise _CannotConverge(f"{path} is not a JSON object")
