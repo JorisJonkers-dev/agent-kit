@@ -359,6 +359,9 @@ def test_an_undecodable_source_file_exits_3(
         ([{**ALPHA, "id": "alpha"}], None, "alpha: id must start with pf-"),
         ([{key: value for key, value in ALPHA.items() if key != "id"}], None, "alpha-critic: id must start with pf-"),
         ([{**ALPHA, "id": "pf-builtin-alpha"}], None, "pf-builtin-alpha: id must not name a built-in profile"),
+        ([{**ALPHA, "file": "pf-builtin-alpha"}], None, "pf-builtin-alpha: file must not name a built-in profile"),
+        ([{**ALPHA, "summary": "Asks: why #1"}], None, "pf-alpha: summary must be a plain single-line scalar"),
+        ([{**ALPHA, "name": "[x]"}], None, "pf-alpha: name must be a plain single-line scalar"),
         ([{**ALPHA, "name": 3}], None, "pf-alpha: name must be a string"),
         (
             [{key: value for key, value in ALPHA.items() if key != "summary"}],
@@ -545,3 +548,26 @@ def test_the_real_registry_renders_the_six_declared_roles(
     assert converge.main(["gold-band-roles", "--keep", str(keep)]) == 0
     assert "profiles unchanged" in capsys.readouterr().out
     assert {path.name: path.read_bytes() for path in profiles.iterdir()} == before
+
+
+def test_a_declared_stem_holding_a_builtin_profile_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = Machine(tmp_path, monkeypatch)
+    body = "---\nid: pf-builtin-summariser\n---\n"
+    builtin = machine.hand_made("alpha-critic", body)
+    assert machine.run() == 1
+    assert "alpha-critic: the existing profile is a built-in; nothing was written" in capsys.readouterr().out
+    assert builtin.read_text() == body
+    assert not machine.profile("beta-critic").exists()
+
+
+def test_a_failed_write_leaves_no_staged_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = Machine(tmp_path, monkeypatch)
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(converge.os, "replace", refuse)
+    assert machine.run() == 3
+    assert list(machine.profiles.glob(".*agent-kit-tmp")) == []

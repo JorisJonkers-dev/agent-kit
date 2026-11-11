@@ -11,6 +11,7 @@ target/
 *.egg-info/
 node_modules/
 node_modules
+.coverage
 coverage/
 *.tsbuildinfo
 council/ts-dist/

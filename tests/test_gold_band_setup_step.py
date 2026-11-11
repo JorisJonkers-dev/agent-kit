@@ -80,8 +80,7 @@ def test_a_cloud_session_is_not_converged(tmp_path: Path) -> None:
 
 
 _FAILING_ROLES_UV = (
-    'echo "uv $*" >> "$0.calls"; '
-    'case "$*" in *gold-band-roles*) echo "gold-band-roles: running"; exit 3;; esac'
+    'echo "uv $*" >> "$0.calls"; case "$*" in *gold-band-roles*) echo "gold-band-roles: running"; exit 3;; esac'
 )
 
 

@@ -93,6 +93,7 @@ GOLD_BAND_ADAPTER_FIELDS = ("displayName", "command", "args", "env")
 # touched, whatever the registry or the keep file says.
 GOLD_BAND_ROLE_STAMP = "2025-01-01T00:00:00Z"
 GOLD_BAND_ROLE_BUILT_IN = "pf-builtin-"
+GOLD_BAND_ROLE_PLAIN = re.compile(r"^[A-Za-z0-9$(][^\n#]*$")
 GOLD_BAND_ROLE_FIELDS = ("file", "id", "name", "summary", "source", "lenses")
 GOLD_BAND_ROLES_CLOSING = KIT_ROOT / "scripts" / "gold-band" / "roles-closing.md"
 # The app strips adapter.command and adapter.args from a built-in id when it
@@ -556,6 +557,8 @@ def _gold_band_role_problems(declared: list[dict[str, Any]], retired: set[str]) 
         stem = raw_file if isinstance(raw_file, str) else "?"
         if not isinstance(raw_file, str) or not GOLD_BAND_ID.match(raw_file):
             problems.append(f"{stem}: file must match {GOLD_BAND_ID.pattern}")
+        elif raw_file.startswith(GOLD_BAND_ROLE_BUILT_IN):
+            problems.append(f"{stem}: file must not name a built-in profile")
         elif raw_file in seen_files:
             problems.append(f"{stem}: duplicate file")
         else:
@@ -574,6 +577,12 @@ def _gold_band_role_problems(declared: list[dict[str, Any]], retired: set[str]) 
             f"{name}: {key} must be a string"
             for key in ("name", "summary", "source")
             if not isinstance(role.get(key), str)
+        ]
+        # name and summary go into the front matter unquoted, so each must stay one plain YAML scalar.
+        problems += [
+            f"{name}: {key} must be a plain single-line scalar"
+            for key in ("name", "summary")
+            if isinstance(role.get(key), str) and not GOLD_BAND_ROLE_PLAIN.match(role[key])
         ]
         lenses = role.get("lenses")
         if not isinstance(lenses, list) or not all(isinstance(lens, str) for lens in lenses):
@@ -652,8 +661,12 @@ def _gold_band_role_id(text: str | None) -> str | None:
 def _gold_band_role_write(path: Path, text: str) -> None:
     """Written beside it and renamed, so a starting Gold Band never reads half a profile."""
     staged = path.with_name(f".{path.name}.agent-kit-tmp")
-    staged.write_text(text, encoding="utf-8")
-    os.replace(staged, path)
+    try:
+        staged.write_text(text, encoding="utf-8")
+        os.replace(staged, path)
+    except OSError:
+        staged.unlink(missing_ok=True)
+        raise
 
 
 def gold_band_roles(args: argparse.Namespace) -> int:
@@ -682,6 +695,11 @@ def gold_band_roles(args: argparse.Namespace) -> int:
     existing = (
         {path.stem: path for path in sorted(profiles.glob("*.md")) if path.is_file()} if profiles.is_dir() else {}
     )
+    for stem in rendered:
+        held = _gold_band_role_id(_gold_band_role_read(existing[stem])) if stem in existing else None
+        if held is not None and held.startswith(GOLD_BAND_ROLE_BUILT_IN):
+            print(f"gold-band-roles: {stem}: the existing profile is a built-in; nothing was written")
+            return 1
 
     added = [stem for stem in rendered if stem not in existing]
     changed = [
