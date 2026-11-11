@@ -89,7 +89,7 @@ export class NodeModelGatewayGit implements ModelGatewayGitPort {
       '--cached',
       '--name-only',
       '-z',
-      ...(base === undefined ? [] : ['--end-of-options', base]),
+      ...(base === undefined ? [] : ['--end-of-options', base, '--']),
     ])
     if (result.exitCode !== 0) throw new Error(messageOf(result))
     return result.stdout.split('\0').filter((name) => name !== '')

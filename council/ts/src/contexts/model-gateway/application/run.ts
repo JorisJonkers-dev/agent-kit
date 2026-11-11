@@ -471,12 +471,10 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
   private async codexWorker(run: Delegation): Promise<{ gitWritable?: readonly string[]; worker?: { brief?: string } }> {
     const input = run.input
     if (input.client !== 'codex' || !isWriting(input)) return {}
-    const brief = await this.codexBrief(run.workDir)
     const gitWritable = await this.codexGitWritable(run.workDir, run.repo ?? input.repo)
-    return {
-      ...(gitWritable === undefined ? {} : { gitWritable }),
-      worker: brief === undefined ? {} : { brief },
-    }
+    if (gitWritable === undefined) return {}
+    const brief = await this.codexBrief(run.workDir)
+    return { gitWritable, worker: brief === undefined ? {} : { brief } }
   }
 
   /**
@@ -491,6 +489,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     try {
       const gitDir = await this.deps.git.gitDir(workDir)
       const common = await this.commonDir(repo)
+      if (gitDir === common) return undefined
       return [gitDir, join(common, 'objects'), join(common, 'refs'), join(common, 'logs')]
     } catch {
       return undefined
@@ -500,8 +499,12 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
   /** The brief the worktree keeps for a Codex writing run, cut at the limit; undefined when it keeps none. */
   private async codexBrief(workDir: string): Promise<string | undefined> {
     const path = join(workDir, CODEX_BRIEF_FILE)
-    if (!(await this.deps.files.exists(path))) return undefined
-    return (await this.deps.files.readText(path)).slice(0, CODEX_BRIEF_MAX_CHARS)
+    try {
+      if (!(await this.deps.files.exists(path))) return undefined
+      return (await this.deps.files.readText(path)).slice(0, CODEX_BRIEF_MAX_CHARS)
+    } catch {
+      return undefined
+    }
   }
 
   /**

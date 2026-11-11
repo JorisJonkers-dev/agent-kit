@@ -103,9 +103,19 @@ interface WorkspaceOptions {
   /** What the repository keeps in its `codex-brief.md`; none when it keeps none. */
   readonly brief?: string
   /** What git says about the repository when it cannot name its git directory or its common directory. */
-  readonly repository?: { readonly commonDirError?: string; readonly gitDirError?: string }
+  readonly repository?: { readonly commonDirError?: string; readonly gitDirError?: string; readonly gitDir?: string }
+  /** Makes the brief exist but fail to read. */
+  readonly unreadableBrief?: boolean
   /** A git that answers differently, for a test of one that loses the common directory mid-run. */
   readonly git?: (repositories: Readonly<Record<string, FakeRepository>>) => FakeGit
+}
+
+/** Files whose `codex-brief.md` exists but cannot be read. */
+class UnreadableBriefFiles extends FakeFiles {
+  override async readText(path: string): Promise<string> {
+    if (path.endsWith('codex-brief.md')) throw new Error('EACCES')
+    return super.readText(path)
+  }
 }
 
 /** A machine with one repository, its allowlist entry, and a client that only plays launches. */
@@ -128,7 +138,7 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
     }),
   )
   const repositories: Readonly<Record<string, FakeRepository>> = {
-    [repo]: { remotes: [REMOTE], root: repo, ...options.repository },
+    [repo]: { remotes: [REMOTE], root: repo, ...options.repository, ...(options.repository?.gitDir === 'COMMON' ? { gitDir: join(repo, '.git') } : {}) },
   }
   const git = options.git === undefined ? new FakeGit(repositories) : options.git(repositories)
   const process = new StubClient()
@@ -136,7 +146,7 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
     clock: new FixedClock(),
     defaultsPath,
     env: new FakeEnv({ HOME: home }),
-    files: new FakeFiles(),
+    files: options.unreadableBrief === true ? new UnreadableBriefFiles() : new FakeFiles(),
     git,
     grants: new FakeGrants(),
     kept: new FakeKept(),
@@ -263,6 +273,27 @@ describe('a Codex writing run', () => {
 
   it('runs without --add-dir when git cannot name the worktree’s git directory', async () => {
     const w = await workspace({ repository: { gitDirError: 'the git directory is gone' } })
+    await w.grant('plan-1')
+
+    const result = await new RunCommand(w.deps).run({ repo: w.repo, ...writingRun() })
+
+    expect(result).toMatchObject({ status: 'ok' })
+    expect(addDirs(launchOf(w.process, 'codex'))).toEqual([])
+    expect(promptOf(w.process, 'codex')).toContain('Do not commit.')
+  })
+
+  it('runs without a brief when the brief cannot be read', async () => {
+    const w = await workspace({ brief: '# Brief', unreadableBrief: true })
+    await w.grant('plan-1')
+
+    const result = await new RunCommand(w.deps).run({ repo: w.repo, ...writingRun() })
+
+    expect(result).toMatchObject({ status: 'ok' })
+    expect(promptOf(w.process, 'codex')).not.toContain('# Brief')
+  })
+
+  it('runs without --add-dir when the git directory is the common directory', async () => {
+    const w = await workspace({ repository: { gitDir: 'COMMON' } })
     await w.grant('plan-1')
 
     const result = await new RunCommand(w.deps).run({ repo: w.repo, ...writingRun() })

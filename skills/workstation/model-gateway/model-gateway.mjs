@@ -3728,12 +3728,10 @@ var RunCommand = class {
   async codexWorker(run) {
     const input = run.input;
     if (input.client !== "codex" || !isWriting(input)) return {};
-    const brief = await this.codexBrief(run.workDir);
     const gitWritable = await this.codexGitWritable(run.workDir, run.repo ?? input.repo);
-    return {
-      ...gitWritable === void 0 ? {} : { gitWritable },
-      worker: brief === void 0 ? {} : { brief }
-    };
+    if (gitWritable === void 0) return {};
+    const brief = await this.codexBrief(run.workDir);
+    return { gitWritable, worker: brief === void 0 ? {} : { brief } };
   }
   /**
    * The git directories a Codex writing run may write: the worktree's own git
@@ -3747,6 +3745,7 @@ var RunCommand = class {
     try {
       const gitDir = await this.deps.git.gitDir(workDir);
       const common = await this.commonDir(repo);
+      if (gitDir === common) return void 0;
       return [gitDir, join6(common, "objects"), join6(common, "refs"), join6(common, "logs")];
     } catch {
       return void 0;
@@ -3755,8 +3754,12 @@ var RunCommand = class {
   /** The brief the worktree keeps for a Codex writing run, cut at the limit; undefined when it keeps none. */
   async codexBrief(workDir) {
     const path = join6(workDir, CODEX_BRIEF_FILE);
-    if (!await this.deps.files.exists(path)) return void 0;
-    return (await this.deps.files.readText(path)).slice(0, CODEX_BRIEF_MAX_CHARS);
+    try {
+      if (!await this.deps.files.exists(path)) return void 0;
+      return (await this.deps.files.readText(path)).slice(0, CODEX_BRIEF_MAX_CHARS);
+    } catch {
+      return void 0;
+    }
   }
   /**
    * What happens to a writing run's worktree once the delegate has ended. A
@@ -4399,7 +4402,7 @@ var NodeModelGatewayGit = class {
       "--cached",
       "--name-only",
       "-z",
-      ...base === void 0 ? [] : ["--end-of-options", base]
+      ...base === void 0 ? [] : ["--end-of-options", base, "--"]
     ]);
     if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
     return result2.stdout.split("\0").filter((name) => name !== "");

@@ -3361,7 +3361,7 @@ var NodeModelGatewayGit = class {
       "--cached",
       "--name-only",
       "-z",
-      ...base === void 0 ? [] : ["--end-of-options", base]
+      ...base === void 0 ? [] : ["--end-of-options", base, "--"]
     ]);
     if (result.exitCode !== 0) throw new Error(messageOf4(result));
     return result.stdout.split("\0").filter((name) => name !== "");
