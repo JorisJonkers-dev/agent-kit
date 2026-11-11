@@ -2588,7 +2588,7 @@ gold_band_converge() {
     return 0
   fi
   local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"
-    --settings "${GOLD_BAND_HOME:-${HOME}/.gold-band}/settings.json")
+    --settings "${GOLD_BAND_HOME:-${HOME}}/.gold-band/settings.json")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
   out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \
     "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
@@ -2625,7 +2625,7 @@ gold_band_roles() {
     return 0
   fi
   local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"
-    --profiles "${GOLD_BAND_HOME:-${HOME}/.gold-band}/context/profiles")
+    --profiles "${GOLD_BAND_HOME:-${HOME}}/.gold-band/context/profiles")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
   out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-roles \
     "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?

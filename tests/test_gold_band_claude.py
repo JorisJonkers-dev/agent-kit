@@ -283,7 +283,7 @@ def test_the_work_instance_is_never_converged_onto_the_default_personal_path(
     assert "gold-band needs --settings or GOLD_BAND_HOME" in capsys.readouterr().out
     monkeypatch.setenv("GOLD_BAND_HOME", str(tmp_path / "work-home"))
     assert converge.main(argv) == 0
-    assert (tmp_path / "work-home" / "settings.json").is_file()
+    assert (tmp_path / "work-home" / ".gold-band" / "settings.json").is_file()
 
 
 def test_two_spellings_of_one_directory_are_one_directory(

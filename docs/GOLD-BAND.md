@@ -94,7 +94,8 @@ Linux x86_64 (NixOS), 2026-11-10, from commit `987fc3e298b15d725a7f0e9b609b0f77d
 ## The personal instance's agent map
 
 After the build, setup converges the `agents` map of the personal instance's
-`settings.json` (`${GOLD_BAND_HOME:-~/.gold-band}/settings.json`) onto the
+`settings.json` (`${GOLD_BAND_HOME:-~}/.gold-band/settings.json`; the app keeps its data in
+`.gold-band` under `GOLD_BAND_HOME`, not in `GOLD_BAND_HOME` itself) onto the
 registry (`scripts/converge.py gold-band`). The app's map replaces its own
 built-in list, so the result is exactly the declared agents plus the ones the
 keep file (`~/.config/agent-kit/keep.yaml`) names:
@@ -351,7 +352,7 @@ command only.
 ## The generated roles
 
 Gold Band reads a role as a **profile**: a Markdown file with YAML front
-matter in `${GOLD_BAND_HOME:-~/.gold-band}/context/profiles/<name>.md` (not
+matter in `${GOLD_BAND_HOME:-~}/.gold-band/context/profiles/<name>.md` (not
 `presets/profiles`, which its profile resolver never looks at). After the agent
 map, setup converges that directory onto the registry's declared roles
 (`scripts/converge.py gold-band-roles`), on both instances, in the account that

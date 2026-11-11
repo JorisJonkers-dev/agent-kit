@@ -2805,7 +2805,7 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w("    return 0")
     w("  fi")
     w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"')
-    w('    --settings "${GOLD_BAND_HOME:-${HOME}/.gold-band}/settings.json")')
+    w('    --settings "${GOLD_BAND_HOME:-${HOME}}/.gold-band/settings.json")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
     w(
         '  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
@@ -2845,7 +2845,7 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w("    return 0")
     w("  fi")
     w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"')
-    w('    --profiles "${GOLD_BAND_HOME:-${HOME}/.gold-band}/context/profiles")')
+    w('    --profiles "${GOLD_BAND_HOME:-${HOME}}/.gold-band/context/profiles")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
     w(
         '  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '

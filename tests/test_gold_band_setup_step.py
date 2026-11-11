@@ -48,7 +48,7 @@ def test_the_instance_data_directory_can_be_moved(tmp_path: Path) -> None:
     data = tmp_path / "instance"
     run = setup_run(tmp_path, "Linux", prepare_home=_installed, extra_env={"GOLD_BAND_HOME": str(data)})
     (call,) = _converge_calls(run.calls)
-    assert f"--settings {data}/settings.json" in call
+    assert f"--settings {data}/.gold-band/settings.json" in call
 
 
 def test_check_mode_asks_for_a_report_only(tmp_path: Path) -> None:
@@ -107,7 +107,7 @@ def test_the_roles_follow_the_moved_instance(tmp_path: Path) -> None:
     data = tmp_path / "instance"
     run = setup_run(tmp_path, "Linux", prepare_home=_installed, extra_env={"GOLD_BAND_HOME": str(data)})
     (call,) = _roles_calls(run.calls)
-    assert f"--profiles {data}/context/profiles" in call
+    assert f"--profiles {data}/.gold-band/context/profiles" in call
 
 
 def test_check_mode_reports_the_roles_only(tmp_path: Path) -> None:
