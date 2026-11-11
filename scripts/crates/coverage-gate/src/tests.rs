@@ -122,7 +122,8 @@ impl Host for Fake {
             .borrow_mut()
             .push((dir.to_path_buf(), argv.to_vec()));
         if argv.first().map(String::as_str) == Some("git") {
-            let key = argv[1..].join(" ");
+            assert_eq!(argv[1..3], ["-c", "core.quotepath=off"]);
+            let key = argv[3..].join(" ");
             return match self.git.borrow().get(&key).cloned() {
                 Some(answer) => answer,
                 None => panic!("unscripted git call: {key}"),
@@ -230,12 +231,21 @@ fn a_rust_change_at_full_coverage_passes() {
     assert_eq!(commands.len(), 4);
     assert_eq!(
         commands[0],
-        words(&["git", "merge-base", DEFAULT_BASE, "HEAD"])
+        words(&[
+            "git",
+            "-c",
+            "core.quotepath=off",
+            "merge-base",
+            DEFAULT_BASE,
+            "HEAD"
+        ])
     );
     assert_eq!(
         commands[1],
         words(&[
             "git",
+            "-c",
+            "core.quotepath=off",
             "diff",
             "--name-only",
             "--relative",
@@ -245,7 +255,14 @@ fn a_rust_change_at_full_coverage_passes() {
     );
     assert_eq!(
         commands[2],
-        words(&["git", "ls-files", "--others", "--exclude-standard"])
+        words(&[
+            "git",
+            "-c",
+            "core.quotepath=off",
+            "ls-files",
+            "--others",
+            "--exclude-standard"
+        ])
     );
     assert_eq!(
         commands[3],
@@ -303,7 +320,14 @@ fn the_base_ref_is_the_one_git_is_asked_about() {
     assert_eq!(gate_at(&host, &["--base", "HEAD"]), 0);
     assert_eq!(
         host.commands()[0],
-        words(&["git", "merge-base", "HEAD", "HEAD"])
+        words(&[
+            "git",
+            "-c",
+            "core.quotepath=off",
+            "merge-base",
+            "HEAD",
+            "HEAD"
+        ])
     );
 }
 

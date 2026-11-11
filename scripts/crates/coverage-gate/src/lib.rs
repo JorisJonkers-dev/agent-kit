@@ -291,7 +291,8 @@ fn words(items: &[&str]) -> Vec<String> {
 
 /// One git call in the repository; its non-empty stdout lines.
 fn git(host: &dyn Host, repo: &Path, args: &[&str]) -> Result<Vec<String>, String> {
-    let mut argv = words(&["git"]);
+    // Unquoted paths: a non-ASCII name must match the report's spelling.
+    let mut argv = words(&["git", "-c", "core.quotepath=off"]);
     argv.extend(words(args));
     let out = host.run(repo, &argv)?;
     if !out.ok {
