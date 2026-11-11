@@ -48,7 +48,9 @@ does not creep back into a generated artifact.
 every agent id may use it. Its `args` are its allowlist: `--root` and a path,
 repeated. The registry holds the personal roots only
 (`args: ["--root", "~/Projects/JorisJonkers-dev"]`), and the renderer refuses
-one that names a work root. A work root goes in the work machine's overlay:
+an argument naming `nedap`. A work root goes in the work machine's overlay, which
+the gold-band-registry crate validates (work instance only); setup does not yet
+register overlay servers:
 
 ```yaml
 instances:
