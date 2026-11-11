@@ -489,27 +489,29 @@ fn scratch(name: &str) -> PathBuf {
     d
 }
 
-fn script(dir: &std::path::Path, text: &str) -> String {
-    use std::os::unix::fs::PermissionsExt;
+#[path = "../../../test-support/fake_exe.rs"]
+mod fake_exe;
+
+fn script(held: &std::sync::MutexGuard<'static, ()>, dir: &std::path::Path, text: &str) -> String {
     let p = dir.join("gh");
-    std::fs::write(&p, format!("#!/bin/sh\n{text}\n")).unwrap();
-    std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+    fake_exe::write_executable(held, &p, &format!("#!/bin/sh\n{text}\n"));
     p.to_string_lossy().into_owned()
 }
 
 #[test]
 fn the_process_runner_runs_a_program() {
+    let held = fake_exe::lock();
     let d = scratch("proc");
-    let ok = script(&d, "echo \"$@\"; if [ \"$1\" = in ]; then cat; fi");
+    let ok = script(&held, &d, "echo \"$@\"; if [ \"$1\" = in ]; then cat; fi");
     assert_eq!(ProcessRunner::new(&ok).run(&["a".into(), "b".into()], None).unwrap(), "a b\n");
     assert_eq!(ProcessRunner::new(&ok).run(&["in".into()], Some("piped")).unwrap(), "in\npiped");
-    let bad = script(&d, "echo nope >&2; exit 3");
+    let bad = script(&held, &d, "echo nope >&2; exit 3");
     let e = ProcessRunner::new(&bad).run(&["x".into()], None).unwrap_err();
     assert!(e.ends_with("x: nope"), "{e}");
     let e = ProcessRunner::new("/nonexistent/gh").run(&[], None).unwrap_err();
     assert!(e.starts_with("/nonexistent/gh:"));
     // A program that exits without reading its input: the write fails.
-    let quick = script(&d, "exec 0<&-");
+    let quick = script(&held, &d, "exec 0<&-");
     let big = "x".repeat(4_000_000);
     assert!(ProcessRunner::new(&quick).run(&[], Some(&big)).is_err());
 }
@@ -534,12 +536,14 @@ fn go(args: &[&str], gh: &str) -> (i32, String, String) {
 
 #[test]
 fn the_command_dry_runs_and_applies_through_gh() {
+    let held = fake_exe::lock();
     let d = scratch("cmd");
     let tickets = d.join("tickets.yaml");
     std::fs::write(&tickets, "spec: 1\nlabels:\n- l\nbranches:\n  B0:\n    title: T\n    what: w\ntickets: []\n").unwrap();
     let spec = d.join("spec.md");
     std::fs::write(&spec, SPEC).unwrap();
     let gh = script(
+        &held,
         &d,
         r#"case "$*" in
 *"-X GET repos/o/r/issues/9") echo '{"number":9,"id":1009,"title":"T (spec #1)","body":"stale","state":"open"}';;
@@ -568,6 +572,7 @@ esac"#,
 
 #[test]
 fn the_command_reports_what_went_wrong() {
+    let held = fake_exe::lock();
     let (code, out, _) = go(&["--help"], "gh");
     assert_eq!(code, 0);
     assert!(out.starts_with("usage: ticket-sync"));
@@ -581,7 +586,7 @@ fn the_command_reports_what_went_wrong() {
     let (code, _, err) = go(&["--tickets", t.to_str().unwrap(), "--spec", "/nonexistent/spec.md"], "gh");
     assert!(code == 1 && err.contains("/nonexistent/spec.md"));
     // gh itself failing surfaces as an error.
-    let bad = script(&d, "echo denied >&2; exit 1");
+    let bad = script(&held, &d, "echo denied >&2; exit 1");
     let sp = d.join("spec.md");
     std::fs::write(&sp, SPEC).unwrap();
     let (code, _, err) = go(&["--tickets", t.to_str().unwrap(), "--spec", sp.to_str().unwrap()], &bad);
@@ -649,6 +654,7 @@ fn the_client_reports_failed_posts() {
 
 #[test]
 fn the_command_reports_a_bad_file_and_a_failed_apply() {
+    let held = fake_exe::lock();
     let d = scratch("bad");
     let (t, sp) = (d.join("t.yaml"), d.join("spec.md"));
     std::fs::write(&sp, SPEC).unwrap();
@@ -657,6 +663,7 @@ fn the_command_reports_a_bad_file_and_a_failed_apply() {
     assert!(code == 1 && err.contains("tickets file"));
     std::fs::write(&t, "spec: 1\nlabels: []\nbranches:\n  B0:\n    title: T\n    what: w\ntickets: []\n").unwrap();
     let gh = script(
+        &held,
         &d,
         r#"case "$*" in
 *"-X GET repos/o/r/issues/1") echo '{"number":1,"id":1001,"title":"S","body":"b","state":"open"}';;
@@ -670,6 +677,7 @@ esac"#,
     // A create that succeeded is recorded even though a later step failed.
     std::fs::write(&t, "spec: 1\nlabels: []\nbranches:\n  B0:\n    title: T\n    what: w\ntickets: []\n").unwrap();
     let half = script(
+        &held,
         &d,
         r#"case "$*" in
 *"-X GET repos/o/r/issues/1") echo '{"number":1,"id":1001,"title":"S","body":"b","state":"open"}';;

@@ -327,6 +327,59 @@ fn unknown_flags_and_invalid_names_are_never_echoed() {
     assert!(name_is_valid("A1_B") && !name_is_valid("1A") && !name_is_valid("a"));
 }
 
+#[path = "../../../test-support/fake_exe.rs"]
+mod fake_exe;
+
+// Every test that runs the command spawns curl, and a fork while another test
+// is writing the fake curl leaks that writer into the child (ETXTBSY on the
+// fake's exec). These shadow the glob-imported entry points to run under the
+// shared lock; the fake-curl test holds the lock itself and calls
+// `super::execute` directly.
+fn run_with<I, E>(args: I, env: E) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    E: Fn(&str) -> Option<String>,
+{
+    let _held = fake_exe::lock();
+    super::run_with(args, env)
+}
+
+fn run<I: IntoIterator<Item = OsString>>(args: I) -> i32 {
+    let _held = fake_exe::lock();
+    super::run(args)
+}
+
+fn check<E>(options: &Options, env: &E, program: &str) -> Result<Verdict, String>
+where
+    E: Fn(&str) -> Option<String>,
+{
+    let _held = fake_exe::lock();
+    super::check(options, env, program)
+}
+
+fn run_program<I, E>(args: I, env: E, program: &str) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    E: Fn(&str) -> Option<String>,
+{
+    let _held = fake_exe::lock();
+    super::run_program(args, env, program)
+}
+
+fn fetch_with(program: &str, config: &str) -> Option<String> {
+    let _held = fake_exe::lock();
+    super::fetch_with(program, config)
+}
+
+fn execute<I, E>(args: I, env: E, program: &str) -> (String, i32)
+where
+    I: IntoIterator<Item = OsString>,
+    E: Fn(&str) -> Option<String>,
+{
+    let _held = fake_exe::lock();
+    super::execute(args, env, program)
+}
+
 #[test]
 fn secrets_reach_curl_on_stdin_and_never_in_argv() {
     let dir = std::env::temp_dir().join(format!("litellm-gate-test-{}", std::process::id()));
@@ -337,11 +390,10 @@ fn secrets_reach_curl_on_stdin_and_never_in_argv() {
         argv.display(),
         stdin.display()
     );
-    std::fs::write(&fake, script).unwrap();
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let held = fake_exe::lock();
+    fake_exe::write_executable(&held, &fake, &script);
     let a = check_args("https://l.example/v1", &["--edge-token-env", "EDGE_TOKEN"]);
-    let (message, code) = execute(a, env, fake.to_str().unwrap());
+    let (message, code) = super::execute(a, env, fake.to_str().unwrap());
     assert_eq!((code, message.contains("within")), (0, true));
     let argv = std::fs::read_to_string(&argv).unwrap();
     assert!(argv.contains("--config") && argv.contains("--max-time"));
