@@ -413,7 +413,7 @@ Gold Band workflow, which has no command node: a cheap worker whose agent id
 runs one pinned wrapper, `gold-band-gate run`, that runs the command and writes
 a gate report the gate agent id cannot write. Green means the command ran and
 exited zero; a timeout is a failed report, not a hang.
-_Avoid_: gate node, test runner node, CI step
+_Avoid_: test runner node, CI step
 
 **Copier node**:
 The read-only node after a gate shim. It runs `gold-band-gate verify` and

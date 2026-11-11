@@ -170,7 +170,7 @@ against the pinned `gold-band` binary with stub agents.
 
 Gold Band has no command node, so a deterministic gate (build, tests, lint,
 coverage, crate age) runs through a shim, never through a change to Gold Band
-(`scripts/crates/gold-band-gate`, ADR-0014). Green means the command ran and
+(`scripts/crates/gold-band-gate`). Green means the command ran and
 exited zero. Three nodes make the shape, and
 `tests/fixtures/gold-band/gate-proof.json` is a working example:
 
@@ -193,7 +193,7 @@ gold-band-gate verify --run-id ID --attempt N --command "COMMAND ARGS" \
 
 **How a gate runs.** `run` clears `DIR/gate-report.json` and
 `DIR/gate-output.txt` from any earlier attempt first, then runs the command with
-stdout and stderr captured, in order, into `DIR/gate-output.txt` (at most 8 MiB
+stdout and stderr captured, in order, into `DIR/gate-output.txt` (once the command ends, at most 8 MiB
 are kept). It then writes `DIR/gate-report.json` through `gold-band-report`:
 `run_id`, `attempt`, `command` (the command and its arguments joined by single
 spaces), `exit_code`, `output_hash` (SHA-256 of the captured output),
@@ -224,7 +224,7 @@ on stderr, one per line, `gold-band-gate: <check>: <why>`, and exits `1`:
 * `failed-command`: `exit_code` is not `0` (`124` is named as a timeout), or a
   `failed_check` is present.
 
-On success it exits `0` and prints the report on stdout verbatim, for the node
+On success it exits `0` and prints the validated report on stdout, re-serialised, for the node
 to answer with. Exit `2` is bad usage or a report that cannot be read or is
 malformed: the report is untrusted, so it is size-bounded (64 KiB) and every
 field is type-checked.

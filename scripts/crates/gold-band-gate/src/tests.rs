@@ -500,13 +500,13 @@ fn problems(host: &Fake) -> Vec<String> {
 }
 
 #[test]
-fn a_genuine_report_passes_and_is_printed_verbatim() {
+fn a_genuine_report_passes_and_is_printed() {
     let d = gated("v-ok");
     let (code, host) = checked(&d, &[]);
     assert_eq!(code, 0, "{}", host.err.borrow());
     assert_eq!(
-        *host.out.borrow(),
-        fs::read_to_string(d.join(REPORT_FILE)).unwrap()
+        host.out.borrow().trim_end(),
+        fs::read_to_string(d.join(REPORT_FILE)).unwrap().trim_end()
     );
     assert_eq!(*host.err.borrow(), "");
 }
@@ -822,14 +822,19 @@ fn a_report_that_cannot_be_read_is_exit_2_not_missing() {
 }
 
 #[test]
-fn unknown_report_fields_are_ignored_but_printed_verbatim_only_when_it_passes() {
+fn unknown_and_duplicate_report_fields_never_reach_the_printed_report() {
     let d = gated("v-extra");
     let text = fs::read_to_string(d.join(REPORT_FILE)).unwrap();
     let extended = text.replace("}\n", ",\"note\":\"x\"}\n");
     fs::write(d.join(REPORT_FILE), &extended).unwrap();
     let (code, host) = checked(&d, &[]);
     assert_eq!(code, 0);
-    assert_eq!(*host.out.borrow(), extended);
+    assert!(!host.out.borrow().contains("note"));
+    assert_eq!(
+        host.out.borrow().trim_end(),
+        text.trim_end(),
+        "the printed report is the validated one, re-serialised"
+    );
 }
 
 #[test]

@@ -43,7 +43,7 @@
 //! `command-mismatch`, `hash-mismatch` (SHA-256 recomputed from
 //! `gate-output.txt`; a missing output file is a mismatch) and
 //! `failed-command` (a non-zero `exit_code`, 124 named as a timeout, or any
-//! `failed_check`). Exit 0 prints the report on stdout verbatim, for a node
+//! `failed_check`). Exit 0 prints the validated report on stdout, for a node
 //! to copy into its success condition; exit 1 prints nothing there; exit 2 is
 //! bad usage or a report that cannot be read or is malformed (the report is
 //! untrusted: it is size-bounded and every field is type-checked).
@@ -460,7 +460,9 @@ fn verify(call: &Check, host: &dyn Host) -> Result<i32, String> {
     let now = call.now.unwrap_or_else(|| host.unix_seconds());
     let problems = report_problems(call, &report, now, dir);
     if problems.is_empty() {
-        host.print(false, &text);
+        // The validated report is printed re-serialised, never the raw text,
+        // so a duplicate key in the file cannot reach the success condition.
+        host.print(false, &report.to_json());
         return Ok(0);
     }
     Ok(refuse(host, &problems))
