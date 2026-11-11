@@ -410,12 +410,14 @@ def _gold_band_everyone_problems(declared: list[dict[str, Any]]) -> list[str]:
         env = adapter.get("env") if isinstance(adapter, dict) else None
         if isinstance(env, dict) and GOLD_BAND_CLAUDE_CONFIG_ENV in env:
             problems.append(f"{raw}: adapter.env {GOLD_BAND_CLAUDE_CONFIG_ENV} is set by config_dir, not by hand")
-        if not isinstance(directory, str) or not directory:
+        if directory is None:
             problems.append(f"{raw}: a Claude agent must declare config_dir")
+        elif not isinstance(directory, str) or not directory:
+            problems.append(f"{raw}: config_dir must be a non-empty string")
         elif not (directory.startswith("/") or directory.startswith("~/")) or ".." in Path(directory).parts:
             problems.append(f"{raw}: config_dir must be an absolute path or start with ~/, without ..")
         else:
-            key = directory.rstrip("/")
+            key = os.path.normpath(_gold_band_expand(directory))
             if key in owners:
                 problems.append(f"{raw}: config_dir {directory} is already {owners[key]}'s")
             owners.setdefault(key, raw)
@@ -768,6 +770,11 @@ def _gold_band_skills(
 
 def gold_band(args: argparse.Namespace) -> int:
     instance = args.instance
+    # The default path is the current user's instance. The work instance lives
+    # in its own account, so it is never guessed: name its data directory.
+    if instance != GOLD_BAND_INSTANCE and not (args.settings or os.environ.get("GOLD_BAND_HOME")):
+        print(f"gold-band-agents: {instance} needs --settings or GOLD_BAND_HOME; the default is the personal one")
+        return 3
     settings = args.settings or _gold_band_settings_path()
     skills_root = Path(os.path.abspath(args.skills_root or settings.parent / "skill-sets"))
     try:

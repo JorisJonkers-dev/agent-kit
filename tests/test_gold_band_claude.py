@@ -127,8 +127,8 @@ def test_the_work_instance_keeps_codex_and_the_personal_one_removes_it(
     ("agents", "message"),
     [
         ([_claude("claude", None)], "claude: a Claude agent must declare config_dir"),
-        ([_claude("claude", "")], "claude: a Claude agent must declare config_dir"),
-        ([_claude("claude", 7)], "claude: a Claude agent must declare config_dir"),
+        ([_claude("claude", "")], "claude: config_dir must be a non-empty string"),
+        ([_claude("claude", 7)], "claude: config_dir must be a non-empty string"),
         ([_claude("claude", "relative/dir")], "claude: config_dir must be an absolute path or start with ~/"),
         ([_claude("claude", "~/../etc")], "claude: config_dir must be an absolute path or start with ~/"),
         (
@@ -271,3 +271,27 @@ def test_the_launched_claude_process_has_the_instances_directory_despite_a_confl
     )
     assert seen.exists(), f"the adapter was never started\n{run.stdout[-2000:]}\n{run.stderr[-2000:]}"
     assert seen.read_text() == str(home / directory)
+
+
+def test_the_work_instance_is_never_converged_onto_the_default_personal_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, [_claude("claude-work", WORK_DIR, instance="gold-band")])
+    monkeypatch.delenv("GOLD_BAND_HOME", raising=False)
+    argv = ["gold-band", "--keep", str(machine.keep), "--registry", str(machine.registry), "--instance", "gold-band"]
+    assert converge.main(argv) == 3
+    assert "gold-band needs --settings or GOLD_BAND_HOME" in capsys.readouterr().out
+    monkeypatch.setenv("GOLD_BAND_HOME", str(tmp_path / "work-home"))
+    assert converge.main(argv) == 0
+    assert (tmp_path / "work-home" / "settings.json").is_file()
+
+
+def test_two_spellings_of_one_directory_are_one_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    same = str(Path.home() / ".claude")
+    machine = Machine(
+        tmp_path, monkeypatch, [_claude("claude", same), _claude("claude-work", "~/.claude/.", instance="gold-band")]
+    )
+    assert machine.run() == 1
+    assert "claude-work: config_dir ~/.claude/. is already claude's" in capsys.readouterr().out
