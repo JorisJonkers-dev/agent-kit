@@ -2592,6 +2592,10 @@ gold_band_converge() {
   out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \
     "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" = 4 ]; then
+    fail "Gold Band is running: setup stopped before its remaining write groups; quit it and re-run setup"
+    exit 1
+  fi
   [ "${rc}" = 0 ] || fail "the Gold Band agent map did not converge (see above)"
 }
 gold_band_converge
@@ -2625,6 +2629,10 @@ gold_band_roles() {
   out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-roles \
     "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" = 4 ]; then
+    fail "Gold Band is running: setup stopped before its remaining write groups; quit it and re-run setup"
+    exit 1
+  fi
   [ "${rc}" = 0 ] || fail "the Gold Band roles did not converge (see above)"
 }
 gold_band_roles

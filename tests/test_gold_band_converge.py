@@ -2,8 +2,8 @@
 
 Each test drives ``converge.main(["gold-band", ...])`` against a temporary
 registry, settings file and keep file, with a fake ``opencode`` on PATH. The
-running guard is driven through ``AGENT_KIT_GOLD_BAND_RUNNING``, or through a
-fake ``pgrep`` when that variable is unset.
+running guard is driven through ``AGENT_KIT_GOLD_BAND_RUNNING``; process
+detection itself is covered in ``test_gold_band_instance_guard.py``.
 """
 
 from __future__ import annotations
@@ -325,30 +325,12 @@ def test_the_running_guard_refuses_to_write(
     monkeypatch.setenv("AGENT_KIT_GOLD_BAND_RUNNING", "1")
     machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
     before = machine.settings.read_bytes()
-    assert machine.run() == 3
-    assert (
-        "gold-band-agents: Gold Band is running; quit it and re-run setup (nothing was written)"
-        in capsys.readouterr().out
-    )
+    assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
+    out = capsys.readouterr().out
+    assert "gold-band-agents: Gold Band instance gold-band-personal" in out
+    assert "quit it and re-run setup (nothing was written)" in out
     assert machine.settings.read_bytes() == before
     assert not machine.backup.exists()
-
-
-def test_the_running_guard_reads_pgrep_when_the_variable_is_unset(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.delenv("AGENT_KIT_GOLD_BAND_RUNNING")
-    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
-    machine._fake("pgrep", "#!/bin/sh\nexit 0\n")
-    assert machine.run() == 3
-    assert "Gold Band is running" in capsys.readouterr().out
-
-
-def test_a_machine_without_pgrep_is_not_running(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("AGENT_KIT_GOLD_BAND_RUNNING")
-    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
-    assert machine.run() == 0
-    assert "opencode" in machine.agents()
 
 
 def test_settings_that_are_not_json_exit_3(
