@@ -318,7 +318,7 @@ def plugins(args: argparse.Namespace) -> int:
 
 
 def _gold_band_data_dir(gold_band_home: str | None, fallback_home: str) -> Path:
-    """The app's data directory: ``.gold-band`` under ``GOLD_BAND_HOME`` (blank counts as unset), else under the home."""
+    """The app's data dir: `.gold-band` under `GOLD_BAND_HOME` (blank counts as unset), else under the home."""
     return Path(gold_band_home if gold_band_home and gold_band_home.strip() else fallback_home) / ".gold-band"
 
 
