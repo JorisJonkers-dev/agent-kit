@@ -65,9 +65,11 @@ pub fn map(scope: &[PathBuf], limit: usize) -> RepoMap {
 pub fn map_capped(scope: &[PathBuf], limit: usize, max_files: usize) -> RepoMap {
     let mut texts: Vec<(PathBuf, String)> = Vec::new();
     for path in scope {
-        visit(path, max_files, &mut texts);
+        visit(path, max_files + 1, &mut texts);
     }
-    let walk_capped = texts.len() >= max_files;
+    // One file past the cap proves the walk left something out.
+    let walk_capped = texts.len() > max_files;
+    texts.truncate(max_files);
     let mut words: HashMap<&str, usize> = HashMap::new();
     let mut declared: HashMap<String, usize> = HashMap::new();
     let mut entries: Vec<Entry> = Vec::new();

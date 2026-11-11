@@ -146,25 +146,27 @@ fn map_tool(boundary: &Boundary, default_limit: usize, args: Option<&Json>) -> S
 
 /// The text of a repository map.
 pub(crate) fn render_map(repo: &RepoMap) -> String {
+    let mut out = String::new();
     if repo.symbols.is_empty() {
-        return "no symbols".to_string();
-    }
-    let mut out = String::from("files:\n");
-    for file in &repo.files {
-        out.push_str(&format!("{} ({} refs, {} symbols)\n", file.path.display(), file.refs, file.symbols));
-    }
-    out.push_str("symbols:\n");
-    for s in &repo.symbols {
-        out.push_str(&format!("{}:{} {} {} ({} refs)\n", s.path.display(), s.line, s.kind, s.name, s.refs));
-    }
-    if repo.total_files > repo.files.len() || repo.total_symbols > repo.symbols.len() {
-        out.push_str(&format!(
-            "showing {} of {} files and {} of {} symbols; narrow the path\n",
-            repo.files.len(),
-            repo.total_files,
-            repo.symbols.len(),
-            repo.total_symbols
-        ));
+        out.push_str("no symbols\n");
+    } else {
+        out.push_str("files:\n");
+        for file in &repo.files {
+            out.push_str(&format!("{} ({} refs, {} symbols)\n", file.path.display(), file.refs, file.symbols));
+        }
+        out.push_str("symbols:\n");
+        for s in &repo.symbols {
+            out.push_str(&format!("{}:{} {} {} ({} refs)\n", s.path.display(), s.line, s.kind, s.name, s.refs));
+        }
+        if repo.total_files > repo.files.len() || repo.total_symbols > repo.symbols.len() {
+            out.push_str(&format!(
+                "showing {} of {} files and {} of {} symbols; narrow the path\n",
+                repo.files.len(),
+                repo.total_files,
+                repo.symbols.len(),
+                repo.total_symbols
+            ));
+        }
     }
     if repo.walk_capped {
         out.push_str("stopped after the file cap; narrow the path\n");

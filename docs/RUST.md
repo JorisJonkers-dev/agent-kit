@@ -90,7 +90,7 @@ code-nav --root ~/Projects/owner/repo [--root DIR ...] [--limit N]
 * **Tool `map`** (optional `path` and `limit`). The repository map: symbols
   and the files that declare them, ranked by references. A symbol's references
   are the whole-identifier occurrences of its name across the scanned files,
-  minus its declarations (`impl` blocks are not symbols). Symbols sort by
+  minus its declarations (`impl` blocks are not symbols); declarations that share a name share one count. Symbols sort by
   references, then fewer path components, path and line; a file scores the sum
   of its symbols' references. Each list is capped at `limit` (default as for
   `search`) and a capped result says how much it left out. The walk follows

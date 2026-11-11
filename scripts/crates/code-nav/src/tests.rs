@@ -934,7 +934,8 @@ fn the_map_stops_at_the_file_cap() {
     let repo = map::map_capped(std::slice::from_ref(&f.root), 10, 1);
     assert!(repo.walk_capped);
     assert_eq!(repo.total_files, 1);
-    assert!(!map::map_capped(std::slice::from_ref(&f.root), 10, 4).walk_capped);
+    // Exactly as many files as the cap is not a capped walk.
+    assert!(!map::map_capped(std::slice::from_ref(&f.root), 10, 3).walk_capped);
 }
 
 #[test]
@@ -999,4 +1000,6 @@ fn the_map_tool_reports_empty_refused_and_capped_walks() {
 fn a_walk_that_hit_the_file_cap_says_so() {
     let repo = map::RepoMap { files: vec![], symbols: vec![map::Entry { path: "x.rs".into(), line: 1, kind: "fn".into(), name: "f".into(), refs: 0 }], total_files: 0, total_symbols: 1, walk_capped: true };
     assert!(server::render_map(&repo).ends_with("stopped after the file cap; narrow the path"));
+    let none = map::RepoMap { symbols: vec![], total_symbols: 0, ..repo };
+    assert_eq!(server::render_map(&none), "no symbols\nstopped after the file cap; narrow the path");
 }
