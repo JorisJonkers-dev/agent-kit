@@ -96,6 +96,7 @@ fn flaky(file: &Mapping) -> Result<Vec<FlakyJob>, String> {
         let name = string(fields, "name")?;
         let reason = string(fields, "reason")?;
         string(fields, "reviewed_by")?;
+        string(fields, "reviewed_on")?;
         jobs.push(FlakyJob { name, reason });
     }
     Ok(jobs)

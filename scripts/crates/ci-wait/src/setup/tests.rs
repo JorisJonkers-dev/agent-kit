@@ -194,12 +194,28 @@ fn refuses_a_flaky_job_that_is_not_a_mapping() {
 #[test]
 fn refuses_a_flaky_job_without_a_name_a_reason_or_a_review() {
     let cases = [
-        ("reason: r\n  reviewed_by: octo\n", "name"),
-        ("name: \"\"\n  reason: r\n  reviewed_by: octo\n", "name"),
-        ("name: flaky\n  reviewed_by: octo\n", "reason"),
-        ("name: flaky\n  reason: r\n", "reviewed_by"),
         (
-            "name: flaky\n  reason: r\n  reviewed_by: \"\"\n",
+            "reason: r\n  reviewed_by: octo\n  reviewed_on: 2026-01-01\n",
+            "name",
+        ),
+        (
+            "name: \"\"\n  reason: r\n  reviewed_by: octo\n  reviewed_on: 2026-01-01\n",
+            "name",
+        ),
+        (
+            "name: flaky\n  reviewed_by: octo\n  reviewed_on: 2026-01-01\n",
+            "reason",
+        ),
+        (
+            "name: flaky\n  reason: r\n  reviewed_on: 2026-01-01\n",
+            "reviewed_by",
+        ),
+        (
+            "name: flaky\n  reason: r\n  reviewed_by: octo\n",
+            "reviewed_on",
+        ),
+        (
+            "name: flaky\n  reason: r\n  reviewed_by: \"\"\n  reviewed_on: 2026-01-01\n",
             "reviewed_by",
         ),
     ];
