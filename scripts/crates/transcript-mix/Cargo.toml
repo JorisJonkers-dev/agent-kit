@@ -1,0 +1,11 @@
+[package]
+name = "transcript-mix"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Reports, per agent, which tools found code and how many tokens each task spent exploring (issue #516)."
+
+# No registry dependency: the JSON parser comes from code-nav-eval, a member of
+# this workspace, so the 7-day crate cooldown has nothing to question here.
+[dependencies]
+code-nav-eval = { path = "../code-nav-eval" }
