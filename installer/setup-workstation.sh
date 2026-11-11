@@ -3633,8 +3633,8 @@ for install in installs:
     fi
 
     # n8n node docs and schemas, docs-only, no API key.
-    if ! npm ls -g --depth=0 "n8n-mcp@2.100.0" >/dev/null 2>&1; then
-      run_sh 'npm install -g "n8n-mcp@2.100.0"' || true
+    if ! npm ls -g --depth=0 "n8n-mcp@2.101.0" >/dev/null 2>&1; then
+      run_sh 'npm install -g "n8n-mcp@2.101.0"' || true
     fi
     command -v n8n-mcp >/dev/null 2>&1 \
       || warn "n8n-mcp: n8n-mcp is not on PATH; skipping"

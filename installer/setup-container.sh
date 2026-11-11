@@ -106,14 +106,14 @@ if [ "${CHECK_ONLY}" = 0 ]; then
   # shellcheck disable=SC2016
   {
   install_tool node '22.23.4' 'curl -fsSL "https://nodejs.org/dist/v${VERSION}/node-v${VERSION}-linux-${DEB_ARCH/amd64/x64}.tar.xz" | tar -xJ -C /usr/local --strip-components=1 --exclude='\''*.md'\'' --exclude=LICENSE --exclude=share/doc'
-  install_tool claude-code '2.1.317' 'npm install -g "@anthropic-ai/claude-code@${VERSION}"'
+  install_tool claude-code '2.1.318' 'npm install -g "@anthropic-ai/claude-code@${VERSION}"'
   install_tool codex '0.166.0' 'npm install -g "@openai/codex@${VERSION}"'
   install_tool uv '0.13.7' 'curl -fsSL "https://github.com/astral-sh/uv/releases/download/${VERSION}/uv-${GNU_ARCH}-unknown-linux-gnu.tar.gz" | tar -xz -C /usr/local/bin --strip-components=1 --wildcards '\''*/uv'\'' '\''*/uvx'\'''
   install_tool hermes-agent '0.19.0' 'uv tool install --exclude-newer "7 days" --python 3.13 "hermes-agent[mcp]==${VERSION}"'
   install_tool olcli '0.15.3' 'npm install -g "@aloth/olcli@${VERSION}"'
   install_tool gh 'v2.103.3' 'curl -fsSL "https://github.com/cli/cli/releases/download/${VERSION}/gh_${VERSION#v}_linux_${DEB_ARCH}.tar.gz" | tar -xz -C /usr/local --strip-components=1 "gh_${VERSION#v}_linux_${DEB_ARCH}/bin/gh"'
   install_tool go '1.27.3' 'curl -fsSL "https://go.dev/dl/go${VERSION}.linux-${DEB_ARCH}.tar.gz" | tar -xz -C /usr/local && ln -sf /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/'
-  install_tool mise 'v2026.10.25' 'curl -fsSL -o /usr/local/bin/mise "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}" && chmod 755 /usr/local/bin/mise'
+  install_tool mise 'v2026.11.0' 'curl -fsSL -o /usr/local/bin/mise "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}" && chmod 755 /usr/local/bin/mise'
   install_tool ast-grep '0.51.1' 'npm install -g "@ast-grep/cli@${VERSION}"'
   install_tool typescript '5.9.3' 'npm install -g "typescript@${VERSION}"'
   install_tool github-mcp-server 'v1.14.0' 'case "${DEB_ARCH}" in amd64) a=x86_64 ;; arm64) a=arm64 ;; esac && curl -fsSL "https://github.com/github/github-mcp-server/releases/download/${VERSION}/github-mcp-server_Linux_${a}.tar.gz" | tar -xz -C /usr/local/bin github-mcp-server'
@@ -158,14 +158,14 @@ check_apt unzip
 check_apt xz-utils
 check_apt zsh
 check_tool node '22.23.4' 'node --version'
-check_tool claude '2.1.317' 'claude --version'
+check_tool claude '2.1.318' 'claude --version'
 check_tool codex '0.166.0' 'codex --version'
 check_tool uv '0.13.7' 'uv --version'
 check_tool hermes '0.19.0' 'hermes --version'
 check_tool olcli '0.15.3' 'olcli --version'
 check_tool gh 'v2.103.3' 'gh --version'
 check_tool go '1.27.3' 'go version'
-check_tool mise 'v2026.10.25' 'mise --version'
+check_tool mise 'v2026.11.0' 'mise --version'
 check_tool ast-grep '0.51.1' 'ast-grep --version'
 check_tool tsserver '5.9.3' 'tsc --version'
 check_tool github-mcp-server 'v1.14.0' 'github-mcp-server --version'
