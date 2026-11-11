@@ -44,7 +44,9 @@ MANIFEST = KIT_ROOT / "scripts" / "Cargo.toml"
 GOLD_BAND_BIN = os.environ.get("GOLD_BAND_BIN")
 SKIP_NO_GOLD_BAND = "GOLD_BAND_BIN not set: point it at a headless gold-band binary (docs/GOLD-BAND.md)"
 SKIP_NO_CARGO = "cargo not on PATH and GOLD_BAND_GATE_BIN not set: the pinned wrapper cannot be built"
-NO_HEADLESS_PROOF = GOLD_BAND_BIN is None or (shutil.which("cargo") is None and not os.environ.get("GOLD_BAND_GATE_BIN"))
+NO_HEADLESS_PROOF = GOLD_BAND_BIN is None or (
+    shutil.which("cargo") is None and not os.environ.get("GOLD_BAND_GATE_BIN")
+)
 HEADLESS_SKIP_REASON = SKIP_NO_GOLD_BAND if GOLD_BAND_BIN is None else SKIP_NO_CARGO
 pytestmark = pytest.mark.skipif(NO_HEADLESS_PROOF, reason=HEADLESS_SKIP_REASON)
 
