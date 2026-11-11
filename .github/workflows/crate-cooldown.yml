@@ -103,6 +103,13 @@
         'working-directory': 'agent-kit'
         'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p inventory-check -- .'
 
+      # The reach-level support record: every id names a level, its agent
+      # can hold it on each OS it runs on, and research and write-scoped ids
+      # carry an output directory (docs/REGISTRY.md).
+      - 'name': 'Validate the reach-level support record'
+        'working-directory': 'agent-kit'
+        'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p agent-launcher -- validate registry/reach-levels.yaml'
+
       # Line coverage of the workspace must stay at 100 percent (docs/RUST.md).
       # rustc's own instrumentation plus the llvm-tools component of the same
       # toolchain, so no further crate is involved and the profile format

@@ -7,6 +7,14 @@ name = "agent-kit-setup"
 version = "0.1.0"
 
 [[package]]
+name = "agent-launcher"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
 name = "code-nav"
 version = "0.1.0"
 dependencies = [
