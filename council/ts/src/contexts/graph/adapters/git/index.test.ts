@@ -577,6 +577,38 @@ describe('GitCliAdapter commits', () => {
     expect(process.commands[0]?.args).toEqual(['--literal-pathspecs', 'log', '--format=%H%x00%cI', '--end-of-options', 'abc', '--', 'a.ts'])
   })
 
+  it('reads the log of some paths: each commit with its message and the paths it changed', async () => {
+    const stdout =
+      '\x1eb2\x002026-03-04T05:06:07+01:00\x00Use sqlite\x00Because offline.\n\nSecond paragraph.\n\x00\n\nsrc/a.ts\x00src/b c.ts\x00' +
+      '\x1ea1\x002026-01-01T00:00:00+00:00\x00First\x00\x00\n\nsrc/a.ts\x00'
+    const process = new RecordingProcess(() => success(stdout))
+
+    expect(await new GitCliAdapter(process).commitLog('/r', 'abc', ['src/a.ts', 'src/b.ts'], 50)).toEqual([
+      { body: 'Because offline.\n\nSecond paragraph.', commit: 'b2', date: '2026-03-04T05:06:07+01:00', files: ['src/a.ts', 'src/b c.ts'], subject: 'Use sqlite' },
+      { body: '', commit: 'a1', date: '2026-01-01T00:00:00+00:00', files: ['src/a.ts'], subject: 'First' },
+    ])
+    expect(process.commands[0]?.args).toEqual([
+      '--literal-pathspecs',
+      'log',
+      '--max-count=50',
+      '--format=%x1e%H%x00%cI%x00%s%x00%b%x00',
+      '--name-only',
+      '-z',
+      '--end-of-options',
+      'abc',
+      '--',
+      'src/a.ts',
+      'src/b.ts',
+    ])
+  })
+
+  it('reads no log for no paths, and runs no git', async () => {
+    const process = new RecordingProcess(() => success(''))
+
+    expect(await new GitCliAdapter(process).commitLog('/r', 'abc', [], 50)).toEqual([])
+    expect(process.commands).toEqual([])
+  })
+
   it('reads a file as it is in a commit', async () => {
     const process = new RecordingProcess(() => success('line one\n'))
 

@@ -1289,6 +1289,22 @@ local_skills:
       side in every agent home. Its runs are review-stage runs, each a flow
       of its own.
 
+  - name: recover-decisions
+    path: skills/workstation/recover-decisions
+    purpose: >-
+      Recover the decisions a repository's code embodies but no record
+      states: critics from other model families read a sample of the code
+      (and its history, where the owner allows it) and propose decisions,
+      the orchestrator rejects those that fail the ADR tests or repeat a
+      record, asks the owner about the rest, at most ten, and writes an ADR
+      only from the owner's answer.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner in skills/workstation/critique/ (prepare, fan-out,
+      record, allow), so setup installs both side by side in every agent
+      home. Its runs are review-stage runs, each a flow of its own.
+
   - name: review-pr
     path: skills/workstation/review-pr
     purpose: >-

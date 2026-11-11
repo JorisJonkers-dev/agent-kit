@@ -152,6 +152,11 @@ export interface SampleRequest {
   /** The text that names files: the artifact's. */
   readonly artifactText: string
   readonly facts: RepositoryFacts
+  /**
+   * Paths sampled after every other tier, in this order: for a stage with no
+   * artifact to name files, the source the sample would otherwise miss.
+   */
+  readonly rest?: readonly string[]
 }
 
 
@@ -168,7 +173,7 @@ export interface RepositorySample {
 }
 
 /** Why a file was sampled, in priority order. */
-const TIERS = ['named', 'hotspot', 'entry', 'cycle'] as const
+const TIERS = ['named', 'hotspot', 'entry', 'cycle', 'rest'] as const
 type Tier = (typeof TIERS)[number]
 /** The tiers whose files the facts index lists by name; it counts the others' drops per directory. */
 const LISTED_TIERS: ReadonlySet<Tier> = new Set(['named', 'hotspot'])
@@ -283,6 +288,7 @@ function sampleCandidates(request: SampleRequest): readonly TreeCandidate<Tier>[
     entry: [...texts.keys()].filter((path) => ENTRY_FILES.has(path.split('/').at(-1) ?? '')),
     hotspot: request.facts.hotspots ?? [],
     named: namedPaths(request.artifactText),
+    rest: request.rest ?? [],
   }
   const seen = new Set<string>()
   return TIERS.flatMap((tier) =>

@@ -12,6 +12,7 @@ import type { Round } from '../domain/stage.js'
 import type { TicketReviewRecord } from '../domain/ticket-review.js'
 import type { TicketCheckStatus } from '../domain/tickets.js'
 import {
+  candidateQuestions,
   countVerdicts,
   secondRoundDue,
   severityOverrideProblem,
@@ -39,6 +40,12 @@ export interface RecordResult {
   /** More than three critical findings were accepted in a first round: prepare again with `previous_run_dir`. */
   readonly second_round_due: boolean
   readonly counts: VerdictCounts
+  /**
+   * Only for decision recovery: the candidates asked, by finding id, ranked by
+   * confidence and at most ten, and the ones deferred to the report.
+   */
+  readonly questions?: readonly string[]
+  readonly deferred?: readonly string[]
   readonly report_path: string
   readonly summary_path: string
   readonly ledger_path: string
@@ -111,6 +118,11 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       stage: manifest.stage,
       ...(manifest.ticket_check === undefined ? {} : { ticket_check: manifest.ticket_check }),
     }
+    const candidates = candidateQuestions(run)
+    const unasked = candidates?.deferred.find((finding) => finding.verdict.answered === true)
+    if (unasked !== undefined) {
+      throw new CritiqueError('invalid-input', `${unasked.id} is past the ${String(candidates?.asked.length)} questions a run asks, so it was not asked and cannot be answered`)
+    }
     const reviews = new TicketReviewLog(this.deps)
     const ticketReview = manifest.stage === 'ticket-review' ? await reviews.compute(manifest, run) : undefined
     const summary = renderSummary(run, reportPath)
@@ -123,10 +135,12 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     if (ticketReview !== undefined) await reviews.save(manifest, ticketReview)
     return {
       counts: countVerdicts(run),
+      ...(candidates === undefined ? {} : { deferred: candidates.deferred.map((finding) => finding.id) }),
       degraded: run.degraded,
       ...(gate === undefined ? {} : { gate }),
       ledger_path: ledger,
       report_path: reportPath,
+      ...(candidates === undefined ? {} : { questions: candidates.asked.map((finding) => finding.id) }),
       round: run.round,
       run_id: manifest.run_id,
       second_round_due: secondRoundDue(run),
@@ -203,7 +217,7 @@ function verdictFor(verdicts: ReadonlyMap<string, Verdict>, finding: RunFinding)
   const mechanical: Verdict = { finding_id: finding.id, reason: pre.reason, reason_code: pre.reason_code, verdict: pre.verdict }
   if (pre.verdict === 'rejected') {
     if (given !== undefined && given.verdict !== 'rejected') {
-      throw new CritiqueError('invalid-input', `${finding.id} was rejected as fabricated-evidence, which a verdict cannot overturn`)
+      throw new CritiqueError('invalid-input', `${finding.id} was rejected as ${pre.reason_code}, which a verdict cannot overturn`)
     }
     return mechanical
   }

@@ -433,6 +433,7 @@ describe('the evidence check on a repository packet', () => {
     expect(evidenceFound(quoted, packet)).toEqual({
       decision: false,
       fact: true,
+      history: false,
       items: 1,
       scenario: false,
       spec: false,

@@ -57,8 +57,20 @@ export interface CriticFinding extends FindingBody {
  * which the orchestrator may still accept or reject after checking it.
  */
 export type PreVerdict =
-  | { readonly verdict: 'rejected'; readonly reason_code: 'fabricated-evidence'; readonly reason: string }
+  | { readonly verdict: 'rejected'; readonly reason_code: MechanicalRejection; readonly reason: string }
   | { readonly verdict: 'hint'; readonly reason_code: HintCode | CheckHintCode; readonly reason: string }
+
+/**
+ * The codes of a mechanical rejection, which the orchestrator cannot overturn.
+ * `fabricated-evidence`: a quote or a cited line the packet does not hold. The
+ * rest are a recovered decision's (`decision-recovery`): `no-code-trace` cites
+ * no file of `tree/`, `single-site` cites only one, and `invented-rationale`
+ * gives a reason with neither a quote of `history/` nor the plain statement
+ * that no rationale was found.
+ */
+export const RECOVERY_REJECTIONS = ['no-code-trace', 'single-site', 'invented-rationale'] as const
+export const MECHANICAL_REJECTIONS = ['fabricated-evidence', ...RECOVERY_REJECTIONS] as const
+export type MechanicalRejection = (typeof MECHANICAL_REJECTIONS)[number]
 
 export const HINT_CODES = [
   'no-evidence',
@@ -73,6 +85,7 @@ export const HINT_CODES = [
   'no-record-quote',
   'one-file-contradiction',
   'needs-tree',
+  'not-a-candidate',
 ] as const
 export type HintCode = (typeof HINT_CODES)[number]
 
@@ -170,7 +183,7 @@ export function readRunFinding(fields: JsonFields): RunFinding {
 function readPreVerdict(fields: JsonFields): PreVerdict {
   const reason = fields.string('reason')
   if (fields.oneOf('verdict', ['rejected', 'hint']) === 'rejected') {
-    return { reason, reason_code: fields.literal('reason_code', 'fabricated-evidence'), verdict: 'rejected' }
+    return { reason, reason_code: fields.oneOf('reason_code', MECHANICAL_REJECTIONS), verdict: 'rejected' }
   }
   return { reason, reason_code: fields.oneOf('reason_code', [...HINT_CODES, ...CHECK_HINT_CODES]), verdict: 'hint' }
 }

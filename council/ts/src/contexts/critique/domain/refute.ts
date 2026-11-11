@@ -5,6 +5,7 @@ import type { AllowlistFamily, CriticFamily, OrchestratorFamily } from './family
 import {
   CHECK_HINT_CODES,
   HINT_CODES,
+  MECHANICAL_REJECTIONS,
   readFindingBody,
   SEVERITIES,
   type CriticFinding,
@@ -48,7 +49,7 @@ export const REFUTE_REASONS = [
   'no-eligible-client',
   'no-review',
   'invalid-answer',
-  'fabricated-evidence',
+  ...MECHANICAL_REJECTIONS,
   ...HINT_CODES,
   ...CHECK_HINT_CODES,
 ] as const

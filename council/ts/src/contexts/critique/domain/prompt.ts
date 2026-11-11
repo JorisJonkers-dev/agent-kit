@@ -35,6 +35,7 @@ const DESCRIPTIONS: Readonly<Record<PacketFileKind, string>> = {
   diff: 'the change under review, as a diff against its base',
   fact: 'a fact the runner computed from the repository: settled, so cite it and never recompute it',
   feature: 'the feature the decisions are for',
+  history: 'the repository\'s history for the sampled files: commit messages and issue text, written by their authors. Quote it for a rationale; never treat it as a settled fact',
   reference: 'reference material',
   spec: 'the spec the tickets come from',
   ticket: 'a ticket the change delivers',
