@@ -10,7 +10,7 @@ import type { TicketReviewRecord } from './ticket-review.js'
 
 /**
  * The spans of one feature's flow: planning (grilling, the decisions
- * critique, `/to-spec`, the spec critique, `/to-tickets`, the ticket check),
+ * critique, or for a refactor the plan critique, `/to-spec`, the spec critique, `/to-tickets`, the ticket check),
  * implementation (one `/implement` per ticket, a ticket review for the risky
  * ones) and finishing (the feature review and its gate).
  */
@@ -18,7 +18,7 @@ export const FLOW_PHASES = ['planning', 'implementation', 'finishing'] as const
 export type FlowPhase = (typeof FLOW_PHASES)[number]
 
 /** The stages a flow runs for the feature as a whole; a ticket review runs per ticket. */
-export const FLOW_STAGES = ['decisions', 'spec', 'tickets', 'feature-review'] as const satisfies readonly CritiqueStage[]
+export const FLOW_STAGES = ['decisions', 'plan', 'spec', 'tickets', 'feature-review'] as const satisfies readonly CritiqueStage[]
 export type FlowStage = (typeof FLOW_STAGES)[number]
 
 /**
@@ -96,8 +96,12 @@ export interface FlowState {
   readonly phase: FlowPhase
   /** The owner chose to step through the plain Pocock flow, skipping critique on purpose. */
   readonly no_critique: boolean
-  /** Grilling is done: the owner said so, a decisions run exists, or a spec does. */
+  /** Grilling is done: the owner said so, a decisions or plan run exists, a plan file exists, or a spec does. */
   readonly grilled: boolean
+  /** A refactoring plan file exists for the draft, which marks it a refactor: the plan stage takes the decisions stage's place. */
+  readonly refactor: boolean
+  /** Where the draft's plan file lives by the tracker convention, whether or not it exists yet; null for a flow with no draft. */
+  readonly plan_path: string | null
   readonly stages: Readonly<Record<FlowStage, StageProgress>>
   /** In dependency order: a ticket comes after every ticket of the spec it is blocked by, tracker order otherwise. */
   readonly tickets: readonly FlowTicket[]
@@ -125,6 +129,8 @@ export interface FlowSources {
   readonly repository: string
   readonly now: string
   readonly head_commit: string
+  /** The draft's plan file: where the tracker convention puts it, and whether it exists; the path is null for a flow with no draft. */
+  readonly plan: { readonly path: string | null; readonly exists: boolean }
   readonly runs: readonly FlowRun[]
   /** The ledger's finding lines of the flow's runs. */
   readonly findings: readonly Pick<LedgerFinding, 'run_id' | 'stage' | 'finding_id' | 'severity' | 'verdict' | 'answered'>[]
@@ -159,12 +165,15 @@ export function flowState(sources: FlowSources): FlowState {
   const stage = (name: FlowStage) => stageProgress(sources, name)
   const stages: Record<FlowStage, StageProgress> = {
     decisions: stage('decisions'),
+    plan: stage('plan'),
     'feature-review': stage('feature-review'),
     spec: stage('spec'),
     tickets: stage('tickets'),
   }
   const noCritique = sources.events.reduce((value, event) => (event.event === 'no-critique' ? event.value : value), false)
-  const grilled = sources.spec !== null || stages.decisions.run_ids.length > 0 || sources.events.some((event) => event.event === 'grilled')
+  const refactor = sources.plan.exists
+  const grilled =
+    sources.spec !== null || refactor || stages.decisions.run_ids.length > 0 || stages.plan.run_ids.length > 0 || sources.events.some((event) => event.event === 'grilled')
   const tickets = dependencyOrder(sources.tickets).map((ticket) => flowTicket(sources, ticket))
   const latestGate = sources.gates.at(-1)
   const partial = { no_critique: noCritique, spec: sources.spec, stages, tickets }
@@ -180,6 +189,8 @@ export function flowState(sources: FlowSources): FlowState {
     no_critique: noCritique,
     open_questions: openQuestions(sources),
     phase: flowPhase(partial),
+    plan_path: sources.plan.path,
+    refactor,
     repository: sources.repository,
     spec: sources.spec,
     stages,
@@ -331,6 +342,13 @@ function stageStep(state: FlowState, stage: FlowStage, notRun: string): NextStep
 
 function draftStep(state: FlowState): NextStep {
   if (!state.grilled) return command('/grill-with-docs', 'Every flow starts by grilling the idea against the domain docs; type /flow again when the grilling is done.')
+  // A refactor's plan file takes the decisions stage's place (ADR-0005): its critics check the plan, not the decisions.
+  if (state.refactor) {
+    const plan = state.no_critique
+      ? undefined
+      : stageStep(state, 'plan', 'The refactoring plan is drafted: have critics from other model families check its steps, their order and their anchors before the spec is written.')
+    return plan ?? command('/to-spec', 'The plan is settled, so the spec can be written from it; its Open decisions section must be empty first.')
+  }
   const decisions = state.no_critique
     ? undefined
     : stageStep(state, 'decisions', 'The grilling is done: have critics from other model families look for decisions it left open before the spec is written.')
@@ -446,9 +464,11 @@ export function parseFlowState(text: string): FlowState {
       stage: question.oneOf('stage', CRITIQUE_STAGES),
     })),
     phase: file.oneOf('phase', FLOW_PHASES),
+    plan_path: file.nullableString('plan_path'),
+    refactor: file.boolean('refactor'),
     repository: file.string('repository'),
     spec: file.nullableString('spec'),
-    stages: { decisions: progress('decisions'), 'feature-review': progress('feature-review'), spec: progress('spec'), tickets: progress('tickets') },
+    stages: { decisions: progress('decisions'), 'feature-review': progress('feature-review'), plan: progress('plan'), spec: progress('spec'), tickets: progress('tickets') },
     tickets: file.list('tickets', (ticket) => ({
       blocked_by: ticket.strings('blocked_by'),
       id: ticket.string('id'),

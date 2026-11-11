@@ -25,8 +25,10 @@ CRITIQUE = Path(__file__).resolve().parent.parent / "skills" / "workstation" / "
 CHECK_BULLET = re.compile(r"^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:")
 
 # The lens and role files, by path under skills/workstation/critique, whose checks may fix
-# a severity: the checklist ones. The ticket that adds `plan-critic` adds it here.
-DECLARES_SEVERITY: frozenset[str] = frozenset({"lenses/adr-record.md"})
+# a severity: the checklist ones, the `adr-record` lens and the `plan-critic` role's two lenses.
+DECLARES_SEVERITY: frozenset[str] = frozenset(
+    {"lenses/adr-record.md", "lenses/incremental-safety.md", "lenses/evidence-anchoring.md"}
+)
 
 
 def bullet_lists(text: str) -> list[list[str]]:

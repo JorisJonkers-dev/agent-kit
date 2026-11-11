@@ -27,6 +27,7 @@ offers it.
 | Stage | Skill | After / before | Base critics (role) | Deep adds | You get |
 |---|---|---|---|---|---|
 | `decisions` | `/review-grill` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`); with a decision record among the decisions, DeepSeek Flash (`adr-reviewer`, `adr-record`) too | GLM | Up to seven questions about decision branches nobody opened |
+| `plan` | `/critique-plan` | `/improve-codebase-architecture` (a refactor) / `/to-spec`; takes the decisions stage's place | DeepSeek Flash (`plan-critic`, `incremental-safety`), Mistral Large (`plan-critic`, `evidence-anchoring`) | GLM (`plan-critic`, `coupling` and `test-seams`) | Plan fixes that change only how, or in what order, the plan reaches its target; a question for any fix that changes the target, an ADR's standing or accepts an irreversible step; a second round after more than three accepted critical findings |
 | `spec` | `/review-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
 | `tickets` | `/review-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
 | `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
@@ -136,6 +137,25 @@ that would show a fix worked (`no-observable`). In a deep run the
 never accepted and share the run's ten owner questions. Depth is deep above
 20,000 lines of tracked source or with a `CONTEXT-MAP.md`.
 
+`plan` is the refactoring plan's stage in the feature flow. A draft is a
+refactor when a plan file exists for it, and the stage then takes the decisions
+stage's place: `/flow` names `/critique-plan` for such a draft, and
+`/critique-decisions` for one without. The plan lives under
+`.scratch/<draft>/refactoring-plan.md` when the repository tracks specs as local
+markdown, and otherwise in the git common directory, beside the flow state; it is
+never committed. Its packet holds the plan under `artifact/`, the checker's report
+(`check/plan.json`, the same as `check-plan`'s), the tree and facts at the head the
+plan targets (the files its anchors and touches name first), and under
+`references/` the ADRs in force and the glossary. It sends code, so it needs the
+code permission. The `plan-critic` role raises findings that each break one named
+rule at one step, with the severity the rule fixes; the evidence rule `plan`
+leaves a finding whose location names no step of the plan or no rule (`no-plan-step`,
+`no-plan-rule`), whose evidence does not quote that step (`no-step-quote`), or that
+has no ADR quote, fact row or trace beside it (`no-plan-anchor`), as a hint. Spend
+counts on the draft's flow. Depth is deep with more than 8 steps or a migrate or
+contract step that touches stored data, or a risk term, and a second round is due
+after more than three accepted critical findings.
+
 A ticket review and a feature review send a **code packet**, computed at the
 reviewed commit by rule. Its diff leaves out the hunks of every vendored,
 generated and lock file (the same `exclude` globs and "do not edit" marker),
@@ -215,6 +235,16 @@ in `lenses/`.
 - `decision-log`: the records as one log: records in force that contradict,
   a replacement with no status or link, and references nothing resolves,
   beyond what `check/adrs.json` reports. Documents only for now.
+- `incremental-safety`: a refactoring plan's steps, each small and safe enough
+  to ship alone: no mixed structure and behaviour change, a safety net before
+  structure work, no big-bang interface change, an order that keeps main
+  working, a way back from an irreversible step, no scaffold left behind. Each
+  check fixes its severity.
+- `evidence-anchoring`: a refactoring plan's steps, each standing on a fact,
+  an ADR or a prerequisite the packet holds: no unanchored step, no stale
+  hotspot ordered first, no target against an accepted ADR or closing an import
+  cycle, no premature service split, no one-adapter seam, no deletion that
+  leaves out the decision it removes. Each check fixes its severity.
 
 ### Check ids
 
@@ -260,7 +290,8 @@ fixes none. The overridden severity is the one that counts, for a second
 round among others. Each ledger finding line carries `declared_severity`,
 `severity_override` and `severity_reason`, or `null`. Only the files on the
 validator's `DECLARES_SEVERITY` list may declare a severity; the list is
-today the `adr-record` lens, and the `plan-critic` role once it ships.
+today the `adr-record` lens and the plan critic's two lenses,
+`incremental-safety` and `evidence-anchoring`.
 
 The `adr-record` checks and their fixed severities:
 

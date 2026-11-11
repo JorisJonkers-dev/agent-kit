@@ -437,6 +437,83 @@
         "labels": ["risk:high"]
       }
     },
+    "plan": {
+      "distinct_families": true,
+      "work": [
+        {
+          "client": "codex-work",
+          "role": "plan-critic",
+          "lenses": [
+            "incremental-safety"
+          ],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        },
+        {
+          "client": "claude-work",
+          "role": "plan-critic",
+          "lenses": [
+            "evidence-anchoring"
+          ],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
+      "base": [
+        {
+          "client": "vibe-deepseek-flash",
+          "role": "plan-critic",
+          "lenses": [
+            "incremental-safety"
+          ],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        },
+        {
+          "client": "vibe-mistral-large",
+          "role": "plan-critic",
+          "lenses": [
+            "evidence-anchoring"
+          ],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-glm",
+          "role": "plan-critic",
+          "lenses": [
+            "coupling",
+            "test-seams"
+          ],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
+      "depth_signals": {
+        "thresholds": {
+          "steps": 8,
+          "stored_data_steps": 0
+        },
+        "risk_terms": [
+          "auth",
+          "authentication",
+          "authorisation",
+          "authorization",
+          "migration",
+          "migrations",
+          "payment",
+          "payments",
+          "crypto",
+          "cryptography",
+          "encryption",
+          "concurrency",
+          "concurrent",
+          "public API"
+        ]
+      }
+    },
     "architecture-review": {
       "distinct_families": true,
       "work": [

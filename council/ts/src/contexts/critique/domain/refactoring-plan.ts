@@ -349,3 +349,56 @@ function checkAnchor(step: string, anchor: string, known: ReadonlySet<string>, a
     else if (adrs.superseded.has(number)) fail('adr-superseded', `step ${step} is anchored to ${id}, which is superseded`)
   }
 }
+
+/**
+ * The rules the plan-critic's checks name, by check id: the `incremental-safety`
+ * and `evidence-anchoring` lenses' checks and the role's own. A finding's
+ * location names one of them beside one step, as `S03: mixed-change`.
+ */
+export const PLAN_RULES = [
+  'mixed-change',
+  'no-safety-net',
+  'big-bang-change',
+  'broken-main-order',
+  'no-rollback',
+  'scaffold-left',
+  'unanchored-step',
+  'stale-hotspot',
+  'adr-contradiction',
+  'closes-import-cycle',
+  'premature-service-split',
+  'single-adapter-seam',
+  'deletion-without-decision',
+  'plan-consequence',
+  // The deep roster's coupling and test-seams lenses.
+  'internals-dependence',
+  'decision-spread',
+  'unexplained-co-change',
+  'pass-through',
+  'wide-interface',
+  'needs-real-infrastructure',
+  'coupled-to-internals',
+  'no-assertion-or-pasted-value',
+  'no-fake',
+] as const
+
+/** The packet path of the checker's report on the plan, which says which steps the plan has. */
+export const PLAN_CHECK_PATH = 'check/plan.json'
+
+/** The step and the rule a plan finding's location names: `S03: mixed-change`. Either is absent when the location names none the plan has. */
+export function planTarget(location: string, stepIds: readonly string[]): { readonly rule?: string; readonly step?: string } {
+  const rule = PLAN_RULES.find((name) => new RegExp(`(?<![\\w-])${name}(?![\\w-])`, 'i').test(location))
+  const step = stepIds.find((id) => new RegExp(`(?<![\\w#/])${id}(?!\\w)`, 'i').test(location))
+  return { ...(rule === undefined ? {} : { rule }), ...(step === undefined ? {} : { step }) }
+}
+
+/** The step ids the checker's report holds, or none when the text does not read as one. */
+export function planStepIds(report: string): readonly string[] {
+  try {
+    const parsed: unknown = JSON.parse(report)
+    const steps = typeof parsed === 'object' && parsed !== null ? (parsed as { steps?: unknown }).steps : undefined
+    return Array.isArray(steps) ? steps.flatMap((step: unknown) => (typeof (step as { id?: unknown } | null)?.id === 'string' ? [(step as { id: string }).id] : [])) : []
+  } catch {
+    return []
+  }
+}

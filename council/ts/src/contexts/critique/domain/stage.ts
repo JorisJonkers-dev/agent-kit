@@ -2,7 +2,7 @@
  * Every stage the runner knows: the critique stages of the spec-to-ticket
  * flow, then the review stages, as CONTEXT.md names them.
  */
-export const CRITIQUE_STAGES = ['decisions', 'spec', 'tickets', 'ticket-review', 'feature-review', 'adr-review', 'decision-recovery', 'architecture-review'] as const
+export const CRITIQUE_STAGES = ['decisions', 'spec', 'tickets', 'ticket-review', 'feature-review', 'adr-review', 'decision-recovery', 'architecture-review', 'plan'] as const
 export type CritiqueStage = (typeof CRITIQUE_STAGES)[number]
 
 /**
@@ -25,11 +25,11 @@ export function isCodeStage(stage: CritiqueStage): stage is CodeStage {
 }
 
 /**
- * The stages that send code but build no code packet: a review stage that
- * samples the repository's tree. Like a code stage, each needs the code
+ * The stages that send code but build no code packet: a review stage or the
+ * plan stage, which samples the repository's tree. Like a code stage, each needs the code
  * permission of the family allowlist entry.
  */
-export const REPOSITORY_CODE_STAGES = ['decision-recovery', 'architecture-review'] as const satisfies readonly CritiqueStage[]
+export const REPOSITORY_CODE_STAGES = ['decision-recovery', 'architecture-review', 'plan'] as const satisfies readonly CritiqueStage[]
 
 /** Whether the stage sends code, so the allowlist entry must allow code: a code stage, or one that samples the tree. */
 export function needsCodePermission(stage: CritiqueStage): boolean {

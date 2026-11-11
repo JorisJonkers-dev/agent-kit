@@ -25,6 +25,8 @@ export type RefusalReason =
   | 'no-decision-docs'
   /** An ADR review found no decision records to review. */
   | 'no-adrs'
+  /** The plan stage found no refactoring plan at the path its draft's tracker convention names. */
+  | 'no-plan'
   /** The facts command, for a repository with no commit to read them at. */
   | 'no-commit'
   /** A repository packet whose documents, manifest and facts alone pass routing's packet cap. */
