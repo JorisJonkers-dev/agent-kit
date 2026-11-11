@@ -498,10 +498,6 @@ fn read_workflow(path: &str) -> Result<Workflow, String> {
     };
     for node in nodes {
         let kind = node.get("type").and_then(Value::as_str).unwrap_or("");
-        if kind != "worker" && kind != "ai-dynamic" {
-            continue;
-        }
-        workflow.sends_code = true;
         let id = text_of(node, "id").unwrap_or("?").to_string();
         let mut agents: Vec<&str> = Vec::new();
         agents.extend(text_of(node, "provider"));
@@ -514,7 +510,10 @@ fn read_workflow(path: &str) -> Result<Workflow, String> {
             );
         }
         if let Some(strategy) = node.get("agentStrategy") {
+            // Every binding field is read whatever the node kind or mode
+            // says, so a strategy cannot hide a binding.
             agents.extend(text_of(strategy, "provider"));
+            agents.extend(text_of(strategy, "bootstrapProvider"));
             for available in strategy
                 .get("availableAgents")
                 .and_then(Value::as_array)
@@ -524,6 +523,9 @@ fn read_workflow(path: &str) -> Result<Workflow, String> {
                 agents.extend(text_of(available, "provider"));
             }
         }
+        // A worker or ai-dynamic node sends code; so does any node that binds
+        // an agent, whatever its kind.
+        workflow.sends_code |= kind == "worker" || kind == "ai-dynamic" || !agents.is_empty();
         for agent in agents {
             if !workflow
                 .bound

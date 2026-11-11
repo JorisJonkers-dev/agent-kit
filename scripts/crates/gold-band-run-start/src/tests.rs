@@ -529,6 +529,28 @@ fn the_wrapper_bindings_providers_and_dynamic_strategies_are_all_bound_agents() 
 }
 
 #[test]
+fn a_binding_on_any_node_kind_or_strategy_field_is_checked_and_sends_code() {
+    let mut c = case("hidden", "gold-band-personal", &[OTHER]);
+    c.workflow(
+        r#"{"workflow":{"nodes":[
+          {"type":"manual","id":"m","provider":"vibe"},
+          {"type":"worker","id":"b","agentStrategy":{"bootstrapProvider":"agy"}}]}}"#,
+    );
+    c.allowlist(&allowlist_of(
+        "github.com/jorisjonkers-dev/agent-kit",
+        &entry(false, r#""google""#),
+    ));
+    let o = c.go();
+    let text = o.refused("family-allowlist");
+    assert!(
+        text.contains("node m: family mistral (agent vibe)"),
+        "{text}"
+    );
+    assert!(text.contains("does not allow code"), "{text}");
+    assert!(!text.contains("node b: family google"), "{text}");
+}
+
+#[test]
 fn a_bad_allowlist_is_unreadable_input() {
     for (text, why) in [
         ("{", "not JSON"),
