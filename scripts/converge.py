@@ -346,7 +346,7 @@ def _gold_band_adapter_problems(name: str, adapter: Any) -> list[str]:
 
 
 def _gold_band_problems(
-    declared: list[dict[str, Any]], allowed: set[str], retired: set[str] = frozenset()
+    declared: list[dict[str, Any]], allowed: set[str], retired: frozenset[str] | set[str] = frozenset()
 ) -> list[str]:
     """One line per problem with the declared agents; empty when they may be written."""
     problems: list[str] = []
