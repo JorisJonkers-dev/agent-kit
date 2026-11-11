@@ -615,7 +615,7 @@ timeout 120 agy -p "Do not use any tools. List the exact names of every skill, w
 
 ```text
 exit=0  directory and git status unchanged
-"response":"agent-session-bootstrap\nagy-customizations\nantigravity-guide\nclaude-worker\n
+"response":"add-public-service\nagent-session-bootstrap\nagy-customizations\nantigravity-guide\nclaude-worker\n
   council\ncouncil-amend\n ... speckit-taskstoissues\ntoken-economy\n/goal\n/compact\n/schedule\n/browser\n/plan\n
   /grill-me\n/learn\n"
 ```
