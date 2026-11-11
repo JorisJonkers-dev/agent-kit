@@ -475,15 +475,28 @@ node model-gateway.mjs run --json '{"workflow":"spec-293","client":"claude","mod
    `--allowedTools Read,Grep,Glob,Edit,Write`), Antigravity with `--mode
    accept-edits`, OpenCode with its default agent, Codex with `-s
    workspace-write`. The prompt adds "Edit only
-   files inside the working directory. Do not commit."
+   files inside the working directory. Do not commit." A Codex writing run
+   differs: see "Codex worktree workers" below.
 3. When the delegate has finished, the gateway stages everything in the
    worktree with `git add -A` and lists what that staged, and only then runs
    `check` there with `sh -c` (held to `time_limit_s`; its output, stdout then
    stderr, goes to `check-output.txt`; a check that cannot start has exit code
    127). It never stages again, so whatever the check writes (coverage, a
    build, a rewritten lockfile) is not part of the delegate's diff and stays an
-   unstaged change in the worktree. It never commits, merges or pushes: the
+   unstaged change in the worktree. The gateway never commits, merges or
+   pushes itself (a Codex worker may commit inside its worktree, above): the
    worktree and the branch are the caller's to take.
+
+**Codex worktree workers.** A Codex writing run in a worktree can commit. The
+worktree's own git directory lies outside the Codex sandbox, so the gateway
+adds it with `--add-dir`, together with the repository's `objects`, `refs` and
+`logs` directories (never the common directory itself, so `hooks` and `config`
+stay read-only). The prompt then tells the worker to commit on its branch with a
+Conventional Commits message and never push, and starts with the repository's
+own brief when the worktree holds a `codex-brief.md` at its root (cut at 20000
+characters). `staged_files` lists everything changed since `base`, committed or
+not. When the git directory cannot be resolved the run falls back to the old
+behaviour: nothing is committed and the gateway stages what is left.
 
 The result is the read-only result and `worktree` (the path), `branch`,
 `staged_files` (relative to the worktree) and `check`

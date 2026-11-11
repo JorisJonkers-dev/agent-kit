@@ -78,6 +78,8 @@ export interface ModelGatewayGitPort {
   root(path: string): Promise<string | undefined>
   /** The repository's common directory, shared by every worktree of it. */
   commonDir(path: string): Promise<string>
+  /** The absolute git directory of the worktree at `path`, which a worktree keeps outside its own directory. */
+  gitDir(path: string): Promise<string>
   /** Every remote with its URL; empty when the repository has none. */
   remotes(path: string): Promise<readonly GitRemote[]>
   /** Checks out the repository's HEAD, detached, into `path`, which is an existing empty directory. Rejects with git's message. */
@@ -90,8 +92,12 @@ export interface ModelGatewayGitPort {
   createWorktree(repo: string, path: string, branch: string, base: string): Promise<void>
   /** Stages everything in the worktree, new files and deletions included (`git add -A`). It commits nothing. */
   stageAll(path: string): Promise<void>
-  /** The files staged in the worktree, relative to it. */
-  stagedFiles(path: string): Promise<readonly string[]>
+  /**
+   * The files staged in the worktree, relative to it; with `base`, every file
+   * that differs from that ref, so a change the delegate already committed on
+   * the worktree's branch is listed too.
+   */
+  stagedFiles(path: string, base?: string): Promise<readonly string[]>
   /** Every worktree of the repository, its own checkout included, as absolute paths. */
   listWorktrees(repo: string): Promise<readonly string[]>
   /** What `git status --porcelain` says for a worktree: `''` when it is clean. */

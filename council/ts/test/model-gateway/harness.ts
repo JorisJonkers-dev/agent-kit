@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 import type {
   FileStamp,
@@ -89,6 +89,10 @@ export type FakeRepository =
       readonly commonDir?: string
       /** What git says when it cannot name the common directory, as a worktree git refuses. */
       readonly commonDirError?: string
+      /** The git directory of the repository's own checkout; the one a worktree has is worked out from it. */
+      readonly gitDir?: string
+      /** What git says when it cannot name a git directory, as a worktree whose `.git` file was overwritten does. */
+      readonly gitDirError?: string
       /** What git says when it cannot add a worktree, as a repository with no commit does. */
       readonly worktreeError?: string
       /** What git says when it cannot remove a worktree. */
@@ -118,6 +122,13 @@ export interface FakeBranchCall {
 export const FAKE_CHECKOUT_FILE = 'CHECKED-OUT'
 
 /**
+ * The brief a repository keeps for its Codex workers, which a checkout of the
+ * repository holds too: a fake worktree is given the repository's own, and
+ * `stagedFiles` leaves it out, as git leaves out a file that is committed.
+ */
+export const FAKE_BRIEF_FILE = 'codex-brief.md'
+
+/**
  * A git that knows exactly the paths the test names; any other path is in no
  * repository. A worktree it adds is the directory the caller made, with a
  * marker file in it; one it removes is gone.
@@ -127,6 +138,8 @@ export class FakeGit implements ModelGatewayGitPort {
   /** Every git operation asked for, by the port's method name: a test asserts which ones a run is allowed to make. */
   readonly calls: string[] = []
   readonly stagedIn: string[] = []
+  /** The base each `stagedFiles` call was given, in order: undefined for a call that named none. */
+  readonly stagedBases: (string | undefined)[] = []
   readonly deletedBranches: FakeBranchCall[] = []
   /** What `stageAll` fails with, as a worktree whose `.git` file the delegate overwrote does; none by default. */
   stageError: string | undefined
@@ -148,6 +161,7 @@ export class FakeGit implements ModelGatewayGitPort {
     if (entry !== undefined && 'root' in entry && entry.worktreeError !== undefined) throw new Error(entry.worktreeError)
     await mkdir(path, { recursive: true })
     await writeFile(join(path, FAKE_CHECKOUT_FILE), base)
+    await checkOutBrief(repo, path)
   }
 
   /** Stages everything: the fake worktree's files are what `stagedFiles` then names. */
@@ -187,13 +201,14 @@ export class FakeGit implements ModelGatewayGitPort {
       .join('\n')
   }
 
-  /** Every file in the worktree but the checkout marker, relative to it and sorted: what a real `git add -A` would stage. */
-  async stagedFiles(path: string): Promise<readonly string[]> {
+  /** Every file in the worktree but the checkout marker and the repository's brief, relative to it and sorted: what a real `git add -A` would stage. */
+  async stagedFiles(path: string, base?: string): Promise<readonly string[]> {
     this.calls.push('stagedFiles')
+    this.stagedBases.push(base)
     if (this.stagedFilesError !== undefined) throw new Error(this.stagedFilesError)
     const entries = await readdir(path, { recursive: true, withFileTypes: true })
     return entries
-      .filter((entry) => entry.isFile() && entry.name !== FAKE_CHECKOUT_FILE)
+      .filter((entry) => entry.isFile() && entry.name !== FAKE_CHECKOUT_FILE && entry.name !== FAKE_BRIEF_FILE)
       .map((entry) => join(entry.parentPath, entry.name).slice(path.length + 1))
       .sort()
   }
@@ -223,7 +238,7 @@ export class FakeGit implements ModelGatewayGitPort {
 
   root(path: string): Promise<string | undefined> {
     this.calls.push('root')
-    const entry = this.repositories[path]
+    const entry = this.repositoryOf(path)
     if (entry === undefined) return Promise.resolve(undefined)
     if ('error' in entry) return Promise.reject(new Error(entry.error))
     return Promise.resolve(entry.root)
@@ -231,11 +246,34 @@ export class FakeGit implements ModelGatewayGitPort {
 
   commonDir(path: string): Promise<string> {
     this.calls.push('commonDir')
-    const entry = this.repositories[path]
+    const entry = this.repositoryOf(path)
     if (entry === undefined) return Promise.reject(new Error(`${path}: not a git repository`))
     if ('error' in entry) return Promise.reject(new Error(entry.error))
     if (entry.commonDirError !== undefined) return Promise.reject(new Error(entry.commonDirError))
     return Promise.resolve(entry.commonDir ?? join(entry.root, '.git'))
+  }
+
+  /**
+   * The git directory of the checkout at `path`: the repository's own `.git`,
+   * or, for a worktree the fake made, the entry under the common directory's
+   * `worktrees` that a real linked worktree has.
+   */
+  gitDir(path: string): Promise<string> {
+    this.calls.push('gitDir')
+    const entry = this.repositoryOf(path)
+    if (entry === undefined) return Promise.reject(new Error(`${path}: not a git repository`))
+    if ('error' in entry) return Promise.reject(new Error(entry.error))
+    if (entry.gitDirError !== undefined) return Promise.reject(new Error(entry.gitDirError))
+    if (entry.gitDir !== undefined) return Promise.resolve(entry.gitDir)
+    return Promise.resolve(path === entry.root ? join(entry.root, '.git') : join(entry.root, '.git', 'worktrees', basename(path)))
+  }
+
+  /** The repository a path belongs to: the path itself, or the repository whose worktree it is. */
+  private repositoryOf(path: string): FakeRepository | undefined {
+    const own = this.repositories[path]
+    if (own !== undefined) return own
+    const worktree = this.worktrees.findLast((call) => call.path === path && call.action !== 'remove')
+    return worktree === undefined ? undefined : this.repositories[worktree.repo]
   }
 
   remotes(path: string): Promise<readonly GitRemote[]> {
@@ -245,6 +283,12 @@ export class FakeGit implements ModelGatewayGitPort {
     if ('error' in entry) return Promise.reject(new Error(entry.error))
     return Promise.resolve(entry.remotes)
   }
+}
+
+/** Gives a fake worktree the repository's own brief, as a checkout of the repository holds it; a repository without one leaves the worktree without one. */
+async function checkOutBrief(repo: string, path: string): Promise<void> {
+  const brief = await readFile(join(repo, FAKE_BRIEF_FILE), 'utf8').catch(() => undefined)
+  if (brief !== undefined) await writeFile(join(path, FAKE_BRIEF_FILE), brief)
 }
 
 /** The real file system, which a test points at its own temporary directories. */

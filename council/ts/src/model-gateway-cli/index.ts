@@ -143,7 +143,7 @@ and "check" (a command, run with sh -c in the worktree). The gateway creates a
 worktree off the base on a new branch gateway/<run id> under the repository's
 git common directory, runs the delegate there with write permission, stages
 what it wrote, and then runs the check, so what the check writes is not part of
-the staged diff. It never commits, merges or pushes. The result adds
+the staged diff. The gateway never commits, merges or pushes; a Codex worker may commit inside its worktree. The result adds
 "worktree", "branch", "staged_files" and "check" (command, exit_code and
 output_path); a check that fails is "failed" with reason "check-failed", and a
 run that times out leaves its worktree unstaged. Every writing worktree is kept

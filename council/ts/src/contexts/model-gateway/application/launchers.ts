@@ -76,6 +76,12 @@ export interface LaunchPaths {
   readonly runDir?: string
   /** The directory the client runs in: the repository, a throwaway worktree of it, or an empty directory. */
   readonly workDir: string
+  /**
+   * The git directories a writing run's client may write besides the worktree:
+   * a worktree's own git directory and the repository's shared object, ref and
+   * log directories, which sit outside it. A read-only run never gets them.
+   */
+  readonly gitWritable?: readonly string[]
 }
 
 /**
@@ -351,6 +357,9 @@ const hermes: ClientLauncher = {
  * Codex, `exec --json`: non-interactive, the wrapped prompt on stdin, the
  * client model by `-m`, the reasoning effort its id names, and Codex's own
  * sandbox: read-only for a read-only run, workspace-write for a writing one.
+ * A writing run also gets `--add-dir` for each git directory the caller names,
+ * so its sandbox can write the worktree's git directory and the repository's
+ * shared objects and refs, which sit outside the worktree it works in.
  * `--skip-git-repo-check` lets an inline run work in its empty directory. It
  * has no time limit of its own, so the outer timer is the limit.
  */
@@ -368,6 +377,7 @@ const codex: ClientLauncher = {
       input.mode === 'write' ? 'workspace-write' : 'read-only',
       '-C',
       paths.workDir,
+      ...(input.mode === 'write' ? (paths.gitWritable ?? []).flatMap((dir) => ['--add-dir', dir]) : []),
     ],
     command: binary,
     cwd: paths.workDir,
