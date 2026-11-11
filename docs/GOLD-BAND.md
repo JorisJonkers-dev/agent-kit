@@ -165,3 +165,80 @@ printed output), `timestamp` (UTC) and, only when the run did not pass,
 `failed_check` (`repository-rule`, `family-allowlist`, `grant`, `usage` or
 `input`). `tests/test_gold_band_run_start.py` proves the refusals headless
 against the pinned `gold-band` binary with stub agents.
+
+## The gate shim
+
+Gold Band has no command node, so a deterministic gate (build, tests, lint,
+coverage, crate age) runs through a shim, never through a change to Gold Band
+(`scripts/crates/gold-band-gate`, ADR-0014). Green means the command ran and
+exited zero. Three nodes make the shape, and
+`tests/fixtures/gold-band/gate-proof.json` is a working example:
+
+1. **The gate node**, a cheap worker whose agent id runs only the one pinned
+   wrapper. It answers with the wrapper's exit status, and its success
+   condition is `exit_code` equal to `0`.
+2. **The copier node**, a read-only worker that runs `gold-band-gate verify`
+   and answers with the report it prints. Its success condition is `exit_code`
+   equal to `0`, and when `verify` refuses the node answers with a non-zero
+   `exit_code`, so a refusal cannot be masked.
+3. **The next node**, reached only when both succeeded. Neither shim node has
+   a failure edge, so any failure ends the run.
+
+```bash
+gold-band-gate run --run-id ID --attempt N --timeout-secs S \
+    --report-dir DIR -- COMMAND [ARGS...]
+gold-band-gate verify --run-id ID --attempt N --command "COMMAND ARGS" \
+    --report-dir DIR [--max-age-secs N] [--now RFC3339]
+```
+
+**How a gate runs.** `run` clears `DIR/gate-report.json` and
+`DIR/gate-output.txt` from any earlier attempt first, then runs the command with
+stdout and stderr captured, in order, into `DIR/gate-output.txt` (at most 8 MiB
+are kept). It then writes `DIR/gate-report.json` through `gold-band-report`:
+`run_id`, `attempt`, `command` (the command and its arguments joined by single
+spaces), `exit_code`, `output_hash` (SHA-256 of the captured output),
+`timestamp` and, only for a timeout or a command that could not start,
+`failed_check` (`timeout` or `cannot-start`). A command that runs longer than
+`--timeout-secs` (1 to 604800) is killed with its process group, so a hung
+command never hangs the wrapper.
+
+**Exit codes.** The wrapper exits with the report's `exit_code`, so the gate
+node fails when the command does: the command's own exit code; `124` when it
+timed out; `127` when it could not start (not found, not executable);
+`128` plus the signal number when a signal ended it. `2` is bad usage or a
+report directory it cannot prepare or write (the command did not run, or no
+report exists). The timeout and cannot-start reasons are also written into
+`gate-output.txt`, so they are part of the hashed output.
+
+**What the copier checks.** `verify` only reads `DIR`. It prints every problem
+on stderr, one per line, `gold-band-gate: <check>: <why>`, and exits `1`:
+
+* `missing`: there is no report.
+* `stale`: the timestamp is older than `--max-age-secs` (default 3600) or more
+  than a minute in the future.
+* `other-run` and `other-attempt`: the report is for another run id or attempt,
+  for example a concurrent run's report.
+* `command-mismatch`: the report ran a command other than `--command`.
+* `hash-mismatch`: the SHA-256 of `gate-output.txt`, recomputed, is not the
+  report's `output_hash`, or the file is missing or over 8 MiB.
+* `failed-command`: `exit_code` is not `0` (`124` is named as a timeout), or a
+  `failed_check` is present.
+
+On success it exits `0` and prints the report on stdout verbatim, for the node
+to answer with. Exit `2` is bad usage or a report that cannot be read or is
+malformed: the report is untrusted, so it is size-bounded (64 KiB) and every
+field is type-checked.
+
+**The report directory must not be writable by the gate agent id.** The whole
+shim rests on it: an agent that could write `gate-report.json` and
+`gate-output.txt` could forge a pass with a matching hash. The wrapper and the
+copier do not enforce this. It is enforced by the launcher's operating-system
+write limit on the agent id (ticket #432): the directory is outside what the
+gate agent id can write, and the launcher must still let the wrapper write it,
+so the wrapper has to run outside that limit (the launcher's design, not this
+crate's). Until that limit is in place a gate is only as
+trustworthy as the agent that runs it. `tests/test_gold_band_gate.py` proves,
+headless, that a green, red, unstartable and hung command end as they should
+and that a deleted report, rewritten output, a rewritten command, a stale
+report and a report from another run or attempt each end the run in failure.
+Its stub does the tampering itself, since the limit is not in play there.

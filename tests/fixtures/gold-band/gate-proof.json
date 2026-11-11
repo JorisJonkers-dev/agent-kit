@@ -1,0 +1,111 @@
+{
+  "workflow": {
+    "description": "The gate shim proof (issue #445): the gate node runs the pinned gold-band-gate wrapper and answers with its exit status; the copier node runs gold-band-gate verify and answers with the report it printed, or with a failing exit_code when it refused; the last node is a model node that writes a marker file when it runs. Neither shim node has a failure edge, so a red, hung, unstartable or tampered gate ends the run before the model node.",
+    "version": "0.1",
+    "id": "gate-proof",
+    "entry": "gate",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate",
+        "executionSlotId": "slot-gate",
+        "provider": "GATE_AGENT",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper and answer with its exit status, as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy",
+        "executionSlotId": "slot-copy",
+        "provider": "COPY_AGENT",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier and answer with the report it prints, as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "model-work",
+        "executionSlotId": "slot-model-work",
+        "provider": "MODEL_AGENT",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Do the model work. Answer with one fenced json block holding ok.",
+        "output": {
+          "kind": "json",
+          "artifact": "model-result",
+          "schema": {
+            "ok": true
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate",
+        "to": "copy",
+        "on": "success"
+      },
+      {
+        "from": "copy",
+        "to": "model-work",
+        "on": "success"
+      },
+      {
+        "from": "model-work",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate",
+        "agentId": "GATE_AGENT",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy",
+        "agentId": "COPY_AGENT",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-model-work",
+        "agentId": "MODEL_AGENT",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}

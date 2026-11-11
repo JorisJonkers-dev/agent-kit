@@ -407,6 +407,21 @@ only when it refused, the check that failed. The run-start shim and the gate
 shim share this one format.
 _Avoid_: shim log, test report, receipt
 
+**Gate shim**:
+How a deterministic gate (build, tests, lint, coverage, crate age) runs in a
+Gold Band workflow, which has no command node: a cheap worker whose agent id
+runs one pinned wrapper, `gold-band-gate run`, that runs the command and writes
+a gate report the gate agent id cannot write. Green means the command ran and
+exited zero; a timeout is a failed report, not a hang.
+_Avoid_: gate node, test runner node, CI step
+
+**Copier node**:
+The read-only node after a gate shim. It runs `gold-band-gate verify` and
+answers with the gate report it printed; the run fails when the report is
+missing, stale, from another run or attempt, for another command, or does not
+match its captured output, so a faked pass ends in failure.
+_Avoid_: verifier node, report checker, gate checker
+
 **Overlay**:
 A per-machine file beside the keep file, `~/.config/agent-kit/overlay.yaml`,
 holding the work instance's employer-specific MCP servers and settings, so

@@ -43,6 +43,9 @@ on the Linux workstation.
   serde_json, pinned exactly. `crates/gold-band-run-start` is the run-start shim
   (below): it checks the repository rule, the family allowlist and the Codex
   grant before any model node runs, and writes its report through
+  gold-band-report. `crates/gold-band-gate` is the gate shim (below): the
+  wrapper that runs one gate command with a timeout and writes the gate report,
+  and the read-only copier that verifies it. It takes no registry crate, only
   gold-band-report. New Rust joins this
   workspace as a new member, never as its own Cargo project.
 
@@ -405,3 +408,14 @@ writes `<report-dir>/run-start.json` through `crates/gold-band-report`. Git, the
 clock, the environment and the output streams sit behind one `Host` trait:
 tests fake it, and the real host is exercised too, against a temporary git
 repository, so only `src/main.rs` is outside the coverage count.
+
+## The Gold Band gate shim
+
+`crates/gold-band-gate` is a library plus a CLI with two subcommands,
+`gold-band-gate run` (the wrapper) and `gold-band-gate verify` (the read-only
+copier); the flags and exit codes are in [GOLD-BAND.md](GOLD-BAND.md). The
+child process, the clock and the output streams sit behind one `Host` trait:
+tests fake it for every outcome, and the real host is exercised too (a real
+echo, exit code, signal death, hung command killed at the deadline, missing
+and non-executable command), so only `src/main.rs` is outside the coverage
+count. `tests/test_gold_band_gate.py` proves the shim headless.
