@@ -63,7 +63,10 @@ An error prints "status": "error" with its "code" and exits 1. A check that
 fails, such as check-tickets finding a dependency cycle or check-adrs a
 structural error in the decision log, check-rewrite a changed decision
 sentence or check-plan a rule of the plan format, prints
-"status": "failed" and exits 3. gate and session-start always exit 0; input
+"status": "failed" and exits 3. With --strict as the last argument, a refusal
+prints its result as usual and exits 4, so a Gold Band gate node that runs the
+command fails on it; without --strict a refusal exits 0. gate and
+session-start always exit 0; input
 they cannot read is allowed, and logged.
 
 hook runs one of ADR-0002's hooks on the agent's payload from stdin and

@@ -281,9 +281,18 @@ Nothing in a template reimplements a runner guarantee. A critic that writes
 outside its packet is voided by the runner's tripwire, a search outside the
 packet returns nothing, and a critic past its time limit is stopped by the
 runner; `council/ts/src/critique-cli/template-run.test.ts` proves each through
-the same `--strict` command line a gate node runs. The headless proof (`gold-band-proof prove`) checks each template's sequencing: a clean
-run ends in success, a finding pauses at the manual check, and a failing gate
-(including a refused run-start) ends the run in failure.
+the same `--strict` command line a gate node runs. The headless proof
+(`gold-band-proof prove`) checks each template's sequencing only, against stub
+agents: a clean run ends in success, a finding pauses at the manual check, and
+a gate that fails (the stub makes it) ends the run in failure.
+
+Two layers refuse on the allowlist, and they differ on an absent entry. The
+run-start node checks the family of every bound agent id and applies the
+personal default when the repository has no entry; the runner's `prepare`
+refuses a repository with no entry (`not-opted-in`) and, under `--strict`,
+exits 4. The gate agent ids are pinned to their commands, and the run
+arguments they need, by the later wiring tickets: the node goals name the
+command only.
 
 ## The generated roles
 
