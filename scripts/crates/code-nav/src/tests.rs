@@ -410,9 +410,9 @@ fn thirteen(
     // is, so `ten` starts above its def.
     assert_eq!(found[0].start, 2);
     assert_eq!(found[11].start, 15);
-    // `)`, `]` and `end` close the block they follow.
+    // `)` and `end` close a block at their own indentation; the `];` below is the parent's.
     assert_eq!((found[12].start, found[12].end), (18, 20));
-    assert_eq!((found[13].start, found[13].end), (22, 23));
+    assert_eq!((found[13].start, found[13].end), (22, 22));
     assert_eq!((found[14].start, found[14].end), (24, 26));
 }
 
@@ -426,7 +426,7 @@ fn a_truncated_line_declares_nothing() {
 #[test]
 fn an_impl_is_named_for_its_type_or_trait() {
     let text = "impl<T> Foo for Bar {\n    fn get(&self) {}\n}\n";
-    assert_eq!(ranges(&outline::symbols(text)), [(1, "impl", "Foo for Bar", 1, 3), (2, "fn", "get", 2, 3)]);
+    assert_eq!(ranges(&outline::symbols(text)), [(1, "impl", "Foo for Bar", 1, 3), (2, "fn", "get", 2, 2)]);
     // A body that opens on a later line still names the impl.
     assert_eq!(ranges(&outline::symbols("impl<T> Foo for Bar")), [(1, "impl", "Foo for Bar", 1, 1)]);
 }
@@ -791,4 +791,32 @@ fn cli_serves_over_the_given_streams() {
 #[test]
 fn run_takes_the_process_arguments() {
     assert_eq!(run(vec![OsString::from("--bogus")]), 2);
+}
+
+#[test]
+fn a_wrapped_signature_keeps_its_body() {
+    let rust = "pub fn foo(\n    a: u32,\n) -> u32 {\n    a\n}\n";
+    assert_eq!(ranges(&outline::symbols(rust)), [(1, "fn", "foo", 1, 5)]);
+    let python = "def f(\n    a,\n):\n    return a\n\nx = 1\n";
+    assert_eq!(ranges(&outline::symbols(python)), [(1, "def", "f", 1, 4)]);
+    let wheres = "fn f<T>(\n    a: T,\n) -> T\nwhere\n    T: Copy,\n{\n    a\n}\nfn g() {}\n";
+    assert_eq!(ranges(&outline::symbols(wheres)), [(1, "fn", "f", 1, 8), (9, "fn", "g", 9, 9)]);
+    let lone_brace = "fn h()\n{\n    1\n}\n";
+    assert_eq!(ranges(&outline::symbols(lone_brace)), [(1, "fn", "h", 1, 4)]);
+    let unclosed = "fn k(\n    a,\n";
+    assert_eq!(ranges(&outline::symbols(unclosed)), [(1, "fn", "k", 1, 2)]);
+    let tuple = "struct S(\n    u32,\n);\nfn after() {}\n";
+    assert_eq!(ranges(&outline::symbols(tuple)), [(1, "struct", "S", 1, 3), (4, "fn", "after", 4, 4)]);
+}
+
+#[test]
+fn an_enclosing_blocks_closer_is_not_part_of_the_symbol() {
+    let text = "trait T {\n    fn a(&self);\n}\n";
+    assert_eq!(ranges(&outline::symbols(text)), [(1, "trait", "T", 1, 3), (2, "fn", "a", 2, 2)]);
+}
+
+#[test]
+fn impl_names_survive_nested_generics() {
+    let text = "impl<T: Into<String>> Foo<T> {\n}\nimpl<T";
+    assert_eq!(ranges(&outline::symbols(text)), [(1, "impl", "Foo<T>", 1, 2)]);
 }

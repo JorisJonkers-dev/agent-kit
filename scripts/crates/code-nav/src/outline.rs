@@ -90,10 +90,27 @@ fn declaration(line: &str) -> Option<(String, String)> {
 /// The name of an `impl`: its generics skipped, the rest up to the body.
 fn impl_name(after: &str) -> String {
     let rest = match after.strip_prefix('<') {
-        Some(tail) => tail.split_once('>').map_or("", |(_, rest)| rest),
+        Some(tail) => skip_generics(tail),
         None => after,
     };
     rest.find('{').map_or(rest, |at| &rest[..at]).trim().to_string()
+}
+
+/// `tail` (the text after an opening `<`) once the matching `>` is passed,
+/// or empty when there is none.
+fn skip_generics(tail: &str) -> &str {
+    let mut depth = 1;
+    for (at, c) in tail.char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 {
+            return &tail[at + 1..];
+        }
+    }
+    ""
 }
 
 /// `text` after the first `)`, or empty when there is none.
@@ -135,8 +152,8 @@ fn start_of(lines: &[&str], i: usize, indent: usize) -> usize {
 /// the same or a shallower indentation, that line included when it closes the
 /// block.
 fn end_of(lines: &[&str], i: usize, indent: usize) -> usize {
-    let mut end = i + 1;
-    for (j, line) in lines.iter().enumerate().skip(i + 1) {
+    let mut end = signature_end(lines, i, indent);
+    for (j, line) in lines.iter().enumerate().skip(end) {
         if line.trim().is_empty() {
             continue;
         }
@@ -144,13 +161,45 @@ fn end_of(lines: &[&str], i: usize, indent: usize) -> usize {
             end = j + 1;
             continue;
         }
-        end = if closes(line) { j + 1 } else { j };
+        // Only a closer at the declaration's own indentation belongs to it;
+        // a shallower one closes the enclosing block.
+        end = if indent_of(line) == indent && closes(line) { j + 1 } else { j };
         break;
     }
     while end > i + 1 && lines[end - 1].trim().is_empty() {
         end -= 1;
     }
     end
+}
+
+/// The last line (1-based) of the declaration's signature: it runs on while
+/// brackets are open, then over `where` and `->` lines and a lone `{`, with the
+/// indented lines of a `where` clause, so a signature that rustfmt or a
+/// formatter wraps with its closing line at the declaration's indentation is
+/// not mistaken for the end of the block.
+fn signature_end(lines: &[&str], i: usize, indent: usize) -> usize {
+    let mut depth: i32 = 0;
+    let mut end = i;
+    for (j, line) in lines.iter().enumerate().skip(i) {
+        depth += line.chars().map(|c| match c { '(' | '[' => 1, ')' | ']' => -1, _ => 0 }).sum::<i32>();
+        end = j;
+        if depth <= 0 {
+            break;
+        }
+    }
+    let mut in_where = false;
+    for (j, line) in lines.iter().enumerate().skip(end + 1) {
+        let trimmed = line.trim_start();
+        if indent_of(line) <= indent && (word_of(trimmed) == "where" || trimmed.starts_with('{') || trimmed.starts_with("->")) {
+            in_where = true;
+            end = j;
+        } else if in_where && indent_of(line) > indent {
+            end = j;
+        } else {
+            break;
+        }
+    }
+    end + 1
 }
 
 /// True when `line` closes the block above it.
