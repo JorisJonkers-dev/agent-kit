@@ -3,6 +3,7 @@
 #
 # vibe-study [ARGS...]
 # vibe-study --login
+# vibe-study --acp [ARGS...]
 #
 # Mistral Vibe signed in with the Study account, in the shared Vibe home that
 # plain `vibe` uses too: Shared Memory only, no passphrase, safe for agents.
@@ -159,4 +160,16 @@ fi
 [ -n "${key}" ] || fail "not signed in with the Study account yet; run: vibe-study --login"
 unset MISTRAL_STUDY_API_KEY
 export MISTRAL_API_KEY="${key}"
+# --acp is how Gold Band starts this agent: the same key and home, but Vibe's
+# ACP server (vibe-acp) instead of the terminal app. Same refusals as above.
+if [ "${1:-}" = --acp ]; then
+  shift
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [ -x "${here}/vibe-acp" ]; then
+    exec "${here}/vibe-acp" "$@"
+  elif command -v vibe-acp >/dev/null 2>&1; then
+    exec vibe-acp "$@"
+  fi
+  fail "vibe-acp is not installed; nothing launched"
+fi
 exec vibe "$@"

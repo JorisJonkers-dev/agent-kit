@@ -485,3 +485,29 @@ def test_an_unreadable_settings_file_cannot_converge(
     assert machine.run() == 3
     assert "cannot converge" in capsys.readouterr().out
     machine.settings.chmod(0o600)
+
+
+def test_the_kits_registry_declares_vibe_and_vibe_study_without_a_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, binaries=("opencode", "vibe-acp", "vibe-study"))
+    monkeypatch.setenv("MISTRAL_STUDY_API_KEY", "sentinel-study-key")
+    monkeypatch.setenv("MISTRAL_API_KEY", "sentinel-personal-key")
+    assert machine.run(registry=False) == 0
+    agents = machine.agents()
+    home = str(Path.home())
+    assert agents["vibe"]["adapter"] == {
+        "displayName": "Vibe",
+        "command": f"{home}/.local/bin/vibe-acp",
+        "args": [],
+        "env": {},
+    }
+    assert agents["vibe-study"]["adapter"] == {
+        "displayName": "Vibe (Study)",
+        "command": f"{home}/.local/bin/vibe-study",
+        "args": ["--acp"],
+        "env": {},
+    }
+    text = machine.settings.read_text()
+    assert "sentinel" not in text
+    assert "sentinel" not in converge.REGISTRY_PATH.read_text()
