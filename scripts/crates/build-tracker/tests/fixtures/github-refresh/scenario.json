@@ -1,0 +1,91 @@
+{
+  "repo": "widgets",
+  "remote": "ssh://git@github.com/acme/widgets",
+  "steps": [
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "9"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "#10",
+        "--landed",
+        "2",
+        "--landed",
+        "#3",
+        "--landed",
+        " 04 "
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "#10"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json",
+        "5=running:going"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "#10",
+        "--landed",
+        "5"
+      ],
+      "gh": "gh-later"
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "#10",
+        "--landed",
+        "9"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "#10",
+        "--landed",
+        "widget-list"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "#10",
+        "--landed",
+        "0"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "acme/widgets#10",
+        "--landed",
+        "1"
+      ],
+      "mkdir": [
+        "out/refresh"
+      ],
+      "cwd": "work"
+    }
+  ]
+}

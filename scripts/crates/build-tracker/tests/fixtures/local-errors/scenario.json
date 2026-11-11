@@ -1,0 +1,148 @@
+{
+  "repo": "widgets",
+  "remote": "https://github.com/acme/widgets.git",
+  "steps": [
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/spec.md"
+      ],
+      "write": {
+        "work/widgets/docs/issues/readme.md": "# Read me\n"
+      }
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/spec.md"
+      ],
+      "remove": [
+        "work/widgets/docs/issues/readme.md"
+      ],
+      "write": {
+        "work/widgets/docs/issues/00-zero.md": "# Zero\n"
+      }
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/spec.md"
+      ],
+      "remove": [
+        "work/widgets/docs/issues/00-zero.md"
+      ],
+      "write": {
+        "work/widgets/docs/issues/2-again.md": "# Again\n",
+        "work/widgets/docs/issues/02-list.md": "# List\n"
+      }
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/nope.md"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "@SANDBOX@/outside/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "#5"
+      ],
+      "cwd": "outside"
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "#5"
+      ],
+      "env": {
+        "PATH": "@SANDBOX@/nowhere"
+      }
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/spec.md"
+      ],
+      "remove": [
+        "work/widgets/docs/issues"
+      ],
+      "write": {
+        "work/widgets/docs/issues/01-ok.md": "# OK\n"
+      }
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "docs/spec.md",
+        "--landed",
+        "7"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "docs/spec.md"
+      ],
+      "write": {
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json": "not json"
+      }
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "sync",
+        "--spec",
+        "docs/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/spec.md"
+      ],
+      "write": {
+        "work/widgets/docs/issues/03-unreadable.md": "# x\n"
+      },
+      "remove": [
+        "state/agent-kit"
+      ]
+    }
+  ]
+}

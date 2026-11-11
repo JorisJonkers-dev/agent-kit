@@ -1,0 +1,233 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/10 exited 1: gh: Not Found (HTTP 404)\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/10 exited 1: gh: Not Found (HTTP 404)\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/10/sub_issues?per_page=100 exited 1: rate limited\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/10/sub_issues?per_page=100 exited 1: rate limited\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/10 exited 1: exit code 1\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/10 exited 1: exit code 1\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api printed something that is not an issue\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: gh api printed something that is not an issue\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api printed something that is not an issue\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: gh api printed something that is not an issue\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api printed something that is not a list of issues\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: gh api printed something that is not a list of issues\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api printed something that is not a list of issues\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: gh api printed something that is not a list of issues\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api printed something that is not a list of issues\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: gh api printed something that is not a list of issues\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unsupported-ticket\",\"message\":\"other/place#5 is a sub-issue of acme/widgets#10 in another repository; the build tracker keys tickets by issue number in the spec's repository\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: other/place#5 is a sub-issue of acme/widgets#10 in another repository; the build tracker keys tickets by issue number in the spec's repository\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/2/dependencies/blocked_by?per_page=100 exited 1: boom\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/2/dependencies/blocked_by?per_page=100 exited 1: boom\n",
+      "files": {}
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"milestones\": [],\n  \"page\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/page.html\",\n  \"spec\": \"acme/widgets#10\",\n  \"state\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json\",\n  \"status\": \"initialized\",\n  \"tickets\": 2\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json": "{\n  \"spec\": \"acme/widgets#10\",\n  \"tickets\": {\n    \"1\": {\n      \"title\": \"\",\n      \"blocked_by\": [\n        2\n      ],\n      \"status\": \"todo\",\n      \"external\": [\n        {\n          \"ref\": \"acme/widgets#8\",\n          \"state\": \"open\"\n        }\n      ]\n    },\n    \"2\": {\n      \"title\": \"\",\n      \"blocked_by\": [],\n      \"status\": \"merged\"\n    }\n  },\n  \"title\": \"\",\n  \"version\": 1\n}\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"milestones\": [],\n  \"page\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/page.html\",\n  \"spec\": \"acme/widgets#10\",\n  \"state\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json\",\n  \"status\": \"initialized\",\n  \"tickets\": 2\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json": "{\n  \"spec\": \"acme/widgets#10\",\n  \"tickets\": {\n    \"1\": {\n      \"title\": \"one\",\n      \"blocked_by\": [],\n      \"status\": \"todo\"\n    },\n    \"3\": {\n      \"title\": \"three\",\n      \"blocked_by\": [\n        1\n      ],\n      \"status\": \"merged\"\n    }\n  },\n  \"title\": \"Paged\",\n  \"version\": 1\n}\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-milestone\",\"message\":\"Phase A is not <name>=<ticket>\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: Phase A is not <name>=<ticket>\n",
+      "files": {
+        "state/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-milestone\",\"message\":\"=3 is not <name>=<ticket>\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: =3 is not <name>=<ticket>\n",
+      "files": {
+        "state/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unknown-ticket\",\"message\":\"milestone Phase A closes ticket 9, which is not one of the spec's tickets\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: milestone Phase A closes ticket 9, which is not one of the spec's tickets\n",
+      "files": {
+        "state/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"milestones\": [\n    \"A=B\",\n    \"Two\"\n  ],\n  \"page\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/page.html\",\n  \"spec\": \"acme/widgets#10\",\n  \"state\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json\",\n  \"status\": \"initialized\",\n  \"tickets\": 2\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json": "{\n  \"milestones\": [\n    {\n      \"closes\": 2,\n      \"name\": \"A=B\"\n    },\n    {\n      \"closes\": 2,\n      \"name\": \"Two\"\n    }\n  ],\n  \"spec\": \"acme/widgets#10\",\n  \"tickets\": {\n    \"1\": {\n      \"title\": \"one\",\n      \"blocked_by\": [],\n      \"status\": \"todo\"\n    },\n    \"2\": {\n      \"title\": \"two\",\n      \"blocked_by\": [\n        1\n      ],\n      \"status\": \"todo\"\n    }\n  },\n  \"title\": \"Spec: widgets\",\n  \"version\": 1\n}\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-milestone\",\"message\":\"Phase=0 is not <name>=<ticket>\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: Phase=0 is not <name>=<ticket>\n",
+      "files": {
+        "state/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"missing-state\",\"message\":\"there is no state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json; create it with init\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker sync: there is no state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json; create it with init\n",
+      "files": {
+        "state/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/10 exited 1: gh: Not Found (HTTP 404)\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker refresh: cannot read the tickets of acme/widgets#10: gh api repos/acme/widgets/issues/10 exited 1: gh: Not Found (HTTP 404)\n",
+      "files": {
+        "state/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"tracker-unreachable\",\"message\":\"cannot read the tickets of acme/widgets#10: cannot run gh: spawn gh ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot read the tickets of acme/widgets#10: cannot run gh: spawn gh ENOENT\n",
+      "files": {
+        "state/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"cannot run git: spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: cannot run git: spawn git ENOENT\n",
+      "files": {
+        "state/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unreadable-state\",\"message\":\"the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json is unreadable: it is not JSON (SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)); delete it and run init again\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json is unreadable: it is not JSON (SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)); delete it and run init again\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json": "{"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unreadable-state\",\"message\":\"the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json is unreadable: it is not JSON (SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)); delete it and run init again\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker refresh: the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json is unreadable: it is not JSON (SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)); delete it and run init again\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json": "{"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"added\": [\n    1,\n    2\n  ],\n  \"counts\": {\n    \"ready\": 1,\n    \"blocked\": 1\n  },\n  \"merged\": [],\n  \"page\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/page.html\",\n  \"spec\": \"acme/widgets#10\",\n  \"state\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json\",\n  \"ran\": \"init\",\n  \"status\": \"refreshed\",\n  \"tickets\": 2\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/page.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"claude:viewport-fit-sides\" content=\"cover\">\n<title>Spec #10 build tracker</title>\n<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;600&display=swap\">\n<style>\n:root { --bg:#f6f7f9; --panel:#ffffff; --fg:#1d2b3a; --muted:#5b6676; --line:#d9dee5; --accent:#2b6cb0; --ok:#2f7d55; --run:#c8871a; --rev:#7a5cc4; --bad:#c0392b; --off:#e6e9ee; --on-status:#ffffff;\n  --display:\"IBM Plex Sans Condensed\", \"Arial Narrow\", sans-serif; --body:\"IBM Plex Sans\", system-ui, sans-serif; --mono:\"IBM Plex Mono\", ui-monospace, monospace;\n  color-scheme:light; }\n@media (prefers-color-scheme: dark) { :root:not([data-theme=\"light\"]) { --bg:#11161d; --panel:#18202a; --fg:#e3e8ef; --muted:#97a3b3; --line:#2a3542; --accent:#6aa5e8; --off:#25303c; color-scheme:dark; } }\n:root[data-theme=\"dark\"] { --bg:#11161d; --panel:#18202a; --fg:#e3e8ef; --muted:#97a3b3; --line:#2a3542; --accent:#6aa5e8; --off:#25303c; color-scheme:dark; }\n* { box-sizing:border-box; }\nbody { margin:0; background:var(--bg); color:var(--fg); font-family:var(--body); padding-block:24px 48px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); overflow-wrap:anywhere; }\nmain { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:minmax(0, 1fr); gap:20px; }\nh1 { font-family:var(--display); font-size:1.9rem; margin:0; text-wrap:balance; }\n.sub { color:var(--muted); margin:4px 0 0; }\n.strip { display:flex; flex-wrap:wrap; gap:8px; }\n.graph { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; overflow-x:auto; }\n.graph pre { margin:0; }\nsection { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }\nh2 { font-family:var(--display); font-size:1.15rem; margin:0 0 8px; }\nh2 small { font-family:var(--mono); font-size:.75rem; color:var(--muted); font-weight:400; margin-left:6px; }\nul { list-style:none; margin:0; padding:0; display:grid; gap:6px; }\nli { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 8px; min-width:0; }\nli a, li .n { font-family:var(--mono); color:var(--accent); text-decoration:none; font-variant-numeric:tabular-nums; }\nli a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }\n.t { min-width:0; }\n.meta { flex-basis:100%; color:var(--muted); font-size:.8rem; padding-left:92px; }\n.pill { display:inline-block; min-width:78px; text-align:center; font-size:.72rem; letter-spacing:.04em; text-transform:uppercase; border-radius:999px; padding:2px 8px; font-family:var(--mono); }\n.merged { background:var(--ok); color:var(--on-status); } .running { background:var(--run); color:var(--on-status); } .review { background:var(--rev); color:var(--on-status); }\n.ready { border:1.5px solid var(--accent); color:var(--accent); } .owner { background:var(--bad); color:var(--on-status); } .blocked { background:var(--off); color:var(--muted); }\n.live { font-size:.7rem; font-family:var(--mono); color:var(--bad); border:1px solid var(--bad); border-radius:4px; padding:0 5px; }\n@media (max-width:520px) { .meta { padding-left:0; } }\n</style>\n</head>\n<body>\n<main>\n<header><h1>Spec: widgets</h1>\n<p class=\"sub\">updated 2026-11-03 12:00 UTC</p></header>\n<div class=\"strip\">\n<span class=\"pill ready\">Ready 1</span>\n<span class=\"pill blocked\">Blocked 1</span>\n</div>\n<div class=\"graph\"><pre class=\"mermaid\">\nflowchart LR\n  t1[&quot;#1 one&quot;]:::ready\n  t2[&quot;#2 two&quot;]:::blocked\n  t1 --&gt; t2\n  classDef merged fill:#2f7d55,stroke:#2f7d55,color:#ffffff\n  classDef review fill:#7a5cc4,stroke:#7a5cc4,color:#ffffff\n  classDef running fill:#c8871a,stroke:#c8871a,color:#ffffff\n  classDef ready fill:#ffffff,stroke:#2b6cb0,stroke-width:2px,color:#1d2b3a\n  classDef owner fill:#c0392b,stroke:#c0392b,color:#ffffff\n  classDef blocked fill:#e6e9ee,stroke:#b8c0cc,color:#5b6676\n  classDef external fill:none,stroke:#8a94a3,stroke-width:1.5px,stroke-dasharray:5 4,color:#5b6676\n</pre></div>\n<section><h2>Tickets <small>0/2 merged</small></h2>\n<ul>\n<li><span class=\"pill ready\">Ready</span><a href=\"https://github.com/acme/widgets/issues/1\">#1</a> <span class=\"t\">one</span><span class=\"meta\">blocked by none</span></li>\n<li><span class=\"pill blocked\">Blocked</span><a href=\"https://github.com/acme/widgets/issues/2\">#2</a> <span class=\"t\">two</span><span class=\"meta\">blocked by #1</span></li>\n</ul></section>\n</main>\n<script src=\"https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js\" integrity=\"sha384-rbtjAdnIQE/aQJGEgXrVUlMibdfTSa4PQju4HDhN3sR2PmaKFzhEafuePsl9H/9I\" crossorigin=\"anonymous\"></script>\n<script>\n(function () {\n  if (!window.mermaid) return;\n  var root = document.documentElement;\n  var dark = root.dataset.theme === 'dark' ||\n    (root.dataset.theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);\n  window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'default' });\n  window.mermaid.run({ querySelector: 'pre.mermaid' });\n})();\n</script>\n</body>\n</html>\n",
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json": "{\n  \"spec\": \"acme/widgets#10\",\n  \"tickets\": {\n    \"1\": {\n      \"title\": \"one\",\n      \"blocked_by\": [],\n      \"status\": \"todo\"\n    },\n    \"2\": {\n      \"title\": \"two\",\n      \"blocked_by\": [\n        1\n      ],\n      \"status\": \"todo\"\n    }\n  },\n  \"title\": \"Spec: widgets\",\n  \"version\": 1\n}\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unreadable-state\",\"message\":\"the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json is unreadable: ENOTDIR: not a directory, open '@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json'; delete it and run init again\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker refresh: the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json is unreadable: ENOTDIR: not a directory, open '@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json'; delete it and run init again\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10": "a file where the folder goes"
+      }
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "repo": "widgets",
+  "remote": "https://github.com/acme/widgets.git",
+  "steps": [
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "docs/specs/widgets/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "./docs/../docs/specs//widgets/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/specs/widgets/spec.md",
+        "--milestone",
+        "First=2"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "docs/specs/widgets/spec.md",
+        "--landed",
+        "02",
+        "--landed",
+        "#3"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "docs/specs/widgets/spec.md"
+      ],
+      "cwd": "work/widgets/docs"
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "specs/widgets/spec.md"
+      ],
+      "cwd": "work/widgets/docs"
+    },
+    {
+      "argv": [
+        "sync",
+        "--spec",
+        "docs/specs/widgets/spec.md"
+      ],
+      "write": {
+        "work/widgets/docs/specs/widgets/issues/07-new.md": "# New ticket\n\nBlocked by: 05, 06\n",
+        "work/widgets/docs/specs/widgets/issues/05-unicode.md": "# Ünï \"tickét\" <b> & 😀\n\n- Blocked by: 04\n\nStatus: wontfix\n"
+      }
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/specs/widgets/spec.md"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/specs/v1.2 beta.md"
+      ],
+      "write": {
+        "work/widgets/docs/specs/v1.2 beta.md": "# Beta\n",
+        "work/widgets/docs/specs/issues/01-a.md": "# A\n"
+      }
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "docs/specs/v1.2 beta.md"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "docs/specs/v1.2 beta.md"
+      ]
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "docs/specs/plain.md"
+      ],
+      "write": {
+        "work/widgets/docs/specs/plain.md": "No heading in this one.\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-specs-widgets-spec-md-7f62ea6e/state.json",
+        "--out",
+        "@SANDBOX@/out/nowhere.html"
+      ],
+      "env": {
+        "PATH": "@SANDBOX@/nowhere"
+      }
+    }
+  ]
+}

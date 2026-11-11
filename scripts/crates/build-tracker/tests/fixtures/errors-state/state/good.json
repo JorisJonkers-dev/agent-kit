@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "spec": "acme/widgets#10",
+  "title": "Good",
+  "tickets": {
+    "1": {
+      "title": "one",
+      "blocked_by": [],
+      "status": "todo"
+    },
+    "2": {
+      "title": "two",
+      "blocked_by": [
+        1
+      ],
+      "status": "running"
+    },
+    "4": {
+      "title": "four",
+      "blocked_by": [],
+      "status": "merged"
+    }
+  },
+  "milestones": [
+    {
+      "name": "A",
+      "closes": 4
+    }
+  ]
+}

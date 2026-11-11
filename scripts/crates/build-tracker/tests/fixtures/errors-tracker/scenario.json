@@ -1,0 +1,285 @@
+{
+  "repo": "widgets",
+  "remote": "https://github.com/acme/widgets.git",
+  "steps": [
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-404"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-rate"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-silent"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-notissue"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-html"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-notlist"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-badpage"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-flat"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-cross"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-blockfail"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "#10"
+      ],
+      "gh": "gh-minimal"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "#10"
+      ],
+      "gh": "gh-pages"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10",
+        "--milestone",
+        "Phase A"
+      ]
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10",
+        "--milestone",
+        "=3"
+      ]
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10",
+        "--milestone",
+        "Phase A=9"
+      ]
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10",
+        "--milestone",
+        "A=B=2",
+        "--milestone",
+        "  Two  =  #2  "
+      ]
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10",
+        "--milestone",
+        "Phase=0"
+      ]
+    },
+    {
+      "argv": [
+        "sync",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-404"
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "gh": "gh-404"
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "env": {
+        "PATH": "@SANDBOX@/nowhere"
+      }
+    },
+    {
+      "remove": [
+        "state/agent-kit"
+      ],
+      "argv": [
+        "init",
+        "--spec",
+        "#10"
+      ],
+      "env": {
+        "PATH": "@SANDBOX@/nowhere"
+      }
+    },
+    {
+      "argv": [
+        "init",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "remove": [
+        "state/agent-kit"
+      ],
+      "write": {
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10/state.json": "{"
+      }
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "acme/widgets#10"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "remove": [
+        "state/agent-kit"
+      ]
+    },
+    {
+      "argv": [
+        "refresh",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "remove": [
+        "state/agent-kit"
+      ],
+      "write": {
+        "state/agent-kit/build-tracker/github.com/acme/widgets/10": "a file where the folder goes"
+      }
+    }
+  ]
+}

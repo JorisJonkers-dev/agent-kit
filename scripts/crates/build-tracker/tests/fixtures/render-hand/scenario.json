@@ -1,0 +1,70 @@
+{
+  "repo": "widgets",
+  "remote": "https://github.com/acme/widgets.git",
+  "steps": [
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/hand.json",
+        "--out",
+        "@SANDBOX@/out/hand.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/hand.json",
+        "--out",
+        "@SANDBOX@/out/hand.html"
+      ],
+      "cwd": "home"
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/hand.json",
+        "7=merged:cyc",
+        "8=merged",
+        "10=review: x\r\ny"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/hand.json",
+        "--out",
+        "@SANDBOX@/out/hand2.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "@SANDBOX@/state/odd.json",
+        "--out",
+        "@SANDBOX@/out/odd.html"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/odd.json",
+        "2=review:n",
+        "#1=merged"
+      ]
+    },
+    {
+      "argv": [
+        "set",
+        "--state",
+        "@SANDBOX@/state/odd.json",
+        "1=todo:"
+      ]
+    }
+  ]
+}

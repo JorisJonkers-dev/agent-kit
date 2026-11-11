@@ -1,0 +1,134 @@
+{
+  "repo": "widgets",
+  "remote": "https://github.com/acme/widgets.git",
+  "steps": [
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "env": {
+        "XDG_STATE_HOME": null,
+        "HOME": "/home/ann"
+      }
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "env": {
+        "XDG_STATE_HOME": "state",
+        "HOME": "/home/ann"
+      }
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "env": {
+        "XDG_STATE_HOME": "",
+        "HOME": "/home/ann"
+      }
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "env": {
+        "XDG_STATE_HOME": "/srv//state/../xdg/"
+      }
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "env": {
+        "XDG_STATE_HOME": null,
+        "HOME": "relative"
+      }
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#10"
+      ],
+      "env": {
+        "XDG_STATE_HOME": null,
+        "HOME": null
+      }
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "docs/spec.md"
+      ],
+      "env": {
+        "XDG_STATE_HOME": null,
+        "HOME": null
+      },
+      "write": {
+        "work/widgets/docs/spec.md": "# S\n"
+      }
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "Acme/Widgets.Core#7"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "github.example.org/Acme/Widgets#7"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "https://HTTP.example.org/acme/widgets/issues/7/extra/path"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "http://github.com/acme/widgets/pull/7"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "https://github.com/acme/widgets/issues/0"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "#0"
+      ]
+    },
+    {
+      "argv": [
+        "path",
+        "--spec",
+        "acme/widgets#07"
+      ]
+    }
+  ]
+}

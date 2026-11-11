@@ -1,0 +1,10 @@
+[
+  [
+    {
+      "number": 1,
+      "title": "blocker 1",
+      "state": "open",
+      "html_url": "https://github.com/acme/widgets/issues/1"
+    }
+  ]
+]

@@ -1,0 +1,157 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-ticket-file\",\"message\":\"there is no issues/ folder beside docs/spec.md\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: there is no issues/ folder beside docs/spec.md\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-ticket-file\",\"message\":\"docs/issues/readme.md has no ticket number in front of its name; name each ticket file like 01-readme.md\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: docs/issues/readme.md has no ticket number in front of its name; name each ticket file like 01-readme.md\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-ticket-file\",\"message\":\"docs/issues/00-zero.md has no ticket number in front of its name; name each ticket file like 01-00-zero.md\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: docs/issues/00-zero.md has no ticket number in front of its name; name each ticket file like 01-00-zero.md\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-ticket-file\",\"message\":\"docs/issues/02-list.md and docs/issues/2-again.md both have ticket number 2\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: docs/issues/02-list.md and docs/issues/2-again.md both have ticket number 2\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-spec\",\"message\":\"docs/nope.md is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: docs/nope.md is neither an issue reference (#<number>, owner/repo#<number> or an issue URL) nor a readable spec file\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-spec\",\"message\":\"@SANDBOX@/outside/spec.md is in no git repository\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: @SANDBOX@/outside/spec.md is in no git repository\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-spec\",\"message\":\"#5 names an issue of the current repository, but @SANDBOX@/outside is in no repository with a remote; name it as owner/repo#<number>\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker path: #5 names an issue of the current repository, but @SANDBOX@/outside is in no repository with a remote; name it as owner/repo#<number>\n",
+      "files": {}
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"cannot run git: spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker path: cannot run git: spawn git ENOENT\n",
+      "files": {}
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"milestones\": [],\n  \"page\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/page.html\",\n  \"spec\": \"docs/spec.md\",\n  \"state\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json\",\n  \"status\": \"initialized\",\n  \"tickets\": 1\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json": "{\n  \"spec\": {\n    \"path\": \"docs/spec.md\"\n  },\n  \"tickets\": {\n    \"1\": {\n      \"title\": \"OK\",\n      \"blocked_by\": [],\n      \"status\": \"todo\",\n      \"file\": \"docs/issues/01-ok.md\"\n    }\n  },\n  \"title\": \"Spec\",\n  \"version\": 1\n}\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"state-exists\",\"message\":\"a state for docs/spec.md already exists at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json; bring it up to date with sync\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: a state for docs/spec.md already exists at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json; bring it up to date with sync\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json": "{\n  \"spec\": {\n    \"path\": \"docs/spec.md\"\n  },\n  \"tickets\": {\n    \"1\": {\n      \"title\": \"OK\",\n      \"blocked_by\": [],\n      \"status\": \"todo\",\n      \"file\": \"docs/issues/01-ok.md\"\n    }\n  },\n  \"title\": \"Spec\",\n  \"version\": 1\n}\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unknown-ticket\",\"message\":\"ticket 7 is not one of the spec's tickets\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker refresh: ticket 7 is not one of the spec's tickets\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json": "{\n  \"spec\": {\n    \"path\": \"docs/spec.md\"\n  },\n  \"tickets\": {\n    \"1\": {\n      \"title\": \"OK\",\n      \"blocked_by\": [],\n      \"status\": \"todo\",\n      \"file\": \"docs/issues/01-ok.md\"\n    }\n  },\n  \"title\": \"Spec\",\n  \"version\": 1\n}\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unreadable-state\",\"message\":\"the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json is unreadable: it is not JSON (SyntaxError: Unexpected token 'o', \\\"not json\\\" is not valid JSON); delete it and run init again\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker refresh: the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json is unreadable: it is not JSON (SyntaxError: Unexpected token 'o', \"not json\" is not valid JSON); delete it and run init again\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json": "not json"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unreadable-state\",\"message\":\"the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json is unreadable: it is not JSON (SyntaxError: Unexpected token 'o', \\\"not json\\\" is not valid JSON); delete it and run init again\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker init: the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json is unreadable: it is not JSON (SyntaxError: Unexpected token 'o', \"not json\" is not valid JSON); delete it and run init again\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json": "not json"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unreadable-state\",\"message\":\"the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json is unreadable: it is not JSON (SyntaxError: Unexpected token 'o', \\\"not json\\\" is not valid JSON); delete it and run init again\",\"status\":\"error\"}\n",
+      "stderr": "build-tracker sync: the state file at @SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json is unreadable: it is not JSON (SyntaxError: Unexpected token 'o', \"not json\" is not valid JSON); delete it and run init again\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json": "not json"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"milestones\": [],\n  \"page\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/page.html\",\n  \"spec\": \"docs/spec.md\",\n  \"state\": \"@SANDBOX@/state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json\",\n  \"status\": \"initialized\",\n  \"tickets\": 2\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/build-tracker/": null,
+        "state/agent-kit/build-tracker/github.com/": null,
+        "state/agent-kit/build-tracker/github.com/acme/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/": null,
+        "state/agent-kit/build-tracker/github.com/acme/widgets/docs-spec-md-2d77c443/state.json": "{\n  \"spec\": {\n    \"path\": \"docs/spec.md\"\n  },\n  \"tickets\": {\n    \"1\": {\n      \"title\": \"OK\",\n      \"blocked_by\": [],\n      \"status\": \"todo\",\n      \"file\": \"docs/issues/01-ok.md\"\n    },\n    \"3\": {\n      \"title\": \"x\",\n      \"blocked_by\": [],\n      \"status\": \"todo\",\n      \"file\": \"docs/issues/03-unreadable.md\"\n    }\n  },\n  \"title\": \"Spec\",\n  \"version\": 1\n}\n"
+      }
+    }
+  ]
+}
