@@ -511,3 +511,37 @@ def test_a_nested_directory_in_a_skill_is_copied_and_compared(
     assert machine.run() == 0
     assert "changed skills vibe" in capsys.readouterr().out
     assert nested.read_text() == "one\n"
+
+
+def test_a_symlinked_id_directory_is_replaced_and_its_target_left_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
+    outside = tmp_path / "documents"
+    outside.mkdir()
+    (outside / "precious.txt").write_text("keep me\n")
+    machine.skills_root.mkdir(parents=True)
+    machine.directory("opencode").symlink_to(outside)
+    assert machine.run(check=True) == 0
+    assert machine.directory("opencode").is_symlink()
+    assert machine.run() == 0
+    assert not machine.directory("opencode").is_symlink()
+    assert (machine.directory("opencode") / "estate-bootstrap" / "SKILL.md").is_file()
+    assert (outside / "precious.txt").read_text() == "keep me\n"
+    assert not (outside / "estate-bootstrap").exists()
+
+
+def test_a_file_where_an_id_directory_belongs_is_replaced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
+    machine.skills_root.mkdir(parents=True)
+    machine.directory("vibe").write_text("in the way\n")
+    assert machine.run() == 0
+    assert (machine.directory("vibe") / "council" / "SKILL.md").is_file()
+
+
+def test_a_retired_ids_directory_goes_even_when_kept(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = _registry(retired=["old"])
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}}, keep=["old"], registry=registry)
+    (machine.directory("old")).mkdir(parents=True)
+    assert machine.run() == 0
+    assert not machine.directory("old").exists()

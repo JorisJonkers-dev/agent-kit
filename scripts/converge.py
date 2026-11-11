@@ -664,7 +664,12 @@ def _gold_band_skills(
     lines: list[str] = []
     for name, skills in wanted.items():
         target = root / name
-        held = {child.name for child in target.iterdir()} if target.is_dir() else set()
+        # A link or a file where the directory belongs is replaced, never followed.
+        if target.is_symlink() or (target.exists() and not target.is_dir()):
+            if not check:
+                _gold_band_remove(target)
+            lines.append(f"changed skills {name}")
+        held = {child.name for child in target.iterdir()} if target.is_dir() and not target.is_symlink() else set()
         added = [skill for skill in skills if skill not in held]
         changed = [
             skill
@@ -766,7 +771,7 @@ def gold_band(args: argparse.Namespace) -> int:
         print(f"skipped: {name} ({binary} is not installed)")
     # The skill directories are written before settings.json, and an unchanged
     # settings map never skips them.
-    for line in _gold_band_skills(skills_root, args.kit, wanted, sources, skipped_ids, keep, args.check):
+    for line in _gold_band_skills(skills_root, args.kit, wanted, sources, skipped_ids, keep - retired, args.check):
         print(line)
     # The map keeps its slot among the other top-level keys; a new one is appended.
     new_doc = {**doc, "agents": merged}
