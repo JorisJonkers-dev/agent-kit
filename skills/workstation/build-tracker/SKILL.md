@@ -179,7 +179,7 @@ node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[
   is closed, and Ready or Blocked when it is open, by its blockers. It reads
   no state file and writes none, so it never changes a page made with
   `init`. `--repo` names the repository the issues are in; without it the
-  working directory's `origin` is used. Give the page its own path, and
+  working directory's remote (`origin`, else the first remote) is used. Give the page its own path, and
   publish it as **Republish** says:
   `node <this folder>/build-tracker.mjs render --tickets docs/specs/gold-band/tickets.yaml --out <page>`.
 - `set` changes the named tickets' statuses. A note after the status replaces

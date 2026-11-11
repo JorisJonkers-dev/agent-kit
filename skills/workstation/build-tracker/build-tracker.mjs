@@ -1071,7 +1071,7 @@ var RenderCommand = class {
   /** The repository the issues are in: `--repo owner/repo`, else the working directory's remote. */
   async repository(repo) {
     if (repo !== void 0) {
-      const named = parseIssueReference(`${repo}#1`);
+      const named = /^[\w.-]+\/[\w.-]+$/.test(repo) ? parseIssueReference(`${repo}#1`) : void 0;
       if (named === void 0) throw new BuildTrackerError("invalid-spec", `--repo must be owner/repo, not ${repo}`);
       return repositoryName(named.repository.host, named.repository.owner, named.repository.repo);
     }

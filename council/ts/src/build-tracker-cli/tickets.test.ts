@@ -280,6 +280,7 @@ describe('build-tracker render --tickets', () => {
       'the working directory has no git remote; name the repository with --repo owner/repo',
     ],
     ['a --repo that is no owner/repo', WIDGETS, ['--repo', 'widgets'], '--repo must be owner/repo, not widgets'],
+    ['a --repo that names a host as well', WIDGETS, ['--repo', 'a/b/c'], '--repo must be owner/repo, not a/b/c'],
   ]
 
   it.each(refusals)('refuses %s with invalid-spec', async (_name, remote, extra, message) => {

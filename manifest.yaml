@@ -592,7 +592,7 @@ critique:
 build_tracker:
   files:
     - path: skills/workstation/build-tracker/build-tracker.mjs
-      sha256: 29766f4ca3e898d62f4136b7ead1e24fa5299947061cf2d0e365bee331418246
+      sha256: 74754a726dfe61eb6de24e88fe15f02e6e1954839617ddf187cc9a8d7529d568
       mode: "0755"
 # The model gateway's runner and shipped defaults, pinned the way
 # critique.files pins the critique runner. skills/workstation/model-gateway/ is
