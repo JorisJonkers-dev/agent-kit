@@ -9,5 +9,4 @@ flaky_jobs:
 - name: flaky-e2e
   reason: the runner pool is being drained
   reviewed_by: octo
-  reviewed_on: 2026-01-01
   reviewed_on: 2026-11-01
