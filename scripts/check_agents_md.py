@@ -32,13 +32,14 @@ import argparse
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 AGENTS_MD = "AGENTS.md"
 FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
-LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+LINK = re.compile(r"\[[^\]]*\]\(<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\)")
 SPAN = re.compile(r"`([^`\n]+)`")
 SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
-SYMBOL = re.compile(r"^(?P<path>.+?)::(?P<symbol>[A-Za-z_][A-Za-z0-9_]*)(?:\(\))?$")
+SYMBOL = re.compile(r"^(?P<path>.+?)::(?P<symbol>\w+(?:(?:\.|::)\w+)*)(?:\(\))?$")
 # Characters that make a span a pattern, a shell fragment or a placeholder rather than a path.
 NOT_A_PATH = frozenset("*?<>${}|~")
 EXTENSIONS = frozenset(
@@ -85,7 +86,7 @@ def _unfenced_lines(text: str) -> list[tuple[int, str]]:
 
 def _clean(span: str) -> str:
     """Strip the trailing slash and the leading `./` a span may carry."""
-    candidate = span.rstrip("/")
+    candidate = re.sub(r"(?::\d+)?(?:\(\))?$", "", span).rstrip("/")
     return candidate[2:] if candidate.startswith("./") else candidate
 
 
@@ -95,7 +96,7 @@ def _looks_like_path(span: str) -> bool:
         return False
     if any(character in NOT_A_PATH for character in span):
         return False
-    if span.startswith(("-", "http", "/", "~")) or "://" in span:
+    if span.startswith(("-", "/", "~")) or "://" in span:
         return False
     candidate = _clean(span)
     if span.endswith("/") or "/" in candidate:
@@ -124,7 +125,7 @@ def _link_problem(root: Path, target: str) -> str:
     path = target.split("#", 1)[0].split("?", 1)[0]
     if not path:
         return ""
-    if not (root / path.lstrip("/")).exists():
+    if not (root / unquote(path).lstrip("/")).exists():
         return f"dead path: {path}"
     return ""
 
@@ -139,7 +140,8 @@ def _span_problem(root: Path, span: str) -> str:
         resolved = _resolve(root, path)
         if resolved is None:
             return f"dead path: {path}"
-        return "" if _mentions(resolved, reference.group("symbol")) else f"dead symbol: {span}"
+        names = re.split(r"\.|::", reference.group("symbol"))
+        return "" if all(_mentions(resolved, name) for name in names) else f"dead symbol: {span}"
     if not _looks_like_path(span):
         return ""
     return "" if _resolve(root, span) is not None else f"dead path: {_clean(span)}"

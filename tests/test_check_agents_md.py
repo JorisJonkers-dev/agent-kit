@@ -544,3 +544,24 @@ def test_symbol_reference_on_a_non_path_is_ignored(tmp_path: Path) -> None:
     repo = make_repo(tmp_path, agents_md="Call `foo::bar` or `Class::method()`.\n")
     result = run(str(repo))
     assert result.returncode == 0, result.stderr
+
+
+def test_link_title_angle_brackets_and_percent_encoding(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        agents_md='[a](docs/my%20guide.md "t") [b](<docs/my guide.md>) [c](docs/nope.md "t")\n',
+        files={"docs/my guide.md": "x"},
+    )
+    result = run(str(repo))
+    assert result.returncode == 1
+    assert problems(result) == [f"{repo}/AGENTS.md:1: dead path: docs/nope.md"]
+
+
+def test_nested_symbols_line_numbers_and_http_prefixed_dirs(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        agents_md="`scripts/run.py::Thing.method` `scripts/run.py::Thing::method()` `scripts/run.py:2` `httpx/x.py`\n",
+        files={"scripts/run.py": "class Thing:\n    def method(self): ...\n"},
+    )
+    result = run(str(repo))
+    assert problems(result) == [f"{repo}/AGENTS.md:1: dead path: httpx/x.py"]
