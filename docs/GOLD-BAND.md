@@ -108,6 +108,18 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
   account key from the secret store at launch and hands it to `vibe-acp`, so no
   key is written to a Gold Band file. With the key missing it starts nothing
   and says to run `vibe-study --login`.
+* A Claude agent (`claude`, `claude-work`) declares `config_dir`, a path that is
+  absolute or starts with `~/`. It is registry-only: setup writes it as the
+  entry's `adapter.env.CLAUDE_CONFIG_DIR`. Gold Band sets every `adapter.env`
+  entry on the adapter process on top of the environment it inherits, and the
+  adapter hands its environment to Claude Code, so a `CLAUDE_CONFIG_DIR` in the
+  launcher's own environment cannot switch the identity. The personal agent
+  (`claude`) holds `~/.claude-personal`, the work agent (`claude-work`,
+  `instance: gold-band`) holds `~/.claude`. Setup refuses a Claude agent with
+  no `config_dir`, two agents on one directory, and an `adapter.env` that
+  names `CLAUDE_CONFIG_DIR` by hand. The work agent is converged on the work
+  instance with `converge.py gold-band --instance gold-band`; setup runs only
+  the personal instance on Linux.
 * An undeclared agent is removed unless the keep file names it. An id that
   names Codex and any id in `gold_band.retired_agents` are removed even when
   kept.

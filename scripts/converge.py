@@ -70,6 +70,13 @@ REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
 # The Gold Band instance whose settings.json this kit converges, and the app
 # process whose running state makes a write unsafe.
 GOLD_BAND_INSTANCE = "gold-band-personal"
+GOLD_BAND_WORK_INSTANCE = "gold-band"
+GOLD_BAND_INSTANCES = (GOLD_BAND_WORK_INSTANCE, GOLD_BAND_INSTANCE)
+# Claude Code reads its profile from this variable, and the adapter forwards
+# the environment it is given: setting it in the agent entry is what keeps an
+# ambient value from switching the identity.
+GOLD_BAND_CLAUDE_CONFIG_ENV = "CLAUDE_CONFIG_DIR"
+GOLD_BAND_CLAUDE_ID = re.compile(r"^claude(-[a-z0-9]+)*$")
 GOLD_BAND_PROCESS_NAMES = ("gold-band-desktop", "Gold Band")
 # Exit code of a refusal because an instance runs; setup stops on it.
 GOLD_BAND_RUNNING_EXIT = 4
@@ -82,6 +89,8 @@ GOLD_BAND_PROMPT_DELIVERY = ("none", "meta-append")
 GOLD_BAND_AGENT_FIELDS = (
     "id",
     "binary",
+    "instance",
+    "config_dir",
     "skill_set",
     "adapter",
     "icon",
@@ -95,6 +104,8 @@ GOLD_BAND_AGENT_FIELDS = (
 # An agent that names a skill set gets its own directory as its primary agent
 # directory, so it may not also declare one of these.
 GOLD_BAND_SKILL_SET_REPLACES = ("primaryAgentDir", "projectPrimaryAgentDir", "compatibleAgentDirs")
+# Declared in the registry only; never written to settings.json.
+GOLD_BAND_REGISTRY_ONLY = ("id", "binary", "instance", "config_dir", "skill_set")
 GOLD_BAND_ADAPTER_FIELDS = ("displayName", "command", "args", "env")
 # A generated profile's front matter carries a fixed stamp, so a second run
 # rewrites nothing. The app's own profiles carry this id prefix and are never
@@ -312,8 +323,10 @@ def _gold_band_settings_path() -> Path:
     return Path(home) / "settings.json"
 
 
-def _gold_band_registry(path: Path) -> tuple[list[dict[str, Any]], set[str], set[str]]:
-    """The declared agents, the retired ids and the ids the personal instance may hold."""
+def _gold_band_registry(
+    path: Path, instance: str = GOLD_BAND_INSTANCE
+) -> tuple[list[dict[str, Any]], set[str], set[str]]:
+    """The declared agents, the retired ids and the ids ``instance`` may hold."""
     try:
         data = yaml.safe_load(path.read_text())
     except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
@@ -332,12 +345,10 @@ def _gold_band_registry(path: Path) -> tuple[list[dict[str, Any]], set[str], set
     if not isinstance(retired, list) or not all(isinstance(name, str) for name in retired):
         raise _CannotConverge(f"{path}: gold_band.retired_agents must be a list of ids")
     instances = data.get("gold_band_instances")
-    personal = instances.get(GOLD_BAND_INSTANCE) if isinstance(instances, dict) else None
-    allowed = personal.get("agents") if isinstance(personal, dict) else None
+    held = instances.get(instance) if isinstance(instances, dict) else None
+    allowed = held.get("agents") if isinstance(held, dict) else None
     if not isinstance(allowed, list) or not all(isinstance(name, str) for name in allowed):
-        raise _CannotConverge(
-            f"{path}: gold_band_instances.{GOLD_BAND_INSTANCE}.agents must be a list of ids"
-        )
+        raise _CannotConverge(f"{path}: gold_band_instances.{instance}.agents must be a list of ids")
     return agents, set(retired), set(allowed)
 
 
@@ -370,8 +381,52 @@ def _gold_band_adapter_problems(name: str, adapter: Any) -> list[str]:
     return problems
 
 
+def _gold_band_instance_of(agent: dict[str, Any]) -> Any:
+    """The instance an agent is declared for: the personal one unless ``instance`` says otherwise."""
+    return agent.get("instance", GOLD_BAND_INSTANCE)
+
+
+def _gold_band_everyone_problems(declared: list[dict[str, Any]]) -> list[str]:
+    """Problems that span the instances: each agent's instance, and each Claude
+    agent's own configuration directory, which no two agents share.
+
+    ``declared`` is every agent of the registry, whatever its instance, so a
+    directory shared by the work and the personal agent is caught here.
+    """
+    problems: list[str] = []
+    owners: dict[str, str] = {}
+    for agent in declared:
+        raw = agent.get("id")
+        if not isinstance(raw, str):
+            continue
+        if _gold_band_instance_of(agent) not in GOLD_BAND_INSTANCES:
+            problems.append(f"{raw}: instance must be one of {', '.join(GOLD_BAND_INSTANCES)}")
+        directory = agent.get("config_dir")
+        if not GOLD_BAND_CLAUDE_ID.match(raw):
+            if directory is not None:
+                problems.append(f"{raw}: config_dir is only for a Claude agent")
+            continue
+        adapter = agent.get("adapter")
+        env = adapter.get("env") if isinstance(adapter, dict) else None
+        if isinstance(env, dict) and GOLD_BAND_CLAUDE_CONFIG_ENV in env:
+            problems.append(f"{raw}: adapter.env {GOLD_BAND_CLAUDE_CONFIG_ENV} is set by config_dir, not by hand")
+        if not isinstance(directory, str) or not directory:
+            problems.append(f"{raw}: a Claude agent must declare config_dir")
+        elif not (directory.startswith("/") or directory.startswith("~/")) or ".." in Path(directory).parts:
+            problems.append(f"{raw}: config_dir must be an absolute path or start with ~/, without ..")
+        else:
+            key = directory.rstrip("/")
+            if key in owners:
+                problems.append(f"{raw}: config_dir {directory} is already {owners[key]}'s")
+            owners.setdefault(key, raw)
+    return problems
+
+
 def _gold_band_problems(
-    declared: list[dict[str, Any]], allowed: set[str], retired: frozenset[str] | set[str] = frozenset()
+    declared: list[dict[str, Any]],
+    allowed: set[str],
+    retired: frozenset[str] | set[str] = frozenset(),
+    instance: str = GOLD_BAND_INSTANCE,
 ) -> list[str]:
     """One line per problem with the declared agents; empty when they may be written."""
     problems: list[str] = []
@@ -386,12 +441,12 @@ def _gold_band_problems(
             problems.append(f"{raw}: duplicate id")
             continue
         seen.add(raw)
-        if "codex" in raw.lower():
+        if instance == GOLD_BAND_INSTANCE and "codex" in raw.lower():
             problems.append(f"{raw}: Codex is refused on the personal instance")
         if raw in retired:
             problems.append(f"{raw}: declared and retired at once")
         if raw not in allowed:
-            problems.append(f"{raw}: not in gold_band_instances.{GOLD_BAND_INSTANCE}.agents")
+            problems.append(f"{raw}: not in gold_band_instances.{instance}.agents")
         problems += [f"{raw}: unknown field {key}" for key in agent if key not in GOLD_BAND_AGENT_FIELDS]
         problems += _gold_band_adapter_problems(raw, agent.get("adapter"))
         delivery = agent.get("systemPromptDelivery")
@@ -480,16 +535,21 @@ def _gold_band_expand(value: str) -> str:
 def _gold_band_entry(agent: dict[str, Any], skills_dir: Path | None = None) -> dict[str, Any]:
     """The settings entry for a declared agent: its written fields, expanded.
 
-    ``skill_set`` is registry-only, so it is never written. An agent that names
+    ``skill_set``, ``instance`` and ``config_dir`` are registry-only, so they are
+    never written; ``config_dir`` becomes the adapter's ``CLAUDE_CONFIG_DIR``,
+    set in the entry so no ambient value can replace it. An agent that names
     one gets its own skill directory as its primary agent directory and no
     compatible ones, since nothing is shared between ids.
     """
     entry = {
         key: value
         for key, value in agent.items()
-        if key in GOLD_BAND_AGENT_FIELDS and key not in ("id", "binary", "skill_set")
+        if key in GOLD_BAND_AGENT_FIELDS and key not in GOLD_BAND_REGISTRY_ONLY
     }
     adapter = entry.get("adapter")
+    if agent.get("config_dir") is not None:
+        adapter = dict(adapter) if isinstance(adapter, dict) else {}
+        adapter["env"] = {**(adapter.get("env") or {}), GOLD_BAND_CLAUDE_CONFIG_ENV: agent["config_dir"]}
     if isinstance(adapter, dict):
         adapter = dict(adapter)
         if agent["id"] in GOLD_BAND_BUILT_INS:
@@ -580,7 +640,7 @@ def _gold_band_processes() -> list[_Process]:
         return []
 
 
-def _gold_band_running(data_dir: Path) -> str | None:
+def _gold_band_running(data_dir: Path, instance: str = GOLD_BAND_INSTANCE) -> str | None:
     """The running instance that holds ``data_dir``, or None.
 
     An instance is a process whose executable is named like the desktop app,
@@ -590,14 +650,14 @@ def _gold_band_running(data_dir: Path) -> str | None:
     """
     flag = os.environ.get(GOLD_BAND_RUNNING_ENV)
     if flag is not None:
-        return f"{GOLD_BAND_INSTANCE} (set by {GOLD_BAND_RUNNING_ENV})" if flag == "1" else None
+        return f"{instance} (set by {GOLD_BAND_RUNNING_ENV})" if flag == "1" else None
     ours = data_dir.expanduser().resolve()
     for proc in _gold_band_processes():
         if Path(proc.exe).name not in GOLD_BAND_PROCESS_NAMES:
             continue
         if proc.home is not None and Path(proc.home).expanduser().resolve() != ours:
             continue
-        return f"{GOLD_BAND_INSTANCE} (process {proc.pid}, data {ours})"
+        return f"{instance} (process {proc.pid}, data {ours})"
     return None
 
 
@@ -707,19 +767,24 @@ def _gold_band_skills(
 
 
 def gold_band(args: argparse.Namespace) -> int:
+    instance = args.instance
     settings = args.settings or _gold_band_settings_path()
     skills_root = Path(os.path.abspath(args.skills_root or settings.parent / "skill-sets"))
     try:
-        declared, retired, allowed = _gold_band_registry(args.registry)
+        everyone, retired, allowed = _gold_band_registry(args.registry, instance)
+        # Only this instance's agents are converged; the others are still held
+        # to the configuration-directory rules, which span both instances.
+        declared = [agent for agent in everyone if _gold_band_instance_of(agent) == instance]
         raw_sets, sources = _gold_band_skill_sets(args.registry)
-        problems = _gold_band_problems(declared, allowed, retired)
+        problems = _gold_band_problems(declared, allowed, retired, instance)
+        problems += _gold_band_everyone_problems(everyone)
         set_problems, sets = _gold_band_skill_set_problems(declared, raw_sets, sources, args.kit)
         problems += set_problems
         if problems:
             for problem in problems:
                 print(f"gold-band-agents: {problem}")
             return 1
-        running = None if args.check else _gold_band_running(settings.parent)
+        running = None if args.check else _gold_band_running(settings.parent, instance)
         if running:
             print(
                 f"gold-band-agents: Gold Band instance {running} is running; "
@@ -761,7 +826,7 @@ def gold_band(args: argparse.Namespace) -> int:
     for name, value in current.items():
         if name in installed:
             merged[name] = installed[name]
-        elif name in retired or "codex" in name.lower():
+        elif name in retired or (instance == GOLD_BAND_INSTANCE and "codex" in name.lower()):
             removed.append(name)
         elif name in skipped_ids or name in keep:
             merged[name] = value
@@ -792,7 +857,7 @@ def gold_band(args: argparse.Namespace) -> int:
         return 0
 
     # The one write group of this surface: the guard runs again right before it.
-    running = _gold_band_running(settings.parent)
+    running = _gold_band_running(settings.parent, instance)
     if running:
         return _gold_band_stopped("gold-band-agents", running, [], [settings.name])
     if settings.is_file():
@@ -1058,6 +1123,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument(flag, default="")
     g = sub.add_parser("gold-band")
     g.add_argument("--settings", type=Path, default=None)
+    g.add_argument("--instance", choices=GOLD_BAND_INSTANCES, default=GOLD_BAND_INSTANCE)
     g.add_argument("--registry", type=Path, default=REGISTRY_PATH)
     # The kit the local skills are copied from, and where the per-agent skill
     # directories go: beside settings.json unless the owner moves them.
