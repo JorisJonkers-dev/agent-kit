@@ -471,10 +471,35 @@ setup re-run is needed. Setup also removes the old port-forward launchd agent
 (`dev.jorisjonkers.agent-kit.port-forward.*`) and systemd user unit from a
 machine that has them.
 
-The GitHub MCP server comes from the `github` **plugin**, which manages its own
-credential. It reports `Authorization header is badly formatted` when that
-credential is missing or malformed — which reads like an unconfigured server
-rather than a missing token.
+The GitHub MCP server comes from the `github` **plugin**
+(`external_plugins/github` in the official plugin marketplace), which setup
+cannot rewrite. Its `.mcp.json` is:
+
+```json
+{"github": {"type": "http", "url": "https://api.githubcopilot.com/mcp/",
+            "headers": {"Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"}}}
+```
+
+Claude Code expands `${GITHUB_PERSONAL_ACCESS_TOKEN}` from the environment it
+was started in. When the variable is unset or empty the header goes out as
+`Authorization: Bearer ` with no token, and `https://api.githubcopilot.com/mcp/`
+answers `HTTP 400: Error POSTing to endpoint: bad request: Authorization header
+is badly formatted`. That reads like an unconfigured server; the cause is the
+missing variable. The plugin offers no other credential route: it does not read
+`gh auth`, and it does not run an OAuth flow.
+
+To get the tools, start Claude Code with the variable set to a GitHub token
+that can reach the repositories you work on, for example
+`GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token)" claude`. Setup never writes
+that token anywhere, and neither should a profile file you commit. Reports of
+the same 400 on other platforms, which have other causes (a token that is set
+but mangled, or a client that does not expand the template), are tracked
+upstream at
+[anthropics/claude-code#84367](https://github.com/anthropics/claude-code/issues/84367)
+(closed as stale) and
+[anthropics/claude-code#107604](https://github.com/anthropics/claude-code/issues/107604)
+(open). A session without the variable has no github MCP tools; use `gh`
+instead.
 
 ## Package proxy
 
