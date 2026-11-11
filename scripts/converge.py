@@ -619,7 +619,8 @@ def _processes_proc(root: Path) -> list[_Process]:
             found.append(_Process(int(entry.name), argv, None))
             continue
         values = {e.partition(b"=")[0]: e.partition(b"=")[2].decode(errors="replace") for e in env}
-        data = _gold_band_data_dir(values.get(b"GOLD_BAND_HOME"), lambda: values.get(b"HOME") or str(Path.home()))
+        their_home = values.get(b"HOME")
+        data = _gold_band_data_dir(values.get(b"GOLD_BAND_HOME"), lambda h=their_home: h or str(Path.home()))
         found.append(_Process(int(entry.name), argv, str(data)))
     return found
 
