@@ -7223,9 +7223,9 @@ function recoveryVerdict(finding, found, packet2) {
   if (finding.category !== "undocumented-decision") return { reason: HINT_REASONS["not-a-candidate"], reason_code: "not-a-candidate", verdict: "hint" };
   const sites = traceSites(finding.evidence, packet2);
   if (sites.size === 0) return rejected("no-code-trace", "cites no file of tree/ in a trace: the decision is not traced to the code");
-  if (sites.size === 1) return rejected("single-site", `traces to one site only (${[...sites].join("")}): one site may be an accident, so it needs two`);
+  if (sites.size === 1) return rejected("single-site", `traces to one site only: one site may be an accident, so it needs two`);
   if (!found.history && !NO_RATIONALE.test(finding.claim)) {
-    return rejected("invented-rationale", 'gives a "because" with no quote from history/ and no statement that no rationale was found');
+    return rejected("invented-rationale", "gives no reason from history/ and does not say that no rationale was found");
   }
   return void 0;
 }
@@ -9647,7 +9647,9 @@ var HISTORY_ISSUES_DIR = "history/issues";
 var HISTORY_MAX_PATHS = 200;
 var HISTORY_MAX_COMMITS = 200;
 var HISTORY_CAP_BYTES = 40960;
-var HISTORY_MAX_ISSUES = 20;
+var HISTORY_MAX_ISSUES = 10;
+var HISTORY_ISSUE_BYTES = 2048;
+var HISTORY_RESERVE_BYTES = HISTORY_CAP_BYTES + HISTORY_MAX_ISSUES * HISTORY_ISSUE_BYTES + 512;
 var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
   "c",
   "cc",
@@ -9694,17 +9696,18 @@ function renderHistoryLog(entries, commit) {
     `Commits reachable from \`${commit}\` that changed a file under \`tree/\`, newest first. Each message is its author's own text: quote it for a rationale, and never take it for settled fact.`,
     ""
   ].join("\n");
+  const note = (n) => `${String(n)} older commits did not fit the history cap of ${String(HISTORY_CAP_BYTES)} bytes.
+`;
   let text = header;
   let held = 0;
   for (const entry2 of entries) {
     const block = [`## ${entry2.commit} ${entry2.date}`, `Files: ${entry2.files.join(", ")}`, "", entry2.subject, ...entry2.body === "" ? [] : ["", entry2.body], "", ""].join("\n");
-    if (Buffer.byteLength(text) + Buffer.byteLength(block) > HISTORY_CAP_BYTES) break;
+    if (Buffer.byteLength(text) + Buffer.byteLength(block) + Buffer.byteLength(note(entries.length)) > HISTORY_CAP_BYTES) break;
     text += block;
     held += 1;
   }
   const left = entries.length - held;
-  return { left_out: left, text: left === 0 ? text : `${text}${String(left)} older commits did not fit the history cap of ${String(HISTORY_CAP_BYTES)} bytes.
-` };
+  return { left_out: left, text: left === 0 ? text : `${text}${note(left)}` };
 }
 function citedIssues(entries) {
   const numbers = [];
@@ -9723,6 +9726,10 @@ function sourceSample(tracked) {
 
 // src/contexts/critique/application/recovery-packet.ts
 var RECOVERY_ARTIFACT = "recovery";
+function limited(request) {
+  if (request.history === void 0) return request;
+  return { head: request.head, limits: { ...request.limits, cap_bytes: Math.max(1, request.limits.cap_bytes - HISTORY_RESERVE_BYTES) } };
+}
 var RecoveryPacketReader = class {
   constructor(deps) {
     this.deps = deps;
@@ -9733,7 +9740,7 @@ var RecoveryPacketReader = class {
     const present = await files.listFiles(root);
     const records = await this.records(root);
     const glossary = GLOSSARIES.find((name) => present.includes(name));
-    const maps = present.filter((path) => path.split("/").at(-1) === CONTEXT_MAP);
+    const maps = present.filter((path) => path === CONTEXT_MAP);
     const references2 = [...glossary === void 0 ? [] : [glossary], ...maps, ...records.map((record) => record.source)];
     const documents = await Promise.all(
       references2.map(async (source) => ({
@@ -9743,7 +9750,7 @@ var RecoveryPacketReader = class {
         text: await files.readText(join25(root, source))
       }))
     );
-    const sampled = await sampleTree(this.deps, root, { artifactText: documents.map((file) => file.text).join("\n\n"), files: documents }, request, sourceSample);
+    const sampled = await sampleTree(this.deps, root, { artifactText: documents.map((file) => file.text).join("\n\n"), files: documents }, limited(request), sourceSample);
     if (sampled.status === "refused") return sampled;
     const history = request.history === void 0 ? [] : await this.history(root, sampled, request.history.tracker);
     return {
@@ -9784,7 +9791,7 @@ var RecoveryPacketReader = class {
     return [
       log,
       ...issues.flatMap(
-        (issue) => issue === void 0 ? [] : [{ kind: "history", path: join25(HISTORY_ISSUES_DIR, issue.name), source: issue.reference, text: issue.text }]
+        (issue) => issue === void 0 ? [] : [{ kind: "history", path: join25(HISTORY_ISSUES_DIR, issue.name), source: issue.reference, text: Buffer.from(issue.text).subarray(0, HISTORY_ISSUE_BYTES).toString("utf8") }]
       )
     ];
   }
@@ -13276,15 +13283,15 @@ var GitCliAdapter = class {
   async commitLog(cwd, revision, paths, limit) {
     if (paths.length === 0) return [];
     const format = "--format=%x1e%H%x00%cI%x00%s%x00%b%x00";
-    const args = ["--literal-pathspecs", "log", `--max-count=${String(limit)}`, format, "--name-only", "--end-of-options", revision, "--", ...paths];
+    const args = ["--literal-pathspecs", "log", `--max-count=${String(limit)}`, format, "--name-only", "-z", "--end-of-options", revision, "--", ...paths];
     const result = await this.git(cwd, args);
     return result.stdout.split("").filter((record) => record.trim().length > 0).map((record) => {
-      const [commit = "", date = "", subject = "", body = "", files = ""] = record.split("\0");
+      const [commit = "", date = "", subject = "", body = "", ...files] = record.split("\0");
       return {
         body: body.trim(),
         commit,
         date,
-        files: files.split("\n").filter((file) => file.length > 0),
+        files: files.map((file) => file.trim()).filter((file) => file.length > 0),
         subject
       };
     });

@@ -19,7 +19,11 @@ export const HISTORY_MAX_PATHS = 200
 export const HISTORY_MAX_COMMITS = 200
 /** How many bytes the log may take, and how many issues it fetches: history is evidence, not a second tree. */
 export const HISTORY_CAP_BYTES = 40_960
-export const HISTORY_MAX_ISSUES = 20
+export const HISTORY_MAX_ISSUES = 10
+/** Each issue is cut to this many bytes, so the issues take 20 KiB at most. */
+export const HISTORY_ISSUE_BYTES = 2048
+/** What a recovery sample leaves of the packet cap for history, so the whole packet stays inside the cap. */
+export const HISTORY_RESERVE_BYTES = HISTORY_CAP_BYTES + HISTORY_MAX_ISSUES * HISTORY_ISSUE_BYTES + 512
 
 const SOURCE_EXTENSIONS = new Set([
   'c',
@@ -73,16 +77,17 @@ export function renderHistoryLog(entries: readonly HistoryEntry[], commit: strin
     `Commits reachable from \`${commit}\` that changed a file under \`tree/\`, newest first. Each message is its author's own text: quote it for a rationale, and never take it for settled fact.`,
     '',
   ].join('\n')
+  const note = (n: number): string => `${String(n)} older commits did not fit the history cap of ${String(HISTORY_CAP_BYTES)} bytes.\n`
   let text = header
   let held = 0
   for (const entry of entries) {
     const block = [`## ${entry.commit} ${entry.date}`, `Files: ${entry.files.join(', ')}`, '', entry.subject, ...(entry.body === '' ? [] : ['', entry.body]), '', ''].join('\n')
-    if (Buffer.byteLength(text) + Buffer.byteLength(block) > HISTORY_CAP_BYTES) break
+    if (Buffer.byteLength(text) + Buffer.byteLength(block) + Buffer.byteLength(note(entries.length)) > HISTORY_CAP_BYTES) break
     text += block
     held += 1
   }
   const left = entries.length - held
-  return { left_out: left, text: left === 0 ? text : `${text}${String(left)} older commits did not fit the history cap of ${String(HISTORY_CAP_BYTES)} bytes.\n` }
+  return { left_out: left, text: left === 0 ? text : `${text}${note(left)}` }
 }
 
 /** The issue numbers the commit messages cite as `#123`, in the order they first appear, at most `HISTORY_MAX_ISSUES`. */

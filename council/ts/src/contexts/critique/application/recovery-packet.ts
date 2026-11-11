@@ -8,7 +8,9 @@ import {
   HISTORY_ISSUES_DIR,
   HISTORY_LOG_PATH,
   HISTORY_MAX_COMMITS,
+  HISTORY_ISSUE_BYTES,
   HISTORY_MAX_PATHS,
+  HISTORY_RESERVE_BYTES,
   renderHistoryLog,
   sourceLines,
   sourceSample,
@@ -49,6 +51,12 @@ export interface RecoveryPacket {
   readonly adrs: number
 }
 
+/** The request with the packet cap less what history may add, so history never takes the packet past the cap. */
+function limited(request: RecoveryPacketRequest): { readonly head: string; readonly limits: PacketLimits } {
+  if (request.history === undefined) return request
+  return { head: request.head, limits: { ...request.limits, cap_bytes: Math.max(1, request.limits.cap_bytes - HISTORY_RESERVE_BYTES) } }
+}
+
 /**
  * Reads what a decision-recovery run freezes: the repository's tree
  * sampled by rule, `tree/MANIFEST.tsv` and `facts/`, every ADR in force,
@@ -67,7 +75,7 @@ export class RecoveryPacketReader {
     const present = await files.listFiles(root)
     const records = await this.records(root)
     const glossary = GLOSSARIES.find((name) => present.includes(name))
-    const maps = present.filter((path) => path.split('/').at(-1) === CONTEXT_MAP)
+    const maps = present.filter((path) => path === CONTEXT_MAP)
     const references = [...(glossary === undefined ? [] : [glossary]), ...maps, ...records.map((record) => record.source)]
     const documents: UnfrozenFile[] = await Promise.all(
       references.map(async (source) => ({
@@ -77,7 +85,7 @@ export class RecoveryPacketReader {
         text: await files.readText(join(root, source)),
       })),
     )
-    const sampled = await sampleTree(this.deps, root, { artifactText: documents.map((file) => file.text).join('\n\n'), files: documents }, request, sourceSample)
+    const sampled = await sampleTree(this.deps, root, { artifactText: documents.map((file) => file.text).join('\n\n'), files: documents }, limited(request), sourceSample)
     if (sampled.status === 'refused') return sampled
     const history = request.history === undefined ? [] : await this.history(root, sampled, request.history.tracker)
     return {
@@ -121,7 +129,7 @@ export class RecoveryPacketReader {
     return [
       log,
       ...issues.flatMap((issue): UnfrozenFile[] =>
-        issue === undefined ? [] : [{ kind: 'history', path: join(HISTORY_ISSUES_DIR, issue.name), source: issue.reference, text: issue.text }],
+        issue === undefined ? [] : [{ kind: 'history', path: join(HISTORY_ISSUES_DIR, issue.name), source: issue.reference, text: Buffer.from(issue.text).subarray(0, HISTORY_ISSUE_BYTES).toString('utf8') }],
       ),
     ]
   }

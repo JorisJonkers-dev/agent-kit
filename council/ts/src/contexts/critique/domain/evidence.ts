@@ -194,9 +194,9 @@ function recoveryVerdict(finding: FindingBody, found: EvidenceFound, packet: Pac
   if (finding.category !== 'undocumented-decision') return { reason: HINT_REASONS['not-a-candidate'], reason_code: 'not-a-candidate', verdict: 'hint' }
   const sites = traceSites(finding.evidence, packet)
   if (sites.size === 0) return rejected('no-code-trace', 'cites no file of tree/ in a trace: the decision is not traced to the code')
-  if (sites.size === 1) return rejected('single-site', `traces to one site only (${[...sites].join('')}): one site may be an accident, so it needs two`)
+  if (sites.size === 1) return rejected('single-site', `traces to one site only: one site may be an accident, so it needs two`)
   if (!found.history && !NO_RATIONALE.test(finding.claim)) {
-    return rejected('invented-rationale', 'gives a "because" with no quote from history/ and no statement that no rationale was found')
+    return rejected('invented-rationale', 'gives no reason from history/ and does not say that no rationale was found')
   }
   return undefined
 }

@@ -176,7 +176,7 @@ so that "yes" confirms the draft.
   write nothing and leave the candidate open. Never write a reason the owner
   did not give, and never copy the critic's inferred rationale. Show the owner
   the draft and write it only once they approve it. Mark the verdict
-  `"answered": true` with `"reason_code": "accepted-by-owner"`.
+  `"answered": true` with `"reason_code": "answered-by-owner"`.
 - **"It was an accident."** Not a decision: write nothing to the decision log.
   Add a note to `<run_dir>/refactoring-notes.md` (the candidate, its sites and
   the owner's words) for a refactoring plan. Mark the verdict

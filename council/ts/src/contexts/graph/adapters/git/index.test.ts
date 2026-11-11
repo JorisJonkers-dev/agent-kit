@@ -579,12 +579,12 @@ describe('GitCliAdapter commits', () => {
 
   it('reads the log of some paths: each commit with its message and the paths it changed', async () => {
     const stdout =
-      '\x1eb2\x002026-03-04T05:06:07+01:00\x00Use sqlite\x00Because offline.\n\nSecond paragraph.\n\x00\n\nsrc/a.ts\nsrc/b.ts\n' +
-      '\x1ea1\x002026-01-01T00:00:00+00:00\x00First\x00\x00\n\nsrc/a.ts\n'
+      '\x1eb2\x002026-03-04T05:06:07+01:00\x00Use sqlite\x00Because offline.\n\nSecond paragraph.\n\x00\n\nsrc/a.ts\x00src/b c.ts\x00' +
+      '\x1ea1\x002026-01-01T00:00:00+00:00\x00First\x00\x00\n\nsrc/a.ts\x00'
     const process = new RecordingProcess(() => success(stdout))
 
     expect(await new GitCliAdapter(process).commitLog('/r', 'abc', ['src/a.ts', 'src/b.ts'], 50)).toEqual([
-      { body: 'Because offline.\n\nSecond paragraph.', commit: 'b2', date: '2026-03-04T05:06:07+01:00', files: ['src/a.ts', 'src/b.ts'], subject: 'Use sqlite' },
+      { body: 'Because offline.\n\nSecond paragraph.', commit: 'b2', date: '2026-03-04T05:06:07+01:00', files: ['src/a.ts', 'src/b c.ts'], subject: 'Use sqlite' },
       { body: '', commit: 'a1', date: '2026-01-01T00:00:00+00:00', files: ['src/a.ts'], subject: 'First' },
     ])
     expect(process.commands[0]?.args).toEqual([
@@ -593,6 +593,7 @@ describe('GitCliAdapter commits', () => {
       '--max-count=50',
       '--format=%x1e%H%x00%cI%x00%s%x00%b%x00',
       '--name-only',
+      '-z',
       '--end-of-options',
       'abc',
       '--',
