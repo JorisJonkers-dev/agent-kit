@@ -111,7 +111,7 @@ def test_setup_writes_the_opencode_surface(run: Run) -> None:
 
 
 @pytest.mark.parametrize("platform", ["Darwin", "Linux"])
-def test_the_listings_equal_what_the_registry_declares(tmp_path: Path, platform: str) -> None:
+def test_the_servers_and_kit_skills_equal_what_the_registry_declares(tmp_path: Path, platform: str) -> None:
     """After a run, OpenCode holds exactly the declared MCP servers and the declared kit skills, on both OSes.
 
     The stubbed claude lists no plugin and the stubbed git clones nothing, so the
