@@ -269,6 +269,55 @@ gold_band:
       externalSessionSyncEnabled: false
   # Agent ids setup removes even when the keep file names them.
   retired_agents: []
+  # The roles both instances hold, rendered from the critique skill's own role
+  # and lens files (`roles_source`, relative to the kit) into the instance's
+  # `context/profiles` directory, one Markdown file per role: the role file,
+  # the shared preamble and output contract, the finding schema, then the
+  # role's lenses, verbatim, with templating off (`dynamicTemplate: false`) and
+  # `scripts/gold-band/roles-closing.md` as the closing section. `file` is the
+  # profile's file stem, `source` a file under `roles/`, `lenses` names under
+  # `lenses/`. An undeclared profile file goes unless the keep file names its
+  # stem; a stem or id in `retired_roles` goes even when the keep file names
+  # it. Gold Band's own `pf-builtin-*` profiles are never touched.
+  roles_source: skills/workstation/critique
+  roles:
+    - file: decision-gap-critic
+      id: pf-gap
+      name: Decision-gap critic
+      summary: Asks the owner the questions the decisions a feature was planned from never settled.
+      source: gap-critic.md
+      lenses: [unasked-questions, failure-modes, integration]
+    - file: spec-red-team
+      id: pf-spec-redteam
+      name: Spec red team
+      summary: Attacks a spec for contradictions, omissions, inventions and untestable requirements.
+      source: spec-redteam.md
+      lenses: [fidelity, testability, failure-modes, security, integration, operability, simplicity]
+    - file: ticket-linter
+      id: pf-ticket-linter
+      name: Ticket linter
+      summary: Lints the structure of the tickets cut from a spec.
+      source: ticket-linter.md
+      lenses: [testability, simplicity]
+    - file: diff-reviewer
+      id: pf-diff-reviewer
+      name: Diff reviewer
+      summary: Second review of one ticket's diff for bugs, unmet criteria and security issues.
+      source: diff-reviewer.md
+      lenses: [failure-modes, security, integration]
+    - file: feature-reviewer
+      id: pf-feature-reviewer
+      name: Feature reviewer
+      summary: Reviews a whole feature for the defects that live between its tickets.
+      source: feature-reviewer.md
+      lenses: [integration, failure-modes, operability, simplicity]
+    - file: adversarial-verifier
+      id: pf-adversarial-verifier
+      name: Adversarial verifier
+      summary: Refutes or downgrades one accepted critical finding against the files.
+      source: refuter.md
+      lenses: []
+  retired_roles: []
 
 # -------------------------------------------------------------------
 # Claude Code profiles.
