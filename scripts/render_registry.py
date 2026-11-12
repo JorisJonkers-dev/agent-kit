@@ -3089,7 +3089,10 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
         '-p agent-launcher -- read-limit-check 2>&1) || rc=$?'
     )
     w("  else")
-    w('    fail "gold band read limit: cargo is not on PATH, so the launcher cannot be asked; do not start the personal instance on this machine"')
+    w(
+        '    fail "gold band read limit: cargo is not on PATH, so the launcher cannot be asked; '
+        'do not start the personal instance on this machine"'
+    )
     w("    return 0")
     w("  fi")
     w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')

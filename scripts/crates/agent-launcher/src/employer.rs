@@ -4,7 +4,9 @@
 //! They come from one declared place, the per-machine overlay
 //! (`~/.config/agent-kit/overlay.yaml`, beside the keep file), under the work
 //! instance: `instances.gold-band.employer_roots`, a list of absolute or `~/`
-//! paths. No path is built into the launcher.
+//! paths; the personal account's own overlay (ADR-0011 gives each account
+//! one) may list them under `instances.gold-band-personal`. No path is built
+//! into the launcher.
 //!
 //! * No overlay, or one that does not name the work instance: this is not the
 //!   work machine and there is nothing to keep out of reach.
@@ -17,6 +19,8 @@ use std::path::{Path, PathBuf};
 
 /// The work instance, whose declaration holds the roots.
 const WORK_INSTANCE: &str = "gold-band";
+/// The personal instance, which may declare them in its own account's overlay.
+const PERSONAL_INSTANCE: &str = "gold-band-personal";
 
 /// The agents the work instance holds (ADR-0011); every other agent id
 /// belongs to the personal instance. Naming the work agents instead of the
@@ -40,21 +44,46 @@ pub fn employer_roots(overlay: Option<&Path>, home: Option<&Path>) -> Result<Vec
     };
     let doc: serde_yaml::Value = serde_yaml::from_str(&text)
         .map_err(|e| format!("cannot parse the overlay {}: {e}", file.display()))?;
-    let Some(work) = doc.get("instances").and_then(|i| i.get(WORK_INSTANCE)) else {
-        return Ok(Vec::new());
+    let instances = match doc.get("instances") {
+        None => return Ok(Vec::new()),
+        Some(instances) if instances.is_mapping() => instances,
+        Some(_) => {
+            return Err(format!(
+                "the overlay {} has an instances entry that is not a mapping",
+                file.display()
+            ))
+        }
     };
-    let declared = work
-        .get("employer_roots")
-        .and_then(serde_yaml::Value::as_sequence)
-        .filter(|roots| !roots.is_empty())
-        .ok_or_else(|| {
-            format!(
+    // The work account's overlay declares them under the work instance; the
+    // personal account's own overlay (ADR-0011) may declare them under the
+    // personal instance. Both are read.
+    let mut declared = Vec::new();
+    for instance in [WORK_INSTANCE, PERSONAL_INSTANCE] {
+        match instances.get(instance).and_then(|i| i.get("employer_roots")) {
+            None => {}
+            Some(roots) => match roots.as_sequence() {
+                Some(roots) => declared.extend(roots),
+                None => {
+                    return Err(format!(
+                        "the overlay {}: {instance} employer_roots must be a list",
+                        file.display()
+                    ))
+                }
+            },
+        }
+    }
+    if declared.is_empty() {
+        return if instances.get(WORK_INSTANCE).is_some() {
+            Err(format!(
                 "the overlay {} names the work instance but declares no employer_roots, so the personal instance cannot be kept from the employer's clones",
                 file.display()
-            )
-        })?;
+            ))
+        } else {
+            Ok(Vec::new())
+        };
+    }
     declared
-        .iter()
+        .into_iter()
         .map(|root| absolute(root.as_str().unwrap_or(""), home))
         .collect()
 }

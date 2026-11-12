@@ -362,7 +362,8 @@ personal-instance agent (any agent but `claude-work` and `codex`) also denies
 `full` included, where the profile holds only this denial and the `file-link`
 denial (a hard link would otherwise read a root's file by a new name). The
 roots are `instances.gold-band.employer_roots` in the overlay
-(`~/.config/agent-kit/overlay.yaml`, or the file `AGENT_KIT_OVERLAY` names),
+(`~/.config/agent-kit/overlay.yaml`, or the file `AGENT_KIT_OVERLAY` names;
+the personal account's own overlay may use `instances.gold-band-personal`),
 absolute or `~/` paths; no path is built in. A read, a listing, a stat, a link
 or a move out of a root fails with `EPERM`; the agent's repository, the
 toolchain and its state directories stay readable. The launch is refused (exit

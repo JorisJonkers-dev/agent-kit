@@ -33,9 +33,10 @@
 //! * `agents.N`, held to the same agent rules as the registry's;
 //! * `mcp_servers.<name>.{command|url, args.N, env.NAME}` and
 //!   `settings.<path>`, which only the work instance may take;
-//! * `employer_roots.N`, which only the work instance may take: the absolute
+//! * `employer_roots.N`: the absolute
 //!   (or `~/`) directories of the employer's clones on this machine, which
-//!   the launcher keeps the personal instance from reading (ADR-0013);
+//!   the launcher keeps the personal instance from reading (ADR-0013), in the
+//!   work or the personal instance's declaration;
 //! * any other field (hosts, banks, the repository rule) is refused: the
 //!   overlay adds, it never relaxes a rule.
 //!
@@ -240,13 +241,15 @@ fn overlay_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
         let (head, rest) = path.split_once('.').unwrap_or((path, ""));
         match head {
             "agents" if decimal(rest) => agents.push(value.as_str()),
-            "mcp_servers" | "settings" | "employer_roots" if !work => out.push(format!(
+            "mcp_servers" | "settings" if !work => out.push(format!(
                 "{place}: the overlay may add {head} to the work instance {WORK} only"
             )),
             "employer_roots" if decimal(rest) => {
-                if !(value.starts_with('/') || value.starts_with("~/")) {
+                if !(value.starts_with('/') || value.starts_with("~/"))
+                    || value.split('/').any(|part| part == "..")
+                {
                     out.push(format!(
-                        "{place}: employer root {} must be an absolute path or start with ~/",
+                        "{place}: employer root {} must be an absolute path (or start with ~/) with no .. part",
                         shown(value)
                     ));
                 }

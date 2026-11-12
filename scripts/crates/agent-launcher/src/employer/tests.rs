@@ -36,15 +36,37 @@ fn the_work_instance_declares_its_roots() {
 }
 
 #[test]
+fn the_personal_account_may_declare_the_roots_in_its_own_overlay() {
+    let file = overlay(
+        "personal",
+        "instances:\n  gold-band-personal:\n    employer_roots: [/srv/a]\n",
+    );
+    assert_eq!(roots(&file).unwrap(), [PathBuf::from("/srv/a")]);
+    let both = overlay(
+        "both",
+        "instances:\n  gold-band:\n    employer_roots: [/srv/a]\n  gold-band-personal:\n    employer_roots: [/srv/b]\n",
+    );
+    assert_eq!(roots(&both).unwrap(), [PathBuf::from("/srv/a"), PathBuf::from("/srv/b")]);
+    // The work instance named in the work account's overlay still needs roots.
+    let file = overlay("work-empty", "instances:\n  gold-band: {}\n  gold-band-personal:\n    employer_roots: []\n");
+    assert!(roots(&file).unwrap_err().contains("declares no employer_roots"));
+    let file = overlay("bad", "instances:\n  gold-band-personal:\n    employer_roots: x\n");
+    assert!(roots(&file).unwrap_err().contains("must be a list"));
+}
+
+#[test]
 fn a_work_instance_without_roots_is_refused() {
     for body in [
         "instances:\n  gold-band: {}\n",
         "instances:\n  gold-band:\n    employer_roots: []\n",
-        "instances:\n  gold-band:\n    employer_roots: nedap\n",
     ] {
         let message = roots(&overlay("empty", body)).unwrap_err();
         assert!(message.contains("declares no employer_roots"), "{message}");
     }
+    let file = overlay("scalar", "instances:\n  gold-band:\n    employer_roots: nedap\n");
+    assert!(roots(&file).unwrap_err().contains("employer_roots must be a list"));
+    let file = overlay("not-a-map", "instances: [gold-band]\n");
+    assert!(roots(&file).unwrap_err().contains("not a mapping"));
 }
 
 #[test]

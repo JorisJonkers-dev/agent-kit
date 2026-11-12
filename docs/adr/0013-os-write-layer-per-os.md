@@ -50,8 +50,12 @@ limit (#666).
 - **Where the roots come from.** One declared place, the work overlay
   (`~/.config/agent-kit/overlay.yaml`): `instances.gold-band.employer_roots`,
   absolute or `~/` paths (`~/Projects/nedap` is the owner's value, not built
-  into the launcher). An overlay that names the work instance without roots,
-  or that cannot be read, refuses the launch instead of reading as "no roots".
+  into the launcher). The personal account's own overlay (each account has
+  one, ADR-0011) may list them under `instances.gold-band-personal`; both
+  are read. A machine with no overlay, or one that names no work instance and
+  lists no roots, is not the work Mac and gets no read limit. An overlay that
+  names the work instance without roots, or that cannot be read or parsed,
+  refuses the launch instead of reading as "no roots".
 - **Refusal.** When the backend cannot apply the read limit, the launcher
   refuses to start the agent, and setup runs `agent-launcher read-limit-check`
   and stops before converging the personal instance, saying why.
@@ -62,6 +66,15 @@ limit (#666).
 
 The work instance is not limited. Neither backend limits the network
 either.
+
+What the read limit does not stop: a Seatbelt profile checks the process it is
+on, so an agent that asks another process to read for it (`launchctl submit`,
+`osascript`, `open`, a cron or `at` job, `ssh localhost`) is not covered, and a
+hard link that already existed (a `git clone --local` made before the limit)
+keeps its contents readable under its other name. The second macOS user is the
+defence against those. `file-link` is denied for a launch with employer roots,
+at `full` too, so tools that hard-link (`pnpm install`, `git clone --local`)
+fail there.
 
 Neither backend limits the network, because every agent needs the network to
 reach its model. Web limits stay tool-configuration and MCP-list limits only.

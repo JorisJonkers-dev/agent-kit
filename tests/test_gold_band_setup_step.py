@@ -8,8 +8,11 @@ test_gold_band_converge.py.
 
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
+
+import pytest
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -183,6 +186,8 @@ def test_setup_refuses_the_personal_instance_when_the_read_limit_cannot_be_appli
 
 
 def test_setup_refuses_when_the_launcher_cannot_be_asked(tmp_path: Path) -> None:
+    if shutil.which("cargo", path="/usr/bin:/bin"):
+        pytest.skip("cargo is on the harness PATH here")
     run = setup_run(tmp_path, "Darwin", prepare_home=_overlay)
     assert "cargo is not on PATH, so the launcher cannot be asked" in run.stdout + run.stderr
     assert run.returncode != 0
@@ -205,3 +210,13 @@ def test_a_cloud_session_skips_the_read_limit_check(tmp_path: Path) -> None:
     env = _launcher(tmp_path, "exit 1")
     run = setup_run(tmp_path / "run", "Darwin", prepare_home=_overlay, extra_env=env, args=("--cloud",))
     assert "gold band read limit" not in run.stdout + run.stderr
+
+
+def test_setup_asks_the_launcher_through_cargo_when_no_binary_is_named(tmp_path: Path) -> None:
+    refusal = "agent-launcher: the read limit cannot be applied"
+    stubs = {"cargo": f'echo "cargo $*" >> "$0.calls"; echo "{refusal}" >&2; exit 1'}
+    run = setup_run(tmp_path, "Darwin", prepare_home=_overlay, stubs=stubs)
+    out = run.stdout + run.stderr
+    assert "the read limit cannot be applied" in out
+    assert "the personal instance must not be started on this machine" in out
+    assert run.returncode != 0

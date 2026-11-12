@@ -426,9 +426,9 @@ instances:
     settings: {editor: {theme: dark}}
 ```
 
-It may add `mcp_servers`, `settings` and `employer_roots` (absolute or `~/`
-directories of the employer's clones, which the launcher keeps the personal
-instance from reading, ADR-0013) to `gold-band` only, and `agents`
+It may add `mcp_servers` and `settings` to `gold-band` only, `employer_roots`
+(absolute or `~/` directories of the employer's clones, which the launcher keeps
+the personal instance from reading, ADR-0013) to either instance, and `agents`
 under the same rules as the registry's. The `gold-band-registry` crate
 (`scripts/crates/gold-band-registry`) validates both on every
 `render_registry.py --check` and `--write` (`--overlay PATH` points it at

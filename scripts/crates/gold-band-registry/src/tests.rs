@@ -136,16 +136,18 @@ fn overlay_adds_servers_and_settings_to_the_work_instance() {
 }
 
 #[test]
-fn overlay_declares_employer_roots_on_the_work_instance_only() {
+fn overlay_declares_employer_roots() {
     let ok = "instance\tgold-band\nfield\temployer_roots.0\t~/Projects/nedap\nfield\temployer_roots.1\t/srv/employer\n";
     assert!(found(&overlay(ok)).is_empty());
     has(
         &overlay("instance\tgold-band\nfield\temployer_roots.0\trelative/dir\n"),
-        "employer root relative/dir must be an absolute path or start with ~/",
+        "employer root relative/dir must be an absolute path (or start with ~/)",
     );
+    // The personal account's own overlay may declare them too.
+    assert!(found(&overlay("instance\tgold-band-personal\nfield\temployer_roots.0\t/srv/employer\n")).is_empty());
     has(
-        &overlay("instance\tgold-band-personal\nfield\temployer_roots.0\t/srv/employer\n"),
-        "overlay may add employer_roots to the work instance gold-band only",
+        &overlay("instance\tgold-band\nfield\temployer_roots.0\t/a/../b\n"),
+        "with no .. part",
     );
     has(
         &overlay("instance\tgold-band\nfield\temployer_roots.x\t/a\n"),
