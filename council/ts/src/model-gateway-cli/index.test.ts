@@ -69,7 +69,7 @@ const OPENCODE_LISTING: ProcessResult = {
   stdout: [
     'opencode-go/gemini-4-argon',
     'opencode-go/deepseek-v4.1-flash',
-    'opencode-go/glm-5.3',
+    'opencode-go/mimo-v2.6-pro',
     'opencode-go/kimi-k3',
     'other/gemini-4-argon',
     'opencode-go/hy3',
@@ -83,18 +83,18 @@ const OPENCODE_LISTING: ProcessResult = {
  */
 const VIBE_PROBE: ProcessResult = {
   exitCode: 1,
-  stderr: 'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-large-4-0-3, mistral-medium-3.5, zai-glm-5-3-flash\n',
+  stderr: 'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-large-latest, mistral-medium-latest, zai-glm-5-3-flash\n',
   stdout: '',
 }
 
 /** The aliases the probe above names in its refusal. */
-const VIBE_PROBE_MODELS = ['glm-5-3', 'mistral-large-4-0-3', 'mistral-medium-3.5', 'zai-glm-5-3-flash']
+const VIBE_PROBE_MODELS = ['glm-5-3', 'mistral-large-latest', 'mistral-medium-latest', 'zai-glm-5-3-flash']
 
 /** What `models` lists with the probe above: every accepted alias, and nothing else. */
 const VIBE_LISTED = [
   'vibe:glm-5-3',
-  'vibe:mistral-large-4-0-3',
-  'vibe:mistral-medium-3.5',
+  'vibe:mistral-large-latest',
+  'vibe:mistral-medium-latest',
   'vibe:zai-glm-5-3-flash',
 ]
 
@@ -102,7 +102,7 @@ const VIBE_LISTED = [
 const OPENCODE_LISTING_WITH_OTHER_PROVIDERS: ProcessResult = {
   exitCode: 0,
   stderr: '',
-  stdout: ['opencode/glm-5.3', 'opencode-go/glm-5.3', 'other/gemini-4-argon', 'openrouter/hy3', ''].join('\n'),
+  stdout: ['opencode/glm-5.3', 'opencode-go/mimo-v2.6-pro', 'other/gemini-4-argon', 'openrouter/hy3', ''].join('\n'),
 }
 
 /** The OpenCode Go models the owner's plan offers. */
@@ -110,13 +110,10 @@ const OPENCODE_GO_LISTING: ProcessResult = {
   exitCode: 0,
   stderr: '',
   stdout: [
-    'opencode-go/glm-5.3',
-    'opencode-go/deepseek-v4-pro',
-    'opencode-go/deepseek-v4.1-flash',
-    'opencode-go/glm-5.3-flash',
+    'opencode-go/kimi-k2.7-code',
+    'opencode-go/mimo-v2.6-flash',
+    'opencode-go/mimo-v2.6-pro',
     'opencode-go/qwen3.8-flash',
-    'opencode-go/qwen3.8-max',
-    'opencode-go/kimi-k3.1-pro',
     '',
   ].join('\n'),
 }
@@ -127,8 +124,6 @@ const OPENCODE_GO_PLAN_LISTING: ProcessResult = {
   stderr: '',
   stdout: [
     'opencode-go/beam-free',
-    'opencode-go/deepseek-v4-pro',
-    'opencode-go/glm-5.3-flash',
     'opencode-go/gpt-6-luna',
     'opencode-go/hy3',
     'opencode-go/hy4-preview',
@@ -163,7 +158,7 @@ const AGY_PLAN_LISTING: ProcessResult = {
 const VIBE_CONFIG = `[[models]]
 name = "mistral-large-latest"
 provider = "mistral"
-alias = "mistral-large-4-0-3"
+alias = "mistral-large-latest"
 supports_images = true
 thinking = "off"
 thinking_levels = ["off"]
@@ -760,8 +755,8 @@ describe('the shipped defaults', () => {
         {
           client: 'vibe',
           family: 'mistral',
-          model: 'mistral-large-4-0-3',
-          names: ['mistral-large-latest', 'mistral-large-4-0'],
+          model: 'mistral-large-latest',
+          names: ['mistral-large-4-0', 'mistral-large-4'],
           notes: 'Broad general model.',
           prices: { cached_input: 0.07, input: 0.7, output: 2.1 },
           tier: 'hard',
@@ -769,8 +764,9 @@ describe('the shipped defaults', () => {
         {
           client: 'vibe',
           family: 'mistral',
-          model: 'mistral-medium-3.5',
-          notes: "Vibe's built-in default; general coding, tool use and reasoning.",
+          model: 'mistral-medium-latest',
+          names: ['mistral-medium-3.5'],
+          notes: "Vibe's medium model, by its -latest alias because the pinned mistral-medium-3.5 is deprecated and retires 2027-04-30; general coding, tool use and reasoning.",
           tier: 'routine',
         },
         {
@@ -812,45 +808,17 @@ describe('the shipped defaults', () => {
         },
         {
           client: 'opencode',
-          family: 'zhipu',
-          model: 'opencode-go/glm-5.3',
-          notes: 'Strong code review and integration reasoning on OpenCode Go.',
-          tier: 'hard',
-        },
-        {
-          client: 'opencode',
-          family: 'deepseek',
-          model: 'opencode-go/deepseek-v4-pro',
-          notes: 'Strong coding and reasoning; larger DeepSeek on OpenCode Go. Needs the privacy region of the account set to Global.',
-          tier: 'hard',
-        },
-        {
-          client: 'opencode',
-          family: 'alibaba',
-          model: 'opencode-go/qwen3.8-max',
-          notes: 'Strongest Qwen; multi-file changes and analysis on OpenCode Go.',
-          tier: 'hard',
-        },
-        {
-          client: 'opencode',
           family: 'moonshot',
-          model: 'opencode-go/kimi-k3.1-pro',
-          notes: 'Strong agentic coding and long-context work on OpenCode Go.',
+          model: 'opencode-go/kimi-k2.7-code',
+          notes: 'Strong agentic coding on OpenCode Go; served by no Vibe, Google or Anthropic key.',
           tier: 'hard',
         },
         {
           client: 'opencode',
-          family: 'deepseek',
-          model: 'opencode-go/deepseek-v4.1-flash',
-          notes: 'Cheap and quick; well-specified code changes on OpenCode Go. Needs the privacy region of the account set to Global.',
-          tier: 'routine',
-        },
-        {
-          client: 'opencode',
-          family: 'zhipu',
-          model: 'opencode-go/glm-5.3-flash',
-          notes: 'Fast GLM; mechanical edits and review of small diffs on OpenCode Go.',
-          tier: 'routine',
+          family: 'xiaomi',
+          model: 'opencode-go/mimo-v2.6-pro',
+          notes: 'Xiaomi’s MiMo pro variant on OpenCode Go; untried as a delegate.',
+          tier: 'hard',
         },
         {
           client: 'opencode',
@@ -1262,9 +1230,9 @@ describe('models: Vibe, read from its own answer', () => {
       source: 'live',
       tier: 'hard',
     })
-    expect(model(result, 'vibe:mistral-medium-3.5')).toMatchObject({
+    expect(model(result, 'vibe:mistral-medium-latest')).toMatchObject({
       family: 'mistral',
-      notes: "Vibe's built-in default; general coding, tool use and reasoning.",
+      notes: "Vibe's medium model, by its -latest alias because the pinned mistral-medium-3.5 is deprecated and retires 2027-04-30; general coding, tool use and reasoning.",
       source: 'live',
       tier: 'routine',
     })
@@ -1303,7 +1271,7 @@ describe('models: Vibe, read from its own answer', () => {
           stderr: [
             'Warning: MCP server memory failed to connect',
             'Warning: MCP server fetch failed to connect',
-            'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-medium-3.5',
+            'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-medium-latest',
             '',
           ].join('\n'),
         },
@@ -1312,7 +1280,7 @@ describe('models: Vibe, read from its own answer', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-medium-3.5'])
+    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-medium-latest'])
     expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'vibe' }))
   })
 
@@ -1399,7 +1367,7 @@ describe('models: Vibe, read from its own answer', () => {
     const result = await w.run('models', '--json', '{}')
 
     expect(listed(result)).toEqual(VIBE_LISTED)
-    expect(model(result, 'vibe:mistral-large-4-0-3')).toMatchObject({
+    expect(model(result, 'vibe:mistral-large-latest')).toMatchObject({
       notes: 'Broad general model.',
       source: 'live',
       tier: 'hard',
@@ -1423,7 +1391,7 @@ describe('models: Vibe, read from its own answer', () => {
       listings: {
         vibe: {
           exitCode: 1,
-          stdout: 'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-medium-3.5\n',
+          stdout: 'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-medium-latest\n',
           stderr: '',
         },
       },
@@ -1431,7 +1399,7 @@ describe('models: Vibe, read from its own answer', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-medium-3.5'])
+    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-medium-latest'])
   })
 
   it('offers no Vibe model and runs no probe when the home configuration declares the probe id as a model', async () => {
@@ -1482,11 +1450,11 @@ describe('models: Vibe, read from its own answer', () => {
     const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
 
     await w.run('models', '--json', '{}')
-    await w.writeVibeConfig('[[models]]\nname = "mistral-large-latest"\nprovider = "mistral"\nalias = "mistral-large-4-0-3"\n')
+    await w.writeVibeConfig('[[models]]\nname = "mistral-large-latest"\nprovider = "mistral"\nalias = "mistral-large-latest"\n')
     const again = await w.run('models', '--json', '{}')
 
     expect(listed(again)).toEqual(VIBE_LISTED)
-    expect(model(again, 'vibe:mistral-large-4-0-3')).toMatchObject({ tier: 'hard' })
+    expect(model(again, 'vibe:mistral-large-latest')).toMatchObject({ tier: 'hard' })
     expect(w.ran).toHaveLength(2)
   })
 
@@ -1627,17 +1595,17 @@ describe('models: OpenCode, read from its own listing', () => {
     expect(listed(result)).toEqual([
       'opencode:opencode-go/deepseek-v4.1-flash',
       'opencode:opencode-go/gemini-4-argon',
-      'opencode:opencode-go/glm-5.3',
       'opencode:opencode-go/kimi-k3',
+      'opencode:opencode-go/mimo-v2.6-pro',
     ])
-    expect(model(result, 'opencode:opencode-go/glm-5.3')).toEqual({
+    expect(model(result, 'opencode:opencode-go/mimo-v2.6-pro')).toEqual({
       client: 'opencode',
       cost_class: 'subsidised',
-      family: 'zhipu',
+      family: 'xiaomi',
       inline_only: true,
       may_send: { code: false, history: false },
-      model: 'opencode-go/glm-5.3',
-      notes: 'Strong code review and integration reasoning on OpenCode Go.',
+      model: 'opencode-go/mimo-v2.6-pro',
+      notes: 'Xiaomi’s MiMo pro variant on OpenCode Go; untried as a delegate.',
       source: 'live',
       tier: 'hard',
     })
@@ -1650,7 +1618,7 @@ describe('models: OpenCode, read from its own listing', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['opencode:opencode-go/glm-5.3'])
+    expect(listed(result)).toEqual(['opencode:opencode-go/mimo-v2.6-pro'])
     expect(printed(result).skipped).toEqual([])
     expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'opencode' }))
   })
@@ -1661,8 +1629,8 @@ describe('models: OpenCode, read from its own listing', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['opencode:opencode-go/glm-5.3', 'opencode:other/gemini-4-argon'])
-    expect(model(result, 'opencode:opencode-go/glm-5.3').cost_class).toBe('subsidised')
+    expect(listed(result)).toEqual(['opencode:opencode-go/mimo-v2.6-pro', 'opencode:other/gemini-4-argon'])
+    expect(model(result, 'opencode:opencode-go/mimo-v2.6-pro').cost_class).toBe('subsidised')
     expect(model(result, 'opencode:other/gemini-4-argon').cost_class).toBe('metered-personal')
   })
 
@@ -1672,13 +1640,10 @@ describe('models: OpenCode, read from its own listing', () => {
     const result = await w.run('models', '--json', '{}')
 
     expect(models(result).map((entry) => [entry.model, entry.family, entry.tier])).toEqual([
-      ['opencode-go/deepseek-v4-pro', 'deepseek', 'hard'],
-      ['opencode-go/deepseek-v4.1-flash', 'deepseek', 'routine'],
-      ['opencode-go/glm-5.3', 'zhipu', 'hard'],
-      ['opencode-go/glm-5.3-flash', 'zhipu', 'routine'],
-      ['opencode-go/kimi-k3.1-pro', 'moonshot', 'hard'],
+      ['opencode-go/kimi-k2.7-code', 'moonshot', 'hard'],
+      ['opencode-go/mimo-v2.6-flash', 'xiaomi', 'routine'],
+      ['opencode-go/mimo-v2.6-pro', 'xiaomi', 'hard'],
       ['opencode-go/qwen3.8-flash', 'alibaba', 'routine'],
-      ['opencode-go/qwen3.8-max', 'alibaba', 'hard'],
     ])
     expect(models(result).filter((entry) => entry.tier === null || entry.notes === '')).toEqual([])
     expect(printed(result).skipped).toEqual([])
@@ -1690,15 +1655,14 @@ describe('models: OpenCode, read from its own listing', () => {
     const result = await w.run('models', '--json', '{}')
 
     expect(models(result).map((entry) => [entry.model, entry.family, entry.tier])).toEqual([
-      ['opencode-go/deepseek-v4-pro', 'deepseek', 'hard'],
-      ['opencode-go/glm-5.3-flash', 'zhipu', 'routine'],
       ['opencode-go/gpt-6-luna', 'openai', null],
-      ['opencode-go/kimi-k2.7-code', 'moonshot', null],
+      ['opencode-go/kimi-k2.7-code', 'moonshot', 'hard'],
       ['opencode-go/mimo-v2.6-flash', 'xiaomi', 'routine'],
+      ['opencode-go/mimo-v2.6-pro', 'xiaomi', 'hard'],
       ['opencode-go/minimax-m3.1-flash', 'minimax', null],
       ['opencode-go/qwen3.8-flash', 'alibaba', 'routine'],
     ])
-    expect(model(result, 'opencode:opencode-go/deepseek-v4-pro').notes).toContain('privacy region of the account set to Global')
+    expect(model(result, 'opencode:opencode-go/kimi-k2.7-code').notes).toContain('served by no Vibe, Google or Anthropic key')
     expect(printed(result).skipped).toEqual(
       [
         'opencode-go/beam-free',
@@ -1706,7 +1670,6 @@ describe('models: OpenCode, read from its own listing', () => {
         'opencode-go/hy4-preview',
         'opencode-go/iceman-contributor-free',
         'opencode-go/longcat-2.0',
-        'opencode-go/mimo-v2.6-pro',
         'opencode-go/step-5-preview',
       ].map((m) => ({
         client: 'opencode',
@@ -1734,7 +1697,7 @@ describe('models: OpenCode, read from its own listing', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(model(result, 'opencode:opencode-go/glm-5.3').cost_class).toBe('metered-employer')
+    expect(model(result, 'opencode:opencode-go/mimo-v2.6-pro').cost_class).toBe('metered-employer')
   })
 
   it('reports a model whose family it cannot work out in skipped, with the reason', async () => {
@@ -5185,15 +5148,19 @@ describe('model-gateway run: binding family', () => {
 
   it('falls through inside the family by default: a model the account cannot use is swapped for another of its family, never for Claude', async () => {
     const w = await escalating({
+      allowlist: allowlist([...ALL_FAMILIES, 'xiaomi'], true, true),
       defaults: JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as unknown,
-      scripts: [OPENCODE_REGION, SUCCEEDS],
+      scripts: [
+        OPENCODE_REGION,
+        { stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('fixed\nSUMMARY: done'), openCodeStepFinish(0, { input: 10, output: 5 })) },
+      ],
     })
 
-    const result = await w.run(w.input({ client: 'opencode', escalate: undefined, model: 'opencode-go/glm-5.3-flash' }))
+    const result = await w.run(w.input({ client: 'opencode', escalate: undefined, model: 'opencode-go/mimo-v2.6-flash' }))
 
-    expect(attemptedModels(result)).toEqual(['opencode:opencode-go/glm-5.3-flash', 'vibe:zai-glm-5-3-flash'])
-    expect(printed(result)).toMatchObject({ family: 'zhipu', status: 'ok', summary: 'done' })
-    expect(binariesOf(w.vibe.commands)).toEqual(['opencode', 'vibe'])
+    expect(attemptedModels(result)).toEqual(['opencode:opencode-go/mimo-v2.6-flash', 'opencode:opencode-go/mimo-v2.6-pro'])
+    expect(printed(result)).toMatchObject({ family: 'xiaomi', status: 'ok', summary: 'done' })
+    expect(binariesOf(w.vibe.commands)).toEqual(['opencode', 'opencode'])
   })
 
   it('leaves the summary alone when the answer is from the requested family, and refuses a malformed family_binding', async () => {
@@ -5241,7 +5208,7 @@ describe('model-gateway run: climb', () => {
     expect(attemptedModels(result)).toEqual([
       'vibe:deepseek-v4-1-flash-1017',
       'vibe:deepseek-v4-1-flash-1017',
-      'vibe:mistral-large-4-0-3',
+      'vibe:mistral-large-latest',
     ])
   })
 
@@ -5515,24 +5482,25 @@ describe('model-gateway run: fall-through', () => {
 
   it('treats a model the account cannot use the same way, and models marks that model unavailable', async () => {
     const w = await escalating({
+      allowlist: allowlist([...ALL_FAMILIES, 'moonshot', 'xiaomi'], true, true),
       defaults: JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as unknown,
       scripts: [OPENCODE_REGION, CLAUDE_SUCCEEDS],
     })
 
-    const result = await w.run(delegation(w, { client: 'opencode', model: 'opencode-go/glm-5.3' }))
+    const result = await w.run(delegation(w, { client: 'opencode', model: 'opencode-go/kimi-k2.7-code' }))
 
     expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
     expect(attemptsOf(result)).toMatchObject([
       {
         client: 'opencode',
-        model: 'opencode-go/glm-5.3',
+        model: 'opencode-go/kimi-k2.7-code',
         reason: 'model-unavailable',
         status: 'failed',
       },
       { client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' },
     ])
     expect(printed(result).skipped).toEqual([
-      { client: 'opencode', model: 'opencode-go/glm-5.3', reason: 'model-unavailable' },
+      { client: 'opencode', model: 'opencode-go/kimi-k2.7-code', reason: 'model-unavailable' },
     ])
     expect(binariesOf(w.vibe.commands)).toEqual(['opencode', 'claude'])
     expect(availability(await w.cli('usage', '--json', '{}'), 'opencode').status).not.toBe('unavailable')
@@ -5543,11 +5511,11 @@ describe('model-gateway run: fall-through', () => {
       { stdout: OPENCODE_GO_LISTING.stdout },
     )
     const models = await w.cli('models', '--json', JSON.stringify({ repo: w.repo }))
-    expect(listed(models)).toContain('opencode:opencode-go/glm-5.3-flash')
-    expect(listed(models)).not.toContain('opencode:opencode-go/glm-5.3')
+    expect(listed(models)).toContain('opencode:opencode-go/mimo-v2.6-flash')
+    expect(listed(models)).not.toContain('opencode:opencode-go/kimi-k2.7-code')
     expect(printed(models).skipped).toContainEqual({
       client: 'opencode',
-      model: 'opencode-go/glm-5.3',
+      model: 'opencode-go/kimi-k2.7-code',
       reason: 'model-unavailable at 2026-11-04T10:52:15.000Z',
     })
   })

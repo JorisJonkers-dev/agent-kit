@@ -100,7 +100,7 @@ describe('decidePolicyFor', () => {
     const decision = await decidePolicyFor(w.deps, undefined)
 
     expect(permitted(decision)).toContain('claude:claude-opus-5-5')
-    expect(permitted(decision)).toContain('vibe:mistral-large-4-0-3')
+    expect(permitted(decision)).toContain('vibe:mistral-large-latest')
     expect(permitted(decision)).not.toContain('codex:gpt-5.5')
     expect(decision.permissions.every((permission) => permission.inline_only)).toBe(true)
   })
