@@ -234,3 +234,11 @@ fn a_symlink_named_for_a_withheld_place_is_not_a_way_in() {
     symlink(&w.root, base.join("nedap-root")).unwrap();
     assert!(Boundary::new(&[base.join("nedap-root")]).unwrap_err().contains("withheld location"));
 }
+
+#[test]
+fn a_plain_symlink_to_a_withheld_root_is_refused() {
+    let base = temp_dir();
+    write(&base.join("nedap-real/a.rs"), "fn a() {}\n");
+    symlink(base.join("nedap-real"), base.join("plain")).unwrap();
+    assert!(Boundary::new(&[base.join("plain")]).unwrap_err().contains("withheld location"));
+}
