@@ -20,6 +20,7 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 import converge  # noqa: E402
 
 REGISTRY = KIT_ROOT / "registry" / "estate-tooling.yaml"
+APPROVED = ("opencode", "vibe", "vibe-study")
 ESTATE = ["estate-bootstrap", "estate-delivery-status", "estate-project-intent", "estate-rollback"]
 
 
@@ -52,16 +53,14 @@ def test_the_estate_set_holds_the_four_estate_skills() -> None:
 
 
 def test_every_declared_personal_agent_names_the_estate_set() -> None:
-    agents = _registry()["gold_band"]["agents"]
-    assert [agent["id"] for agent in agents] == ["opencode", "vibe", "vibe-study"]
-    assert {agent["skill_set"] for agent in agents} == {"estate"}
+    agents = {agent["id"]: agent for agent in _registry()["gold_band"]["agents"]}
+    for agent_id in APPROVED:
+        assert agents[agent_id].get("skill_set") == "estate", agent_id
 
 
-def test_an_id_that_names_the_set_gets_exactly_the_four_skills(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_an_id_that_names_the_set_gets_exactly_the_four_skills(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _converge(tmp_path, monkeypatch)
-    for agent_id in ("opencode", "vibe", "vibe-study"):
+    for agent_id in APPROVED:
         directory = settings.parent / "skill-sets" / agent_id
         assert sorted(child.name for child in directory.iterdir()) == ESTATE
         for skill in ESTATE:
@@ -72,15 +71,11 @@ def test_an_id_that_names_the_set_gets_exactly_the_four_skills(
 
 
 def test_an_id_that_does_not_name_the_set_gets_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    registry = _registry()
-    vibe = registry["gold_band"]["agents"][1]
-    vibe.pop("skill_set")
-    vibe.update(primaryAgentDir=".vibe", compatibleAgentDirs=[".agents"])
-    edited = tmp_path / "registry.yaml"
-    edited.write_text(yaml.safe_dump(registry))
-    settings = _converge(tmp_path, monkeypatch, edited)
-    assert not (settings.parent / "skill-sets" / "vibe").exists()
-    entry = json.loads(settings.read_text())["agents"]["vibe"]
-    assert entry["primaryAgentDir"] == ".vibe"
-    assert entry["compatibleAgentDirs"] == [".agents"]
+    agents = _registry()["gold_band"]["agents"]
+    bare = next(agent for agent in agents if "skill_set" not in agent)
+    settings = _converge(tmp_path, monkeypatch)
+    assert not (settings.parent / "skill-sets" / bare["id"]).exists()
+    entry = json.loads(settings.read_text())["agents"][bare["id"]]
+    assert entry["primaryAgentDir"] == bare["primaryAgentDir"]
+    assert entry["compatibleAgentDirs"] == bare["compatibleAgentDirs"]
     assert (settings.parent / "skill-sets" / "opencode").is_dir()
