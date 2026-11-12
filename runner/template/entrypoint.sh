@@ -103,22 +103,24 @@ $_entries
   [ -d "$_kit_stage/kit/home" ] || { kit_fallback "${_version} has no home directory"; return 0; }
 
   mkdir -p "$HOME" "$KIT_FETCH_DIR" || { kit_fallback "cannot write ${HOME} or ${KIT_FETCH_DIR}"; return 0; }
-  # Credentials stay as the runner mounted them.
-  (cd "$_kit_stage/kit/home" && tar -cf "$_kit_stage/overlay.tar" \
-    --exclude=./.claude/.credentials.json --exclude=./.codex/auth.json --exclude=./.codex/config.toml .) ||
-    { kit_fallback "cannot stage the home of ${_version}"; return 0; }
-  (cd "$HOME" && tar -xf "$_kit_stage/overlay.tar") ||
-    { kit_fallback "cannot install the home of ${_version}; ${HOME} may be partly overlaid"; return 0; }
   if [ -d "$_kit_stage/kit/mcp" ]; then
     rm -rf "$KIT_FETCH_DIR/mcp"
     cp -R "$_kit_stage/kit/mcp" "$KIT_FETCH_DIR/mcp" || { kit_fallback "cannot install the MCP profiles of ${_version}"; return 0; }
     AGENT_MCP_DIR="$KIT_FETCH_DIR/mcp"
     export AGENT_MCP_DIR
   fi
-  mkdir -p "$CLAUDE_CONFIG_DIR" "$CODEX_HOME"
-  printf 'version=%s\n' "$_version" > "${CLAUDE_CONFIG_DIR}/${AGENT_KIT_VERSION_MARKER}"
-  printf 'version=%s\n' "$_version" > "${CODEX_HOME}/${AGENT_KIT_VERSION_MARKER}"
-  printf 'source=fetched\nversion=%s\nsha256=%s\nref=%s\n' "$_version" "$_actual" "$_ref" > "$KIT_FETCH_DIR/status"
+  # Credentials stay as the runner mounted them.
+  (cd "$_kit_stage/kit/home" && tar -cf "$_kit_stage/overlay.tar" \
+    --exclude=./.claude/.credentials.json --exclude=./.codex/auth.json --exclude=./.codex/config.toml .) ||
+    { kit_fallback "cannot stage the home of ${_version}"; return 0; }
+  (cd "$HOME" && tar -xf "$_kit_stage/overlay.tar") ||
+    { kit_fallback "cannot install the home of ${_version}; ${HOME} may be partly overlaid"; return 0; }
+  {
+    mkdir -p "$CLAUDE_CONFIG_DIR" "$CODEX_HOME" &&
+    printf 'version=%s\n' "$_version" > "${CLAUDE_CONFIG_DIR}/${AGENT_KIT_VERSION_MARKER}" &&
+    printf 'version=%s\n' "$_version" > "${CODEX_HOME}/${AGENT_KIT_VERSION_MARKER}" &&
+    printf 'source=fetched\nversion=%s\nsha256=%s\nref=%s\n' "$_version" "$_actual" "$_ref" > "$KIT_FETCH_DIR/status"
+  } 2>/dev/null || { kit_fallback "cannot write the version markers of ${_version}; ${HOME} may be partly overlaid"; return 0; }
   AGENT_KIT_FETCHED_VERSION="$_version"
   export AGENT_KIT_FETCHED_VERSION
   rm -rf "$_kit_stage"

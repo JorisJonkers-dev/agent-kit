@@ -253,3 +253,12 @@ def test_outside_the_runner_container_nothing_is_fetched(session: Session) -> No
         pytest.skip("the test host is itself a container")
     assert "kit fetch" not in result.stdout
     assert session.log.read_text() == ""
+
+
+def test_unwritable_markers_fall_back_instead_of_aborting(session: Session) -> None:
+    blocker = session.tmp / "blocker"
+    blocker.write_text("file")
+    result = session.run(CODEX_HOME=str(blocker / "codex"))
+    # The later Codex config step cannot use that CODEX_HOME either; the fetch
+    # itself must have fallen back rather than aborted.
+    assert "WARN: kit fetch failed: cannot write the version markers" in result.stdout
