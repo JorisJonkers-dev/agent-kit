@@ -1,0 +1,73 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"client\": \"claude\",\n  \"cost_usd\": 0,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-haiku-5-5\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"failed\",\n  \"summary\": \"\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\",\n  \"reason\": \"timeout\",\n  \"attempts\": [\n    {\n      \"client\": \"claude\",\n      \"model\": \"claude-haiku-5-5\",\n      \"run_id\": \"20261103T120000Z-@RAND1@\",\n      \"status\": \"failed\",\n      \"reason\": \"timeout\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/calls/": null,
+        "home/calls/claude.1.stdin": "Too slow.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "home/calls/claude.n": "1\n",
+        "home/calls/claude.txt": "call 1\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP1@\narg -p\narg --model\narg claude-haiku-5-5\narg --output-format\narg json\narg --permission-mode\narg plan\narg --allowedTools\narg Read,Grep,Glob\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/canned/": null,
+        "home/canned/claude.sleep": "1\n",
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"claude\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":0,\"family\":\"anthropic\",\"mode\":\"read-only\",\"model\":\"claude-haiku-5-5\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"20261103T120000Z-@RAND1@\",\"tokens\":{\"cached\":0,\"input\":0,\"output\":0},\"workflow\":\"w\",\"reason\":\"timeout\"}\n",
+        "state/agent-kit/model-gateway/runs/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"claude\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-haiku-5-5\",\n  \"prompt\": \"Too slow.\",\n  \"time_limit_s\": 1,\n  \"workflow\": \"w\",\n  \"escalate\": false\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json": "",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/prompt.md": "Too slow.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/result.json": "{\n  \"client\": \"claude\",\n  \"cost_usd\": 0,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-haiku-5-5\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"failed\",\n  \"summary\": \"\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\",\n  \"reason\": \"timeout\"\n}\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "tmp/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"client\": \"codex\",\n  \"cost_usd\": 0,\n  \"family\": \"openai\",\n  \"mode\": \"read-only\",\n  \"model\": \"gpt-5.5\",\n  \"output_path\": \"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120500Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120500Z-@RAND1@\",\n  \"status\": \"failed\",\n  \"summary\": \"\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\",\n  \"reason\": \"timeout\",\n  \"attempts\": [\n    {\n      \"client\": \"codex\",\n      \"model\": \"gpt-5.5\",\n      \"run_id\": \"20261103T120500Z-@RAND1@\",\n      \"status\": \"failed\",\n      \"reason\": \"timeout\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"openai\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "home/calls/": null,
+        "home/calls/claude.1.stdin": "Too slow.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "home/calls/claude.n": "1\n",
+        "home/calls/claude.txt": "call 1\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP1@\narg -p\narg --model\narg claude-haiku-5-5\narg --output-format\narg json\narg --permission-mode\narg plan\narg --allowedTools\narg Read,Grep,Glob\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/calls/codex.1.stdin": "Codex too slow.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "home/calls/codex.n": "1\n",
+        "home/calls/codex.txt": "call 1\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP2@\narg exec\narg --json\narg --skip-git-repo-check\narg -m\narg gpt-5.5\narg -c\narg model_reasoning_effort=\"medium\"\narg -s\narg read-only\narg -C\narg @SANDBOX@/tmp/model-gateway-worktree-@TMP2@\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/canned/": null,
+        "home/canned/claude.sleep": "1\n",
+        "home/canned/codex.sleep": "1\n",
+        "repo/.git/model-gateway/": null,
+        "repo/.git/model-gateway/runs/": null,
+        "repo/.git/model-gateway/runs/20261103T120500Z-@RAND1@/": null,
+        "repo/.git/model-gateway/runs/20261103T120500Z-@RAND1@/input.json": "{\n  \"client\": \"codex\",\n  \"mode\": \"read-only\",\n  \"model\": \"gpt-5.5\",\n  \"prompt\": \"Codex too slow.\",\n  \"time_limit_s\": 1,\n  \"workflow\": \"w\",\n  \"repo\": \"@SANDBOX@/repo\",\n  \"escalate\": false,\n  \"max_price_usd\": 0.160007\n}\n",
+        "repo/.git/model-gateway/runs/20261103T120500Z-@RAND1@/output.json": "",
+        "repo/.git/model-gateway/runs/20261103T120500Z-@RAND1@/prompt.md": "Codex too slow.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "repo/.git/model-gateway/runs/20261103T120500Z-@RAND1@/result.json": "{\n  \"client\": \"codex\",\n  \"cost_usd\": 0,\n  \"family\": \"openai\",\n  \"mode\": \"read-only\",\n  \"model\": \"gpt-5.5\",\n  \"output_path\": \"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120500Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120500Z-@RAND1@\",\n  \"status\": \"failed\",\n  \"summary\": \"\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\",\n  \"reason\": \"timeout\"\n}\n",
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"claude\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":0,\"family\":\"anthropic\",\"mode\":\"read-only\",\"model\":\"claude-haiku-5-5\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"20261103T120000Z-@RAND2@\",\"tokens\":{\"cached\":0,\"input\":0,\"output\":0},\"workflow\":\"w\",\"reason\":\"timeout\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0.160007,\"expires_at\":\"2026-11-03T12:06:01.000Z\",\"kind\":\"reservation\",\"model\":\"gpt-5.5\",\"reserved_at\":\"2026-11-03T12:05:00.000Z\",\"run_dir\":\"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120500Z-@RAND1@\",\"run_id\":\"20261103T120500Z-@RAND1@\",\"workflow\":\"w\"}\n{\"at\":\"2026-11-03T12:05:00.000Z\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"cost_usd\":0,\"duration_s\":0,\"family\":\"openai\",\"mode\":\"read-only\",\"model\":\"gpt-5.5\",\"outcome\":\"failed\",\"repository\":\"github.com/jorisjonkers-dev/demo\",\"run_id\":\"20261103T120500Z-@RAND1@\",\"tokens\":{\"cached\":0,\"input\":0,\"output\":0},\"workflow\":\"w\",\"reason\":\"timeout\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"cost_usd\":0,\"kind\":\"settled\",\"reserved_at\":\"2026-11-03T12:05:00.000Z\",\"run_id\":\"20261103T120500Z-@RAND1@\",\"settled_at\":\"2026-11-03T12:05:00.000Z\",\"workflow\":\"w\"}\n",
+        "state/agent-kit/model-gateway/runs/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/input.json": "{\n  \"client\": \"claude\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-haiku-5-5\",\n  \"prompt\": \"Too slow.\",\n  \"time_limit_s\": 1,\n  \"workflow\": \"w\",\n  \"escalate\": false\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/output.json": "",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/prompt.md": "Too slow.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/result.json": "{\n  \"client\": \"claude\",\n  \"cost_usd\": 0,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-haiku-5-5\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND2@\",\n  \"status\": \"failed\",\n  \"summary\": \"\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\",\n  \"reason\": \"timeout\"\n}\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "tmp/": null,
+        "work/": null
+      }
+    }
+  ]
+}

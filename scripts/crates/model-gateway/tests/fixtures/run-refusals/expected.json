@@ -1,0 +1,268 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"nested-delegation\",\"message\":\"a delegate may not delegate on: AGENT_KIT_DELEGATION is set in this environment\"}\n",
+      "stderr": "model-gateway run: a delegate may not delegate on: AGENT_KIT_DELEGATION is set in this environment\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unknown-model\",\"message\":\"vibe:a-model-nobody-knows is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override\"}\n",
+      "stderr": "model-gateway run: vibe:a-model-nobody-knows is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unknown-model\",\"message\":\"vibe:glm-5-3 is disabled in this machine's configuration\"}\n",
+      "stderr": "model-gateway run: vibe:glm-5-3 is disabled in this machine's configuration\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\"]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"codex:gpt-5.5 is not permitted: no repository: only inline content, to subsidised and metered-personal clients\"}\n",
+      "stderr": "model-gateway run: codex:gpt-5.5 is not permitted: no repository: only inline content, to subsidised and metered-personal clients\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\"]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest is not permitted: github.com/jorisjonkers-dev/demo has no allowlist entry, so nothing is sent\"}\n",
+      "stderr": "model-gateway run: vibe:mistral-small-latest is not permitted: github.com/jorisjonkers-dev/demo has no allowlist entry, so nothing is sent\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\"]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\"}\n",
+      "stderr": "model-gateway run: vibe:mistral-small-latest is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\"]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest may not carry history: github.com/jorisjonkers-dev/demo: the entry allows mistral\"}\n",
+      "stderr": "model-gateway run: vibe:mistral-small-latest may not carry history: github.com/jorisjonkers-dev/demo: the entry allows mistral\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\"]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest may not carry code: no repository: only inline content, to subsidised and metered-personal clients\"}\n",
+      "stderr": "model-gateway run: vibe:mistral-small-latest may not carry code: no repository: only inline content, to subsidised and metered-personal clients\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\"]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest may not carry history: no repository: only inline content, to subsidised and metered-personal clients\"}\n",
+      "stderr": "model-gateway run: vibe:mistral-small-latest may not carry history: no repository: only inline content, to subsidised and metered-personal clients\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\"]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest is not permitted: the repository has no remote, so nothing is sent\"}\n",
+      "stderr": "model-gateway run: vibe:mistral-small-latest is not permitted: the repository has no remote, so nothing is sent\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\"]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go), and OpenCode’s pay-per-token models are never reached\"}\n",
+      "stderr": "model-gateway run: anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go), and OpenCode’s pay-per-token models are never reached\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\"]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"opencode/gpt-5-nano: the provider opencode is not allowed (clients.opencode.providers: opencode, opencode-go), and OpenCode’s pay-per-token models are never reached\"}\n",
+      "stderr": "model-gateway run: opencode/gpt-5-nano: the provider opencode is not allowed (clients.opencode.providers: opencode, opencode-go), and OpenCode’s pay-per-token models are never reached\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"opencode\":{\"providers\":[\"opencode\",\"opencode-go\"]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"noslash: an OpenCode model is named <provider>/<model>, and the allowed providers are opencode, opencode-go\"}\n",
+      "stderr": "model-gateway run: noslash: an OpenCode model is named <provider>/<model>, and the allowed providers are opencode, opencode-go\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"opencode\":{\"providers\":[\"opencode\",\"opencode-go\"]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"a hermes run must name its provider: this machine allows anthropic\"}\n",
+      "stderr": "model-gateway run: a hermes run must name its provider: this machine allows anthropic\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"openrouter is not allowed: the owner forbade OpenRouter\"}\n",
+      "stderr": "model-gateway run: openrouter is not allowed: the owner forbade OpenRouter\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"openrouter is not allowed: the owner forbade OpenRouter\"}\n",
+      "stderr": "model-gateway run: openrouter is not allowed: the owner forbade OpenRouter\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"hermes may not run on azure: this machine allows anthropic\"}\n",
+      "stderr": "model-gateway run: hermes may not run on azure: this machine allows anthropic\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"workflow-ended\",\"message\":\"workflow over ended at 2026-11-03T09:00:00Z: a run may not join it, so start a new workflow\"}\n",
+      "stderr": "model-gateway run: workflow over ended at 2026-11-03T09:00:00Z: a run may not join it, so start a new workflow\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"over\",\"started_at\":\"2026-11-03T08:00:00Z\",\"ended_at\":\"2026-11-03T09:00:00Z\"}]}",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"workflow-ended\",\"message\":\"workflow stale ended at 2026-11-02T08:00:00.000Z: a run may not join it, so start a new workflow\"}\n",
+      "stderr": "model-gateway run: workflow stale ended at 2026-11-02T08:00:00.000Z: a run may not join it, so start a new workflow\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"stale\",\"started_at\":\"2026-11-01T08:00:00Z\"}]}",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    }
+  ]
+}
