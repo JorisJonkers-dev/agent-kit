@@ -43,13 +43,13 @@ export interface ArchitecturePacket {
  * declared and what the packet shows.
  */
 export class ArchitecturePacketReader {
-  constructor(private readonly deps: Pick<CritiqueDeps, 'files' | 'git'>) {}
+  constructor(private readonly deps: Pick<CritiqueDeps, 'files' | 'git' | 'repoMap'>) {}
 
   async read(root: string, request: ArchitecturePacketRequest): Promise<ArchitecturePacket | Refusal> {
     const { adrs, documents: records, maps } = await decisionReferences(this.deps, root)
     const documents = [...records, ...(await this.configuration(root))]
     const text = documents.map((file) => file.text).join('\n\n')
-    const sampled = await sampleTree(this.deps, root, { artifactText: text, files: documents }, request, sourceSample)
+    const sampled = await sampleTree(this.deps, root, { artifactText: text, files: documents }, request, sourceSample, true)
     if (sampled.status === 'refused') return sampled
     return {
       adrs,

@@ -57,7 +57,7 @@ export class PlanPacketReader {
       { kind: 'check', path: PLAN_CHECK_PATH, source: `check-plan ${reference}`, text: `${JSON.stringify(check, null, 2)}\n` },
       ...documents,
     ]
-    const sampled = await sampleTree(this.deps, root, { artifactText: text, files: packet }, request)
+    const sampled = await sampleTree(this.deps, root, { artifactText: text, files: packet }, request, undefined, true)
     if (sampled.status === 'refused') return sampled
     return {
       artifact: { labels: [], reference, text, tracker: 'none' },

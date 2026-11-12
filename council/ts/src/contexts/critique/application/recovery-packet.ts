@@ -88,11 +88,11 @@ export async function decisionReferences(
  * be read. Without that permission no commit message or issue text is read.
  */
 export class RecoveryPacketReader {
-  constructor(private readonly deps: Pick<CritiqueDeps, 'files' | 'git'>) {}
+  constructor(private readonly deps: Pick<CritiqueDeps, 'files' | 'git' | 'repoMap'>) {}
 
   async read(root: string, request: RecoveryPacketRequest): Promise<RecoveryPacket | Refusal> {
     const { adrs, documents, maps } = await decisionReferences(this.deps, root)
-    const sampled = await sampleTree(this.deps, root, { artifactText: documents.map((file) => file.text).join('\n\n'), files: documents }, limited(request), sourceSample)
+    const sampled = await sampleTree(this.deps, root, { artifactText: documents.map((file) => file.text).join('\n\n'), files: documents }, limited(request), sourceSample, true)
     if (sampled.status === 'refused') return sampled
     const history = request.history === undefined ? [] : await this.history(root, sampled, request.history.tracker)
     return {

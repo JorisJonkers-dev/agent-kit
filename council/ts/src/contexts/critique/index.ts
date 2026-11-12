@@ -89,6 +89,7 @@ export type {
   ModelQuestion,
   QuestionClientPort,
   SearchClientPort,
+  RepoMapPort,
   SearchServerCommand,
   SearchSession,
 } from './application/ports.js'
@@ -124,4 +125,5 @@ export { VibeCriticClient } from './adapters/vibe/index.js'
 export { GatewayGrants } from './adapters/grants/index.js'
 export { GatewayPlanLimit } from './adapters/plan/index.js'
 export { ProcessSearchClient } from './adapters/search/client.js'
+export { CodeNavRepoMap } from './adapters/code-nav/client.js'
 export { runSearchServer, SEARCH_SERVER_USAGE, type SearchServerIo } from './adapters/search/server.js'

@@ -29,7 +29,7 @@ function codeSample(request: Partial<CodeSampleRequest> = {}): CodeSample {
     leftOut: [],
     limits: { ...DEFAULT_PACKET_LIMITS, cap_bytes: 12_000 },
     namedText: '',
-    repoMap: { dropped: 0, listed: 0, text: '# Repo map\n' },
+    repoMap: { dropped: 0, listed: 0, source: 'scan', text: '# Repo map\n' },
     slices: [],
     tracked: [{ path: 'src/widget.ts', text: text(3) }, ...MANY],
     ...request,

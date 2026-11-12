@@ -2,6 +2,7 @@ import type { ClockPort, EnvPort, GhPort, GitHistoryPort, GitIndexPort, GitPort,
 import type { ModelGatewayLedgerPort, PlanLimitReading } from '../../model-gateway/index.js'
 import type { CriticFailure, CriticOutcome, CriticTokens } from '../domain/critic.js'
 import type { CriticToolset, SearchServerLaunch, ToolCall } from '../domain/critic-tools.js'
+import type { RepoRanking } from '../domain/ranking.js'
 import type { SearchCall, SearchLimits, SearchToolName } from '../domain/packet-search.js'
 import type { AgyCriticClient, ClaudeCriticClient, ClientReadiness, CodexCriticClient, CriticClient, RosterCritic, VibeCriticClient } from '../domain/routing.js'
 
@@ -276,6 +277,11 @@ export interface GrantsPort {
   covers(workflow: string, client: string): Promise<boolean>
 }
 
+/** Reads code-nav's ranked repository map of the tree at `root`. Never throws: an absent code-nav is `unavailable`. */
+export interface RepoMapPort {
+  rank(root: string): Promise<RepoRanking>
+}
+
 export interface CritiqueDeps {
   /** Directory holding the shipped prompts, lenses, schema and routing. */
   readonly assetsRoot: string
@@ -295,4 +301,6 @@ export interface CritiqueDeps {
   readonly grants: GrantsPort
   /** The gateway's plan-limit reading, which replaces the per-flow Vibe cap. */
   readonly plan: PlanLimitPort
+  /** code-nav's repository map, which orders the tree sample; without it the sample keeps its own order. */
+  readonly repoMap?: RepoMapPort
 }

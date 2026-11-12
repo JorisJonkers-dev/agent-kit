@@ -1,4 +1,5 @@
 import { mentions, resolveImport, scanSource, type SourceScan, type SourceSymbol } from './source-scan.js'
+import { type RankedFile, type RankedSymbol } from './ranking.js'
 import { bytes } from './tree-sample.js'
 
 /** A tracked text file, by repository path. */
@@ -115,6 +116,8 @@ export interface RenderedRepoMap {
   readonly text: string
   readonly listed: number
   readonly dropped: number
+  /** Whose map it is: code-nav's, or the runner's own scan when code-nav was unavailable. */
+  readonly source: 'code-nav' | 'scan'
 }
 
 /** The packet path of the repo map. */
@@ -132,18 +135,46 @@ export function renderRepoMap(entries: readonly RepoMapEntry[], options: { reado
     `Every source file the runner's symbol scan reads at commit \`${options.commit}\`, with its top-level symbols and their signatures. Files are ranked by how many other files reference their symbols, most first; a file references a symbol when it imports the symbol's file and names it. Each symbol's line is its line in \`tree/<path>\`, which holds the file when the packet cap let it in. This map is a fact the runner computed.`,
     '',
   ].join('\n')
-  const blocks = entries.map(renderEntry)
+  return { ...capBlocks(head, entries.map(renderEntry), options.capBytes, 'No source file in a language the scan reads.\n'), source: 'scan' }
+}
+
+/**
+ * The repo map from code-nav's `map` tool, in code-nav's rank order: a
+ * heading per file with the symbols code-nav lists for it, under the same cap.
+ * `files` and `symbols` are already limited to the paths the tree holds.
+ */
+export function renderCodeNavMap(
+  ranking: { readonly files: readonly RankedFile[]; readonly symbols: readonly RankedSymbol[] },
+  options: { readonly commit: string; readonly capBytes: number },
+): RenderedRepoMap {
+  const head = [
+    '# Repo map',
+    '',
+    `Files and symbols ranked by code-nav's map, which reads the repository's working tree, so a line can differ from \`tree/<path>\` (read at commit \`${options.commit}\`) where the working tree has uncommitted edits: a symbol's references are the whole-word occurrences of its name in the other scanned files, a file's score is the sum over the symbols it declares, most referenced first. A symbol's line is its line in the working tree; \`tree/<path>\` holds the file when the packet cap let it in. The map lists the most referenced files and symbols only. This map is a fact the runner read from code-nav.`,
+    '',
+  ].join('\n')
+  const blocks = ranking.files.map((file) => {
+    const symbols = ranking.symbols
+      .filter((symbol) => symbol.path === file.path)
+      .map((symbol) => `- \`${symbol.name}\` (${symbol.kind}, line ${String(symbol.line)}, ${String(symbol.refs)} refs)`)
+    return `\n## \`${file.path}\` (${String(file.refs)} references)\n\n${symbols.length === 0 ? 'No symbol among the most referenced.' : symbols.join('\n')}\n`
+  })
+  return { ...capBlocks(head, blocks, options.capBytes, 'code-nav listed no symbol in this tree.\n'), source: 'code-nav' }
+}
+
+/** Files go in while the map fits under its cap; the rest are counted at its end. */
+function capBlocks(head: string, blocks: readonly string[], capBytes: number, empty: string): Omit<RenderedRepoMap, 'source'> {
   let size = bytes(head)
   let listed = 0
   for (const block of blocks) {
     // The footer is sized for the most files it could count, so the map never passes its cap.
-    const footer = listed + 1 === blocks.length ? '' : droppedLine(blocks.length, options.capBytes)
-    if (size + bytes(block) + bytes(footer) > options.capBytes) break
+    const footer = listed + 1 === blocks.length ? '' : droppedLine(blocks.length, capBytes)
+    if (size + bytes(block) + bytes(footer) > capBytes) break
     size += bytes(block)
     listed += 1
   }
   const dropped = blocks.length - listed
-  const tail = dropped === 0 ? (blocks.length === 0 ? 'No source file in a language the scan reads.\n' : '') : droppedLine(dropped, options.capBytes)
+  const tail = dropped === 0 ? (blocks.length === 0 ? empty : '') : droppedLine(dropped, capBytes)
   return { dropped, listed, text: `${head}${blocks.slice(0, listed).join('')}${tail}` }
 }
 
