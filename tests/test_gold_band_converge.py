@@ -610,3 +610,54 @@ def test_an_unchanged_run_still_makes_the_data_directory_owner_only(
     machine.settings.parent.chmod(0o755)
     assert machine.run() == 0
     assert machine.settings.parent.stat().st_mode & 0o777 == 0o700
+
+
+LOUD = {
+    "desktopMetricsEnabled": True,
+    "desktopMetricsBaseUrl": "https://m.example",
+    "desktopMulticaEnabled": True,
+    "desktopUpdaterUrlOverride": "https://updates.example/latest.json",
+    "imIntegrations": {
+        "channels": [
+            {"kind": "wecom", "enabled": True, "publicIdentity": "a"},
+            {"kind": "slack", "enabled": False, "publicIdentity": "b"},
+        ]
+    },
+    "logLevel": "debug",
+}
+
+
+def test_setup_turns_the_updater_metrics_task_board_and_connectors_off_and_nothing_else(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, **LOUD})
+    assert machine.run() == 0
+    written = json.loads(machine.settings.read_text())
+    assert written["desktopMetricsEnabled"] is False
+    assert written["desktopMulticaEnabled"] is False
+    assert "desktopUpdaterUrlOverride" not in written
+    assert [c["enabled"] for c in written["imIntegrations"]["channels"]] == [False, False]
+    assert written["desktopMetricsBaseUrl"] == "https://m.example"
+    assert written["logLevel"] == "debug"
+    assert [c["kind"] for c in written["imIntegrations"]["channels"]] == ["wecom", "slack"]
+
+
+def test_a_settings_file_that_only_needs_quieting_is_still_rewritten(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = Machine(tmp_path, monkeypatch)
+    assert first.run() == 0
+    doc = json.loads(first.settings.read_text())
+    first.settings.write_text(json.dumps({**doc, "desktopMetricsEnabled": True}))
+    assert first.run() == 0
+    assert json.loads(first.settings.read_text())["desktopMetricsEnabled"] is False
+    assert first.run() == 0
+
+
+def test_odd_connector_shapes_are_left_alone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, "imIntegrations": {"channels": ["x", {}]}})
+    assert machine.run() == 0
+    assert json.loads(machine.settings.read_text())["imIntegrations"] == {"channels": ["x", {}]}
+    machine.settings.write_text(json.dumps({"agents": {}, "imIntegrations": 3}))
+    assert machine.run() == 0
+    assert json.loads(machine.settings.read_text())["imIntegrations"] == 3

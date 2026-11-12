@@ -774,6 +774,36 @@ def _gold_band_skills(
     return lines
 
 
+def _gold_band_quiet(document: dict[str, Any]) -> dict[str, Any]:
+    """``document`` with the app's outbound components off; every other key is as it was.
+
+    Keys of the pinned app's ``SettingsConfig`` (src/config/mod.rs): the metrics
+    switch ``desktopMetricsEnabled`` (:881), the task-board integration
+    ``desktopMulticaEnabled`` (:892), the chat connectors ``imIntegrations.channels[].enabled``
+    (:888, src/im/model.rs:485), and the updater, which has no switch: its only
+    setting is ``desktopUpdaterUrlOverride`` (:877), dropped so the stock endpoint
+    applies. The app has no feedback setting. A key that is absent stays absent;
+    the app defaults each of these to off.
+    """
+    quiet = dict(document)
+    for key in ("desktopMetricsEnabled", "desktopMulticaEnabled"):
+        if quiet.get(key) is True:
+            quiet[key] = False
+    quiet.pop("desktopUpdaterUrlOverride", None)
+    im = quiet.get("imIntegrations")
+    channels = im.get("channels") if isinstance(im, dict) else None
+    if isinstance(channels, list):
+        quiet["imIntegrations"] = {
+            **im,
+            "channels": [
+                {**channel, "enabled": False} if isinstance(channel, dict) and channel.get("enabled") is True
+                else channel
+                for channel in channels
+            ],
+        }
+    return quiet
+
+
 def gold_band(args: argparse.Namespace) -> int:
     instance = args.instance
     # The default path is the current user's instance. The work instance lives
@@ -856,7 +886,7 @@ def gold_band(args: argparse.Namespace) -> int:
     for line in _gold_band_skills(skills_root, args.kit, wanted, sources, skipped_ids, keep - retired, args.check):
         print(line)
     # The map keeps its slot among the other top-level keys; a new one is appended.
-    new_doc = {**doc, "agents": merged}
+    new_doc = _gold_band_quiet({**doc, "agents": merged})
     if new_doc == doc:
         # An unchanged map still leaves the data directory owner-only.
         if not args.check and settings.parent.is_dir():
