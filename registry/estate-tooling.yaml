@@ -372,13 +372,16 @@ gold_band:
     # with no section here is skipped and reported, never given another OS's
     # path. macOS: the CLI the `antigravity-cli` cask installs; its absolute
     # path is resolved at converge (`command_from_binary`), so no Homebrew
-    # prefix is written in this file. Linux: no launch command is declared
-    # yet (whether it has an official build is #431's finding), so Linux
-    # skips it.
+    # prefix is written in this file. Linux: the official installer puts
+    # `agy` in ~/.local/bin (docs/SETUP.md, Antigravity); same resolution.
     - id: agy
       binary: agy
       os:
         mac:
+          command_from_binary: true
+          adapter:
+            args: [acp]
+        linux:
           command_from_binary: true
           adapter:
             args: [acp]
