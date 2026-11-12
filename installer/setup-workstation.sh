@@ -3867,20 +3867,22 @@ for install in installs:
           || warn "code-nav: code-nav is not on PATH; skipping"
       fi
       overlay_roots=()
+      overlay_err="$(mktemp)"
       overlay_file="${HOME}/.config/agent-kit/overlay.yaml"
       if [ -f "${overlay_file}" ]; then
         if overlay_out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml python \
             "${KIT_ROOT}/scripts/gold_band_instances.py" code-nav-roots \
-            --registry "${KIT_ROOT}/registry/estate-tooling.yaml" --overlay "${overlay_file}" 2>&1); then
+            --registry "${KIT_ROOT}/registry/estate-tooling.yaml" --overlay "${overlay_file}" 2>"${overlay_err}"); then
           while IFS= read -r overlay_root; do
             [ -n "${overlay_root}" ] && overlay_roots+=(--root "${overlay_root}")
           done <<< "${overlay_out}"
           [ "${#overlay_roots[@]}" = 0 ] \
             || ok "code-nav: $(( ${#overlay_roots[@]} / 2 )) work overlay root(s) applied"
         else
-          warn "code-nav: the work overlay was not applied (${overlay_out})"
+          warn "code-nav: the work overlay was not applied ($(cat "${overlay_err}"))"
         fi
       fi
+      rm -f "${overlay_err}"
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user code-nav >/dev/null 2>&1 || true
         if run_redacted "claude mcp add code-nav" claude_each_profile claude mcp add --scope user code-nav -- code-nav --root ~/Projects/JorisJonkers-dev ${overlay_roots[@]+"${overlay_roots[@]}"}; then

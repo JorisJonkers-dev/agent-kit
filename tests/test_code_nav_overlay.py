@@ -83,6 +83,7 @@ def test_the_personal_instance_never_takes_mcp_servers_from_the_overlay(tmp_path
         'code-nav: {command: code-nav, args: ["--root"]}',
         'code-nav: {command: code-nav, args: ["--allow-write", "/x"]}',
         'code-nav: {command: code-nav, args: ["--root", ""]}',
+        'code-nav: {command: code-nav, args: ["--root", "--allow-write"]}',
         "code-nav: {command: code-nav}",
         "code-nav: placeholder",
     ],
@@ -123,6 +124,7 @@ def _prepare(overlay: str | None):
 # setup PATH holds no cargo. `uv run ... python SCRIPT args` runs the helper.
 _UV = (
     f'echo "uv $*" >> "$CALLS"\n'
+    'echo "warning: noise on stderr" >&2\n'
     'while [ $# -gt 0 ] && [ "${1%gold_band_instances.py}" = "$1" ]; do shift; done\n'
     f'[ $# -gt 0 ] && exec "{sys.executable}" "$@"\n'
     "exit 0"
@@ -187,6 +189,7 @@ def test_check_mode_registers_nothing_but_still_reads_the_overlay(tmp_path: Path
     )
 
     assert _code_nav_adds(run.calls) == []
+    assert any("gold_band_instances.py code-nav-roots" in call for call in run.calls)
     assert "would run: claude mcp add code-nav" in run.stdout
 
 

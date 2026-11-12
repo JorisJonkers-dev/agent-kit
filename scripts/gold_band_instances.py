@@ -192,7 +192,7 @@ def _root_pairs(args: Any) -> list[str] | None:
         return None
     roots: list[str] = []
     for flag, path in zip(args[::2], args[1::2], strict=True):
-        if flag != "--root" or not isinstance(path, str) or not path.strip():
+        if flag != "--root" or not isinstance(path, str) or not path.strip() or path.startswith("-"):
             return None
         roots.append(path)
     return roots

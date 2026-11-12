@@ -721,20 +721,22 @@ def _overlay_roots_block(indent: str) -> list[str]:
     """
     lines = [
         "overlay_roots=()",
+        'overlay_err="$(mktemp)"',
         'overlay_file="${HOME}/.config/agent-kit/overlay.yaml"',
         'if [ -f "${overlay_file}" ]; then',
         "  if overlay_out=$(uv run --no-project --exclude-newer \"7 days\" --with pyyaml python \\",
         '      "${KIT_ROOT}/scripts/gold_band_instances.py" code-nav-roots \\',
-        '      --registry "${KIT_ROOT}/registry/estate-tooling.yaml" --overlay "${overlay_file}" 2>&1); then',
+        '      --registry "${KIT_ROOT}/registry/estate-tooling.yaml" --overlay "${overlay_file}" 2>"${overlay_err}"); then',
         "    while IFS= read -r overlay_root; do",
         '      [ -n "${overlay_root}" ] && overlay_roots+=(--root "${overlay_root}")',
         '    done <<< "${overlay_out}"',
         '    [ "${#overlay_roots[@]}" = 0 ] \\',
         '      || ok "code-nav: $(( ${#overlay_roots[@]} / 2 )) work overlay root(s) applied"',
         "  else",
-        '    warn "code-nav: the work overlay was not applied (${overlay_out})"',
+        '    warn "code-nav: the work overlay was not applied ($(cat "${overlay_err}"))"',
         "  fi",
         "fi",
+        'rm -f "${overlay_err}"',
     ]
     return [f"{indent}{line}" for line in lines]
 

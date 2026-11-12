@@ -55,7 +55,7 @@ the gold-band-registry crate validates (work instance only):
 instances:
   gold-band:
     mcp_servers:
-      code-nav: {command: code-nav, args: ["--root", "~/Projects/nedap"]}
+      code-nav: {command: code-nav, args: ["--root", "~/Projects/<work-root>"]}
 ```
 
 Setup, run in the work account, reads that entry through
