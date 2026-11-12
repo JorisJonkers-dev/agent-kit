@@ -18,6 +18,8 @@ pub enum Refusal {
     SecretFile(PathBuf),
     /// The path is under a root but does not exist.
     Missing(PathBuf),
+    /// The path is in a location the server never reads, whatever the roots.
+    Withheld(PathBuf),
 }
 
 impl fmt::Display for Refusal {
@@ -27,6 +29,7 @@ impl fmt::Display for Refusal {
             Refusal::SymlinkOut(p) => write!(f, "refused: {} is a symlink that leaves the allowed roots", p.display()),
             Refusal::SecretFile(p) => write!(f, "refused: {} is a secret file", p.display()),
             Refusal::Missing(p) => write!(f, "{} does not exist", p.display()),
+            Refusal::Withheld(p) => write!(f, "refused: {} is a withheld location", p.display()),
         }
     }
 }
@@ -48,6 +51,9 @@ impl Boundary {
             }
             if is_secret(&c) {
                 return Err(format!("root {} is a secret location", root.display()));
+            }
+            if is_withheld(&c) {
+                return Err(format!("root {} is a withheld location", root.display()));
             }
             // Overlapping roots would search a file twice.
             if canonical.iter().any(|r| c.starts_with(r)) {
@@ -86,6 +92,9 @@ impl Boundary {
         };
         let relative = canonical.strip_prefix(root).unwrap_or(&canonical);
         let named = lexical.file_name().map(Path::new).unwrap_or(Path::new(""));
+        if is_withheld(relative) {
+            return Err(Refusal::Withheld(lexical));
+        }
         if is_secret(relative) || is_secret(named) {
             return Err(Refusal::SecretFile(lexical));
         }
@@ -112,6 +121,12 @@ fn normalise(path: &Path) -> PathBuf {
         }
     }
     out
+}
+
+/// True when any component of `path` names an employer's tree (`nedap`, in any
+/// case, anywhere in the name): the server never reads one, even under a root.
+pub fn is_withheld(path: &Path) -> bool {
+    path.components().any(|c| c.as_os_str().to_string_lossy().to_lowercase().contains("nedap"))
 }
 
 /// Directories whose whole content is secret.

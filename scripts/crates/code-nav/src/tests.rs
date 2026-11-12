@@ -574,14 +574,14 @@ fn bad_tool_calls_are_tool_errors() {
 }
 
 #[test]
-fn tools_list_names_all_four_tools() {
+fn tools_list_names_all_six_tools() {
     let f = fixture();
     let replies = exchange(&f, 20, &[r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#]);
     assert!(parse_json_ok(&replies[0]));
     let json = code_nav_eval::parse_json(&replies[0]).unwrap();
     let tools = json.get("result").and_then(|r| r.get("tools")).and_then(Json::as_arr).unwrap();
     let names: Vec<&str> = tools.iter().filter_map(|t| t.get("name").and_then(Json::as_str)).collect();
-    assert_eq!(names, ["search", "outline", "expand", "map"]);
+    assert_eq!(names, ["search", "outline", "expand", "map", "symbols", "related_repos"]);
     for tool in tools {
         let description = tool.get("description").and_then(Json::as_str).unwrap();
         assert!(description.contains("never read"), "{description}");
@@ -601,6 +601,8 @@ fn tools_list_names_all_four_tools() {
     assert_eq!(required(&tools[1]), ["path"]);
     assert_eq!(required(&tools[2]), ["path", "symbol"]);
     assert!(tools[3].get("inputSchema").and_then(|s| s.get("required")).is_none());
+    assert_eq!(required(&tools[4]), ["name"]);
+    assert_eq!(required(&tools[5]), ["repo"]);
 }
 
 #[test]
@@ -1022,3 +1024,5 @@ fn the_map_holds_one_file_text_at_a_time() {
     assert_eq!(counts, [("parse", 3), ("Config", 2), ("helper", 1)]);
     assert!(!repo.walk_capped);
 }
+
+mod related;

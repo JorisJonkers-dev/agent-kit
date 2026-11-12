@@ -100,6 +100,23 @@ code-nav --root ~/Projects/owner/repo [--root DIR ...] [--limit N]
   of its symbols' references. Each list is capped at `limit` (default as for
   `search`) and a capped result says how much it left out. The walk follows
   `search`'s skips and stops after 20,000 files.
+* **Tool `symbols`** (`name`, optional `path` and `limit`). Where a name is
+  declared across every repository under the roots, one line per declaration:
+  repository, `path:line`, kind and name. A symbol matches when its name
+  contains the query, ignoring case; exact matches rank first, then
+  case-insensitive ones, then substrings, then fewer path components, path and
+  line. Each file is read once, one at a time; the walk is the map's.
+* **Tool `related_repos`** (`repo`, a directory name or a path under a root).
+  The repositories it depends on and the repositories that depend on it, each
+  with the package name that links them. The manifest is generated on every
+  call from the workspace layout (a repository is the nearest directory with a
+  `.git`, else each directory directly under a root) and from `Cargo.toml`,
+  `package.json`, `pyproject.toml`, `go.mod` and Gradle files: repository A
+  depends on B when A requires a name B provides (a build file's own name, or
+  B's directory name). Names nobody provides are external and not listed.
+* **Withheld.** A path with a component containing `nedap` (any case) is never
+  read: a root there is refused, `admit` refuses it under a root, and every
+  walk skips it, so neither tool can reach into one.
 
 ## ticket-sync
 
