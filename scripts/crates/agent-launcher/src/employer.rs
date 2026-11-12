@@ -91,7 +91,7 @@ pub fn employer_roots(overlay: Option<&Path>, home: Option<&Path>) -> Result<Vec
 /// One declared root, absolute and free of `..`.
 fn absolute(root: &str, home: Option<&Path>) -> Result<PathBuf, String> {
     let path = match (root.strip_prefix("~/"), home) {
-        (Some(rest), Some(home)) => home.join(rest),
+        (Some(rest), Some(home)) => home.join(rest.trim_start_matches('/')),
         (Some(_), None) => return Err(format!("employer root {root:?} needs HOME, which is not set")),
         (None, _) => PathBuf::from(root),
     };

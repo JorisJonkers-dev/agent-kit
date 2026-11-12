@@ -33,6 +33,9 @@ fn the_work_instance_declares_its_roots() {
         roots(&file).unwrap(),
         [PathBuf::from("/home/me/Projects/nedap"), PathBuf::from("/srv/employer")]
     );
+    // `~//x` is still under home, never the absolute `/x`.
+    let slashes = overlay("slashes", "instances:\n  gold-band:\n    employer_roots: ['~//x']\n");
+    assert_eq!(roots(&slashes).unwrap(), [PathBuf::from("/home/me/x")]);
 }
 
 #[test]

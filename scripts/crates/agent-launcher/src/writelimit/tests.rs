@@ -1273,7 +1273,7 @@ fn a_personal_launch_is_refused_when_the_work_instance_has_no_roots_or_the_backe
 #[test]
 fn the_check_for_setup_says_whether_the_personal_instance_may_start() {
     let t = tree("k-check");
-    let check = |c: &Context, limit: &dyn WriteLimit| run_with([OsString::from("read-limit-check")], "mac", limit, c);
+    let check = |c: &Context, limit: &dyn WriteLimit| run_with(vec![OsString::from("read-limit-check")], "mac", limit, c);
     // No overlay: not the work machine.
     assert_eq!(check(&context(&t), &Unavailable), 0);
     let work = personal(&t, WORK_OVERLAY);
