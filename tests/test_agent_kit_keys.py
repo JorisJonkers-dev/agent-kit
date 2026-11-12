@@ -67,6 +67,7 @@ class Auth:
         self.valid: set[str] = set()
         self.refused_services: set[str] = set()
         self.revoked: list[str] = []
+        self.by_id: dict[str, str] = {}
         self.log: list[str] = []
 
 
@@ -115,6 +116,7 @@ def auth() -> Iterator[tuple[Auth, str]]:
                 state.minted.append(service)
                 if service not in state.refused_services:
                     state.valid.add(token)
+                state.by_id[str(len(state.minted))] = token
                 return self._send(201, {"token": token, "id": str(len(state.minted))})
             if self.path.startswith("/check/"):
                 token = (self.headers.get("Authorization") or "").removeprefix("Bearer ")
@@ -156,8 +158,10 @@ def auth() -> Iterator[tuple[Auth, str]]:
         def do_DELETE(self) -> None:
             state.log.append(f"DELETE {self.path}")
             prefix = "/api/v1/auth/service-tokens/"
-            if self.path.startswith(prefix) and self._signed_in() and self._xsrf():
+            known = self.path[len(prefix) :] in state.by_id
+            if self.path.startswith(prefix) and self._signed_in() and self._xsrf() and known:
                 state.revoked.append(self.path[len(prefix):])
+                state.valid.discard(state.by_id.get(self.path[len(prefix):], ""))
                 self.send_response(204)
                 self.end_headers()
                 return None
@@ -586,3 +590,57 @@ def test_an_entry_without_a_check_url_is_unchecked_and_asks_no_host() -> None:
     spec.loader.exec_module(module)
     entry = {"env": "LITELLM_VIBE_KEY", "paste": "x", "unchecked": "behind the edge", "export": False}
     assert module.check(entry, "sk-anything") == "unchecked"
+
+
+def test_a_revoked_host_token_is_refused_by_its_host_and_the_next_run_mints_a_new_one(
+    home: dict, auth: tuple[Auth, str],
+) -> None:
+    state, _ = auth
+    _keys(home, "ensure", answers=ANSWERS)
+    token = _stored(home)["HINDSIGHT_API_TOKEN"]
+    assert "HINDSIGHT_API_TOKEN ok" in _keys(home, "status").stdout
+    result = _keys(home, "revoke", "HINDSIGHT_API_TOKEN", answers="me@example.com\npw\n123456\n")
+    assert result.returncode == 0, result.stderr
+    assert token not in result.stdout + result.stderr
+    assert token not in state.valid
+    assert "HINDSIGHT_API_TOKEN invalid" in _keys(home, "status").stdout
+    ids = json.loads((Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "token-ids.json").read_text())
+    assert "HINDSIGHT_API_TOKEN" not in ids
+    assert _keys(home, "ensure", answers="me@example.com\npw\n123456\n").returncode == 0
+    assert _stored(home)["HINDSIGHT_API_TOKEN"] in state.valid
+    ids = json.loads((Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "token-ids.json").read_text())
+    assert "HINDSIGHT_API_TOKEN" in ids, "the new id is recorded, so it can be revoked in turn"
+    after = _keys(home, "status")
+    assert "HINDSIGHT_API_TOKEN ok" in after.stdout and _stored(home)["HINDSIGHT_API_TOKEN"] not in after.stdout
+
+
+def test_revoke_refuses_a_name_that_is_not_a_minted_token(home: dict, auth: tuple[Auth, str]) -> None:
+    result = _keys(home, "revoke", "MISTRAL_API_KEY")
+    assert result.returncode == 2 and "not a token this tool mints" in result.stderr
+
+
+def test_revoke_without_a_recorded_id_says_where_to_revoke_it(home: dict, auth: tuple[Auth, str]) -> None:
+    result = _keys(home, "revoke", "HINDSIGHT_API_TOKEN")
+    assert result.returncode == 1 and "admin page" in result.stderr
+
+
+def test_revoke_needs_a_name(home: dict, auth: tuple[Auth, str]) -> None:
+    assert _keys(home, "revoke").returncode == 2
+
+
+def test_revoke_with_a_refused_sign_in_revokes_nothing(home: dict, auth: tuple[Auth, str]) -> None:
+    state, _ = auth
+    _keys(home, "ensure", answers=ANSWERS)
+    result = _keys(home, "revoke", "HINDSIGHT_API_TOKEN", answers="me@example.com\nwrong\n")
+    assert result.returncode == 1 and state.revoked == []
+
+
+def test_revoke_that_auth_api_refuses_keeps_the_id(home: dict, auth: tuple[Auth, str]) -> None:
+    _keys(home, "ensure", answers=ANSWERS)
+    ids_file = Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "token-ids.json"
+    ids = json.loads(ids_file.read_text())
+    ids["HINDSIGHT_API_TOKEN"] = "bad/id"  # the stub refuses a path it cannot match
+    ids_file.write_text(json.dumps(ids))
+    result = _keys(home, "revoke", "HINDSIGHT_API_TOKEN", answers="me@example.com\npw\n123456\n")
+    assert result.returncode == 1 and "refused to revoke" in result.stderr
+    assert "HINDSIGHT_API_TOKEN" in json.loads(ids_file.read_text())

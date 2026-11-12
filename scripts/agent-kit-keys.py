@@ -10,13 +10,16 @@ on Linux. There is no plain-file store: a missing store stops the run.
 ``write-env`` renders ~/.config/agent-kit/env.sh, which reads them back in
 every shell; the Private Memory token is opened only by ``vibe-private``, and the Study
 account key is read only by ``vibe-study``.
-``status`` reports without asking anything.
+``status`` reports without asking anything. ``revoke NAME`` signs in and revokes this
+host's token for NAME (its recorded id), so the host refuses it from then on; the next
+``ensure`` sees the stored value refused and mints a fresh one.
 
 Secrets never reach argv or output: the store gets them on stdin. Stdlib only, so the system python3 runs it.
 
 Usage::
 
     python3 scripts/agent-kit-keys.py --table <workstation-secrets.json> ensure|status|write-env
+    python3 scripts/agent-kit-keys.py --table <workstation-secrets.json> revoke NAME
 """
 
 from __future__ import annotations
@@ -487,16 +490,51 @@ def status(table: list[dict[str, Any]]) -> int:
     return 0
 
 
+def revoke(table: list[dict[str, Any]], name: str) -> int:
+    """Revoke this host's minted token for NAME by its recorded id; the stored value is left to fail its check."""
+    if not any(e["env"] == name and e.get("grant") for e in secrets(table)):
+        say(f"{name}: not a token this tool mints")
+        return 2
+    ids = load_ids()
+    ident = ids.get(name)
+    if not ident:
+        say(f"{name}: no token id recorded on this host; revoke it on the admin page")
+        return 1
+    auth = Auth()
+    try:
+        if not auth.sign_in():
+            return 1
+        revoked = auth.revoke(ident)
+    except Unreachable as e:
+        say(f"could not reach auth.jorisjonkers.dev ({e}); nothing revoked")
+        return 1
+    finally:
+        with contextlib.suppress(Unreachable):
+            auth.sign_out()
+    if not revoked:
+        say(f"{name}: auth-api refused to revoke token id {ident}")
+        return 1
+    del ids[name]
+    save_ids(ids)
+    say(f"{name}: revoked; `status` now reports it invalid, and the next setup run mints a new one")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--table", type=Path, required=True)
-    parser.add_argument("command", choices=["ensure", "status", "write-env"])
+    parser.add_argument("command", choices=["ensure", "status", "write-env", "revoke"])
+    parser.add_argument("name", nargs="?", help="revoke: the variable whose token to revoke")
     args = parser.parse_args(argv)
     table = json.loads(args.table.read_text())
     if args.command == "ensure":
         return ensure(table)
     if args.command == "status":
         return status(table)
+    if args.command == "revoke":
+        if not args.name:
+            parser.error("revoke needs the variable name, for example HINDSIGHT_API_TOKEN")
+        return revoke(table, args.name)
     keys = Store()
     keys.migrate_legacy_file()
     retire(table, keys)
