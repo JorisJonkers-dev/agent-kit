@@ -4,7 +4,8 @@
 //! system's write limit (Landlock on Linux, `sandbox-exec` on macOS), can call
 //! every tool of the server; the server's boundary still refuses a path
 //! outside its root, a symlink out, a secret file and an employer's tree; and
-//! the server writes no file.
+//! the server writes no file under its root or beside it (its own temporary
+//! directory is the launcher's and is removed after the run; the server's source holds no write call).
 //!
 //! The test has no libtest harness: it re-executes itself as the launcher
 //! (`--launcher ARGS`), so the server runs as the launcher's real child with
@@ -53,7 +54,7 @@ mod proof {
     }
 
     /// A fixture: the server's root `base/ws`, holding the repositories `repo` (code, a README, a secret, a
-    /// symlink that leaves the root, an employer's tree, a `.git` file) and a
+    /// symlink that leaves the root, an employer's tree) and a
     /// directory beside it the root must not reveal.
     fn fixture() -> (PathBuf, PathBuf) {
         let base = fs::canonicalize(std::env::temp_dir())
@@ -184,7 +185,7 @@ mod proof {
         let (symbols, error) = at(7);
         assert!(!error && symbols.contains("reachable_marker") && symbols.contains("src/lib.rs"), "symbols: {symbols}");
         let (related, error) = at(8);
-        assert!(!error && related.contains("other"), "related_repos: {related}");
+        assert!(!error && related.contains("other (via"), "related_repos: {related}");
 
         // The boundary holds under the launcher.
         for n in [9, 10, 11] {
