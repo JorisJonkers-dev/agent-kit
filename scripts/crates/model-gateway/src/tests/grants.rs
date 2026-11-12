@@ -44,6 +44,8 @@ fn run_record(at: &str, cost_usd: f64) -> LedgerRecord {
         run_id: format!("run-{at}"),
         tokens: None,
         workflow: "spec-293".to_string(),
+        batch_id: None,
+        delegation: None,
     }
 }
 

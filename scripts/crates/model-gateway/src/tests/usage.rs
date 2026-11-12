@@ -70,6 +70,8 @@ fn record(at: &str, client: &str, cost_usd: f64, workflow: &str, reported: Optio
         run_id: format!("{client}-{at}"),
         tokens: reported,
         workflow: workflow.to_string(),
+        batch_id: None,
+        delegation: None,
     }
 }
 

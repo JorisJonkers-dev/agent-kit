@@ -1,0 +1,247 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway batch: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway batch: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a batch must name its workflow\"}\n",
+      "stderr": "model-gateway batch: a batch must name its workflow\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a batch must list its delegations: a non-empty list\"}\n",
+      "stderr": "model-gateway batch: a batch must list its delegations: a non-empty list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a batch must list its delegations: a non-empty list\"}\n",
+      "stderr": "model-gateway batch: a batch must list its delegations: a non-empty list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"delegations[0] must be an object\"}\n",
+      "stderr": "model-gateway batch: delegations[0] must be an object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"plan-refused\",\"message\":\"the plan is refused, and nothing was launched: (plan): the plan holds 3 delegations and this machine allows at most 2 (settings.max_batch_delegations)\",\"problems\":[{\"code\":\"too-many-delegations\",\"id\":\"(plan)\",\"message\":\"the plan holds 3 delegations and this machine allows at most 2 (settings.max_batch_delegations)\"}]}\n",
+      "stderr": "model-gateway batch: the plan is refused, and nothing was launched: (plan): the plan holds 3 delegations and this machine allows at most 2 (settings.max_batch_delegations)\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"delegation id a is used twice: ids are unique in a plan\"}\n",
+      "stderr": "model-gateway batch: delegation id a is used twice: ids are unique in a plan\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"delegations[0].id must be 1 to 40 characters of letters, digits and . _ - only\"}\n",
+      "stderr": "model-gateway batch: delegations[0].id must be 1 to 40 characters of letters, digits and . _ - only\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"delegations[0].id must be 1 to 40 characters of letters, digits and . _ - only\"}\n",
+      "stderr": "model-gateway batch: delegations[0].id must be 1 to 40 characters of letters, digits and . _ - only\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"delegation a names workflow: the workflow is the batch's, and a delegation inside a batch cannot be a batch\"}\n",
+      "stderr": "model-gateway batch: delegation a names workflow: the workflow is the batch's, and a delegation inside a batch cannot be a batch\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"delegation a names delegations: the workflow is the batch's, and a delegation inside a batch cannot be a batch\"}\n",
+      "stderr": "model-gateway batch: delegation a names delegations: the workflow is the batch's, and a delegation inside a batch cannot be a batch\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"delegation a names batch: the workflow is the batch's, and a delegation inside a batch cannot be a batch\"}\n",
+      "stderr": "model-gateway batch: delegation a names batch: the workflow is the batch's, and a delegation inside a batch cannot be a batch\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"delegation a: depends_on must be a list of delegation ids\"}\n",
+      "stderr": "model-gateway batch: delegation a: depends_on must be a list of delegation ids\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"delegation a: depends_on must be a list of delegation ids\"}\n",
+      "stderr": "model-gateway batch: delegation a: depends_on must be a list of delegation ids\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"delegation a: only read-only and write runs are supported, not \\\"plan\\\"\"}\n",
+      "stderr": "model-gateway batch: delegation a: only read-only and write runs are supported, not \"plan\"\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"plan-refused\",\"message\":\"the plan is refused, and nothing was launched: a: depends_on names nope, which is not in the plan\",\"problems\":[{\"code\":\"unknown-dependency\",\"id\":\"a\",\"message\":\"depends_on names nope, which is not in the plan\"}]}\n",
+      "stderr": "model-gateway batch: the plan is refused, and nothing was launched: a: depends_on names nope, which is not in the plan\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"plan-refused\",\"message\":\"the plan is refused, and nothing was launched: a: is part of a dependency cycle, so it could never start; b: is part of a dependency cycle, so it could never start\",\"problems\":[{\"code\":\"cycle\",\"id\":\"a\",\"message\":\"is part of a dependency cycle, so it could never start\"},{\"code\":\"cycle\",\"id\":\"b\",\"message\":\"is part of a dependency cycle, so it could never start\"}]}\n",
+      "stderr": "model-gateway batch: the plan is refused, and nothing was launched: a: is part of a dependency cycle, so it could never start; b: is part of a dependency cycle, so it could never start\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"plan-refused\",\"message\":\"the plan is refused, and nothing was launched: unknown: vibe:a-model-nobody-knows is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override; policy: @SANDBOX@/repo: cannot run git: spawn git ENOENT\",\"problems\":[{\"code\":\"unknown-model\",\"id\":\"unknown\",\"message\":\"vibe:a-model-nobody-knows is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override\"},{\"code\":\"repository-unreadable\",\"id\":\"policy\",\"message\":\"@SANDBOX@/repo: cannot run git: spawn git ENOENT\"}]}\n",
+      "stderr": "model-gateway batch: the plan is refused, and nothing was launched: unknown: vibe:a-model-nobody-knows is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override; policy: @SANDBOX@/repo: cannot run git: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"plan-refused\",\"message\":\"the plan is refused, and nothing was launched: second: hermes:claude-sonnet-4.6 does not fit the per-workflow cap of $0.05: $0.00 spent and $0.03 reserved in workflow w, and its estimate is $0.03\",\"problems\":[{\"code\":\"cap-exceeded\",\"id\":\"second\",\"message\":\"hermes:claude-sonnet-4.6 does not fit the per-workflow cap of $0.05: $0.00 spent and $0.03 reserved in workflow w, and its estimate is $0.03\"}]}\n",
+      "stderr": "model-gateway batch: the plan is refused, and nothing was launched: second: hermes:claude-sonnet-4.6 does not fit the per-workflow cap of $0.05: $0.00 spent and $0.03 reserved in workflow w, and its estimate is $0.03\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}],\"settings\":{\"metered_personal_caps\":{\"per_day_usd\":0.1,\"per_workflow_usd\":0.05}}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"nested-delegation\",\"message\":\"a delegate may not delegate on: AGENT_KIT_DELEGATION is set in this environment\"}\n",
+      "stderr": "model-gateway batch: a delegate may not delegate on: AGENT_KIT_DELEGATION is set in this environment\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}],\"settings\":{\"metered_personal_caps\":{\"per_day_usd\":0.1,\"per_workflow_usd\":0.05}}}",
+        "work/": null
+      }
+    }
+  ]
+}

@@ -1,5 +1,8 @@
 //! The ports the gateway reaches the system through: the clock, the files and
 //! the environment. Tests replace any of them.
+//!
+//! Every port is `Send + Sync`, so a `Runtime` is `Sync` and a batch can hand
+//! one delegation to each of several threads at once.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -11,7 +14,7 @@ pub struct FsError {
 }
 
 /// The files the gateway reads and writes.
-pub trait Files {
+pub trait Files: Send + Sync {
     fn read_text(&self, path: &str) -> Result<String, FsError>;
     /// Replaces the file whole: a temporary file beside it, then a rename.
     fn write_atomic(&self, path: &str, content: &str) -> Result<(), FsError>;
@@ -80,7 +83,7 @@ impl ProcessCommand {
 }
 
 /// The programs the gateway starts: the clients' own listing and status commands, and a delegation's client.
-pub trait Process {
+pub trait Process: Send + Sync {
     /// The path of the first executable file named `binary` in a folder of PATH; `None` when there is none.
     fn resolve(&self, binary: &str) -> Option<String>;
     /// Runs `command args` to its end, or kills it after `timeout_ms`; an `Err` is a command that could not start.
@@ -98,7 +101,7 @@ pub struct GitRemote {
 }
 
 /// What the gateway asks git: where a path's repository is, where it points, and the worktrees of it.
-pub trait Git {
+pub trait Git: Send + Sync {
     /// The repository root of `path`; `Ok(None)` when git says it is no repository; any other failure is an `Err` with git's own words.
     fn root(&self, path: &str) -> Result<Option<String>, String>;
     fn remotes(&self, path: &str) -> Result<Vec<GitRemote>, String>;
@@ -126,7 +129,7 @@ pub trait Git {
     fn status(&self, path: &str) -> Result<String, String>;
 }
 
-pub trait Clock {
+pub trait Clock: Send + Sync {
     /// Milliseconds since the Unix epoch.
     fn now_ms(&self) -> i64;
     /// A monotonic reading in milliseconds, from which how long something took is measured.

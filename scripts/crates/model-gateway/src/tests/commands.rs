@@ -6,13 +6,13 @@ use crate::adapters::git::{SystemGit, TIMEOUT_MS};
 use crate::adapters::process::SystemProcess;
 use crate::cli::run_cli;
 use crate::ports::{FileStamp, Files, FsError, LockTimings, Runtime};
-use std::cell::Cell;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The real files, except that the ledger can be read only so many times: then it fails as a disk would.
 struct FlakyLedger {
     inner: SystemFiles,
-    reads: Cell<usize>,
+    reads: AtomicUsize,
     readable: usize,
 }
 
@@ -31,8 +31,8 @@ impl Files for FlakyLedger {
 
     fn read_text(&self, path: &str) -> Result<String, FsError> {
         if path.ends_with("ledger.jsonl") {
-            self.reads.set(self.reads.get() + 1);
-            if self.reads.get() > self.readable {
+            let reads = self.reads.fetch_add(1, Ordering::SeqCst) + 1;
+            if reads > self.readable {
                 return Err(FsError { code: "EIO".into(), message: "EIO: i/o error, read".into() });
             }
         }
@@ -86,7 +86,7 @@ fn runtime(sandbox: &Sandbox, readable: usize) -> Runtime {
     ]);
     Runtime {
         clock: Box::new(FixedClock(FIXED_NOW)),
-        files: Box::new(FlakyLedger { inner: SystemFiles { cwd: root.clone() }, reads: Cell::new(0), readable }),
+        files: Box::new(FlakyLedger { inner: SystemFiles { cwd: root.clone() }, reads: AtomicUsize::new(0), readable }),
         lock: LockTimings::default(),
         process: Box::new(SystemProcess { env: env.clone() }),
         git: Box::new(SystemGit { env: env.clone(), timeout_ms: TIMEOUT_MS }),

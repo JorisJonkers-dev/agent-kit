@@ -205,12 +205,14 @@ export const proven = (kind, model, result = 'pass') =>
     file(ROUTING_OVERRIDE, { clients: { [`${kind}-proof`]: { kind, model } } }),
     file(SETUP_RESULTS, { checks: { [`read-only:${kind}-proof`]: { result } } }),
   )
-export const hermesMachine = merge(
+/** The machine override that prices Hermes' model; `settings` adds settings of its own (a batch plan's caps, say). */
+export const hermesMachineWith = (settings) =>
   override({
     clients: { hermes: { providers: ['anthropic'] } },
     models: [{ client: 'hermes', model: 'claude-sonnet-4.6', family: 'anthropic', tier: 'routine', notes: 'x', prices: { input: 3, cached_input: 0.3, output: 15 } }],
-  }),
-)
+    ...(settings === undefined ? {} : { settings }),
+  })
+export const hermesMachine = merge(hermesMachineWith())
 export const VIBE_ISOLATION = { MISTRAL_API_KEY: 'study-account-key', VIBE_HOME: `${SBX}/home/.vibe-private` }
 
 export function addRunScenarios(scenarios, step) {

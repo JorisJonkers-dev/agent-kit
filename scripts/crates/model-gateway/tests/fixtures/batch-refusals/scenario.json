@@ -1,0 +1,424 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "[]"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "null"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":\"a\",\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[5],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"},{\"id\":\"b\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"},{\"id\":\"c\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":2}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"},{\"id\":\"a\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"has space\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"workflow\":\"other\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"delegations\":[],\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"batch\":{},\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"depends_on\":\"b\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"depends_on\":[1],\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"client\":\"vibe\",\"mode\":\"plan\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"depends_on\":[\"nope\"],\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"depends_on\":[\"b\"],\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"},{\"id\":\"b\",\"depends_on\":[\"a\"],\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"unknown\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"a-model-nobody-knows\",\"prompt\":\"p\"},{\"id\":\"policy\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\",\"repo\":\"@SANDBOX@/repo\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repo/README.md": "demo\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "-b",
+          "main",
+          "@SANDBOX@/repo"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "remote",
+          "add",
+          "origin",
+          "https://github.com/JorisJonkers-dev/demo.git"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "commit",
+          "-q",
+          "-m",
+          "init"
+        ]
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"first\",\"client\":\"hermes\",\"mode\":\"read-only\",\"model\":\"claude-sonnet-4.6\",\"prompt\":\"p\",\"provider\":\"anthropic\"},{\"id\":\"second\",\"client\":\"hermes\",\"mode\":\"read-only\",\"model\":\"claude-sonnet-4.6\",\"prompt\":\"p\",\"provider\":\"anthropic\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}],\"settings\":{\"metered_personal_caps\":{\"per_day_usd\":0.1,\"per_workflow_usd\":0.05}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "batch",
+        "--json",
+        "{\"delegations\":[{\"id\":\"a\",\"client\":\"vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}],\"workflow\":\"w\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "AGENT_KIT_DELEGATION": "1"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

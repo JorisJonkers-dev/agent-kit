@@ -27,6 +27,10 @@ pub struct LedgerRecord {
     pub run_id: String,
     pub tokens: Option<RunTokens>,
     pub workflow: String,
+    /// The batch plan this run was one attempt of, when it was part of one.
+    pub batch_id: Option<String>,
+    /// The delegation of that plan this run was an attempt of.
+    pub delegation: Option<String>,
 }
 
 /// A metered run's estimate, held against the caps while it runs.

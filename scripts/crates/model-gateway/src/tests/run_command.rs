@@ -12,8 +12,8 @@ use crate::json::{parse, Value};
 use crate::ports::{Clock, Files, Git, GitRemote, LockTimings, ProcessResult};
 use crate::run_command::{RunCommand, RunResult};
 use crate::run::{RunMode, RunTokens};
-use std::cell::Cell;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 /// A git whose answers the test chooses; the repository it finds belongs to nedap, which permits Claude Code.
 struct FakeGit {
@@ -154,12 +154,11 @@ fn a_client_that_cannot_start_is_a_failed_run_with_the_platforms_words() {
 }
 
 /// A clock that moves 100 ms with every reading, so a wait with a deadline ends.
-struct Ticking(Cell<i64>);
+struct Ticking(AtomicI64);
 
 impl Clock for Ticking {
     fn now_ms(&self) -> i64 {
-        self.0.set(self.0.get() + 100);
-        self.0.get()
+        self.0.fetch_add(100, Ordering::SeqCst) + 100
     }
     fn monotonic_ms(&self) -> f64 {
         0.0
@@ -172,7 +171,7 @@ fn a_workflow_that_cannot_be_joined_gives_back_the_reservation_and_fails_with_th
     machine.write_override(r#"{"clients":{"hermes":{"providers":["anthropic"]}}}"#);
     machine.process.install("hermes");
     machine.process.answer("hermes", answer("ok"));
-    machine.runtime.clock = Box::new(Ticking(Cell::new(super::machine::now_ms())));
+    machine.runtime.clock = Box::new(Ticking(AtomicI64::new(super::machine::now_ms())));
     machine.runtime.lock = LockTimings { retry_ms: 1, stale_ms: 600_000_000, timeout_ms: 300 };
     let lock = format!("{}/state/agent-kit/model-gateway/workflows.json.lock", machine.sandbox.text());
     machine.write_at(&lock, "");
@@ -330,4 +329,33 @@ fn write_text_fails_in_the_platforms_words_below_a_file_and_on_a_directory() {
     assert_eq!(files.write_text("plain/below", "y").expect_err("not a directory").code, "EEXIST");
     files.mkdir_all("dir").expect("dir");
     assert_eq!(files.write_text("dir", "y").expect_err("a directory").code, "EISDIR");
+}
+
+/// A metered-employer run's input, as a batch's dependent sends it.
+fn codex_input(time_limit_s: u32) -> crate::run::RunInput {
+    let raw = format!(r#"{{"workflow":"w","client":"codex","mode":"read-only","model":"gpt-5.5","prompt":"p","time_limit_s":{time_limit_s}}}"#);
+    crate::run::read_run_input(&parse(&raw).expect("JSON")).expect("an input")
+}
+
+#[test]
+fn a_dependent_that_starts_later_needs_its_grant_to_still_stand_and_is_held_to_what_is_left() {
+    let machine = machine();
+    let command = RunCommand { runtime: &machine.runtime };
+
+    // Every grant lapsed, or there never was one.
+    assert_eq!(command.within_grant(&codex_input(900)).expect_err("no grant").code, "no-grant");
+
+    // Under a minute left on it.
+    machine.write_grants(&[super::machine::grant(5.0, 30.0)]);
+    let error = command.within_grant(&codex_input(900)).expect_err("expiring");
+    assert_eq!(error.code, "grant-expiring");
+    assert!(error.message.contains("has 30 seconds left, under the 60 a run needs"), "{}", error.message);
+
+    // More time than the run asks for: it keeps its own limit.
+    machine.write_grants(&[super::machine::grant(5.0, 7200.0)]);
+    assert_eq!(command.within_grant(&codex_input(900)).expect("held").time_limit_s, 900.0);
+
+    // Less than the run asks for: it is held to what is left.
+    machine.write_grants(&[super::machine::grant(5.0, 120.0)]);
+    assert_eq!(command.within_grant(&codex_input(900)).expect("held").time_limit_s, 120.0);
 }

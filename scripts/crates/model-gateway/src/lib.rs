@@ -1,7 +1,8 @@
 //! model-gateway: one JSON object in, one JSON object out, ported from the node
 //! runner command by command. It carries the command line itself, `models`,
 //! `usage`, `grant write`, `grant reserve`, `grant list`, `worktrees clean`, the three
-//! workflow commands and `run`, read-only and writing; `batch` answers `not-ported`.
+//! workflow commands, `run`, read-only and writing, and `batch`, whose independent
+//! delegations run in parallel.
 //!
 //! Real files, the clock and the environment sit behind the traits in `ports`;
 //! the command line takes them from a `Runtime`, so tests replace any of them.
@@ -9,6 +10,8 @@
 pub mod adapters;
 pub mod allowlist;
 pub mod availability;
+pub mod batch;
+pub mod batch_command;
 pub mod cap_guard;
 pub mod caps;
 pub mod client_run;
@@ -42,6 +45,7 @@ pub mod proof;
 pub mod run;
 pub mod run_command;
 pub mod sha256;
+pub mod slots;
 pub mod sources;
 pub mod state_file;
 pub mod status;
