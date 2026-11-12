@@ -684,7 +684,9 @@ describe('critique stats calibration', () => {
       ...judged('accepted', 'major', 10),
     ], { critics: [{ client: MISTRAL }] })
 
-    expect((await stats(ledger)).report).toContain('| +1.00 |')
+    const report = (await stats(ledger)).report
+    expect(report).toContain('| +1.00 |')
+    expect(report).toContain('0.00 (10) | 1.00 (10) | +1.00 |')
   })
 })
 

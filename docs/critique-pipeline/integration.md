@@ -3812,7 +3812,7 @@ Run on a Linux workstation with the runner built from this branch (`skills/works
 ### #489: calibration in `/critique-stats` and the phase 5 live check
 
 - **Code:** each stats cell gets `calibration`, null below routing's `stats.min_adjudicated_findings` (20) and otherwise precision over the older and newer half of the cell's accepted and rejected findings (ordered by when their run was recorded, the odd finding going to the newer half), the drift between them, and precision per severity. The report gets a `## Calibration` table, and says so when no critic has the minimum. `council/ts` tests cover both thresholds, ordering, odd counts, hints and needs-human left out, a null half, and the report; the suite is at 100% lines.
-- **Live check:** `stats` over the real ledger (`~/.local/share/agent-kit/critique/ledger.jsonl`), filtered to agent-kit, after the runs above were recorded. One cell has 20 adjudicated findings, and the report shows its calibration:
+- **Live check:** `stats` over the real ledger (`~/.local/share/agent-kit/critique/ledger.jsonl`), filtered to agent-kit (the `repo` filter), after the runs above were recorded. Across every repository in the ledger the same cell has 60 adjudicated findings (critical 1.00 (4), major 52, minor 4; earlier 0.97 (30), recent 1.00 (30), drift +0.03), and it is still the only cell at 20 or more. One cell has 20 adjudicated findings, and the report shows its calibration:
 
   | stage | client | prompt | adjudicated | earlier | recent | drift | critical | major | minor |
   |---|---|---|---|---|---|---|---|---|---|
