@@ -1,7 +1,8 @@
 //! The commands the Rust gateway carries: `models`, `usage`, `grant write`,
 //! `grant reserve`, `grant list`, `worktrees clean` and the three workflow
-//! commands. `run` and `batch` answer `not-ported`.
+//! commands, and the read-only `run`. A writing `run` and `batch` answer `not-ported`.
 
+use crate::availability;
 use crate::caps;
 use crate::config::GatewayConfig;
 use crate::config_parse::load_config;
@@ -11,13 +12,13 @@ use crate::grants_file::{GrantChange, GrantsStore};
 use crate::json::{Object, Value};
 use crate::ledger::LedgerEntry;
 use crate::ledger_file::{settle_stale, LedgerStore};
+use crate::launchers::DELEGATION_MARK;
 use crate::locations;
 use crate::models::{self, ClientListing};
 use crate::policy::{self, PolicySubject};
 use crate::ports::Runtime;
 use crate::sources;
 use crate::state_file::Workflows;
-use crate::status;
 use crate::usage::{self, ClientReading};
 use crate::workflows;
 use std::collections::{BTreeMap, BTreeSet};
@@ -47,6 +48,7 @@ pub fn run(command: Command, name: &str, input: &Object, runtime: &Runtime) -> R
         Command::GrantList => grant_list(input, runtime),
         Command::GrantReserve => crate::reserve::reserve(input, runtime),
         Command::WorktreesClean => crate::worktrees::clean(input, runtime),
+        Command::Run => crate::run_command::RunCommand { runtime }.run(&Value::Obj(input.clone())),
         Command::WorkflowStart => workflow_start(input, runtime),
         Command::WorkflowEnd => workflow_end(input, runtime),
         Command::WorkflowList => workflow_list(runtime),
@@ -89,9 +91,6 @@ fn ok_object(key: &str, value: Value) -> Value {
     object.set(key, value);
     Value::Obj(object)
 }
-
-/// The environment variable a delegate's process carries, so it cannot delegate on.
-const DELEGATION_MARK: &str = "AGENT_KIT_DELEGATION";
 
 /// Lists every client model this machine can use now for the repository the caller works in, and the clients it cannot.
 fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayError> {
@@ -156,15 +155,7 @@ fn usage_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErro
 
 /// What the gateway finds out about each client without sending a prompt: PATH, and the client's own status command.
 fn read_clients(runtime: &Runtime, config: &GatewayConfig) -> Vec<ClientReading> {
-    config
-        .clients
-        .iter()
-        .map(|(id, client)| {
-            let installed = runtime.process.resolve(&client.binary).is_some();
-            let status = if installed { status::read_status(runtime, id, status::STATUS_TIMEOUT_MS) } else { None };
-            ClientReading { client: id.clone(), installed, status }
-        })
-        .collect()
+    availability::read_clients(runtime, config.clients.iter())
 }
 
 /// A field a grant must name, refused when it is missing or blank.
@@ -293,7 +284,7 @@ fn grant_report(runtime: &Runtime, grant: &grants::Grant) -> Value {
 }
 
 /// Six lowercase hex digits (three random bytes) that keep two grants of one second apart.
-fn random_suffix() -> String {
+pub fn random_suffix() -> String {
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
     format!("{:06x}", RandomState::new().build_hasher().finish() & 0x00ff_ffff)

@@ -30,6 +30,7 @@ import { parseFanOutResult, type FanOutResult } from './fan-out.js'
 import { findingsPath, ledgerPath, manifestPath, refutePath, reportPath } from './locations.js'
 import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { readVerdict, verdictsByFinding } from './record.js'
+import type { CodexCriticClient } from '../domain/routing.js'
 import { RoutingSource } from './routing.js'
 import { ReadOnlyTripwire } from './tripwire.js'
 
@@ -142,7 +143,7 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
     }
     const prompt = (toolset: CriticToolset): CriticPrompt =>
       assemblePrompt(sources, listedFiles(manifest), manifest.stage, manifest.code?.slices, toolset)
-    const candidates = refuterCandidates(await new RoutingSource(this.deps).load(), manifest.stage)
+    const candidates = refuterCandidates(await new RoutingSource(this.deps).load(), manifest.stage, manifest.work !== undefined)
     const round: Round = {
       blocked: await this.blocked(manifest, candidates),
       budget: new FlowBudget(this.deps),
@@ -194,12 +195,27 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
     )
     const reasons = await Promise.all(
       eligible.map(async ({ client, client_config: config }) => {
-        const limit = config.kind === 'vibe' ? plan : quota
+        const limit = config.kind === 'vibe' ? plan : config.kind === 'agy' ? quota : undefined
         if (limit !== undefined) return [client, limit] as const
+        const ungranted = config.kind === 'codex' ? await this.ungranted(manifest, config) : undefined
+        if (ungranted !== undefined) return [client, ungranted] as const
         const ready = await clientReadiness(this.deps.clients, config)
         return [client, ready.ready ? undefined : ready.detail] as const
       }),
     )
     return new Map(reasons.flatMap(([client, reason]) => (reason === undefined ? [] : [[client, reason] as const])))
+  }
+
+  /**
+   * Why Codex may not refute on a `nedap` repository: the grant that let it
+   * critique must still be live, since a grant lapses and a refute round may
+   * come later. Absent while it is.
+   */
+  private async ungranted(manifest: RunManifest, config: CodexCriticClient): Promise<string | undefined> {
+    const workflow = manifest.work?.grant_workflow
+    const client = config.gateway?.client ?? config.kind
+    if (workflow === undefined) return `no live grant covered the run's workflow for ${client} when it was prepared`
+    const live = await this.deps.grants.covers(workflow, client).catch(() => false)
+    return live ? undefined : `no live grant covers workflow ${workflow} for ${client}: ask the owner, then write one with model-gateway grant write`
   }
 }

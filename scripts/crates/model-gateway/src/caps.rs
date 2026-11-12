@@ -7,11 +7,178 @@
 //! full estimate as spent. A run that wrote its own ledger line is counted from
 //! that line, so its reservation holds nothing more.
 
-use crate::config::CostClass;
+use crate::config::{CostClass, MeteredPersonalCaps, ModelPrices, Settings, Tier};
 use crate::json::{self, Object, Value};
 use crate::ledger::{LedgerEntry, LedgerRecord, ReservationRecord, SettledRecord};
 use crate::timestamps;
 use std::collections::BTreeMap;
+
+/// How many characters of a prompt the gateway counts as one token.
+pub const CHARS_PER_TOKEN: f64 = 3.5;
+
+/// How long a reservation outlives its run's time limit, so a settle that races the run still finds it.
+pub const RESERVATION_GRACE_S: f64 = 60.0;
+
+/// What a metered run is estimated to cost before it starts.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Estimate {
+    /// The prompt's tokens: its characters over 3.5, rounded up.
+    pub prompt_tokens: f64,
+    /// The run's difficulty tier's output allowance.
+    pub output_tokens: f64,
+    pub usd: f64,
+}
+
+/// The prompt's tokens: its ASCII characters over 3.5, plus one token for each
+/// character that is not ASCII (CJK text costs about a token a character), rounded up.
+pub fn prompt_tokens(prompt: &str) -> f64 {
+    let ascii = prompt.chars().filter(char::is_ascii).count();
+    let other = prompt.chars().count() - ascii;
+    (ascii as f64 / CHARS_PER_TOKEN + other as f64).ceil()
+}
+
+/// What a run is estimated to cost: its prompt's tokens at the model's input
+/// price, plus its tier's output allowance at the model's output price. A model
+/// the catalogue prices nowhere, or gives no tier, cannot be estimated, and a
+/// metered run on it is refused rather than run uncapped.
+pub fn estimate_run(prompt: &str, tier: Option<Tier>, prices: Option<&ModelPrices>, settings: &Settings) -> Option<Estimate> {
+    let (tier, prices) = (tier?, prices?);
+    let prompt_tokens = prompt_tokens(prompt);
+    let output_tokens = settings.allowance(tier);
+    Some(Estimate {
+        prompt_tokens,
+        output_tokens,
+        usd: round_up((prompt_tokens * prices.input + output_tokens * prices.output) / 1_000_000.0),
+    })
+}
+
+/// An estimate, rounded up so a hard spend limit is never below what the run may
+/// cost. The epsilon keeps float noise (1.4 * 1000 landing a hair above 1400)
+/// from rounding a whole micro-dollar up.
+fn round_up(value: f64) -> f64 {
+    (value * 1_000_000.0 - 1e-6).ceil() / 1_000_000.0
+}
+
+/// The caps a metered-personal run is held to, as the machine names them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CapName {
+    PerWorkflowUsd,
+    PerDayUsd,
+}
+
+/// One cap, and what it holds for the run that asks: its limit, what is spent and what is reserved.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CapRoom {
+    pub cap: CapName,
+    pub limit_usd: f64,
+    pub spent_usd: f64,
+    pub reserved_usd: f64,
+}
+
+/// The UTC day a moment falls on, as `YYYY-MM-DD`.
+fn utc_day(at: &str) -> String {
+    at.chars().take(10).collect()
+}
+
+fn sum(values: impl Iterator<Item = f64>) -> f64 {
+    values.fold(0.0, |total, value| total + value)
+}
+
+fn room(cap: CapName, limit_usd: f64, spent_usd: f64, reserved_usd: f64) -> CapRoom {
+    CapRoom { cap, limit_usd, reserved_usd: round(reserved_usd, 6), spent_usd: round(spent_usd, 6) }
+}
+
+/// The cap the run's estimate does not fit, with what it holds; `None` when it fits both: what the ledger says
+/// is spent and what live reservations hold, in the run's workflow and on the reservation's UTC day, plus the
+/// estimate itself. The workflow cap is checked first, so a run that fits neither is refused for its workflow.
+///
+/// Every line counts by the cost class it was charged under, never by its client's own class: a subsidised
+/// client's metered provider is held too.
+pub fn check_caps(entries: &[LedgerEntry], workflow: &str, estimate_usd: f64, caps: &MeteredPersonalCaps, now_ms: i64) -> Option<CapRoom> {
+    let day = utc_day(&timestamps::to_iso(now_ms));
+    let charges = metered_charges(entries, CostClass::MeteredPersonal);
+    let held: Vec<&ReservationRecord> =
+        live_reservations(entries).into_iter().filter(|reservation| reservation.cost_class == CostClass::MeteredPersonal).collect();
+    let workflow_room = room(
+        CapName::PerWorkflowUsd,
+        caps.per_workflow_usd,
+        sum(charges.iter().filter(|charge| charge.workflow == workflow).map(|charge| charge.usd)),
+        sum(held.iter().filter(|reservation| reservation.workflow == workflow).map(|reservation| reservation.estimate_usd)),
+    );
+    if !fits(workflow_room.limit_usd, workflow_room.spent_usd, workflow_room.reserved_usd, estimate_usd) {
+        return Some(workflow_room);
+    }
+    let day_room = room(
+        CapName::PerDayUsd,
+        caps.per_day_usd,
+        sum(charges.iter().filter(|charge| utc_day(&charge.at) == day).map(|charge| charge.usd)),
+        sum(held.iter().filter(|reservation| utc_day(&reservation.reserved_at) == day).map(|reservation| reservation.estimate_usd)),
+    );
+    if fits(day_room.limit_usd, day_room.spent_usd, day_room.reserved_usd, estimate_usd) {
+        None
+    } else {
+        Some(day_room)
+    }
+}
+
+/// Why a run does not fit a cap, naming the cap, its limit, what is spent and reserved, and the estimate.
+pub fn cap_refusal_message(room: &CapRoom, estimate_usd: f64, workflow: &str, now_ms: i64) -> String {
+    let (name, place) = match room.cap {
+        CapName::PerWorkflowUsd => ("per-workflow", format!("in workflow {workflow}")),
+        CapName::PerDayUsd => ("per-day", format!("on {}", utc_day(&timestamps::to_iso(now_ms)))),
+    };
+    format!(
+        "does not fit the {name} cap of {}: {} spent and {} reserved {place}, and its estimate is {}",
+        usd(room.limit_usd),
+        usd(room.spent_usd),
+        usd(room.reserved_usd),
+        usd(estimate_usd)
+    )
+}
+
+/// What a reservation is made of: the run, its estimate, and how long it holds.
+pub struct ReservationArgs<'a> {
+    pub run_id: &'a str,
+    pub workflow: &'a str,
+    pub client: &'a str,
+    pub cost_class: CostClass,
+    pub model: &'a str,
+    pub estimate_usd: f64,
+    pub reserved_at_ms: i64,
+    pub time_limit_s: f64,
+    pub run_dir: &'a str,
+}
+
+/// The reservation a metered run holds while it runs: its estimate, and when it lapses.
+pub fn reservation_record(args: &ReservationArgs) -> ReservationRecord {
+    // `new Date(x)` keeps whole milliseconds, truncating towards zero, as `as i64` does.
+    let expires = args.reserved_at_ms as f64 + (args.time_limit_s + RESERVATION_GRACE_S) * 1000.0;
+    ReservationRecord {
+        run_id: args.run_id.to_string(),
+        workflow: args.workflow.to_string(),
+        client: args.client.to_string(),
+        cost_class: args.cost_class,
+        model: args.model.to_string(),
+        estimate_usd: args.estimate_usd,
+        reserved_at: timestamps::to_iso(args.reserved_at_ms),
+        expires_at: timestamps::to_iso(expires as i64),
+        run_dir: args.run_dir.to_string(),
+    }
+}
+
+/// The settlement that releases a reservation: what the run really cost.
+pub fn settled_record(reservation: &ReservationRecord, cost_usd: f64, at_ms: i64) -> SettledRecord {
+    SettledRecord {
+        run_id: reservation.run_id.clone(),
+        workflow: reservation.workflow.clone(),
+        client: reservation.client.clone(),
+        cost_class: reservation.cost_class,
+        cost_usd,
+        reserved_at: reservation.reserved_at.clone(),
+        settled_at: timestamps::to_iso(at_ms),
+        reason: None,
+    }
+}
 
 /// One settled charge against a cap: what a run cost, for which client, under
 /// which workflow, at which moment.
@@ -135,21 +302,27 @@ pub fn metered_charges(entries: &[LedgerEntry], cost_class: CostClass) -> Vec<Ch
     charges
 }
 
-/// The settlement as the ledger writes it: one JSON object, its keys in the
-/// order the node runner's literal writes them.
+/// The settlement as the ledger writes it: one JSON object. A settlement that lapsed (`expired`) comes out of
+/// `settle_expired`, whose literal writes its keys in order, `reason` between `kind` and `reserved_at`. A
+/// released one (`not-started`, `not-run`) is the plain settlement with `reason` spread on, so the node runner
+/// writes `reason` last.
 pub fn settled_record_json(record: &SettledRecord) -> Value {
+    let reason_last = record.reason.as_deref().is_some_and(|reason| reason != "expired");
     let mut object = Object::new();
     object.set("client", Value::str(&record.client));
     object.set("cost_class", Value::str(record.cost_class.as_str()));
     object.set("cost_usd", Value::Num(record.cost_usd));
     object.set("kind", Value::str("settled"));
-    if let Some(reason) = &record.reason {
+    if let (Some(reason), false) = (&record.reason, reason_last) {
         object.set("reason", Value::str(reason));
     }
     object.set("reserved_at", Value::str(&record.reserved_at));
     object.set("run_id", Value::str(&record.run_id));
     object.set("settled_at", Value::str(&record.settled_at));
     object.set("workflow", Value::str(&record.workflow));
+    if let (Some(reason), true) = (&record.reason, reason_last) {
+        object.set("reason", Value::str(reason));
+    }
     Value::Obj(object)
 }
 

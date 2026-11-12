@@ -1,0 +1,72 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"client\": \"hermes\",\n  \"cost_usd\": 0.002,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-sonnet-4.6\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"hermes is fine\",\n  \"tokens\": {\n    \"cached\": 500,\n    \"input\": 2000,\n    \"output\": 300\n  },\n  \"workflow\": \"w\",\n  \"attempts\": [\n    {\n      \"client\": \"hermes\",\n      \"model\": \"claude-sonnet-4.6\",\n      \"run_id\": \"20261103T120000Z-@RAND1@\",\n      \"status\": \"ok\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "home/calls/": null,
+        "home/calls/hermes.n": "1\n",
+        "home/calls/hermes.txt": "status auth list\ncall 1\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP1@\narg -z\narg Ask Hermes.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.\narg --usage-file\narg @SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/usage.json\narg -m\narg claude-sonnet-4.6\narg --provider\narg anthropic\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/canned/": null,
+        "home/canned/hermes.out": "Hermes answers.\nSUMMARY: hermes is fine\n",
+        "home/canned/hermes.usage": "{\"input_tokens\":2000,\"output_tokens\":300,\"cache_read_tokens\":500,\"estimated_cost_usd\":0.002,\"failed\":false}\n",
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"estimate_usd\":0.030012,\"expires_at\":\"2026-11-03T12:16:00.000Z\",\"kind\":\"reservation\",\"model\":\"claude-sonnet-4.6\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"workflow\":\"w\"}\n{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"cost_usd\":0.002,\"duration_s\":0,\"family\":\"anthropic\",\"mode\":\"read-only\",\"model\":\"claude-sonnet-4.6\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"20261103T120000Z-@RAND1@\",\"tokens\":{\"cached\":500,\"input\":2000,\"output\":300},\"workflow\":\"w\"}\n{\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"cost_usd\":0.002,\"kind\":\"settled\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"settled_at\":\"2026-11-03T12:00:00.000Z\",\"workflow\":\"w\"}\n",
+        "state/agent-kit/model-gateway/runs/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"hermes\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-sonnet-4.6\",\n  \"prompt\": \"Ask Hermes.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\",\n  \"provider\": \"anthropic\",\n  \"max_price_usd\": 0.030012\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json": "Hermes answers.\nSUMMARY: hermes is fine\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/prompt.md": "Ask Hermes.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/result.json": "{\n  \"client\": \"hermes\",\n  \"cost_usd\": 0.002,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-sonnet-4.6\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"hermes is fine\",\n  \"tokens\": {\n    \"cached\": 500,\n    \"input\": 2000,\n    \"output\": 300\n  },\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/usage.json": "{\"input_tokens\":2000,\"output_tokens\":300,\"cache_read_tokens\":500,\"estimated_cost_usd\":0.002,\"failed\":false}\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "tmp/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"client\": \"hermes\",\n  \"cost_usd\": 0,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-sonnet-4.6\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120500Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"Answer without a report.\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\",\n  \"attempts\": [\n    {\n      \"client\": \"hermes\",\n      \"model\": \"claude-sonnet-4.6\",\n      \"run_id\": \"20261103T120500Z-@RAND1@\",\n      \"status\": \"ok\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "home/calls/": null,
+        "home/calls/hermes.n": "2\n",
+        "home/calls/hermes.txt": "status auth list\ncall 1\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP1@\narg -z\narg Ask Hermes.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.\narg --usage-file\narg @SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/usage.json\narg -m\narg claude-sonnet-4.6\narg --provider\narg anthropic\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\nstatus auth list\ncall 2\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP2@\narg -z\narg No usage report.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.\narg --usage-file\narg @SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/usage.json\narg -m\narg claude-sonnet-4.6\narg --provider\narg anthropic\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/canned/": null,
+        "home/canned/hermes.out": "Answer without a report.\n",
+        "home/canned/hermes.usage": "not json\n",
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"estimate_usd\":0.030012,\"expires_at\":\"2026-11-03T12:16:00.000Z\",\"kind\":\"reservation\",\"model\":\"claude-sonnet-4.6\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@\",\"run_id\":\"20261103T120000Z-@RAND2@\",\"workflow\":\"w\"}\n{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"cost_usd\":0.002,\"duration_s\":0,\"family\":\"anthropic\",\"mode\":\"read-only\",\"model\":\"claude-sonnet-4.6\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"20261103T120000Z-@RAND2@\",\"tokens\":{\"cached\":500,\"input\":2000,\"output\":300},\"workflow\":\"w\"}\n{\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"cost_usd\":0.002,\"kind\":\"settled\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_id\":\"20261103T120000Z-@RAND2@\",\"settled_at\":\"2026-11-03T12:00:00.000Z\",\"workflow\":\"w\"}\n{\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"estimate_usd\":0.030015,\"expires_at\":\"2026-11-03T12:21:00.000Z\",\"kind\":\"reservation\",\"model\":\"claude-sonnet-4.6\",\"reserved_at\":\"2026-11-03T12:05:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@\",\"run_id\":\"20261103T120500Z-@RAND1@\",\"workflow\":\"w\"}\n{\"at\":\"2026-11-03T12:05:00.000Z\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"cost_usd\":0,\"duration_s\":0,\"family\":\"anthropic\",\"mode\":\"read-only\",\"model\":\"claude-sonnet-4.6\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"20261103T120500Z-@RAND1@\",\"tokens\":{\"cached\":0,\"input\":0,\"output\":0},\"workflow\":\"w\"}\n{\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"cost_usd\":0,\"kind\":\"settled\",\"reserved_at\":\"2026-11-03T12:05:00.000Z\",\"run_id\":\"20261103T120500Z-@RAND1@\",\"settled_at\":\"2026-11-03T12:05:00.000Z\",\"workflow\":\"w\"}\n",
+        "state/agent-kit/model-gateway/runs/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/input.json": "{\n  \"client\": \"hermes\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-sonnet-4.6\",\n  \"prompt\": \"Ask Hermes.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\",\n  \"provider\": \"anthropic\",\n  \"max_price_usd\": 0.030012\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/output.json": "Hermes answers.\nSUMMARY: hermes is fine\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/prompt.md": "Ask Hermes.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/result.json": "{\n  \"client\": \"hermes\",\n  \"cost_usd\": 0.002,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-sonnet-4.6\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND2@\",\n  \"status\": \"ok\",\n  \"summary\": \"hermes is fine\",\n  \"tokens\": {\n    \"cached\": 500,\n    \"input\": 2000,\n    \"output\": 300\n  },\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/usage.json": "{\"input_tokens\":2000,\"output_tokens\":300,\"cache_read_tokens\":500,\"estimated_cost_usd\":0.002,\"failed\":false}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/input.json": "{\n  \"client\": \"hermes\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-sonnet-4.6\",\n  \"prompt\": \"No usage report.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\",\n  \"provider\": \"anthropic\",\n  \"max_price_usd\": 0.030015\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/output.json": "Answer without a report.\n",
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/prompt.md": "No usage report.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/result.json": "{\n  \"client\": \"hermes\",\n  \"cost_usd\": 0,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-sonnet-4.6\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120500Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"Answer without a report.\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/usage.json": "not json\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "tmp/": null,
+        "work/": null
+      }
+    }
+  ]
+}

@@ -73,6 +73,18 @@ impl StubFiles {
 }
 
 impl Files for StubFiles {
+    fn write_text(&self, _path: &str, _content: &str) -> Result<(), FsError> {
+        unreachable!("the test does not write text")
+    }
+
+    fn temp_dir(&self, _parent: &str, _prefix: &str) -> Result<String, FsError> {
+        unreachable!("the test makes no temporary directory")
+    }
+
+    fn remove(&self, _path: &str) -> Result<(), FsError> {
+        unreachable!("the test removes nothing")
+    }
+
     fn read_text(&self, path: &str) -> Result<String, FsError> {
         if let Some(error) = &self.read_error {
             return Err(error.clone());
@@ -139,6 +151,14 @@ impl StubGit {
 }
 
 impl Git for StubGit {
+    fn common_dir(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test asks for no common directory")
+    }
+
+    fn add_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
+        unreachable!("the test adds no worktree")
+    }
+
     fn root(&self, _path: &str) -> Result<Option<String>, String> {
         self.root.clone()
     }
@@ -166,6 +186,10 @@ impl Process for StubProcess {
     fn exec(&self, _command: &str, _args: &[&str], _timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
         Err("the stub starts nothing".to_string())
     }
+
+    fn run(&self, _command: &crate::ports::ProcessCommand) -> Result<ProcessResult, String> {
+        Err("the stub starts nothing".to_string())
+    }
 }
 
 /// A runtime over the stubs, with the shipped defaults as its defaults text.
@@ -179,6 +203,7 @@ pub fn runtime(files: StubFiles, git: StubGit, env: HashMap<String, String>) -> 
         env,
         defaults: crate::SHIPPED_DEFAULTS.to_string(),
         defaults_path: "defaults.json".to_string(),
+        routing: crate::SHIPPED_ROUTING.to_string(),
     }
 }
 

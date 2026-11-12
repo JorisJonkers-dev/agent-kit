@@ -96,6 +96,18 @@ impl MemoryFiles {
 }
 
 impl Files for MemoryFiles {
+    fn write_text(&self, _path: &str, _content: &str) -> Result<(), FsError> {
+        unreachable!("the test does not write text")
+    }
+
+    fn temp_dir(&self, _parent: &str, _prefix: &str) -> Result<String, FsError> {
+        unreachable!("the test makes no temporary directory")
+    }
+
+    fn remove(&self, _path: &str) -> Result<(), FsError> {
+        unreachable!("the test removes nothing")
+    }
+
     fn read_text(&self, path: &str) -> Result<String, FsError> {
         if let Some(error) = self.state.read_errors.borrow().get(path) {
             return Err(error.clone());
@@ -185,6 +197,14 @@ impl StubGit {
 }
 
 impl Git for StubGit {
+    fn common_dir(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test asks for no common directory")
+    }
+
+    fn add_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
+        unreachable!("the test adds no worktree")
+    }
+
     fn root(&self, path: &str) -> Result<Option<String>, String> {
         self.asked.borrow_mut().push(path.to_string());
         self.root.clone()
@@ -210,6 +230,10 @@ struct TickingClock {
 }
 
 impl Clock for TickingClock {
+    fn monotonic_ms(&self) -> f64 {
+        0.0
+    }
+
     fn now_ms(&self) -> i64 {
         let value = self.now.get();
         self.now.set(value + self.step);
@@ -228,6 +252,7 @@ fn memory_runtime(files: &MemoryFiles, git: StubGit, lock: LockTimings, clock: B
         env: HashMap::from([("HOME".to_string(), "/home/me".to_string())]),
         defaults: String::new(),
         defaults_path: "defaults.json".to_string(),
+        routing: crate::SHIPPED_ROUTING.to_string(),
     }
 }
 
@@ -251,6 +276,7 @@ fn sandbox_runtime(sandbox: &Sandbox, lock: LockTimings) -> Runtime {
         env,
         defaults: crate::SHIPPED_DEFAULTS.to_string(),
         defaults_path: "defaults.json".to_string(),
+        routing: crate::SHIPPED_ROUTING.to_string(),
     }
 }
 

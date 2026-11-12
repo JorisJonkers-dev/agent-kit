@@ -30,6 +30,7 @@ fn sandbox_runtime(sandbox: &Sandbox, now: i64) -> Runtime {
         env,
         defaults: crate::SHIPPED_DEFAULTS.to_string(),
         defaults_path: "defaults.json".to_string(),
+        routing: crate::SHIPPED_ROUTING.to_string(),
     }
 }
 
@@ -335,9 +336,9 @@ fn the_command_line_runs_against_the_real_system() {
 }
 
 #[test]
-fn the_commands_the_gateway_does_not_carry_answer_not_ported() {
+fn batch_answers_not_ported() {
     let runtime = crate::default_runtime();
-    let cases: [(&str, &[&str]); 2] = [("run", &["run", "--json", "{}"]), ("batch", &["batch", "--json", "{}"])];
+    let cases: [(&str, &[&str]); 1] = [("batch", &["batch", "--json", "{}"])];
     for (name, words) in cases {
         let result = run_cli(&argv(words), &runtime);
         let message = format!("{name} is not ported to the Rust gateway yet; use the node runner");
@@ -373,6 +374,18 @@ impl LockFiles {
 }
 
 impl Files for LockFiles {
+    fn write_text(&self, _path: &str, _content: &str) -> Result<(), FsError> {
+        unreachable!("the test does not write text")
+    }
+
+    fn temp_dir(&self, _parent: &str, _prefix: &str) -> Result<String, FsError> {
+        unreachable!("the test makes no temporary directory")
+    }
+
+    fn remove(&self, _path: &str) -> Result<(), FsError> {
+        unreachable!("the test removes nothing")
+    }
+
     fn read_text(&self, path: &str) -> Result<String, FsError> {
         Err(FsError { code: "ENOENT".into(), message: format!("ENOENT: no such file or directory, open '{path}'") })
     }
@@ -430,6 +443,10 @@ struct TickingClock {
 }
 
 impl Clock for TickingClock {
+    fn monotonic_ms(&self) -> f64 {
+        0.0
+    }
+
     fn now_ms(&self) -> i64 {
         let value = self.now.get();
         self.now.set(value + self.step);

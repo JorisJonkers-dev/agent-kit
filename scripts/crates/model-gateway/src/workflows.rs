@@ -128,6 +128,15 @@ fn expiry_of(record: &WorkflowRecord) -> String {
     timestamps::to_iso(timestamps::parse(&record.started_at).unwrap_or_default() + WORKFLOW_TTL_MS)
 }
 
+/// The moment a workflow stops taking runs: when someone ended it, or when its 24 hours run out, whichever comes first.
+pub fn workflow_ends_at(record: &WorkflowRecord) -> i64 {
+    let life_end = timestamps::parse(&record.started_at).unwrap_or_default() + WORKFLOW_TTL_MS;
+    match record.ended_at.as_deref().and_then(timestamps::parse) {
+        Some(ended) => life_end.min(ended),
+        None => life_end,
+    }
+}
+
 /// Whether a workflow is closed to runs: someone ended it, or its 24 hours ran out.
 pub fn ended(record: &WorkflowRecord, now_ms: i64) -> bool {
     if record.ended_at.is_some() {

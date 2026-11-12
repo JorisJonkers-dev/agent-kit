@@ -16,6 +16,14 @@ struct RecordingGit {
 }
 
 impl Git for RecordingGit {
+    fn common_dir(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test asks for no common directory")
+    }
+
+    fn add_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
+        unreachable!("the test adds no worktree")
+    }
+
     fn root(&self, _path: &str) -> Result<Option<String>, String> {
         Ok(None)
     }
@@ -54,6 +62,7 @@ fn runtime(sandbox: &Sandbox, calls: &Rc<RefCell<Vec<String>>>) -> Runtime {
         env,
         defaults: crate::SHIPPED_DEFAULTS.to_string(),
         defaults_path: "defaults.json".to_string(),
+        routing: crate::SHIPPED_ROUTING.to_string(),
     }
 }
 
@@ -173,6 +182,18 @@ fn a_kept_file_that_cannot_be_read_is_an_error() {
 struct FullDisk(SystemFiles);
 
 impl Files for FullDisk {
+    fn write_text(&self, _path: &str, _content: &str) -> Result<(), FsError> {
+        unreachable!("the test does not write text")
+    }
+
+    fn temp_dir(&self, _parent: &str, _prefix: &str) -> Result<String, FsError> {
+        unreachable!("the test makes no temporary directory")
+    }
+
+    fn remove(&self, _path: &str) -> Result<(), FsError> {
+        unreachable!("the test removes nothing")
+    }
+
     fn read_text(&self, path: &str) -> Result<String, FsError> {
         self.0.read_text(path)
     }

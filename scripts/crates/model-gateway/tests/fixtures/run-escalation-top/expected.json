@@ -1,0 +1,42 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"client\": \"claude\",\n  \"cost_usd\": 0,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-opus-5-5\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"failed\",\n  \"summary\": \"\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\",\n  \"reason\": \"exit-1\",\n  \"attempt\": 2,\n  \"attempt_of\": \"20261103T120000Z-@RAND2@\",\n  \"attempts\": [\n    {\n      \"client\": \"claude\",\n      \"model\": \"claude-opus-5-5\",\n      \"run_id\": \"20261103T120000Z-@RAND2@\",\n      \"status\": \"failed\",\n      \"reason\": \"exit-1\"\n    },\n    {\n      \"client\": \"claude\",\n      \"model\": \"claude-opus-5-5\",\n      \"run_id\": \"20261103T120000Z-@RAND1@\",\n      \"status\": \"failed\",\n      \"reason\": \"exit-1\"\n    }\n  ],\n  \"escalation\": \"exhausted\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/calls/": null,
+        "home/calls/claude.1.stdin": "The strongest model fails twice.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "home/calls/claude.2.stdin": "The strongest model fails twice.\n\nA previous attempt failed: exit-1; broke\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "home/calls/claude.n": "2\n",
+        "home/calls/claude.txt": "call 1\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP1@\narg -p\narg --model\narg claude-opus-5-5\narg --output-format\narg json\narg --permission-mode\narg plan\narg --allowedTools\narg Read,Grep,Glob\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\ncall 2\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP2@\narg -p\narg --model\narg claude-opus-5-5\narg --output-format\narg json\narg --permission-mode\narg plan\narg --allowedTools\narg Read,Grep,Glob\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/canned/": null,
+        "home/canned/claude.err.1": "broke\n",
+        "home/canned/claude.err.2": "broke again\n",
+        "home/canned/claude.exit.1": "1\n",
+        "home/canned/claude.exit.2": "1\n",
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"claude\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":0,\"family\":\"anthropic\",\"mode\":\"read-only\",\"model\":\"claude-opus-5-5\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"20261103T120000Z-@RAND2@\",\"tokens\":{\"cached\":0,\"input\":0,\"output\":0},\"workflow\":\"w\",\"reason\":\"exit-1\"}\n{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"claude\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":0,\"family\":\"anthropic\",\"mode\":\"read-only\",\"model\":\"claude-opus-5-5\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"20261103T120000Z-@RAND1@\",\"tokens\":{\"cached\":0,\"input\":0,\"output\":0},\"workflow\":\"w\",\"reason\":\"exit-1\",\"attempt\":2,\"attempt_of\":\"20261103T120000Z-@RAND2@\"}\n",
+        "state/agent-kit/model-gateway/runs/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"claude\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-opus-5-5\",\n  \"prompt\": \"The strongest model fails twice.\\n\\nA previous attempt failed: exit-1; broke\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json": "",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/prompt.md": "The strongest model fails twice.\n\nA previous attempt failed: exit-1; broke\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/result.json": "{\n  \"client\": \"claude\",\n  \"cost_usd\": 0,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-opus-5-5\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"failed\",\n  \"summary\": \"\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\",\n  \"reason\": \"exit-1\",\n  \"attempt\": 2,\n  \"attempt_of\": \"20261103T120000Z-@RAND2@\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/stderr.txt": "broke again\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/input.json": "{\n  \"client\": \"claude\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-opus-5-5\",\n  \"prompt\": \"The strongest model fails twice.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/output.json": "",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/prompt.md": "The strongest model fails twice.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/result.json": "{\n  \"client\": \"claude\",\n  \"cost_usd\": 0,\n  \"family\": \"anthropic\",\n  \"mode\": \"read-only\",\n  \"model\": \"claude-opus-5-5\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND2@\",\n  \"status\": \"failed\",\n  \"summary\": \"\",\n  \"tokens\": {\n    \"cached\": 0,\n    \"input\": 0,\n    \"output\": 0\n  },\n  \"workflow\": \"w\",\n  \"reason\": \"exit-1\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/stderr.txt": "broke\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "tmp/": null,
+        "work/": null
+      }
+    }
+  ]
+}

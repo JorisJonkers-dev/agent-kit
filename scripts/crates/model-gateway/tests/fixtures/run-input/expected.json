@@ -1,0 +1,564 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway run: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway run: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway run: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway run: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"extras are for in-process callers only\"}\n",
+      "stderr": "model-gateway run: extras are for in-process callers only\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"extras are for in-process callers only\"}\n",
+      "stderr": "model-gateway run: extras are for in-process callers only\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a run must name its workflow\"}\n",
+      "stderr": "model-gateway run: a run must name its workflow\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a run must name its workflow\"}\n",
+      "stderr": "model-gateway run: a run must name its workflow\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"bad name\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway run: workflow \"bad name\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a run must name its workflow\"}\n",
+      "stderr": "model-gateway run: a run must name its workflow\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only vibe, agy, claude, opencode, hermes, codex can run a delegation, not missing\"}\n",
+      "stderr": "model-gateway run: only vibe, agy, claude, opencode, hermes, codex can run a delegation, not missing\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \\\"nobody\\\"\"}\n",
+      "stderr": "model-gateway run: only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \"nobody\"\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only vibe, agy, claude, opencode, hermes, codex can run a delegation, not 5\"}\n",
+      "stderr": "model-gateway run: only vibe, agy, claude, opencode, hermes, codex can run a delegation, not 5\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \\\"VIBE\\\"\"}\n",
+      "stderr": "model-gateway run: only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \"VIBE\"\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only read-only and write runs are supported, not missing\"}\n",
+      "stderr": "model-gateway run: only read-only and write runs are supported, not missing\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only read-only and write runs are supported, not \\\"plan\\\"\"}\n",
+      "stderr": "model-gateway run: only read-only and write runs are supported, not \"plan\"\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only read-only and write runs are supported, not 5\"}\n",
+      "stderr": "model-gateway run: only read-only and write runs are supported, not 5\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"model must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: model must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"model must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: model must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"model must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: model must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"prompt must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: prompt must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"prompt must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: prompt must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"prompt must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: prompt must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"repo must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"repo must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"carries must name code and history, each true or false\"}\n",
+      "stderr": "model-gateway run: carries must name code and history, each true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"carries must name code and history, each true or false\"}\n",
+      "stderr": "model-gateway run: carries must name code and history, each true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"carries must name code and history, each true or false\"}\n",
+      "stderr": "model-gateway run: carries must name code and history, each true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"carries must name code and history, each true or false\"}\n",
+      "stderr": "model-gateway run: carries must name code and history, each true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"time_limit_s must be a whole number of seconds above 0\"}\n",
+      "stderr": "model-gateway run: time_limit_s must be a whole number of seconds above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"time_limit_s must be a whole number of seconds above 0\"}\n",
+      "stderr": "model-gateway run: time_limit_s must be a whole number of seconds above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"time_limit_s must be a whole number\"}\n",
+      "stderr": "model-gateway run: time_limit_s must be a whole number\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"time_limit_s must be a whole number\"}\n",
+      "stderr": "model-gateway run: time_limit_s must be a whole number\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"time_limit_s must be a whole number\"}\n",
+      "stderr": "model-gateway run: time_limit_s must be a whole number\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_price_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway run: max_price_usd must be a number above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_price_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway run: max_price_usd must be a number above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_price_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway run: max_price_usd must be a number above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_price_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway run: max_price_usd must be a number above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"base and check are for writing runs only\"}\n",
+      "stderr": "model-gateway run: base and check are for writing runs only\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"base and check are for writing runs only\"}\n",
+      "stderr": "model-gateway run: base and check are for writing runs only\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"provider must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: provider must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"provider must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: provider must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"escalate must be true or false\"}\n",
+      "stderr": "model-gateway run: escalate must be true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"family_binding must be true or false\"}\n",
+      "stderr": "model-gateway run: family_binding must be true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"headless must be true or false\"}\n",
+      "stderr": "model-gateway run: headless must be true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_attempts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway run: max_attempts must be a whole number above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_attempts must be a whole number\"}\n",
+      "stderr": "model-gateway run: max_attempts must be a whole number\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_attempts must be a whole number\"}\n",
+      "stderr": "model-gateway run: max_attempts must be a whole number\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_attempts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway run: max_attempts must be a whole number above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"write-needs-repository\",\"message\":\"a writing run changes a repository, so it must name its repo\"}\n",
+      "stderr": "model-gateway run: a writing run changes a repository, so it must name its repo\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a writing run must name its base, a ref the worktree starts from\"}\n",
+      "stderr": "model-gateway run: a writing run must name its base, a ref the worktree starts from\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a writing run must name its base, a ref the worktree starts from\"}\n",
+      "stderr": "model-gateway run: a writing run must name its base, a ref the worktree starts from\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a writing run must name its check, a command that tests the change\"}\n",
+      "stderr": "model-gateway run: a writing run must name its check, a command that tests the change\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a writing run must name its check, a command that tests the change\"}\n",
+      "stderr": "model-gateway run: a writing run must name its check, a command that tests the change\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"write-needs-repository\",\"message\":\"a writing run changes a repository, so it must name its repo\"}\n",
+      "stderr": "model-gateway run: a writing run changes a repository, so it must name its repo\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"time_limit_s must be a whole number of seconds above 0\"}\n",
+      "stderr": "model-gateway run: time_limit_s must be a whole number of seconds above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    }
+  ]
+}

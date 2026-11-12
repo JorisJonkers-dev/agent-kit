@@ -1,0 +1,84 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"hermes\",\"mode\":\"read-only\",\"model\":\"claude-sonnet-4.6\",\"provider\":\"anthropic\",\"prompt\":\"Ask Hermes.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/hermes": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/hermes.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/hermes.n\" ] && read n < \"$D/hermes.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/hermes.n\"\npick() { if [ -f \"$C/hermes.$1.$n\" ]; then echo \"$C/hermes.$1.$n\"; else echo \"$C/hermes.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/hermes.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "home/canned/hermes.out": "Hermes answers.\nSUMMARY: hermes is fine\n",
+        "home/canned/hermes.usage": "{\"input_tokens\":2000,\"output_tokens\":300,\"cache_read_tokens\":500,\"estimated_cost_usd\":0.002,\"failed\":false}\n"
+      },
+      "exec": [
+        "bin/hermes"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "remove": [
+        "home/canned/hermes.out",
+        "home/canned/hermes.err",
+        "home/canned/hermes.exit",
+        "home/canned/hermes.export",
+        "home/canned/hermes.usage",
+        "home/canned/hermes.sleep",
+        "home/canned/hermes.act"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"hermes\",\"mode\":\"read-only\",\"model\":\"claude-sonnet-4.6\",\"provider\":\"anthropic\",\"prompt\":\"No usage report.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/hermes.out",
+        "home/canned/hermes.err",
+        "home/canned/hermes.exit",
+        "home/canned/hermes.export",
+        "home/canned/hermes.usage",
+        "home/canned/hermes.sleep",
+        "home/canned/hermes.act"
+      ],
+      "write": {
+        "home/canned/hermes.out": "Answer without a report.\n",
+        "home/canned/hermes.usage": "not json\n"
+      },
+      "now": "2026-11-03T12:05:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

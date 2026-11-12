@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 import { addClientScenarios } from './gen-scenarios-clients.mjs'
 import { addReserveScenarios } from './gen-scenarios-reserve.mjs'
+import { addRunScenarios } from './gen-scenarios-run.mjs'
 import { addWorktreeScenarios } from './gen-scenarios-worktrees.mjs'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
@@ -108,6 +109,7 @@ scenarios['workflow-environment'] = [
 
 addClientScenarios(scenarios, step)
 addReserveScenarios(scenarios, step)
+addRunScenarios(scenarios, step)
 addWorktreeScenarios(scenarios, step)
 
 for (const [name, steps] of Object.entries(scenarios)) {

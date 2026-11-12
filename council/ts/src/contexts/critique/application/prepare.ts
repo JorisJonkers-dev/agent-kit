@@ -20,6 +20,7 @@ import {
   candidateClients,
   resolveRoster,
   resolveWorkRoster,
+  workGrantClient,
   stageRouting,
   workCandidateClients,
   type ClientAvailability,
@@ -282,8 +283,9 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
         : { labels: artifact.labels, text: contents.files.map((file) => file.text).join('\n\n'), tickets: ticketCheck.tickets.length },
       input.depth,
     )
-    const roster = repository.work
-      ? await this.workRoster(routing, { grant: await this.workGrant(input), orchestratorFamily, stage })
+    const grant = repository.work ? await this.workGrant(input, workGrantClient(routing, stage)) : undefined
+    const roster = grant !== undefined
+      ? await this.workRoster(routing, { grant, orchestratorFamily, stage })
       : await this.openRoster(routing, { adr: contents.holdsAdr === true, allowedFamilies: entry.families, depth, orchestratorFamily, stage })
     const planWarnings = roster.critics.some((critic) => critic.client_config.kind === 'vibe')
       ? (await this.deps.plan.read('vibe')).warnings
@@ -317,6 +319,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       ...(planWarnings.length === 0 ? {} : { plan_warnings: planWarnings }),
       repo_root: repository.root,
       repository: repository.key,
+      ...(grant === undefined ? {} : { work: grant.live ? { grant_workflow: grant.workflow } : {} }),
       ...roundFields,
       run_dir: runDir,
       run_id: runId,
@@ -450,20 +453,20 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     return resolveWorkRoster(routing, request, new Map(await Promise.all(checks)))
   }
 
-  /** Whether a live grant covers the run's workflow for Codex, or what is missing. */
-  private async workGrant(input: PrepareInput): Promise<WorkGrant> {
+  /** Whether a live grant covers the run's workflow for the stage's Codex client (named by routing), or what is missing. */
+  private async workGrant(input: PrepareInput, client: string): Promise<WorkGrant> {
     const workflow = input.workflow ?? input.flow
     if (workflow === undefined) {
       return { detail: 'name the model-gateway workflow with workflow so a grant for it can be found', live: false }
     }
-    const covered = await this.deps.grants.covers(workflow, 'codex').then(
+    const covered = await this.deps.grants.covers(workflow, client).then(
       (live) => ({ live }),
       (error: unknown) => ({ error: error instanceof Error ? error.message : String(error), live: false }),
     )
-    if (covered.live) return { live: true }
-    if ('error' in covered) return { detail: `the grants could not be read, so Codex is left out: ${covered.error}`, live: false }
+    if (covered.live) return { live: true, workflow }
+    if ('error' in covered) return { detail: `the grants could not be read, so ${client} is left out: ${covered.error}`, live: false }
     return {
-      detail: `no live grant covers workflow ${workflow} for codex: ask the owner, then write one with model-gateway grant write`,
+      detail: `no live grant covers workflow ${workflow} for ${client}: ask the owner, then write one with model-gateway grant write`,
       live: false,
     }
   }

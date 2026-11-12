@@ -157,6 +157,12 @@ export interface RunManifest {
   readonly distinct_families: boolean
   readonly critics: readonly RosterCritic[]
   readonly dropped: readonly DroppedCritic[]
+  /**
+   * Present only for a `nedap` repository, whose critics and refuters are the
+   * work clients alone. `grant_workflow` is the model-gateway workflow whose
+   * live grant let Codex run; a refute round asks that grant again.
+   */
+  readonly work?: { readonly grant_workflow?: string }
 }
 
 /**
@@ -200,6 +206,9 @@ export function parseManifest(text: string): RunManifest {
     orchestrator_family: file.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
     packet_dir: file.string('packet_dir'),
     ...(file.has('code') ? { code: readCodeSource(file.object('code')) } : {}),
+    ...(file.has('work')
+      ? { work: file.object('work').has('grant_workflow') ? { grant_workflow: file.object('work').string('grant_workflow') } : {} }
+      : {}),
     ...(file.has('plan_warnings') ? { plan_warnings: file.strings('plan_warnings') } : {}),
     packet_files: file.list('packet_files', (packetFile) => ({
       kind: packetFile.oneOf('kind', PACKET_FILE_KINDS),

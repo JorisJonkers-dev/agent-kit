@@ -6,7 +6,7 @@
 //! zero that would read as an exhausted plan.
 
 use crate::caps::{self, run_records};
-use crate::config::{GatewayConfig, PlanLimit, PlanWindow};
+use crate::config::{ClientConfig, GatewayConfig, PlanLimit, PlanWindow, Settings};
 use crate::error::GatewayError;
 use crate::json::{self, Object, Value};
 use crate::ledger::{LedgerEntry, LedgerRecord, ReservationRecord, RunTokens};
@@ -212,22 +212,7 @@ pub fn usage_report(
         let reading = readings.iter().find(|reading| &reading.client == id);
         let mine: Vec<&LedgerRecord> = counted.iter().copied().filter(|record| &record.client == id).collect();
         let reservations: Vec<&ReservationRecord> = held.iter().copied().filter(|reservation| &reservation.client == id).collect();
-        let windows = plan_windows(
-            id,
-            client.plan_limits.as_deref().unwrap_or(&[]),
-            &records,
-            now_ms,
-            config.settings.plan_warning_ratio,
-        );
-        let availability = availability_of(
-            id,
-            &client.binary,
-            reading,
-            &records,
-            now_ms,
-            config.settings.availability_window_minutes,
-            &windows,
-        );
+        let (windows, availability) = client_standing(id, client, reading, &records, now_ms, &config.settings);
         let reserved_usd = caps::round(reservations.iter().map(|reservation| reservation.estimate_usd).sum(), 6);
         let mut entry = Object::new();
         entry.set("availability", availability_json(&availability));
@@ -251,6 +236,22 @@ pub fn usage_report(
         result.set("workflow", Value::str(workflow));
     }
     Value::Obj(result)
+}
+
+/// One client's plan windows and whether it can run now, read from the ledger's runs and what the gateway
+/// found out about the client before it read the ledger.
+pub fn client_standing(
+    id: &str,
+    client: &ClientConfig,
+    reading: Option<&ClientReading>,
+    records: &[&LedgerRecord],
+    now_ms: i64,
+    settings: &Settings,
+) -> (Vec<PlanWindowUsage>, Availability) {
+    let windows = plan_windows(id, client.plan_limits.as_deref().unwrap_or(&[]), records, now_ms, settings.plan_warning_ratio);
+    let availability =
+        availability_of(id, &client.binary, reading, records, now_ms, settings.availability_window_minutes, &windows);
+    (windows, availability)
 }
 
 /// Each window of a client's plan, with the spend the ledger holds in it. A
