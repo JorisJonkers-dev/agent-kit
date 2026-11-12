@@ -12,7 +12,8 @@ use crate::cli::{run, run_with, Env, REFUSED};
 use crate::record::{self, write_record, Outcome, Record, ScenarioResult};
 use crate::refuse::{load_workflow, Workflow};
 
-/// A workflow with one worker node and no manual check.
+/// A workflow with one worker node that never fails and no manual check, so
+/// `clean` is its only default scenario.
 const MINIMAL_WORKFLOW: &str = r#"{
   "workflow": {
     "id": "cli-proof",
@@ -25,7 +26,8 @@ const MINIMAL_WORKFLOW: &str = r#"{
         "provider": "vibe",
         "model": "mistral-large-4-0",
         "profile": "pf-spec-redteam",
-        "goal": "Answer with one fenced json block holding the findings document and nothing else."
+        "goal": "Answer with one fenced json block and nothing else.",
+        "output": {"kind": "json", "schema": {"ok": true}}
       }
     ],
     "edges": [{"from": "only", "to": "$end", "on": "success"}]

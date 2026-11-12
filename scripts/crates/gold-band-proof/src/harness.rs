@@ -12,7 +12,7 @@ use serde_json::{json, Map, Value};
 
 use crate::record::{Outcome, Record, ScenarioResult};
 use crate::refuse;
-use crate::stub::Role;
+use crate::stub::{Role, NEEDS_HUMAN, OPEN_QUESTIONS};
 
 /// What the harness needs to know about a workflow to stand the stub in for it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,6 +29,45 @@ pub struct WorkflowInfo {
     pub has_manual_check: bool,
     /// For each agent id, what the stub standing in for it answers with.
     pub roles: BTreeMap<String, Role>,
+    /// The node the workflow starts at, empty when it names none.
+    pub entry: String,
+    /// The workflow's nodes, in the order the workflow lists them.
+    pub nodes: Vec<GraphNode>,
+    /// The workflow's edges, in the order the workflow lists them.
+    pub edges: Vec<GraphEdge>,
+}
+
+/// One node of the workflow graph.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GraphNode {
+    /// The node id.
+    pub id: String,
+    /// The agent id the node runs, when it names one.
+    pub provider: Option<String>,
+    /// Whether the node is a manual check, which pauses the run when reached.
+    pub manual_check: bool,
+}
+
+/// One edge of the workflow graph.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GraphEdge {
+    /// The node the edge leaves.
+    pub from: String,
+    /// The node the edge reaches, or `$end`.
+    pub to: String,
+    /// The outcome the edge follows: `success` or `failure`.
+    pub on: String,
+}
+
+/// What walking the workflow graph under one verdict predicts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Walk {
+    /// The exit code `gold-band run` must return.
+    pub exit: i32,
+    /// The first node that failed, when one did.
+    pub failed: Option<String>,
+    /// Every node the walk reached, in order.
+    pub visited: Vec<String>,
 }
 
 /// One run of the workflow: the stub's verdict and the exit code expected.
@@ -36,10 +75,14 @@ pub struct WorkflowInfo {
 pub struct ScenarioSpec {
     /// The scenario name, such as `clean`.
     pub name: String,
-    /// The stub verdict: `clean` (or empty), `needs-human`, `fail` or `gate-fail=<name>`.
+    /// The stub verdict: `clean` (or empty), `needs-human`, `open-questions`,
+    /// `fail` or `gate-fail=<name>`.
     pub verdict: String,
     /// The exit code `gold-band run` must return.
     pub expected_exit: i32,
+    /// The node the scenario starts from, when it proves the stretch after a
+    /// manual check; `None` runs the whole workflow.
+    pub entry: Option<String>,
 }
 
 /// Everything `prove` needs.
@@ -77,6 +120,15 @@ const POLL_MILLIS: u64 = 50;
 /// How many characters of stderr a failing scenario's note keeps.
 const STDERR_TAIL: usize = 300;
 
+/// The edge target that ends a run.
+const END: &str = "$end";
+
+/// How many nodes one walk may reach before it is treated as a cycle.
+const MAX_STEPS: usize = 1000;
+
+/// The name of the pruned workflow a segment scenario runs.
+pub const SEGMENT_FILE: &str = "segment.json";
+
 /// Reads the facts about a workflow from its JSON text.
 pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
     let value: Value = serde_json::from_str(workflow_json)
@@ -90,25 +142,45 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
         .and_then(Value::as_str)
         .ok_or_else(|| "the workflow has no id".to_string())?
         .to_string();
+    let entry = definition
+        .get("entry")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
     let mut agent_ids = BTreeSet::new();
     let mut models: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut profiles = BTreeSet::new();
     let mut has_manual_check = false;
     let mut answers = BTreeSet::new();
-    if let Some(Value::Array(nodes)) = definition.get("nodes") {
-        for node in nodes {
+    let mut questions = BTreeSet::new();
+    let mut nodes = Vec::new();
+    if let Some(Value::Array(entries)) = definition.get("nodes") {
+        for node in entries {
             let Some(object) = node.as_object() else {
                 continue;
             };
+            if let Some(node_id) = object.get("id").and_then(Value::as_str) {
+                nodes.push(GraphNode {
+                    id: node_id.to_string(),
+                    provider: object
+                        .get("provider")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    manual_check: object.get("manual_check").and_then(Value::as_bool) == Some(true),
+                });
+            }
             if let Some(provider) = object.get("provider").and_then(Value::as_str) {
                 agent_ids.insert(provider.to_string());
-                let entry = models.entry(provider.to_string()).or_default();
-                entry.extend(
+                let bound = models.entry(provider.to_string()).or_default();
+                bound.extend(
                     object
                         .get("model")
                         .and_then(Value::as_str)
                         .map(str::to_string),
                 );
+                if asks_questions(object) {
+                    questions.insert(provider.to_string());
+                }
                 if answers_with_ok(object) {
                     answers.insert(provider.to_string());
                 }
@@ -119,6 +191,26 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
             if object.get("manual_check").and_then(Value::as_bool) == Some(true) {
                 has_manual_check = true;
             }
+        }
+    }
+    let mut edges = Vec::new();
+    if let Some(Value::Array(entries)) = definition.get("edges") {
+        for edge in entries {
+            let Some(object) = edge.as_object() else {
+                continue;
+            };
+            let (Some(from), Some(to), Some(on)) = (
+                object.get("from").and_then(Value::as_str),
+                object.get("to").and_then(Value::as_str),
+                object.get("on").and_then(Value::as_str),
+            ) else {
+                continue;
+            };
+            edges.push(GraphEdge {
+                from: from.to_string(),
+                to: to.to_string(),
+                on: on.to_string(),
+            });
         }
     }
     if let Some(bindings) = value
@@ -132,8 +224,8 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
             };
             if let Some(agent_id) = object.get("agentId").and_then(Value::as_str) {
                 agent_ids.insert(agent_id.to_string());
-                let entry = models.entry(agent_id.to_string()).or_default();
-                entry.extend(
+                let bound = models.entry(agent_id.to_string()).or_default();
+                bound.extend(
                     object
                         .get("modelId")
                         .and_then(Value::as_str)
@@ -144,7 +236,7 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
     }
     let roles = agent_ids
         .iter()
-        .map(|agent_id| (agent_id.clone(), role_for(agent_id, &answers)))
+        .map(|agent_id| (agent_id.clone(), role_for(agent_id, &answers, &questions)))
         .collect();
     Ok(WorkflowInfo {
         id,
@@ -153,6 +245,9 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
         profiles,
         has_manual_check,
         roles,
+        entry,
+        nodes,
+        edges,
     })
 }
 
@@ -164,9 +259,19 @@ fn answers_with_ok(node: &Map<String, Value>) -> bool {
     }
 }
 
+/// Whether a node's `output.schema` is a JSON object holding an
+/// `open_questions` key.
+fn asks_questions(node: &Map<String, Value>) -> bool {
+    match node.get("output").and_then(|output| output.get("schema")) {
+        Some(Value::Object(schema)) => schema.contains_key("open_questions"),
+        _ => false,
+    }
+}
+
 /// The role an agent id plays: a `gate-` or `copy-` prefix names a shim, else
-/// the schema of the nodes it runs decides between an answer and findings.
-fn role_for(agent_id: &str, answers: &BTreeSet<String>) -> Role {
+/// the schema of the nodes it runs decides between open questions, an answer
+/// and findings.
+fn role_for(agent_id: &str, answers: &BTreeSet<String>, questions: &BTreeSet<String>) -> Role {
     if let Some(name) = agent_id
         .strip_prefix("gate-")
         .filter(|name| !name.is_empty())
@@ -179,6 +284,9 @@ fn role_for(agent_id: &str, answers: &BTreeSet<String>) -> Role {
     {
         return Role::Copy(name.to_string());
     }
+    if questions.contains(agent_id) {
+        return Role::Questions;
+    }
     if answers.contains(agent_id) {
         Role::Answer
     } else {
@@ -186,30 +294,205 @@ fn role_for(agent_id: &str, answers: &BTreeSet<String>) -> Role {
     }
 }
 
-/// The scenarios every workflow gets: `clean` (verdict `clean`, exit 0) always,
-/// `needs-human` (exit 2) when the workflow has a manual-check node, and one
-/// `gate-fail-<name>` (exit 1) per gate shim, sorted by name.
+/// Walks the workflow graph from `entry` under `verdict` and predicts what
+/// `gold-band run` does: a manual check pauses the run (exit 2), a node with no
+/// edge for its outcome ends it, and `$end` ends it too.
+pub fn walk(info: &WorkflowInfo, entry: &str, verdict: &str) -> Walk {
+    let mut visited = Vec::new();
+    let mut failed: Option<String> = None;
+    let mut current = entry.to_string();
+    let mut steps = 0usize;
+    loop {
+        steps += 1;
+        if steps > MAX_STEPS {
+            return Walk {
+                exit: 1,
+                failed,
+                visited,
+            };
+        }
+        let Some(node) = info.nodes.iter().find(|node| node.id == current) else {
+            return Walk {
+                exit: 1,
+                failed,
+                visited,
+            };
+        };
+        visited.push(node.id.clone());
+        if node.manual_check {
+            return Walk {
+                exit: 2,
+                failed,
+                visited,
+            };
+        }
+        let outcome = if node_fails(info, node, verdict) {
+            if failed.is_none() {
+                failed = Some(node.id.clone());
+            }
+            "failure"
+        } else {
+            "success"
+        };
+        let exit = if outcome == "failure" { 1 } else { 0 };
+        let Some(edge) = info
+            .edges
+            .iter()
+            .find(|edge| edge.from == node.id && edge.on == outcome)
+        else {
+            return Walk {
+                exit,
+                failed,
+                visited,
+            };
+        };
+        if edge.to == END {
+            return Walk {
+                exit,
+                failed,
+                visited,
+            };
+        }
+        current = edge.to.clone();
+    }
+}
+
+/// The role of the agent a node runs; a node that names no agent, or an agent
+/// the workflow does not declare, answers as a critic.
+fn node_role(info: &WorkflowInfo, node: &GraphNode) -> Role {
+    node.provider
+        .as_ref()
+        .and_then(|provider| info.roles.get(provider))
+        .cloned()
+        .unwrap_or(Role::Findings)
+}
+
+/// Whether a node's outcome under `verdict` is a failure. A manual check never
+/// gets this far: [`walk`] stops at it, because a paused run cannot be
+/// continued headlessly.
+fn node_fails(info: &WorkflowInfo, node: &GraphNode, verdict: &str) -> bool {
+    let verdict = verdict.trim();
+    match node_role(info, node) {
+        Role::Gate(name) | Role::Copy(name) => {
+            verdict.strip_prefix("gate-fail=") == Some(name.as_str())
+        }
+        // A critic or questions agent also runs nodes with no success
+        // condition (a drafting node), so only a node that routes failures
+        // (a merge, a grill round) is taken to fail.
+        Role::Findings => verdict == NEEDS_HUMAN && routes_failure(info, node),
+        Role::Questions => verdict == OPEN_QUESTIONS && routes_failure(info, node),
+        Role::Answer => false,
+    }
+}
+
+/// Whether the node has an edge for its failure.
+fn routes_failure(info: &WorkflowInfo, node: &GraphNode) -> bool {
+    info.edges
+        .iter()
+        .any(|edge| edge.from == node.id && edge.on == "failure")
+}
+
+/// One stretch of the workflow the proof can reach: the whole workflow, or the
+/// part after a manual check.
+struct Segment {
+    /// The prefix every scenario name of the segment carries, empty for the
+    /// whole workflow.
+    prefix: String,
+    /// The node the segment starts at, `None` for the workflow's own entry.
+    entry: Option<String>,
+}
+
+/// The scenarios every workflow gets, segment by segment: `clean` always, then
+/// `needs-human`, `open-questions` and one `gate-fail-<name>` per gate, each
+/// kept only when walking the segment under that verdict fails a node. The
+/// expected exit code of each comes from the walk.
 pub fn default_scenarios(info: &WorkflowInfo) -> Vec<ScenarioSpec> {
-    let mut scenarios = vec![ScenarioSpec {
-        name: "clean".to_string(),
-        verdict: "clean".to_string(),
-        expected_exit: 0,
+    let mut scenarios = Vec::new();
+    let mut proved = BTreeSet::new();
+    for segment in segments(info) {
+        scenarios.extend(segment_scenarios(info, &segment, &mut proved));
+    }
+    scenarios
+}
+
+/// The segments the proof walks: the whole workflow from its entry, then the
+/// part after each manual check that leads on to another node.
+fn segments(info: &WorkflowInfo) -> Vec<Segment> {
+    let mut segments = vec![Segment {
+        prefix: String::new(),
+        entry: None,
     }];
-    if info.has_manual_check {
-        scenarios.push(ScenarioSpec {
-            name: "needs-human".to_string(),
-            verdict: "needs-human".to_string(),
-            expected_exit: 2,
+    for node in &info.nodes {
+        if !node.manual_check {
+            continue;
+        }
+        let Some(target) = info
+            .edges
+            .iter()
+            .find(|edge| edge.from == node.id && edge.on == "success")
+            .map(|edge| edge.to.clone())
+        else {
+            continue;
+        };
+        if target == END {
+            continue;
+        }
+        segments.push(Segment {
+            prefix: format!("after-{}.", node.id),
+            entry: Some(target),
         });
     }
-    for name in gate_names(info) {
+    segments
+}
+
+/// The scenarios one segment gets, in order: `clean`, then the candidate
+/// verdicts that fail a node of the segment, except a node `proved` already
+/// holds a failing scenario for (`proved` collects the nodes as it goes).
+fn segment_scenarios(
+    info: &WorkflowInfo,
+    segment: &Segment,
+    proved: &mut BTreeSet<String>,
+) -> Vec<ScenarioSpec> {
+    let entry = segment.entry.clone().unwrap_or_else(|| info.entry.clone());
+    let clean = walk(info, &entry, "clean");
+    let mut scenarios = vec![ScenarioSpec {
+        name: format!("{}clean", segment.prefix),
+        verdict: "clean".to_string(),
+        expected_exit: clean.exit,
+        entry: segment.entry.clone(),
+    }];
+    for verdict in candidate_verdicts(info) {
+        let walked = walk(info, &entry, &verdict);
+        // A failure of a node an earlier segment already proved is not run again.
+        let Some(failed) = walked.failed.clone() else {
+            continue;
+        };
+        if !proved.insert(failed) {
+            continue;
+        }
         scenarios.push(ScenarioSpec {
-            name: format!("gate-fail-{}", name),
-            verdict: format!("gate-fail={}", name),
-            expected_exit: 1,
+            name: format!("{}{}", segment.prefix, verdict_name(&verdict)),
+            verdict,
+            expected_exit: walked.exit,
+            entry: segment.entry.clone(),
         });
     }
     scenarios
+}
+
+/// The verdicts a segment is proved under besides `clean`: `needs-human`,
+/// `open-questions`, then one failing gate per gate name, sorted.
+fn candidate_verdicts(info: &WorkflowInfo) -> Vec<String> {
+    let mut verdicts = vec![NEEDS_HUMAN.to_string(), OPEN_QUESTIONS.to_string()];
+    for name in gate_names(info) {
+        verdicts.push(format!("gate-fail={}", name));
+    }
+    verdicts
+}
+
+/// The scenario name a verdict gets: `gate-fail=NAME` becomes `gate-fail-NAME`.
+fn verdict_name(verdict: &str) -> String {
+    verdict.replace('=', "-")
 }
 
 /// The gate names the workflow's roles name, sorted.
@@ -226,8 +509,9 @@ fn gate_names(info: &WorkflowInfo) -> Vec<String> {
     names
 }
 
-/// Parses `NAME:VERDICT:EXIT` (verdict one of `clean`, `needs-human`, `fail` or
-/// `gate-fail=NAME`; exit an integer).
+/// Parses `NAME:VERDICT:EXIT` (verdict one of `clean`, `needs-human`,
+/// `open-questions`, `fail` or `gate-fail=NAME`; exit an integer). The scenario
+/// runs the whole workflow, never a segment.
 pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
     let parts: Vec<&str> = text.split(':').collect();
     if parts.len() != 3 {
@@ -249,7 +533,7 @@ pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
     let verdict = parts[1];
     if !is_known_verdict(verdict) {
         return Err(format!(
-            "the scenario `{}` has the unknown verdict `{}` (use clean, needs-human, fail or gate-fail=NAME)",
+            "the scenario `{}` has the unknown verdict `{}` (use clean, needs-human, open-questions, fail or gate-fail=NAME)",
             name, verdict
         ));
     }
@@ -264,13 +548,14 @@ pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
         name: name.to_string(),
         verdict: verdict.to_string(),
         expected_exit,
+        entry: None,
     })
 }
 
 /// Whether a verdict is one the stub understands: `clean`, `needs-human`,
-/// `fail`, or `gate-fail=` and a non-empty gate name.
+/// `open-questions`, `fail`, or `gate-fail=` and a non-empty gate name.
 fn is_known_verdict(verdict: &str) -> bool {
-    if matches!(verdict, "clean" | "needs-human" | "fail") {
+    if matches!(verdict, "clean" | NEEDS_HUMAN | OPEN_QUESTIONS | "fail") {
         return true;
     }
     match verdict.strip_prefix("gate-fail=") {
@@ -287,6 +572,120 @@ fn is_name_char(c: char) -> bool {
 /// Whether `text` is a non-empty name of letters, digits, `.`, `_` and `-`.
 fn is_name(text: &str) -> bool {
     !text.is_empty() && text.chars().all(is_name_char)
+}
+
+/// A copy of the workflow that starts at `entry`: the nodes reachable from it,
+/// the edges that leave them, the bindings of those nodes, and `entry` set to
+/// `entry`. Gold Band refuses a node unreachable from the entry, so the stretch
+/// after a manual check needs its own copy to be proved at all.
+pub fn prune(workflow_json: &str, entry: &str) -> Result<String, String> {
+    let value: Value = serde_json::from_str(workflow_json)
+        .map_err(|error| format!("the workflow is not valid JSON: {}", error))?;
+    let wrapper = value.as_object().cloned().unwrap_or_default();
+    let wrapped = matches!(wrapper.get("workflow"), Some(Value::Object(_)));
+    let definition = if wrapped {
+        wrapper
+            .get("workflow")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default()
+    } else {
+        wrapper.clone()
+    };
+    let nodes = definition
+        .get("nodes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let edges = definition
+        .get("edges")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let ids: Vec<String> = nodes.iter().filter_map(node_id).collect();
+    if !ids.iter().any(|id| id == entry) {
+        return Err(format!(
+            "the entry `{}` is not a node of the workflow",
+            entry
+        ));
+    }
+    let reachable = reachable_from(&ids, &edges, entry);
+    let kept: Vec<Value> = nodes
+        .into_iter()
+        .filter(|node| node_id(node).is_some_and(|id| reachable.contains(&id)))
+        .collect();
+    let slots: BTreeSet<String> = kept
+        .iter()
+        .filter_map(|node| {
+            node.get("executionSlotId")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .collect();
+    let kept_edges: Vec<Value> = edges
+        .into_iter()
+        .filter(|edge| {
+            edge.get("from")
+                .and_then(Value::as_str)
+                .is_some_and(|from| reachable.contains(from))
+        })
+        .collect();
+    let mut pruned_definition = definition;
+    pruned_definition.insert("nodes".to_string(), Value::Array(kept));
+    pruned_definition.insert("edges".to_string(), Value::Array(kept_edges));
+    pruned_definition.insert("entry".to_string(), Value::String(entry.to_string()));
+    let mut pruned = if wrapped {
+        let mut object = wrapper;
+        object.insert("workflow".to_string(), Value::Object(pruned_definition));
+        Value::Object(object)
+    } else {
+        Value::Object(pruned_definition)
+    };
+    if wrapped {
+        if let Some(bindings) = pruned
+            .get_mut("modelBindings")
+            .and_then(|wrapper| wrapper.get_mut("bindings"))
+            .and_then(Value::as_array_mut)
+        {
+            bindings.retain(|binding| {
+                binding
+                    .get("executionSlotId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|slot| slots.contains(slot))
+            });
+        }
+    }
+    // A document built from parsed JSON always serialises.
+    Ok(serde_json::to_string_pretty(&pruned).unwrap_or_default())
+}
+
+/// The id of a node object, when it has one.
+fn node_id(node: &Value) -> Option<String> {
+    node.get("id").and_then(Value::as_str).map(str::to_string)
+}
+
+/// The node ids reachable from `entry` by following every edge's `to`, with
+/// `$end` and ids the workflow does not declare ignored.
+fn reachable_from(ids: &[String], edges: &[Value], entry: &str) -> BTreeSet<String> {
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![entry.to_string()];
+    while let Some(id) = pending.pop() {
+        if id == END || !ids.contains(&id) {
+            continue;
+        }
+        if !reachable.insert(id.clone()) {
+            continue;
+        }
+        for edge in edges {
+            if edge.get("from").and_then(Value::as_str) != Some(id.as_str()) {
+                continue;
+            }
+            if let Some(to) = edge.get("to").and_then(Value::as_str) {
+                pending.push(to.to_string());
+            }
+        }
+    }
+    reachable
 }
 
 /// Gold Band's exit code for a printed run state: completed and success is 0, completed otherwise 1, paused 2, running 4.
@@ -508,11 +907,26 @@ pub fn prove(options: &ProveOptions) -> Result<Record, String> {
     let mut results = Vec::with_capacity(scenarios.len());
     for (index, spec) in scenarios.iter().enumerate() {
         let root = options.scratch.join(format!("{}-{}", index, spec.name));
+        let prepared = scenario_workflow(&text, &info, &workflow_path, spec, &root);
+        let (path, scenario_info) = match prepared {
+            Ok(pair) => pair,
+            Err(message) => {
+                results.push(ScenarioResult {
+                    name: spec.name.clone(),
+                    expected_exit: spec.expected_exit,
+                    exit_code: None,
+                    run_status: None,
+                    run_outcome: None,
+                    note: Some(message),
+                });
+                continue;
+            }
+        };
         results.push(run_scenario(
             gold_band,
-            &workflow_path,
+            &path,
             &root,
-            &info,
+            &scenario_info,
             &options.stub_exe,
             spec,
             options.timeout_secs,
@@ -544,6 +958,39 @@ fn scenario_list(info: &WorkflowInfo, extra: &[ScenarioSpec]) -> Vec<ScenarioSpe
         }
     }
     scenarios
+}
+
+/// The workflow file one scenario runs and the facts the stub needs for it: the
+/// whole workflow, or a pruned copy under the scenario's root that starts at the
+/// scenario's entry.
+pub fn scenario_workflow(
+    text: &str,
+    info: &WorkflowInfo,
+    whole: &Path,
+    spec: &ScenarioSpec,
+    root: &Path,
+) -> Result<(PathBuf, WorkflowInfo), String> {
+    let Some(entry) = spec.entry.as_deref() else {
+        return Ok((whole.to_path_buf(), info.clone()));
+    };
+    let pruned = prune(text, entry)?;
+    fs::create_dir_all(root).map_err(|error| {
+        format!(
+            "cannot create the scenario directory {}: {}",
+            root.display(),
+            error
+        )
+    })?;
+    let path = root.join(SEGMENT_FILE);
+    fs::write(&path, &pruned).map_err(|error| {
+        format!(
+            "cannot write the segment workflow {}: {}",
+            path.display(),
+            error
+        )
+    })?;
+    let pruned_info = inspect(&pruned)?;
+    Ok((path, pruned_info))
 }
 
 /// The settings document that makes every agent id of the workflow the stub,

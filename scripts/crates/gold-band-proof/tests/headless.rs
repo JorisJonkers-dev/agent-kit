@@ -22,6 +22,10 @@ fn workflow_b() -> PathBuf {
     manifest_dir().join("../../../installer/gold-band/workflows/workflow-b.json")
 }
 
+fn workflow_c() -> PathBuf {
+    manifest_dir().join("../../../installer/gold-band/workflows/workflow-c.json")
+}
+
 fn fixture() -> PathBuf {
     manifest_dir().join("tests/fixtures/fails-closed.json")
 }
@@ -122,6 +126,52 @@ fn workflow_b_ends_in_success_on_the_happy_path_and_in_failure_when_a_gate_fails
             "{stdout}"
         );
     }
+    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
+#[test]
+fn workflow_c_pauses_at_each_grill_round_and_finding_and_publishes_only_after_the_check() {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("workflow-c");
+    let output = prove(&workflow_c(), &records, &[], &gold_band);
+    let stdout = text(&output.stdout);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&output.stderr)
+    );
+    // Every pause is a manual check: the grill rounds, the needs-human
+    // findings and the publication check.
+    for scenario in [
+        "clean",
+        "needs-human",
+        "open-questions",
+        "after-grill-check-1.open-questions",
+        "after-grill-check-2.open-questions",
+        "after-spec-needs-human.needs-human",
+    ] {
+        assert!(
+            stdout.contains(&format!("{scenario}: expected exit 2, got 2 (paused/")),
+            "{scenario}: {stdout}"
+        );
+    }
+    // The publish gate is reachable only after publication-check.
+    assert!(
+        stdout
+            .contains("after-publication-check.clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "after-publication-check.gate-fail-workflow-c-publish: expected exit 1, got 1 (completed/failure)"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\n  gate-fail-workflow-c-publish:"),
+        "the publish gate is not reachable before the check: {stdout}"
+    );
     assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
 }
 

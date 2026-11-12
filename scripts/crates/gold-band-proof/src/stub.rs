@@ -4,9 +4,10 @@
 //! proof. It answers the ACP handshake, hands out sessions, offers a model
 //! picker and, on every prompt, streams one fenced json block back. What that
 //! block holds is the stub's [`Role`]: the findings document a critic answers
-//! with, `{"ok": true}` for a model node, the exit code a gate shim earned, or
-//! the report a copier shim verified. The verdict is a parameter, so the same
-//! stub proves the clean path, the needs-human path, the failing path and a
+//! with, `{"ok": true}` for a model node, the open questions a grill round
+//! asks, the exit code a gate shim earned, or the report a copier shim
+//! verified. The verdict is a parameter, so the same stub proves the clean
+//! path, the needs-human path, the open-questions path, the failing path and a
 //! failing gate.
 
 use std::cell::RefCell;
@@ -36,6 +37,9 @@ pub const REPORT_DIR_ENV: &str = "STUB_ACP_REPORT_DIR";
 /// The verdict that makes the stub report one major finding.
 pub const NEEDS_HUMAN: &str = "needs-human";
 
+/// The verdict that makes the stub ask one open question.
+pub const OPEN_QUESTIONS: &str = "open-questions";
+
 /// The verdict that makes the stub fail the prompt instead of answering it.
 pub const FAIL: &str = "fail";
 
@@ -55,6 +59,9 @@ pub enum Role {
     Findings,
     /// `{"ok": true}`, for a model node whose schema has no findings key.
     Answer,
+    /// The open questions a grill round asks, for a node whose schema has an
+    /// `open_questions` key.
+    Questions,
     /// A gate shim: run the gate wrapper and answer its exit code.
     Gate(String),
     /// A copier shim: run the verify and answer the report it prints.
@@ -68,6 +75,9 @@ impl Role {
         let text = text.trim();
         if text == "answer" {
             return Role::Answer;
+        }
+        if text == "questions" {
+            return Role::Questions;
         }
         if let Some(name) = text.strip_prefix("gate:").filter(|name| !name.is_empty()) {
             return Role::Gate(name.to_string());
@@ -83,6 +93,7 @@ impl Role {
         match self {
             Role::Findings => "findings".to_string(),
             Role::Answer => "answer".to_string(),
+            Role::Questions => "questions".to_string(),
             Role::Gate(name) => format!("gate:{}", name),
             Role::Copy(name) => format!("copy:{}", name),
         }
@@ -119,6 +130,28 @@ pub fn findings_document(verdict: &str) -> Value {
 /// The findings document for a verdict, wrapped in a json code fence.
 pub fn fenced_findings(verdict: &str) -> String {
     fenced(&findings_document(verdict))
+}
+
+/// The open questions document for a verdict: one question for
+/// `open-questions`, none for anything else. It also carries `ok`, so an agent
+/// id that serves a grill round and a plain answer node answers both.
+pub fn questions_document(verdict: &str) -> Value {
+    if verdict.trim() == OPEN_QUESTIONS {
+        json!({
+            "ok": true,
+            "open_questions": [{
+                "id": "stub-question-1",
+                "question": "The stub's open question: this is the marker a grill round's manual check puts in front of a person.",
+            }],
+        })
+    } else {
+        json!({ "ok": true, "open_questions": [] })
+    }
+}
+
+/// The open questions document for a verdict, wrapped in a json code fence.
+pub fn fenced_questions(verdict: &str) -> String {
+    fenced(&questions_document(verdict))
 }
 
 /// A JSON value as one fenced json block.
@@ -318,6 +351,7 @@ impl Stub {
         match &self.role {
             Role::Findings => fenced_findings(verdict),
             Role::Answer => fenced(&json!({ "ok": true })),
+            Role::Questions => fenced_questions(verdict),
             Role::Gate(name) => fenced(&self.gate_answer(verdict, name)),
             Role::Copy(name) => self.copy_answer(verdict, name),
         }

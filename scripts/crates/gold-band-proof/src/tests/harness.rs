@@ -5,11 +5,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::harness::{
     default_scenarios, exit_for_state, git_step, inspect, parse_run_state, parse_scenario, prepare,
-    prove, run_scenario, ProveOptions, ScenarioSpec, WorkflowInfo, SKIP_NO_BINARY,
+    prove, prune, run_scenario, scenario_workflow, walk, GraphEdge, GraphNode, ProveOptions,
+    ScenarioSpec, Walk, WorkflowInfo, SEGMENT_FILE, SKIP_NO_BINARY,
 };
 use crate::record::Outcome;
 use crate::stub::Role;
@@ -29,6 +30,42 @@ fn temp_dir(label: &str) -> PathBuf {
     dir
 }
 
+/// A graph node for the tests.
+fn node(id: &str, provider: Option<&str>, manual_check: bool) -> GraphNode {
+    GraphNode {
+        id: id.to_string(),
+        provider: provider.map(str::to_string),
+        manual_check,
+    }
+}
+
+/// A graph edge for the tests.
+fn edge(from: &str, to: &str, on: &str) -> GraphEdge {
+    GraphEdge {
+        from: from.to_string(),
+        to: to.to_string(),
+        on: on.to_string(),
+    }
+}
+
+/// A workflow graph for the walk and scenario tests: the nodes, the edges and
+/// the role of each agent id, starting at the first node.
+fn graph(nodes: Vec<GraphNode>, edges: Vec<GraphEdge>, roles: &[(&str, Role)]) -> WorkflowInfo {
+    let mut info = info();
+    info.entry = nodes
+        .first()
+        .map(|node| node.id.clone())
+        .unwrap_or_default();
+    info.has_manual_check = nodes.iter().any(|node| node.manual_check);
+    info.nodes = nodes;
+    info.edges = edges;
+    info.roles = roles
+        .iter()
+        .map(|(agent_id, role)| (agent_id.to_string(), role.clone()))
+        .collect();
+    info
+}
+
 fn info() -> WorkflowInfo {
     let mut agent_ids = BTreeSet::new();
     agent_ids.insert("vibe".to_string());
@@ -44,6 +81,9 @@ fn info() -> WorkflowInfo {
         profiles,
         has_manual_check: false,
         roles: BTreeMap::new(),
+        entry: "only".to_string(),
+        nodes: vec![node("only", Some("vibe"), false)],
+        edges: vec![edge("only", "$end", "success")],
     }
 }
 
@@ -52,6 +92,17 @@ fn spec(name: &str, verdict: &str, expected_exit: i32) -> ScenarioSpec {
         name: name.to_string(),
         verdict: verdict.to_string(),
         expected_exit,
+        entry: None,
+    }
+}
+
+/// A scenario that proves the stretch of the workflow after a manual check.
+fn segment_spec(name: &str, verdict: &str, expected_exit: i32, entry: &str) -> ScenarioSpec {
+    ScenarioSpec {
+        name: name.to_string(),
+        verdict: verdict.to_string(),
+        expected_exit,
+        entry: Some(entry.to_string()),
     }
 }
 
@@ -132,8 +183,24 @@ case "$verdict" in
 esac
 "#;
 
-const WORKFLOW: &str =
-    r#"{"workflow":{"id":"proof-test","nodes":[{"provider":"vibe","model":"m1","profile":"pf"}]}}"#;
+/// A workflow whose only default scenario is `clean`: one answer node that
+/// reaches `$end`, so no verdict but `clean` fails it.
+const WORKFLOW: &str = r#"{"workflow":{"id":"proof-test","entry":"only","nodes":[
+    {"id":"only","provider":"vibe","model":"m1","profile":"pf","output":{"kind":"json","schema":{"ok":true}}}
+],"edges":[{"from":"only","to":"$end","on":"success"}]}}"#;
+
+/// A workflow whose manual check sits off the clean path and leads on to
+/// another node, so the proof runs the whole workflow and then the stretch
+/// after the check, both expecting exit 0.
+const SEGMENT_WORKFLOW: &str = r#"{"workflow":{"id":"proof-test","entry":"start","nodes":[
+    {"id":"start","provider":"vibe","output":{"kind":"json","schema":{"ok":true}}},
+    {"id":"check","manual_check":true},
+    {"id":"after","provider":"vibe","output":{"kind":"json","schema":{"ok":true}}}
+],"edges":[
+    {"from":"start","to":"$end","on":"success"},
+    {"from":"check","to":"after","on":"success"},
+    {"from":"after","to":"$end","on":"success"}
+]}}"#;
 
 fn options(dir: &Path, gold_band: Option<PathBuf>) -> ProveOptions {
     ProveOptions {
@@ -302,15 +369,281 @@ fn inspect_rejects_a_workflow_without_an_id() {
 }
 
 #[test]
+fn inspect_reads_the_graph() {
+    let text = r#"{"workflow":{"id":"graph","entry":"start","nodes":[
+        {"id":"start","provider":"vibe"},
+        {"id":"check","manual_check":true},
+        {"provider":"no-id"}
+    ],"edges":[
+        {"from":"start","to":"check","on":"success"},
+        {"from":"check","to":"$end","on":"success"},
+        {"from":"start","to":"$end"},
+        {"from":"start","on":"success"},
+        {"to":"$end","on":"success"},
+        "not an edge"
+    ]}}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(info.entry, "start");
+    assert_eq!(
+        info.nodes,
+        vec![
+            node("start", Some("vibe"), false),
+            node("check", None, true)
+        ]
+    );
+    assert_eq!(
+        info.edges,
+        vec![
+            edge("start", "check", "success"),
+            edge("check", "$end", "success"),
+        ]
+    );
+}
+
+#[test]
+fn inspect_leaves_the_entry_empty_when_the_workflow_names_none() {
+    let info = inspect(r#"{"id":"noentry","nodes":[],"edges":5}"#).expect("inspected");
+    assert_eq!(info.entry, "");
+    assert!(info.nodes.is_empty());
+    assert!(info.edges.is_empty());
+}
+
+#[test]
+fn inspect_makes_an_open_questions_schema_the_questions_role() {
+    let text = r#"{"id":"questions","nodes":[
+        {"provider":"grill","output":{"schema":{"open_questions":[]}}},
+        {"provider":"both","output":{"schema":{"open_questions":[],"ok":true}}},
+        {"provider":"gate-build","output":{"schema":{"open_questions":[]}}},
+        {"provider":"copy-build","output":{"schema":{"open_questions":[]}}}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(info.roles["grill"], Role::Questions);
+    assert_eq!(info.roles["both"], Role::Questions);
+    assert_eq!(info.roles["gate-build"], Role::Gate("build".to_string()));
+    assert_eq!(info.roles["copy-build"], Role::Copy("build".to_string()));
+}
+
+#[test]
+fn walk_follows_success_edges_to_the_end() {
+    let info = graph(
+        vec![
+            node("a", Some("vibe"), false),
+            node("b", Some("vibe"), false),
+        ],
+        vec![edge("a", "b", "success"), edge("b", "$end", "success")],
+        &[("vibe", Role::Answer)],
+    );
+    assert_eq!(
+        walk(&info, "a", "clean"),
+        Walk {
+            exit: 0,
+            failed: None,
+            visited: vec!["a".to_string(), "b".to_string()],
+        }
+    );
+}
+
+#[test]
+fn walk_routes_a_failure_to_a_manual_check_and_exits_2() {
+    let info = graph(
+        vec![
+            node("verdicts", Some("vibe"), false),
+            node("check", None, true),
+        ],
+        vec![
+            edge("verdicts", "$end", "success"),
+            edge("verdicts", "check", "failure"),
+            edge("check", "$end", "success"),
+        ],
+        &[("vibe", Role::Findings)],
+    );
+    assert_eq!(
+        walk(&info, "verdicts", " needs-human "),
+        Walk {
+            exit: 2,
+            failed: Some("verdicts".to_string()),
+            visited: vec!["verdicts".to_string(), "check".to_string()],
+        }
+    );
+}
+
+#[test]
+fn walk_exits_1_when_a_failure_has_no_failure_edge() {
+    let info = graph(
+        vec![node("verdicts", Some("vibe"), false)],
+        vec![edge("verdicts", "$end", "success")],
+        &[("vibe", Role::Findings)],
+    );
+    // No failure edge: the node has no success condition to miss.
+    assert_eq!(walk(&info, "verdicts", "needs-human").exit, 0);
+    let info = graph(
+        vec![node("gate", Some("gate-x"), false)],
+        vec![edge("gate", "$end", "success")],
+        &[("gate-x", Role::Gate("x".to_string()))],
+    );
+    assert_eq!(
+        walk(&info, "gate", "gate-fail=x"),
+        Walk {
+            exit: 1,
+            failed: Some("gate".to_string()),
+            visited: vec!["gate".to_string()],
+        }
+    );
+}
+
+#[test]
+fn walk_exits_0_when_a_success_has_no_success_edge() {
+    let info = graph(vec![node("a", None, false)], Vec::new(), &[]);
+    assert_eq!(
+        walk(&info, "a", "clean"),
+        Walk {
+            exit: 0,
+            failed: None,
+            visited: vec!["a".to_string()],
+        }
+    );
+}
+
+#[test]
+fn walk_fails_a_questions_node_under_open_questions() {
+    let info = graph(
+        vec![node("grill", Some("vibe-study"), false)],
+        vec![
+            edge("grill", "$end", "success"),
+            edge("grill", "$end", "failure"),
+        ],
+        &[("vibe-study", Role::Questions)],
+    );
+    assert_eq!(walk(&info, "grill", "clean").exit, 0);
+    assert_eq!(walk(&info, "grill", "needs-human").exit, 0);
+    // A drafting node on the same agent has no failure edge and never fails.
+    let drafting = graph(
+        vec![node("draft", Some("vibe-study"), false)],
+        vec![edge("draft", "$end", "success")],
+        &[("vibe-study", Role::Questions)],
+    );
+    assert_eq!(walk(&drafting, "draft", "open-questions").exit, 0);
+    assert_eq!(
+        walk(&info, "grill", "open-questions"),
+        Walk {
+            exit: 1,
+            failed: Some("grill".to_string()),
+            visited: vec!["grill".to_string()],
+        }
+    );
+}
+
+#[test]
+fn walk_fails_a_copier_under_its_gate_failure() {
+    let info = graph(
+        vec![node("copy-build", Some("copy-build"), false)],
+        vec![edge("copy-build", "$end", "success")],
+        &[("copy-build", Role::Copy("build".to_string()))],
+    );
+    assert_eq!(walk(&info, "copy-build", "gate-fail=build").exit, 1);
+    assert_eq!(walk(&info, "copy-build", "gate-fail=lint").exit, 0);
+}
+
+#[test]
+fn walk_exits_1_when_the_entry_is_not_a_node() {
+    let info = graph(
+        vec![node("a", Some("vibe"), false)],
+        Vec::new(),
+        &[("vibe", Role::Answer)],
+    );
+    assert_eq!(
+        walk(&info, "absent", "clean"),
+        Walk {
+            exit: 1,
+            failed: None,
+            visited: Vec::new(),
+        }
+    );
+}
+
+#[test]
+fn walk_exits_1_when_a_cycle_hits_the_step_cap() {
+    let info = graph(
+        vec![
+            node("a", Some("vibe"), false),
+            node("b", Some("vibe"), false),
+        ],
+        vec![edge("a", "b", "success"), edge("b", "a", "success")],
+        &[("vibe", Role::Answer)],
+    );
+    let walked = walk(&info, "a", "clean");
+    assert_eq!(walked.exit, 1);
+    assert_eq!(walked.failed, None);
+    assert_eq!(walked.visited.len(), 1000);
+    assert_eq!(walked.visited.first().map(String::as_str), Some("a"));
+    assert_eq!(walked.visited.last().map(String::as_str), Some("b"));
+}
+
+#[test]
+fn walk_keeps_the_first_failed_node_and_every_visited_node() {
+    let info = graph(
+        vec![
+            node("first", Some("vibe"), false),
+            node("second", Some("vibe"), false),
+        ],
+        vec![
+            edge("first", "second", "failure"),
+            edge("second", "$end", "failure"),
+        ],
+        &[("vibe", Role::Findings)],
+    );
+    assert_eq!(
+        walk(&info, "first", "needs-human"),
+        Walk {
+            exit: 1,
+            failed: Some("first".to_string()),
+            visited: vec!["first".to_string(), "second".to_string()],
+        }
+    );
+}
+
+#[test]
 fn default_scenarios_without_a_manual_check() {
-    let scenarios = default_scenarios(&info());
-    assert_eq!(scenarios, vec![spec("clean", "clean", 0)]);
+    let mut info = info();
+    info.roles.insert("vibe".to_string(), Role::Answer);
+    assert_eq!(default_scenarios(&info), vec![spec("clean", "clean", 0)]);
+    // A node that never fails and no edge to follow still only proves `clean`.
+    info.edges.clear();
+    assert_eq!(default_scenarios(&info), vec![spec("clean", "clean", 0)]);
 }
 
 #[test]
 fn default_scenarios_with_a_manual_check() {
-    let mut info = info();
-    info.has_manual_check = true;
+    let info = graph(
+        vec![node("only", Some("vibe"), false), node("check", None, true)],
+        vec![
+            edge("only", "$end", "success"),
+            edge("only", "check", "failure"),
+            edge("check", "$end", "success"),
+        ],
+        &[("vibe", Role::Findings)],
+    );
+    assert!(info.has_manual_check);
+    // The check ends the run, so it starts no segment of its own.
+    assert_eq!(
+        default_scenarios(&info),
+        vec![
+            spec("clean", "clean", 0),
+            spec("needs-human", "needs-human", 2)
+        ]
+    );
+}
+
+#[test]
+fn default_scenarios_make_no_segment_after_a_manual_check_without_a_success_edge() {
+    let info = graph(
+        vec![node("only", Some("vibe"), false), node("check", None, true)],
+        vec![
+            edge("only", "$end", "success"),
+            edge("only", "check", "failure"),
+        ],
+        &[("vibe", Role::Findings)],
+    );
     assert_eq!(
         default_scenarios(&info),
         vec![
@@ -343,6 +676,106 @@ fn default_scenarios_ignore_a_copier_role() {
 }
 
 #[test]
+fn default_scenarios_add_open_questions_for_a_questions_node() {
+    let info = graph(
+        vec![node("grill", Some("vibe-study"), false)],
+        vec![
+            edge("grill", "$end", "success"),
+            edge("grill", "$end", "failure"),
+        ],
+        &[("vibe-study", Role::Questions)],
+    );
+    assert_eq!(
+        default_scenarios(&info),
+        vec![
+            spec("clean", "clean", 0),
+            spec("open-questions", "open-questions", 1),
+        ]
+    );
+}
+
+/// The graph the segment tests walk: a start gate, a verdicts node that routes
+/// a failure to a manual check and a success to the end, and the refute gate
+/// behind the check.
+fn segment_graph() -> WorkflowInfo {
+    graph(
+        vec![
+            node("start", Some("gate-start"), false),
+            node("verdicts", Some("vibe"), false),
+            node("check", None, true),
+            node("refute", Some("gate-refute"), false),
+        ],
+        vec![
+            edge("start", "verdicts", "success"),
+            edge("verdicts", "$end", "success"),
+            edge("verdicts", "check", "failure"),
+            edge("check", "refute", "success"),
+            edge("refute", "$end", "success"),
+        ],
+        &[
+            ("gate-start", Role::Gate("start".to_string())),
+            ("gate-refute", Role::Gate("refute".to_string())),
+            ("vibe", Role::Findings),
+        ],
+    )
+}
+
+#[test]
+fn default_scenarios_walk_the_whole_workflow_and_the_stretch_after_a_manual_check() {
+    assert_eq!(
+        default_scenarios(&segment_graph()),
+        vec![
+            spec("clean", "clean", 0),
+            spec("needs-human", "needs-human", 2),
+            spec("gate-fail-start", "gate-fail=start", 1),
+            segment_spec("after-check.clean", "clean", 0, "refute"),
+            segment_spec(
+                "after-check.gate-fail-refute",
+                "gate-fail=refute",
+                1,
+                "refute"
+            ),
+        ]
+    );
+}
+
+#[test]
+fn default_scenarios_give_a_gate_the_first_segment_walks_its_own_scenario() {
+    let info = graph(
+        vec![
+            node("start", Some("gate-start"), false),
+            node("verdicts", Some("vibe"), false),
+            node("check", None, true),
+            node("refute", Some("gate-refute"), false),
+        ],
+        vec![
+            edge("start", "verdicts", "success"),
+            edge("verdicts", "refute", "success"),
+            edge("verdicts", "check", "failure"),
+            edge("check", "refute", "success"),
+            edge("refute", "$end", "success"),
+        ],
+        &[
+            ("gate-start", Role::Gate("start".to_string())),
+            ("gate-refute", Role::Gate("refute".to_string())),
+            ("vibe", Role::Findings),
+        ],
+    );
+    // The refute gate sits on the first segment's success path too, so it is
+    // proved there, and the segment after the check does not prove it again.
+    assert_eq!(
+        default_scenarios(&info),
+        vec![
+            spec("clean", "clean", 0),
+            spec("needs-human", "needs-human", 2),
+            spec("gate-fail-refute", "gate-fail=refute", 1),
+            spec("gate-fail-start", "gate-fail=start", 1),
+            segment_spec("after-check.clean", "clean", 0, "refute"),
+        ]
+    );
+}
+
+#[test]
 fn parse_scenario_reads_a_spec() {
     assert_eq!(
         parse_scenario("clean:clean:0").expect("parsed"),
@@ -355,6 +788,14 @@ fn parse_scenario_reads_a_spec() {
     assert_eq!(
         parse_scenario("a.b_c-1:fail:1").expect("parsed"),
         spec("a.b_c-1", "fail", 1)
+    );
+}
+
+#[test]
+fn parse_scenario_reads_the_open_questions_verdict() {
+    assert_eq!(
+        parse_scenario("questions:open-questions:2").expect("parsed"),
+        spec("questions", "open-questions", 2)
     );
 }
 
@@ -422,6 +863,111 @@ fn parse_scenario_rejects_an_unknown_verdict() {
 fn parse_scenario_rejects_an_exit_that_is_not_an_integer() {
     let message = parse_scenario("clean:clean:zero").expect_err("rejected");
     assert!(message.contains("not an integer"), "{}", message);
+}
+
+/// A wrapper workflow with a branch the entry cannot reach, a node without an
+/// id and a binding without a slot.
+const PRUNE_WORKFLOW: &str = r#"{"description":"keep me","workflow":{"id":"prune","entry":"a","nodes":[
+    {"id":"a","executionSlotId":"slot-a","provider":"vibe"},
+    {"id":"b","executionSlotId":"slot-b","provider":"vibe"},
+    {"id":"c","executionSlotId":"slot-c","provider":"agy"},
+    {"provider":"no-id"}
+],"edges":[
+    {"from":"a","to":"b","on":"success"},
+    {"from":"b","to":"$end","on":"success"},
+    {"from":"c","to":"a","on":"success"}
+]},"modelBindings":{"bindings":[
+    {"executionSlotId":"slot-a","agentId":"vibe"},
+    {"executionSlotId":"slot-b","agentId":"vibe"},
+    {"executionSlotId":"slot-c","agentId":"agy"},
+    {"agentId":"unslotted"}
+]}}"#;
+
+#[test]
+fn prune_keeps_only_what_the_entry_reaches() {
+    let pruned: Value =
+        serde_json::from_str(&prune(PRUNE_WORKFLOW, "a").expect("pruned")).expect("json");
+    assert_eq!(pruned["description"], "keep me");
+    assert_eq!(pruned["workflow"]["id"], "prune");
+    assert_eq!(pruned["workflow"]["entry"], "a");
+    let ids: Vec<&str> = pruned["workflow"]["nodes"]
+        .as_array()
+        .expect("nodes")
+        .iter()
+        .map(|node| node["id"].as_str().expect("every kept node has an id"))
+        .collect();
+    assert_eq!(ids, vec!["a", "b"]);
+    assert_eq!(
+        pruned["workflow"]["edges"],
+        json!([
+            {"from": "a", "to": "b", "on": "success"},
+            {"from": "b", "to": "$end", "on": "success"}
+        ])
+    );
+    let slots: Vec<&str> = pruned["modelBindings"]["bindings"]
+        .as_array()
+        .expect("bindings")
+        .iter()
+        .map(|binding| binding["executionSlotId"].as_str().expect("slot"))
+        .collect();
+    assert_eq!(slots, vec!["slot-a", "slot-b"]);
+}
+
+#[test]
+fn prune_keeps_a_bare_definition_bare() {
+    let text = r#"{"id":"bare","entry":"a","nodes":[{"id":"a"},{"id":"b"}],"edges":[{"from":"a","to":"b","on":"success"}]}"#;
+    let pruned: Value = serde_json::from_str(&prune(text, "b").expect("pruned")).expect("json");
+    assert!(pruned.get("workflow").is_none());
+    assert_eq!(pruned["id"], "bare");
+    assert_eq!(pruned["entry"], "b");
+    assert_eq!(pruned["nodes"], json!([{"id": "b"}]));
+    assert_eq!(pruned["edges"], json!([]));
+}
+
+#[test]
+fn prune_treats_a_wrapper_that_is_not_an_object_as_bare() {
+    let text = r#"{"workflow":5,"id":"top","nodes":[{"id":"a"}],"edges":[]}"#;
+    let pruned: Value = serde_json::from_str(&prune(text, "a").expect("pruned")).expect("json");
+    assert_eq!(pruned["workflow"], json!(5));
+    assert_eq!(pruned["id"], "top");
+    assert_eq!(pruned["entry"], "a");
+    assert_eq!(pruned["nodes"], json!([{"id": "a"}]));
+}
+
+#[test]
+fn prune_keeps_a_wrapper_whose_bindings_it_cannot_read() {
+    for bindings in ["", r#","modelBindings":{"bindings":7}"#] {
+        let text = format!(
+            r#"{{"workflow":{{"id":"w","entry":"a","nodes":[{{"id":"a"}}],"edges":[]}}{}}}"#,
+            bindings
+        );
+        let pruned: Value =
+            serde_json::from_str(&prune(&text, "a").expect("pruned")).expect("json");
+        assert_eq!(pruned["workflow"]["entry"], "a", "{}", bindings);
+        assert_eq!(pruned["workflow"]["nodes"], json!([{"id": "a"}]));
+    }
+}
+
+#[test]
+fn prune_rejects_an_entry_that_is_not_a_node() {
+    assert_eq!(
+        prune(PRUNE_WORKFLOW, "absent"),
+        Err("the entry `absent` is not a node of the workflow".to_string())
+    );
+}
+
+#[test]
+fn prune_rejects_a_document_that_is_not_an_object() {
+    assert_eq!(
+        prune("[1,2]", "a"),
+        Err("the entry `a` is not a node of the workflow".to_string())
+    );
+}
+
+#[test]
+fn prune_rejects_text_that_is_not_json() {
+    let message = prune("not json", "a").expect_err("rejected");
+    assert!(message.contains("is not valid JSON"), "{}", message);
 }
 
 #[test]
@@ -1118,6 +1664,80 @@ fn prove_fails_on_a_workflow_without_an_id() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// A fake gold-band that appends the arguments of every run to `args` and
+/// reports a clean run.
+fn args_fake(dir: &Path) -> (PathBuf, PathBuf) {
+    let args = dir.join("args");
+    let body = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> {}\nprintf '{{\"status\":\"completed\",\"outcome\":\"success\"}}\\n'\nexit 0\n",
+        args.display()
+    );
+    (fake(dir, &body), args)
+}
+
+#[test]
+fn prove_runs_a_segment_from_a_pruned_copy_of_the_workflow() {
+    let dir = temp_dir("prove-segment");
+    let (gold_band, args) = args_fake(&dir);
+    let mut options = options(&dir, Some(gold_band));
+    options.workflow = workflow_file(&dir, SEGMENT_WORKFLOW);
+    let record = prove(&options).expect("proved");
+    assert_eq!(record.outcome, Outcome::Passed);
+    let names: Vec<&str> = record
+        .scenarios
+        .iter()
+        .map(|scenario| scenario.name.as_str())
+        .collect();
+    assert_eq!(names, vec!["clean", "after-check.clean"]);
+
+    let runs = fs::read_to_string(&args).expect("arguments read");
+    let runs: Vec<&str> = runs.lines().collect();
+    assert_eq!(runs.len(), 2, "{:?}", runs);
+    let whole = fs::canonicalize(&options.workflow).expect("canonical workflow");
+    assert!(
+        runs[0].contains(&format!("--workflow {}", whole.display())),
+        "{}",
+        runs[0]
+    );
+    let segment = options.scratch.join("1-after-check.clean/segment.json");
+    assert!(
+        runs[1].contains(&format!("--workflow {}", segment.display())),
+        "{}",
+        runs[1]
+    );
+    let pruned: Value =
+        serde_json::from_str(&fs::read_to_string(&segment).expect("segment read")).expect("json");
+    assert_eq!(pruned["workflow"]["entry"], "after");
+    assert_eq!(
+        pruned["workflow"]["nodes"],
+        json!([{"id": "after", "provider": "vibe", "output": {"kind": "json", "schema": {"ok": true}}}])
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn prove_notes_a_segment_whose_entry_is_not_a_node() {
+    let dir = temp_dir("prove-segment-absent");
+    let gold_band = fake(&dir, CLEAN_FAKE);
+    let mut options = options(&dir, Some(gold_band));
+    options.extra_scenarios = vec![segment_spec("segment", "clean", 0, "absent")];
+    let record = prove(&options).expect("proved");
+    assert_eq!(record.outcome, Outcome::Failed);
+    let names: Vec<&str> = record
+        .scenarios
+        .iter()
+        .map(|scenario| scenario.name.as_str())
+        .collect();
+    assert_eq!(names, vec!["clean", "segment"]);
+    assert_eq!(record.scenarios[0].exit_code, Some(0));
+    assert_eq!(record.scenarios[1].exit_code, None);
+    assert_eq!(
+        record.scenarios[1].note.as_deref(),
+        Some("the entry `absent` is not a node of the workflow")
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn inspect_keeps_agents_that_name_no_model() {
     let info = crate::harness::inspect(
@@ -1141,4 +1761,61 @@ fn inspect_keeps_a_node_without_a_provider_out_of_the_agents() {
         vec!["a".to_string()]
     );
     assert!(info.has_manual_check);
+}
+
+#[test]
+fn prune_follows_a_cycle_once() {
+    let workflow = r#"{"id":"loop","entry":"a","nodes":[{"id":"a"},{"id":"b"}],"edges":[
+        {"from":"a","to":"b","on":"success"},
+        {"from":"b","to":"a","on":"failure"},
+        {"from":"b","to":"$end","on":"success"}
+    ]}"#;
+    let pruned: Value = serde_json::from_str(&prune(workflow, "a").expect("pruned")).expect("json");
+    assert_eq!(pruned["nodes"].as_array().expect("nodes").len(), 2);
+    assert_eq!(pruned["edges"].as_array().expect("edges").len(), 3);
+}
+
+#[test]
+fn scenario_workflow_names_a_directory_it_cannot_create() {
+    let dir = temp_dir("segment-no-dir");
+    let blocker = dir.join("file");
+    fs::write(&blocker, "x").expect("blocker");
+    let spec = ScenarioSpec {
+        name: "after-check.clean".to_string(),
+        verdict: "clean".to_string(),
+        expected_exit: 0,
+        entry: Some("a".to_string()),
+    };
+    let text = r#"{"id":"w","entry":"a","nodes":[{"id":"a"}],"edges":[]}"#;
+    let error = scenario_workflow(
+        text,
+        &info(),
+        &dir.join("w.json"),
+        &spec,
+        &blocker.join("sub"),
+    )
+    .expect_err("the directory cannot be created");
+    assert!(
+        error.contains("cannot create the scenario directory"),
+        "{error}"
+    );
+}
+
+#[test]
+fn scenario_workflow_names_a_file_it_cannot_write() {
+    let dir = temp_dir("segment-no-file");
+    fs::create_dir_all(dir.join(SEGMENT_FILE)).expect("a directory where the file goes");
+    let spec = ScenarioSpec {
+        name: "after-check.clean".to_string(),
+        verdict: "clean".to_string(),
+        expected_exit: 0,
+        entry: Some("a".to_string()),
+    };
+    let text = r#"{"id":"w","entry":"a","nodes":[{"id":"a"}],"edges":[]}"#;
+    let error = scenario_workflow(text, &info(), &dir.join("w.json"), &spec, &dir)
+        .expect_err("the file cannot be written");
+    assert!(
+        error.contains("cannot write the segment workflow"),
+        "{error}"
+    );
 }

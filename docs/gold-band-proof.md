@@ -21,6 +21,7 @@ a temporary directory:
   | Role | Agent id | The stub answers |
   | --- | --- | --- |
   | `findings` | anything else | the findings document for the verdict |
+  | `questions` | a node whose `output.schema` has an `open_questions` key | `{"open_questions": []}`, or one open question under the verdict `open-questions` |
   | `answer` | a node whose `output.schema` is an object without a `findings` key | `{"ok": true}` |
   | `gate:<name>` | `gate-<name>` | `{"exit_code": N}`, the exit code `gold-band-gate run` earned |
   | `copy:<name>` | `copy-<name>` | the gate report `gold-band-gate verify` printed, or a report-shaped refusal carrying its exit code |
@@ -43,9 +44,31 @@ mapping: completed and success is 0, completed otherwise 1, paused 2).
 
 | Scenario | Stub verdict | Expected exit | Added when |
 | --- | --- | --- | --- |
-| `clean` | empty findings | 0 | always |
-| `needs-human` | one major finding | 2 (paused; the printed run state names the paused node) | the workflow has a `manual_check` node |
-| `gate-fail-<name>` | the gate's command fails | 1 | the workflow has a `gate-<name>` agent, one scenario per gate, sorted by name |
+| `clean` | empty findings, no open questions | from the walk (0, or 2 when a manual check is reached) | always |
+| `needs-human` | one major finding | from the walk (2 when a failure edge leads to a manual check) | a findings node is reached |
+| `open-questions` | one open question | from the walk | a questions node is reached |
+| `gate-fail-<name>` | the gate's command fails | from the walk (1 without a failure edge) | the workflow has a `gate-<name>` agent that the segment reaches, one scenario per gate, sorted by name |
+
+The expected exit code comes from walking the workflow graph under the
+scenario's verdict (`harness::walk`): a node fails when its stub does (a gate or
+copier named by `gate-fail=`, a findings node under `needs-human`, a questions
+node under `open-questions`), the walk follows the edge for the outcome, a
+manual check pauses (2), a missing edge ends the run (0 after success, 1 after
+failure) and `$end` ends it. A scenario is added only when it fails a node, so
+a gate that sits behind a pause is not claimed by the first segment, and a failure of a node that an earlier segment already proved is not run again in a later one.
+
+### Segments
+
+A paused run cannot be continued headlessly (`gold-band continue` refuses a run
+that waits for user input), so what lies after a manual check would never run.
+For each manual-check node with a `success` edge to another node, the harness
+also proves the stretch after it: it writes a pruned copy of the workflow under
+the scenario's directory as `segment.json` (the nodes reachable from that edge's
+target, their edges and bindings, `entry` set to the target; Gold Band refuses a
+node that is unreachable from the entry) and runs the same scenarios against it,
+named `after-<manual check id>.<scenario>`. The first segment keeps the plain
+names. Each segment starts from nothing, so a gate and its copier must lie in the
+same segment, which a workflow gets by never putting a manual check between them.
 
 More scenarios come from `--scenario NAME:VERDICT:EXIT` (verdicts: `clean`,
 `needs-human`, `fail`, `gate-fail=NAME`; `fail` makes the stub answer a prompt
