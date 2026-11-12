@@ -711,6 +711,34 @@ def _pinned_guard(block: list[str], market: str, name: str, indent: str) -> list
     ]
 
 
+def _overlay_roots_block(indent: str) -> list[str]:
+    """Shell that fills ``overlay_roots`` with ``--root PATH`` for the work overlay's code-nav roots.
+
+    Only a machine whose overlay file exists does anything. The overlay is
+    validated by gold_band_instances (the gold-band-registry crate underneath),
+    and a refusal or a missing validator leaves the personal roots alone, said
+    out loud, so a bad overlay never widens or blocks the registration.
+    """
+    lines = [
+        "overlay_roots=()",
+        'overlay_file="${HOME}/.config/agent-kit/overlay.yaml"',
+        'if [ -f "${overlay_file}" ]; then',
+        "  if overlay_out=$(uv run --no-project --exclude-newer \"7 days\" --with pyyaml python \\",
+        '      "${KIT_ROOT}/scripts/gold_band_instances.py" code-nav-roots \\',
+        '      --registry "${KIT_ROOT}/registry/estate-tooling.yaml" --overlay "${overlay_file}" 2>&1); then',
+        "    while IFS= read -r overlay_root; do",
+        '      [ -n "${overlay_root}" ] && overlay_roots+=(--root "${overlay_root}")',
+        '    done <<< "${overlay_out}"',
+        '    [ "${#overlay_roots[@]}" = 0 ] \\',
+        '      || ok "code-nav: $(( ${#overlay_roots[@]} / 2 )) work overlay root(s) applied"',
+        "  else",
+        '    warn "code-nav: the work overlay was not applied (${overlay_out})"',
+        "  fi",
+        "fi",
+    ]
+    return [f"{indent}{line}" for line in lines]
+
+
 def _cloud_guard(block: list[str], item: dict[str, Any], indent: str) -> list[str]:
     """Wrap a rendered block so `--cloud` skips an entry marked `cloud: false`."""
     if on_cloud(item):
@@ -4787,6 +4815,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b(f'{indent}  command -v {binary} >/dev/null 2>&1 \\')
             b(f'{indent}    || warn "{name}: {binary} is not on PATH; skipping"')
             b(f"{indent}fi")
+        extra = ""
+        if server.get("overlay_roots"):
+            if server["transport"] != "stdio":
+                raise RegistryError(f"mcp server {name}: overlay_roots only applies to a stdio server")
+            extra = ' ${overlay_roots[@]+"${overlay_roots[@]}"}'
+            for line in _overlay_roots_block(indent):
+                b(line)
         # --- Claude Code ---
         b(f"{indent}if command -v claude >/dev/null 2>&1; then")
         b(f'{indent}  run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
@@ -4803,7 +4838,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             # Name BEFORE the --env flags: claude 2.x rejects the redeclared
             # order (`--env K=V` then the name) with "missing required argument
             # 'commandOrUrl'". Verified against claude 2.1.267.
-            add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip()
+            add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip() + extra
         b(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
         b(f'{indent}    ok "{name} registered (claude)"')
         b(f"{indent}  else")
@@ -4830,7 +4865,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             else:
                 args = " ".join(server.get("args") or [])
                 env_flags = _mcp_env_flags(server, credential, optional_cred)
-                add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip()
+                add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip() + extra
             b(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
         b(f'{indent}    ok "{name} registered (codex)"')
         b(f"{indent}  else")

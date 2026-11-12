@@ -2149,6 +2149,10 @@ mcp_servers:
     purpose: Read-only search, outline, expand and a ranked repository map over the live working tree of the personal repositories.
     command: code-nav
     args: ["--root", "~/Projects/JorisJonkers-dev"]
+    # Setup adds the work overlay's roots to the Claude and Codex
+    # registrations (instances.gold-band.mcp_servers.code-nav), never to a
+    # generated file.
+    overlay_roots: true
     timeout: 60
     surfaces: [workstation]
     cloud: false
@@ -2161,7 +2165,8 @@ mcp_servers:
       A read level server: it writes nothing and opens no socket, so every
       agent id can use it. The roots here are personal only; work roots
       belong in the work machine's overlay under
-      instances.gold-band.mcp_servers.code-nav and never in this file.
+      instances.gold-band.mcp_servers.code-nav and never in this file;
+      setup appends them to the Claude and Codex registrations there.
 
   - name: github
     transport: http
