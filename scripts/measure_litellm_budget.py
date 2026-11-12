@@ -23,6 +23,7 @@ Exit status: 0 the fields printed, 1 the proxy refused or answered unusably,
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import re
@@ -71,13 +72,14 @@ def credential(name: str, env: Mapping[str, str], secret: Path = SECRET) -> str:
     if not value:
         try:
             done = subprocess.run([sys.executable, str(secret), "get", name],
-                                  capture_output=True, text=True, check=False, timeout=30)
+                                  capture_output=True, text=True, check=False, timeout=30,
+                                  stdin=subprocess.DEVNULL)
             value = done.stdout.strip() if done.returncode == 0 else ""
         except subprocess.TimeoutExpired:
             value = ""
     if not value:
         raise Failure(f"{name} is not set and not in the secret store; run setup and paste it", 2)
-    if not SAFE.match(value):
+    if not SAFE.fullmatch(value):
         raise Failure(f"{name} has characters a header cannot carry safely", 2)
     return value
 
@@ -107,11 +109,11 @@ def measure(agent: str, url: str | None, env: Mapping[str, str], routes: Path = 
     shown = (f"GET {target}\n  Authorization: Bearer <{route['edge_env']}, redacted>\n"
              f"  {route['header']}: Bearer <{route['key_env']}, redacted>")
     try:
-        with urllib.request.build_opener(_NoRedirect).open(request, timeout=TIMEOUT_S) as response:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect).open(request, timeout=TIMEOUT_S) as response:
             body = json.loads(response.read())
     except urllib.error.HTTPError as e:
         raise Failure(f"{shown}\nthe proxy answered HTTP {e.code}", 1) from None
-    except (urllib.error.URLError, OSError, ValueError) as e:
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as e:
         raise Failure(f"{shown}\nno usable answer from the proxy ({type(e).__name__})", 1) from None
     info = body.get("info") if isinstance(body, dict) else None
     if not isinstance(info, dict):
@@ -129,6 +131,9 @@ def main(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None
     except Failure as e:
         print(f"measure-litellm-budget: {e}", file=sys.stderr)
         return e.code
+    except (OSError, ValueError, KeyError) as e:  # a missing route table, a bad url, a store that will not run
+        print(f"measure-litellm-budget: {type(e).__name__}", file=sys.stderr)
+        return 2
     print(f"request:\n  {shown}")
     print("budget:")
     for name, value in fields.items():

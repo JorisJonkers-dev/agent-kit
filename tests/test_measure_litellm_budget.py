@@ -153,3 +153,17 @@ def test_an_unsafe_value_is_refused_without_echo() -> None:
     with pytest.raises(measure.Failure) as raised:
         measure.credential("NAME", {"NAME": "bad value\r\nx: y"})
     assert "bad value" not in str(raised.value)
+
+
+def test_a_missing_route_table_is_a_usage_failure_not_a_traceback(monkeypatch, capsys) -> None:
+    def missing(agent, routes=None):  # noqa: ANN001
+        raise FileNotFoundError
+
+    monkeypatch.setattr(measure, "route_for", missing)
+    assert measure.main([], ENV) == 2
+    assert "FileNotFoundError" in capsys.readouterr().err
+
+
+def test_a_trailing_newline_is_not_safe() -> None:
+    with pytest.raises(measure.Failure):
+        measure.credential("NAME", {"NAME": "abc\n"})
