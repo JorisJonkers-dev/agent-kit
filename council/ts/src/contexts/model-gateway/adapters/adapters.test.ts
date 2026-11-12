@@ -1009,8 +1009,8 @@ describe('NodeModelGatewayGrants', () => {
     const config = join(root, 'config')
     const grants = new NodeModelGatewayGrants(new FakeEnv({ HOME: root, XDG_CONFIG_HOME: config }), new NodeModelGatewayGit())
     const written = grant()
-    // Resolved before the call starts: awaiting inside the expect() arguments would leave the
-    // already-rejecting promise without a handler, which vitest reports as an unhandled rejection.
+    // Resolved before the call starts: awaiting inside the .toThrow() arguments would let the
+    // already-running promise reject with no handler attached, which vitest reports as unhandled.
     const expected = new RegExp(
       `${join(config, 'agent-kit', 'model-gateway-grants.json')} is inside the git repository ${await realpath(root)}: a grant lives in the machine configuration, never in a repository`,
     )
