@@ -185,9 +185,9 @@ fn write_refuses_a_checkout_it_cannot_keep_hooks_out_of() {
 
 /// Each argument is one attempt, in order, and sets its bit in the exit code
 /// when it worked: `w:PATH` truncates or creates a file, `rm:PATH` deletes
-/// one, `mv:PATH` renames it, `ln:PATH` makes a symlink beside it, and
-/// `e:PATH` sets its bit when a write fails with "Permission denied", the
-/// operating-system error. A `rm:` target must exist.
+/// one, `mv:PATH` renames it, `hl:PATH` makes a hard link beside it, `hx:SRC|DST` hard links SRC as DST, `sl:TARGET|LINK` makes that symlink, `wl:PATH` appends to it, `ln:PATH` makes a symlink beside it, and
+/// `e:PATH` sets its bit when a write fails with "Permission denied" (Landlock) or
+/// "Operation not permitted" (Seatbelt), the operating-system error. A `rm:` target must exist.
 const STUB: &str = r#"#!/bin/sh
 mask=0
 bit=1
@@ -195,9 +195,13 @@ for a in "$@"; do
   p="${a#*:}"
   case "$a" in
     w:*) ( : > "$p" ) 2>/dev/null && mask=$((mask + bit)) ;;
-    e:*) case "$( ( : > "$p" ) 2>&1 )" in *"Permission denied"*) mask=$((mask + bit)) ;; esac ;;
+    e:*) case "$( ( : > "$p" ) 2>&1 )" in *"Permission denied"*|*"Operation not permitted"*) mask=$((mask + bit)) ;; esac ;;
     rm:*) rm -f -- "$p" 2>/dev/null; [ -e "$p" ] || mask=$((mask + bit)) ;;
     mv:*) mv -- "$p" "$p.moved" 2>/dev/null && mask=$((mask + bit)) ;;
+    hl:*) ln -- "$p" "$p.hard" 2>/dev/null && mask=$((mask + bit)) ;;
+    hx:*) ln -- "${p%%|*}" "${p#*|}" 2>/dev/null && mask=$((mask + bit)) ;;
+    sl:*) ln -s -- "${p%%|*}" "${p#*|}" 2>/dev/null && mask=$((mask + bit)) ;;
+    wl:*) ( echo x >> "$p" ) 2>/dev/null && mask=$((mask + bit)) ;;
     ln:*) ln -s x "$p.link" 2>/dev/null && mask=$((mask + bit)) ;;
   esac
   bit=$((bit * 2))
@@ -207,6 +211,7 @@ exit $mask
 
 /// Starts the stub at `level` and returns its exit code (the bitmask above).
 fn attempt(dir: &Path, level: &str, output: &Path, context: &Context, ops: &[String]) -> i32 {
+    let host = crate::this_os();
     let _held = fake_exe::lock();
     let stub = dir.join("stub");
     fake_exe::write_executable(&_held, &stub, STUB);
@@ -217,7 +222,7 @@ fn attempt(dir: &Path, level: &str, output: &Path, context: &Context, ops: &[Str
     let mut ids = String::from("ids:\n");
     for l in LEVELS {
         record += &format!("      {l}: {{support: {{linux: verified, mac: verified}}}}\n");
-        ids += &format!("  stub-{l}:\n    agent: stub\n    reach: {l}\n    hosts: [linux]\n");
+        ids += &format!("  stub-{l}:\n    agent: stub\n    reach: {l}\n    hosts: [{host}]\n");
         if l == "research" || l == "write-scoped" {
             ids += &format!("    output_dir: {}\n", output.display());
         }
@@ -231,7 +236,7 @@ fn attempt(dir: &Path, level: &str, output: &Path, context: &Context, ops: &[Str
         "--".into(),
     ];
     argv.extend(ops.iter().map(OsString::from));
-    run_with(argv, "linux", &Landlock, context)
+    run_with(argv, crate::this_os(), &*native(), context)
 }
 
 fn context(t: &Tree) -> Context {
@@ -246,7 +251,7 @@ fn ops(items: &[&Path]) -> Vec<String> {
     items.iter().map(|p| format!("w:{}", p.display())).collect()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn read_levels_cannot_write_outside_their_temporary_directory() {
     let t = tree("k-read");
@@ -264,7 +269,7 @@ fn read_levels_cannot_write_outside_their_temporary_directory() {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn output_levels_write_only_their_output_directory() {
     let t = tree("k-output");
@@ -281,7 +286,7 @@ fn output_levels_write_only_their_output_directory() {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn run_one_command_writes_only_its_gate_directory() {
     let t = tree("k-gate");
@@ -299,7 +304,7 @@ fn run_one_command_writes_only_its_gate_directory() {
     );
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn write_changes_the_worktree_but_not_hooks_or_config() {
     let t = tree("k-write");
@@ -343,7 +348,7 @@ fn write_changes_the_worktree_but_not_hooks_or_config() {
     assert!(!t.common.join("hooks/post-commit").exists() && !t.common.join("config.lock").exists());
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn full_writes_anywhere() {
     let t = tree("k-full");
@@ -351,7 +356,7 @@ fn full_writes_anywhere() {
     assert_eq!(attempt(&t.root, "full", &t.root, &context(&t), &ops), 0b11);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn write_in_a_primary_checkout_is_refused_and_nothing_starts() {
     let t = tree("k-primary");
@@ -364,9 +369,10 @@ fn write_in_a_primary_checkout_is_refused_and_nothing_starts() {
 
 // A real git commit works under `write`, and the hook and config are out of reach.
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn git_commits_in_a_worktree_but_cannot_install_hooks_or_change_config() {
+    let host = crate::this_os();
     let _held = fake_exe::lock();
     let root = scratch("git");
     let git = |dir: &Path, args: &[&str]| {
@@ -428,7 +434,7 @@ fn git_commits_in_a_worktree_but_cannot_install_hooks_or_change_config() {
             &format!("#!/bin/sh\ncd {}\n{script}", worktree.display()),
         );
         let yaml = format!(
-            "agents:\n  a:\n    command: [{}]\n    levels:\n      write: {{support: {{linux: verified, mac: verified}}}}\nids:\n  a-write:\n    agent: a\n    reach: write\n    hosts: [linux]\n",
+            "agents:\n  a:\n    command: [{}]\n    levels:\n      write: {{support: {{linux: verified, mac: verified}}}}\nids:\n  a-write:\n    agent: a\n    reach: write\n    hosts: [{host}]\n",
             sh.display()
         );
         let file = root.join("reach.yaml");
@@ -439,7 +445,7 @@ fn git_commits_in_a_worktree_but_cannot_install_hooks_or_change_config() {
                 file.into_os_string(),
                 "a-write".into(),
             ],
-            "linux",
+            host,
             &Landlock,
             &c,
         )
@@ -449,6 +455,213 @@ fn git_commits_in_a_worktree_but_cannot_install_hooks_or_change_config() {
         "exit 1/2: a commit failed under the limit; 3: config was changed; 4: a hook was installed"
     );
     assert!(!main.join(".git/hooks/pre-commit").exists());
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn links_and_renames_cannot_reach_hooks_config_or_the_git_directories() {
+    let t = tree("k-links");
+    let hook = t.common.join("hooks/pre-commit");
+    let config = t.common.join("config");
+    let w = &t.worktree;
+    let attempts: Vec<String> = vec![
+        // A hard link to a protected file, made inside the worktree.
+        format!("hx:{}|{}", hook.display(), w.join("h").display()),
+        format!("hx:{}|{}", config.display(), w.join("c").display()),
+        // Creates its own file when the link was refused; the hook stays as it was.
+        format!("wl:{}", w.join("h").display()),
+        // A symlink is made, but a write through it lands on the hook.
+        format!("sl:{}|{}", hook.display(), w.join("s").display()),
+        format!("wl:{}", w.join("s").display()),
+        // A parent of the worktree, and the shared git directory, cannot be renamed.
+        format!("mv:{}", t.root.join("main").display()),
+        format!("mv:{}", t.common.display()),
+    ];
+    assert_eq!(
+        attempt(&t.root, "write", &t.root, &context(&t), &attempts),
+        0b000_1100,
+        "only the symlink itself and the new file h may be made"
+    );
+    assert_eq!(fs::read_to_string(&hook).unwrap(), "#!/bin/sh\n");
+    assert_eq!(
+        fs::read_to_string(&config).unwrap(),
+        "[core]\n\tbare = false\n"
+    );
+    assert!(t.common.exists() && !t.root.join("main.moved").exists());
+    let more: Vec<String> = [
+        &t.worktree,
+        &t.admin,
+        &t.common.join("refs"),
+        &t.common.join("objects"),
+        &t.common.join("logs"),
+    ]
+    .iter()
+    .map(|p| format!("mv:{}", p.display()))
+    .collect();
+    assert_eq!(
+        attempt(&t.root, "write", &t.root, &context(&t), &more),
+        0,
+        "no granted directory can be moved away"
+    );
+    assert!(t.worktree.exists() && t.admin.exists());
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn the_files_that_locate_the_git_directory_cannot_be_changed_at_all() {
+    let t = tree("k-pointers");
+    let pointer = t.worktree.join(".git");
+    let attempts: Vec<String> = vec![
+        format!("w:{}", pointer.display()),
+        format!("rm:{}", pointer.display()),
+        format!("mv:{}", pointer.display()),
+        format!("w:{}", t.admin.join("commondir").display()),
+        format!("rm:{}", t.admin.join("commondir").display()),
+        format!("w:{}", t.admin.join("gitdir").display()),
+    ];
+    let before = fs::read(&pointer).unwrap();
+    // 0 also means the launcher found nothing to put back.
+    assert_eq!(
+        attempt(&t.root, "write", &t.root, &context(&t), &attempts),
+        0
+    );
+    assert_eq!(fs::read(&pointer).unwrap(), before);
+    assert_eq!(
+        fs::read_to_string(t.admin.join("commondir")).unwrap(),
+        "../..\n"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_hooks_path_outside_the_worktree_cannot_be_written() {
+    let t = tree("k-hookspath");
+    let hooks = t.root.join("shared-hooks");
+    fs::create_dir_all(&hooks).unwrap();
+    fs::write(
+        t.common.join("config"),
+        format!("[core]\n\thooksPath = {}\n", hooks.display()),
+    )
+    .unwrap();
+    // The agent may not add a hook there, though the directory is beside its worktree.
+    let attempts = ops(&[&hooks.join("pre-commit"), &t.worktree.join("f")]);
+    assert_eq!(
+        attempt(&t.root, "write", &t.root, &context(&t), &attempts),
+        0b10
+    );
+    assert!(!hooks.join("pre-commit").exists());
+}
+
+// The launcher with a backend that wraps the command.
+
+/// A `sandbox-exec` stand-in: accepts and logs the probe, then for the real
+/// start skips the profile options and runs the command.
+const FAKE_SANDBOX_EXEC: &str = r#"#!/bin/sh
+while [ "$1" = -p ] || [ "$1" = -D ]; do shift 2; done
+case "$1" in
+  /usr/bin/true) exit 0 ;;
+esac
+echo wrapped >> "$WRAP_LOG"
+exec "$@"
+"#;
+
+#[test]
+fn a_wrapping_backend_starts_the_agent_through_its_prefix() {
+    let t = tree("k-wrapped");
+    let held = fake_exe::lock();
+    let wrapper = t.root.join("sandbox-exec");
+    fake_exe::write_executable(&held, &wrapper, FAKE_SANDBOX_EXEC);
+    let stub = t.root.join("stub");
+    fake_exe::write_executable(&held, &stub, "#!/bin/sh\necho \"$@\" > \"$OUT\"\n");
+    let log = t.root.join("wrap.log");
+    let out = t.root.join("out.txt");
+    std::env::set_var("WRAP_LOG", &log);
+    std::env::set_var("OUT", &out);
+    let host = crate::this_os();
+    let yaml = format!(
+        "agents:\n  a:\n    command: [{}, first]\n    levels:\n      read: {{support: {{linux: verified, mac: verified}}}}\nids:\n  a-read:\n    agent: a\n    reach: read\n    hosts: [{host}]\n",
+        stub.display()
+    );
+    let file = t.root.join("reach.yaml");
+    fs::write(&file, yaml).unwrap();
+    let code = run_with(
+        [
+            OsString::from("run"),
+            file.into_os_string(),
+            "a-read".into(),
+            "--".into(),
+            "second".into(),
+        ],
+        host,
+        &SandboxExec::at(&wrapper),
+        &context(&t),
+    );
+    std::env::remove_var("WRAP_LOG");
+    std::env::remove_var("OUT");
+    assert_eq!(code, 0);
+    assert_eq!(fs::read_to_string(&log).unwrap(), "wrapped\n");
+    assert_eq!(fs::read_to_string(&out).unwrap(), "first second\n");
+}
+
+#[test]
+fn the_launcher_refuses_to_start_without_sandbox_exec() {
+    let t = tree("k-no-sandbox-exec");
+    let marker = t.root.join("marker");
+    let held = fake_exe::lock();
+    let stub = t.root.join("stub");
+    fake_exe::write_executable(&held, &stub, STUB);
+    let host = crate::this_os();
+    let yaml = format!(
+        "agents:\n  a:\n    command: [{}]\n    levels:\n      read: {{support: {{linux: verified, mac: verified}}}}\nids:\n  a-read:\n    agent: a\n    reach: read\n    hosts: [{host}]\n",
+        stub.display()
+    );
+    let file = t.root.join("reach.yaml");
+    fs::write(&file, yaml).unwrap();
+    let code = run_with(
+        [
+            OsString::from("run"),
+            file.into_os_string(),
+            "a-read".into(),
+            "--".into(),
+            format!("w:{}", marker.display()).into(),
+        ],
+        host,
+        &SandboxExec::at(t.root.join("missing/sandbox-exec")),
+        &context(&t),
+    );
+    assert_eq!(code, 1);
+    assert!(!marker.exists(), "the agent must not have started");
+}
+
+#[test]
+fn the_write_policy_denies_the_hooks_and_config_git_uses() {
+    let t = tree("denied");
+    let hooks = t.root.join("elsewhere");
+    fs::write(
+        t.common.join("config"),
+        format!("[core]\n\thooksPath = {}\n", hooks.display()),
+    )
+    .unwrap();
+    let policy = policy_for("write", &scope(&t)).unwrap().unwrap();
+    assert_eq!(
+        policy.denied,
+        vec![t.common.join("hooks"), t.common.join("config"), hooks]
+    );
+}
+
+#[test]
+fn a_backend_for_no_os_refuses_and_the_native_one_exists() {
+    assert!(Unsupported
+        .prepare(&Policy::default())
+        .err()
+        .unwrap()
+        .contains("no write-limit backend"));
+    // The backend for this OS answers; on the supported OSes an empty policy is accepted.
+    let answer = native().prepare(&Policy::default());
+    assert_eq!(
+        answer.is_ok(),
+        cfg!(target_os = "linux") || cfg!(target_os = "macos")
+    );
 }
 
 // The launcher with a backend that cannot hold the limit.
@@ -461,16 +674,17 @@ impl WriteLimit for Unavailable {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn the_launcher_refuses_to_start_when_the_backend_is_unavailable() {
     let t = tree("k-unavailable");
     let marker = t.root.join("out/marker");
+    let host = crate::this_os();
     let _held = fake_exe::lock();
     let stub = t.root.join("stub");
     fake_exe::write_executable(&_held, &stub, STUB);
     let yaml = format!(
-        "agents:\n  a:\n    command: [{}]\n    levels:\n      research: {{support: {{linux: verified, mac: verified}}}}\n      full: {{support: {{linux: verified, mac: verified}}}}\nids:\n  a-research:\n    agent: a\n    reach: research\n    output_dir: {}\n    hosts: [linux]\n  a-full:\n    agent: a\n    reach: full\n    hosts: [linux]\n",
+        "agents:\n  a:\n    command: [{}]\n    levels:\n      research: {{support: {{linux: verified, mac: verified}}}}\n      full: {{support: {{linux: verified, mac: verified}}}}\nids:\n  a-research:\n    agent: a\n    reach: research\n    output_dir: {}\n    hosts: [{host}]\n  a-full:\n    agent: a\n    reach: full\n    hosts: [{host}]\n",
         stub.display(),
         t.root.join("out").display()
     );
@@ -485,7 +699,7 @@ fn the_launcher_refuses_to_start_when_the_backend_is_unavailable() {
                 "--".into(),
                 format!("w:{}", marker.display()).into(),
             ],
-            "linux",
+            host,
             &Unavailable,
             &context(&t),
         )
@@ -502,7 +716,7 @@ fn the_launcher_refuses_to_start_when_the_backend_is_unavailable() {
     assert!(marker.exists());
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn a_run_that_cannot_make_its_directories_is_refused() {
     let t = tree("k-mkdir");
@@ -540,7 +754,7 @@ fn the_child_hook_arms_the_limit() {
     assert!(crate::child_hook(Box::new(Fine))().is_ok());
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn a_write_outside_the_allowed_paths_fails_with_the_operating_system_error() {
     let t = tree("k-errno");
@@ -565,11 +779,12 @@ fn redirecting_git_is_undone_and_reported() {
         "mkdir -p {f}/hooks; echo x > {f}/hooks/pre-commit; echo {f} > {a}/commondir; rm -f {w}/.git; mkdir {w}/.git; echo y > {w}/.git/config",
         f = fake.display(), a = t.admin.display(), w = t.worktree.display()
     );
+    let host = crate::this_os();
     let _held = fake_exe::lock();
     let stub = t.root.join("redirect");
     fake_exe::write_executable(&_held, &stub, &format!("#!/bin/sh\n{script}\n"));
     let yaml = format!(
-        "agents:\n  a:\n    command: [{}]\n    levels:\n      write: {{support: {{linux: verified, mac: verified}}}}\nids:\n  a-write:\n    agent: a\n    reach: write\n    hosts: [linux]\n",
+        "agents:\n  a:\n    command: [{}]\n    levels:\n      write: {{support: {{linux: verified, mac: verified}}}}\nids:\n  a-write:\n    agent: a\n    reach: write\n    hosts: [{host}]\n",
         stub.display()
     );
     let file = t.root.join("reach.yaml");
@@ -580,8 +795,8 @@ fn redirecting_git_is_undone_and_reported() {
             file.into_os_string(),
             "a-write".into(),
         ],
-        "linux",
-        &Landlock,
+        host,
+        &*native(),
         &context(&t),
     );
     assert_eq!(code, 1, "tampering is reported");
@@ -688,7 +903,7 @@ fn the_run_directory_is_new_and_private() {
     assert!(crate::private_dir(&dir.join("run/x"), &made).is_err());
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn a_run_whose_temporary_directory_cannot_be_made_is_refused() {
     let t = tree("k-notemp");
@@ -892,7 +1107,11 @@ fn git_config_files_follow_home_and_xdg() {
     assert_eq!(crate::configs_in(None, None), vec![etc.clone()]);
     assert_eq!(
         crate::configs_in(p("/h"), None),
-        vec![etc.clone(), "/h/.gitconfig".into(), "/h/.config/git/config".into()]
+        vec![
+            etc.clone(),
+            "/h/.gitconfig".into(),
+            "/h/.config/git/config".into()
+        ]
     );
     assert_eq!(
         crate::configs_in(p("/h"), p("/x")),

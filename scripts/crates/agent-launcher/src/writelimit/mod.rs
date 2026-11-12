@@ -1,13 +1,15 @@
 //! The operating-system write limit (ADR-0013): the second layer under a reach
 //! level's tool configuration. One interface, [`WriteLimit`], with one backend
 //! per OS; this file holds the interface, the table of writable paths per
-//! reach level ([`policy_for`]) and the Linux backend ([`Landlock`]), which
-//! calls the kernel's Landlock syscalls directly through libc.
+//! reach level ([`policy_for`]), the Linux backend ([`Landlock`]), which calls
+//! the kernel's Landlock syscalls directly through libc, and the macOS backend
+//! ([`SandboxExec`]), which starts the agent under `sandbox-exec`.
 //!
 //! The limit never restricts reads or the network. When the backend for this
 //! OS is not available the launcher refuses to start the agent; it never runs
 //! it without the limit.
 
+use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -20,6 +22,13 @@ pub trait Arm: Send + Sync {
     /// Restricts the calling process. It only makes syscalls, so it is safe
     /// between fork and exec.
     fn arm(&self) -> io::Result<()>;
+
+    /// A command that starts the agent under the limit instead: its program
+    /// and leading arguments, with the agent's own command appended. Empty
+    /// when the limit is put on the process itself (see [`Arm::arm`]).
+    fn prefix(&self) -> Vec<OsString> {
+        Vec::new()
+    }
 }
 
 /// A write-limit backend.
@@ -41,6 +50,11 @@ pub struct Policy {
     /// them out of a grant, so the launcher puts them back if the agent
     /// changes them (see [`Guard`]).
     pub guarded: Vec<PathBuf>,
+    /// Paths (and everything beneath them) git runs or reads its settings
+    /// from, the shared `hooks` and `config` and every effective
+    /// `core.hooksPath`. A backend that can deny inside a grant (`sandbox-exec`)
+    /// must keep writes out of them; they lie outside every grant already.
+    pub denied: Vec<PathBuf>,
 }
 
 /// What the guarded files held before the agent ran.
@@ -121,6 +135,7 @@ pub fn policy_for(level: &str, scope: &Scope) -> Result<Option<Policy>, String> 
     }
     dirs.push(scope.temp_dir.clone());
     let mut guarded = Vec::new();
+    let mut denied = Vec::new();
     match level {
         "full" => return Ok(None),
         "read" | "read-web" => {}
@@ -129,9 +144,10 @@ pub fn policy_for(level: &str, scope: &Scope) -> Result<Option<Policy>, String> 
         }
         "run-one-command" => dirs.push(need(&scope.gate_dir, level, "a gate-output directory")?),
         "write" => {
-            let (more, files) = worktree_dirs(&scope.worktree, &scope.other_configs)?;
-            dirs.extend(more);
-            guarded = files;
+            let layout = worktree_dirs(&scope.worktree, &scope.other_configs)?;
+            dirs.extend(layout.dirs);
+            guarded = layout.guarded;
+            denied = layout.denied;
         }
         other => {
             return Err(format!(
@@ -148,6 +164,7 @@ pub fn policy_for(level: &str, scope: &Scope) -> Result<Option<Policy>, String> 
         dirs,
         files,
         guarded,
+        denied,
     }))
 }
 
@@ -156,15 +173,19 @@ fn need(dir: &Option<PathBuf>, level: &str, what: &str) -> Result<PathBuf, Strin
         .ok_or_else(|| format!("reach level {level} needs {what}"))
 }
 
+/// What `write` gets in a linked worktree.
+struct Layout {
+    dirs: Vec<PathBuf>,
+    guarded: Vec<PathBuf>,
+    denied: Vec<PathBuf>,
+}
+
 /// The directories `write` may change in a linked git worktree: the worktree,
 /// its own git administration directory, and the shared object, ref and log
 /// directories, but never the shared `hooks` or `config`. Landlock only grants,
 /// so a primary checkout (whose `.git` directory holds hooks and config beside
 /// everything else) cannot be limited and is refused.
-fn worktree_dirs(
-    worktree: &Path,
-    other_configs: &[PathBuf],
-) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String> {
+fn worktree_dirs(worktree: &Path, other_configs: &[PathBuf]) -> Result<Layout, String> {
     let root = fs::canonicalize(worktree)
         .map_err(|e| format!("write: cannot resolve worktree {}: {e}", worktree.display()))?;
     let dot_git = root.join(".git");
@@ -251,6 +272,7 @@ fn worktree_dirs(
             protected.push(dirs[0].join(expand_home(&path)));
         }
     }
+    let mut denied = Vec::new();
     for path in protected {
         let real = match fs::canonicalize(&path) {
             Ok(real) => real,
@@ -273,9 +295,14 @@ fn worktree_dirs(
                 grant.display()
             ));
         }
+        denied.push(real);
     }
     let guarded = vec![dot_git, admin.join("commondir"), admin.join("gitdir")];
-    Ok((dirs, guarded))
+    Ok(Layout {
+        dirs,
+        guarded,
+        denied,
+    })
 }
 
 /// Every `hooksPath` value in a git config. Keys are matched
@@ -305,15 +332,26 @@ mod landlock;
 #[cfg(target_os = "linux")]
 pub use landlock::Landlock;
 
-/// The stand-in backend on an OS that has none yet: it always refuses.
-#[cfg(not(target_os = "linux"))]
-pub struct Landlock;
+mod sandbox_exec;
+pub use sandbox_exec::SandboxExec;
 
-#[cfg(not(target_os = "linux"))]
-impl WriteLimit for Landlock {
+/// The backend for an OS that has none: it always refuses.
+pub struct Unsupported;
+
+impl WriteLimit for Unsupported {
     fn prepare(&self, _policy: &Policy) -> Result<Armed, String> {
-        Err("this OS has no write-limit backend yet".into())
+        Err("this OS has no write-limit backend".into())
     }
+}
+
+/// The backend for the OS this was built for.
+pub fn native() -> Box<dyn WriteLimit> {
+    #[cfg(target_os = "linux")]
+    return Box::new(Landlock);
+    #[cfg(target_os = "macos")]
+    return Box::new(SandboxExec::system());
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    return Box::new(Unsupported);
 }
 
 #[cfg(test)]
