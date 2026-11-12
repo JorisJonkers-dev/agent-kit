@@ -453,7 +453,7 @@ container_base:
     UV_TOOL_BIN_DIR: /usr/local/bin
     UV_PYTHON_INSTALL_DIR: /opt/uv/python
     PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
-  readable_paths: [/opt/uv, /ms-playwright]
+  readable_paths: [/opt/uv, /ms-playwright, /opt/kotlin-lsp, /opt/jdtls]
   # Needed to add the apt repositories below.
   apt_bootstrap: [ca-certificates, curl, gnupg]
   apt_repositories:
@@ -705,6 +705,26 @@ clis:
         curl -fsSL -o /usr/local/bin/mise
         "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}"
         && chmod 755 /usr/local/bin/mise
+
+  - name: oras
+    binary: oras
+    purpose: >-
+      OCI artifact client. The in-cluster runner fetches the agent-kit
+      runtime-home with it, so the agents image keeps it.
+    surfaces: [container]
+    install: null
+    version_command: "oras version"
+    container:
+      datasource: github-releases
+      package: "oras-project/oras"
+      version: "v1.3.6"
+      install: >-
+        base="https://github.com/oras-project/oras/releases/download/${VERSION}"
+        && archive="oras_${VERSION#v}_linux_${DEB_ARCH}.tar.gz"
+        && curl -fsSL -o "/tmp/${archive}" "${base}/${archive}"
+        && curl -fsSL "${base}/oras_${VERSION#v}_checksums.txt" | grep " ${archive}$" | (cd /tmp && sha256sum -c -)
+        && tar -xzf "/tmp/${archive}" -C /usr/local/bin oras
+        && rm -f "/tmp/${archive}"
 
   - name: ast-grep
     binary: ast-grep
@@ -993,6 +1013,25 @@ language_servers:
       && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"
     languages: [kotlin]
     enabled: true
+    # JetBrains publishes one tarball per architecture under a path that carries
+    # the version; the arm64 one adds `-aarch64`. The tarball bundles its own
+    # runtime, and its build.txt names the version the link points at.
+    container:
+      datasource: github-releases
+      package: "Kotlin/kotlin-lsp"
+      version: "263.7084.0"
+      install: >-
+        base="https://download.jetbrains.com/language-server/kotlin-server/${VERSION}"
+        && case "${DEB_ARCH}" in amd64) suffix="" ;; arm64) suffix="-aarch64" ;; esac
+        && archive="kotlin-server-${VERSION}${suffix}.tar.gz"
+        && curl -fsSL -o "/tmp/${archive}" "${base}/${archive}"
+        && printf '%s */tmp/%s\n' "$(curl -fsSL "${base}/${archive}.sha256" | cut -d' ' -f1)" "${archive}" | sha256sum -c -
+        && rm -rf /opt/kotlin-lsp && mkdir -p /opt/kotlin-lsp
+        && tar -xzf "/tmp/${archive}" -C /opt/kotlin-lsp --strip-components=1
+        && rm -f "/tmp/${archive}"
+        && ln -sf /opt/kotlin-lsp/kotlin-lsp.sh /usr/local/bin/kotlin-lsp
+      binary: kotlin-lsp
+      version_command: 'cat /opt/kotlin-lsp/build.txt'
   - plugin: jdtls-lsp
     binary: jdtls
     install: "brew install jdtls"
@@ -1006,6 +1045,25 @@ language_servers:
     nixos: jdt-language-server
     languages: [java]
     enabled: true
+    # A milestone's file name carries a build timestamp, which the milestone's
+    # own latest.txt names, so one pin (the milestone) derives the URL. The
+    # launcher is a Python script that runs the JDK in container_base.
+    container:
+      datasource: github-tags
+      package: "eclipse-jdtls/eclipse.jdt.ls"
+      version: "1.63.0"
+      install: >-
+        base="https://download.eclipse.org/jdtls/milestones/${VERSION}"
+        && archive="$(curl -fsSL "${base}/latest.txt")"
+        && curl -fsSL -o "/tmp/${archive}" "${base}/${archive}"
+        && printf '%s */tmp/%s\n' "$(curl -fsSL "${base}/${archive}.sha256" | cut -d' ' -f1)" "${archive}" | sha256sum -c -
+        && rm -rf /opt/jdtls && mkdir -p /opt/jdtls
+        && tar -xzf "/tmp/${archive}" -C /opt/jdtls
+        && rm -f "/tmp/${archive}"
+        && ln -sf /opt/jdtls/bin/jdtls /usr/local/bin/jdtls
+      binary: jdtls
+      # The core plugin's file name carries the milestone and a build timestamp.
+      version_command: "ls /opt/jdtls/plugins/org.eclipse.jdt.ls.core_*.jar | sed -E 's#.*core_([0-9]+[.][0-9]+[.][0-9]+)[.].*#\\1#'"
   - plugin: ruby-lsp
     binary: ruby-lsp
     install: "gem install ruby-lsp"

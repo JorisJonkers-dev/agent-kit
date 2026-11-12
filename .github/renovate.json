@@ -80,6 +80,18 @@
       "allowedVersions": "<7"
     },
     {
+      "description": "kotlin-lsp releases are tagged kotlin-lsp/v<version>; the pin is the bare version.",
+      "matchFileNames": ["registry/estate-tooling.yaml"],
+      "matchDepNames": ["Kotlin/kotlin-lsp"],
+      "extractVersion": "^kotlin-lsp/v(?<version>.+)$"
+    },
+    {
+      "description": "jdtls milestones are tagged v<version>; the pin is the bare version.",
+      "matchFileNames": ["registry/estate-tooling.yaml"],
+      "matchDepNames": ["eclipse-jdtls/eclipse.jdt.ls"],
+      "extractVersion": "^v(?<version>.+)$"
+    },
+    {
       "description": "A marketplace pin bump automerges once every check passes. Marketplace Pin Review fails one that adds a hook, an MCP or LSP server, or a script, which holds it for a person.",
       "matchDepTypes": ["marketplace-pin"],
       "groupName": null,
