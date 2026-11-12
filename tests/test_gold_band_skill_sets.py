@@ -426,7 +426,7 @@ NO_SKILL_MD = {
     [
         (
             lambda r: r["gold_band"]["agents"][0].update(skill_set=3),
-            "opencode: skill_set must be a set name",
+            "opencode: skill_set must be a set name or a list of set names",
             None,
         ),
         (

@@ -106,12 +106,17 @@ def test_ids_that_name_no_set_get_none_and_the_direct_lane_copies_are_unchanged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     direct = [KIT_ROOT / "skills" / group / skill for group in ("workstation", "repo") for skill in GENERAL + ESTATE]
-    before = [_tree(path) for path in direct if path.is_dir()]
-    assert before
+    assert [path for path in direct if not path.is_dir()] == [
+        path for path in direct if path.parts[-2] == "repo" and path.name.startswith("estate-")
+    ]
+    direct = [path for path in direct if path.is_dir()]
+    before = [_tree(path) for path in direct]
     settings = _converge(tmp_path, monkeypatch)
-    assert [_tree(path) for path in direct if path.is_dir()] == before
+    assert [_tree(path) for path in direct] == before
     agents = json.loads(settings.read_text())["agents"]
-    assert "claude" not in agents or not (settings.parent / "skill-sets" / "claude").exists()
+    assert "claude" in agents
+    assert not (settings.parent / "skill-sets" / "claude").exists()
+    assert agents["claude"]["primaryAgentDir"] == ".claude-personal"
     assert sorted(p.name for p in (settings.parent / "skill-sets").iterdir()) == ["opencode", "vibe", "vibe-study"]
     for agent_id, entry in agents.items():
         assert ("skill_set" in entry) is False
