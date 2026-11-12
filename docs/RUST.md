@@ -373,7 +373,7 @@ inside a root, and when the backend cannot apply the limit. Landlock cannot
 deny a read, so on Linux, which holds no employer clones, a declared root is
 refused. `agent-launcher read-limit-check` exits 0 when no read limit is needed
 (the overlay names no work instance) or `sandbox-exec` can apply it, and 1 with
-the reason otherwise; setup runs it before converging the personal instance.
+the reason otherwise; setup runs it on the work Mac and fails the run when it does not pass.
 `tests/personal_read_limit.rs` proves the refusal on the `Rust Tests (macos)`
 job.
 
