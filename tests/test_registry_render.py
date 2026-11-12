@@ -845,6 +845,10 @@ def test_renovate_tracks_every_container_pin() -> None:
         (t["datasource"], t["package"], t["version"])
         for t in [*render_registry.container_tools(_registry()), *render_registry.workstation_pins(_registry())]
     }
+    # A pinned_npm CLI (Pi) carries its own `datasource: npm` lines.
+    for cli in _registry()["clis"]:
+        for pin in (cli.get("pinned_npm") or {}).get("packages", []):
+            expected.add((pin["datasource"], pin["package"], pin["version"]))
     assert found == expected
 
 

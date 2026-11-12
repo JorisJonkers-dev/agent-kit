@@ -336,6 +336,24 @@ gold_band:
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
+    # Pi, through its pinned `pi-acp` adapter (clis: pi). Not the app's
+    # built-in `pi-acp` id, whose command the app re-injects as a fetching
+    # launch; this id's adapter command is the installed binary's ABSOLUTE
+    # path (`command_from_binary`, resolved when setup converges), so Gold Band
+    # never downloads Pi at launch. Pi has no permission prompts: the clis
+    # entry records it throwaway-repositories-only. Not on PATH: skipped.
+    - id: pi
+      binary: pi-acp
+      command_from_binary: true
+      adapter:
+        displayName: Pi
+        env: {}
+      icon: pi
+      primaryAgentDir: .pi
+      compatibleAgentDirs: [.agents]
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
   # Per-agent skill sets: a set name to the local skills it holds, each a
   # `name` in `local_skills:` below. An agent names one with `skill_set:`,
   # which is registry-only and never written to settings.json: setup builds
@@ -566,6 +584,38 @@ clis:
     update: "uv tool upgrade --exclude-newer \"7 days\" mistral-vibe"
     version_command: "vibe --version"
     requires: [uv]
+
+  - name: pi
+    binary: pi-acp
+    purpose: >-
+      Pi coding agent and its ACP adapter, installed pinned rather than
+      latest (issue #337): npm's install scripts are off, and a release
+      cutoff computed at setup time -- now minus 7 days, UTC -- makes npm
+      resolve every package, transitive ones included, as the registry stood
+      at that moment. Setup refuses a pin published inside that window, and
+      prints the installed binary's absolute path for the Gold Band
+      declaration.
+    surfaces: [workstation]
+    # Gold Band's personal instance is a workstation thing; a cloud host skips it.
+    cloud: false
+    # Pi has no permission prompts: it runs every tool call without asking,
+    # so it may only ever run inside a throwaway repository. This flag is the
+    # registry's record of that decision (Gold Band's settings.json has no
+    # field for it); the renderer refuses a Pi entry without it.
+    throwaway_only: true
+    # The pinned npm install. Setup generates the whole step from this block
+    # -- the release cutoff, the publish-time age check, --ignore-scripts --
+    # so this entry names no install command of its own.
+    pinned_npm:
+      packages:
+        # `datasource: npm` lines let Renovate's registry manager bump each
+        # pin (npm tags are bare versions, so no extractVersion rule).
+        - datasource: npm
+          package: "@earendil-works/pi-coding-agent"
+          version: "1.5.0"
+        - datasource: npm
+          package: "pi-acp"
+          version: "0.0.34"
 
   - name: antigravity-cli
     binary: agy

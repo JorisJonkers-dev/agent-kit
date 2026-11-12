@@ -257,6 +257,60 @@ run. A macOS app that ships as a Homebrew cask names `cask:` instead:
 - Both keys are `clis:` keys only. The renderer rejects them on a plugin,
   language server, MCP server, skill source or local skill.
 
+## A CLI installed from pinned npm packages
+
+A `clis:` entry can install pinned npm packages instead of a floating
+`install:`/`update:` pair. Give it a `pinned_npm:` block naming the exact
+packages and versions, and `binary:` as usual -- that is the binary whose
+absolute path setup prints at the end of the step:
+
+```yaml
+- name: pi
+  binary: pi-acp
+  surfaces: [workstation]
+  throwaway_only: true
+  pinned_npm:
+    packages:
+      - datasource: npm
+        package: "@earendil-works/pi-coding-agent"
+        version: "1.5.0"
+      - datasource: npm
+        package: "pi-acp"
+        version: "0.0.34"
+```
+
+- Presence is each pin, the way an `install_pinned` MCP server checks its own:
+  setup runs `npm ls -g --depth=0 <pkg>@<version>` for every package and
+  installs only when one is missing.
+- Setup installs ONE command line for the whole block:
+  `npm install -g --ignore-scripts --before=<cutoff> <every pin>`. Install
+  scripts are off (`--ignore-scripts`), and the cutoff is computed at setup
+  time as now minus 7 days, UTC: npm's `--before` resolves every package --
+  transitive ones included -- as the registry stood at that moment, so
+  nothing published in the last 7 days can install (issue #337; the same
+  discipline as the 7-day crate cooldown, standards ADR-0014).
+- Before installing, setup checks each pin's own publish time
+  (`npm view <pkg>@<version> time --json`) against the same cutoff. A pin
+  younger than 7 days fails the step and installs nothing, and so does a pin
+  whose publish time cannot be proven: the step fails closed, the way
+  crate-age does.
+- Each pin must also publish a `sha512` tarball digest (`npm view <pkg>@<version>
+  dist.integrity`); npm verifies every download against it, and a pin with none
+  fails the step. The digest is not copied into the registry, so Renovate can
+  bump a pin without leaving a stale checksum behind. npm goes through the
+  package proxy when `package-proxy-merge.py` has written the npmrc.
+- `datasource: npm` on each pin lets the registry's Renovate manager bump it
+  (npm tags are bare versions, so no `extractVersion` rule is needed).
+- After the install, setup resolves the entry's `binary` to its absolute
+  installed path (`npm prefix -g` + `/bin/<binary>`) and prints it. Without
+  npm on PATH the step is skipped and says so. The Gold Band agent `pi`
+  (`gold_band.agents`) sets `command_from_binary: true`, which makes converge
+  write the adapter command as the absolute path of the installed `binary`;
+  nothing is fetched at launch, and a machine without it skips and reports Pi.
+- `throwaway_only: true` records that the CLI may run only inside throwaway
+  repositories. Pi is why the field exists (it runs with no permission
+  prompts), and the renderer refuses a Pi entry without it.
+
 ## A first-party skill whose directory is not written yet
 
 A `local_skills:` entry can be registered before the issue that writes the
