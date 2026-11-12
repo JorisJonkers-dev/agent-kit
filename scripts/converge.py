@@ -45,7 +45,8 @@ Usage::
         --keep PATH --declared-markets NAME,... --declared-plugins ID,... \\
         --retired-markets NAME,... --retired-plugins ID,... [--check]
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
-        --keep PATH [--settings PATH] [--instance ID] [--overlay PATH] [--registry PATH] [--kit DIR] [--skills-root DIR] [--check]
+        --keep PATH [--settings PATH] [--instance ID] [--overlay PATH] [--registry PATH] [--kit DIR] \\
+        [--skills-root DIR] [--check]
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py \\
         gold-band-roles --keep PATH [--profiles DIR] [--registry PATH] [--critique DIR] [--closing PATH] [--check]
 """
@@ -65,10 +66,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import gold_band_instances
 import tomlkit
 import yaml
-
-import gold_band_instances
 
 DECLARED_SOURCES = ("plugin:",)
 
