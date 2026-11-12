@@ -20,6 +20,12 @@ agents go even when the keep file names them. An agent that names a
 ``skill_set`` also gets one skill directory of its own, holding exactly that
 set's skills, and its entry points at it.
 
+On the work instance (``--instance gold-band``) ``--overlay PATH`` also applies the
+per-machine overlay's ``instances.gold-band``: its ``settings`` are set at their
+dotted paths in settings.json and its ``mcp_servers`` become ``contextServers``
+entries. The overlay is validated by the gold-band-registry crate first and
+refused whole when it fails; it is read, never copied into the registry.
+
 ``gold-band-roles``: the ``context/profiles`` directory of the same instance,
 one Markdown profile per role the registry declares, rendered from the critique
 skill's own role, prompt, schema and lens files. A profile the registry does not
@@ -39,7 +45,7 @@ Usage::
         --keep PATH --declared-markets NAME,... --declared-plugins ID,... \\
         --retired-markets NAME,... --retired-plugins ID,... [--check]
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
-        --keep PATH [--settings PATH] [--registry PATH] [--kit DIR] [--skills-root DIR] [--check]
+        --keep PATH [--settings PATH] [--instance ID] [--overlay PATH] [--registry PATH] [--kit DIR] [--skills-root DIR] [--check]
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py \\
         gold-band-roles --keep PATH [--profiles DIR] [--registry PATH] [--critique DIR] [--closing PATH] [--check]
 """
@@ -61,6 +67,8 @@ from typing import Any
 
 import tomlkit
 import yaml
+
+import gold_band_instances
 
 DECLARED_SOURCES = ("plugin:",)
 
@@ -369,7 +377,8 @@ def _gold_band_registry(
     return agents, set(retired), set(allowed)
 
 
-def _gold_band_adapter_problems(name: str, adapter: Any) -> list[str]:
+def _gold_band_adapter_problems(name: str, adapter: Any, codex_ok: bool = False) -> list[str]:
+    """Problems with an adapter; Codex in its launch is refused unless ``codex_ok`` (the work instance's agent)."""
     if adapter is None:
         return []
     if not isinstance(adapter, dict):
@@ -393,7 +402,7 @@ def _gold_band_adapter_problems(name: str, adapter: Any) -> list[str]:
             ]
     words = [command] if isinstance(command, str) else []
     words += [arg for arg in args if isinstance(arg, str)] if isinstance(args, list) else []
-    if any("codex" in word.lower() for word in words):
+    if not codex_ok and any("codex" in word.lower() for word in words):
         problems.append(f"{name}: Codex is refused in adapter.command or adapter.args")
     return problems
 
@@ -496,7 +505,9 @@ def _gold_band_os_problems(raw: str, agent: dict[str, Any]) -> list[str]:
                     problems.append(f"{label}: binary must be a non-empty string")
                 if "command_from_binary" in section and section["command_from_binary"] is not True:
                     problems.append(f"{label}: command_from_binary must be true")
-                problems += _gold_band_adapter_problems(label, section.get("adapter"))
+                problems += _gold_band_adapter_problems(
+                    label, section.get("adapter"), _gold_band_instance_of(agent) == GOLD_BAND_WORK_INSTANCE
+                )
     linux = _gold_band_for_host(agent, "linux") if not problems else None
     if linux is not None:
         raw_adapter = linux.get("adapter")
@@ -538,7 +549,9 @@ def _gold_band_problems(
         if "command_from_binary" in agent and (agent["command_from_binary"] is not True or not agent.get("binary")):
             problems.append(f"{raw}: command_from_binary must be true and needs a binary")
         problems += _gold_band_os_problems(raw, agent)
-        problems += _gold_band_adapter_problems(raw, agent.get("adapter"))
+        problems += _gold_band_adapter_problems(
+            raw, agent.get("adapter"), _gold_band_instance_of(agent) == GOLD_BAND_WORK_INSTANCE
+        )
         delivery = agent.get("systemPromptDelivery")
         if delivery is not None and delivery not in GOLD_BAND_PROMPT_DELIVERY:
             problems.append(f"{raw}: systemPromptDelivery must be one of {', '.join(GOLD_BAND_PROMPT_DELIVERY)}")
@@ -892,12 +905,116 @@ def _gold_band_quiet(document: dict[str, Any]) -> dict[str, Any]:
     return quiet
 
 
+# Keys of settings.json the overlay may not set: the agent map is the registry's
+# alone (the work instance holds exactly its declared agents), and the MCP
+# servers come from the overlay's ``mcp_servers``.
+GOLD_BAND_OVERLAY_RESERVED = ("agents", "contextServers")
+
+
+def _gold_band_overlay_block(registry_path: Path, overlay_path: Path) -> dict[str, Any]:
+    """The work instance's overlay declaration, checked by the crate; empty when there is none.
+
+    Raises ``_CannotConverge`` for an overlay or a check that cannot be read or
+    run, and ``_OverlayRefused`` carrying the crate's problem lines.
+    """
+    try:
+        registry = yaml.safe_load(registry_path.read_text())
+        overlay = gold_band_instances.load_overlay(overlay_path)
+        if overlay is None:
+            return {}
+        refused = gold_band_instances.validate(registry, overlay_path)
+    except (gold_band_instances.InstanceError, OSError, yaml.YAMLError) as exc:
+        raise _CannotConverge(f"the overlay {overlay_path} cannot be checked: {exc}") from exc
+    if refused:
+        raise _OverlayRefused(refused)
+    block = (overlay.get(gold_band_instances.OVERLAY_KEY) or {}).get(GOLD_BAND_WORK_INSTANCE)
+    return block if isinstance(block, dict) else {}
+
+
+class _OverlayRefused(Exception):
+    """The overlay breaks a rule; ``problems`` are the crate's lines."""
+
+    def __init__(self, problems: list[str]) -> None:
+        super().__init__("; ".join(problems))
+        self.problems = problems
+
+
+def _gold_band_overlay_settings(
+    document: dict[str, Any], settings: Any, notes: list[str]
+) -> dict[str, Any]:
+    """``document`` with each overlay setting set at its dotted path; a copy."""
+    result = json.loads(json.dumps(document))
+    for path, value in _flat_settings("", settings) if settings else []:
+        head, *rest = path.split(".")
+        if head in GOLD_BAND_OVERLAY_RESERVED:
+            raise _CannotConverge(f"overlay settings.{path}: {head} is not set from the overlay")
+        node = result
+        for key in [head, *rest][:-1]:
+            child = node.setdefault(key, {})
+            if not isinstance(child, dict):
+                raise _CannotConverge(f"overlay settings.{path}: {key} holds a value that is not a mapping")
+            node = child
+        last = path.split(".")[-1]
+        if last not in node or node[last] != value:
+            node[last] = value
+            notes.append(f"overlay: set {path}")
+    return result
+
+
+def _flat_settings(prefix: str, value: Any) -> list[tuple[str, Any]]:
+    """The leaves of the overlay's ``settings`` mapping with their dotted paths."""
+    if not isinstance(value, dict):
+        return [(prefix, value)]
+    found: list[tuple[str, Any]] = []
+    for key, item in value.items():
+        found += _flat_settings(f"{prefix}.{key}" if prefix else str(key), item)
+    return found
+
+
+def _gold_band_overlay_servers(
+    document: dict[str, Any], servers: Any, notes: list[str]
+) -> dict[str, Any]:
+    """``document`` with each overlay MCP server upserted by id into ``contextServers``; a copy."""
+    result = json.loads(json.dumps(document))
+    current = result.get("contextServers")
+    if current is None:
+        current = []
+    if not isinstance(current, list):
+        raise _CannotConverge("settings.json contextServers is not a list")
+    for name, body in (servers or {}).items():
+        if "url" in body:
+            transport: dict[str, Any] = {"transport": "http", "url": body["url"], "headers": body.get("headers") or {}}
+        else:
+            transport = {
+                "transport": "stdio",
+                "command": body["command"],
+                "args": list(body.get("args") or []),
+                "env": dict(body.get("env") or {}),
+            }
+        entry = {"id": name, "name": name, "enabled": True, **transport, "managed": False}
+        for index, held in enumerate(current):
+            if isinstance(held, dict) and held.get("id") == name:
+                if held != entry:
+                    current[index] = entry
+                    notes.append(f"overlay: changed mcp server {name}")
+                break
+        else:
+            current.append(entry)
+            notes.append(f"overlay: added mcp server {name}")
+    if current or "contextServers" in result:
+        result["contextServers"] = current
+    return result
+
+
 def gold_band(args: argparse.Namespace) -> int:
     instance = args.instance
     # The default path is the current user's instance. The work instance lives
     # in its own account, so it is never guessed: name its data directory.
     if instance != GOLD_BAND_INSTANCE and not (args.settings or os.environ.get("GOLD_BAND_HOME")):
         print(f"gold-band-agents: {instance} needs --settings or GOLD_BAND_HOME; the default is the personal one")
+        return 3
+    if args.overlay is not None and instance != GOLD_BAND_WORK_INSTANCE:
+        print(f"gold-band-agents: --overlay applies to the work instance {GOLD_BAND_WORK_INSTANCE} only")
         return 3
     settings = args.settings or _gold_band_settings_path()
     skills_root = Path(os.path.abspath(args.skills_root or settings.parent / "skill-sets"))
@@ -923,10 +1040,17 @@ def gold_band(args: argparse.Namespace) -> int:
             )
             return GOLD_BAND_RUNNING_EXIT
         doc, current = _gold_band_document(settings)
+        overlay = _gold_band_overlay_block(args.registry, args.overlay) if args.overlay is not None else {}
+    except _OverlayRefused as exc:
+        for problem in exc.problems:
+            print(f"gold-band-agents: overlay: {problem}")
+        return 1
     except _CannotConverge as exc:
         print(f"gold-band-agents: cannot converge: {exc}")
         return 3
-    keep = _keep(args.keep)
+    # The keep file is the personal instance's: the work instance holds exactly
+    # its declared agents, so nothing is kept there beyond a skipped one.
+    keep = set() if instance == GOLD_BAND_WORK_INSTANCE else _keep(args.keep)
 
     installed_ids: set[str] = set()
     skipped: list[tuple[str, str]] = []
@@ -986,6 +1110,13 @@ def gold_band(args: argparse.Namespace) -> int:
         print(line)
     # The map keeps its slot among the other top-level keys; a new one is appended.
     new_doc = _gold_band_quiet({**doc, "agents": merged})
+    overlay_notes: list[str] = []
+    try:
+        new_doc = _gold_band_overlay_settings(new_doc, overlay.get("settings"), overlay_notes)
+        new_doc = _gold_band_overlay_servers(new_doc, overlay.get("mcp_servers"), overlay_notes)
+    except _CannotConverge as exc:
+        print(f"gold-band-agents: cannot converge: {exc}")
+        return 3
     if new_doc == doc:
         # An unchanged map still leaves the data directory owner-only.
         if not args.check and settings.parent.is_dir():
@@ -998,6 +1129,8 @@ def gold_band(args: argparse.Namespace) -> int:
         print(f"changed {name}")
     for name in removed:
         print(f"removed {name}")
+    for note in overlay_notes:
+        print(note)
     if args.check:
         return 0
 
@@ -1299,6 +1432,7 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--settings", type=Path, default=None)
     g.add_argument("--instance", choices=GOLD_BAND_INSTANCES, default=GOLD_BAND_INSTANCE)
     g.add_argument("--registry", type=Path, default=REGISTRY_PATH)
+    g.add_argument("--overlay", type=Path, default=None)
     # The kit the local skills are copied from, and where the per-agent skill
     # directories go: beside settings.json unless the owner moves them.
     g.add_argument("--kit", type=Path, default=KIT_ROOT)

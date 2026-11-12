@@ -130,11 +130,15 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
   `instance: gold-band`) holds `~/.claude`. Setup refuses a Claude agent with
   no `config_dir`, two agents on one directory, and an `adapter.env` that
   names `CLAUDE_CONFIG_DIR` by hand. The work agent is converged on the work
-  instance with `converge.py gold-band --instance gold-band`; setup runs only
-  the personal instance on Linux.
-* An undeclared agent is removed unless the keep file names it. An id that
-  names Codex and any id in `gold_band.retired_agents` are removed even when
-  kept.
+  instance with `converge.py gold-band --instance gold-band`; setup runs the
+  personal instance on Linux and the work instance on the work Mac (below).
+* The work instance holds exactly `claude-work` and `codex` (`instance:
+  gold-band`, adapter `@agentclientprotocol/codex-acp`, pinned). Codex in an
+  adapter command is refused for every agent of the personal instance, and
+  allowed for the work instance's own.
+* An undeclared agent is removed unless the keep file names it. On the personal
+  instance an id that names Codex goes even when kept; any id in
+  `gold_band.retired_agents` is removed even when kept.
 * An agent whose `binary` is not on PATH is skipped and reported
   (`skipped: <id> (<binary> is not installed)`); its existing entry is left alone.
 * Every other key of `settings.json` keeps its value and its order. A second
@@ -142,6 +146,24 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
   `settings.json.bak`.
 * Nothing is written while the desktop app runs (setup stops and says so), and
   a machine without Gold Band gets no settings file. `--check` only reports.
+
+## The work instance on the Mac
+
+On macOS setup converges the work instance when the per-machine overlay
+(`~/.config/agent-kit/overlay.yaml`) names it under `instances.gold-band`; no
+overlay, or one that names only the personal instance, leaves it alone. The call
+is `converge.py gold-band --instance gold-band --settings
+${GOLD_BAND_HOME:-$HOME}/.gold-band/settings.json --overlay <overlay>`. The
+`agents` map ends as exactly `claude-work` and `codex` (the keep file is not read for
+the work instance); the
+overlay's `settings` are set at their dotted paths in `settings.json` and its
+`mcp_servers` become `contextServers` entries (upserted by id; an entry the
+overlay no longer names is left for the owner to remove). The overlay is
+validated by the `gold-band-registry` crate first and refused whole when it
+fails, and it may not set `agents` or `contextServers` as a setting. Nothing in
+it is copied into the registry, and the registry holds no employer value. The
+work account's own `settings.json` is the target: the personal instance runs
+under the second macOS user.
 
 ## Skill sets per agent id
 

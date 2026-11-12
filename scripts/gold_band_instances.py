@@ -237,17 +237,40 @@ def code_nav_roots(registry: dict[str, Any], overlay_path: Path) -> list[str]:
     return found
 
 
+def names_work_instance(overlay_path: Path) -> bool:
+    """Whether the overlay at ``overlay_path`` declares the work instance.
+
+    Only the overlay is read, never the registry. A missing overlay names no
+    instance; one that is not a valid overlay file is an error.
+    """
+    overlay = load_overlay(overlay_path)
+    block = (overlay or {}).get(OVERLAY_KEY)
+    if block is not None and not isinstance(block, dict):
+        raise InstanceError(f"{overlay_path}: {OVERLAY_KEY} must be a mapping of instance id to declaration")
+    return WORK_INSTANCE in (block or {})
+
+
 def main(argv: list[str] | None = None) -> int:
     """``code-nav-roots``: print the overlay's extra code-nav roots, one per line.
 
     Exit 0 with the roots (none is fine), 1 when the overlay is refused, with the
     reason on stderr. Setup then registers the registry's personal roots alone.
+
+    ``names-work-instance``: print ``yes`` or ``no`` and exit 0; exit 1 with the
+    reason on stderr when the overlay cannot be read.
     """
     parser = argparse.ArgumentParser(prog="gold_band_instances")
-    parser.add_argument("command", choices=["code-nav-roots"])
+    parser.add_argument("command", choices=["code-nav-roots", "names-work-instance"])
     parser.add_argument("--registry", type=Path, default=KIT_ROOT / "registry" / "estate-tooling.yaml")
     parser.add_argument("--overlay", type=Path, default=DEFAULT_OVERLAY)
     args = parser.parse_args(argv)
+    if args.command == "names-work-instance":
+        try:
+            print("yes" if names_work_instance(args.overlay) else "no")
+        except (InstanceError, OSError) as exc:
+            print(f"work instance: {exc}", file=sys.stderr)
+            return 1
+        return 0
     try:
         registry = yaml.safe_load(args.registry.read_text())
         roots = code_nav_roots(registry, args.overlay)
