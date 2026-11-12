@@ -354,6 +354,51 @@ gold_band:
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
+    # Google Antigravity over ACP (`agy acp`), declared per OS (`os:`): a host
+    # with no section here is skipped and reported, never given another OS's
+    # path. macOS: the CLI the `antigravity-cli` cask installs; its absolute
+    # path is resolved at converge (`command_from_binary`), so no Homebrew
+    # prefix is written in this file. Linux: no launch command is declared
+    # yet (whether it has an official build is #431's finding), so Linux
+    # skips it.
+    - id: agy
+      binary: agy
+      os:
+        mac:
+          command_from_binary: true
+          adapter:
+            args: [acp]
+      adapter:
+        displayName: Antigravity
+        env: {}
+      icon: antigravity
+      primaryAgentDir: .agents
+      compatibleAgentDirs: []
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
+    # Local Hermes (clis: hermes-agent, still installed on the workstation;
+    # only the cluster Hermes is retired) over its `hermes-acp` server, on
+    # both OSes, as the installed binary's absolute path. Hermes' toolset
+    # cannot be restricted over ACP: in ACP mode it builds its session with a
+    # fixed toolset (web search and fetch, terminal, file read and write,
+    # browser, skills, memory) plus MCP servers and does not read the
+    # per-platform toolset list, so tool configuration cannot remove the
+    # shell, the web or writes. Only `write` (and `write-scoped` through the
+    # operating-system layer) is possible; a narrower reach would be a lie
+    # the session ignores.
+    - id: hermes
+      binary: hermes-acp
+      command_from_binary: true
+      adapter:
+        displayName: Hermes
+        env: {}
+      icon: hermes
+      primaryAgentDir: .hermes
+      compatibleAgentDirs: [.agents]
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
   # Per-agent skill sets: a set name to the local skills it holds, each a
   # `name` in `local_skills:` below. An agent names one with `skill_set:`,
   # which is registry-only and never written to settings.json: setup builds

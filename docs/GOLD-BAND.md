@@ -109,6 +109,17 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
   account key from the secret store at launch and hands it to `vibe-acp`, so no
   key is written to a Gold Band file. With the key missing it starts nothing
   and says to run `vibe-study --login`.
+* An agent declares its launch command per OS with `os:`, a map from `linux`
+  and/or `mac` to a partial override of `binary`, `command_from_binary` and
+  `adapter` (the adapter's keys win). Antigravity (`agy`) declares `mac` only:
+  its adapter command is the installed `agy`'s absolute path, so no Homebrew
+  prefix is written in the registry, and Linux skips it
+  (`skipped: agy (no launch command declared for linux)`) until #431 settles
+  whether it has a Linux build. Setup refuses a Linux launch whose binary,
+  command or arguments name a macOS path (Homebrew, `/Applications`,
+  `/Library`). Hermes runs `hermes-acp` on both OSes; the local Hermes CLI is
+  still declared (only the cluster Hermes is retired), and its toolset cannot
+  be restricted over ACP, so only the `write` reach is possible for it.
 * A Claude agent (`claude`, `claude-work`) declares `config_dir`, a path that is
   absolute or starts with `~/`. It is registry-only: setup writes it as the
   entry's `adapter.env.CLAUDE_CONFIG_DIR`. Gold Band sets every `adapter.env`
