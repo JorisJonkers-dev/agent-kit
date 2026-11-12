@@ -77,6 +77,7 @@ fn clean(names: Vec<String>) -> Vec<String> {
 
 /// The text inside the brackets of a table header line, if `line` is one.
 fn header_of(line: &str) -> Option<&str> {
+    let line = line.split('#').next().unwrap_or(line).trim_end();
     Some(line.strip_prefix('[')?.strip_suffix(']')?.trim())
 }
 
@@ -96,6 +97,26 @@ fn quoted_after(text: &str, key: &str) -> Option<String> {
     let at = text.find(key)?;
     let rest = text[at + key.len()..].trim_start();
     quoted(rest.strip_prefix('=')?.trim_start())
+}
+
+/// True when `line` holds a `]` outside its quoted strings, which ends an array.
+fn closes_array(line: &str) -> bool {
+    let mut quote = None;
+    for c in line.chars() {
+        match (quote, c) {
+            (None, '"' | '\'') => quote = Some(c),
+            (Some(q), _) if q == c => quote = None,
+            (None, ']') => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
+/// True for a Cargo table header that lists requirements of the package itself;
+/// `[workspace.dependencies]` is a catalogue the members draw from, not a requirement.
+fn is_dependency_header(header: &str) -> bool {
+    header.contains("dependencies") && !header.starts_with("workspace")
 }
 
 /// Every quoted string in `line`, either quote style.
@@ -147,16 +168,22 @@ fn cargo(text: &str) -> BuildInfo {
     let mut header = String::new();
     // The index in `requires` of a `[dependencies.foo]` header's entry.
     let mut sub: Option<usize> = None;
+    // Braces still open from an inline table that runs over several lines.
+    let mut open: i32 = 0;
     for line in text.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if open > 0 {
+            open += brace_balance(line);
             continue;
         }
         if let Some(inner) = header_of(line) {
             header = inner.to_lowercase();
             sub = None;
             let last = header.rsplit('.').next().unwrap_or("");
-            if header.contains("dependencies") && !last.contains("dependencies") {
+            if is_dependency_header(&header) && !last.contains("dependencies") {
                 requires.push(last.trim_matches(|c| c == '\'' || c == '"').to_string());
                 sub = Some(requires.len() - 1);
             }
@@ -173,7 +200,7 @@ fn cargo(text: &str) -> BuildInfo {
             }
             continue;
         }
-        if !header.contains("dependencies") {
+        if !is_dependency_header(&header) {
             continue;
         }
         match sub {
@@ -185,12 +212,20 @@ fn cargo(text: &str) -> BuildInfo {
                 }
             }
             None => {
+                // `serde.workspace = true` names `serde`.
+                let key = key.split('.').next().unwrap_or(&key).to_string();
                 let name = if value.starts_with('{') { quoted_after(value, "package").unwrap_or(key) } else { key };
                 requires.push(name);
+                open = brace_balance(value).max(0);
             }
         }
     }
     BuildInfo { provides: clean(provides), requires: clean(requires) }
+}
+
+/// Opening braces minus closing ones in `text`.
+fn brace_balance(text: &str) -> i32 {
+    text.chars().map(|c| match c { '{' => 1, '}' => -1, _ => 0 }).sum()
 }
 
 /// package.json: the top-level `name` and the keys of the dependency tables.
@@ -230,7 +265,7 @@ fn python(text: &str) -> BuildInfo {
         }
         if in_array {
             push_python_requirements(line, &mut requires);
-            if line.contains(']') {
+            if closes_array(line) {
                 in_array = false;
             }
             continue;
@@ -246,14 +281,14 @@ fn python(text: &str) -> BuildInfo {
         }
         if header == "project" && key == "dependencies" && value.starts_with('[') {
             push_python_requirements(value, &mut requires);
-            if !value.contains(']') {
+            if !closes_array(value) {
                 in_array = true;
             }
             continue;
         }
         if header == "project.optional-dependencies" && value.starts_with('[') {
             push_python_requirements(value, &mut requires);
-            if !value.contains(']') {
+            if !closes_array(value) {
                 in_array = true;
             }
             continue;
@@ -441,7 +476,7 @@ anyhow = "1"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 "#;
-        assert_eq!(parse("Cargo.toml", text), info(&["code-nav"], &["code-nav-eval", "serde", "tempfile", "cc", "anyhow", "libc"]));
+        assert_eq!(parse("Cargo.toml", text), info(&["code-nav"], &["code-nav-eval", "serde", "tempfile", "cc", "libc"]));
     }
 
     #[test]
@@ -651,5 +686,31 @@ dependencies {
     fn half_written_lines_declare_nothing() {
         assert_eq!(parse("go.mod", "module\nrequire\n"), info(&[], &[]));
         assert_eq!(parse("settings.gradle", "rootProject.name\nrootProject.name = nameless\n"), info(&[], &[]));
+    }
+
+    #[test]
+    fn cargo_reads_inheritance_multi_line_tables_and_skips_the_workspace_catalogue() {
+        let text = r#"
+[workspace.dependencies]
+anyhow = "1"
+[workspace.dependencies.extra]
+version = "1"
+
+[dependencies] # the real ones
+serde.workspace = true
+tokio = { version = "1",
+  features = ["full"],
+  optional = true }
+alias = { features = ["x"], package = "real" }
+"#;
+        assert_eq!(parse("Cargo.toml", text), info(&[], &["serde", "tokio", "real"]));
+    }
+
+    #[test]
+    fn a_bracketed_extra_does_not_end_a_python_array() {
+        let text = "[project]\ndependencies = [\n  \"pydantic[email]>=2\",\n  \"click\",\n]\n";
+        assert_eq!(parse("pyproject.toml", text), info(&[], &["pydantic", "click"]));
+        let single = "[project]\ndependencies = [\"a[x]\",\n \"b\"]\n";
+        assert_eq!(parse("pyproject.toml", single), info(&[], &["a", "b"]));
     }
 }

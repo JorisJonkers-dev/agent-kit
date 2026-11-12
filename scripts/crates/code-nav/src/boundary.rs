@@ -45,6 +45,9 @@ impl Boundary {
     pub fn new(roots: &[PathBuf]) -> Result<Boundary, String> {
         let mut canonical = Vec::new();
         for root in roots {
+            if is_withheld(root) {
+                return Err(format!("root {} is a withheld location", root.display()));
+            }
             let c = root.canonicalize().map_err(|e| format!("root {}: {e}", root.display()))?;
             if !c.is_dir() {
                 return Err(format!("root {} is not a directory", root.display()));
@@ -92,7 +95,9 @@ impl Boundary {
         };
         let relative = canonical.strip_prefix(root).unwrap_or(&canonical);
         let named = lexical.file_name().map(Path::new).unwrap_or(Path::new(""));
-        if is_withheld(relative) {
+        // The name as asked counts too: a symlink called `nedap-x` is still a way in.
+        let asked = lexical.strip_prefix(&self.roots[0]).unwrap_or(&lexical);
+        if is_withheld(relative) || is_withheld(asked) {
             return Err(Refusal::Withheld(lexical));
         }
         if is_secret(relative) || is_secret(named) {

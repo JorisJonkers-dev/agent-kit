@@ -11,12 +11,14 @@
 //! then the path, then the line. At most `limit` symbols are returned and
 //! `total` counts every match.
 //!
+//! Files in a `worktrees` directory are skipped (see [`crate::repos`]).
+//!
 //! Each symbol names the repository it is in (see [`crate::repos`]), or none
 //! for a file that sits outside any repository.
 
 use crate::map::{read_text, visit, MAX_FILES};
 use crate::outline;
-use crate::repos::RepoFinder;
+use crate::repos::{in_worktrees, RepoFinder};
 use std::path::{Path, PathBuf};
 
 /// One declaration that matches.
@@ -74,7 +76,7 @@ pub(crate) fn find_with(
     let mut finder = RepoFinder::new(roots);
     let mut found: Vec<Found> = Vec::new();
     let mut total = 0;
-    for path in &paths {
+    for path in paths.iter().filter(|p| !in_worktrees(roots, p)) {
         let Some(text) = read(path) else { continue };
         let mut repo: Option<Option<String>> = None;
         for s in outline::symbols(&text).into_iter().filter(|s| s.kind != "impl") {

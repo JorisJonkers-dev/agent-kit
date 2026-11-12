@@ -31,6 +31,10 @@ fn workspace() -> Workspace {
     write(&root.join("nedap-tools/.git/HEAD"), "ref\n");
     write(&root.join("nedap-tools/Cargo.toml"), "[package]\nname = \"nedap-tools\"\n[dependencies]\nalpha = \"1\"\n");
     write(&root.join("nedap-tools/src/lib.rs"), "pub fn nedap_fn() {}\n");
+    // A linked checkout of beta: neither a repository of its own nor a second declaration.
+    write(&root.join("worktrees/beta/feature/.git"), "gitdir: x\n");
+    write(&root.join("worktrees/beta/feature/Cargo.toml"), "[package]\nname = \"beta\"\n[dependencies]\nalpha = \"1\"\n");
+    write(&root.join("worktrees/beta/feature/lib.rs"), "pub fn beta_fn() {}\n");
     write(&root.join("alpha/Nedap/secret.rs"), "pub fn nedap_nested_fn() {}\n");
     let boundary = Boundary::new(std::slice::from_ref(&root)).unwrap();
     Workspace { root, boundary }
@@ -54,6 +58,9 @@ fn related_repos_lists_depends_on_and_depended_on_by() {
     let repo_names: Vec<&str> = manifest.repos.iter().map(|r| r.name.as_str()).collect();
     // `nedap-tools` is never walked; the loose root file is no repository.
     assert_eq!(repo_names, ["alpha", "beta", "gamma"]);
+    assert!(repos::in_worktrees(w.boundary.roots(), &w.root.join("worktrees/x")));
+    assert!(!repos::in_worktrees(w.boundary.roots(), &w.root.join("alpha")));
+    assert!(!repos::in_worktrees(w.boundary.roots(), Path::new("/elsewhere/worktrees")));
     assert!(!manifest.walk_capped);
     let alpha = manifest.find("alpha").unwrap();
     let related = manifest.related(alpha);
@@ -64,6 +71,8 @@ fn related_repos_lists_depends_on_and_depended_on_by() {
     assert_eq!(names(&beta.depended_on_by), ["alpha via beta", "gamma via beta"]);
     let gamma = manifest.related(manifest.find(&w.root.join("gamma").display().to_string()).unwrap());
     assert_eq!(names(&gamma.depends_on), ["alpha via alpha", "beta via beta"]);
+    // A path inside a repository names that repository.
+    assert_eq!(manifest.find(&w.root.join("alpha/src").display().to_string()).unwrap().name, "alpha");
     assert!(manifest.find("nedap-tools").is_none());
     assert!(manifest.find("nowhere").is_none());
 }
@@ -214,4 +223,14 @@ fn a_related_listing_from_a_capped_walk_says_it_may_be_incomplete() {
     let alpha = manifest.find("alpha").unwrap();
     let text = server::render_related(alpha, &manifest.related(alpha), true);
     assert!(text.ends_with("stopped after the file cap; the lists may be incomplete"), "{text}");
+}
+
+#[test]
+fn a_symlink_named_for_a_withheld_place_is_not_a_way_in() {
+    let w = workspace();
+    symlink(w.root.join("alpha"), w.root.join("nedap-link")).unwrap();
+    assert_eq!(w.boundary.admit(Path::new("nedap-link/src/lib.rs")), Err(Refusal::Withheld(w.root.join("nedap-link/src/lib.rs"))));
+    let base = temp_dir();
+    symlink(&w.root, base.join("nedap-root")).unwrap();
+    assert!(Boundary::new(&[base.join("nedap-root")]).unwrap_err().contains("withheld location"));
 }

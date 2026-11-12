@@ -16,6 +16,10 @@
 //! provides and A is not B. A name only A provides is internal; a name nobody
 //! provides is external and is not listed.
 //!
+//! **Worktrees.** A directory named `worktrees` below a root holds checkouts
+//! of repositories that are already listed (`~/Projects/<owner>/worktrees/...`);
+//! those files are left out so a repository is not counted once per checkout.
+//!
 //! The walk is the map's: it stays inside the allowed roots, skips symlinks,
 //! secret and withheld (`nedap`) locations and binary files, and stops after
 //! [`MAX_FILES`] files.
@@ -91,6 +95,14 @@ impl<'a> RepoFinder<'a> {
     }
 }
 
+/// True when `path` is inside a `worktrees` directory below the root it is under.
+pub(crate) fn in_worktrees(roots: &[PathBuf], path: &Path) -> bool {
+    roots
+        .iter()
+        .find_map(|r| path.strip_prefix(r).ok())
+        .is_some_and(|below| below.components().any(|c| c.as_os_str() == "worktrees"))
+}
+
 fn has_git(dir: &Path) -> bool {
     dir.join(".git").symlink_metadata().is_ok()
 }
@@ -110,7 +122,7 @@ pub(crate) fn manifest_with(roots: &[PathBuf], max_files: usize, read: &mut dyn 
     paths.truncate(max_files);
     let mut finder = RepoFinder::new(roots);
     let mut repos: BTreeMap<PathBuf, RepoEntry> = BTreeMap::new();
-    for path in &paths {
+    for path in paths.iter().filter(|p| !in_worktrees(roots, p)) {
         let Some(dir) = path.parent().and_then(|d| finder.repo_of(d)) else { continue };
         let repo = repos.entry(dir.clone()).or_insert_with(|| {
             let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -130,12 +142,14 @@ pub(crate) fn manifest_with(roots: &[PathBuf], max_files: usize, read: &mut dyn 
 }
 
 impl Manifest {
-    /// The repository with this directory name (any case), or this path.
+    /// The repository with this directory name (any case), or the one holding this path.
     pub fn find(&self, name_or_path: &str) -> Option<&RepoEntry> {
         let wanted = name_or_path.trim_end_matches('/');
+        // The deepest repository whose directory holds the path.
         self.repos
             .iter()
-            .find(|r| r.path == Path::new(wanted))
+            .filter(|r| Path::new(wanted).starts_with(&r.path))
+            .max_by_key(|r| r.path.components().count())
             .or_else(|| self.repos.iter().find(|r| r.name.eq_ignore_ascii_case(wanted)))
     }
 
