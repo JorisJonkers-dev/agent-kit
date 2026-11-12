@@ -622,8 +622,8 @@ pauses on a manual check wherever the owner has to settle something:
 The spec and ticket drafts are written by a different family (Vibe, Mistral)
 from the orchestrator that rules on their review (Vibe-study, DeepSeek) and
 from the critics the runner picks. No node writes memory and none binds Codex
-or Opus; the grill rounds use Vibe GLM. The work-instance variant is a
-separate ticket.
+or Opus; the grill rounds use Vibe GLM. The work-instance variant is
+`workflow-c-work.json` (next section); this file is not changed by it.
 
 A headless run cannot continue past a manual check (`gold-band continue`
 refuses a run that waits for user input), so the proof proves each stretch of
@@ -635,6 +635,39 @@ and at the publication check (`clean`); the publish gate and its failure are
 proved in the `after-publication-check` segment. What the proof does not check:
 that `ticket-publish` creates real issues (its tests fake `gh`), and that a
 real model asks sensible questions.
+
+## Workflow C in the work instance
+
+`installer/gold-band/workflows/workflow-c-work.json` (issue #463) is the same
+graph bound to the work instance's two agents, `claude-work` and `codex`, and
+nothing else. What differs from the personal file:
+
+* The grill rounds, the drafts, the needs-human checks and the publication
+  check run on `claude-work`; the two review orchestrators (`spec-verdicts`,
+  `tickets-verdicts`) run on `codex`, so the author is not the family that
+  rules on the review. Shim nodes keep their `gate-`, `copy-` agents.
+* Each Codex node is reached only through its grant-check node
+  (`grant-check-spec-verdicts`, `grant-check-tickets-verdicts`, the `gold-band-run-start
+  grant-check` shim, see "The grant-check node"). A refused grant takes the
+  failure edge to a manual check (`grant-refused`, shared by both)
+  that has no way on: the owner asks for a new grant and starts the run again.
+  The run-start gate also needs a live grant for the run before any node.
+* The critique steps are the stage templates' nodes; their prepare and fan-out
+  gate goals say that a `nedap` repository routes to the work-only critic
+  roster (Codex under the grant and the work Claude agent, never the
+  orchestrator's own family). The routing itself is the critique runner's; the
+  launchers for those critics are ticket #558, so until it lands the runner
+  reports the work critics as unavailable and the review does not pass.
+* Publication still pauses on `publication-check` for the owner, and only
+  after it does the publish gate create GitHub issues, through the pinned
+  `ticket-publish` wrapper, in the repository the work repository's own
+  `docs/agents/setup.yaml` names.
+
+Its tests (`tests/test_gold_band_workflow_c_work.py`) use a fixture setup file
+(`tests/fixtures/gold-band/work-repo`) naming a placeholder repository and a
+fake `gh`; no real repository is named and no issue is created. The headless
+proof adds `grant-lapse-spec-verdicts` and `grant-lapse-tickets-verdicts`, each
+pausing (exit 2) at its grant manual check.
 
 ## Wave 4: the human-gate workflows
 

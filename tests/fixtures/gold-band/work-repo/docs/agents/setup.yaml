@@ -1,0 +1,15 @@
+version: 1
+tracker:
+  kind: github
+  repo: example-org/work-tickets
+labels:
+- "type: feature"
+- needs-triage
+- ready-for-agent
+triage_labels:
+  needs-triage: needs-triage
+  needs-info: needs-triage
+  ready-for-agent: ready-for-agent
+  ready-for-human: ready-for-agent
+  wontfix: needs-triage
+flaky_jobs: []
