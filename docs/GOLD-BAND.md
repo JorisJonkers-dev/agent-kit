@@ -502,8 +502,9 @@ round reads them. After the last round the check hands over regardless.
 
 `pr-composer` orients, gathers context, asks for linked issues and threads
 (`pr-links`, with `pr-links-check` as its manual check), drafts the body and runs
-the template check as a gate shim, then renders the preview. Each confirmation
-round pauses on `pr-confirm-<n>` on every run; `pr-apply-<n>` answers with an
+the template check as a gate shim, then renders the preview. The first
+confirmation round pauses on `pr-confirm-1` on every run (a later one only
+after the owner asked for an edit); `pr-apply-<n>` answers with an
 empty `open_questions` only when the owner's answer is an explicit affirmative
 for this preview, and otherwise applies the owner's edits and re-renders for the
 next round. `gate-pr-composer-publish` (the push and the pull request create) has

@@ -233,7 +233,12 @@ fn each_wave4_workflow_pauses_at_every_round_check_and_ends_once_answered() {
             );
         }
         // Once the last check is answered the run ends (or, for brainstorming, pauses at the design approval).
-        let after_last = format!("after-{prefix}{cap}.clean: expected exit ");
+        let exit = if name == "brainstorming" {
+            "2, got 2 (paused/"
+        } else {
+            "0, got 0 (completed/success)"
+        };
+        let after_last = format!("after-{prefix}{cap}.clean: expected exit {exit}");
         assert!(stdout.contains(&after_last), "{name}: {stdout}");
         assert!(
             stdout.contains("gold-band-proof: passed"),

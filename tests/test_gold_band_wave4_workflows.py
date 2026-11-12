@@ -11,7 +11,6 @@ headless proof belongs to the ``gold-band-proof`` crate (docs/gold-band-proof.md
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -30,10 +29,11 @@ ROUND_WORKFLOWS = {
 }
 ALL = [*ROUND_WORKFLOWS, "pr-composer"]
 PR_CAP = 3
+CAP_WORDS = {3: "three", 4: "four", 5: "five"}
 
 
 def load(name: str) -> dict[str, Any]:
-    return json.loads((WORKFLOWS / f"{name}.json").read_text())
+    return json.loads((WORKFLOWS / f"{name}.json").read_text(encoding="utf-8"))
 
 
 def nodes_of(name: str) -> dict[str, dict[str, Any]]:
@@ -84,7 +84,7 @@ def test_each_round_has_one_manual_check_up_to_the_stated_cap(name: str) -> None
         assert (round_id, check_id, "failure") in edges
         assert (check_id, following, "success") in edges
     description = load(name)["workflow"]["description"]
-    assert re.search(rf"capped at {['', '', 'two', 'three', 'four', 'five'][cap]}", description)
+    assert f"capped at {CAP_WORDS[cap]}" in description
 
 
 @pytest.mark.parametrize("name", ROUND_WORKFLOWS)
@@ -140,6 +140,12 @@ def test_the_push_and_create_step_is_reachable_only_after_a_confirmation_node() 
     assert [f for f, t, _ in edges if t == "$end"] == ["copy-pr-composer-publish"]
 
 
+def test_the_publish_gate_rechecks_the_body_and_updates_an_existing_pull_request() -> None:
+    goal = nodes_of("pr-composer")["gate-pr-composer-publish"]["goal"]
+    assert "re-checks the body file against the template" in goal
+    assert "`gh pr edit`" in goal
+
+
 def test_no_node_before_the_first_confirmation_pushes_or_creates() -> None:
     nodes, edges = nodes_of("pr-composer"), edges_of("pr-composer")
     before = reachable(edges, "gate-pr-composer-start", without={"pr-confirm-1", "pr-links-check"})
@@ -179,7 +185,7 @@ def test_every_node_has_one_model_binding_and_no_built_in_agent_id(name: str) ->
 
 @pytest.mark.parametrize("name", ALL)
 def test_no_forbidden_family_is_bound_and_no_node_writes_memory(name: str) -> None:
-    lowered = (WORKFLOWS / f"{name}.json").read_text().lower()
+    lowered = (WORKFLOWS / f"{name}.json").read_text(encoding="utf-8").lower()
     assert "codex" not in lowered and "opus" not in lowered
     assert "memory-write" not in lowered
 
