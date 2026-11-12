@@ -188,6 +188,9 @@ fn prove(level: &str) {
     // 1. The level's tool arguments, and its reach, reach the process.
     assert!(stdout.contains(&format!("reach={level}\n")), "reach: {stdout}");
     let args: Vec<String> = stdout.lines().filter_map(|l| l.strip_prefix("arg=")).map(String::from).collect();
+    let text = fs::read_to_string(repo_root().join("registry/reach-levels.yaml")).unwrap();
+    let record = agent_launcher::parse(&text).unwrap();
+    assert_eq!(args, record.agents["claude"].levels[level].args, "the stub receives exactly the record's arguments");
     match tools_of(level) {
         None => assert_eq!(args, ["--permission-mode=bypassPermissions"], "full sets no tool list"),
         Some(tools) => {
@@ -229,8 +232,6 @@ fn prove(level: &str) {
     assert_eq!(hooks.exists(), level == "full", "the shared hooks directory is only writable at full");
 
     // 3. The record's cell for this OS is verified and cites this very test.
-    let text = fs::read_to_string(repo_root().join("registry/reach-levels.yaml")).unwrap();
-    let record = agent_launcher::parse(&text).unwrap();
     let host = agent_launcher::this_os();
     assert_eq!(agent_launcher::cell(&record, "claude", level, host), "verified", "{level} on {host}");
     let cited = &record.agents["claude"].levels[level].check[host];

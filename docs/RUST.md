@@ -323,7 +323,7 @@ launcher at `read` reach.
 
 **Claude's cells.** The record's `claude` agent holds all seven levels, each
 verified on Linux and on macOS by `crates/agent-launcher/tests/claude_reach.rs`
-(one test per level, `claude_reach_<level>`; the record cites each). The test
+(one test per level, `claude_reach_<level>` with `-` as `_`; the record cites each). The test
 starts the launcher binary on the real record with the command swapped for a
 stub shell script (never Claude, never `~/.claude` or a credential: `HOME` is a
 scratch directory) under the real write limit, and checks three things: the
