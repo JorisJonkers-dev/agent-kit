@@ -19,15 +19,23 @@ spec.loader.exec_module(measure)
 
 KEY = "sk-virtual-key-1234"
 EDGE = "smt_edge_token_5678"
-INFO = {"info": {"max_budget": 255.0, "budget_duration": "30d", "budget_reset_at": "2026-12-01T00:00:00Z",
-                 "spend": 1.5, "key_name": "sk-...1234", "token": "hashed-secret-field"}}
+INFO = {
+    "info": {
+        "max_budget": 255.0,
+        "budget_duration": "30d",
+        "budget_reset_at": "2026-12-01T00:00:00Z",
+        "spend": 1.5,
+        "key_name": "sk-...1234",
+        "token": "hashed-secret-field",
+    }
+}
 
 
 def stub(status: int, body: bytes) -> Iterator[tuple[str, list[dict[str, str]]]]:
     seen: list[dict[str, str]] = []
 
     class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             seen.append({"path": self.path, **{k.lower(): v for k, v in self.headers.items()}})
             self.send_response(status)
             self.end_headers()
@@ -99,7 +107,7 @@ def test_plain_http_off_loopback_is_refused(capsys) -> None:
 def test_the_default_url_is_the_route_tables(monkeypatch, capsys) -> None:
     seen: list[str] = []
 
-    def fake(self, request, timeout=None):  # noqa: ANN001
+    def fake(self, request, timeout=None):
         seen.append(request.full_url)
         raise OSError("down")
 
@@ -134,7 +142,7 @@ def test_a_missing_credential_is_named_not_printed(tmp_path, capsys) -> None:
 
 
 def test_a_hung_secret_store_counts_as_missing(tmp_path, monkeypatch) -> None:
-    def hang(*args, **kwargs):  # noqa: ANN002, ANN003
+    def hang(*args, **kwargs):
         raise measure.subprocess.TimeoutExpired("x", 1)
 
     monkeypatch.setattr(measure.subprocess, "run", hang)
@@ -156,7 +164,7 @@ def test_an_unsafe_value_is_refused_without_echo() -> None:
 
 
 def test_a_missing_route_table_is_a_usage_failure_not_a_traceback(monkeypatch, capsys) -> None:
-    def missing(agent, routes=None):  # noqa: ANN001
+    def missing(agent, routes=None):
         raise FileNotFoundError
 
     monkeypatch.setattr(measure, "route_for", missing)

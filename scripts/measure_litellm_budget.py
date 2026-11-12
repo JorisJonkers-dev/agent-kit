@@ -61,8 +61,12 @@ def route_for(agent: str, routes: Path = ROUTES) -> dict[str, object]:
     table = json.loads(routes.read_text())
     for route in table["routes"]:
         if route["agent"] == agent:
-            return {"key_env": route["key_env"], "edge_env": table["edge_token_env"],
-                    "header": table["key_header"], "base_url": table["base_url"]}
+            return {
+                "key_env": route["key_env"],
+                "edge_env": table["edge_token_env"],
+                "header": table["key_header"],
+                "base_url": table["base_url"],
+            }
     raise Failure(f"no route for agent {agent!r}; known: {', '.join(r['agent'] for r in table['routes'])}", 2)
 
 
@@ -71,9 +75,14 @@ def credential(name: str, env: Mapping[str, str], secret: Path = SECRET) -> str:
     value = env.get(name, "")
     if not value:
         try:
-            done = subprocess.run([sys.executable, str(secret), "get", name],
-                                  capture_output=True, text=True, check=False, timeout=30,
-                                  stdin=subprocess.DEVNULL)
+            done = subprocess.run(
+                [sys.executable, str(secret), "get", name],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+                stdin=subprocess.DEVNULL,
+            )
             value = done.stdout.strip() if done.returncode == 0 else ""
         except subprocess.TimeoutExpired:
             value = ""
@@ -97,19 +106,30 @@ def endpoint(url: str) -> str:
     return urllib.parse.urlunsplit((parts.scheme, parts.netloc, path + "/key/info", "", ""))
 
 
-def measure(agent: str, url: str | None, env: Mapping[str, str], routes: Path = ROUTES,
-            secret: Path = SECRET) -> tuple[str, dict[str, object]]:
+def measure(
+    agent: str, url: str | None, env: Mapping[str, str], routes: Path = ROUTES, secret: Path = SECRET
+) -> tuple[str, dict[str, object]]:
     route = route_for(agent, routes)
     target = endpoint(url or str(route["base_url"]))
     key = credential(str(route["key_env"]), env, secret)
     edge = credential(str(route["edge_env"]), env, secret)
-    request = urllib.request.Request(target, method="GET", headers={
-        "Authorization": f"Bearer {edge}", str(route["header"]): f"Bearer {key}", "User-Agent": AGENT,
-    })
-    shown = (f"GET {target}\n  Authorization: Bearer <{route['edge_env']}, redacted>\n"
-             f"  {route['header']}: Bearer <{route['key_env']}, redacted>")
+    request = urllib.request.Request(
+        target,
+        method="GET",
+        headers={
+            "Authorization": f"Bearer {edge}",
+            str(route["header"]): f"Bearer {key}",
+            "User-Agent": AGENT,
+        },
+    )
+    shown = (
+        f"GET {target}\n  Authorization: Bearer <{route['edge_env']}, redacted>\n"
+        f"  {route['header']}: Bearer <{route['key_env']}, redacted>"
+    )
     try:
-        with urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect).open(request, timeout=TIMEOUT_S) as response:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect).open(
+            request, timeout=TIMEOUT_S
+        ) as response:
             body = json.loads(response.read())
     except urllib.error.HTTPError as e:
         raise Failure(f"{shown}\nthe proxy answered HTTP {e.code}", 1) from None
