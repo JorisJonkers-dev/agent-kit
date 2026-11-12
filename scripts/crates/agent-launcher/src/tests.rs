@@ -9,11 +9,14 @@ agents:
       read:
         args: [--tools, none]
         support: {linux: verified, mac: unverified}
+        check: {linux: 'tests/fake.rs::fake_read'}
       research:
         args: [--out]
         support: {linux: verified, mac: verified}
+        check: {linux: 'tests/fake.rs::fake_research', mac: 'tests/fake.rs::fake_research'}
       write:
         support: {linux: unsupported, mac: verified}
+        check: {linux: 'no Landlock here', mac: 'tests/fake.rs::fake_write'}
 ids:
   fake-read:
     agent: fake
@@ -123,6 +126,14 @@ fn every_cell_needs_both_oses_and_a_known_state() {
     has(&GOOD.replace("{linux: verified, mac: unverified}", "{linux: verified}"), "no support state for mac");
     has(&GOOD.replace("mac: unverified", "mac: sure"), "bad support state \"sure\"");
     has(&GOOD.replace("mac: unverified}", "mac: verified, win: verified}"), "unknown OS \"win\"");
+}
+
+#[test]
+fn a_verified_cell_cites_its_check_and_an_unsupported_one_its_reason() {
+    has(&GOOD.replace("check: {linux: 'tests/fake.rs::fake_read'}", "check: {}"), "verified on linux without the check");
+    has(&GOOD.replace("'tests/fake.rs::fake_write'", "' '"), "verified on mac without the check");
+    has(&GOOD.replace("'no Landlock here'", "''"), "unsupported on linux without a reason");
+    has(&GOOD.replace("check: {linux: 'tests/fake.rs::fake_read'}", "check: {linux: x, win: y}"), "unknown OS \"win\"");
 }
 
 #[test]

@@ -1,0 +1,277 @@
+//! The Claude reach-level cells, proven on each OS (spec #392, story 51; ticket
+//! B1-15).
+//!
+//! For each reach level this starts the real launcher binary, under the real
+//! operating-system write limit (Landlock on Linux, `sandbox-exec` on macOS),
+//! on the Claude entry of the real support record (`registry/reach-levels.yaml`)
+//! with only its command swapped for a stub. The stub is a shell script, not
+//! Claude: it never reads `~/.claude` or any credential (`HOME` is a scratch
+//! directory). It reports the arguments and reach it was started with and tries
+//! to write to each directory a probe names.
+//!
+//! Each test checks that the level's tool arguments reach the process, that
+//! the writes the OS allows are exactly ADR-0013's table for the level, and that
+//! the record's cell for this OS is `verified` and cites this test. A cell
+//! cannot be `verified` for an OS whose runner does not pass it.
+
+#![cfg(any(target_os = "linux", target_os = "macos"))]
+
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+
+const LAUNCHER: &str = env!("CARGO_BIN_EXE_agent-launcher");
+const LEVELS: [&str; 7] = [
+    "read",
+    "read-web",
+    "research",
+    "write-scoped",
+    "run-one-command",
+    "write",
+    "full",
+];
+/// Every tool whose enabling widens what an agent may do.
+const POWERFUL: [&str; 6] = ["Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch"];
+
+/// Prints the reach and each argument up to `::`, then tries to create each
+/// path after it. `denied` is the operating system's own refusal.
+const STUB: &str = r#"echo "reach=$AGENT_KIT_REACH"
+n=0
+for a in "$@"; do
+  [ "$a" = "::" ] && break
+  echo "arg=$a"
+  n=$((n + 1))
+done
+shift $((n + 1))
+for p in "$@"; do
+  if out=$( ( : > "$p" ) 2>&1 ); then
+    echo "wrote $p"
+  else
+    case "$out" in
+      *"Permission denied"*|*"Operation not permitted"*) echo "denied $p" ;;
+      *) echo "failed $p: $out" ;;
+    esac
+  fi
+done
+"#;
+
+fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
+}
+
+/// The tools a level enables, from the table the ADR and docs/RUST.md give
+/// (`None` for `full`, which sets no tool list).
+fn tools_of(level: &str) -> Option<&'static [&'static str]> {
+    Some(match level {
+        "read" => &["Read", "Grep", "Glob"],
+        "read-web" => &["Read", "Grep", "Glob", "WebFetch", "WebSearch"],
+        "research" => &["Read", "Grep", "Glob", "WebFetch", "WebSearch", "Write"],
+        "write-scoped" => &["Read", "Grep", "Glob", "Write", "Edit"],
+        "run-one-command" => &["Read", "Grep", "Glob", "Bash"],
+        "write" => &["Read", "Grep", "Glob", "Write", "Edit", "NotebookEdit", "Bash"],
+        _ => return None,
+    })
+}
+
+struct Fixture {
+    base: PathBuf,
+    record: PathBuf,
+    worktree: PathBuf,
+    main: PathBuf,
+    state: PathBuf,
+    output: PathBuf,
+    gate: PathBuf,
+    outside: PathBuf,
+}
+
+fn git(dir: &Path, args: &[&str]) {
+    let status = Command::new("git")
+        .current_dir(dir)
+        .args(["-c", "user.name=t", "-c", "user.email=t@example.test", "-c", "init.defaultBranch=main"])
+        .args(args)
+        .env_remove("GIT_DIR")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("HOME", dir)
+        .status()
+        .unwrap();
+    assert!(status.success(), "git {args:?}");
+}
+
+/// A scratch tree: a git repository with a linked worktree (the launcher's
+/// working directory), directories for state, output and gate output, one
+/// outside all of them, and the record the launcher reads.
+fn fixture(level: &str) -> Fixture {
+    let base = fs::canonicalize(std::env::temp_dir())
+        .unwrap()
+        .join(format!("claude-reach-{level}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    let main = base.join("main");
+    let worktree = base.join("w");
+    let (state, output, gate, outside) = (base.join("state"), base.join("out"), base.join("gate"), base.join("outside"));
+    for dir in [&main, &base.join("home"), &base.join("tmp"), &state, &outside] {
+        fs::create_dir_all(dir).unwrap();
+    }
+    git(&main, &["init", "-q"]);
+    git(&main, &["commit", "-q", "--allow-empty", "--no-verify", "-m", "base"]);
+    git(&main, &["worktree", "add", "-q", worktree.to_str().unwrap(), "-b", "feature"]);
+
+    // The real record, with the Claude command swapped for the stub, and one id
+    // for each level on this OS.
+    let stub = base.join("stub.sh");
+    fs::write(&stub, STUB).unwrap();
+    let text = fs::read_to_string(repo_root().join("registry/reach-levels.yaml")).unwrap();
+    let mut record: serde_yaml::Value = serde_yaml::from_str(&text).unwrap();
+    record["agents"]["claude"]["command"] = serde_yaml::from_str(&format!("[/bin/sh, {}]", stub.display())).unwrap();
+    let host = agent_launcher::this_os();
+    let mut ids = String::new();
+    for l in LEVELS {
+        ids += &format!("{l}-id: {{agent: claude, reach: {l}, hosts: [{host}]");
+        if l == "research" || l == "write-scoped" {
+            ids += &format!(", output_dir: {}", output.display());
+        }
+        ids += "}\n";
+    }
+    record["ids"] = serde_yaml::from_str(&ids).unwrap();
+    let file = base.join("reach.yaml");
+    fs::write(&file, serde_yaml::to_string(&record).unwrap()).unwrap();
+    Fixture { base, record: file, worktree, main, state, output, gate, outside }
+}
+
+/// Starts the level's id through the launcher, as its own process, with the
+/// probes after `--`, and returns its output.
+fn launch(f: &Fixture, level: &str, probes: &[PathBuf]) -> Output {
+    Command::new(LAUNCHER)
+        .args(["run".as_ref(), f.record.as_os_str(), format!("{level}-id").as_ref(), "--".as_ref(), "::".as_ref()])
+        .args(probes)
+        .current_dir(&f.worktree)
+        .env("HOME", f.base.join("home"))
+        .env("XDG_CONFIG_HOME", f.base.join("home/.config"))
+        .env("TMPDIR", f.base.join("tmp"))
+        .env("AGENT_KIT_STATE_DIRS", &f.state)
+        .env("AGENT_KIT_GATE_DIR", &f.gate)
+        .env_remove("GIT_DIR")
+        .output()
+        .unwrap()
+}
+
+/// The words of a flag's comma-separated value, `--flag=a,b`.
+fn flag_set(args: &[String], flag: &str) -> BTreeSet<String> {
+    let prefix = format!("{flag}=");
+    args.iter()
+        .filter_map(|a| a.strip_prefix(&prefix))
+        .flat_map(|v| v.split(','))
+        .map(String::from)
+        .collect()
+}
+
+/// Proves one level on this OS.
+fn prove(level: &str) {
+    let f = fixture(level);
+    let hooks = f.main.join(".git/hooks/pre-commit");
+    // Every directory a level might be granted, and two it never is.
+    let probes = vec![
+        f.state.join("p-state"),
+        f.output.join("p-output"),
+        f.gate.join("p-gate"),
+        f.worktree.join("p-worktree"),
+        f.outside.join("p-outside"),
+        hooks.clone(),
+    ];
+    fs::create_dir_all(&f.output).unwrap();
+    fs::create_dir_all(&f.gate).unwrap();
+    let out = launch(&f, level, &probes);
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "the launcher exited {:?} for {level}: {stderr}\n{stdout}", out.status);
+
+    // 1. The level's tool arguments, and its reach, reach the process.
+    assert!(stdout.contains(&format!("reach={level}\n")), "reach: {stdout}");
+    let args: Vec<String> = stdout.lines().filter_map(|l| l.strip_prefix("arg=")).map(String::from).collect();
+    match tools_of(level) {
+        None => assert_eq!(args, ["--permission-mode=bypassPermissions"], "full sets no tool list"),
+        Some(tools) => {
+            let enabled: BTreeSet<String> = tools.iter().map(|t| t.to_string()).collect();
+            assert_eq!(flag_set(&args, "--tools"), enabled, "tools for {level}: {args:?}");
+            let denied = flag_set(&args, "--disallowedTools");
+            let powerful_off: BTreeSet<String> =
+                POWERFUL.iter().filter(|t| !enabled.contains(**t)).map(|t| t.to_string()).collect();
+            assert_eq!(denied, powerful_off, "every powerful tool the level lacks is denied: {args:?}");
+            let approved = flag_set(&args, "--allowedTools");
+            assert!(approved.is_subset(&enabled), "pre-approves nothing beyond the tool list: {args:?}");
+            let pre_approved_shell = approved.contains("Bash");
+            assert_eq!(pre_approved_shell, level == "write", "only write pre-approves Bash: {args:?}");
+            assert!(args.contains(&"--permission-mode=dontAsk".to_string()), "no prompt can widen it: {args:?}");
+            assert!(args.contains(&"--strict-mcp-config".to_string()), "no ambient MCP server: {args:?}");
+            assert!(!args.iter().any(|a| a.contains("bypass") || a.contains("dangerously")), "{args:?}");
+        }
+    }
+
+    // 2. The OS permits exactly ADR-0013's writes for the level.
+    let wrote: BTreeSet<&str> = stdout.lines().filter_map(|l| l.strip_prefix("wrote ")).filter_map(|p| p.rsplit('/').next()).collect();
+    let denied: BTreeSet<&str> = stdout.lines().filter_map(|l| l.strip_prefix("denied ")).filter_map(|p| p.rsplit('/').next()).collect();
+    assert!(!stdout.contains("failed "), "a probe failed for a reason other than the OS refusing it: {stdout}");
+    let expected: &[&str] = match level {
+        "read" | "read-web" => &["p-state"],
+        "research" | "write-scoped" => &["p-state", "p-output"],
+        "run-one-command" => &["p-state", "p-gate"],
+        "write" => &["p-state", "p-worktree"],
+        _ => &["p-state", "p-output", "p-gate", "p-worktree", "p-outside", "pre-commit"],
+    };
+    let all: BTreeSet<&str> = ["p-state", "p-output", "p-gate", "p-worktree", "p-outside", "pre-commit"].into();
+    assert_eq!(wrote, expected.iter().copied().collect::<BTreeSet<_>>(), "written at {level}: {stdout}");
+    assert_eq!(denied, all.difference(&wrote).copied().collect::<BTreeSet<_>>(), "refused at {level}: {stdout}");
+    assert_eq!(hooks.exists(), level == "full", "the shared hooks directory is only writable at full");
+
+    // 3. The record's cell for this OS is verified and cites this very test.
+    let text = fs::read_to_string(repo_root().join("registry/reach-levels.yaml")).unwrap();
+    let record = agent_launcher::parse(&text).unwrap();
+    let host = agent_launcher::this_os();
+    assert_eq!(agent_launcher::cell(&record, "claude", level, host), "verified", "{level} on {host}");
+    let cited = &record.agents["claude"].levels[level].check[host];
+    let name = format!("claude_reach_{}", level.replace('-', "_"));
+    assert_eq!(cited, &format!("scripts/crates/agent-launcher/tests/claude_reach.rs::{name}"));
+    let _ = fs::remove_dir_all(&f.base);
+}
+
+macro_rules! level {
+    ($name:ident, $level:literal) => {
+        #[test]
+        fn $name() {
+            prove($level);
+        }
+    };
+}
+
+level!(claude_reach_read, "read");
+level!(claude_reach_read_web, "read-web");
+level!(claude_reach_research, "research");
+level!(claude_reach_write_scoped, "write-scoped");
+level!(claude_reach_run_one_command, "run-one-command");
+level!(claude_reach_write, "write");
+level!(claude_reach_full, "full");
+
+/// The record is a clean support record, covers every level for both OSes, and
+/// every check it cites names a test that exists in this file.
+#[test]
+fn claude_reach_record_is_valid_and_cites_real_checks() {
+    let path = repo_root().join("registry/reach-levels.yaml");
+    let text = fs::read_to_string(&path).unwrap();
+    let record = agent_launcher::parse(&text).unwrap();
+    assert_eq!(agent_launcher::problems(&record), Vec::<String>::new());
+    let me = fs::read_to_string(repo_root().join("scripts/crates/agent-launcher/tests/claude_reach.rs")).unwrap();
+    let claude = &record.agents["claude"];
+    assert_eq!(claude.levels.keys().map(String::as_str).collect::<BTreeSet<_>>(), LEVELS.iter().copied().collect());
+    for (level, entry) in &claude.levels {
+        for os in agent_launcher::OSES {
+            let state = agent_launcher::cell(&record, "claude", level, os);
+            assert!(["verified", "unsupported"].contains(&state), "{level} on {os} is {state}: a cell is verified or refused");
+            let check = &entry.check[os];
+            if state == "verified" {
+                let (file, test) = check.split_once("::").expect("file::test");
+                assert!(repo_root().join(file).exists(), "{check}");
+                assert!(me.contains(&format!("level!({test},")), "{check} names a test in this file");
+            }
+        }
+    }
+}

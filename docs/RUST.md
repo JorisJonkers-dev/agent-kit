@@ -219,8 +219,11 @@ hold on this OS. It reads the support record, `registry/reach-levels.yaml`:
 * `agents:` each agent's `command` and, per reach level (`read`, `read-web`,
   `research`, `write-scoped`, `run-one-command`, `write`, `full`), its tool
   `args` and a `support:` cell for each OS (`linux`, `mac`), one of `verified`,
-  `unverified` or `unsupported`. A cell is verified separately on each OS; a
-  level proven on the Mac is never assumed on Linux.
+  `unverified` or `unsupported`, and a `check:` for each OS: the test that
+  proves a `verified` cell (`<file>::<test>`) or the reason an `unsupported`
+  one is refused. `validate` refuses a verified cell without its check. A cell
+  is verified separately on each OS; a level proven on the Mac is never
+  assumed on Linux.
 * `ids:` each agent id, naming its `agent`, its `reach` level, an optional
   `skill_set`, the `hosts` it runs on and, for `research` and `write-scoped`,
   its `output_dir`.
@@ -317,6 +320,23 @@ tests on a macOS runner (the `Rust Tests (macos)` job), where the enforcement
 tests start a stub agent under the real `sandbox-exec`. The same job runs
 `code-nav`'s `read_reach` test (below), which starts the server through this
 launcher at `read` reach.
+
+**Claude's cells.** The record's `claude` agent holds all seven levels, each
+verified on Linux and on macOS by `crates/agent-launcher/tests/claude_reach.rs`
+(one test per level, `claude_reach_<level>`; the record cites each). The test
+starts the launcher binary on the real record with the command swapped for a
+stub shell script (never Claude, never `~/.claude` or a credential: `HOME` is a
+scratch directory) under the real write limit, and checks three things: the
+level's tool arguments reach the process (a `--tools` list, a `--disallowedTools`
+deny list of every powerful tool the level lacks, `--permission-mode=dontAsk`,
+`--strict-mcp-config`; `full` is `--permission-mode=bypassPermissions` alone);
+the writes the operating system allows are exactly the table above; and the
+record's cell for this OS is `verified` and cites that test. It runs in the
+`Rust Tests (macos)` job and the Linux workspace job. What it does not prove is
+how a live Claude Code reads those flags: that was checked against its
+`--help`, and a live run needs the owner's credentials. `run-one-command`
+pre-approves no Bash command; a node adds `--allowedTools 'Bash(<command>)'`
+after `--`, and the OS limit confines where that command may write.
 
 For an id that names a `skill_set`, `run` also exports `AGENT_KIT_SKILL_SET`
 with that name and `AGENT_KIT_SKILLS_DIR` with the directory setup builds for
