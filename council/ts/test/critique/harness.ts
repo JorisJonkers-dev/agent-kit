@@ -1261,7 +1261,7 @@ export async function harness(
      * a value is written as JSON, a string as it is.
      */
     readonly routingOverride?: unknown
-    /** The platform the runner reports; Antigravity is set up on macOS only. */
+    /** The platform the runner reports; Vibe's sign-in check reads the macOS Keychain. */
     readonly platform?: NodeJS.Platform
     /** Whether `agy` is on PATH. */
     readonly agyOnPath?: boolean
@@ -1398,7 +1398,7 @@ export async function harness(
   const commands = createCritiqueCommands({
     assetsRoot,
     clients: {
-      agy: new AgyCriticClient(agy, files, env, options.platform ?? 'darwin'),
+      agy: new AgyCriticClient(agy, files, env),
       vibe: new VibeCriticClient(process, files, env, options.platform ?? 'darwin'),
       ...workClients(options.workClients),
       ...(workProcesses.codex === undefined ? {} : { codex: new WorkCodexCriticClient(workProcesses.codex, files, env) }),

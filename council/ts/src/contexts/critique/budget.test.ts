@@ -33,6 +33,7 @@ interface Flow {
   readonly platform?: NodeJS.Platform
   readonly routing?: unknown
   readonly vibeOnPath?: boolean
+  readonly agyOnPath?: boolean
   readonly vibeSignIn?: VibeSignIn
   readonly vibeAgents?: readonly string[]
   /** This machine's model gateway file, where Vibe's plan limits are declared. */
@@ -46,6 +47,7 @@ async function opened(flow: Flow): Promise<Harness> {
     scripts: flow.vibe ?? [],
     ...(flow.routing === undefined ? {} : { routing: flow.routing }),
     ...(flow.vibeOnPath === undefined ? {} : { vibeOnPath: flow.vibeOnPath }),
+    ...(flow.agyOnPath === undefined ? {} : { agyOnPath: flow.agyOnPath }),
     ...(flow.vibeSignIn === undefined ? {} : { vibeSignIn: flow.vibeSignIn }),
     ...(flow.vibeAgents === undefined ? {} : { vibeAgents: flow.vibeAgents }),
     ...(flow.gatewayOverride === undefined ? {} : { gatewayOverride: flow.gatewayOverride }),
@@ -702,8 +704,8 @@ describe('the Antigravity quota', () => {
     expect(second.dropped).toMatchObject([{ client: 'agy-gemini-flash-high', reason: 'quota' }])
   })
 
-  it('falls back without touching the counter where agy is not set up, and says why', async () => {
-    const h = await opened({ platform: 'linux', vibe: [vibeOk('critic-mistral-large'), vibeOk('critic-glm')] })
+  it('falls back without touching the counter where agy is not installed, and says why', async () => {
+    const h = await opened({ agyOnPath: false, vibe: [vibeOk('critic-mistral-large'), vibeOk('critic-glm')] })
     const run = await prepare(h)
 
     await h.commands.fanOut.run({ run_dir: run.run_dir })
@@ -712,7 +714,7 @@ describe('the Antigravity quota', () => {
     expect(run.dropped).toEqual([
       {
         client: 'agy-gemini-flash-high',
-        detail: 'antigravity: macOS only; not set up on linux',
+        detail: 'antigravity: agy is not on PATH',
         family: 'google',
         reason: 'unavailable',
         replaced_by: 'c2-vibe-glm',

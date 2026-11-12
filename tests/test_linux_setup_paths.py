@@ -40,11 +40,11 @@ def test_linux_run_writes_no_macos_path(tmp_path: Path) -> None:
     assert not [c for c in run.calls if "--cask" in c]
 
 
-def test_linux_run_reports_the_macos_only_skips(tmp_path: Path) -> None:
+def test_linux_run_no_longer_skips_antigravity_as_macos_only(tmp_path: Path) -> None:
     run = _linux_run(tmp_path)
     output = run.stdout + run.stderr
-    assert "antigravity-cli: macOS only; skipped on Linux" in output
-    assert "antigravity: macOS only; skipped on Linux" in output
+    assert "antigravity-cli: macOS only" not in output
+    assert "antigravity: macOS only" not in output
 
 
 def test_linux_vibe_sign_in_check_is_skipped_and_reported(tmp_path: Path) -> None:

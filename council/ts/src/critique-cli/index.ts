@@ -177,7 +177,7 @@ export function defaultCritiqueRuntime(
     commands: createCritiqueCommands({
       assetsRoot,
       clients: {
-        agy: new AgyCriticClient(processPort, files, env, platform),
+        agy: new AgyCriticClient(processPort, files, env),
         // Only a nedap repository's work roster names these two.
         claude: new WorkClaudeCriticClient(processPort, files, env),
         codex: new WorkCodexCriticClient(processPort, files, env),

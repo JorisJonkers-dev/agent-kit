@@ -413,7 +413,7 @@ refused!(antigravity_refuses_full, "antigravity", "full");
 
 /// Every cell of these four agents is verified (citing a test in this file) or
 /// refused (with its reason), on both OSes; the record validates clean for
-/// them; and Antigravity's Linux reason names the missing Linux command.
+/// them; and Antigravity's Linux reason says no level can be pinned.
 #[test]
 fn other_reach_record_is_valid_and_complete() {
     let record = agent_launcher::parse(&record_text()).unwrap();
@@ -463,7 +463,7 @@ fn other_reach_record_is_valid_and_complete() {
     let linux = &record.agents["antigravity"].levels["read"].check["linux"];
     assert!(!linux.starts_with('('), "{linux}");
     assert!(
-        linux.contains("#431") && linux.contains("not declared for Linux"),
+        linux.contains("#431") && linux.contains("no level can be pinned"),
         "{linux}"
     );
 }

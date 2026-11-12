@@ -48,7 +48,6 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
     private readonly process: ProcessPort,
     private readonly files: CritiqueFilesPort,
     private readonly env: EnvPort,
-    private readonly platform: NodeJS.Platform,
   ) {
     this.gateway = new ClientRun({ env, files, process })
   }
@@ -63,13 +62,12 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
   }
 
   /**
-   * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
+   * Setup's own check: `agy` (installed on macOS and Linux alike) must be on
    * `PATH`, and `agy models` must list the routed model. Listing the models
    * needs a signed-in account but calls no model, so it spends no quota and
    * answers even while the quota is spent.
    */
   async readiness(config: AgyClientConfig): Promise<ClientReadiness> {
-    if (this.platform !== 'darwin') return { detail: `antigravity: macOS only; not set up on ${this.platform}`, ready: false }
     if (!(await this.onPath(config.binary))) return { detail: `antigravity: ${config.binary} is not on PATH`, ready: false }
     const listed = await this.process
       .exec({ args: ['models'], command: config.binary, timeoutMs: MODELS_TIMEOUT_MS })

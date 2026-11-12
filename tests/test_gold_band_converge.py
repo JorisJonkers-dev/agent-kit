@@ -857,13 +857,13 @@ def test_a_malformed_os_declaration_is_refused(
     assert message in capsys.readouterr().out
 
 
-def test_the_shipped_registry_declares_hermes_everywhere_and_antigravity_on_mac_only(
+def test_the_shipped_registry_declares_hermes_and_antigravity_everywhere(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     registry = KIT_ROOT / "registry" / "estate-tooling.yaml"
     declared = {a["id"]: a for a in converge._gold_band_registry(registry)[0]}
     assert declared["hermes"]["binary"] == "hermes-acp" and declared["hermes"]["command_from_binary"] is True
-    assert set(declared["agy"]["os"]) == {"mac"}
+    assert set(declared["agy"]["os"]) == {"mac", "linux"}
     for host in ("linux", "mac"):
         monkeypatch.setenv("AGENT_KIT_GOLD_BAND_HOST", host)
         monkeypatch.setenv("PATH", str(tmp_path))
@@ -872,10 +872,7 @@ def test_the_shipped_registry_declares_hermes_everywhere_and_antigravity_on_mac_
         assert converge.main(argv) == 0
         out = capsys.readouterr().out
         assert "skipped: hermes (hermes-acp is not installed)" in out
-        if host == "linux":
-            assert "skipped: agy (no launch command declared for linux)" in out
-        else:
-            assert "skipped: agy (agy is not installed)" in out
+        assert "skipped: agy (agy is not installed)" in out
 
 
 def test_a_section_command_from_binary_needs_a_binary_somewhere(

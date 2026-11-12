@@ -12931,17 +12931,15 @@ var MODELS_PROGRESS = "Fetching available models...";
 var OUTER_TIMEOUT_GRACE_S2 = 60;
 var READ_ONLY_TOOLS = /* @__PURE__ */ new Set(["read_file", "view_file", "list_dir", "grep_search", "find_by_name", "finish"]);
 var AgyCriticClient = class {
-  constructor(process2, files, env, platform) {
+  constructor(process2, files, env) {
     this.process = process2;
     this.files = files;
     this.env = env;
-    this.platform = platform;
     this.gateway = new ClientRun({ env, files, process: process2 });
   }
   process;
   files;
   env;
-  platform;
   gateway;
   /** agy has no per-critic file, so being signed in is all a critic needs. */
   async signIn(config) {
@@ -12951,13 +12949,12 @@ var AgyCriticClient = class {
     return cliVersion(this.process, config.binary);
   }
   /**
-   * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
+   * Setup's own check: `agy` (installed on macOS and Linux alike) must be on
    * `PATH`, and `agy models` must list the routed model. Listing the models
    * needs a signed-in account but calls no model, so it spends no quota and
    * answers even while the quota is spent.
    */
   async readiness(config) {
-    if (this.platform !== "darwin") return { detail: `antigravity: macOS only; not set up on ${this.platform}`, ready: false };
     if (!await this.onPath(config.binary)) return { detail: `antigravity: ${config.binary} is not on PATH`, ready: false };
     const listed = await this.process.exec({ args: ["models"], command: config.binary, timeoutMs: MODELS_TIMEOUT_MS }).catch((error) => error instanceof Error ? error.message : String(error));
     return modelsReadiness(listed, config);
@@ -14470,7 +14467,7 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
     commands: createCritiqueCommands({
       assetsRoot,
       clients: {
-        agy: new AgyCriticClient(processPort, files, env, platform),
+        agy: new AgyCriticClient(processPort, files, env),
         // Only a nedap repository's work roster names these two.
         claude: new ClaudeCriticClient(processPort, files, env),
         codex: new CodexCriticClient(processPort, files, env),
