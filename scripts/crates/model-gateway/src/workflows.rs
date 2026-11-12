@@ -52,7 +52,7 @@ pub struct Change {
 
 /// The workflow name `value` names, refused when it is missing or is not a name
 /// a workflow may carry. A name reaches the shell command the gateway suggests
-/// and the paths a run keeps, so it is held to letters, digits and `._:/-`.
+/// and the paths a run keeps, so it is held to letters, digits and `._:/@-`.
 pub fn require_name(value: Option<&Value>, missing: &str) -> Result<String, GatewayError> {
     let Some(Value::Str(name)) = value else {
         return Err(GatewayError::invalid_input(missing));
@@ -62,20 +62,20 @@ pub fn require_name(value: Option<&Value>, missing: &str) -> Result<String, Gate
     }
     if !is_name(name) {
         return Err(GatewayError::invalid_input(format!(
-            "workflow {} is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters",
+            "workflow {} is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters",
             json::compact(&Value::str(name))
         )));
     }
     Ok(name.clone())
 }
 
-/// `^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$`.
+/// `^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,79}$`.
 fn is_name(name: &str) -> bool {
     // The caller has refused the empty name, so the first character is there.
     let chars: Vec<char> = name.chars().collect();
     chars.len() <= 80
         && chars[0].is_ascii_alphanumeric()
-        && chars[1..].iter().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | ':' | '/' | '-'))
+        && chars[1..].iter().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | ':' | '/' | '@' | '-'))
 }
 
 /// The workflows a file holds. A file that is not JSON, of another version, or

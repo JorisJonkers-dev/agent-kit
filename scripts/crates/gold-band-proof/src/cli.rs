@@ -30,7 +30,8 @@ usage: gold-band-proof prove --workflow FILE [--gold-band BIN] [--gold-band-comm
                              [--gold-band BIN] [-- <gold-band run arguments>]
 
 prove  run the workflow headless against the stub agent and record the proof
-       (a scenario verdict is clean, needs-human, fail or gate-fail=NAME)
+       (a scenario verdict is clean, needs-human, fail, gate-fail=NAME or
+       grant-lapse=NAME)
 check  refuse unless a passing proof of the workflow is recorded
 run    check, then start `gold-band run` for the workflow
 ";

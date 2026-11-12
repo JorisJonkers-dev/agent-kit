@@ -188,7 +188,7 @@ fall-through below), `family_binding` (default `true`; see below),
 changes nothing else: a run marked headless is refused and launched exactly
 like any other).
 `workflow` is required (`code: "invalid-input"`), and is a name: a letter or
-digit, then letters, digits and `. _ : / -` only, at most 80 characters. Every
+digit, then letters, digits and `. _ : / @ -` only, at most 80 characters. Every
 command that takes a workflow name holds it to that rule, because the name
 reaches the shell command the gateway suggests. A run can go to `client:
 "vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code), `"opencode"`,
@@ -721,7 +721,9 @@ node model-gateway.mjs grant list  --json '{}'
 ```
 
 `grant write` takes `workflow`, `client` (a metered-employer client, `codex`
-today), `cap_usd`, `question` and `answer`, and prints
+today), `cap_usd`, `question` and `answer`, and optionally `max_starts` (a whole
+number above 0: the Codex node starts a Gold Band run may take, also given as
+`--max-starts N`; `grant list` shows it), and prints
 `{"status":"ok","grant":{...}}` with what the grant has left. It refuses an
 empty `question` or `answer`, a `cap_usd` that is not above 0, a client that is
 not metered-employer (`invalid-input`, naming its cost class), a client the
@@ -750,6 +752,24 @@ The write is the last thing that can fail: when the ledger cannot be read
 afterwards, the result is still `ok`, with the grant it wrote, `"room": null`
 and a `warning` saying what it could not read. Never ask the owner again
 because of that warning — the grant stands.
+
+`grant reserve` is the Gold Band work instance's per-node grant check. A Gold
+Band run counts as one workflow, named `<gold band workflow>@<repository>@<run
+id>`, and its grant's `max_starts` counts Codex node starts (one per start),
+because the gateway never sees Gold Band spend. `grant write` takes it as
+`"max_starts"` or `--max-starts N`; `cap_usd` stays dollars and is never read as
+a start count. Before every Codex node,
+`grant reserve --json '{"workflow":"<name>","client":"codex","node":"<node id>","attempt":1}'`
+holds one start (a node and attempt that ask again hold the one start,
+`"repeated": true`) against the grant and prints `{"status":"ok","reservation":{...}}`
+with `max_starts`, `started` (this one included) and `remaining`. The decision and the
+reservation line are one locked ledger update, so two parallel nodes cannot both
+take the last start. A reservation holds for about a minute and then settles; a settled start still
+counts, so a start is never given back. It refuses `cap-exceeded` when no start
+is left, `no-max-starts` when the grant has no `max_starts`, and `no-grant` when no grant covers the workflow or the newest
+one lapsed (its message names the grant and why: `workflow-ended` or
+`expired`). The workflow need not have a record. The shim that calls it is
+`gold-band-run-start grant-check`.
 
 `grant list` prints `{"status":"ok","grants":[...],"lapsed":[...]}`. Each live
 grant carries its `cap_usd`, `spent_usd` (what its workflow has spent on that

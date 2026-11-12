@@ -276,9 +276,10 @@ export class CapGuard {
    * What each live reservation's run directory says the run cost, by run id: a
    * run that left a result is finished, whatever its expiry says. It is read
    * before the ledger's lock is taken, so the lock is held for the decision
-   * alone; a reservation that settles meanwhile is skipped there.
+   * alone; a reservation that settles meanwhile is skipped there. A command
+   * that decides inside the ledger's lock settles with it, as `reserve` does.
    */
-  private async finishedCosts(): Promise<ReadonlyMap<string, number>> {
+  async finishedCosts(): Promise<ReadonlyMap<string, number>> {
     const costs = new Map<string, number>()
     for (const reservation of liveReservations(await this.deps.ledger.read())) {
       const cost = await this.resultCost(reservation.run_dir)

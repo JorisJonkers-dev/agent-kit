@@ -83,7 +83,7 @@ pub struct ScenarioSpec {
     /// The scenario name, such as `clean`.
     pub name: String,
     /// The stub verdict: `clean` (or empty), `needs-human`, `open-questions`,
-    /// `actionable=<n>`, `fail` or `gate-fail=<name>`.
+    /// `actionable=<n>`, `fail`, `gate-fail=<name>` or `grant-lapse=<name>`.
     pub verdict: String,
     /// The exit code `gold-band run` must return.
     pub expected_exit: i32,
@@ -386,10 +386,10 @@ fn add_workers(dynamic: &mut BTreeMap<String, Vec<String>>, agent_id: &str, work
     }
 }
 
-/// The role an agent id plays: a `gate-`, `copy-` or `verdict-` prefix names a
-/// shim or a critic round, an id that serves an `ai-dynamic` node fans out to
-/// that node's workers, else the schema of the nodes it runs decides between
-/// open questions, an answer and findings.
+/// The role an agent id plays: a `gate-`, `copy-`, `grant-` or `verdict-`
+/// prefix names a shim or a critic round, an id that serves an `ai-dynamic`
+/// node fans out to that node's workers, else the schema of the nodes it runs
+/// decides between open questions, an answer and findings.
 fn role_for(
     agent_id: &str,
     answers: &BTreeSet<String>,
@@ -407,6 +407,12 @@ fn role_for(
         .filter(|name| !name.is_empty())
     {
         return Role::Copy(name.to_string());
+    }
+    if let Some(name) = agent_id
+        .strip_prefix("grant-")
+        .filter(|name| !name.is_empty())
+    {
+        return Role::Grant(name.to_string());
     }
     if let Some(round) = verdict_round(agent_id) {
         return Role::Verdict(round);
@@ -518,6 +524,10 @@ fn node_fails(info: &WorkflowInfo, node: &GraphNode, verdict: &str) -> bool {
         Role::Gate(name) | Role::Copy(name) => {
             verdict.strip_prefix("gate-fail=") == Some(name.as_str())
         }
+        // A grant-check shim refuses when the grant lapsed, which is its own
+        // verdict: the run pauses at the failure edge that leads to a manual
+        // check.
+        Role::Grant(name) => verdict.strip_prefix("grant-lapse=") == Some(name.as_str()),
         // A critic or questions agent also runs nodes with no success
         // condition (a drafting node), so only a node that routes failures
         // (a merge, a grill round) is taken to fail.
@@ -554,10 +564,10 @@ struct Segment {
 }
 
 /// The scenarios every workflow gets, segment by segment: `clean` always, then
-/// `needs-human`, `open-questions`, one `actionable-<n>` per critic round and
-/// one `gate-fail-<name>` per gate, each kept only when walking the segment
-/// under that verdict fails a node. The expected exit code of each comes from
-/// the walk.
+/// `needs-human`, `open-questions`, one `actionable-<n>` per critic round, one
+/// `gate-fail-<name>` per gate and one `grant-lapse-<name>` per grant-check,
+/// each kept only when walking the segment under that verdict fails a node. The
+/// expected exit code of each comes from the walk.
 pub fn default_scenarios(info: &WorkflowInfo) -> Vec<ScenarioSpec> {
     let mut scenarios = Vec::new();
     let mut proved = BTreeSet::new();
@@ -635,7 +645,8 @@ fn segment_scenarios(
 
 /// The verdicts a segment is proved under besides `clean`: `needs-human`,
 /// `open-questions`, one `actionable=<n>` per critic round up to the highest
-/// the workflow names, then one failing gate per gate name, sorted.
+/// the workflow names, then one failing gate per gate name and one lapsed grant
+/// per grant-check name, each sorted.
 fn candidate_verdicts(info: &WorkflowInfo) -> Vec<String> {
     let mut verdicts = vec![NEEDS_HUMAN.to_string(), OPEN_QUESTIONS.to_string()];
     for round in 1..=max_verdict_round(info) {
@@ -643,6 +654,9 @@ fn candidate_verdicts(info: &WorkflowInfo) -> Vec<String> {
     }
     for name in gate_names(info) {
         verdicts.push(format!("gate-fail={}", name));
+    }
+    for name in grant_names(info) {
+        verdicts.push(format!("grant-lapse={}", name));
     }
     verdicts
 }
@@ -659,7 +673,8 @@ fn max_verdict_round(info: &WorkflowInfo) -> u32 {
         .unwrap_or(0)
 }
 
-/// The scenario name a verdict gets: `gate-fail=NAME` becomes `gate-fail-NAME`.
+/// The scenario name a verdict gets: `gate-fail=NAME` becomes `gate-fail-NAME`
+/// and `grant-lapse=NAME` becomes `grant-lapse-NAME`.
 fn verdict_name(verdict: &str) -> String {
     verdict.replace('=', "-")
 }
@@ -678,9 +693,24 @@ fn gate_names(info: &WorkflowInfo) -> Vec<String> {
     names
 }
 
+/// The grant-check names the workflow's roles name, sorted.
+fn grant_names(info: &WorkflowInfo) -> Vec<String> {
+    let mut names: Vec<String> = info
+        .roles
+        .values()
+        .filter_map(|role| match role {
+            Role::Grant(name) => Some(name.clone()),
+            _ => None,
+        })
+        .collect();
+    names.sort();
+    names
+}
+
 /// Parses `NAME:VERDICT:EXIT` (verdict one of `clean`, `needs-human`,
-/// `open-questions`, `actionable=<n>`, `fail` or `gate-fail=NAME`; exit an
-/// integer). The scenario runs the whole workflow, never a segment.
+/// `open-questions`, `actionable=<n>`, `fail`, `gate-fail=NAME` or
+/// `grant-lapse=NAME`; exit an integer). The scenario runs the whole workflow,
+/// never a segment.
 pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
     let parts: Vec<&str> = text.split(':').collect();
     if parts.len() != 3 {
@@ -702,7 +732,7 @@ pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
     let verdict = parts[1];
     if !is_known_verdict(verdict) {
         return Err(format!(
-            "the scenario `{}` has the unknown verdict `{}` (use clean, needs-human, open-questions, actionable=N, fail or gate-fail=NAME)",
+            "the scenario `{}` has the unknown verdict `{}` (use clean, needs-human, open-questions, actionable=N, fail, gate-fail=NAME or grant-lapse=NAME)",
             name, verdict
         ));
     }
@@ -722,8 +752,8 @@ pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
 }
 
 /// Whether a verdict is one the stub understands: `clean`, `needs-human`,
-/// `open-questions`, `fail`, `actionable=` and a count, or `gate-fail=` and a
-/// non-empty gate name.
+/// `open-questions`, `fail`, `actionable=` and a count, `gate-fail=` and a
+/// non-empty gate name, or `grant-lapse=` and a non-empty grant-check name.
 fn is_known_verdict(verdict: &str) -> bool {
     if matches!(verdict, "clean" | NEEDS_HUMAN | OPEN_QUESTIONS | "fail") {
         return true;
@@ -731,10 +761,12 @@ fn is_known_verdict(verdict: &str) -> bool {
     if actionable(verdict).is_some() {
         return true;
     }
-    match verdict.strip_prefix("gate-fail=") {
-        Some(name) => is_name(name),
-        None => false,
-    }
+    names_a_shim(verdict, "gate-fail=") || names_a_shim(verdict, "grant-lapse=")
+}
+
+/// Whether a verdict is `prefix` followed by a non-empty name.
+fn names_a_shim(verdict: &str, prefix: &str) -> bool {
+    verdict.strip_prefix(prefix).is_some_and(is_name)
 }
 
 /// Whether `c` may appear in a scenario name or a gate name.

@@ -2329,12 +2329,17 @@ function parseGrant(raw, index) {
     client: requireString3(raw.client, `${where}.client`),
     expires_at: requireTimestamp2(raw.expires_at, `${where}.expires_at`),
     id: requireString3(raw.id, `${where}.id`),
+    ...raw.max_starts === void 0 ? {} : { max_starts: requireStarts(raw.max_starts, `${where}.max_starts`) },
     question: requireString3(raw.question, `${where}.question`),
     workflow: requireString3(raw.workflow, `${where}.workflow`),
     written_at: requireTimestamp2(raw.written_at, `${where}.written_at`)
   };
   if (raw.ended_at === void 0) return grant;
   return { ...grant, ended_at: requireTimestamp2(raw.ended_at, `${where}.ended_at`) };
+}
+function requireStarts(value, where) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) throw invalid3(`${where} must be a whole number above 0`);
+  return value;
 }
 function requireString3(value, where) {
   if (typeof value !== "string" || value === "") throw invalid3(`${where} must be a non-empty string`);
@@ -2571,7 +2576,8 @@ var CapGuard = class {
    * What each live reservation's run directory says the run cost, by run id: a
    * run that left a result is finished, whatever its expiry says. It is read
    * before the ledger's lock is taken, so the lock is held for the decision
-   * alone; a reservation that settles meanwhile is skipped there.
+   * alone; a reservation that settles meanwhile is skipped there. A command
+   * that decides inside the ledger's lock settles with it, as `reserve` does.
    */
   async finishedCosts() {
     const costs = /* @__PURE__ */ new Map();

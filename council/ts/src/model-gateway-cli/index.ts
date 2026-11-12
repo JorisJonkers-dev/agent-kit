@@ -52,7 +52,9 @@ export const MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo":
                                   "prompt": "review a's finding", "repo": "/path/to/repo"}]}'
        model-gateway grant write --json '{"workflow": "spec-293", "client": "codex",
                                  "cap_usd": 5, "question": "may I spend $5 of nedap money?",
-                                 "answer": "yes, up to five"}'
+                                 "answer": "yes, up to five"}' [--max-starts N]
+       model-gateway grant reserve --json '{"workflow": "spec-293", "client": "codex",
+                                 "node": "codex-1"}'
        model-gateway grant list --json '{}'
        model-gateway workflow start --json '{"name": "spec-293"}'
        model-gateway workflow end --json '{"name": "spec-293"}'
@@ -187,6 +189,23 @@ workflow start, workflow end and workflow list keep a workflow's life: start
 and end take "name", and list takes nothing. A workflow nobody ends within 24
 hours counts as ended, and a run may not join one that ended.
 
+grant reserve holds one Codex node start against a workflow's grant, before the
+node starts: a Gold Band run names its workflow, its repository and its run id,
+and its grant's "max_starts" (grant write --max-starts N, or "max_starts" in
+its object) counts node starts, one per reservation, so the reservation is what
+lets the node start. The dollar "cap_usd" is never read as a start count. It takes "workflow", "client" (a
+metered-employer one), "node" and "attempt" (default 1; a node and attempt that
+ask again hold the one start), and prints the reservation with the grant's
+"max_starts", the starts taken so far (this one included) and the starts left.
+The decision and the reservation line are one locked ledger update, so two
+parallel nodes cannot both pass on the grant's last start; the reservation
+holds for about a minute and then settles, and a settled start still counts, so
+a start is never given back. It refuses with "no-grant" when no grant covers
+the workflow and client, or when the newest one lapsed (naming the grant and
+why), with "no-max-starts" when the grant has no "max_starts" (a grant for
+dollars allows no starts), and with "cap-exceeded" when no start is left. The workflow need not have a record: a
+Gold Band run is not necessarily a workflow this machine started.
+
 An error prints "status": "error" with its "code" and exits 1.
 `
 
@@ -194,6 +213,7 @@ An error prints "status": "error" with its "code" and exits 1.
 const COMMANDS = {
   batch: 'batch',
   'grant list': 'grantList',
+  'grant reserve': 'grantReserve',
   'grant write': 'grantWrite',
   models: 'models',
   run: 'run',
@@ -206,7 +226,7 @@ const COMMANDS = {
 
 /** The subcommands, as an error names them. */
 const COMMAND_NAMES =
-  'models, run, batch, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean'
+  'models, run, batch, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean'
 
 /** The gateway's command line: one subcommand, one JSON object in, one JSON object out. */
 export async function runModelGatewayCli(argv: readonly string[], runtime: ModelGatewayRuntime): Promise<ModelGatewayCliResult> {
@@ -216,12 +236,18 @@ export async function runModelGatewayCli(argv: readonly string[], runtime: Model
   if (named === undefined) {
     return failure('unknown-command', `unknown subcommand ${unknownSubcommand(argv)}; the gateway has ${COMMAND_NAMES}`)
   }
-  const { args, method, name } = named
-  const input = parseArguments(args)
-  if (input === undefined) return failure('invalid-input', `${name} takes one of --json '<object>' or --input <file>`, name)
+  const { method, name } = named
+  // `grant write` also takes `--max-starts N`, which sets the grant's max_starts beside the JSON object.
+  const split = name === 'grant write' ? withoutMaxStarts(named.args) : { args: named.args }
+  const input = split === undefined ? undefined : parseArguments(split.args)
+  if (input === undefined) {
+    const extra = name === 'grant write' ? ', and may take --max-starts <whole number>' : ''
+    return failure('invalid-input', `${name} takes one of --json '<object>' or --input <file>${extra}`, name)
+  }
   try {
     const text = 'json' in input ? input.json : await readInput(runtime, input.input)
-    const result = await runtime.commands[method].run(parseInput(text))
+    const parsed = parseInput(text)
+    const result = await runtime.commands[method].run(split?.maxStarts === undefined ? parsed : { ...parsed, max_starts: split.maxStarts })
     return { exitCode: 0, stderr: '', stdout: `${JSON.stringify(result, null, 2)}\n` }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -246,6 +272,20 @@ function unknownSubcommand(argv: readonly string[]): string {
   if (first === undefined) return '(none)'
   const grouped = Object.keys(COMMANDS).some((name) => name.startsWith(`${first} `))
   return grouped ? `"${`${first} ${second ?? ''}`.trim()}"` : `"${first}"`
+}
+
+/**
+ * The arguments of `grant write` without a `--max-starts N` pair, and that N as a
+ * number (not a whole number above 0 stays a string, which the command refuses);
+ * undefined when the flag is repeated or has no value.
+ */
+function withoutMaxStarts(args: readonly string[]): { readonly args: readonly string[]; readonly maxStarts?: number | string } | undefined {
+  const at = args.indexOf('--max-starts')
+  if (at === -1) return { args }
+  const value = args[at + 1]
+  const rest = [...args.slice(0, at), ...args.slice(at + 2)]
+  if (value === undefined || rest.includes('--max-starts')) return undefined
+  return { args: rest, maxStarts: /^\d+$/.test(value) ? Number(value) : value }
 }
 
 /** `--json <object>` or `--input <file>`, exactly one of them and nothing else. */

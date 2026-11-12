@@ -433,7 +433,7 @@ the data policy (git remotes decide the repository's identity), each client's ow
 model listing and login status command, the Vibe probe and its ten-minute cache,
 the ledger reads and the settling of dead reservations that `usage` and the grant
 commands do first, and grants with the refuse-inside-a-repository rule and their
-lock. Not ported yet: `run`, `batch` and `worktrees clean`; each reads its input
+lock. Not ported yet: `run`, `batch`, `grant reserve` and `worktrees clean`; each reads its input
 like the node runner and then fails with code `not-ported` (exit 1).
 
 Known differences from the node runner: a zone-less date-time in a state file

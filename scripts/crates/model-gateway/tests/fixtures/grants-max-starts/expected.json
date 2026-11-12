@@ -1,0 +1,477 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 3,\n    \"question\": \"q\",\n    \"workflow\": \"ms-1\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 4,\n    \"question\": \"q\",\n    \"workflow\": \"ms-2\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 2,\n    \"question\": \"q\",\n    \"workflow\": \"ms-3\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 7,\n    \"question\": \"q\",\n    \"workflow\": \"ms-4\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"question\": \"q\",\n    \"workflow\": \"ms-5\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant write: max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"grant write takes one of --json '<object>' or --input <file>, and may take --max-starts <whole number>\"}\n",
+      "stderr": "model-gateway grant write: grant write takes one of --json '<object>' or --input <file>, and may take --max-starts <whole number>\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"grant write takes one of --json '<object>' or --input <file>, and may take --max-starts <whole number>\"}\n",
+      "stderr": "model-gateway grant write: grant write takes one of --json '<object>' or --input <file>, and may take --max-starts <whole number>\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"grant write takes one of --json '<object>' or --input <file>, and may take --max-starts <whole number>\"}\n",
+      "stderr": "model-gateway grant write: grant write takes one of --json '<object>' or --input <file>, and may take --max-starts <whole number>\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"missing.json: cannot read the input: ENOENT: no such file or directory, open 'missing.json'\"}\n",
+      "stderr": "model-gateway grant write: missing.json: cannot read the input: ENOENT: no such file or directory, open 'missing.json'\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 2,\n    \"question\": \"q\",\n    \"workflow\": \"ms-file\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-file\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/in.json": "{\"workflow\":\"ms-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"grant list takes one of --json '<object>' or --input <file>\"}\n",
+      "stderr": "model-gateway grant list: grant list takes one of --json '<object>' or --input <file>\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"ms-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 4,\n      \"question\": \"q\",\n      \"workflow\": \"ms-2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-3\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 7,\n      \"question\": \"q\",\n      \"workflow\": \"ms-4\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"ms-5\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-file\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/in.json": "{\"workflow\":\"ms-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":0}]}",
+        "work/": null,
+        "work/in.json": "{\"workflow\":\"ms-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1.5}]}",
+        "work/": null,
+        "work/in.json": "{\"workflow\":\"ms-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":\"2\"}]}",
+        "work/": null,
+        "work/in.json": "{\"workflow\":\"ms-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].max_starts must be a whole number above 0\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].max_starts must be a whole number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":null}]}",
+        "work/": null,
+        "work/in.json": "{\"workflow\":\"ms-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00Z\",\n      \"id\": \"g2\",\n      \"max_starts\": 1,\n      \"question\": \"q\",\n      \"workflow\": \"w2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 1,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00Z\",\n      \"id\": \"g1\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"ended_at\": \"2026-11-03T12:30:00Z\",\n      \"remaining_usd\": 1,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":3,\"ended_at\":\"2026-11-03T12:30:00Z\"},{\"id\":\"g2\",\"workflow\":\"w2\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1}]}",
+        "work/": null,
+        "work/in.json": "{\"workflow\":\"ms-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 2,\n    \"question\": \"q\",\n    \"workflow\": \"ms-after-file\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00Z\",\n      \"id\": \"g1\",\n      \"max_starts\": 3,\n      \"question\": \"q\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"ended_at\": \"2026-11-03T12:30:00Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00Z\",\n      \"id\": \"g2\",\n      \"max_starts\": 1,\n      \"question\": \"q\",\n      \"workflow\": \"w2\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 2,\n      \"question\": \"q\",\n      \"workflow\": \"ms-after-file\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/in.json": "{\"workflow\":\"ms-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      }
+    }
+  ]
+}

@@ -266,8 +266,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"bad name\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway usage: workflow \"bad name\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"bad name\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway usage: workflow \"bad name\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "state/": null,
         "state/agent-kit/": null,

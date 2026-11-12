@@ -20,6 +20,7 @@ fn grant() -> Grant {
     Grant {
         answer: "yes, up to five dollars".to_string(),
         cap_usd: 5.0,
+        max_starts: None,
         client: "codex".to_string(),
         expires_at: "2026-11-05T10:52:15.000Z".to_string(),
         id: "grant-20261104T105215Z-abc123".to_string(),
@@ -96,6 +97,7 @@ fn grant_input(record: Option<&WorkflowRecord>) -> NewGrant<'_> {
         workflow: "spec-293",
         client: "codex",
         cap_usd: 5.0,
+        max_starts: None,
         question: "may I?",
         answer: "yes",
         written_at: now(),

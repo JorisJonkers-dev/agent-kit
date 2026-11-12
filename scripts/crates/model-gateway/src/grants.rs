@@ -31,6 +31,8 @@ pub struct Grant {
     /// The metered-employer client the owner allowed, `codex` today.
     pub client: String,
     pub cap_usd: f64,
+    /// The Codex node starts a Gold Band run may take under the grant; absent for a grant written for dollars.
+    pub max_starts: Option<u64>,
     /// The question the owner was asked.
     pub question: String,
     /// What the owner answered.
@@ -113,9 +115,14 @@ fn parse_grant(raw: &Value, index: usize) -> Result<Grant, String> {
         Some(Value::Num(cap)) if cap.is_finite() && *cap > 0.0 => *cap,
         _ => return Err(format!("{where_}.cap_usd must be a number above 0")),
     };
+    let max_starts = match object.get("max_starts") {
+        None => None,
+        Some(value) => Some(start_count(value).ok_or_else(|| format!("{where_}.max_starts must be a whole number above 0"))?),
+    };
     let grant = Grant {
         answer: require_string(object.get("answer"), &format!("{where_}.answer"))?,
         cap_usd,
+        max_starts,
         client: require_string(object.get("client"), &format!("{where_}.client"))?,
         expires_at: require_timestamp(object.get("expires_at"), &format!("{where_}.expires_at"))?,
         id: require_string(object.get("id"), &format!("{where_}.id"))?,
@@ -129,6 +136,14 @@ fn parse_grant(raw: &Value, index: usize) -> Result<Grant, String> {
     };
     let ended_at = require_timestamp(Some(ended), &format!("{where_}.ended_at"))?;
     Ok(Grant { ended_at: Some(ended_at), ..grant })
+}
+
+/// A count of node starts: a whole number above 0.
+pub fn start_count(value: &Value) -> Option<u64> {
+    match value {
+        Value::Num(n) if n.is_finite() && n.fract() == 0.0 && *n >= 1.0 && *n <= 9_007_199_254_740_991.0 => Some(*n as u64),
+        _ => None,
+    }
 }
 
 fn require_string(value: Option<&Value>, where_: &str) -> Result<String, String> {
@@ -237,6 +252,7 @@ pub struct NewGrant<'a> {
     pub workflow: &'a str,
     pub client: &'a str,
     pub cap_usd: f64,
+    pub max_starts: Option<u64>,
     pub question: &'a str,
     pub answer: &'a str,
     pub written_at: i64,
@@ -250,6 +266,7 @@ pub fn new_grant(args: &NewGrant) -> Result<Grant, GatewayError> {
     Ok(Grant {
         answer: args.answer.to_string(),
         cap_usd: args.cap_usd,
+        max_starts: args.max_starts,
         client: args.client.to_string(),
         expires_at: expiry_of(args.written_at, args.workflow_record)?,
         id: args.id.to_string(),
@@ -435,6 +452,9 @@ pub fn grant_members(grant: &Grant) -> Object {
     object.set("client", Value::str(&grant.client));
     object.set("expires_at", Value::str(&grant.expires_at));
     object.set("id", Value::str(&grant.id));
+    if let Some(max_starts) = grant.max_starts {
+        object.set("max_starts", Value::Num(max_starts as f64));
+    }
     object.set("question", Value::str(&grant.question));
     object.set("workflow", Value::str(&grant.workflow));
     object.set("written_at", Value::str(&grant.written_at));

@@ -473,4 +473,37 @@ esac`)
     grantStep('list', {}, { env: { HOME: null, XDG_CONFIG_HOME: null } }),
     write('w9', { env: { XDG_CONFIG_HOME: `${SBX}/blockedcfg` }, write: { blockedcfg: 'file' }, shims: ['git'] }),
   ]
+
+  // max_starts: the Codex node starts a Gold Band run may take, written by the field or by --max-starts.
+  const gw = (workflow, extra = {}) => ({ workflow, client: 'codex', cap_usd: 5, question: 'q', answer: 'a', ...extra })
+  const gwJson = (workflow, extra) => text(gw(workflow, extra))
+  scenarios['grants-max-starts'] = [
+    grantStep('write', gw('ms-1', { max_starts: 3 }), { write: ALL_CLIENTS, exec: ALL_EXEC, shims: ['git'] }),
+    on(['grant', 'write', '--max-starts', '4', '--json', gwJson('ms-2')]),
+    on(['grant', 'write', '--json', gwJson('ms-3'), '--max-starts', '2']),
+    on(['grant', 'write', '--max-starts', '7', '--json', gwJson('ms-4', { max_starts: 1 })]),
+    grantStep('list', {}),
+    grantStep('write', gw('ms-5')),
+    grantStep('list', {}),
+    ...[0, -1, 1.5, '2', null, 1e999].map((v) => grantStep('write', gw('ms-bad', { max_starts: v }))),
+    on(['grant', 'write', '--max-starts', 'many', '--json', gwJson('ms-bad')]),
+    on(['grant', 'write', '--max-starts', '0', '--json', gwJson('ms-bad')]),
+    on(['grant', 'write', '--max-starts', '-3', '--json', gwJson('ms-bad')]),
+    on(['grant', 'write', '--max-starts', '1.5', '--json', gwJson('ms-bad')]),
+    on(['grant', 'write', '--max-starts', '', '--json', gwJson('ms-bad')]),
+    on(['grant', 'write', '--max-starts', '99999999999999999999', '--json', gwJson('ms-bad')]),
+    on(['grant', 'write', '--json', gwJson('ms-bad'), '--max-starts']),
+    on(['grant', 'write', '--max-starts', '1', '--max-starts', '2', '--json', gwJson('ms-bad')]),
+    on(['grant', 'write', '--max-starts', '2']),
+    on(['grant', 'write', '--max-starts', '2', '--input', 'missing.json']),
+    on(['grant', 'write', '--max-starts', '2', '--input', 'in.json'], { write: { 'work/in.json': gwJson('ms-file') } }),
+    on(['grant', 'list', '--max-starts', '2', '--json', '{}']),
+    ...[{ max_starts: 0 }, { max_starts: 1.5 }, { max_starts: '2' }, { max_starts: null }].map((o) =>
+      grantStep('list', {}, { write: grantsFile({ version: 1, grants: [grant(o)] }) }),
+    ),
+    grantStep('list', {}, {
+      write: grantsFile({ version: 1, grants: [grant({ max_starts: 3, ended_at: '2026-11-03T12:30:00Z' }), grant({ id: 'g2', workflow: 'w2', max_starts: 1 })] }),
+    }),
+    grantStep('write', gw('ms-after-file', { max_starts: 2 })),
+  ]
 }

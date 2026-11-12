@@ -144,7 +144,7 @@ fn read_usage_input_refuses_what_is_not_a_usage_call() {
         (r#"{"days":1.5}"#, "days must be a whole number of days above 0"),
         (r#"{"workflow":""}"#, "workflow must be a non-empty string"),
         (r#"{"workflow":7}"#, "workflow must be a non-empty string"),
-        (r#"{"workflow":"a b"}"#, "workflow \"a b\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters"),
+        (r#"{"workflow":"a b"}"#, "workflow \"a b\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters"),
     ];
     for (raw, message) in cases {
         let error = read_usage_input(&parse(raw).expect(raw)).expect_err(raw);

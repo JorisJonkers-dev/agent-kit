@@ -24,7 +24,9 @@ pub const USAGE: &str = r#"usage: model-gateway models --json '{"repo": "/path/t
                                   "prompt": "review a's finding", "repo": "/path/to/repo"}]}'
        model-gateway grant write --json '{"workflow": "spec-293", "client": "codex",
                                  "cap_usd": 5, "question": "may I spend $5 of nedap money?",
-                                 "answer": "yes, up to five"}'
+                                 "answer": "yes, up to five"}' [--max-starts N]
+       model-gateway grant reserve --json '{"workflow": "spec-293", "client": "codex",
+                                 "node": "codex-1"}'
        model-gateway grant list --json '{}'
        model-gateway workflow start --json '{"name": "spec-293"}'
        model-gateway workflow end --json '{"name": "spec-293"}'
@@ -159,13 +161,31 @@ workflow start, workflow end and workflow list keep a workflow's life: start
 and end take "name", and list takes nothing. A workflow nobody ends within 24
 hours counts as ended, and a run may not join one that ended.
 
+grant reserve holds one Codex node start against a workflow's grant, before the
+node starts: a Gold Band run names its workflow, its repository and its run id,
+and its grant's "max_starts" (grant write --max-starts N, or "max_starts" in
+its object) counts node starts, one per reservation, so the reservation is what
+lets the node start. The dollar "cap_usd" is never read as a start count. It takes "workflow", "client" (a
+metered-employer one), "node" and "attempt" (default 1; a node and attempt that
+ask again hold the one start), and prints the reservation with the grant's
+"max_starts", the starts taken so far (this one included) and the starts left.
+The decision and the reservation line are one locked ledger update, so two
+parallel nodes cannot both pass on the grant's last start; the reservation
+holds for about a minute and then settles, and a settled start still counts, so
+a start is never given back. It refuses with "no-grant" when no grant covers
+the workflow and client, or when the newest one lapsed (naming the grant and
+why), with "no-max-starts" when the grant has no "max_starts" (a grant for
+dollars allows no starts), and with "cap-exceeded" when no start is left. The workflow need not have a record: a
+Gold Band run is not necessarily a workflow this machine started.
+
 An error prints "status": "error" with its "code" and exits 1.
 "#;
 
 /// The subcommands the gateway has, and the command each one runs.
-const COMMANDS: [(&str, Command); 10] = [
+const COMMANDS: [(&str, Command); 11] = [
     ("batch", Command::Batch),
     ("grant list", Command::GrantList),
+    ("grant reserve", Command::GrantReserve),
     ("grant write", Command::GrantWrite),
     ("models", Command::Models),
     ("run", Command::Run),
@@ -178,7 +198,7 @@ const COMMANDS: [(&str, Command); 10] = [
 
 /// The subcommands, as an error names them.
 const COMMAND_NAMES: &str =
-    "models, run, batch, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean";
+    "models, run, batch, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean";
 
 /// What one run prints and how it exits.
 pub struct CliResult {
@@ -196,26 +216,56 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
         let message = format!("unknown subcommand {}; the gateway has {COMMAND_NAMES}", unknown_subcommand(argv));
         return failure("unknown-command", &message, None);
     };
-    let Some(input) = parse_arguments(named.args) else {
-        let message = format!("{} takes one of --json '<object>' or --input <file>", named.name);
-        return failure("invalid-input", &message, Some(named.name));
+    // `grant write` also takes `--max-starts N`, which sets the grant's max_starts beside the JSON object.
+    let split = if named.name == "grant write" { without_max_starts(named.args) } else { Some((named.args.to_vec(), None)) };
+    let Some((args, max_starts)) = split else {
+        return usage_failure(named.name);
     };
-    match run_command(&named, input, runtime) {
+    let Some(input) = parse_arguments(&args) else {
+        return usage_failure(named.name);
+    };
+    match run_command(&named, input, max_starts, runtime) {
         Ok(result) => CliResult { exit_code: 0, stdout: format!("{}\n", json::pretty(&result)), stderr: String::new() },
         Err(error) => failure(&error.code, &error.message, Some(named.name)),
     }
 }
 
 /// Reads the input the arguments name, parses it and runs the subcommand over it.
-fn run_command(named: &Named<'_>, input: Input<'_>, runtime: &Runtime) -> Result<Value, GatewayError> {
+fn run_command(named: &Named<'_>, input: Input<'_>, max_starts: Option<Value>, runtime: &Runtime) -> Result<Value, GatewayError> {
     let text = match input {
         Input::Json(text) => text.to_string(),
         Input::File(path) => runtime
             .read_input(path)
             .map_err(|error| GatewayError::invalid_input(format!("{path}: cannot read the input: {}", error.message)))?,
     };
-    let object = parse_input(&text)?;
+    let mut object = parse_input(&text)?;
+    if let Some(max_starts) = max_starts {
+        object.set("max_starts", max_starts);
+    }
     commands::run(named.command, named.name, &object, runtime)
+}
+
+/// The error for arguments that are not one of `--json` or `--input`.
+fn usage_failure(name: &str) -> CliResult {
+    let extra = if name == "grant write" { ", and may take --max-starts <whole number>" } else { "" };
+    failure("invalid-input", &format!("{name} takes one of --json '<object>' or --input <file>{extra}"), Some(name))
+}
+
+/// The arguments of `grant write` without a `--max-starts N` pair, and that N as a number (anything that is not
+/// digits stays text, which the command refuses); `None` when the flag is repeated or has no value.
+fn without_max_starts(args: &[String]) -> Option<(Vec<String>, Option<Value>)> {
+    let Some(at) = args.iter().position(|arg| arg == "--max-starts") else {
+        return Some((args.to_vec(), None));
+    };
+    let value = args.get(at + 1)?;
+    let mut rest = args[..at].to_vec();
+    rest.extend_from_slice(&args[at + 2..]);
+    if rest.iter().any(|arg| arg == "--max-starts") {
+        return None;
+    }
+    let digits = !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit());
+    let parsed = if digits { Value::Num(value.parse::<f64>().unwrap_or(f64::INFINITY)) } else { Value::str(value) };
+    Some((rest, Some(parsed)))
 }
 
 /// The subcommand the arguments name, and the arguments after it.
