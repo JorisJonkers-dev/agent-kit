@@ -980,6 +980,18 @@ fn the_dynamic_role_repeats_its_completion_for_a_repair_prompt_in_the_same_sessi
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// The report-shaped answer a grant-check shim gives, with its exit code.
+fn report(exit_code: i32) -> Value {
+    json!({
+        "run_id": "",
+        "attempt": 0,
+        "command": "",
+        "exit_code": exit_code,
+        "output_hash": "",
+        "timestamp": "",
+    })
+}
+
 #[test]
 fn the_grant_role_answers_zero_until_the_verdict_lapses_its_grant() {
     let dir = temp_dir("grant-role");
@@ -990,13 +1002,13 @@ fn the_grant_role_answers_zero_until_the_verdict_lapses_its_grant() {
     for verdict in ["clean", "grant-lapse=lint", "gate-fail=build"] {
         assert_eq!(
             fenced_body(&prompt_text(&mut stub, verdict)),
-            json!({ "exit_code": 0 }),
+            report(0),
             "{verdict}"
         );
     }
     assert_eq!(
         fenced_body(&prompt_text(&mut stub, "grant-lapse=build")),
-        json!({ "exit_code": 1 })
+        report(1)
     );
     let _ = fs::remove_dir_all(&dir);
 }

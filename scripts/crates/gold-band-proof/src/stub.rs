@@ -275,11 +275,13 @@ fn gate_command(verdict: &str, name: &str) -> Vec<String> {
 }
 
 /// The answer a grant-check shim gives: the exit code the pinned wrapper would
-/// earn, 1 when the verdict says this grant lapsed and 0 otherwise. The wrapper
-/// itself is not run; the real shim and gateway are proved by their own tests.
+/// earn, 1 when the verdict says this grant lapsed and 0 otherwise, in the
+/// report's shape (a grant-check node's output schema is the report, as for the
+/// real wrapper). The wrapper itself is not run; the real shim and gateway are
+/// proved by their own tests.
 fn grant_answer(verdict: &str, name: &str) -> Value {
     let lapsed = verdict.trim().strip_prefix("grant-lapse=") == Some(name);
-    json!({ "exit_code": if lapsed { 1 } else { 0 } })
+    report_document(if lapsed { 1 } else { 0 })
 }
 
 /// The ACP model picker for the comma separated model ids, with `current`
