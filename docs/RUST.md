@@ -84,6 +84,15 @@ code-nav --root ~/Projects/owner/repo [--root DIR ...] [--limit N]
   `*.keystore`; `.netrc`, `.npmrc`, `.pypirc`, credential files; anything under
   `.ssh`, `.gnupg`, `.aws`, `.git` or `.kube`, and `*.env`, `*.tfvars`, `.envrc`, `kubeconfig`) are refused. Relative paths are taken against the
   first root. `--root` expands a leading `~` against HOME. A root that does not exist is skipped with a warning on stderr; the server exits 2 only when no root remains.
+* **Read-reach proof.** `crates/code-nav/tests/read_reach.rs` (no libtest
+  harness; it re-executes itself as the launcher) starts the server through
+  `agent-launcher` at `read` reach under the real write limit (Landlock on
+  Linux, `sandbox-exec` on macOS), calls all six tools, checks that a path
+  outside the root, a symlink out, a secret file and a `nedap` tree are still
+  refused, and checks that the tree is byte-for-byte and mtime unchanged
+  afterwards. A control launch of a shell at the same level proves the limit
+  was on: its writes beside, in and above the root fail with the OS's error.
+  It runs on the Linux workspace job and the `Rust Tests (macos)` job.
 * **Tool `search`** (`query`, optional `path` and `limit`). A line matches
   when it contains the query, ignoring case. **Rank:** score 1, plus 4 when the
   query is a whole identifier on the line, plus 2 when the file name contains
@@ -303,7 +312,9 @@ repository nested in the worktree, a `core.hooksPath` set through a global
 git config's `include` (only the repository config's includes are refused),
 and files in the worktree that the owner's own tools run (`.envrc`, a `Makefile`, an editor task) are writable. CI runs this crate's
 tests on a macOS runner (the `Rust Tests (macos)` job), where the enforcement
-tests start a stub agent under the real `sandbox-exec`.
+tests start a stub agent under the real `sandbox-exec`. The same job runs
+`code-nav`'s `read_reach` test (below), which starts the server through this
+launcher at `read` reach.
 
 For an id that names a `skill_set`, `run` also exports `AGENT_KIT_SKILL_SET`
 with that name and `AGENT_KIT_SKILLS_DIR` with the directory setup builds for

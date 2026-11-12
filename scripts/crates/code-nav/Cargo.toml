@@ -10,3 +10,16 @@ description = "A read-only code-navigation MCP server over stdio: ranked, capped
 # crate cooldown (docs/RUST.md).
 [dependencies]
 code-nav-eval = { path = "../code-nav-eval" }
+
+# Seam 3 (spec #392, story 158): an agent id at `read` reach, started by the
+# real launcher under the real operating-system write limit, uses the server,
+# and the server writes nothing. The launcher is a dev-dependency (a path
+# inside this workspace); the test binary has no harness so that it can
+# re-execute itself as the launcher and give the server real stdio pipes.
+[dev-dependencies]
+agent-launcher = { path = "../agent-launcher" }
+
+[[test]]
+name = "read_reach"
+path = "tests/read_reach.rs"
+harness = false
