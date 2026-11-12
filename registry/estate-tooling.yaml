@@ -262,8 +262,7 @@ gold_band:
         displayName: OpenCode
         env: {}
       icon: opencode
-      primaryAgentDir: .opencode
-      compatibleAgentDirs: [.agents]
+      skill_set: estate
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
@@ -332,8 +331,7 @@ gold_band:
         args: []
         env: {}
       icon: vibe
-      primaryAgentDir: .vibe
-      compatibleAgentDirs: [.agents]
+      skill_set: estate
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
@@ -348,8 +346,7 @@ gold_band:
         args: [--acp]
         env: {}
       icon: vibe
-      primaryAgentDir: .vibe
-      compatibleAgentDirs: [.agents]
+      skill_set: estate
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
@@ -424,7 +421,14 @@ gold_band:
   # primaryAgentDir at it with no compatibleAgentDirs. An agent that names a
   # set may not also declare primaryAgentDir, projectPrimaryAgentDir or
   # compatibleAgentDirs. See docs/GOLD-BAND.md.
-  skill_sets: {}
+  skill_sets:
+    # The four estate skills: how the estate delivers, rolls back and starts
+    # a repository today. Every personal-instance agent names it.
+    estate:
+      - estate-bootstrap
+      - estate-project-intent
+      - estate-delivery-status
+      - estate-rollback
   # Agent ids setup removes even when the keep file names them.
   retired_agents: []
   # The roles both instances hold, rendered from the critique skill's own role

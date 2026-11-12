@@ -207,6 +207,12 @@ gold_band:
   `local_skills`, a skill source without `SKILL.md` and a set name that is not a
   Gold Band id are all refused before anything is written.
 
+The shipped registry declares one set, `estate`: the four estate skills
+(`estate-bootstrap`, `estate-project-intent`, `estate-delivery-status`,
+`estate-rollback`). `opencode`, `vibe` and `vibe-study`, the personal
+instance's declared agents, name it, so each gets those four skills in its own
+directory and an id that does not name it gets none.
+
 ## The run-start shim
 
 Every Gold Band workflow opens with a cheap, read-only node that runs one
