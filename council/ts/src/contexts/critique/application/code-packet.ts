@@ -4,6 +4,7 @@ import { sampleCodeTree, sliceReason } from '../domain/code-sample.js'
 import { contextSlices, type ChangedFile } from '../domain/context-slices.js'
 import type { CodeSource, PacketFileKind, PacketWindow } from '../domain/manifest.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
+import { rankedPaths, rankingNote } from '../domain/ranking.js'
 import { buildRepoMap, renderRepoMap, REPO_MAP_PATH, SourceGraph } from '../domain/repo-map.js'
 import { FACTS_INDEX_PATH, type PacketLimits } from '../domain/repository-packet.js'
 import type { CritiqueStage } from '../domain/stage.js'
@@ -79,7 +80,7 @@ const DIFF_PATH = join('diff', 'change.diff')
 export class CodePacketReader {
   private readonly changes: CodeChangeReader
 
-  constructor(private readonly deps: Pick<CritiqueDeps, 'git'>) {
+  constructor(private readonly deps: Pick<CritiqueDeps, 'git' | 'repoMap'>) {
     this.changes = new CodeChangeReader(deps)
   }
 
@@ -109,6 +110,7 @@ export class CodePacketReader {
     )
     const documents: UnfrozenFile[] = [...tickets.files, { kind: 'spec', path: join('spec', spec.name), source: spec.reference, text: spec.text }]
     const repoMap = renderRepoMap(buildRepoMap(graph), { capBytes: limits.repo_map_cap_bytes, commit: head })
+    const ranking = await this.deps.repoMap?.rank(root)
     const sample = sampleCodeTree({
       changed,
       commit: head,
@@ -119,6 +121,7 @@ export class CodePacketReader {
       leftOut: read.left_out,
       limits,
       namedText: documents.map((file) => file.text).join('\n'),
+      ...(ranking === undefined ? {} : { ranked: rankedPaths(ranking), rankingNote: rankingNote(ranking) }),
       repoMap,
       slices: contextSlices(graph, changedFiles),
       tracked,

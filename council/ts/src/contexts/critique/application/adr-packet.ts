@@ -4,6 +4,8 @@ import { ADR_DIRECTORY, GLOSSARIES } from '../domain/decision-docs.js'
 import type { ArtifactSource } from '../domain/manifest.js'
 import { refusal, type Refusal } from '../domain/outcomes.js'
 import { ADR_CHECK_PATH } from '../domain/adr-log.js'
+import { rankedPaths, rankingNote } from '../domain/ranking.js'
+import { isSourcePath } from '../domain/recovery.js'
 import { FACTS_INDEX_PATH, MANIFEST_PATH, NO_FACTS, sampleRepository, type PacketLimits, type TrackedFile } from '../domain/repository-packet.js'
 import { checkLog, logRecords, type CheckAdrsResult } from './check-adrs.js'
 import { TREE_DIR, type UnfrozenFile } from './code-packet.js'
@@ -134,14 +136,20 @@ export interface SampledTree {
  * dropped. Vendored, generated and lock files are never read.
  */
 export async function sampleTree(
-  deps: Pick<CritiqueDeps, 'git'>,
+  deps: Pick<CritiqueDeps, 'git' | 'repoMap'>,
   root: string,
   packet: DocumentPacket,
   code: { readonly head: string; readonly limits: PacketLimits },
   rest?: (tracked: readonly TrackedFile[]) => readonly string[],
+  /** Whether code-nav's repository map chooses and orders the files after the named ones, entry files and cycles. */
+  ranked = false,
 ): Promise<SampledTree | Refusal> {
   const commit = await deps.git.resolveCommit(root, code.head)
   const { excluded, tracked } = await readTrackedTree(deps, root, commit, code.limits)
+  const ranking = ranked ? await deps.repoMap?.rank(root) : undefined
+  const sendable = new Set(tracked.filter((file) => file.text !== null).map((file) => file.path))
+  // The ranked source files first, then the stage's own order for the rest; a file is sampled once, in its first place.
+  const restPaths = ranking === undefined ? rest?.(tracked) : [...rankedPaths(ranking).filter((path) => sendable.has(path) && isSourcePath(path)), ...(rest?.(tracked) ?? [])]
   const sample = sampleRepository({
     artifactText: packet.artifactText,
     commit,
@@ -152,7 +160,8 @@ export async function sampleTree(
     // freeze each of `sample.facts` as `facts/<name>`, kind `fact`.
     facts: NO_FACTS,
     limits: code.limits,
-    ...(rest === undefined ? {} : { rest: rest(tracked) }),
+    ...(ranking === undefined ? {} : { rankingNote: rankingNote(ranking) }),
+    ...(restPaths === undefined ? {} : { rest: restPaths }),
     tracked,
   })
   if (sample.status === 'refused') return sample

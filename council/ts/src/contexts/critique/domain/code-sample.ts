@@ -3,6 +3,7 @@ import type { LeftOutFile } from './diff-filter.js'
 import { diffDropLine, windowDiff, type DiffDrop, type WindowedDiff } from './diff-window.js'
 import { capDrop, dropSummaryBound, possibleDrops, summariseDrops } from './drop-summary.js'
 import { refusal, type Refusal } from './outcomes.js'
+import { rankIndex } from './ranking.js'
 import { REPO_MAP_PATH, type RenderedRepoMap } from './repo-map.js'
 import { FACTS_INDEX_PATH, namedPaths, type ExclusionKind, type PacketLimits, type TrackedFile } from './repository-packet.js'
 import {
@@ -62,6 +63,10 @@ export interface CodeSampleRequest {
   readonly slices: readonly ContextSlice[]
   /** The text of the tickets and the spec, which, with the diff's, names files. */
   readonly namedText: string
+  /** The paths code-nav's repository map ranked, most referenced first; the importers and the rest of the tree go in that order. */
+  readonly ranked?: readonly string[]
+  /** What the map did to the sample's order, for the facts index; absent when no map was asked for. */
+  readonly rankingNote?: string
 }
 
 export interface CodeSample {
@@ -171,9 +176,12 @@ function codeCandidates(request: CodeSampleRequest): readonly TreeCandidate<Code
   const related = new Set(request.slices.map((slice) => slice.path))
   const tierOf = (path: string): CodeTier =>
     changed.has(path) ? 'changed' : importers.has(path) ? 'importer' : related.has(path) ? 'related' : 'rest'
+  const place = rankIndex(request.ranked ?? [])
+  // The ranking orders the importers and the rest of the tree; the files the change touched keep path order.
+  const rankOf = (candidate: TreeCandidate<CodeTier>) => (candidate.tier === 'importer' || candidate.tier === 'rest' ? place(candidate.path) : 0)
   return request.tracked
     .flatMap((file) => (file.text === null || `tree/${file.path}` === REPO_MAP_PATH ? [] : [candidateOf(file.path, tierOf(file.path), file.text)]))
-    .sort((a, b) => CODE_TIERS.indexOf(a.tier) - CODE_TIERS.indexOf(b.tier) || (a.path < b.path ? -1 : 1))
+    .sort((a, b) => CODE_TIERS.indexOf(a.tier) - CODE_TIERS.indexOf(b.tier) || rankOf(a) - rankOf(b) || (a.path < b.path ? -1 : 1))
 }
 
 /** Each tier's first windows before its second; a file that only holds a slice is the rest of the tree here. */
@@ -270,6 +278,7 @@ function indexText(request: CodeSampleRequest, [leftOut = [], diffDropped = [], 
     '',
     `Packet cap ${String(limits.cap_bytes)} bytes; repo map cap ${String(limits.repo_map_cap_bytes)} bytes; windows of ${String(limits.window_lines)} lines.`,
     '',
+    ...(request.rankingNote === undefined ? [] : ['## Ranking', '', request.rankingNote, '']),
     '## Excluded',
     '',
     `Never sent under \`tree/\`: ${String(vendored)} vendored, ${String(generated)} generated and ${String(lock)} lock files, and ${String(binary)} binary files.`,

@@ -33,6 +33,7 @@ import {
   VibeCriticClient,
   type ClaudeCriticClient,
   type ClientReadiness,
+  type RepoMapPort,
   type CodexCriticClient,
   type CriticClient,
   type CriticClientPort,
@@ -1195,6 +1196,8 @@ export async function harness(
     readonly env?: Readonly<Record<string, string>>
     /** Gives Vibe critics the runner's search server, served in process by the runner's own code. */
     readonly search?: boolean
+    /** code-nav's repository map, which orders the tree sample; without it the runner has none. */
+    readonly repoMap?: RepoMapPort
     /** The personal Vibe home's `config.toml`. */
     readonly vibeConfig?: string
     /**
@@ -1296,6 +1299,7 @@ export async function harness(
     grants: new GatewayGrants(env, clock),
     ledger: new NodeModelGatewayLedger(env),
     plan: new GatewayPlanLimit(env, clock, GATEWAY_DEFAULTS),
+    ...(options.repoMap === undefined ? {} : { repoMap: options.repoMap }),
     ...(options.search === true ? { search: new ProcessSearchClient(process, SEARCH_COMMAND) } : {}),
   })
   return {

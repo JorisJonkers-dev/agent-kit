@@ -157,6 +157,8 @@ export interface SampleRequest {
    * artifact to name files, the source the sample would otherwise miss.
    */
   readonly rest?: readonly string[]
+  /** What code-nav's repository map did to the sample's order: a sentence for the facts index; absent when no map was asked for. */
+  readonly rankingNote?: string
 }
 
 
@@ -416,6 +418,7 @@ function renderIndex(
     '',
     `Packet cap ${String(limits.cap_bytes)} bytes; facts cap ${String(limits.facts_cap_bytes)} bytes; windows of ${String(limits.window_lines)} lines.`,
     '',
+    ...(request.rankingNote === undefined ? [] : ['## Ranking', '', request.rankingNote, '']),
     '## Excluded',
     '',
     `Never sent, and not in \`${MANIFEST_PATH}\`: ${String(vendored)} vendored, ${String(generated)} generated and ${String(lock)} lock files.`,
