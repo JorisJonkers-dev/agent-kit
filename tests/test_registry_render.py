@@ -1265,7 +1265,10 @@ def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
         (lambda d: d["litellm"]["routes"][0].update(data_scope="private"), "data_scope must be"),
         (lambda d: d["litellm"]["routes"][0].update(models=["google-free-public"]), "only a data_scope: public key"),
         (lambda d: d["litellm"]["routes"][5].update(models=["canonical"]), "only a data_scope: public key"),
-        (lambda d: d["litellm"]["routes"][0].update(data_scope="public", models=["google-free-public"]), "only one public"),
+        (
+            lambda d: d["litellm"]["routes"][0].update(data_scope="public", models=["google-free-public"]),
+            "only one public",
+        ),
         (lambda d: d["litellm"]["routes"][4].update(budget_eur=-1), "positive number"),
         (lambda d: d["litellm"]["routes"][1].update(agent="vibe"), "unique lower-case agent id"),
         (lambda d: d["litellm"]["routes"][1].update(key_env="LITELLM_VIBE_KEY"), "unique variable name"),
