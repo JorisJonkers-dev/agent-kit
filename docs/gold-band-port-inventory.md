@@ -183,7 +183,7 @@ First after Wave 2 because the Rust runners (B4-22a for the critique runner, B4-
 
 ### Wave 4: human-gate workflows
 
-After Wave 3 because each question round is a manual-check node and the headless proof harness (B2-04) and Workflow C (B2-11) must exist to prove them. Loops: grill-me, grill-with-docs, brainstorming, to-spec and to-tickets all assume question rounds repeating until the human is satisfied; Gold Band has no per-node loop counter, so the ticket carries the unrolled node sequence as an acceptance criterion. Each mapping is recorded in the Planned notes before this wave starts.
+After Wave 3 because each question round is a manual-check node and the headless proof harness (B2-04) and Workflow C (B2-11) must exist to prove them. Loops: grill-me, grill-with-docs, brainstorming, to-spec and to-tickets all assume question rounds repeating until the human is satisfied; Gold Band has no per-node loop counter, so the ticket carries the unrolled node sequence as an acceptance criterion. Each mapping is recorded in the Planned notes before this wave starts. Done in #628 (B3-12): the six templates `grill-me`, `grill-with-docs`, `brainstorming`, `to-spec`, `to-tickets` and `pr-composer` under `installer/gold-band/workflows/`, each with its unrolled rounds and a segmented headless proof.
 
 | Row | Target | Ticket |
 | --- | --- | --- |

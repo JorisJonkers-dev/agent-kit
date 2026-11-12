@@ -1,0 +1,519 @@
+{
+  "workflow": {
+    "description": "pr-composer for the Gold Band instances (issue #628, wave 4): compose a pull request in the repository's house style and push or create it only after the owner confirms the rendered preview. A run-start gate refuses the run when the repository rule or the family allowlist forbids a bound agent. The composer orients, gathers context, asks for linked issues and threads (a question round with its own manual check), drafts the body and checks it against the template, then renders the preview. Up to three confirmation rounds follow, unrolled and capped at three: the first round pauses on its confirmation manual check on every run, a later one only after the owner asked for an edit, and the node after it answers with an empty open_questions list only when the owner's answer is an explicit affirmative for this preview; otherwise it applies the owner's edits, re-renders, and the next confirmation round runs. The push-and-create gate has no other incoming edge than the apply node of a confirmation round, which is reached only through that round's confirmation check; after round three without a confirmation the run ends in failure with nothing pushed or created. No shim node has a failure edge, so a failing gate ends the run in failure.",
+    "version": "0.1",
+    "id": "pr-composer",
+    "entry": "gate-pr-composer-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-pr-composer-start",
+        "executionSlotId": "slot-gate-pr-composer-start",
+        "provider": "gate-pr-composer-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for pr-composer, which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds. Answer with one fenced json block holding its exit status and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-pr-composer-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "pr-orient",
+        "executionSlotId": "slot-pr-orient",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the PR orienter, read-only: establish the branch, the remote, whether the repository is public and whether a pull request already exists for the branch (an update, not a new one). Run no push, create or edit command. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "pr-orient-notes",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "pr-gather",
+        "executionSlotId": "slot-pr-gather",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the PR context gatherer, read-only: find the pull request template, the commit and diff summary, CODEOWNERS and the style of the recent merged pull requests, and write them to the context directory. Run no push, create or edit command. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "pr-gather-context",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "pr-links",
+        "executionSlotId": "slot-pr-links",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the PR links agent. Ask the owner once, batched, which issues and Slack threads the pull request links to, with what the branch and commits already name pre-filled; an empty list when nothing is left to ask. Quote no Slack message into the body. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "pr-links-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "pr-links-check",
+        "executionSlotId": "slot-pr-links-check",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "The pull request's linked issues and threads are open: state to the owner what was found in the branch and commits and ask which issues and threads to link. Do not answer for the owner and do not write any file; the manual check after your answer is where the owner answers.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "pr-draft",
+        "executionSlotId": "slot-pr-draft",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the PR author. Read the owner's answer at the links check, if the run paused there, and link the issues it names; quote no Slack message into the body, only the decision it records. Fill the repository's pull request template exactly: its headings, order and wording, every checklist item, a placeholder wherever a fact is not in evidence, the title in the repository's convention, and only labels that exist. Write the body to the body file in the context directory. Create nothing remote. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "pr-draft-body",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-pr-composer-body",
+        "executionSlotId": "slot-gate-pr-composer-body",
+        "provider": "gate-pr-composer-body",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around the pr-composer `check_body.py` check of the body file against the template. Answer with one fenced json block holding its exit status and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-pr-composer-body-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-pr-composer-body",
+        "executionSlotId": "slot-copy-pr-composer-body",
+        "provider": "copy-pr-composer-body",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the pr-composer-body gate of pr-composer (compose a pull request) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-pr-composer-body-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "pr-preview-1",
+        "executionSlotId": "slot-pr-preview-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the PR previewer. Render the preview verbatim: the title, the body exactly as it will appear, every checklist item, and the metadata (reviewers, assignee, labels, board, draft, base), with the placeholder count. Push and create nothing; the owner confirms in the next node. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "pr-preview-1-card",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "pr-confirm-1",
+        "executionSlotId": "slot-pr-confirm-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Confirmation round 1 of pr-composer (compose a pull request): the preview is rendered. State to the owner that nothing has been pushed or created, and wait. Do not push, create or edit anything and do not treat any earlier answer as confirmation; the owner confirms or edits at this manual check, and only an explicit affirmative for this preview opens the gate.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "pr-apply-1",
+        "executionSlotId": "slot-pr-apply-1",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the PR confirmation reader for round 1 (at most 3). Read the owner's answer to the preview. If it is an explicit affirmative for this preview (ok, create, go, ship it, yes do it) with no change asked for and no hedge, nothing is open; an answer that asks for any change, however small, or hedges is not an affirmative. Otherwise apply the owner's edits to the body file, re-run the template check and render the full preview again, and list what is still open. Push and create nothing. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "pr-apply-1-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "pr-confirm-2",
+        "executionSlotId": "slot-pr-confirm-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Confirmation round 2 of pr-composer (compose a pull request): the preview is rendered. State to the owner that nothing has been pushed or created, and wait. Do not push, create or edit anything and do not treat any earlier answer as confirmation; the owner confirms or edits at this manual check, and only an explicit affirmative for this preview opens the gate.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "pr-apply-2",
+        "executionSlotId": "slot-pr-apply-2",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the PR confirmation reader for round 2 (at most 3). Read the owner's answer to the preview. If it is an explicit affirmative for this preview (ok, create, go, ship it, yes do it) with no change asked for and no hedge, nothing is open; an answer that asks for any change, however small, or hedges is not an affirmative. Otherwise apply the owner's edits to the body file, re-run the template check and render the full preview again, and list what is still open. Push and create nothing. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "pr-apply-2-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "pr-confirm-3",
+        "executionSlotId": "slot-pr-confirm-3",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Confirmation round 3 of pr-composer (compose a pull request): the preview is rendered. State to the owner that nothing has been pushed or created, and wait. Do not push, create or edit anything and do not treat any earlier answer as confirmation; the owner confirms or edits at this manual check, and only an explicit affirmative for this preview opens the gate.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "pr-apply-3",
+        "executionSlotId": "slot-pr-apply-3",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the PR confirmation reader for round 3 (at most 3). Read the owner's answer to the preview. If it is an explicit affirmative for this preview (ok, create, go, ship it, yes do it) with no change asked for and no hedge, nothing is open; an answer that asks for any change, however small, or hedges is not an affirmative. Otherwise apply the owner's edits to the body file, re-run the template check and render the full preview again, and list what is still open. Push and create nothing. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "pr-apply-3-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-pr-composer-publish",
+        "executionSlotId": "slot-gate-pr-composer-publish",
+        "provider": "gate-pr-composer-publish",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper that first re-checks the body file against the template and refuses on a mismatch, then runs the push and the pull request commands of the pr-composer skill's step 7 for the confirmed body file: `gh pr create` for a new pull request, `gh pr edit` when the orient notes say one already exists for the branch. It never runs without the owner's confirmation. Answer with one fenced json block holding its exit status and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-pr-composer-publish-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-pr-composer-publish",
+        "executionSlotId": "slot-copy-pr-composer-publish",
+        "provider": "copy-pr-composer-publish",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the pr-composer-publish gate of pr-composer (compose a pull request) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-pr-composer-publish-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-pr-composer-start",
+        "to": "pr-orient",
+        "on": "success"
+      },
+      {
+        "from": "gate-pr-composer-body",
+        "to": "copy-pr-composer-body",
+        "on": "success"
+      },
+      {
+        "from": "pr-orient",
+        "to": "pr-gather",
+        "on": "success"
+      },
+      {
+        "from": "pr-gather",
+        "to": "pr-links",
+        "on": "success"
+      },
+      {
+        "from": "pr-links",
+        "to": "pr-draft",
+        "on": "success"
+      },
+      {
+        "from": "pr-links",
+        "to": "pr-links-check",
+        "on": "failure"
+      },
+      {
+        "from": "pr-links-check",
+        "to": "pr-draft",
+        "on": "success"
+      },
+      {
+        "from": "pr-draft",
+        "to": "gate-pr-composer-body",
+        "on": "success"
+      },
+      {
+        "from": "copy-pr-composer-body",
+        "to": "pr-preview-1",
+        "on": "success"
+      },
+      {
+        "from": "pr-preview-1",
+        "to": "pr-confirm-1",
+        "on": "success"
+      },
+      {
+        "from": "pr-confirm-1",
+        "to": "pr-apply-1",
+        "on": "success"
+      },
+      {
+        "from": "pr-apply-1",
+        "to": "gate-pr-composer-publish",
+        "on": "success"
+      },
+      {
+        "from": "pr-apply-1",
+        "to": "pr-confirm-2",
+        "on": "failure"
+      },
+      {
+        "from": "pr-confirm-2",
+        "to": "pr-apply-2",
+        "on": "success"
+      },
+      {
+        "from": "pr-apply-2",
+        "to": "gate-pr-composer-publish",
+        "on": "success"
+      },
+      {
+        "from": "pr-apply-2",
+        "to": "pr-confirm-3",
+        "on": "failure"
+      },
+      {
+        "from": "pr-confirm-3",
+        "to": "pr-apply-3",
+        "on": "success"
+      },
+      {
+        "from": "pr-apply-3",
+        "to": "gate-pr-composer-publish",
+        "on": "success"
+      },
+      {
+        "from": "gate-pr-composer-publish",
+        "to": "copy-pr-composer-publish",
+        "on": "success"
+      },
+      {
+        "from": "copy-pr-composer-publish",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-pr-composer-start",
+        "agentId": "gate-pr-composer-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-pr-orient",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-pr-gather",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-pr-links",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-pr-links-check",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-pr-draft",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      },
+      {
+        "executionSlotId": "slot-gate-pr-composer-body",
+        "agentId": "gate-pr-composer-body",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-pr-composer-body",
+        "agentId": "copy-pr-composer-body",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-pr-preview-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-pr-confirm-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-pr-apply-1",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      },
+      {
+        "executionSlotId": "slot-pr-confirm-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-pr-apply-2",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      },
+      {
+        "executionSlotId": "slot-pr-confirm-3",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-pr-apply-3",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      },
+      {
+        "executionSlotId": "slot-gate-pr-composer-publish",
+        "agentId": "gate-pr-composer-publish",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-pr-composer-publish",
+        "agentId": "copy-pr-composer-publish",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}

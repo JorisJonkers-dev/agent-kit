@@ -1,0 +1,256 @@
+{
+  "workflow": {
+    "description": "To-spec for the Gold Band instances (issue #628, wave 4): turn the decisions the owner settled into a spec through question rounds. A run-start gate refuses the run when the repository rule or the family allowlist forbids a bound agent. Up to three question rounds follow, unrolled and capped at three: a round that leaves a question open pauses on its manual check for the owner's answers, then the next round runs; after round three the last check hands over to the spec regardless. The spec holds only decisions the owner answered. No shim node has a failure edge, so a failing gate ends the run in failure.",
+    "version": "0.1",
+    "id": "to-spec",
+    "entry": "gate-to-spec-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-to-spec-start",
+        "executionSlotId": "slot-gate-to-spec-start",
+        "provider": "gate-to-spec-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for to-spec, which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds. Answer with one fenced json block holding its exit status and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-to-spec-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-round-1",
+        "executionSlotId": "slot-spec-round-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the spec question agent for round 1 of to-spec (turn decisions into a spec) (at most 3 rounds). Read the decisions record and the owner's answers so far in the spec record, and ask the owner the questions the spec still needs answered: one decision per question, none the records already settle. Write the round's questions and the answers so far to the spec record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-round-1-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-check-1",
+        "executionSlotId": "slot-spec-check-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 1 of to-spec (turn decisions into a spec) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "spec-round-2",
+        "executionSlotId": "slot-spec-round-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the spec question agent for round 2 of to-spec (turn decisions into a spec) (at most 3 rounds). Read the decisions record and the owner's answers so far in the spec record, and ask the owner the questions the spec still needs answered: one decision per question, none the records already settle. Write the round's questions and the answers so far to the spec record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-round-2-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-check-2",
+        "executionSlotId": "slot-spec-check-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 2 of to-spec (turn decisions into a spec) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "spec-round-3",
+        "executionSlotId": "slot-spec-round-3",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the spec question agent for round 3 of to-spec (turn decisions into a spec) (at most 3 rounds). Read the decisions record and the owner's answers so far in the spec record, and ask the owner the questions the spec still needs answered: one decision per question, none the records already settle. Write the round's questions and the answers so far to the spec record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-round-3-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-check-3",
+        "executionSlotId": "slot-spec-check-3",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 3 of to-spec (turn decisions into a spec) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "spec-write",
+        "executionSlotId": "slot-spec-write",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the spec author. Write the spec the decisions and the answers settled to the spec file the spec record names: only decisions the owner answered, no decision of your own, no ticket yet. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-write",
+          "schema": {
+            "ok": true
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-to-spec-start",
+        "to": "spec-round-1",
+        "on": "success"
+      },
+      {
+        "from": "spec-round-1",
+        "to": "spec-write",
+        "on": "success"
+      },
+      {
+        "from": "spec-round-1",
+        "to": "spec-check-1",
+        "on": "failure"
+      },
+      {
+        "from": "spec-check-1",
+        "to": "spec-round-2",
+        "on": "success"
+      },
+      {
+        "from": "spec-round-2",
+        "to": "spec-write",
+        "on": "success"
+      },
+      {
+        "from": "spec-round-2",
+        "to": "spec-check-2",
+        "on": "failure"
+      },
+      {
+        "from": "spec-check-2",
+        "to": "spec-round-3",
+        "on": "success"
+      },
+      {
+        "from": "spec-round-3",
+        "to": "spec-write",
+        "on": "success"
+      },
+      {
+        "from": "spec-round-3",
+        "to": "spec-check-3",
+        "on": "failure"
+      },
+      {
+        "from": "spec-check-3",
+        "to": "spec-write",
+        "on": "success"
+      },
+      {
+        "from": "spec-write",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-to-spec-start",
+        "agentId": "gate-to-spec-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-spec-round-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-spec-check-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-spec-round-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-spec-check-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-spec-round-3",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-spec-check-3",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-spec-write",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      }
+    ]
+  }
+}

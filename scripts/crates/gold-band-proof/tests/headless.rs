@@ -190,6 +190,125 @@ fn workflow_c_pauses_at_each_grill_round_and_finding_and_publishes_only_after_th
     assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
 }
 
+/// The Wave 4 human-gate workflows (issue #628): the workflow, its round-check
+/// prefix, its round cap and the scenarios that must end in the expected state.
+/// Every round's manual check is reached by the first segment's
+/// `open-questions` scenario or by the one after the check before it; the last
+/// check's segment ends the run.
+const WAVE4: [(&str, &str, u32); 5] = [
+    ("grill-me", "grill-check-", 5),
+    ("grill-with-docs", "grill-check-", 5),
+    ("brainstorming", "explore-check-", 4),
+    ("to-spec", "spec-check-", 3),
+    ("to-tickets", "tickets-check-", 3),
+];
+
+#[test]
+fn each_wave4_workflow_pauses_at_every_round_check_and_ends_once_answered() {
+    let Some(gold_band) = gold_band() else { return };
+    for (name, prefix, cap) in WAVE4 {
+        let workflow = manifest_dir().join(format!(
+            "../../../installer/gold-band/workflows/{name}.json"
+        ));
+        let records = scratch(&format!("wave4-{name}"));
+        let output = prove(&workflow, &records, &[], &gold_band);
+        let stdout = text(&output.stdout);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{name}: {stdout}\n{}",
+            text(&output.stderr)
+        );
+        // Round 1's check pauses the first segment; round n+1's pauses the segment after check n.
+        assert!(
+            stdout.contains("open-questions: expected exit 2, got 2 (paused/"),
+            "{name}: {stdout}"
+        );
+        for round in 1..cap {
+            assert!(
+                stdout.contains(&format!(
+                    "after-{prefix}{round}.open-questions: expected exit 2, got 2 (paused/"
+                )),
+                "{name} {round}: {stdout}"
+            );
+        }
+        // Once the last check is answered the run ends (or, for brainstorming, pauses at the design approval).
+        let exit = if name == "brainstorming" {
+            "2, got 2 (paused/"
+        } else {
+            "0, got 0 (completed/success)"
+        };
+        let after_last = format!("after-{prefix}{cap}.clean: expected exit {exit}");
+        assert!(stdout.contains(&after_last), "{name}: {stdout}");
+        assert!(
+            stdout.contains("gold-band-proof: passed"),
+            "{name}: {stdout}"
+        );
+    }
+}
+
+#[test]
+fn brainstorming_records_the_design_only_after_the_approval_check() {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("wave4-brainstorming-design");
+    let workflow = manifest_dir().join("../../../installer/gold-band/workflows/brainstorming.json");
+    let stdout = text(&prove(&workflow, &records, &[], &gold_band).stdout);
+    assert!(
+        stdout.contains("after-explore-check-4.clean: expected exit 2, got 2 (paused/"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("after-design-approval.clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+}
+
+#[test]
+fn pr_composer_pauses_at_every_confirmation_and_creates_only_after_one() {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("pr-composer");
+    let workflow = manifest_dir().join("../../../installer/gold-band/workflows/pr-composer.json");
+    let output = prove(&workflow, &records, &[], &gold_band);
+    let stdout = text(&output.stdout);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&output.stderr)
+    );
+    // The first segment pauses at the first confirmation check, never reaching the publish gate.
+    for scenario in [
+        "clean",
+        "open-questions",
+        "after-pr-links-check.clean",
+        "after-pr-confirm-1.open-questions",
+        "after-pr-confirm-2.open-questions",
+    ] {
+        assert!(
+            stdout.contains(&format!("{scenario}: expected exit 2, got 2 (paused/")),
+            "{scenario}: {stdout}"
+        );
+    }
+    // The push-and-create gate runs only in a segment that starts after a confirmation check.
+    for round in 1..=3 {
+        assert!(
+            stdout.contains(&format!(
+                "after-pr-confirm-{round}.clean: expected exit 0, got 0 (completed/success)"
+            )),
+            "{round}: {stdout}"
+        );
+    }
+    assert!(
+        stdout.contains("after-pr-confirm-1.gate-fail-pr-composer-publish: expected exit 1, got 1 (completed/failure)"),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\n  gate-fail-pr-composer-publish:"),
+        "the publish gate is reachable before a confirmation: {stdout}"
+    );
+    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
 /// The critique stage templates over the runner (issue #458).
 const CRITIQUE_STAGES: [&str; 8] = [
     "decisions",
