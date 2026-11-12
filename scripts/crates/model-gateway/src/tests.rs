@@ -14,3 +14,4 @@ mod commands;
 mod worktrees;
 mod run;
 mod outputs;
+mod launch;

@@ -166,6 +166,10 @@ impl Process for StubProcess {
     fn exec(&self, _command: &str, _args: &[&str], _timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
         Err("the stub starts nothing".to_string())
     }
+
+    fn run(&self, _command: &crate::ports::ProcessCommand) -> Result<ProcessResult, String> {
+        Err("the stub starts nothing".to_string())
+    }
 }
 
 /// A runtime over the stubs, with the shipped defaults as its defaults text.

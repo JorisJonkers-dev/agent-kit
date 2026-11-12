@@ -9,6 +9,7 @@
 pub mod adapters;
 pub mod allowlist;
 pub mod caps;
+pub mod client_run;
 pub mod cli;
 pub mod commands;
 pub mod config;
@@ -18,8 +19,10 @@ pub mod extras;
 pub mod git_remote;
 pub mod grants;
 pub mod grants_file;
+pub mod home_mcp;
 pub mod json;
 pub mod kept_file;
+pub mod launchers;
 pub mod ledger;
 pub mod ledger_file;
 pub mod lock;
@@ -38,6 +41,7 @@ pub mod text;
 pub mod timestamps;
 pub mod toml;
 pub mod usage;
+pub mod vibe_sign_in;
 pub mod workflows;
 pub mod worktrees;
 

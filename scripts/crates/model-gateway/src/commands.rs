@@ -11,6 +11,7 @@ use crate::grants_file::{GrantChange, GrantsStore};
 use crate::json::{Object, Value};
 use crate::ledger::LedgerEntry;
 use crate::ledger_file::{settle_stale, LedgerStore};
+use crate::launchers::DELEGATION_MARK;
 use crate::locations;
 use crate::models::{self, ClientListing};
 use crate::policy::{self, PolicySubject};
@@ -89,9 +90,6 @@ fn ok_object(key: &str, value: Value) -> Value {
     object.set(key, value);
     Value::Obj(object)
 }
-
-/// The environment variable a delegate's process carries, so it cannot delegate on.
-const DELEGATION_MARK: &str = "AGENT_KIT_DELEGATION";
 
 /// Lists every client model this machine can use now for the repository the caller works in, and the clients it cannot.
 fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayError> {

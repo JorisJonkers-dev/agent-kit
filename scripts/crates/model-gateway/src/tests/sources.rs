@@ -6,7 +6,7 @@ use crate::adapters::fs::SystemFiles;
 use crate::adapters::process::SystemProcess;
 use crate::json::{self, Object, Value};
 use crate::models::{ClientListing, ClientModel};
-use crate::ports::{FileStamp, Files, FsError, Git, GitRemote, LockTimings, Process, ProcessResult, Runtime};
+use crate::ports::{FileStamp, Files, FsError, Git, GitRemote, LockTimings, Process, ProcessCommand, ProcessResult, Runtime};
 use crate::sources::list_client;
 use crate::status::{read_status, STATUS_TIMEOUT_MS};
 use crate::usage::{ClientStatusReading, SignedIn};
@@ -207,6 +207,11 @@ impl Process for FakeProcess {
             Some(answer) => answer.clone(),
             None => Err(format!("cannot run {command}")),
         }
+    }
+
+    fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
+        self.exec(&command.command, &args, command.timeout_ms)
     }
 }
 
