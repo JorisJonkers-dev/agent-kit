@@ -47,7 +47,8 @@ MANUAL_CHECKS = [
 
 @pytest.fixture(scope="module")
 def template() -> dict[str, Any]:
-    return json.loads(WORK.read_text())
+    template: dict[str, Any] = json.loads(WORK.read_text())
+    return template
 
 
 @pytest.fixture(scope="module")
@@ -62,7 +63,8 @@ def edges(template: dict[str, Any]) -> list[tuple[str, str, str]]:
 
 @pytest.fixture(scope="module")
 def personal() -> dict[str, Any]:
-    return json.loads(PERSONAL.read_text())
+    personal: dict[str, Any] = json.loads(PERSONAL.read_text())
+    return personal
 
 
 def _is_shim(node_id: str) -> bool:
@@ -112,9 +114,9 @@ def test_the_edges_are_the_personal_ones_with_a_grant_check_before_each_codex_no
     redirected = {(f, f"grant-{t}" if t in CODEX_NODES else t, on) for f, t, on in theirs}
     extra = set(edges) - redirected
     assert redirected <= set(edges)
-    assert extra == {
-        (f"grant-{name}", name, "success") for name in CODEX_NODES
-    } | {(f"grant-{name}", f"{name.split('-')[0]}-grant-check", "failure") for name in CODEX_NODES}
+    assert extra == {(f"grant-{name}", name, "success") for name in CODEX_NODES} | {
+        (f"grant-{name}", f"{name.split('-')[0]}-grant-check", "failure") for name in CODEX_NODES
+    }
 
 
 def test_only_the_work_agents_and_shims_are_bound(nodes: dict[str, dict[str, Any]], template: dict[str, Any]) -> None:
@@ -207,12 +209,10 @@ def test_the_critique_steps_name_the_work_only_roster(nodes: dict[str, dict[str,
 
 
 @pytest.mark.parametrize("stage", ["spec", "tickets"])
-def test_the_other_critique_nodes_are_the_stage_template_s_own(
-    nodes: dict[str, dict[str, Any]], stage: str
-) -> None:
+def test_the_other_critique_nodes_are_the_stage_template_s_own(nodes: dict[str, dict[str, Any]], stage: str) -> None:
     template = json.loads((WORKFLOWS / f"critique-{stage}.json").read_text())
     for node in template["workflow"]["nodes"]:
-        if node["id"].endswith("-start") or node["id"].endswith(("-prepare", "-fan-out")) and _is_shim(node["id"]):
+        if node["id"].endswith("-start") or (node["id"].endswith(("-prepare", "-fan-out")) and _is_shim(node["id"])):
             continue
         if node["provider"] in ("vibe", "vibe-study"):
             for key in ("goal", "output", "success_condition", "manual_check"):
@@ -299,7 +299,11 @@ def test_ticket_publish_refuses_a_label_the_setup_file_does_not_list_and_creates
     tickets = tmp_path / "tickets.json"
     tickets.write_text(json.dumps({"tickets": [{"title": "One", "body": "b", "labels": ["bug"]}]}))
     refused = subprocess.run(
-        [binary, "publish", str(FIXTURE_REPO), str(tickets)], env=_env(tmp_path), capture_output=True, text=True, check=False
+        [binary, "publish", str(FIXTURE_REPO), str(tickets)],
+        env=_env(tmp_path),
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert refused.returncode != 0
     assert not log.exists()
