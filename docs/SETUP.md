@@ -558,6 +558,29 @@ new Claude Code session. A token with a trailing newline or a `Bearer ` prefix
 of its own is expected, from the header template, to produce the same 400 (not
 tested), so keep the value to the bare token.
 
+## Playwright MCP on a cold cache
+
+The registry pins `@playwright/mcp` (container pin, `post_install` fetches the
+matching Chromium) and Claude and Codex start it as the one `playwright-mcp`
+binary on `PATH`, headless (Vibe's config was not read, see below):
+`playwright-mcp --headless --browser chromium`. It is never run through `npx`,
+so an empty `~/.npm/_npx` cannot change which binary starts.
+
+Checked live on the Linux workstation (2026-11-12) with `~/.npm/_npx` moved
+aside (restored afterwards), `playwright-mcp` resolving to
+`~/.npm-global/bin/playwright-mcp`, which links to
+`~/.npm-global/lib/node_modules/@playwright/mcp/cli.js`:
+
+| Agent | Tools listed | Binary the server ran from |
+| --- | --- | --- |
+| Claude | 25 (`mcp__playwright__browser_*`), server `connected` | `playwright-mcp` from `~/.npm-global/bin` per its config; the process snapshot cannot tell its server from other sessions' |
+| Codex | 25 (`browser_*`, through the app-server MCP status call) | the same command; a new `playwright-mcp` process appeared during the Codex run, but its parent was not recorded as Codex |
+| Vibe | 25 (`browser_*`, through its tool search) | not observed: Vibe's process was not seen starting it and its config was not readable from the check |
+
+Codex was not logged in to a model account, so its tools were listed from its
+MCP status call rather than from a model turn. Vibe's resolved path therefore
+remains unverified; #505 stays open for it.
+
 ## Package proxy
 
 One step of the run then points every package manager on the machine at the
