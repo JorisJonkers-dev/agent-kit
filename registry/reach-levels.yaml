@@ -267,42 +267,42 @@ agents:
         args: []
         support: {linux: unsupported, mac: unsupported}
         check:
-          linux: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
-          mac: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
       read-web:
         args: []
         support: {linux: unsupported, mac: unsupported}
         check:
-          linux: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
-          mac: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
       research:
         args: []
         support: {linux: unsupported, mac: unsupported}
         check:
-          linux: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
-          mac: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
       write-scoped:
         args: []
         support: {linux: unsupported, mac: unsupported}
         check:
-          linux: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
-          mac: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
       run-one-command:
         args: []
         support: {linux: unsupported, mac: unsupported}
         check:
-          linux: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
-          mac: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
       write:
         args: []
         support: {linux: unsupported, mac: unsupported}
         check:
-          linux: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
-          mac: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
       full:
         args: []
         support: {linux: unsupported, mac: unsupported}
         check:
-          linux: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
-          mac: "('the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag', 'agy documents no tool, permission or sandbox flag (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does')"
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
 ids: {}

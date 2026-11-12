@@ -367,6 +367,11 @@ fn refuse(agent: &str, level: &str) {
         !stdout.contains("reach="),
         "the stub ran at refused level {level}: {stdout}"
     );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains(&format!("{agent} at {level} is unsupported")),
+        "the refusal names the cell: {stderr}"
+    );
     let _ = fs::remove_dir_all(&f.base);
 }
 
@@ -453,7 +458,10 @@ fn other_reach_record_is_valid_and_complete() {
             }
         }
     }
+    let mac = &record.agents["antigravity"].levels["read"].check["mac"];
+    assert!(!mac.contains("Linux") && !mac.starts_with('('), "{mac}");
     let linux = &record.agents["antigravity"].levels["read"].check["linux"];
+    assert!(!linux.starts_with('('), "{linux}");
     assert!(
         linux.contains("#431") && linux.contains("not declared for Linux"),
         "{linux}"
