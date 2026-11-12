@@ -95,12 +95,14 @@ export interface RefuterCandidate {
  * Every client a stage routes, in the order a refuter is chosen: the base
  * slots, then the deep slots whatever the run's depth, each slot's client
  * followed by its fallbacks. A client named twice keeps its first place.
+ * A `nedap` repository's run (`work`) has only the stage's work slots, which
+ * have no fallbacks: no other client may see its code.
  */
-export function refuterCandidates(routing: Routing, stage: CritiqueStage): readonly RefuterCandidate[] {
+export function refuterCandidates(routing: Routing, stage: CritiqueStage, work = false): readonly RefuterCandidate[] {
   const routes = stageRouting(routing, { stage })
   const candidates: RefuterCandidate[] = []
-  for (const slot of [...routes.base, ...routes.deep]) {
-    for (const client of [slot.client, ...(routing.fallbacks[slot.client] ?? [])]) {
+  for (const slot of work ? routes.work : [...routes.base, ...routes.deep]) {
+    for (const client of work ? [slot.client] : [slot.client, ...(routing.fallbacks[slot.client] ?? [])]) {
       const config = routing.clients[client]
       if (config === undefined) throw new CritiqueError('invalid-routing', `routing stage ${stage} names unknown client ${client}`)
       if (!candidates.some((candidate) => candidate.client === client)) candidates.push({ client, client_config: config, slot })
