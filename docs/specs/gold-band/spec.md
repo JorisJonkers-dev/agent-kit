@@ -174,7 +174,7 @@ owner approves. One new build tracker shows every ticket of this spec.
 47. As the owner, I want each reach level's writable paths fixed by one table (ADR-0013) and enforced by the operating system, not only by the tool settings, with `write` unable to change `.git/hooks` or `.git/config`, so that a gap in a tool list does not matter and no agent can switch off the repository's hooks.
 48. As the owner, I want the write limit to use Landlock on Linux and `sandbox-exec` on macOS behind one interface, so that the same declaration means the same thing on both machines.
 49. As the owner, I want the launcher to refuse to start an agent when the write-limit backend for the current OS is unavailable, so that no agent runs unlimited.
-50. As the owner, I want it written down that neither backend limits reads or the network, and that the account boundary is what keeps personal agents out of employer clones on the work machine, so that nobody treats a read-only node as offline or confined.
+50. As the owner, I want it written down that the backends do not limit the network and limit reads only for the personal instance on the work machine, where the launcher denies reads under the employer roots the work overlay declares (on top of the second macOS user), so that nobody treats a read-only node as offline or confined, and a personal-instance agent cannot read employer clones even through a shell command.
 51. As the owner, I want each cell of the support record (agent by reach level) verified on each OS before it is used, so that a level proven on the Mac is not assumed on Linux.
 52. As a maintainer, I want validation to fail when an agent id has no reach level, a reach level its agent does not support on that OS, or a `write-scoped` or `research` level without an output directory, so that errors show in CI.
 
@@ -761,8 +761,13 @@ already uses its number.
   - #396: the operating-system layer limits writes, not reads, so on the
     work machine a personal-instance agent could read employer clones. It is
     decided (ADR-0011, ADR-0013): the personal instance on the work machine
-    always runs under a second macOS user. A read limit in the launcher is
-    optional defence in depth. Belongs to B1.
+    always runs under a second macOS user, and the launcher also denies
+    reads under the employer roots (#666): `sandbox-exec` `file-read*` for
+    every personal-instance launch on the work Mac, at every reach level
+    including `full`, the roots read from the work overlay's
+    `employer_roots`. The Linux workstation holds no employer clones and
+    needs no read limit; Landlock cannot deny a read, so the launcher
+    refuses a declared root there. Belongs to B1.
   - #399: Antigravity on the Linux workstation, so that Linux gets a
     Google-family critic and the personal instance's Antigravity agent.
     Belongs to B1 (agents on each OS).
@@ -919,7 +924,7 @@ sync closes each superseded issue with a comment naming its new ticket.
 | #390 | OpenCode on the workstation: skills and MCP coverage after #313 | B6 | Rewrite (PR #387): OpenCode parity | 124 |
 | #392 | Spec: agent-kit on Gold Band — two instances, one backlog | — | This spec | — |
 | #395 | Model gateway silently escalates a cross-family delegation to Claude | B4 | Rewrite: binding family in the gateway | 161 |
-| #396 | Personal Gold Band instance can read employer clones on the work machine | B1 | Decided: second macOS user; live check | 11, 50 |
+| #396 | Personal Gold Band instance can read employer clones on the work machine | B1 | Decided: second macOS user plus a launcher read limit (#666); live check | 11, 50 |
 | #399 | Set up Antigravity on the Linux workstation | B1 | Rewrite: Antigravity on Linux | 42, 120 |
 
 ### Pull requests

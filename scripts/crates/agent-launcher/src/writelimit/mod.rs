@@ -5,9 +5,11 @@
 //! the kernel's Landlock syscalls directly through libc, and the macOS backend
 //! ([`SandboxExec`]), which starts the agent under `sandbox-exec`.
 //!
-//! The limit never restricts reads or the network. When the backend for this
-//! OS is not available the launcher refuses to start the agent; it never runs
-//! it without the limit.
+//! The limit never restricts the network. It restricts reads only for the
+//! employer roots of a personal-instance launch on the work Mac
+//! ([`Policy::read_denied`], ADR-0013). When the backend for this OS is not
+//! available, or cannot hold what the policy asks, the launcher refuses to
+//! start the agent; it never runs it without the limit.
 
 use std::ffi::OsString;
 use std::fs;
@@ -55,6 +57,13 @@ pub struct Policy {
     /// `core.hooksPath`. A backend that can deny inside a grant (`sandbox-exec`)
     /// must keep writes out of them; they lie outside every grant already.
     pub denied: Vec<PathBuf>,
+    /// Employer roots the agent may not read at all (`file-read*`, so not
+    /// listed or stat'ed either), with everything beneath them. Only a
+    /// backend that can deny a read holds this; one that cannot refuses.
+    pub read_denied: Vec<PathBuf>,
+    /// No write limit: only the read denial applies (`full` with employer
+    /// roots, where the write table has no row).
+    pub writes_unlimited: bool,
 }
 
 /// What the guarded files held before the agent ran.
@@ -106,14 +115,27 @@ pub struct Scope {
     pub worktree: PathBuf,
     /// Other git config files (system, global) whose `core.hooksPath` git would honour.
     pub other_configs: Vec<PathBuf>,
+    /// The employer roots a personal-instance launch may not read.
+    pub read_denied: Vec<PathBuf>,
 }
 
 /// Devices every agent writes to.
 const DEVICES: [&str; 2] = ["/dev/null", "/dev/tty"];
 
-/// ADR-0013's table. `None` is `full`: no limit, which the table allows only
-/// in a throwaway repository.
+/// ADR-0013's table. `None` is `full` with nothing to keep unreadable: no
+/// limit, which the table allows only in a throwaway repository. `full` with
+/// employer roots still gets a policy, of unlimited writes and the read denial.
 pub fn policy_for(level: &str, scope: &Scope) -> Result<Option<Policy>, String> {
+    let read_denied = real_roots(&scope.read_denied);
+    if let Some(root) = read_denied.iter().find(|r| {
+        let inside = |d: &Path| real(d).starts_with(r);
+        inside(&scope.worktree) || inside(&scope.temp_dir)
+    }) {
+        return Err(format!(
+            "the run's own directory lies inside the employer root {}, which the personal instance may not read",
+            root.display()
+        ));
+    }
     let mut dirs: Vec<PathBuf> = scope
         .state_dirs
         .iter()
@@ -124,6 +146,15 @@ pub fn policy_for(level: &str, scope: &Scope) -> Result<Option<Policy>, String> 
         .iter()
         .chain(scope.output_dir.iter())
         .chain(scope.gate_dir.iter());
+    if let Some(root) = granted
+        .clone()
+        .find_map(|d| read_denied.iter().find(|r| real(d).starts_with(r)))
+    {
+        return Err(format!(
+            "a writable directory lies inside the employer root {}, which the personal instance may not read",
+            root.display()
+        ));
+    }
     if let Some(bad) = granted
         .into_iter()
         .find(|d| d.components().any(|c| c.as_os_str() == ".git"))
@@ -137,7 +168,14 @@ pub fn policy_for(level: &str, scope: &Scope) -> Result<Option<Policy>, String> 
     let mut guarded = Vec::new();
     let mut denied = Vec::new();
     match level {
-        "full" => return Ok(None),
+        "full" if read_denied.is_empty() => return Ok(None),
+        "full" => {
+            return Ok(Some(Policy {
+                read_denied,
+                writes_unlimited: true,
+                ..Policy::default()
+            }))
+        }
         "read" | "read-web" => {}
         "research" | "write-scoped" => {
             dirs.push(need(&scope.output_dir, level, "an output directory")?)
@@ -165,7 +203,24 @@ pub fn policy_for(level: &str, scope: &Scope) -> Result<Option<Policy>, String> 
         files,
         guarded,
         denied,
+        read_denied,
+        writes_unlimited: false,
     }))
+}
+
+/// `path` with its links resolved, as far as it exists; a path that does not
+/// exist yet is its nearest existing ancestor resolved, then the rest.
+fn real(path: &Path) -> PathBuf {
+    match (fs::canonicalize(path), path.parent(), path.file_name()) {
+        (Ok(real), _, _) => real,
+        (Err(_), Some(parent), Some(name)) => real(parent).join(name),
+        (Err(_), _, _) => path.to_path_buf(),
+    }
+}
+
+/// The roots as the operating system will see them.
+fn real_roots(roots: &[PathBuf]) -> Vec<PathBuf> {
+    roots.iter().map(|r| real(r)).collect()
 }
 
 fn need(dir: &Option<PathBuf>, level: &str, what: &str) -> Result<PathBuf, String> {

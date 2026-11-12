@@ -115,3 +115,13 @@ fn a_ruleset_the_kernel_refuses_is_reported() {
         "{message}"
     );
 }
+
+#[test]
+fn landlock_cannot_keep_the_employer_roots_unreadable_and_says_so() {
+    let policy = Policy {
+        read_denied: vec!["/srv/employer".into()],
+        ..Policy::default()
+    };
+    let message = Landlock.prepare(&policy).err().unwrap();
+    assert!(message.contains("cannot deny reads"), "{message}");
+}

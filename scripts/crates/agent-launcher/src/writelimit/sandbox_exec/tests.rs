@@ -22,6 +22,7 @@ fn policy(root: &Path) -> Policy {
         files: vec![root.join("dev")],
         guarded: vec![root.join("w/.git")],
         denied: vec![root.join("hooks"), root.join("config")],
+        ..Policy::default()
     }
 }
 
@@ -47,7 +48,7 @@ fn the_profile_grants_paths_by_parameter_and_denies_after_granting() {
 
 #[test]
 fn a_rule_with_no_path_is_left_out_rather_than_matching_everything() {
-    assert_eq!(rule("allow", ""), "");
+    assert_eq!(rule("allow", "file-write*", ""), "");
     let root = scratch("empty");
     let p = profile(&Policy::default()).unwrap();
     assert_eq!(
@@ -252,4 +253,58 @@ fn the_system_backend_is_the_one_macos_ships() {
         SandboxExec::system().binary,
         PathBuf::from("/usr/bin/sandbox-exec")
     );
+}
+
+#[test]
+fn the_employer_roots_are_denied_for_reads_and_writes_after_everything_else() {
+    let root = scratch("read-limit");
+    let mut policy = policy(&root);
+    policy.read_denied = vec![root.join("employer"), root.join("nowhere-yet/clones")];
+    let p = profile(&policy).unwrap();
+    assert!(
+        p.text.ends_with(
+            "(deny file-link)\n(deny file-read* file-write*\n  (subpath (param \"E0\"))\n  (subpath (param \"E1\"))\n)\n"
+        ),
+        "{}",
+        p.text
+    );
+    // The roots are parameters, never text, and a root that is not there yet
+    // lands beside its parent.
+    assert!(!p.text.contains(root.to_str().unwrap()));
+    assert!(p.params.contains(&("E0".into(), root.join("employer"))));
+    assert!(p.params.contains(&("E1".into(), root.join("nowhere-yet/clones"))));
+}
+
+#[test]
+fn unlimited_writes_leave_only_the_read_denial_and_the_link_denial() {
+    let root = scratch("read-only-limit");
+    let p = profile(&Policy {
+        read_denied: vec![root.join("employer")],
+        writes_unlimited: true,
+        ..Policy::default()
+    })
+    .unwrap();
+    assert_eq!(
+        p.text,
+        "(version 1)\n(allow default)\n\
+         (deny file-read* file-write*\n  (subpath (param \"E0\"))\n)\n(deny file-link)\n"
+    );
+    // With nothing to keep unreadable either, there is no rule at all.
+    let none = profile(&Policy {
+        writes_unlimited: true,
+        ..Policy::default()
+    })
+    .unwrap();
+    assert_eq!(none.text, "(version 1)\n(allow default)\n");
+}
+
+#[test]
+fn an_employer_root_that_cannot_be_resolved_is_refused() {
+    let root = scratch("read-limit-bad");
+    fs::write(root.join("file"), "").unwrap();
+    let policy = Policy {
+        read_denied: vec![root.join("file/child")],
+        ..Policy::default()
+    };
+    assert!(profile(&policy).unwrap_err().contains("cannot resolve"));
 }

@@ -19,10 +19,16 @@
 //!   environment, and exits with its status. A refused id exits 1 and starts
 //!   nothing.
 //!
+//! * `agent-launcher read-limit-check`: for setup. Exit 0 when this machine
+//!   needs no read limit (the overlay names no work instance) or the launcher
+//!   can apply it (the work Mac), 1 with the reason when it cannot, so setup
+//!   refuses to start the personal instance there.
+//!
 //! The operating-system write limit (ADR-0013) is the `writelimit` module: one
 //! interface, with Landlock on Linux and sandbox-exec on macOS. `run` refuses to start an
 //! agent whose limit this OS cannot hold.
 
+mod employer;
 mod record;
 mod writelimit;
 
@@ -34,6 +40,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+pub use employer::{employer_roots, overlay_path, WORK_AGENTS};
 pub use record::{cell, id_rule_problems, parse, problems, Record, LEVELS, OSES};
 #[cfg(target_os = "linux")]
 pub use writelimit::Landlock;
@@ -83,6 +90,7 @@ pub fn plan(record: &Record, id: &str, os: &str) -> Result<Plan, String> {
     argv.extend(spec.levels[&level].args.clone());
     Ok(Plan {
         id: id.to_string(),
+        agent,
         argv,
         level,
         skill_set: entry.skill_set.clone(),
@@ -94,6 +102,7 @@ pub fn plan(record: &Record, id: &str, os: &str) -> Result<Plan, String> {
 #[derive(Debug, PartialEq)]
 pub struct Plan {
     pub id: String,
+    pub agent: String,
     pub argv: Vec<String>,
     pub level: String,
     pub skill_set: Option<String>,
@@ -116,7 +125,9 @@ pub fn skills_dir(gold_band_home: Option<&str>, home: Option<&str>, id: &str) ->
 }
 
 fn usage() -> String {
-    format!("usage: {NAME} validate <RECORD> | {NAME} run <RECORD> <ID> [-- ARGS...]")
+    format!(
+        "usage: {NAME} validate <RECORD> | {NAME} run <RECORD> <ID> [-- ARGS...] | {NAME} read-limit-check"
+    )
 }
 
 /// Runs one command line and returns its exit code.
@@ -166,12 +177,19 @@ pub struct Context {
     pub other_configs: Vec<PathBuf>,
     /// Where each run's temporary directory is made.
     pub temp_root: PathBuf,
+    /// The per-machine overlay that declares the employer roots.
+    pub overlay: Option<PathBuf>,
+    /// The home directory, for `~/` in the overlay.
+    pub home: Option<PathBuf>,
 }
 
 impl Context {
     /// The context of this process.
     pub fn from_env() -> Context {
         let state = std::env::var_os("AGENT_KIT_STATE_DIRS").unwrap_or_default();
+        let home = std::env::var_os("HOME")
+            .filter(|h| !h.is_empty())
+            .map(PathBuf::from);
         Context {
             state_dirs: std::env::split_paths(&state)
                 .filter(|p| !p.as_os_str().is_empty())
@@ -180,6 +198,10 @@ impl Context {
             worktree: PathBuf::from("."),
             other_configs: global_configs(),
             temp_root: std::env::temp_dir(),
+            overlay: std::env::var_os("AGENT_KIT_OVERLAY")
+                .map(PathBuf::from)
+                .or_else(|| home.as_deref().map(overlay_path)),
+            home,
         }
     }
 }
@@ -193,6 +215,7 @@ where
     let args: Vec<OsString> = args.into_iter().collect();
     match args.as_slice() {
         [cmd, file] if cmd == OsStr::new("validate") => validate_file(file),
+        [cmd] if cmd == OsStr::new("read-limit-check") => read_limit_check(limit, context),
         [cmd, file, id, rest @ ..] if cmd == OsStr::new("run") => {
             let extra = match rest {
                 [] => &[][..],
@@ -235,6 +258,36 @@ fn validate_file(file: &OsStr) -> i32 {
             eprintln!("{NAME}: {problem}");
         }
         1
+    }
+}
+
+/// Whether the personal instance can be given its read limit here.
+fn read_limit_check(limit: &dyn WriteLimit, context: &Context) -> i32 {
+    let roots = match employer_roots(context.overlay.as_deref(), context.home.as_deref()) {
+        Ok(roots) => roots,
+        Err(e) => {
+            eprintln!("{NAME}: no read limit for the personal instance: {e}");
+            return 1;
+        }
+    };
+    if roots.is_empty() {
+        println!("read limit: not needed, the overlay names no work instance");
+        return 0;
+    }
+    let policy = Policy {
+        read_denied: roots,
+        writes_unlimited: true,
+        ..Policy::default()
+    };
+    match limit.prepare(&policy) {
+        Ok(_) => {
+            println!("read limit: ok, {} employer root(s)", policy.read_denied.len());
+            0
+        }
+        Err(e) => {
+            eprintln!("{NAME}: the read limit cannot be applied, so the personal instance must not start: {e}");
+            1
+        }
     }
 }
 
@@ -287,8 +340,14 @@ fn launch(
 }
 
 /// The directories a launch knows, for the write-limit table.
-fn scope_of(plan: &Plan, temp: &std::path::Path, context: &Context) -> Scope {
+fn scope_of(
+    plan: &Plan,
+    temp: &std::path::Path,
+    context: &Context,
+    read_denied: Vec<PathBuf>,
+) -> Scope {
     Scope {
+        read_denied,
         state_dirs: context.state_dirs.clone(),
         temp_dir: temp.to_path_buf(),
         output_dir: plan.output_dir.as_ref().map(PathBuf::from),
@@ -323,7 +382,16 @@ fn start(
     limit: &dyn WriteLimit,
     context: &Context,
 ) -> Result<(i32, Vec<String>), String> {
-    let scope = scope_of(plan, temp, context);
+    // The personal instance may not read the employer's clones (ADR-0013). A
+    // work-instance agent may; an overlay that cannot be read, or that names
+    // the work instance with no roots, refuses the launch.
+    let read_denied = if WORK_AGENTS.contains(&plan.agent.as_str()) {
+        Vec::new()
+    } else {
+        employer_roots(context.overlay.as_deref(), context.home.as_deref())
+            .map_err(|e| format!("no read limit for the personal instance: {e}"))?
+    };
+    let scope = scope_of(plan, temp, context, read_denied);
     let policy = policy_for(&plan.level, &scope)?;
     // The directories the policy grants must exist to be granted.
     for dir in scope.output_dir.iter().chain(scope.gate_dir.iter()) {
@@ -335,7 +403,7 @@ fn start(
         Some(policy) => Some(
             limit
                 .prepare(policy)
-                .map_err(|e| format!("no write limit for reach level {}: {e}", plan.level))?,
+                .map_err(|e| format!("no operating-system limit for reach level {}: {e}", plan.level))?,
         ),
         None => None,
     };

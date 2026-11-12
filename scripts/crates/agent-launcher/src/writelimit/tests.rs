@@ -1,5 +1,5 @@
 use super::*;
-use crate::{run_with, Context, LEVELS};
+use crate::{run_with, Context, LEVELS, WORK_AGENTS};
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 
@@ -774,6 +774,16 @@ fn the_context_of_this_process_reads_its_environment() {
     assert_eq!(c.state_dirs, vec![PathBuf::from("/a"), PathBuf::from("/b")]);
     assert_eq!(c.gate_dir, Some(PathBuf::from("/gate")));
     assert_eq!(c.worktree, PathBuf::from("."));
+    // The overlay is where `AGENT_KIT_OVERLAY` says, else beside the keep file.
+    std::env::set_var("AGENT_KIT_OVERLAY", "/elsewhere/overlay.yaml");
+    let named = Context::from_env();
+    std::env::remove_var("AGENT_KIT_OVERLAY");
+    assert_eq!(named.overlay, Some(PathBuf::from("/elsewhere/overlay.yaml")));
+    let home = Context::from_env();
+    assert_eq!(
+        home.overlay,
+        home.home.as_deref().map(crate::overlay_path)
+    );
 }
 
 struct Fine;
@@ -1153,4 +1163,156 @@ fn git_config_files_follow_home_and_xdg() {
         crate::configs_in(p("/h"), p("/x")),
         vec![etc, "/h/.gitconfig".into(), "/x/git/config".into()]
     );
+}
+
+// The read limit (ADR-0013): the employer roots reach the backend.
+
+/// Writes the overlay `body` and returns a context that reads it.
+fn personal(t: &Tree, body: &str) -> Context {
+    let overlay = t.root.join("overlay.yaml");
+    fs::write(&overlay, body).unwrap();
+    Context {
+        overlay: Some(overlay),
+        home: Some(t.root.clone()),
+        ..context(t)
+    }
+}
+
+const WORK_OVERLAY: &str = "instances:\n  gold-band:\n    employer_roots: [~/employer]\n";
+
+/// A backend that keeps the policy it was asked for.
+struct Recording(std::sync::Mutex<Vec<Policy>>);
+
+impl WriteLimit for Recording {
+    fn prepare(&self, policy: &Policy) -> Result<Armed, String> {
+        self.0.lock().unwrap().push(Policy {
+            dirs: policy.dirs.clone(),
+            read_denied: policy.read_denied.clone(),
+            writes_unlimited: policy.writes_unlimited,
+            ..Policy::default()
+        });
+        Ok(Box::new(Fine))
+    }
+}
+
+/// Runs `agent` at `level` through `run_with` over a record of one stub that
+/// writes `ran` when it starts; the exit code and whether it started.
+fn start_agent(t: &Tree, agent: &str, level: &str, limit: &dyn WriteLimit, context: &Context) -> (i32, bool) {
+    let held = fake_exe::lock();
+    let ran = t.root.join(format!("ran-{agent}-{level}"));
+    let stub = t.root.join(format!("stub-{agent}"));
+    fake_exe::write_executable(&held, &stub, &format!("#!/bin/sh\n: > {}\n", ran.display()));
+    let host = crate::this_os();
+    let yaml = format!(
+        "agents:\n  {agent}:\n    command: [{}]\n    levels:\n      {level}: {{support: {{linux: verified, mac: verified}}}}\nids:\n  id:\n    agent: {agent}\n    reach: {level}\n    hosts: [{host}]\n",
+        stub.display()
+    );
+    let file = t.root.join(format!("reach-{agent}-{level}.yaml"));
+    fs::write(&file, yaml).unwrap();
+    let code = run_with(
+        [OsString::from("run"), file.into_os_string(), "id".into()],
+        host,
+        limit,
+        context,
+    );
+    (code, ran.exists())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn a_personal_launch_asks_the_backend_to_keep_the_employer_roots_unreadable() {
+    let t = tree("k-roots");
+    fs::create_dir_all(t.root.join("temps")).unwrap();
+    let c = personal(&t, WORK_OVERLAY);
+    for level in ["read", "write", "full"] {
+        let recording = Recording(Default::default());
+        let (code, ran) = start_agent(&t, "vibe", level, &recording, &c);
+        let seen = recording.0.lock().unwrap();
+        assert_eq!((code, ran, seen.len()), (0, true, 1), "{level}");
+        assert_eq!(seen[0].read_denied, [t.root.join("employer")], "{level}");
+        // `full` has no write table row; it gets the denial and nothing else.
+        assert_eq!(seen[0].writes_unlimited, level == "full", "{level}");
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn a_work_instance_agent_is_not_given_the_read_limit() {
+    let t = tree("k-work-agent");
+    fs::create_dir_all(t.root.join("temps")).unwrap();
+    let c = personal(&t, WORK_OVERLAY);
+    for agent in WORK_AGENTS {
+        let recording = Recording(Default::default());
+        let (code, ran) = start_agent(&t, agent, "read", &recording, &c);
+        assert_eq!((code, ran), (0, true), "{agent}");
+        assert!(recording.0.lock().unwrap()[0].read_denied.is_empty(), "{agent}");
+        // And with no limit at all, `full` does not call the backend.
+        let recording = Recording(Default::default());
+        assert_eq!(start_agent(&t, agent, "full", &recording, &c), (0, true));
+        assert!(recording.0.lock().unwrap().is_empty());
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn a_personal_launch_is_refused_when_the_work_instance_has_no_roots_or_the_backend_cannot_hold_them() {
+    let t = tree("k-refused");
+    fs::create_dir_all(t.root.join("temps")).unwrap();
+    let recording = Recording(Default::default());
+    let c = personal(&t, "instances:\n  gold-band: {}\n");
+    assert_eq!(start_agent(&t, "vibe", "full", &recording, &c), (1, false));
+    assert!(recording.0.lock().unwrap().is_empty());
+    let c = personal(&t, WORK_OVERLAY);
+    assert_eq!(start_agent(&t, "vibe", "full", &Unavailable, &c), (1, false));
+    assert_eq!(start_agent(&t, "vibe", "read", &Unavailable, &c), (1, false));
+    // A machine whose overlay does not name the work instance has nothing to keep out.
+    let c = personal(&t, "instances: {}\n");
+    assert_eq!(start_agent(&t, "vibe", "full", &Unavailable, &c), (0, true));
+}
+
+#[test]
+fn the_check_for_setup_says_whether_the_personal_instance_may_start() {
+    let t = tree("k-check");
+    let check = |c: &Context, limit: &dyn WriteLimit| run_with([OsString::from("read-limit-check")], "mac", limit, c);
+    // No overlay: not the work machine.
+    assert_eq!(check(&context(&t), &Unavailable), 0);
+    let work = personal(&t, WORK_OVERLAY);
+    let recording = Recording(Default::default());
+    assert_eq!(check(&work, &recording), 0);
+    assert_eq!(recording.0.lock().unwrap()[0].read_denied, [t.root.join("employer")]);
+    // The work Mac whose launcher cannot apply the read limit: refuse.
+    assert_eq!(check(&work, &Unavailable), 1);
+    // A work instance with no roots, or an overlay nobody can read: refuse.
+    assert_eq!(check(&personal(&t, "instances:\n  gold-band: {}\n"), &recording), 1);
+    assert_eq!(check(&personal(&t, "instances: ["), &recording), 1);
+}
+
+#[test]
+fn a_directory_the_run_needs_may_not_lie_inside_an_employer_root() {
+    let t = tree("k-inside");
+    let roots = vec![t.root.clone()];
+    let inside = |scope: Scope| policy_for("read", &Scope { read_denied: roots.clone(), ..scope }).unwrap_err();
+    // The worktree, the temporary directory, and any granted directory.
+    assert!(inside(scope(&t)).contains("the run's own directory lies inside the employer root"));
+    let elsewhere = scratch("k-inside-elsewhere");
+    let own = Scope { worktree: elsewhere.clone(), temp_dir: elsewhere.join("tmp"), ..Scope::default() };
+    assert!(inside(Scope { temp_dir: t.root.join("tmp"), ..own }).contains("employer root"));
+    let own = || Scope { worktree: elsewhere.clone(), temp_dir: elsewhere.join("tmp"), ..Scope::default() };
+    assert!(inside(Scope { output_dir: Some(t.root.join("out")), ..own() })
+        .contains("a writable directory lies inside the employer root"));
+    // A link into the root does not hide it.
+    std::os::unix::fs::symlink(&t.root, elsewhere.join("alias")).unwrap();
+    assert!(inside(Scope { gate_dir: Some(elsewhere.join("alias/gate")), ..own() }).contains("employer root"));
+    // Elsewhere, the roots ride along on every level and `full` keeps only them.
+    let policy = policy_for("read", &Scope { read_denied: roots.clone(), ..own() }).unwrap().unwrap();
+    assert_eq!(policy.read_denied, roots);
+    assert!(!policy.writes_unlimited);
+    let full = policy_for("full", &Scope { read_denied: roots.clone(), ..own() }).unwrap().unwrap();
+    assert_eq!((full.read_denied, full.writes_unlimited), (roots, true));
+}
+
+#[test]
+fn a_path_with_nothing_to_resolve_is_taken_as_it_is() {
+    assert_eq!(real(Path::new("")), PathBuf::from(""));
+    assert_eq!(real(Path::new("/")), PathBuf::from("/"));
 }
