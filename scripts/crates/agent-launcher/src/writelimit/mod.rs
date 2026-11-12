@@ -297,6 +297,11 @@ fn worktree_dirs(worktree: &Path, other_configs: &[PathBuf]) -> Result<Layout, S
         }
         denied.push(real);
     }
+    // Files inside the grants that git reads settings or object sources from:
+    // a per-worktree config (only read with extensions.worktreeConfig, which
+    // is refused above, but cheap to keep shut) and the alternates list.
+    denied.push(admin.join("config.worktree"));
+    denied.push(common.join("objects/info/alternates"));
     let guarded = vec![dot_git, admin.join("commondir"), admin.join("gitdir")];
     Ok(Layout {
         dirs,

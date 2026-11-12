@@ -291,7 +291,14 @@ the agent. Before it starts the agent the launcher runs `sandbox-exec` once with
 the finished profile and `/usr/bin/true`, so a profile that does not load, or a
 `sandbox-exec` that cannot run from here (it cannot nest), refuses the launch.
 It refuses, exit 1, when `sandbox-exec` is missing. The denial is `EPERM`
-(Operation not permitted) rather than Landlock's `EACCES`. CI runs this crate's
+(Operation not permitted) rather than Landlock's `EACCES`. An agent command
+that starts with `-` is refused, since `sandbox-exec` would read it as one of its
+own options. The profile also denies the worktree's `config.worktree` and the
+shared `objects/info/alternates`. Not covered, on either OS: the limit is a write
+limit, not a containment boundary against a hostile agent. Anything the agent can
+ask a process outside the sandbox to do (a launchd job, an Apple event, a
+`systemd --user` unit) is outside it, and files in the worktree that the
+owner's own tools run (`.envrc`, a `Makefile`, an editor task) are writable. CI runs this crate's
 tests on a macOS runner (the `Rust Tests (macos)` job), where the enforcement
 tests start a stub agent under the real `sandbox-exec`.
 

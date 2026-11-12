@@ -77,6 +77,18 @@ fn canonical(path: &Path) -> Result<PathBuf, String> {
     }
 }
 
+/// `path` itself, not what it points at: its parent made canonical, then its
+/// name. Where `path` is a symlink, a rule for this form keeps the link from
+/// being renamed or replaced, which a rule for where it leads would not.
+fn entry(path: &Path) -> Result<PathBuf, String> {
+    match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) => fs::canonicalize(parent)
+            .map(|p| p.join(name))
+            .map_err(|e| format!("cannot resolve {}: {e}", path.display())),
+        _ => canonical(path),
+    }
+}
+
 /// The filters for one kind of path, each named by a numbered parameter.
 fn filters(profile: &mut Profile, prefix: &str, filter: &str, paths: &[PathBuf]) -> String {
     let mut text = String::new();
@@ -108,7 +120,15 @@ fn profile(policy: &Policy) -> Result<Profile, String> {
     };
     let dirs = all(&policy.dirs)?;
     let files = all(&policy.files)?;
-    let guarded = all(&policy.guarded)?;
+    // Each guarded file is protected as a name and as what it resolves to.
+    let mut guarded = Vec::new();
+    for path in &policy.guarded {
+        for form in [canonical(path)?, entry(path)?] {
+            if !guarded.contains(&form) {
+                guarded.push(form);
+            }
+        }
+    }
     let denied = all(&policy.denied)?;
     let mut profile = Profile {
         text: String::new(),

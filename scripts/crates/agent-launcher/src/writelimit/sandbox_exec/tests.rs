@@ -78,6 +78,29 @@ fn paths_are_made_canonical_so_a_link_cannot_move_a_rule() {
 }
 
 #[test]
+fn a_guarded_link_is_protected_by_name_and_by_target() {
+    let root = scratch("guarded-link");
+    fs::write(root.join("real"), "").unwrap();
+    symlink(root.join("real"), root.join("pointer")).unwrap();
+    let p = profile(&Policy {
+        guarded: vec![root.join("pointer"), root.join("real")],
+        ..Policy::default()
+    })
+    .unwrap();
+    let guarded: Vec<_> = p
+        .params
+        .iter()
+        .filter(|(n, _)| n.starts_with('G'))
+        .collect();
+    // The target once, though two entries name it; the link's own name too.
+    assert_eq!(guarded.len(), 2, "{guarded:?}");
+    assert!(guarded.iter().any(|(_, v)| *v == root.join("real")));
+    assert!(guarded.iter().any(|(_, v)| *v == root.join("pointer")));
+    // A path with no parent or name is its own entry.
+    assert_eq!(entry(Path::new("/")).unwrap(), PathBuf::from("/"));
+}
+
+#[test]
 fn a_path_that_cannot_be_resolved_is_refused() {
     let root = scratch("unresolvable");
     fs::write(root.join("file"), "").unwrap();

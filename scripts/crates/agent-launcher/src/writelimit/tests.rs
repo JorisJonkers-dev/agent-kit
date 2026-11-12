@@ -604,6 +604,35 @@ fn a_wrapping_backend_starts_the_agent_through_its_prefix() {
 }
 
 #[test]
+fn an_agent_command_that_the_wrapper_would_read_as_an_option_is_refused() {
+    let t = tree("k-dash");
+    let held = fake_exe::lock();
+    let wrapper = t.root.join("sandbox-exec");
+    fake_exe::write_executable(&held, &wrapper, FAKE_SANDBOX_EXEC);
+    let log = t.root.join("wrap.log");
+    std::env::set_var("WRAP_LOG", &log);
+    let host = crate::this_os();
+    let yaml = format!(
+        "agents:\n  a:\n    command: [-p, '(allow default)']\n    levels:\n      read: {{support: {{linux: verified, mac: verified}}}}\nids:\n  a-read:\n    agent: a\n    reach: read\n    hosts: [{host}]\n"
+    );
+    let file = t.root.join("reach.yaml");
+    fs::write(&file, yaml).unwrap();
+    let code = run_with(
+        [
+            OsString::from("run"),
+            file.into_os_string(),
+            "a-read".into(),
+        ],
+        host,
+        &SandboxExec::at(&wrapper),
+        &context(&t),
+    );
+    std::env::remove_var("WRAP_LOG");
+    assert_eq!(code, 1);
+    assert!(!log.exists(), "nothing was started under the wrapper");
+}
+
+#[test]
 fn the_launcher_refuses_to_start_without_sandbox_exec() {
     let t = tree("k-no-sandbox-exec");
     let marker = t.root.join("marker");
@@ -645,7 +674,13 @@ fn the_write_policy_denies_the_hooks_and_config_git_uses() {
     let policy = policy_for("write", &scope(&t)).unwrap().unwrap();
     assert_eq!(
         policy.denied,
-        vec![t.common.join("hooks"), t.common.join("config"), hooks]
+        vec![
+            t.common.join("hooks"),
+            t.common.join("config"),
+            hooks,
+            t.admin.join("config.worktree"),
+            t.common.join("objects/info/alternates"),
+        ]
     );
 }
 

@@ -342,6 +342,14 @@ fn start(
     // A backend that wraps the command (sandbox-exec) names the program; the
     // agent's own command follows it.
     let wrapper = armed.as_ref().map(|a| a.prefix()).unwrap_or_default();
+    // After the wrapper's own options, a leading `-` would be read as one of
+    // them (`-p` or `-f` swaps the profile).
+    if !wrapper.is_empty() && plan.argv[0].starts_with('-') {
+        return Err(format!(
+            "the agent command {:?} starts with '-' and could be read as an option of the write-limit wrapper",
+            plan.argv[0]
+        ));
+    }
     let mut command = match wrapper.split_first() {
         Some((program, lead)) => {
             let mut command = Command::new(program);
