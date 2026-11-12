@@ -3872,7 +3872,8 @@ for install in installs:
       if [ -f "${overlay_file}" ]; then
         if overlay_out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml python \
             "${KIT_ROOT}/scripts/gold_band_instances.py" code-nav-roots \
-            --registry "${KIT_ROOT}/registry/estate-tooling.yaml" --overlay "${overlay_file}" 2>"${overlay_err}"); then
+            --registry "${KIT_ROOT}/registry/estate-tooling.yaml" \
+            --overlay "${overlay_file}" 2>"${overlay_err}"); then
           while IFS= read -r overlay_root; do
             [ -n "${overlay_root}" ] && overlay_roots+=(--root "${overlay_root}")
           done <<< "${overlay_out}"

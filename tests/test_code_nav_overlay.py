@@ -189,7 +189,7 @@ def test_check_mode_registers_nothing_but_still_reads_the_overlay(tmp_path: Path
     )
 
     assert _code_nav_adds(run.calls) == []
-    assert any("gold_band_instances.py code-nav-roots" in call for call in run.calls)
+    assert "gold_band_instances.py code-nav-roots" in (tmp_path / "calls.log").read_text()
     assert "would run: claude mcp add code-nav" in run.stdout
 
 
