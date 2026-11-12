@@ -4,6 +4,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { addClientScenarios } from './gen-scenarios-clients.mjs'
+
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const T = '2026-11-03T12:00:00Z'
 const step = (argv, extra = {}) => ({ argv, ...extra })
@@ -101,6 +103,8 @@ scenarios['workflow-environment'] = [
   wf('list', {}, { env: { XDG_STATE_HOME: '@SANDBOX@/elsewhere' } }),
   wf('start', { name: 'blocked' }, { write: { 'blocker': 'x' }, env: { XDG_STATE_HOME: '@SANDBOX@/blocker' } }),
 ]
+
+addClientScenarios(scenarios, step)
 
 for (const [name, steps] of Object.entries(scenarios)) {
   mkdirSync(join(fixtures, name), { recursive: true })

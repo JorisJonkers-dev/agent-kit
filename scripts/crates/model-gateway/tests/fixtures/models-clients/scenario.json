@@ -1,0 +1,280 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/vibe-calls\"\necho \"warning: could not reach the telemetry host\" >&2\necho \"Error: unknown model 'model-gateway-probe'. Available: deepseek-v4-1-flash-1017, glm-5-3, mistral-small-latest, zai-glm-5-3-flash, brand-new-id.\" >&2\nexit 1\n",
+        "bin/agy": "#!/bin/sh\nprintf 'Fetching available models...\\n'\nprintf 'gemini-3.8-flash-high\\tGemini 3.8 Flash High\\n'\nprintf 'gemini-3.8-flash-low\\tGemini Low\\n'\nprintf 'gemini-9-ultra\\tNew one\\n'\nprintf 'claude-sonnet-x\\tOther family\\n'\nprintf 'a line without a tab\\n'\nprintf '\\tno id\\n'\n",
+        "bin/opencode": "#!/bin/sh\ncase \"$1\" in\n  models)\n    printf 'opencode-go/glm-5.3\\nopencode-go/glm-5.3-flash\\nopencode-go/kimi-k3.1-pro\\nopencode/gpt-5-nano\\n  anthropic/claude-sonnet-4.6  \\nopencode-go/brand-new\\nopencode-go/glm-5.3\\nnoslash\\n/leading\\ntrailing/\\n\\n' ;;\n  auth) printf 'opencode-go  api key\\n' ;;\nesac\n",
+        "bin/hermes": "#!/bin/sh\ncase \"$1\" in\n  config) echo '{\"default\":\"anthropic/claude-sonnet-4.6\",\"provider\":\"openrouter\"}' ;;\n  auth) echo 'openrouter  api key' ;;\nesac\n",
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in\n  login) echo 'Logged in using ChatGPT' ;;\nesac\n",
+        "bin/claude": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin/vibe",
+        "bin/agy",
+        "bin/opencode",
+        "bin/hermes",
+        "bin/codex",
+        "bin/claude"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:09:59Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:10:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:10:01Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:05:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/vibe-calls\"\necho \"warning: could not reach the telemetry host\" >&2\necho \"Error: unknown model 'model-gateway-probe'. Available: glm-5-3, mistral-large-4-0-3.\" >&2\nexit 1\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/vibe-calls\"\necho \"warning: could not reach the telemetry host\" >&2\necho \"Error: unknown model 'model-gateway-probe'. Available: deepseek-v4-1-flash-1017, glm-5-3.\" >&2\nexit 1\n",
+        "home/.vibe/config.toml": "[[models]]\nname = \"deepseek-v4-1-flash\"\nalias = \"deepseek-v4-1-flash-1017\"\n\n[[models]]\nalias = \"glm-5-3\"\nname = \"glm-5.3\"\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "vibehome/config.toml": "[models.glm-5-3]\nname = \"glm-5.3\"\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "VIBE_HOME": "@SANDBOX@/vibehome"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.vibe/config.toml": "this is = not [valid"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.vibe/config.toml": "[[models]]\nalias = \"model-gateway-probe\"\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.vibe/config.toml": ""
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache2"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "relative-cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": null
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "work/vibe-calls"
+      ],
+      "write": {
+        "cache/model-gateway/vibe-available.json": "not json"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/model-gateway/vibe-available.json": "[]"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

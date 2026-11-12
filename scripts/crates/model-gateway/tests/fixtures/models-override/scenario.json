@@ -1,0 +1,1030 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"vibe:glm-5-3\",\"opencode:opencode-go/glm-5.3-flash\",\"claude:claude-haiku-5-5\"]}",
+        "bin/vibe": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/vibe-calls\"\necho \"warning: could not reach the telemetry host\" >&2\necho \"Error: unknown model 'model-gateway-probe'. Available: deepseek-v4-1-flash-1017, glm-5-3, mistral-small-latest, zai-glm-5-3-flash, brand-new-id.\" >&2\nexit 1\n",
+        "bin/agy": "#!/bin/sh\nprintf 'Fetching available models...\\n'\nprintf 'gemini-3.8-flash-high\\tGemini 3.8 Flash High\\n'\nprintf 'gemini-3.8-flash-low\\tGemini Low\\n'\nprintf 'gemini-9-ultra\\tNew one\\n'\nprintf 'claude-sonnet-x\\tOther family\\n'\nprintf 'a line without a tab\\n'\nprintf '\\tno id\\n'\n",
+        "bin/opencode": "#!/bin/sh\ncase \"$1\" in\n  models)\n    printf 'opencode-go/glm-5.3\\nopencode-go/glm-5.3-flash\\nopencode-go/kimi-k3.1-pro\\nopencode/gpt-5-nano\\n  anthropic/claude-sonnet-4.6  \\nopencode-go/brand-new\\nopencode-go/glm-5.3\\nnoslash\\n/leading\\ntrailing/\\n\\n' ;;\n  auth) printf 'opencode-go  api key\\n' ;;\nesac\n",
+        "bin/hermes": "#!/bin/sh\ncase \"$1\" in\n  config) echo '{\"default\":\"anthropic/claude-sonnet-4.6\",\"provider\":\"openrouter\"}' ;;\n  auth) echo 'openrouter  api key' ;;\nesac\n",
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in\n  login) echo 'Logged in using ChatGPT' ;;\nesac\n",
+        "bin/claude": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin/vibe",
+        "bin/agy",
+        "bin/opencode",
+        "bin/hermes",
+        "bin/codex",
+        "bin/claude"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"families\":[\"deepseek\"]},\"opencode\":{\"providers\":[\"opencode-go\",\"other\"],\"provider_cost_classes\":{\"other\":\"metered-employer\"}},\"agy\":{\"families\":[\"google\",\"anthropic\"]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\",\"model\":\"glm-5-3\",\"tier\":\"frontier\",\"notes\":\"changed\"},{\"client\":\"claude\",\"model\":\"claude-x\",\"family\":\"anthropic\",\"tier\":\"trivial\",\"notes\":\"new\",\"names\":[\"cx\"]},{\"client\":\"vibe\",\"model\":\"brand-new-id\",\"family\":\"mistral\",\"tier\":\"routine\",\"notes\":\"now known\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"custom\":{\"binary\":\"custom\",\"cost_class\":\"metered-personal\",\"model_source\":\"declared\"}},\"models\":[{\"client\":\"custom\",\"model\":\"c-1\",\"family\":\"openai\",\"tier\":\"hard\",\"notes\":\"n\"}]}",
+        "bin/custom": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin/custom"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"plan_warning_ratio\":0.5,\"metered_personal_caps\":{\"per_day_usd\":1},\"output_allowance_tokens\":{\"hard\":7}},\"version\":1}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "[]"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "null"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "not json"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": ""
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"version\":2}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"extra\":1}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":[]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":3}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"nope\":1}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"binary\":\"\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"cost_class\":\"free\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"model_source\":\"magic\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"families\":\"google\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"families\":[\"google\",\"\"]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"provider_cost_classes\":[]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"provider_cost_classes\":{\"p\":\"x\"}}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"providers\":[1]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":{}}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[1]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"year\",\"limit_usd\":1}]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"day\"}]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"day\",\"limit_usd\":1,\"limit_runs\":1}]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"day\",\"limit_usd\":0}]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"day\",\"limit_usd\":\"x\"}]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"day\",\"limit_runs\":1.5}]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"5h\",\"limit_runs\":2},{\"window\":\"month\",\"limit_usd\":9.5}]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"fresh\":{\"binary\":\"fresh\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"fresh\":{\"binary\":\"f\",\"cost_class\":\"subsidised\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":{}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[1]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\",\"model\":\"zz\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\",\"model\":\"zz\",\"family\":\"x\",\"tier\":\"huge\",\"notes\":\"\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\",\"model\":\"zz\",\"family\":\"x\",\"tier\":\"hard\",\"notes\":3}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\",\"model\":\"glm-5-3\",\"prices\":3}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\",\"model\":\"glm-5-3\",\"prices\":{\"input\":1,\"output\":0,\"cached_input\":0}}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\",\"model\":\"glm-5-3\",\"prices\":{\"input\":1,\"output\":1,\"cached_input\":-1}}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\",\"model\":\"glm-5-3\",\"prices\":{\"input\":1,\"output\":1}}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"models\":[{\"client\":\"vibe\",\"model\":\"glm-5-3\",\"prices\":{\"input\":1,\"output\":1,\"cached_input\":0},\"names\":[\"\"]}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":[]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"summary_max_chars\":\"x\"}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_parallel_per_client\":0}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"max_batch_delegations\":1.5}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"plan_warning_ratio\":2}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"metered_personal_caps\":[]}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"metered_personal_caps\":{\"per_day_usd\":\"x\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"output_allowance_tokens\":[]}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"output_allowance_tokens\":{\"hard\":0}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"settings\":{\"output_allowance_tokens\":{\"frontier\":\"x\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":\"x\"}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[\"\"]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"disabled\":[]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/model-gateway.json"
+      ],
+      "mkdir": [
+        "home/.config/agent-kit/model-gateway.json"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "XDG_CONFIG_HOME": "@SANDBOX@/cfg"
+      },
+      "write": {
+        "cfg/agent-kit/model-gateway.json": "{\"disabled\":[\"claude:claude-opus-5-5\"]}"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "XDG_CONFIG_HOME": "relative"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "HOME": null,
+        "XDG_CONFIG_HOME": null
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "HOME": null,
+        "XDG_CONFIG_HOME": "@SANDBOX@/cfg"
+      }
+    }
+  ]
+}

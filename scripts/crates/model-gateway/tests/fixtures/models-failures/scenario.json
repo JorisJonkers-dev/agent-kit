@@ -1,0 +1,239 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nexit 0\n",
+        "bin/agy": "#!/bin/sh\necho boom >&2; exit 2\n",
+        "bin/opencode": "#!/bin/sh\necho \"  first line  \" >&2; echo second >&2; exit 3\n",
+        "bin/hermes": "#!/bin/sh\necho \"{}\"\n",
+        "bin/claude": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin/vibe",
+        "bin/agy",
+        "bin/opencode",
+        "bin/hermes",
+        "bin/claude"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/vibe-calls\"\necho \"warning: could not reach the telemetry host\" >&2\necho \"Error: unknown model 'model-gateway-probe'. Available: good-1, bad id, good-2.\" >&2\nexit 1\n",
+        "bin/hermes": "#!/bin/sh\necho '\"gpt-5.5\"'\n",
+        "bin/opencode": "#!/bin/sh\nexit 1\n"
+      },
+      "exec": [
+        "bin/vibe",
+        "bin/hermes",
+        "bin/opencode"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nprintf \"Available: a\\033[31mb\\n\" >&2\n",
+        "bin/hermes": "#!/bin/sh\necho '{\"default\":\"\",\"provider\":3}'\n",
+        "bin/opencode": "#!/bin/sh\nprintf \"opencode-go/glm-5.3\\n\"; exit 0\n",
+        "bin/agy": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin/vibe",
+        "bin/hermes",
+        "bin/opencode",
+        "bin/agy"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/hermes": "#!/bin/sh\necho '{\"default\":\"gemini-3.8-flash-high\"}'\n",
+        "bin/vibe": "#!/bin/sh\necho \"Available: glm-5-3, deepseek-v4-1-flash-1017\" >&2\n",
+        "bin/opencode": "#!/bin/sh\necho \"garbage\"\n"
+      },
+      "exec": [
+        "bin/hermes",
+        "bin/vibe",
+        "bin/opencode"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/hermes": "#!/bin/sh\necho \"not json\"\n"
+      },
+      "exec": [
+        "bin/hermes"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/hermes": "#!/bin/sh\necho \"[1]\"\n"
+      },
+      "exec": [
+        "bin/hermes"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/hermes": "#!/bin/sh\nexit 4\n"
+      },
+      "exec": [
+        "bin/hermes"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "bin/vibe",
+        "bin/agy",
+        "bin/opencode",
+        "bin/hermes",
+        "bin/claude"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [],
+      "write": {
+        "bin/claude": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin/claude"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin2",
+        "bin"
+      ],
+      "mkdir": [
+        "bin2"
+      ],
+      "write": {
+        "bin2/codex": "#!/bin/sh\nexit 0\n",
+        "bin/claude": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin2/codex"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/notexec": "x"
+      },
+      "mkdir": [
+        "bin/codex"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

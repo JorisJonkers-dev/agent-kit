@@ -1,0 +1,459 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/vibe-calls\"\necho \"warning: could not reach the telemetry host\" >&2\necho \"Error: unknown model 'model-gateway-probe'. Available: deepseek-v4-1-flash-1017, glm-5-3, mistral-small-latest, zai-glm-5-3-flash, brand-new-id.\" >&2\nexit 1\n",
+        "bin/agy": "#!/bin/sh\nprintf 'Fetching available models...\\n'\nprintf 'gemini-3.8-flash-high\\tGemini 3.8 Flash High\\n'\nprintf 'gemini-3.8-flash-low\\tGemini Low\\n'\nprintf 'gemini-9-ultra\\tNew one\\n'\nprintf 'claude-sonnet-x\\tOther family\\n'\nprintf 'a line without a tab\\n'\nprintf '\\tno id\\n'\n",
+        "bin/opencode": "#!/bin/sh\ncase \"$1\" in\n  models)\n    printf 'opencode-go/glm-5.3\\nopencode-go/glm-5.3-flash\\nopencode-go/kimi-k3.1-pro\\nopencode/gpt-5-nano\\n  anthropic/claude-sonnet-4.6  \\nopencode-go/brand-new\\nopencode-go/glm-5.3\\nnoslash\\n/leading\\ntrailing/\\n\\n' ;;\n  auth) printf 'opencode-go  api key\\n' ;;\nesac\n",
+        "bin/hermes": "#!/bin/sh\ncase \"$1\" in\n  config) echo '{\"default\":\"anthropic/claude-sonnet-4.6\",\"provider\":\"openrouter\"}' ;;\n  auth) echo 'openrouter  api key' ;;\nesac\n",
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in\n  login) echo 'Logged in using ChatGPT' ;;\nesac\n",
+        "bin/claude": "#!/bin/sh\nexit 0\n",
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[core]\n\trepositoryformatversion = 0\n[remote \"origin\"]\n\turl = git@github.com:Owner/Repo.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"deepseek\",\"zhipu\",\"anthropic\"],\"code\":true,\"history\":false},\"github.com/owner/other\":{\"families\":[]}}}"
+      },
+      "mkdir": [
+        "work/repo/.git/objects",
+        "work/repo/.git/refs/heads",
+        "work/repo/sub"
+      ],
+      "exec": [
+        "bin/vibe",
+        "bin/agy",
+        "bin/opencode",
+        "bin/hermes",
+        "bin/codex",
+        "bin/claude"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo/sub\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-allowlist.json"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "nope"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":2,\"repositories\":{}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\"],\"code\":\"yes\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\"],\"history\":true}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":\"zhipu\"}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":5}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":[]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/nedap\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "work/nedap/.git/HEAD": "ref: refs/heads/main\n",
+        "work/nedap/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Nedap/thing.git\n"
+      },
+      "mkdir": [
+        "work/nedap/.git/objects",
+        "work/nedap/.git/refs/heads"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/noremote\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "work/noremote/.git/HEAD": "ref: refs/heads/main\n",
+        "work/noremote/.git/config": "[core]\n\tbare = false\n"
+      },
+      "mkdir": [
+        "work/noremote/.git/objects",
+        "work/noremote/.git/refs/heads"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/plain\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "mkdir": [
+        "work/plain"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "GIT_CEILING_DIRECTORIES": "@SANDBOX@"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/missing\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "bin/git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"upstream\"]\n\turl = https://example.com/team/proj\n[remote \"origin\"]\n\turl = ssh://git@host.example:2222/Group/Sub/Proj.git/\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"host.example/group/sub/proj\":{\"families\":[\"deepseek\"],\"code\":true,\"history\":true}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"b\"]\n\turl = nonsense\n[remote \"a\"]\n\turl = https://github.com/x/y\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":5}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":null}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":[]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

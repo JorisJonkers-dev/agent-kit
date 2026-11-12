@@ -10,11 +10,14 @@
 // state/ (files copied into the state home, $XDG_STATE_HOME). A step is
 // { "argv": [...], "now": "<ISO instant>", "env": {...}, "remove": [...], "mkdir": [...],
 //   "write": { "<path>": "<text>" } }; paths are under the sandbox, @SANDBOX@ in argv, env
-// or text is the sandbox's path, and a null env value unsets the variable. The clock is
+// or text is the sandbox's path, and a null env value unsets the variable. "exec" lists
+// the written files (sandbox paths) to make executable; "shims" names programs of the host's
+// PATH to link into the sandbox's bin/; "path" lists the sandbox directories that become
+// PATH (else the host's own). Fake client programs are scripts written under bin/. The clock is
 // fixed (fake-clock.mjs) at the step's "now", else 2026-11-03T12:00:00Z; the sandbox's
 // path is written @SANDBOX@ in every output.
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -39,7 +42,24 @@ function snapshot(sandbox, roots) {
   return files
 }
 
-const normalise = (text, sandbox) => text.split(sandbox).join('@SANDBOX@')
+/**
+ * The sandbox's path is @SANDBOX@, the random suffix of a grant id is @RAND@, and the change time and
+ * inode of the client program a Vibe probe's cache entry names are @N@ (they differ from file to file).
+ */
+const normalise = (text, sandbox) =>
+  text
+    .split(sandbox)
+    .join('@SANDBOX@')
+    .replace(/(grant-\d{8}T\d{6}Z)-[0-9a-f]{6}/g, '$1-@RAND@')
+    .replace(/("binary_(?:ctime_ms|ino)":)[0-9.eE+-]+/g, '$1@N@')
+
+/** The first program of that name on the host's PATH. */
+function hostProgram(name) {
+  for (const dir of (process.env.PATH ?? '').split(':')) {
+    if (dir !== '' && existsSync(join(dir, name))) return join(dir, name)
+  }
+  throw new Error(`no ${name} on PATH`)
+}
 
 function runScenario(name) {
   const dir = join(fixtures, name)
@@ -56,8 +76,14 @@ function runScenario(name) {
         mkdirSync(dirname(join(sandbox, path)), { recursive: true })
         writeFileSync(join(sandbox, path), text.split('@SANDBOX@').join(sandbox))
       }
+      for (const path of step.exec ?? []) chmodSync(join(sandbox, path), 0o755)
+      for (const name of step.shims ?? []) {
+        mkdirSync(join(sandbox, 'bin'), { recursive: true })
+        rmSync(join(sandbox, 'bin', name), { force: true })
+        symlinkSync(hostProgram(name), join(sandbox, 'bin', name))
+      }
       const env = {
-        PATH: process.env.PATH ?? '',
+        PATH: step.path === undefined ? process.env.PATH ?? '' : step.path.map((dir) => join(sandbox, dir)).join(':'),
         HOME: join(sandbox, 'home'),
         XDG_STATE_HOME: join(sandbox, 'state'),
         FIXED_NOW: step.now ?? FIXED_NOW,

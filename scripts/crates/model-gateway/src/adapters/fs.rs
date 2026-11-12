@@ -1,4 +1,4 @@
-use crate::ports::{Files, FsError};
+use crate::ports::{FileStamp, Files, FsError};
 use crate::text::{resolve};
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
@@ -94,6 +94,57 @@ impl Files for SystemFiles {
     fn modified_ms(&self, path: &str) -> Option<i64> {
         let modified = std::fs::metadata(resolve(&self.cwd, path)).ok()?.modified().ok()?;
         Some(modified.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis() as i64)
+    }
+
+    fn exists(&self, path: &str) -> Result<bool, FsError> {
+        match std::fs::metadata(resolve(&self.cwd, path)) {
+            Ok(_) => Ok(true),
+            Err(error) if matches!(error.raw_os_error(), Some(2) | Some(20)) => Ok(false),
+            Err(error) => Err(fail(&error, "access", Some(path))),
+        }
+    }
+
+    fn append(&self, path: &str, content: &str) -> Result<(), FsError> {
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(resolve(&self.cwd, path))
+            .map_err(|error| fail(&error, "open", Some(path)))?;
+        file.write_all(content.as_bytes()).map_err(|error| fail(&error, "write", None))
+    }
+
+    fn stamp(&self, path: &str) -> Option<FileStamp> {
+        use std::os::unix::fs::MetadataExt;
+        let real = std::fs::canonicalize(resolve(&self.cwd, path)).ok()?;
+        let meta = std::fs::metadata(&real).ok()?;
+        let bytes = std::fs::read(&real).ok()?;
+        Some(FileStamp {
+            realpath: real.to_string_lossy().into_owned(),
+            ctime_ms: meta.ctime() as f64 * 1e3 + meta.ctime_nsec() as f64 / 1e6,
+            ino: meta.ino() as f64,
+            sha256: crate::sha256::sha256_hex(&bytes),
+            size: meta.size() as f64,
+        })
+    }
+
+    fn write_private(&self, path: &str, content: &str) -> Result<(), FsError> {
+        use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+        let target = resolve(&self.cwd, path);
+        let directory = crate::text::dirname(&target).to_string();
+        std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&directory).map_err(|error| fail(&error, "mkdir", Some(&directory)))?;
+        let temporary = temporary_name(&target);
+        let result = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&temporary)
+            .map_err(|error| fail(&error, "open", Some(&temporary)))
+            .and_then(|_| write_then_rename(&temporary, &target, content));
+        if result.is_err() {
+            let _ = std::fs::remove_file(&temporary);
+        }
+        result
     }
 }
 
