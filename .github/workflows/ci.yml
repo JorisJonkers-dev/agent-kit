@@ -234,13 +234,13 @@
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
-      - 'name': 'Test the launcher on macOS'
+      - 'name': 'Test the launcher and the code-nav read-reach proof on macOS'
         'working-directory': '${{ runner.temp }}'
         'env':
           'CARGO_TARGET_DIR': '${{ runner.temp }}/rust-target'
           'CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX': 'sparse+https://packages.jorisjonkers.dev/cargo/'
           'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
-        'run': 'cargo test --locked --manifest-path "$GITHUB_WORKSPACE/scripts/Cargo.toml" -p agent-launcher'
+        'run': 'cargo test --locked --manifest-path "$GITHUB_WORKSPACE/scripts/Cargo.toml" -p agent-launcher -p code-nav'
 
   # Holds a marketplace pin bump that adds code to run. Not in Pipeline
   # Complete, so it stops Renovate's automerge but not a reviewed manual merge.
