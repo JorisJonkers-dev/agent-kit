@@ -608,7 +608,10 @@ def test_a_revoked_host_token_is_refused_by_its_host_and_the_next_run_mints_a_ne
     assert "HINDSIGHT_API_TOKEN" not in ids
     assert _keys(home, "ensure", answers="me@example.com\npw\n123456\n").returncode == 0
     assert _stored(home)["HINDSIGHT_API_TOKEN"] in state.valid
-    assert "HINDSIGHT_API_TOKEN ok" in _keys(home, "status").stdout
+    ids = json.loads((Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "token-ids.json").read_text())
+    assert "HINDSIGHT_API_TOKEN" in ids, "the new id is recorded, so it can be revoked in turn"
+    after = _keys(home, "status")
+    assert "HINDSIGHT_API_TOKEN ok" in after.stdout and _stored(home)["HINDSIGHT_API_TOKEN"] not in after.stdout
 
 
 def test_revoke_refuses_a_name_that_is_not_a_minted_token(home: dict, auth: tuple[Auth, str]) -> None:

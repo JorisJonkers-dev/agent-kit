@@ -94,7 +94,7 @@ asks only for what is missing or refused by its host. Optional credentials
 | `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
 | `OUTLINE_API_KEY` | the `outline` MCP server (Outline at notes.jorisjonkers.dev) | required for `outline`; without it the server is not registered |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
-| `OPENROUTER_API_KEY` | this host's own OpenRouter key, for tools that read it from the environment | optional; one key per host, never shared |
+| `OPENROUTER_API_KEY` | this host's own OpenRouter key, never exported; read from the store with `agent-kit-secret get OPENROUTER_API_KEY` | optional; one key per host, never shared |
 
 `HINDSIGHT_API_TOKEN` and `MEMORY_PRIVATE_TOKEN` are **per-host, individually
 revocable** service tokens, not shared secrets — mint one per device with
@@ -419,7 +419,8 @@ OpenRouter's key endpoint before it stores it). To store one without a full setu
 (this stores it unchecked):
 
 ```bash
-read -rs -p "OpenRouter key for $(hostname): " k; echo; printf %s "$k" | agent-kit-secret put OPENROUTER_API_KEY; unset k
+printf "OpenRouter key for %s: " "$(hostname)"; stty -echo; read -r k; stty echo; echo
+printf %s "$k" | agent-kit-secret put OPENROUTER_API_KEY; unset k
 agent-kit-secret has OPENROUTER_API_KEY && echo stored
 ```
 
