@@ -858,6 +858,9 @@ def gold_band(args: argparse.Namespace) -> int:
     # The map keeps its slot among the other top-level keys; a new one is appended.
     new_doc = {**doc, "agents": merged}
     if new_doc == doc:
+        # An unchanged map still leaves the data directory owner-only.
+        if not args.check and settings.parent.is_dir():
+            os.chmod(settings.parent, 0o700)
         print("settings unchanged")
         return 0
     for name in added:
@@ -899,14 +902,15 @@ def _gold_band_write_settings(settings: Path, document: dict[str, Any]) -> None:
             shutil.copy2(settings, staged_backup)
             os.chmod(staged_backup, 0o600)
             os.replace(staged_backup, backup)
-        fd = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        staged.unlink(missing_ok=True)
+        fd = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(json.dumps(document, indent=2) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(staged, 0o600)
         os.replace(staged, settings)
-    except OSError:
+    except BaseException:
         staged.unlink(missing_ok=True)
         staged_backup.unlink(missing_ok=True)
         raise

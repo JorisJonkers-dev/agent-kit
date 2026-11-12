@@ -600,3 +600,13 @@ def test_the_data_directory_is_owner_only(
     assert machine.settings.parent.stat().st_mode & 0o777 == 0o700
     assert machine.settings.stat().st_mode & 0o777 == 0o600
     assert (not existing) or machine.backup.stat().st_mode & 0o777 == 0o600
+
+
+def test_an_unchanged_run_still_makes_the_data_directory_owner_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch)
+    assert machine.run() == 0
+    machine.settings.parent.chmod(0o755)
+    assert machine.run() == 0
+    assert machine.settings.parent.stat().st_mode & 0o777 == 0o700
