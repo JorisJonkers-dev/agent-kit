@@ -89,8 +89,10 @@ def test_setup_installs_both_casks_on_macos(macos_run: Run) -> None:
 def test_setup_installs_agy_with_the_vendor_installer_on_linux(linux_run: Run) -> None:
     """No cask and no "macOS only" skip: the CLI comes from the official Linux installer."""
     output = linux_run.stdout + linux_run.stderr
-    assert "macOS only" not in output
+    assert not [line for line in output.splitlines() if "antigravity" in line.lower() and "macOS only" in line]
     assert not [call for call in linux_run.calls if "--cask" in call and "antigravity" in call]
+    # agy is on the stubbed PATH, so this is the update step: the vendor installer ran.
+    assert "curl -fsSL https://antigravity.google/cli/install.sh" in linux_run.calls
     assert "antigravity: the desktop app is not installed on Linux; agy carries the configuration" in output
 
 
