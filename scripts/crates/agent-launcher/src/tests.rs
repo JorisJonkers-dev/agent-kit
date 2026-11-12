@@ -345,7 +345,9 @@ fn an_agent_that_cannot_be_started_exits_1() {
         with_command("[/nonexistent/agent]"),
     )
     .unwrap();
-    assert_eq!(run_on([OsString::from("run"), file.into_os_string(), "fake-read".into()], "linux"), 1);
+    let code = run_on([OsString::from("run"), file.into_os_string(), "fake-read".into()], "linux");
+    // Under sandbox-exec (macOS) the wrapper starts and reports the failed exec itself, as 71.
+    assert!(code == 1 || (cfg!(target_os = "macos") && code == 71), "{code}");
 }
 
 #[test]

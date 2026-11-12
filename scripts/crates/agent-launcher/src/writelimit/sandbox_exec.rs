@@ -60,32 +60,31 @@ struct Profile {
     params: Vec<(String, PathBuf)>,
 }
 
-/// The absolute, link-free form of `path`. A path that does not exist yet is
-/// resolved through its parent, so a rule for it lands where the path will be.
+/// The absolute, link-free form of `path`, which must exist.
 fn canonical(path: &Path) -> Result<PathBuf, String> {
-    match fs::canonicalize(path) {
-        Ok(real) => Ok(real),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
-                return Err(format!("cannot resolve {}: {e}", path.display()));
-            };
-            fs::canonicalize(parent)
-                .map(|p| p.join(name))
-                .map_err(|e| format!("cannot resolve {}: {e}", path.display()))
+    fs::canonicalize(path).map_err(|e| format!("cannot resolve {}: {e}", path.display()))
+}
+
+/// The same for a path that may not exist yet: its nearest existing ancestor
+/// made canonical, then the rest, so a rule for it lands where it will be.
+fn canonical_or_planned(path: &Path) -> Result<PathBuf, String> {
+    match (fs::canonicalize(path), path.parent(), path.file_name()) {
+        (Ok(real), _, _) => Ok(real),
+        (Err(e), Some(parent), Some(name)) if e.kind() == io::ErrorKind::NotFound => {
+            Ok(canonical_or_planned(parent)?.join(name))
         }
-        Err(e) => Err(format!("cannot resolve {}: {e}", path.display())),
+        (Err(e), _, _) => Err(format!("cannot resolve {}: {e}", path.display())),
     }
 }
 
 /// `path` itself, not what it points at: its parent made canonical, then its
 /// name. Where `path` is a symlink, a rule for this form keeps the link from
 /// being renamed or replaced, which a rule for where it leads would not.
-fn entry(path: &Path) -> Result<PathBuf, String> {
-    match (path.parent(), path.file_name()) {
-        (Some(parent), Some(name)) => fs::canonicalize(parent)
-            .map(|p| p.join(name))
-            .map_err(|e| format!("cannot resolve {}: {e}", path.display())),
-        _ => canonical(path),
+fn entry(path: &Path) -> PathBuf {
+    let parent = path.parent().and_then(|p| fs::canonicalize(p).ok());
+    match (parent, path.file_name()) {
+        (Some(parent), Some(name)) => parent.join(name),
+        _ => path.to_path_buf(),
     }
 }
 
@@ -112,24 +111,29 @@ fn rule(verb: &str, filters: &str) -> String {
 
 /// Builds the profile for `policy`.
 fn profile(policy: &Policy) -> Result<Profile, String> {
-    let all = |paths: &[PathBuf]| {
+    // A grant must exist to be granted.
+    let strict = |paths: &[PathBuf]| {
         paths
             .iter()
             .map(|p| canonical(p))
             .collect::<Result<Vec<_>, _>>()
     };
-    let dirs = all(&policy.dirs)?;
-    let files = all(&policy.files)?;
+    let dirs = strict(&policy.dirs)?;
+    let files = strict(&policy.files)?;
     // Each guarded file is protected as a name and as what it resolves to.
     let mut guarded = Vec::new();
     for path in &policy.guarded {
-        for form in [canonical(path)?, entry(path)?] {
+        for form in [canonical_or_planned(path)?, entry(path)] {
             if !guarded.contains(&form) {
                 guarded.push(form);
             }
         }
     }
-    let denied = all(&policy.denied)?;
+    let denied = policy
+        .denied
+        .iter()
+        .map(|p| canonical_or_planned(p))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut profile = Profile {
         text: String::new(),
         params: Vec::new(),

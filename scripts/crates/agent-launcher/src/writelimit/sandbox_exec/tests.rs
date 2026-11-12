@@ -66,8 +66,8 @@ fn paths_are_made_canonical_so_a_link_cannot_move_a_rule() {
     assert_eq!(canonical(&root.join("alias")).unwrap(), root.join("real"));
     // A missing path through a link resolves beside the link's target.
     assert_eq!(
-        canonical(&root.join("alias/missing")).unwrap(),
-        root.join("real/missing")
+        canonical_or_planned(&root.join("alias/missing/deeper")).unwrap(),
+        root.join("real/missing/deeper")
     );
     let p = profile(&Policy {
         dirs: vec![root.join("alias")],
@@ -97,7 +97,7 @@ fn a_guarded_link_is_protected_by_name_and_by_target() {
     assert!(guarded.iter().any(|(_, v)| *v == root.join("real")));
     assert!(guarded.iter().any(|(_, v)| *v == root.join("pointer")));
     // A path with no parent or name is its own entry.
-    assert_eq!(entry(Path::new("/")).unwrap(), PathBuf::from("/"));
+    assert_eq!(entry(Path::new("/")), PathBuf::from("/"));
 }
 
 #[test]
@@ -111,11 +111,11 @@ fn a_path_that_cannot_be_resolved_is_refused() {
         "{message}"
     );
     // Nothing at all to resolve.
-    assert!(canonical(Path::new(""))
+    assert!(canonical_or_planned(Path::new(""))
         .unwrap_err()
         .contains("cannot resolve"));
     // A file used as a directory is some other error.
-    assert!(canonical(&root.join("file/child"))
+    assert!(canonical_or_planned(&root.join("file/child"))
         .unwrap_err()
         .contains("cannot resolve"));
     let policy = Policy {
