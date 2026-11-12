@@ -12,4 +12,4 @@ description = "Starts each Gold Band agent id with its reach level's tool config
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_yaml = "=0.9.34"
 # Raw Landlock syscalls (ADR-0013); libc 0.2.186 was published 2026-04-23.
-libc = "=0.2.186"
+libc = "=0.2.191"

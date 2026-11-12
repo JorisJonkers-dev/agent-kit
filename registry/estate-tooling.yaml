@@ -700,7 +700,7 @@ clis:
     container:
       datasource: github-releases
       package: "jdx/mise"
-      version: "v2026.11.0"
+      version: "v2026.11.1"
       install: >-
         curl -fsSL -o /usr/local/bin/mise
         "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}"
@@ -2047,7 +2047,7 @@ mcp_servers:
     pin:
       datasource: npm
       package: "kubernetes-mcp-server"
-      version: "0.1.1"
+      version: "0.1.2"
 
   - name: code-nav
     transport: stdio
