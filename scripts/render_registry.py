@@ -3072,7 +3072,7 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w("# agree. No overlay: not the work Mac, nothing to check. A failure fails the")
     w("# run with the reason; the launcher also refuses each launch it cannot limit.")
     w("gold_band_read_limit() {")
-    w("  local out rc=0 overlay_file line")
+    w("  local out rc=0 overlay_file line launcher")
     w('  if [ "$(uname -s)" != Darwin ] || [ "${CLOUD}" = 1 ]; then')
     w("    return 0")
     w("  fi")
@@ -3081,20 +3081,15 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w('    log "gold band read limit: no overlay, not the work Mac"')
     w("    return 0")
     w("  fi")
-    w('  if [ -n "${AGENT_LAUNCHER_BIN:-}" ]; then')
-    w('    out=$("${AGENT_LAUNCHER_BIN}" read-limit-check 2>&1) || rc=$?')
-    w("  elif command -v cargo >/dev/null 2>&1; then")
+    w('  launcher="${AGENT_LAUNCHER_BIN:-$(command -v agent-launcher || true)}"')
+    w('  if [ -z "${launcher}" ]; then')
     w(
-        '    out=$(cargo run --quiet --locked --manifest-path "${KIT_ROOT}/scripts/Cargo.toml" '
-        '-p agent-launcher -- read-limit-check 2>&1) || rc=$?'
-    )
-    w("  else")
-    w(
-        '    fail "gold band read limit: cargo is not on PATH, so the launcher cannot be asked; '
+        '    fail "gold band read limit: agent-launcher is not installed, so the launcher cannot be asked; '
         'do not start the personal instance on this machine"'
     )
     w("    return 0")
     w("  fi")
+    w('  out=$("${launcher}" read-limit-check 2>&1) || rc=$?')
     w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
     w('  if [ "${rc}" != 0 ]; then')
     w('    fail "gold band read limit: the personal instance must not be started on this machine (see above)"')

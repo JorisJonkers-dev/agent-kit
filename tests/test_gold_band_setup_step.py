@@ -186,10 +186,10 @@ def test_setup_refuses_the_personal_instance_when_the_read_limit_cannot_be_appli
 
 
 def test_setup_refuses_when_the_launcher_cannot_be_asked(tmp_path: Path) -> None:
-    if shutil.which("cargo", path="/usr/bin:/bin"):
-        pytest.skip("cargo is on the harness PATH here")
+    if shutil.which("agent-launcher", path="/usr/bin:/bin"):
+        pytest.skip("agent-launcher is on the harness PATH here")
     run = setup_run(tmp_path, "Darwin", prepare_home=_overlay)
-    assert "cargo is not on PATH, so the launcher cannot be asked" in run.stdout + run.stderr
+    assert "agent-launcher is not installed, so the launcher cannot be asked" in run.stdout + run.stderr
     assert run.returncode != 0
 
 
@@ -212,9 +212,9 @@ def test_a_cloud_session_skips_the_read_limit_check(tmp_path: Path) -> None:
     assert "gold band read limit" not in run.stdout + run.stderr
 
 
-def test_setup_asks_the_launcher_through_cargo_when_no_binary_is_named(tmp_path: Path) -> None:
+def test_setup_asks_the_launcher_on_the_path_when_no_binary_is_named(tmp_path: Path) -> None:
     refusal = "agent-launcher: the read limit cannot be applied"
-    stubs = {"cargo": f'echo "cargo $*" >> "$0.calls"; echo "{refusal}" >&2; exit 1'}
+    stubs = {"agent-launcher": f'echo "agent-launcher $*" >> "$0.calls"; echo "{refusal}" >&2; exit 1'}
     run = setup_run(tmp_path, "Darwin", prepare_home=_overlay, stubs=stubs)
     out = run.stdout + run.stderr
     assert "the read limit cannot be applied" in out

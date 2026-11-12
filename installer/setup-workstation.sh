@@ -2767,7 +2767,7 @@ gold_band_work_converge
 # agree. No overlay: not the work Mac, nothing to check. A failure fails the
 # run with the reason; the launcher also refuses each launch it cannot limit.
 gold_band_read_limit() {
-  local out rc=0 overlay_file line
+  local out rc=0 overlay_file line launcher
   if [ "$(uname -s)" != Darwin ] || [ "${CLOUD}" = 1 ]; then
     return 0
   fi
@@ -2776,14 +2776,12 @@ gold_band_read_limit() {
     log "gold band read limit: no overlay, not the work Mac"
     return 0
   fi
-  if [ -n "${AGENT_LAUNCHER_BIN:-}" ]; then
-    out=$("${AGENT_LAUNCHER_BIN}" read-limit-check 2>&1) || rc=$?
-  elif command -v cargo >/dev/null 2>&1; then
-    out=$(cargo run --quiet --locked --manifest-path "${KIT_ROOT}/scripts/Cargo.toml" -p agent-launcher -- read-limit-check 2>&1) || rc=$?
-  else
-    fail "gold band read limit: cargo is not on PATH, so the launcher cannot be asked; do not start the personal instance on this machine"
+  launcher="${AGENT_LAUNCHER_BIN:-$(command -v agent-launcher || true)}"
+  if [ -z "${launcher}" ]; then
+    fail "gold band read limit: agent-launcher is not installed, so the launcher cannot be asked; do not start the personal instance on this machine"
     return 0
   fi
+  out=$("${launcher}" read-limit-check 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   if [ "${rc}" != 0 ]; then
     fail "gold band read limit: the personal instance must not be started on this machine (see above)"
