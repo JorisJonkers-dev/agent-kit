@@ -224,7 +224,7 @@ describe('readiness of the work critics', () => {
     expect(await reasons({ claude: {}, codex: { status: 'signed-out' } })).toContainEqual(
       expect.objectContaining({
         client: 'codex-work',
-        detail: 'codex: not signed in (Not logged in); run codex login with the work account, then re-run setup',
+        detail: 'codex: not signed in; run codex login with the work account, then re-run setup (Not logged in)',
       }),
     )
   })
@@ -233,7 +233,7 @@ describe('readiness of the work critics', () => {
     expect(await reasons({ claude: { status: 'signed-out' }, codex: {} })).toContainEqual(
       expect.objectContaining({
         client: 'claude-work',
-        detail: 'claude: the work profile is not signed in (Not logged in); run claude and sign in with the work account, then re-run setup',
+        detail: 'claude: not signed in to the work profile; run claude and sign in with the work account, then re-run setup (Not logged in)',
       }),
     )
   })

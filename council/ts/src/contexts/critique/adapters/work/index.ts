@@ -159,7 +159,7 @@ export class CodexCriticClient implements CriticClientPort<CodexClientConfig> {
   private async status(config: CodexClientConfig): Promise<Status> {
     const result = await runStatus(this.process, config.binary, ['login', 'status'])
     if (typeof result !== 'string' && result.timedOut !== true && result.exitCode === 0) return { signedIn: true }
-    return { reason: `codex: not signed in (${unreadable(result)}); run codex login with the work account, then re-run setup`, signedIn: false }
+    return { reason: `codex: not signed in; run codex login with the work account, then re-run setup (${unreadable(result)})`, signedIn: false }
   }
 }
 
@@ -190,7 +190,7 @@ export class ClaudeCriticClient implements CriticClientPort<ClaudeClientConfig> 
     const result = await runStatus(this.process, config.binary, ['auth', 'status'], this.profile())
     if (typeof result !== 'string' && result.timedOut !== true && result.exitCode === 0) return { ready: true }
     return {
-      detail: `claude: the work profile is not signed in (${unreadable(result)}); run claude and sign in with the work account, then re-run setup`,
+      detail: `claude: not signed in to the work profile; run claude and sign in with the work account, then re-run setup (${unreadable(result)})`,
       ready: false,
     }
   }
