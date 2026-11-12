@@ -3076,7 +3076,7 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w('  if [ "$(uname -s)" != Darwin ] || [ "${CLOUD}" = 1 ]; then')
     w("    return 0")
     w("  fi")
-    w('  overlay_file="${HOME}/.config/agent-kit/overlay.yaml"')
+    w('  overlay_file="${AGENT_KIT_OVERLAY:-${HOME}/.config/agent-kit/overlay.yaml}"')
     w('  if [ ! -f "${overlay_file}" ]; then')
     w('    log "gold band read limit: no overlay, not the work Mac"')
     w("    return 0")

@@ -31,7 +31,7 @@ directory for its run. Beyond that:
 Keeping `.git/hooks` and `.git/config` out of `write` stops an agent from
 switching off the commit and push hooks that guard every repository.
 
-## What the layer does not limit
+## What the layer does not limit (and the one read it does)
 
 The limit is a write limit. It does not limit reads, except one: the personal
 instance on the work Mac. There the account boundary (ADR-0011, #396) is the
@@ -58,11 +58,11 @@ limit (#666).
   refuses the launch instead of reading as "no roots".
 - **Refusal.** When the backend cannot apply the read limit, the launcher
   refuses to start the agent, and setup runs `agent-launcher read-limit-check`
-  and stops before converging the personal instance, saying why.
+  and fails the setup run, saying why and that the personal instance must not be started there.
 - **Linux.** The workstation holds no employer clones (ADR-0011) and needs no
   read limit. Landlock only grants access and cannot carve a read out of what
   the agent already has, so a declared root there is refused, not ignored.
-- **Proof.** `tests/personal_read_limit.rs` runs on the `macos` CI job.
+- **Proof.** `tests/personal_read_limit.rs` runs on the `Rust Tests (macos)` CI job.
 
 The work instance is not limited. Neither backend limits the network
 either.

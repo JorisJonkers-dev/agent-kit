@@ -2771,7 +2771,7 @@ gold_band_read_limit() {
   if [ "$(uname -s)" != Darwin ] || [ "${CLOUD}" = 1 ]; then
     return 0
   fi
-  overlay_file="${HOME}/.config/agent-kit/overlay.yaml"
+  overlay_file="${AGENT_KIT_OVERLAY:-${HOME}/.config/agent-kit/overlay.yaml}"
   if [ ! -f "${overlay_file}" ]; then
     log "gold band read limit: no overlay, not the work Mac"
     return 0
