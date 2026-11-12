@@ -727,3 +727,161 @@ def test_command_from_binary_must_be_true_and_needs_a_binary(
     machine = Machine(tmp_path, monkeypatch, binaries=("pi-acp",), registry=_registry([agent], allowed=("pi",)))
     assert machine.run() == 1
     assert "pi: command_from_binary must be true and needs a binary" in capsys.readouterr().out
+
+
+# --- a launch command declared per OS ---
+
+AGY = {
+    "id": "agy",
+    "binary": "agy",
+    "os": {"mac": {"command_from_binary": True, "adapter": {"args": ["acp"]}}},
+    "adapter": {"displayName": "Antigravity", "env": {}},
+    "icon": "antigravity",
+}
+
+
+def _agy_machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host: str, agent: dict = AGY) -> Machine:
+    monkeypatch.setenv("AGENT_KIT_GOLD_BAND_HOST", host)
+    return Machine(tmp_path, monkeypatch, binaries=("agy",), registry=_registry([agent], allowed=("agy",)))
+
+
+def test_an_os_section_gives_the_launch_command_on_that_os(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = _agy_machine(tmp_path, monkeypatch, "mac")
+    assert machine.run() == 0
+    adapter = machine.agents()["agy"]["adapter"]
+    assert adapter == {"displayName": "Antigravity", "env": {}, "command": str(machine.bin / "agy"), "args": ["acp"]}
+    assert "os" not in machine.agents()["agy"]
+    before = machine.settings.read_text()
+    assert machine.run() == 0
+    assert machine.settings.read_text() == before
+
+
+def test_an_agent_with_no_section_for_the_host_is_skipped_and_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = _agy_machine(tmp_path, monkeypatch, "linux")
+    assert machine.run() == 0
+    assert "skipped: agy (no launch command declared for linux)" in capsys.readouterr().out
+    assert "agy" not in machine.agents()
+
+
+def test_a_skipped_agents_existing_entry_is_left_alone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_KIT_GOLD_BAND_HOST", "linux")
+    machine = Machine(
+        tmp_path,
+        monkeypatch,
+        settings={"agents": {"agy": {"icon": "mine"}}},
+        binaries=("agy",),
+        registry=_registry([AGY], allowed=("agy",)),
+    )
+    assert machine.run() == 0
+    assert machine.agents() == {"agy": {"icon": "mine"}}
+
+
+def test_a_linux_section_overrides_the_binary_and_the_adapter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = {**AGY, "os": {**AGY["os"], "linux": {"binary": "agy-linux", "adapter": {"command": "agy-linux"}}}}
+    monkeypatch.setenv("AGENT_KIT_GOLD_BAND_HOST", "linux")
+    machine = Machine(tmp_path, monkeypatch, binaries=("agy-linux",), registry=_registry([agent], allowed=("agy",)))
+    assert machine.run() == 0
+    assert machine.agents()["agy"]["adapter"]["command"] == "agy-linux"
+
+
+def test_the_host_comes_from_the_platform_when_not_forced(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("AGENT_KIT_GOLD_BAND_HOST", raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert converge._gold_band_host() == "mac"
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert converge._gold_band_host() == "linux"
+
+
+@pytest.mark.parametrize(
+    "launch",
+    [
+        {"binary": "/opt/homebrew/bin/agy"},
+        {"adapter": {"command": "/opt/homebrew/bin/agy"}},
+        {"adapter": {"command": "agy", "args": ["/Applications/Antigravity.app/Contents/MacOS/agy"]}},
+        {"adapter": {"command": "/usr/local/Cellar/agy/1/bin/agy"}},
+    ],
+)
+def test_a_macos_path_in_the_linux_launch_is_refused_on_any_host(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], launch: dict
+) -> None:
+    agent = {**AGY, "os": {"linux": launch}}
+    machine = _agy_machine(tmp_path, monkeypatch, "mac", agent)
+    assert machine.run() == 1
+    assert "agy: a macOS path (Homebrew or /Applications) is written on Linux" in capsys.readouterr().out
+    assert not machine.settings.exists()
+
+
+def test_a_macos_path_in_an_agent_with_no_os_section_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    agent = {"id": "agy", "binary": "agy", "adapter": {"command": "/opt/homebrew/bin/agy"}}
+    machine = _agy_machine(tmp_path, monkeypatch, "linux", agent)
+    assert machine.run() == 1
+    assert "agy: a macOS path (Homebrew or /Applications) is written on Linux" in capsys.readouterr().out
+
+
+def test_a_macos_path_is_allowed_in_the_mac_section(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    agent = {**AGY, "os": {"mac": {"adapter": {"command": "/opt/homebrew/bin/agy"}}}}
+    machine = _agy_machine(tmp_path, monkeypatch, "mac", agent)
+    assert machine.run() == 0
+    assert machine.agents()["agy"]["adapter"]["command"] == "/opt/homebrew/bin/agy"
+
+
+@pytest.mark.parametrize(
+    ("os_value", "message"),
+    [
+        ({}, "agy: os must map linux and/or mac to a launch declaration"),
+        ("mac", "agy: os must map linux and/or mac to a launch declaration"),
+        ({"windows": {}}, "agy: os.windows is not one of linux, mac"),
+        ({"mac": "agy"}, "agy: os.mac must be a mapping"),
+        ({"mac": {"icon": "x"}}, "agy: unknown field os.mac.icon"),
+        (None, "agy: os must map linux and/or mac to a launch declaration"),
+        ({"mac": {}}, "agy os.mac: must declare binary, command_from_binary or adapter"),
+        ({"mac": {"command_from_binary": True}, "linux": {}}, "agy os.linux: must declare binary"),
+        ({"mac": {"binary": 42}}, "agy os.mac: binary must be a non-empty string"),
+        ({"mac": {"binary": None}}, "agy os.mac: binary must be a non-empty string"),
+        ({"mac": {"command_from_binary": False}}, "agy os.mac: command_from_binary must be true"),
+        ({"mac": {"adapter": {"comand": "agy"}}}, "agy os.mac: unknown adapter field comand"),
+        ({"mac": {"adapter": "agy"}}, "agy os.mac: adapter must be a mapping"),
+    ],
+)
+def test_a_malformed_os_declaration_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], os_value: object, message: str
+) -> None:
+    machine = _agy_machine(tmp_path, monkeypatch, "mac", {**AGY, "os": os_value})
+    assert machine.run() == 1
+    assert message in capsys.readouterr().out
+
+
+def test_the_shipped_registry_declares_hermes_everywhere_and_antigravity_on_mac_only(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    registry = KIT_ROOT / "registry" / "estate-tooling.yaml"
+    declared = {a["id"]: a for a in converge._gold_band_registry(registry)[0]}
+    assert declared["hermes"]["binary"] == "hermes-acp" and declared["hermes"]["command_from_binary"] is True
+    assert set(declared["agy"]["os"]) == {"mac"}
+    for host in ("linux", "mac"):
+        monkeypatch.setenv("AGENT_KIT_GOLD_BAND_HOST", host)
+        monkeypatch.setenv("PATH", str(tmp_path))
+        settings = tmp_path / f"{host}.json"
+        argv = ["gold-band", "--registry", str(registry), "--settings", str(settings), "--keep", str(tmp_path / "k")]
+        assert converge.main(argv) == 0
+        out = capsys.readouterr().out
+        assert "skipped: hermes (hermes-acp is not installed)" in out
+        if host == "linux":
+            assert "skipped: agy (no launch command declared for linux)" in out
+        else:
+            assert "skipped: agy (agy is not installed)" in out
+
+
+def test_a_section_command_from_binary_needs_a_binary_somewhere(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    agent = {"id": "agy", "os": {"mac": {"command_from_binary": True}}, "adapter": {"env": {}}}
+    machine = _agy_machine(tmp_path, monkeypatch, "mac", agent)
+    assert machine.run() == 1
+    assert "agy os.mac: command_from_binary needs a binary" in capsys.readouterr().out

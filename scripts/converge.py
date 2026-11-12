@@ -93,6 +93,7 @@ GOLD_BAND_AGENT_FIELDS = (
     "config_dir",
     "skill_set",
     "command_from_binary",
+    "os",
     "adapter",
     "icon",
     "primaryAgentDir",
@@ -106,7 +107,16 @@ GOLD_BAND_AGENT_FIELDS = (
 # directory, so it may not also declare one of these.
 GOLD_BAND_SKILL_SET_REPLACES = ("primaryAgentDir", "projectPrimaryAgentDir", "compatibleAgentDirs")
 # Declared in the registry only; never written to settings.json.
-GOLD_BAND_REGISTRY_ONLY = ("id", "binary", "instance", "config_dir", "skill_set", "command_from_binary")
+GOLD_BAND_REGISTRY_ONLY = ("id", "binary", "instance", "config_dir", "skill_set", "command_from_binary", "os")
+# An agent may declare its launch command per OS: ``os: {linux: {...}, mac: {...}}``,
+# each a partial override of the agent's own ``binary``, ``command_from_binary``
+# and ``adapter``. An agent with ``os`` and no section for the host is skipped.
+GOLD_BAND_HOSTS = ("linux", "mac")
+GOLD_BAND_OS_FIELDS = ("binary", "command_from_binary", "adapter")
+# Where macOS keeps what an agent launches; none of it may be written on Linux.
+GOLD_BAND_MAC_PATH = re.compile(
+    r"/Applications\b|/opt/homebrew|/usr/local/Cellar|/Library/|/Users/|homebrew|\.app/", re.I
+)
 GOLD_BAND_ADAPTER_FIELDS = ("displayName", "command", "args", "env")
 # A generated profile's front matter carries a fixed stamp, so a second run
 # rewrites nothing. The app's own profiles carry this id prefix and are never
@@ -431,6 +441,74 @@ def _gold_band_everyone_problems(declared: list[dict[str, Any]]) -> list[str]:
     return problems
 
 
+def _gold_band_host() -> str:
+    """``mac`` on macOS, ``linux`` anywhere else; ``AGENT_KIT_GOLD_BAND_HOST`` overrides for tests."""
+    forced = os.environ.get("AGENT_KIT_GOLD_BAND_HOST")
+    if forced in GOLD_BAND_HOSTS:
+        return forced
+    return "mac" if sys.platform == "darwin" else "linux"
+
+
+def _gold_band_for_host(agent: dict[str, Any], host: str) -> dict[str, Any] | None:
+    """The agent as it is launched on ``host``, or None when it declares no launch for that OS.
+
+    An agent without ``os`` is the same everywhere. With ``os``, the host's
+    section overrides ``binary`` and ``command_from_binary`` and is merged into
+    ``adapter`` (its keys win); a host with no section has no launch command.
+    """
+    resolved = {key: value for key, value in agent.items() if key != "os"}
+    sections = agent.get("os")
+    if not isinstance(sections, dict):
+        return resolved
+    section = sections.get(host)
+    if not isinstance(section, dict):
+        return None
+    for key, value in section.items():
+        if key == "adapter" and isinstance(value, dict) and isinstance(resolved.get("adapter"), dict):
+            resolved["adapter"] = {**resolved["adapter"], **value}
+        else:
+            resolved[key] = value
+    return resolved
+
+
+def _gold_band_os_problems(raw: str, agent: dict[str, Any]) -> list[str]:
+    """Problems with ``os`` and, for the Linux launch, any macOS path in what it would write."""
+    problems: list[str] = []
+    sections = agent.get("os")
+    if "os" in agent:
+        if not isinstance(sections, dict) or not sections:
+            return [f"{raw}: os must map linux and/or mac to a launch declaration"]
+        for host, section in sections.items():
+            if host not in GOLD_BAND_HOSTS:
+                problems.append(f"{raw}: os.{host} is not one of {', '.join(GOLD_BAND_HOSTS)}")
+            elif not isinstance(section, dict):
+                problems.append(f"{raw}: os.{host} must be a mapping")
+            else:
+                problems += [
+                    f"{raw}: unknown field os.{host}.{key}" for key in section if key not in GOLD_BAND_OS_FIELDS
+                ]
+                label = f"{raw} os.{host}"
+                if not section:
+                    problems.append(f"{label}: must declare binary, command_from_binary or adapter")
+                if section.get("command_from_binary") is True and not (section.get("binary") or agent.get("binary")):
+                    problems.append(f"{label}: command_from_binary needs a binary")
+                if "binary" in section and (not isinstance(section["binary"], str) or not section["binary"]):
+                    problems.append(f"{label}: binary must be a non-empty string")
+                if "command_from_binary" in section and section["command_from_binary"] is not True:
+                    problems.append(f"{label}: command_from_binary must be true")
+                problems += _gold_band_adapter_problems(label, section.get("adapter"))
+    linux = _gold_band_for_host(agent, "linux") if not problems else None
+    if linux is not None:
+        raw_adapter = linux.get("adapter")
+        adapter: dict[str, Any] = raw_adapter if isinstance(raw_adapter, dict) else {}
+        raw_args = adapter.get("args")
+        args: list[Any] = raw_args if isinstance(raw_args, list) else []
+        written = [linux.get("binary"), adapter.get("command"), *args]
+        if any(isinstance(item, str) and GOLD_BAND_MAC_PATH.search(item) for item in written):
+            problems.append(f"{raw}: a macOS path (Homebrew or /Applications) is written on Linux")
+    return problems
+
+
 def _gold_band_problems(
     declared: list[dict[str, Any]],
     allowed: set[str],
@@ -459,6 +537,7 @@ def _gold_band_problems(
         problems += [f"{raw}: unknown field {key}" for key in agent if key not in GOLD_BAND_AGENT_FIELDS]
         if "command_from_binary" in agent and (agent["command_from_binary"] is not True or not agent.get("binary")):
             problems.append(f"{raw}: command_from_binary must be true and needs a binary")
+        problems += _gold_band_os_problems(raw, agent)
         problems += _gold_band_adapter_problems(raw, agent.get("adapter"))
         delivery = agent.get("systemPromptDelivery")
         if delivery is not None and delivery not in GOLD_BAND_PROMPT_DELIVERY:
@@ -852,12 +931,19 @@ def gold_band(args: argparse.Namespace) -> int:
     installed_ids: set[str] = set()
     skipped: list[tuple[str, str]] = []
     binary_paths: dict[str, str] = {}
-    for agent in declared:
+    host = _gold_band_host()
+    launched: list[dict[str, Any]] = []
+    for declared_agent in declared:
+        agent = _gold_band_for_host(declared_agent, host)
+        if agent is None:
+            skipped.append((declared_agent["id"], f"no launch command declared for {host}"))
+            continue
         binary = agent.get("binary")
         found = shutil.which(binary) if binary is not None else None
         if binary is not None and found is None:
-            skipped.append((agent["id"], binary))
+            skipped.append((agent["id"], f"{binary} is not installed"))
             continue
+        launched.append(agent)
         if found is not None:
             binary_paths[agent["id"]] = os.path.abspath(found)
         installed_ids.add(agent["id"])
@@ -866,11 +952,11 @@ def gold_band(args: argparse.Namespace) -> int:
     # set's skills: no id shares another's directory.
     wanted: dict[str, list[str]] = {
         agent["id"]: sets[agent["skill_set"]]
-        for agent in declared
+        for agent in launched
         if agent["id"] in installed_ids and agent.get("skill_set") is not None
     }
     installed: dict[str, dict[str, Any]] = {}
-    for agent in declared:
+    for agent in launched:
         if agent["id"] in installed_ids:
             directory = skills_root / agent["id"] if agent["id"] in wanted else None
             installed[agent["id"]] = _gold_band_entry(agent, directory, binary_paths.get(agent["id"]))
@@ -892,8 +978,8 @@ def gold_band(args: argparse.Namespace) -> int:
     merged.update({name: installed[name] for name in added})
     changed = [name for name in merged if name in current and merged[name] != current[name]]
 
-    for name, binary in skipped:
-        print(f"skipped: {name} ({binary} is not installed)")
+    for name, reason in skipped:
+        print(f"skipped: {name} ({reason})")
     # The skill directories are written before settings.json, and an unchanged
     # settings map never skips them.
     for line in _gold_band_skills(skills_root, args.kit, wanted, sources, skipped_ids, keep - retired, args.check):
