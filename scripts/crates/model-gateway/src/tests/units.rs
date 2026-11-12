@@ -337,12 +337,7 @@ fn the_command_line_runs_against_the_real_system() {
 #[test]
 fn the_commands_the_gateway_does_not_carry_answer_not_ported() {
     let runtime = crate::default_runtime();
-    let cases: [(&str, &[&str]); 4] = [
-        ("grant reserve", &["grant", "reserve", "--json", "{}"]),
-        ("run", &["run", "--json", "{}"]),
-        ("batch", &["batch", "--json", "{}"]),
-        ("worktrees clean", &["worktrees", "clean", "--json", "{}"]),
-    ];
+    let cases: [(&str, &[&str]); 2] = [("run", &["run", "--json", "{}"]), ("batch", &["batch", "--json", "{}"])];
     for (name, words) in cases {
         let result = run_cli(&argv(words), &runtime);
         let message = format!("{name} is not ported to the Rust gateway yet; use the node runner");

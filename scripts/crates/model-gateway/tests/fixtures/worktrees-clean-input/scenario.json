@@ -1,0 +1,283 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"w1\",\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":false}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":\"true\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":1}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":null}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":5}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":null}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"bad name\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"-lead\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"ünï\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "[]"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "5"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "null"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "\"text\""
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "not json"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{}",
+        "extra"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--bogus",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--input",
+        "missing.json"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--input",
+        "in.json"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "work/in.json": "{\"workflow\":\"w1\"}"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--input",
+        "in.json"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "work/in.json": "{\"all\":true}"
+      }
+    }
+  ]
+}

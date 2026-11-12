@@ -11,3 +11,4 @@ mod toml;
 mod usage;
 mod stores;
 mod commands;
+mod worktrees;

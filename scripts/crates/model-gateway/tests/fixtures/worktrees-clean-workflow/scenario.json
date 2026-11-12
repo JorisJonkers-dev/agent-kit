@@ -1,0 +1,117 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"w1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/git": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/git-calls\"\ncase \"$3 $4\" in\n  \"worktree remove\")\n    case \"$6\" in\n      *failrm*) echo \"fatal: $6 is not a working tree\" >&2; exit 128 ;;\n      *failprune*) echo \"fatal: cannot remove $6\" >&2; exit 128 ;;\n      *failquiet*) exit 1 ;;\n    esac\n    rm -rf \"$6\"\n    exit 0 ;;\n  \"worktree prune\")\n    case \"$*\" in\n      *failprune*) echo \"error: failed to prune worktrees\" >&2; exit 1 ;;\n      *failquiet*) exit 1 ;;\n    esac\n    exit 0 ;;\n  \"branch -D\")\n    case \"$5\" in\n      *failbranchquiet*) exit 1 ;;\n      *failbranch*) echo \"error: the branch $5 is not fully merged\" >&2; exit 1 ;;\n    esac\n    exit 0 ;;\nesac\nexit 0\n",
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-a\",\n      \"branch\": \"gateway/a\",\n      \"run_id\": \"a\",\n      \"workflow\": \"w1\",\n      \"at\": \"2026-11-03T10:00:00.000Z\",\n      \"note\": \"kept for the owner\"\n    },\n    {\n      \"repo\": \"@SANDBOX@/work/repo-b\",\n      \"path\": \"@SANDBOX@/work/wt-b\",\n      \"branch\": \"gateway/b\",\n      \"run_id\": \"b\",\n      \"workflow\": \"w2\"\n    },\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-c\",\n      \"branch\": \"gateway/c\",\n      \"run_id\": \"c\",\n      \"workflow\": \"w1\",\n      \"at\": \"2026-11-03T10:05:00.000Z\"\n    },\n    {\n      \"repo\": \"@SANDBOX@/work/repo-c\",\n      \"path\": \"@SANDBOX@/work/wt-d\",\n      \"branch\": \"gateway/d\",\n      \"run_id\": \"d\",\n      \"workflow\": \"w3\",\n      \"extra\": {\n        \"nested\": true\n      }\n    }\n  ]\n}\n"
+      },
+      "exec": [
+        "bin/git"
+      ],
+      "mkdir": [
+        "work/repo-a",
+        "work/repo-b",
+        "work/repo-c",
+        "work/wt-a",
+        "work/wt-b",
+        "work/wt-c",
+        "work/wt-d",
+        "work/wt-e",
+        "work/wt-f",
+        "work/wt-h"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"w1\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"w2\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"nobody\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"w2\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-e\",\n      \"branch\": \"gateway/e\",\n      \"run_id\": \"dup\",\n      \"workflow\": \"w2\"\n    },\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-f\",\n      \"branch\": \"gateway/f\",\n      \"run_id\": \"dup\",\n      \"workflow\": \"w3\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"workflow\":\"nobody\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\"version\":1,\"worktrees\":[{\"repo\":\"@SANDBOX@/work/repo-a\",\"path\":\"@SANDBOX@/work/wt-h\",\"branch\":\"gateway/h\",\"run_id\":\"h\",\"workflow\":\"w9\"}]}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "3",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"may I?\",\"answer\":\"yes\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-2\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-3\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-4\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-2\",\"attempt\":1}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\",\"attempt\":2}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

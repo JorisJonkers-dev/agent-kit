@@ -221,6 +221,14 @@ impl Git for NoGit {
     fn remotes(&self, _path: &str) -> Result<Vec<GitRemote>, String> {
         Ok(Vec::new())
     }
+
+    fn remove_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn delete_branch(&self, _repo: &str, _branch: &str) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 fn env() -> HashMap<String, String> {

@@ -72,6 +72,11 @@ pub trait Git {
     /// The repository root of `path`; `Ok(None)` when git says it is no repository; any other failure is an `Err` with git's own words.
     fn root(&self, path: &str) -> Result<Option<String>, String>;
     fn remotes(&self, path: &str) -> Result<Vec<GitRemote>, String>;
+    /// `git worktree remove --force`, which takes the directory with it. A worktree git no longer knows is
+    /// deleted by hand and pruned; the `Err` is git's own words (or the platform's) for what still failed.
+    fn remove_worktree(&self, repo: &str, path: &str) -> Result<(), String>;
+    /// `git branch -D`.
+    fn delete_branch(&self, repo: &str, branch: &str) -> Result<(), String>;
 }
 
 pub trait Clock {

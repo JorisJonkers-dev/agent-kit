@@ -1,6 +1,6 @@
 //! The commands the Rust gateway carries: `models`, `usage`, `grant write`,
-//! `grant list` and the three workflow commands. `run`, `batch`, `grant reserve`
-//! and `worktrees clean` answer `not-ported`.
+//! `grant reserve`, `grant list`, `worktrees clean` and the three workflow
+//! commands. `run` and `batch` answer `not-ported`.
 
 use crate::caps;
 use crate::config::GatewayConfig;
@@ -45,6 +45,8 @@ pub fn run(command: Command, name: &str, input: &Object, runtime: &Runtime) -> R
         Command::Usage => usage_command(input, runtime),
         Command::GrantWrite => grant_write(input, runtime),
         Command::GrantList => grant_list(input, runtime),
+        Command::GrantReserve => crate::reserve::reserve(input, runtime),
+        Command::WorktreesClean => crate::worktrees::clean(input, runtime),
         Command::WorkflowStart => workflow_start(input, runtime),
         Command::WorkflowEnd => workflow_end(input, runtime),
         Command::WorkflowList => workflow_list(runtime),

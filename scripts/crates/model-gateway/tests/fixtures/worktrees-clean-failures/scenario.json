@@ -1,0 +1,172 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/git": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/git-calls\"\ncase \"$3 $4\" in\n  \"worktree remove\")\n    case \"$6\" in\n      *failrm*) echo \"fatal: $6 is not a working tree\" >&2; exit 128 ;;\n      *failprune*) echo \"fatal: cannot remove $6\" >&2; exit 128 ;;\n      *failquiet*) exit 1 ;;\n    esac\n    rm -rf \"$6\"\n    exit 0 ;;\n  \"worktree prune\")\n    case \"$*\" in\n      *failprune*) echo \"error: failed to prune worktrees\" >&2; exit 1 ;;\n      *failquiet*) exit 1 ;;\n    esac\n    exit 0 ;;\n  \"branch -D\")\n    case \"$5\" in\n      *failbranchquiet*) exit 1 ;;\n      *failbranch*) echo \"error: the branch $5 is not fully merged\" >&2; exit 1 ;;\n    esac\n    exit 0 ;;\nesac\nexit 0\n",
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-failrm1\",\n      \"branch\": \"gateway/r1\",\n      \"run_id\": \"r1\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n"
+      },
+      "exec": [
+        "bin/git"
+      ],
+      "mkdir": [
+        "work/repo-a",
+        "work/wt-failrm1"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-failprune\",\n      \"path\": \"@SANDBOX@/work/wt-failprune2\",\n      \"branch\": \"gateway/r2\",\n      \"run_id\": \"r2\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n"
+      },
+      "mkdir": [
+        "work/repo-failprune",
+        "work/wt-failprune2"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-ok3\",\n      \"branch\": \"gateway/failbranch3\",\n      \"run_id\": \"r3\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n"
+      },
+      "mkdir": [
+        "work/wt-ok3"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-failquiet4\",\n      \"branch\": \"gateway/r4\",\n      \"run_id\": \"r4\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n"
+      },
+      "mkdir": [
+        "work/wt-failquiet4"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-failquiet5\",\n      \"path\": \"@SANDBOX@/work/wt-failquiet5\",\n      \"branch\": \"gateway/r5\",\n      \"run_id\": \"r5\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n"
+      },
+      "mkdir": [
+        "work/repo-failquiet5",
+        "work/wt-failquiet5"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-ok6\",\n      \"branch\": \"gateway/failbranchquiet6\",\n      \"run_id\": \"r6\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n"
+      },
+      "mkdir": [
+        "work/wt-ok6"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-failrm7\",\n      \"branch\": \"gateway/r7\",\n      \"run_id\": \"r7\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt dir/ünï ✓\",\n      \"branch\": \"gateway/r8\",\n      \"run_id\": \"r8\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n"
+      },
+      "mkdir": [
+        "work/wt dir/ünï ✓"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-failrm1\",\n      \"branch\": \"gateway/r1\",\n      \"run_id\": \"r1\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n"
+      },
+      "remove": [
+        "bin/git"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

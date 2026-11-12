@@ -8,6 +8,9 @@ use std::time::{Duration, Instant};
 /// How long git may take before the gateway gives up on it.
 pub const TIMEOUT_MS: u64 = 10_000;
 
+/// How long git may take to add or remove a worktree.
+pub const WORKTREE_TIMEOUT_MS: u64 = 120_000;
+
 /// git in the environment it was given (PATH decides which git).
 pub struct SystemGit {
     pub env: HashMap<String, String>,
@@ -22,6 +25,10 @@ struct Answer {
 
 impl SystemGit {
     fn run(&self, path: &str, args: &[&str]) -> Result<Answer, String> {
+        self.run_for(path, args, self.timeout_ms)
+    }
+
+    fn run_for(&self, path: &str, args: &[&str], timeout_ms: u64) -> Result<Answer, String> {
         let mut child = Command::new("git")
             .arg("-C")
             .arg(path)
@@ -42,10 +49,10 @@ impl SystemGit {
             if let Ok(Some(status)) = child.try_wait() {
                 break status;
             }
-            if started.elapsed() >= Duration::from_millis(self.timeout_ms) {
+            if started.elapsed() >= Duration::from_millis(timeout_ms) {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(format!("git did not answer within {} ms", self.timeout_ms));
+                return Err(format!("git did not answer within {timeout_ms} ms"));
             }
             std::thread::sleep(Duration::from_millis(2));
         };
@@ -95,6 +102,45 @@ impl Git for SystemGit {
         }
         Ok(answer.stdout.lines().filter_map(|line| parse_remote_line(line.trim())).collect())
     }
+
+    fn remove_worktree(&self, repo: &str, path: &str) -> Result<(), String> {
+        let removed = self.run_for(repo, &["worktree", "remove", "--force", path], WORKTREE_TIMEOUT_MS)?;
+        if removed.exit_code == 0 {
+            return Ok(());
+        }
+        // A worktree git still knows but refuses to remove (the repository's own, or a locked one) is never deleted by hand.
+        if removed.stderr.contains("main working tree") || removed.stderr.contains("locked working tree") {
+            return Err(words(&removed));
+        }
+        // git no longer knows the worktree (its directory moved, or a lock was left): delete it by hand and prune.
+        remove_tree(path)?;
+        let pruned = self.run(repo, &["worktree", "prune"])?;
+        if pruned.exit_code == 0 {
+            Ok(())
+        } else {
+            Err(words(&pruned))
+        }
+    }
+
+    fn delete_branch(&self, repo: &str, branch: &str) -> Result<(), String> {
+        let answer = self.run(repo, &["branch", "-D", branch])?;
+        if answer.exit_code == 0 {
+            Ok(())
+        } else {
+            Err(words(&answer))
+        }
+    }
+}
+
+/// `rm -rf`: a path that is not there is already gone.
+fn remove_tree(path: &str) -> Result<(), String> {
+    let removed = match std::fs::symlink_metadata(path) {
+        Ok(kind) if kind.is_dir() => std::fs::remove_dir_all(path),
+        Ok(_) => std::fs::remove_file(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    };
+    removed.map_err(|error| format!("{path}: cannot remove: {error}"))
 }
 
 /// `remote.<name>.url <url>`.

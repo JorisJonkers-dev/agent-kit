@@ -1,0 +1,122 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":5}]}"
+      },
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\",\"attempt\":2}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\",\"attempt\":1}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\",\"attempt\":0}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\",\"attempt\":1e+21}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\",\"attempt\":9007199254740993}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\",\"attempt\":null}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\",\"attempt\":6}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

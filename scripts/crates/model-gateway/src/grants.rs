@@ -463,3 +463,35 @@ pub fn grant_members(grant: &Grant) -> Object {
     }
     object
 }
+
+/// The refusal for a workflow and client no live grant covers, naming the call that would add one.
+pub fn no_grant_message(workflow: &str, client: &str) -> String {
+    let call = format!(
+        "{{\"workflow\":{},\"client\":{},\"cap_usd\":5,\"question\":\"<what you asked the owner>\",\"answer\":\"<what the owner answered>\"}}",
+        json::compact(&Value::str(workflow)),
+        json::compact(&Value::str(client))
+    );
+    format!(
+        "no live grant covers workflow {workflow}, so {client} may not run: ask the owner, then add one with model-gateway grant write --json '{}'",
+        call.replace('\'', "'\\''")
+    )
+}
+
+/// The grant the owner wrote last for a workflow and client, live or lapsed: the latest `written_at`, the later
+/// in the file when two share one. A grant whose `written_at` cannot be read never replaces one already held.
+pub fn newest_grant(grants: &[Grant], workflow: &str, client: &str) -> Option<Grant> {
+    let mut newest: Option<&Grant> = None;
+    for grant in grants.iter().filter(|grant| grant.workflow == workflow && grant.client == client) {
+        let take = match newest {
+            None => true,
+            Some(held) => match (timestamps::parse(&grant.written_at), timestamps::parse(&held.written_at)) {
+                (Some(at), Some(held)) => at >= held,
+                _ => false,
+            },
+        };
+        if take {
+            newest = Some(grant);
+        }
+    }
+    newest.cloned()
+}

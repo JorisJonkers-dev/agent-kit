@@ -1,0 +1,188 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/r1\",\n      \"run_id\": \"r1\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-failrm1\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n",
+        "work/repo-a/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [\n    {\n      \"reason\": \"error: failed to prune worktrees\",\n      \"run_id\": \"r2\",\n      \"worktree\": \"@SANDBOX@/work/wt-failprune2\"\n    }\n  ],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-failprune\",\n      \"path\": \"@SANDBOX@/work/wt-failprune2\",\n      \"branch\": \"gateway/r2\",\n      \"run_id\": \"r2\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n-C @SANDBOX@/work/repo-failprune worktree remove --force @SANDBOX@/work/wt-failprune2\n-C @SANDBOX@/work/repo-failprune worktree prune\n",
+        "work/repo-a/": null,
+        "work/repo-failprune/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [\n    {\n      \"branch\": \"gateway/failbranch3\",\n      \"reason\": \"error: the branch gateway/failbranch3 is not fully merged\",\n      \"run_id\": \"r3\"\n    }\n  ],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/failbranch3\",\n      \"run_id\": \"r3\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-ok3\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n-C @SANDBOX@/work/repo-failprune worktree remove --force @SANDBOX@/work/wt-failprune2\n-C @SANDBOX@/work/repo-failprune worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch3\n",
+        "work/repo-a/": null,
+        "work/repo-failprune/": null,
+        "work/wt-ok3/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/r4\",\n      \"run_id\": \"r4\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-failquiet4\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n-C @SANDBOX@/work/repo-failprune worktree remove --force @SANDBOX@/work/wt-failprune2\n-C @SANDBOX@/work/repo-failprune worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failquiet4\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r4\n",
+        "work/repo-a/": null,
+        "work/repo-failprune/": null,
+        "work/wt-ok3/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [\n    {\n      \"reason\": \"git exited 1\",\n      \"run_id\": \"r5\",\n      \"worktree\": \"@SANDBOX@/work/wt-failquiet5\"\n    }\n  ],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-failquiet5\",\n      \"path\": \"@SANDBOX@/work/wt-failquiet5\",\n      \"branch\": \"gateway/r5\",\n      \"run_id\": \"r5\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n-C @SANDBOX@/work/repo-failprune worktree remove --force @SANDBOX@/work/wt-failprune2\n-C @SANDBOX@/work/repo-failprune worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failquiet4\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r4\n-C @SANDBOX@/work/repo-failquiet5 worktree remove --force @SANDBOX@/work/wt-failquiet5\n-C @SANDBOX@/work/repo-failquiet5 worktree prune\n",
+        "work/repo-a/": null,
+        "work/repo-failprune/": null,
+        "work/repo-failquiet5/": null,
+        "work/wt-ok3/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [\n    {\n      \"branch\": \"gateway/failbranchquiet6\",\n      \"reason\": \"git exited 1\",\n      \"run_id\": \"r6\"\n    }\n  ],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/failbranchquiet6\",\n      \"run_id\": \"r6\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-ok6\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n-C @SANDBOX@/work/repo-failprune worktree remove --force @SANDBOX@/work/wt-failprune2\n-C @SANDBOX@/work/repo-failprune worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failquiet4\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r4\n-C @SANDBOX@/work/repo-failquiet5 worktree remove --force @SANDBOX@/work/wt-failquiet5\n-C @SANDBOX@/work/repo-failquiet5 worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok6\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranchquiet6\n",
+        "work/repo-a/": null,
+        "work/repo-failprune/": null,
+        "work/repo-failquiet5/": null,
+        "work/wt-ok3/": null,
+        "work/wt-ok6/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/r7\",\n      \"run_id\": \"r7\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-failrm7\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n-C @SANDBOX@/work/repo-failprune worktree remove --force @SANDBOX@/work/wt-failprune2\n-C @SANDBOX@/work/repo-failprune worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failquiet4\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r4\n-C @SANDBOX@/work/repo-failquiet5 worktree remove --force @SANDBOX@/work/wt-failquiet5\n-C @SANDBOX@/work/repo-failquiet5 worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok6\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranchquiet6\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm7\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r7\n",
+        "work/repo-a/": null,
+        "work/repo-failprune/": null,
+        "work/repo-failquiet5/": null,
+        "work/wt-ok3/": null,
+        "work/wt-ok6/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/r8\",\n      \"run_id\": \"r8\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt dir/ünï ✓\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n-C @SANDBOX@/work/repo-failprune worktree remove --force @SANDBOX@/work/wt-failprune2\n-C @SANDBOX@/work/repo-failprune worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failquiet4\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r4\n-C @SANDBOX@/work/repo-failquiet5 worktree remove --force @SANDBOX@/work/wt-failquiet5\n-C @SANDBOX@/work/repo-failquiet5 worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok6\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranchquiet6\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm7\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r7\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt dir/ünï ✓\n-C @SANDBOX@/work/repo-a branch -D gateway/r8\n",
+        "work/repo-a/": null,
+        "work/repo-failprune/": null,
+        "work/repo-failquiet5/": null,
+        "work/wt dir/": null,
+        "work/wt dir/ünï ✓/": null,
+        "work/wt-ok3/": null,
+        "work/wt-ok6/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [\n    {\n      \"reason\": \"cannot run git: spawn git ENOENT\",\n      \"run_id\": \"r1\",\n      \"worktree\": \"@SANDBOX@/work/wt-failrm1\"\n    }\n  ],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-failrm1\",\n      \"branch\": \"gateway/r1\",\n      \"run_id\": \"r1\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n-C @SANDBOX@/work/repo-failprune worktree remove --force @SANDBOX@/work/wt-failprune2\n-C @SANDBOX@/work/repo-failprune worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failquiet4\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r4\n-C @SANDBOX@/work/repo-failquiet5 worktree remove --force @SANDBOX@/work/wt-failquiet5\n-C @SANDBOX@/work/repo-failquiet5 worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok6\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranchquiet6\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm7\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r7\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt dir/ünï ✓\n-C @SANDBOX@/work/repo-a branch -D gateway/r8\n",
+        "work/repo-a/": null,
+        "work/repo-failprune/": null,
+        "work/repo-failquiet5/": null,
+        "work/wt dir/": null,
+        "work/wt dir/ünï ✓/": null,
+        "work/wt-ok3/": null,
+        "work/wt-ok6/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [\n    {\n      \"reason\": \"cannot run git: spawn git ENOENT\",\n      \"run_id\": \"r1\",\n      \"worktree\": \"@SANDBOX@/work/wt-failrm1\"\n    }\n  ],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-failrm1\",\n      \"branch\": \"gateway/r1\",\n      \"run_id\": \"r1\",\n      \"workflow\": \"w1\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r1\n-C @SANDBOX@/work/repo-failprune worktree remove --force @SANDBOX@/work/wt-failprune2\n-C @SANDBOX@/work/repo-failprune worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failquiet4\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r4\n-C @SANDBOX@/work/repo-failquiet5 worktree remove --force @SANDBOX@/work/wt-failquiet5\n-C @SANDBOX@/work/repo-failquiet5 worktree prune\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok6\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranchquiet6\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm7\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/r7\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt dir/ünï ✓\n-C @SANDBOX@/work/repo-a branch -D gateway/r8\n",
+        "work/repo-a/": null,
+        "work/repo-failprune/": null,
+        "work/repo-failquiet5/": null,
+        "work/wt dir/": null,
+        "work/wt dir/ünï ✓/": null,
+        "work/wt-ok3/": null,
+        "work/wt-ok6/": null
+      }
+    }
+  ]
+}
