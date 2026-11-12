@@ -5328,7 +5328,7 @@ function readCodeSource(code) {
     changed_files: code.strings("changed_files"),
     head: code.string("head"),
     head_commit: code.string("head_commit"),
-    ...code.has("slices") ? { slices: code.list("slices", (slice) => ({ ...readRange(slice), path: slice.string("path"), reason: slice.string("reason") })) } : {},
+    ...code.has("slices") ? { slices: code.list("slices", (slice2) => ({ ...readRange(slice2), path: slice2.string("path"), reason: slice2.string("reason") })) } : {},
     ...code.has("staged_diff") ? { staged_diff: code.string("staged_diff") } : {}
   };
 }
@@ -8064,7 +8064,7 @@ function sliceList(slices) {
     "",
     "The code around the change, at its own line numbers: each changed function or block, the symbols it calls and the functions that call it. Read these lines of these files:",
     "",
-    ...slices.length === 0 ? ["None: the change touches no text file the packet holds."] : slices.map((slice) => `- \`${slice.path}:${String(slice.first)}-${String(slice.last)}\`: ${slice.reason}`)
+    ...slices.length === 0 ? ["None: the change touches no text file the packet holds."] : slices.map((slice2) => `- \`${slice2.path}:${String(slice2.first)}-${String(slice2.last)}\`: ${slice2.reason}`)
   ].join("\n");
 }
 function assemblePrompt(sources, files, stage, slices = [], toolset = READ_ONLY_TOOLSET) {
@@ -9583,10 +9583,10 @@ ${request.namedText}`));
   const reserved = dropSummaryBound(counted.flatMap((candidate) => possibleDrops(candidate, limits.window_lines)));
   const unsent = candidates.flatMap((candidate) => treeLine(candidate, []) ?? []);
   const byPath = new Map(candidates.map((candidate) => [candidate.path, candidate]));
-  const sliced = request.slices.flatMap((slice) => {
-    const candidate = byPath.get(slice.path);
-    const piece = candidate === void 0 ? void 0 : { candidate, note: (admitted) => sliceLine(slice, admitted), ranges: [slice], window: false };
-    return piece === void 0 ? [] : [{ piece, slice }];
+  const sliced = request.slices.flatMap((slice2) => {
+    const candidate = byPath.get(slice2.path);
+    const piece = candidate === void 0 ? void 0 : { candidate, note: (admitted) => sliceLine(slice2, admitted), ranges: [slice2], window: false };
+    return piece === void 0 ? [] : [{ piece, slice: slice2 }];
   });
   const slicePieces = sliced.map((entry2) => entry2.piece);
   const pieces = [...slicePieces, ...windowOrder2(candidates, limits.window_lines)];
@@ -9637,7 +9637,7 @@ ${request.namedText}`));
 function codeCandidates(request) {
   const changed = new Set(request.changed);
   const importers = new Set(request.importers);
-  const related = new Set(request.slices.map((slice) => slice.path));
+  const related = new Set(request.slices.map((slice2) => slice2.path));
   const tierOf = (path) => changed.has(path) ? "changed" : importers.has(path) ? "importer" : related.has(path) ? "related" : "rest";
   const place = rankIndex(request.ranked ?? []);
   const rankOf = (candidate) => candidate.tier === "importer" || candidate.tier === "rest" ? place(candidate.path) : 0;
@@ -9650,18 +9650,18 @@ function windowOrder2(candidates, size) {
 function fileLine(candidate, held) {
   return `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): ${sentStatus(candidate, held)}`;
 }
-function sliceReason(slice) {
-  const symbol = slice.symbol === void 0 ? void 0 : `\`${slice.symbol}\``;
-  const of = `\`${slice.of ?? ""}\``;
-  if (slice.reason === "callee") return `${symbol ?? ""}, which ${of} calls`;
-  if (slice.reason === "caller") return `${symbol ?? ""}, which calls ${of}`;
+function sliceReason(slice2) {
+  const symbol = slice2.symbol === void 0 ? void 0 : `\`${slice2.symbol}\``;
+  const of = `\`${slice2.of ?? ""}\``;
+  if (slice2.reason === "callee") return `${symbol ?? ""}, which ${of} calls`;
+  if (slice2.reason === "caller") return `${symbol ?? ""}, which calls ${of}`;
   return symbol === void 0 ? "lines the change touches" : `${symbol}, which the change touches`;
 }
-function sliceCitation(slice) {
-  return `tree/${slice.path}:${String(slice.first)}-${String(slice.last)}`;
+function sliceCitation(slice2) {
+  return `tree/${slice2.path}:${String(slice2.first)}-${String(slice2.last)}`;
 }
-function sliceLine(slice, admitted) {
-  return `- \`${sliceCitation(slice)}\`: ${sliceReason(slice)}: ${admitted ? "sent" : "the cap dropped it"}`;
+function sliceLine(slice2, admitted) {
+  return `- \`${sliceCitation(slice2)}\`: ${sliceReason(slice2)}: ${admitted ? "sent" : "the cap dropped it"}`;
 }
 function renderIndex2(request, tree, counts, slicePieces, admission, diffDropped, capBytes, fill = true) {
   const lists = [
@@ -9755,8 +9755,8 @@ function contextSlices(graph, changed) {
   const callees = symbols.flatMap(({ path, symbol }) => calleesOf(graph, path, symbol));
   const callers = symbols.flatMap(({ path, symbol }) => callersOf(graph, path, symbol));
   const seen = /* @__PURE__ */ new Set();
-  return [...own, ...callees, ...callers].filter((slice) => {
-    const key2 = `${slice.path}:${String(slice.first)}-${String(slice.last)}`;
+  return [...own, ...callees, ...callers].filter((slice2) => {
+    const key2 = `${slice2.path}:${String(slice2.first)}-${String(slice2.last)}`;
     if (seen.has(key2)) return false;
     seen.add(key2);
     return true;
@@ -9779,7 +9779,7 @@ function callersOf(graph, path, symbol) {
       if (enclosing === void 0 || caller === path && enclosing.first === symbol.first) return [];
       return [{ first: enclosing.first, last: enclosing.last, of: symbol.name, path: caller, reason: "caller", symbol: enclosing.name }];
     })
-  ).filter((slice, index, all) => all.findIndex((other) => other.path === slice.path && other.first === slice.first) === index).slice(0, RELATED_PER_SYMBOL);
+  ).filter((slice2, index, all) => all.findIndex((other) => other.path === slice2.path && other.first === slice2.first) === index).slice(0, RELATED_PER_SYMBOL);
 }
 function around(line2, context, lines) {
   return { first: Math.max(1, line2 - context), last: Math.max(1, Math.min(lines, line2 + context)) };
@@ -9962,7 +9962,7 @@ var CodePacketReader = class {
         changed_files: changed.map((path) => join24(TREE_DIR2, path)),
         head: request.head,
         head_commit: head,
-        slices: sample.slices.map((slice) => ({ first: slice.first, last: slice.last, path: join24(TREE_DIR2, slice.path), reason: sliceReason(slice) }))
+        slices: sample.slices.map((slice2) => ({ first: slice2.first, last: slice2.last, path: join24(TREE_DIR2, slice2.path), reason: sliceReason(slice2) }))
       },
       files,
       sample: { cap_bytes: limits.cap_bytes, dropped_files: sample.dropped },
@@ -12317,6 +12317,28 @@ var TIMEOUT_FAILURES = /* @__PURE__ */ new Set([
   "exit-124"
 ]);
 var STOPPED_FAILURES = /* @__PURE__ */ new Set([...TIMEOUT_FAILURES, "timeout"]);
+function slice(findings) {
+  const accepted = findings.filter((finding) => finding.accepted).length;
+  return {
+    accepted,
+    adjudicated: findings.length,
+    precision: findings.length === 0 ? null : accepted / findings.length
+  };
+}
+function calibrationOf(judged) {
+  const ordered = [...judged].sort((a, b) => a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+  const half = Math.floor(ordered.length / 2);
+  const earlier = slice(ordered.slice(0, half));
+  const recent = slice(ordered.slice(half));
+  return {
+    by_severity: Object.fromEntries(
+      SEVERITIES.map((severity) => [severity, slice(ordered.filter((f) => f.severity === severity))])
+    ),
+    drift: earlier.precision === null || recent.precision === null ? null : recent.precision - earlier.precision,
+    earlier,
+    recent
+  };
+}
 var Tally = class {
   constructor(run, promptHash2) {
     this.promptHash = promptHash2;
@@ -12348,6 +12370,8 @@ var Tally = class {
   unpriced = 0;
   stopped = 0;
   wasted = 0;
+  /** Every accepted or rejected finding of the cell, for calibration. */
+  judged = [];
   addRun(run) {
     this.runs += 1;
     if (this.first === "" || run.recorded_at < this.first) this.first = run.recorded_at;
@@ -12369,14 +12393,22 @@ var Tally = class {
     if (finding.verdict === "needs-human") this.needsHuman += 1;
     if (finding.verdict === "accepted" && unique) this.unique += 1;
     if (finding.pre_verdict === "fabricated-evidence") this.fabricated += 1;
+    if (finding.verdict === "accepted" || finding.verdict === "rejected")
+      this.judged.push({
+        accepted: finding.verdict === "accepted",
+        at: finding.recorded_at,
+        severity: finding.severity
+      });
   }
   cell(thresholds) {
     const adjudicated = this.accepted + this.rejected;
     const priced = this.runs - this.unpriced;
+    const belowThreshold = adjudicated < thresholds.min_adjudicated_findings;
     return {
       accepted: this.accepted,
       adjudicated,
-      below_threshold: adjudicated < thresholds.min_adjudicated_findings,
+      below_threshold: belowThreshold,
+      calibration: belowThreshold ? null : calibrationOf(this.judged),
       client: this.client,
       cost_per_accepted_usd: this.accepted === 0 || priced === 0 ? null : this.cost / this.accepted,
       cost_usd: this.cost,
@@ -12550,6 +12582,8 @@ function renderStats(stats, scope) {
       ).map((row) => `| ${row} |`)
     );
   }
+  if (stats.cells.length > 0)
+    lines.push(...calibrationLines(stats.cells, thresholds.min_adjudicated_findings));
   lines.push("", "## Removal candidates", "");
   lines.push(
     ...stats.removal_candidates.length === 0 ? ["none"] : stats.removal_candidates.map(
@@ -12567,6 +12601,35 @@ function renderStats(stats, scope) {
   );
   return `${lines.join("\n")}
 `;
+}
+function calibrationLines(cells, minimum) {
+  const rows = cells.flatMap((cell) => cell.calibration === null ? [] : [{ calibration: cell.calibration, cell }]);
+  if (rows.length === 0)
+    return ["", "## Calibration", "", `No critic has ${String(minimum)} adjudicated findings yet.`];
+  const share = (slice2) => slice2.precision === null ? "-" : `${slice2.precision.toFixed(2)} (${String(slice2.adjudicated)})`;
+  return [
+    "",
+    "## Calibration",
+    "",
+    `Precision over time and by severity, for cells with ${String(minimum)} or more adjudicated findings. Earlier and recent are the older and newer half of the cell's findings; the count is in brackets.`,
+    "",
+    "| stage | client | prompt | adjudicated | earlier | recent | drift | critical | major | minor |",
+    "|---|---|---|---|---|---|---|---|---|---|",
+    ...rows.map(
+      ({ calibration, cell }) => `| ${[
+        cell.stage,
+        cell.client,
+        cell.prompt_hash,
+        String(cell.adjudicated),
+        share(calibration.earlier),
+        share(calibration.recent),
+        calibration.drift === null ? "-" : `${calibration.drift >= 0 ? "+" : ""}${calibration.drift.toFixed(2)}`,
+        share(calibration.by_severity.critical),
+        share(calibration.by_severity.major),
+        share(calibration.by_severity.minor)
+      ].join(" | ")} |`
+    )
+  ];
 }
 function wastedLine(cells) {
   const runs = cells.reduce((total, cell) => total + cell.stopped_runs, 0);

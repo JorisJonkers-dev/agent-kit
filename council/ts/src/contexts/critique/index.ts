@@ -99,7 +99,13 @@ export type { CriticFamily, ModelFamily, OrchestratorFamily } from './domain/fam
 export { gateIndexPath, gatePath } from './application/feature-gate.js'
 export { parseGateRecord, type FollowUp, type GateRecord, type OpenCriticalFollowUp } from './domain/feature-review.js'
 export type { RunFinding } from './domain/findings.js'
-export type { RemovalCandidate, StatsCell, StatsFilter } from './domain/stats.js'
+export type {
+  PrecisionSlice,
+  RemovalCandidate,
+  StatsCalibration,
+  StatsCell,
+  StatsFilter,
+} from './domain/stats.js'
 export { CritiqueError, type CritiqueErrorCode, type Refusal, type RefusalReason } from './domain/outcomes.js'
 export type { CritiqueStage, Depth } from './domain/stage.js'
 export {

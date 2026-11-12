@@ -1,5 +1,6 @@
 import type { Ledger, LedgerCriticRun, LedgerFinding, LedgerRunContext } from './ledger.js'
 import { sha256 } from './manifest.js'
+import { SEVERITIES, type Severity } from './findings.js'
 import { CritiqueError } from './outcomes.js'
 import type { StatsThresholds } from './routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from './stage.js'
@@ -11,6 +12,31 @@ export interface StatsFilter {
   readonly repository?: string
   readonly since?: string
   readonly until?: string
+}
+
+/** Accepted over adjudicated for one slice of a cell's findings. */
+export interface PrecisionSlice {
+  /** Accepted plus rejected findings in the slice. */
+  readonly adjudicated: number
+  readonly accepted: number
+  /** Null with nothing adjudicated in the slice. */
+  readonly precision: number | null
+}
+
+/**
+ * Whether a critic is right over time and whether its severities mean what
+ * they say. Only a cell with the routing's minimum of adjudicated findings
+ * has one.
+ */
+export interface StatsCalibration {
+  /** The older half of the cell's adjudicated findings, ordered by when their run was recorded. */
+  readonly earlier: PrecisionSlice
+  /** The newer half; it holds the odd finding. */
+  readonly recent: PrecisionSlice
+  /** Recent precision minus earlier precision; null when either half has none. */
+  readonly drift: number | null
+  /** Precision per severity the finding was recorded with. A critic is calibrated when its criticals are right at least as often as its minors. */
+  readonly by_severity: Readonly<Record<Severity, PrecisionSlice>>
 }
 
 /**
@@ -63,6 +89,8 @@ export interface StatsCell {
   readonly stopped_runs: number
   /** The summed known cost of the stopped runs: spend that bought no finding. */
   readonly wasted_usd: number
+  /** Null while the cell is below the adjudicated-findings threshold. */
+  readonly calibration: StatsCalibration | null
 }
 
 /**
@@ -97,6 +125,41 @@ const TIMEOUT_FAILURES: ReadonlySet<string> = new Set([
 /** A limit stopped the run: a time or price limit, or the outer timer that killed it. */
 const STOPPED_FAILURES: ReadonlySet<string> = new Set([...TIMEOUT_FAILURES, 'timeout'])
 
+/** One adjudicated finding of a cell, as calibration reads it. */
+interface JudgedFinding {
+  readonly accepted: boolean
+  readonly at: string
+  readonly severity: Severity
+}
+
+function slice(findings: readonly JudgedFinding[]): PrecisionSlice {
+  const accepted = findings.filter((finding) => finding.accepted).length
+  return {
+    accepted,
+    adjudicated: findings.length,
+    precision: findings.length === 0 ? null : accepted / findings.length,
+  }
+}
+
+/** The cell's findings in the order their runs were recorded, split in two halves, and by severity. */
+function calibrationOf(judged: readonly JudgedFinding[]): StatsCalibration {
+  const ordered = [...judged].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+  const half = Math.floor(ordered.length / 2)
+  const earlier = slice(ordered.slice(0, half))
+  const recent = slice(ordered.slice(half))
+  return {
+    by_severity: Object.fromEntries(
+      SEVERITIES.map((severity) => [severity, slice(ordered.filter((f) => f.severity === severity))]),
+    ) as Record<Severity, PrecisionSlice>,
+    drift:
+      earlier.precision === null || recent.precision === null
+        ? null
+        : recent.precision - earlier.precision,
+    earlier,
+    recent,
+  }
+}
+
 /** One cell while the ledger is read. */
 class Tally {
   readonly stage: CritiqueStage
@@ -120,6 +183,8 @@ class Tally {
   unpriced = 0
   stopped = 0
   wasted = 0
+  /** Every accepted or rejected finding of the cell, for calibration. */
+  readonly judged: JudgedFinding[] = []
 
   constructor(
     run: LedgerCriticRun,
@@ -154,15 +219,23 @@ class Tally {
     if (finding.verdict === 'needs-human') this.needsHuman += 1
     if (finding.verdict === 'accepted' && unique) this.unique += 1
     if (finding.pre_verdict === 'fabricated-evidence') this.fabricated += 1
+    if (finding.verdict === 'accepted' || finding.verdict === 'rejected')
+      this.judged.push({
+        accepted: finding.verdict === 'accepted',
+        at: finding.recorded_at,
+        severity: finding.severity,
+      })
   }
 
   cell(thresholds: StatsThresholds): StatsCell {
     const adjudicated = this.accepted + this.rejected
     const priced = this.runs - this.unpriced
+    const belowThreshold = adjudicated < thresholds.min_adjudicated_findings
     return {
       accepted: this.accepted,
       adjudicated,
-      below_threshold: adjudicated < thresholds.min_adjudicated_findings,
+      below_threshold: belowThreshold,
+      calibration: belowThreshold ? null : calibrationOf(this.judged),
       client: this.client,
       cost_per_accepted_usd: this.accepted === 0 || priced === 0 ? null : this.cost / this.accepted,
       cost_usd: this.cost,
@@ -419,6 +492,8 @@ export function renderStats(stats: CritiqueStats, scope: StatsScope): string {
         .map((row) => `| ${row} |`),
     )
   }
+  if (stats.cells.length > 0)
+    lines.push(...calibrationLines(stats.cells, thresholds.min_adjudicated_findings))
   lines.push('', '## Removal candidates', '')
   lines.push(
     ...(stats.removal_candidates.length === 0
@@ -437,6 +512,38 @@ export function renderStats(stats: CritiqueStats, scope: StatsScope): string {
     ...(stats.suggestions.length === 0 ? ['none'] : stats.suggestions.map((s) => `- ${s}`)),
   )
   return `${lines.join('\n')}\n`
+}
+
+/** The calibration table: one row per cell with enough adjudicated findings, or the sentence saying none has. */
+function calibrationLines(cells: readonly StatsCell[], minimum: number): readonly string[] {
+  const rows = cells.flatMap((cell) => (cell.calibration === null ? [] : [{ calibration: cell.calibration, cell }]))
+  if (rows.length === 0)
+    return ['', '## Calibration', '', `No critic has ${String(minimum)} adjudicated findings yet.`]
+  const share = (slice: PrecisionSlice): string =>
+    slice.precision === null ? '-' : `${slice.precision.toFixed(2)} (${String(slice.adjudicated)})`
+  return [
+    '',
+    '## Calibration',
+    '',
+    `Precision over time and by severity, for cells with ${String(minimum)} or more adjudicated findings. Earlier and recent are the older and newer half of the cell's findings; the count is in brackets.`,
+    '',
+    '| stage | client | prompt | adjudicated | earlier | recent | drift | critical | major | minor |',
+    '|---|---|---|---|---|---|---|---|---|---|',
+    ...rows.map(({ calibration, cell }) =>
+      `| ${[
+        cell.stage,
+        cell.client,
+        cell.prompt_hash,
+        String(cell.adjudicated),
+        share(calibration.earlier),
+        share(calibration.recent),
+        calibration.drift === null ? '-' : `${calibration.drift >= 0 ? '+' : ''}${calibration.drift.toFixed(2)}`,
+        share(calibration.by_severity.critical),
+        share(calibration.by_severity.major),
+        share(calibration.by_severity.minor),
+      ].join(' | ')} |`,
+    ),
+  ]
 }
 
 /** What every row's stopped runs cost together; undefined when no run was stopped. */

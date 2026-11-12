@@ -1488,6 +1488,8 @@ export interface SyntheticFinding {
   readonly raised_by: readonly string[]
   readonly verdict: 'accepted' | 'rejected' | 'needs-human' | 'hint'
   readonly pre_verdict?: string
+  /** The severity the finding was recorded with; major by default. */
+  readonly severity?: 'critical' | 'major' | 'minor'
 }
 
 export interface SyntheticRun {
@@ -1577,7 +1579,7 @@ export class SyntheticLedger {
         raised_by: raisers.map((raiser) => ids[raiser] ?? `c0-${String(raiser)}`),
         raised_by_families: [],
         reason_code: finding.pre_verdict ?? null,
-        severity: 'major',
+        severity: finding.severity ?? 'major',
         verdict: finding.verdict,
       })
     })

@@ -553,6 +553,141 @@ describe('critique stats suggestions', () => {
   })
 })
 
+describe('critique stats calibration', () => {
+  /** `count` findings of one client with one verdict and severity, in the order given. */
+  function judged(
+    verdict: 'accepted' | 'rejected',
+    severity: 'critical' | 'major' | 'minor',
+    count: number,
+  ): SyntheticFinding[] {
+    return Array.from({ length: count }, () => ({ raised_by: [MISTRAL], severity, verdict }))
+  }
+
+  it('shows a critic its calibration once it has the routing minimum of adjudicated findings', async () => {
+    const ledger = runs(new SyntheticLedger(), 20, [
+      ...judged('rejected', 'major', 10),
+      ...judged('accepted', 'major', 10),
+    ], { critics: [{ client: MISTRAL }] })
+
+    const result = await stats(ledger)
+
+    expect(cell(result, MISTRAL).calibration).toMatchObject({
+      drift: 1,
+      earlier: { accepted: 0, adjudicated: 10, precision: 0 },
+      recent: { accepted: 10, adjudicated: 10, precision: 1 },
+    })
+  })
+
+  it('shows no calibration below the minimum, and says so in the report', async () => {
+    const ledger = runs(new SyntheticLedger(), 19, judged('accepted', 'major', 19), {
+      critics: [{ client: MISTRAL }],
+    })
+
+    const result = await stats(ledger)
+
+    expect(cell(result, MISTRAL).calibration).toBeNull()
+    expect(result.report).toContain('## Calibration\n\nNo critic has 20 adjudicated findings yet.')
+  })
+
+  it('splits the findings by when their run was recorded, whatever order the ledger holds them in', async () => {
+    const ledger = new SyntheticLedger()
+    for (const [day, verdict] of [
+      ['2026-10-20', 'accepted'],
+      ['2026-10-02', 'rejected'],
+    ] as const) {
+      for (let i = 0; i < 10; i += 1)
+        ledger.run({
+          critics: [{ client: MISTRAL }],
+          findings: [{ raised_by: [MISTRAL], verdict }],
+          recorded_at: `${day}T10:${String(i).padStart(2, '0')}:00.000Z`,
+        })
+    }
+
+    expect(cell(await stats(ledger), MISTRAL).calibration).toMatchObject({
+      drift: 1,
+      earlier: { precision: 0 },
+      recent: { precision: 1 },
+    })
+  })
+
+  it('gives the odd finding to the recent half', async () => {
+    const ledger = runs(new SyntheticLedger(), 21, judged('accepted', 'major', 21), {
+      critics: [{ client: MISTRAL }],
+    })
+
+    expect(cell(await stats(ledger), MISTRAL).calibration).toMatchObject({
+      earlier: { adjudicated: 10 },
+      recent: { adjudicated: 11 },
+    })
+  })
+
+  it('reports precision per severity, with none for a severity the critic never raised', async () => {
+    const ledger = runs(new SyntheticLedger(), 20, [
+      ...judged('accepted', 'critical', 8),
+      ...judged('rejected', 'major', 6),
+      ...judged('accepted', 'major', 6),
+    ], { critics: [{ client: MISTRAL }] })
+
+    expect(cell(await stats(ledger), MISTRAL).calibration?.by_severity).toEqual({
+      critical: { accepted: 8, adjudicated: 8, precision: 1 },
+      major: { accepted: 6, adjudicated: 12, precision: 0.5 },
+      minor: { accepted: 0, adjudicated: 0, precision: null },
+    })
+  })
+
+  it('leaves hints and needs-human findings out of the calibration', async () => {
+    const ledger = runs(new SyntheticLedger(), 20, [
+      ...judged('accepted', 'major', 20),
+      ...raised(MISTRAL, { hint: 5, 'needs-human': 5 }),
+    ], { critics: [{ client: MISTRAL }] })
+
+    const calibration = cell(await stats(ledger), MISTRAL).calibration
+    expect(calibration?.earlier.adjudicated).toBe(10)
+    expect(calibration?.recent.adjudicated).toBe(10)
+  })
+
+  it('reports no drift when a half has nothing adjudicated', async () => {
+    const routing = await shippedRouting()
+    const ledger = runs(new SyntheticLedger(), 1, judged('accepted', 'major', 1), {
+      critics: [{ client: MISTRAL }],
+    })
+
+    const result = await stats(
+      ledger,
+      {},
+      { routing: { ...routing, stats: { min_adjudicated_findings: 1, removal_features: 3 } } },
+    )
+
+    expect(cell(result, MISTRAL).calibration).toMatchObject({
+      drift: null,
+      earlier: { adjudicated: 0, precision: null },
+      recent: { adjudicated: 1, precision: 1 },
+    })
+  })
+
+  it('shows the calibration table in the report, with a signed drift', async () => {
+    const ledger = runs(new SyntheticLedger(), 20, [
+      ...judged('accepted', 'critical', 10),
+      ...judged('rejected', 'minor', 5),
+      ...judged('accepted', 'minor', 5),
+    ], { critics: [{ client: MISTRAL }] })
+
+    const report = (await stats(ledger)).report
+
+    expect(report).toContain('| stage | client | prompt | adjudicated | earlier | recent | drift | critical | major | minor |')
+    expect(report).toMatch(/\| spec \| vibe-mistral-large \| [0-9a-f]{12} \| 20 \| 1\.00 \(10\) \| 0\.50 \(10\) \| -0\.50 \| 1\.00 \(10\) \| - \| 0\.50 \(10\) \|/)
+  })
+
+  it('shows a positive drift with a plus sign and a dash when a half has no precision', async () => {
+    const ledger = runs(new SyntheticLedger(), 20, [
+      ...judged('rejected', 'major', 10),
+      ...judged('accepted', 'major', 10),
+    ], { critics: [{ client: MISTRAL }] })
+
+    expect((await stats(ledger)).report).toContain('| +1.00 |')
+  })
+})
+
 describe('critique stats removal candidates', () => {
   /** One feature's spec-stage runs: every accepted finding raised by both clients, so none is unique. */
   function feature(ledger: SyntheticLedger, spec: string, uniqueAccepted = 0): SyntheticLedger {
@@ -678,6 +813,7 @@ describe('critique stats ledger', () => {
     })
     if (result.status !== 'reported') throw new Error('not reported')
     expect(result.report).toContain('No critic runs in the ledger match.')
+    expect(result.report).not.toContain('## Calibration')
   })
 
   it('skips blank lines and lines of a type it does not know', async () => {
