@@ -811,7 +811,7 @@ def test_a_macos_path_in_the_linux_launch_is_refused_on_any_host(
     agent = {**AGY, "os": {"linux": launch}}
     machine = _agy_machine(tmp_path, monkeypatch, "mac", agent)
     assert machine.run() == 1
-    assert "agy: the Linux launch names a macOS path" in capsys.readouterr().out
+    assert "agy: a macOS path (Homebrew or /Applications) is written on Linux" in capsys.readouterr().out
     assert not machine.settings.exists()
 
 
@@ -821,7 +821,7 @@ def test_a_macos_path_in_an_agent_with_no_os_section_is_refused(
     agent = {"id": "agy", "binary": "agy", "adapter": {"command": "/opt/homebrew/bin/agy"}}
     machine = _agy_machine(tmp_path, monkeypatch, "linux", agent)
     assert machine.run() == 1
-    assert "agy: the Linux launch names a macOS path" in capsys.readouterr().out
+    assert "agy: a macOS path (Homebrew or /Applications) is written on Linux" in capsys.readouterr().out
 
 
 def test_a_macos_path_is_allowed_in_the_mac_section(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -839,6 +839,9 @@ def test_a_macos_path_is_allowed_in_the_mac_section(tmp_path: Path, monkeypatch:
         ({"windows": {}}, "agy: os.windows is not one of linux, mac"),
         ({"mac": "agy"}, "agy: os.mac must be a mapping"),
         ({"mac": {"icon": "x"}}, "agy: unknown field os.mac.icon"),
+        (None, "agy: os must map linux and/or mac to a launch declaration"),
+        ({"mac": {}}, "agy os.mac: must declare binary, command_from_binary or adapter"),
+        ({"mac": {"command_from_binary": True}, "linux": {}}, "agy os.linux: must declare binary"),
         ({"mac": {"binary": 42}}, "agy os.mac: binary must be a non-empty string"),
         ({"mac": {"binary": None}}, "agy os.mac: binary must be a non-empty string"),
         ({"mac": {"command_from_binary": False}}, "agy os.mac: command_from_binary must be true"),
@@ -873,3 +876,12 @@ def test_the_shipped_registry_declares_hermes_everywhere_and_antigravity_on_mac_
             assert "skipped: agy (no launch command declared for linux)" in out
         else:
             assert "skipped: agy (agy is not installed)" in out
+
+
+def test_a_section_command_from_binary_needs_a_binary_somewhere(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    agent = {"id": "agy", "os": {"mac": {"command_from_binary": True}}, "adapter": {"env": {}}}
+    machine = _agy_machine(tmp_path, monkeypatch, "mac", agent)
+    assert machine.run() == 1
+    assert "agy os.mac: command_from_binary needs a binary" in capsys.readouterr().out

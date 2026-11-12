@@ -473,7 +473,7 @@ def _gold_band_os_problems(raw: str, agent: dict[str, Any]) -> list[str]:
     """Problems with ``os`` and, for the Linux launch, any macOS path in what it would write."""
     problems: list[str] = []
     sections = agent.get("os")
-    if sections is not None:
+    if "os" in agent:
         if not isinstance(sections, dict) or not sections:
             return [f"{raw}: os must map linux and/or mac to a launch declaration"]
         for host, section in sections.items():
@@ -484,6 +484,10 @@ def _gold_band_os_problems(raw: str, agent: dict[str, Any]) -> list[str]:
             else:
                 problems += [f"{raw}: unknown field os.{host}.{key}" for key in section if key not in GOLD_BAND_OS_FIELDS]
                 label = f"{raw} os.{host}"
+                if not section:
+                    problems.append(f"{label}: must declare binary, command_from_binary or adapter")
+                if section.get("command_from_binary") is True and not (section.get("binary") or agent.get("binary")):
+                    problems.append(f"{label}: command_from_binary needs a binary")
                 if "binary" in section and (not isinstance(section["binary"], str) or not section["binary"]):
                     problems.append(f"{label}: binary must be a non-empty string")
                 if "command_from_binary" in section and section["command_from_binary"] is not True:
@@ -495,7 +499,7 @@ def _gold_band_os_problems(raw: str, agent: dict[str, Any]) -> list[str]:
         args = adapter.get("args") if isinstance(adapter.get("args"), list) else []
         written = [linux.get("binary"), adapter.get("command"), *args]
         if any(isinstance(item, str) and GOLD_BAND_MAC_PATH.search(item) for item in written):
-            problems.append(f"{raw}: the Linux launch names a macOS path (Homebrew or /Applications)")
+            problems.append(f"{raw}: a macOS path (Homebrew or /Applications) is written on Linux")
     return problems
 
 
