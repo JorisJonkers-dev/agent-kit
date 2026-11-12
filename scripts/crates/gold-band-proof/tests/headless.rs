@@ -276,7 +276,7 @@ fn workflow_c_work_pauses_on_a_lapsed_grant_before_each_codex_node_and_publishes
     );
     // The run itself pauses (exit 2) at a manual check before any publication.
     assert!(
-        stdout.contains("\n  clean: expected exit 2, got 2 (paused/"),
+        stdout.contains("  clean: expected exit 2, got 2 (paused/"),
         "{stdout}"
     );
     assert!(
