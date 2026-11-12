@@ -183,7 +183,7 @@ def test_the_publish_gate_is_reachable_only_through_the_publication_check(
     assert "gate-workflow-c-publish" in _reachable(edges, "gate-workflow-c-start", without=set())
 
 
-def test_no_shim_node_has_a_failure_edge_except_the_grant_checks(edges: list[tuple[str, str, str]]) -> None:
+def test_no_gate_or_copier_node_has_a_failure_edge(edges: list[tuple[str, str, str]]) -> None:
     failing = [e for e in edges if e[2] == "failure" and e[0].startswith(("gate-", "copy-"))]
     assert failing == []
 
