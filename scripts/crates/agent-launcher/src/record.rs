@@ -52,6 +52,10 @@ pub struct Level {
     pub args: Vec<String>,
     #[serde(default)]
     pub support: BTreeMap<String, String>,
+    /// For each OS, the check that proves a `verified` cell, or the reason an
+    /// `unsupported` one is refused.
+    #[serde(default)]
+    pub check: BTreeMap<String, String>,
 }
 
 /// One agent id.
@@ -117,9 +121,21 @@ pub fn problems(record: &Record) -> Vec<String> {
                     Some(_) => {}
                 }
             }
-            for os in entry.support.keys() {
+            for os in entry.support.keys().chain(entry.check.keys()) {
                 if !OSES.contains(&os.as_str()) {
                     out.push(format!("agent {name} {level}: unknown OS {os:?}"));
+                }
+            }
+            for os in OSES {
+                let said = entry.check.get(os).is_some_and(|c| !c.trim().is_empty());
+                match entry.support.get(os).map(String::as_str) {
+                    Some("verified") if !said => out.push(format!(
+                        "agent {name} {level}: verified on {os} without the check that proves it"
+                    )),
+                    Some("unsupported") if !said => out.push(format!(
+                        "agent {name} {level}: unsupported on {os} without a reason"
+                    )),
+                    _ => {}
                 }
             }
         }

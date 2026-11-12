@@ -10,7 +10,98 @@
 #          it runs on, and an output_dir for research and write-scoped. An id
 #          may only name a verified cell on every host it lists.
 #
-# No cell is verified yet. The per-agent tickets (B1-14 to B1-16) add each
-# agent's cells with the check that proves them, and the ids that use them.
-agents: {}
+# check:   for each OS, the check that proves the cell (a verified cell) or the
+#          reason it is refused (an unsupported one): `<file>::<test>` for a
+#          check that runs in CI, on that OS's runner. A verified cell without
+#          its check is refused by `validate`.
+#
+# What "verified" means for claude (B1-15, #435): on that OS, the real
+# launcher starts a stub claude (never the owner's ~/.claude or credentials)
+# at the level, the stub receives exactly the level's tool arguments below,
+# and the operating-system write limit (ADR-0013) holds for it as the table
+# says. The arguments use a tool list and deny rules, never the allowed-tools
+# setting alone (it only pre-approves). `run-one-command` pre-approves no Bash
+# command here: the node names its one command with an extra
+# `--allowedTools 'Bash(<command>)'`, and the operating system confines where
+# it may write. MCP servers are never listed here (`--strict-mcp-config`): a
+# node adds `--mcp-config` for the servers its level allows.
+#
+# The ids are added by the tickets that bind agents (Gold Band workflows).
+agents:
+  claude:
+    command: [claude]
+    levels:
+      read:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob"
+          - "--allowedTools=Read,Grep,Glob"
+          - "--disallowedTools=Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_read"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_read"
+      read-web:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,WebFetch,WebSearch"
+          - "--allowedTools=Read,Grep,Glob,WebFetch,WebSearch"
+          - "--disallowedTools=Bash,Edit,Write,NotebookEdit"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_read_web"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_read_web"
+      research:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,WebFetch,WebSearch,Write"
+          - "--allowedTools=Read,Grep,Glob,WebFetch,WebSearch,Write"
+          - "--disallowedTools=Bash,Edit,NotebookEdit"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_research"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_research"
+      write-scoped:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,Write,Edit"
+          - "--allowedTools=Read,Grep,Glob,Write,Edit"
+          - "--disallowedTools=Bash,NotebookEdit,WebFetch,WebSearch"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_write_scoped"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_write_scoped"
+      run-one-command:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,Bash"
+          - "--allowedTools=Read,Grep,Glob"
+          - "--disallowedTools=Edit,Write,NotebookEdit,WebFetch,WebSearch"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_run_one_command"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_run_one_command"
+      write:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,Write,Edit,NotebookEdit,Bash"
+          - "--allowedTools=Read,Grep,Glob,Write,Edit,NotebookEdit,Bash"
+          - "--disallowedTools=WebFetch,WebSearch"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_write"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_write"
+      full:
+        args:
+          - "--permission-mode=bypassPermissions"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_full"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_full"
 ids: {}
