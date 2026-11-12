@@ -34,6 +34,15 @@
 # and hermes hold full only; antigravity holds none (no tool flags documented,
 # and no Linux command on main until #431 lands).
 #
+# What "verified" means for vibe and vibe-study (B1-16, #436) is the same, with
+# Vibe's own flags: `--enabled-tools` (in headless mode it disables every
+# unlisted tool), `--disabled-tools`, `--agent=accept-edits` (approves edits, not
+# the shell) and `--auto-approve`. Both run the same Vibe CLI (`vibe-study` only
+# supplies the Study account key), so they share arguments and checks. `vibe-acp`
+# takes no tool arguments (only `--help`, `--version`, `--setup`), so the
+# arguments here are for the headless CLI. An unsupported cell carries its
+# reason instead of a check.
+#
 # The ids are added by the tickets that bind agents (Gold Band workflows).
 agents:
   claude:
@@ -305,4 +314,142 @@ agents:
         check:
           linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
           mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
+  vibe:
+    command: [vibe]
+    levels:
+      read:
+        args:
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--disabled-tools=bash"
+          - "--disabled-tools=edit"
+          - "--disabled-tools=write_file"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_read"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_read"
+      read-web:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved"
+          mac: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved"
+      research:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved; research needs it"
+          mac: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved; research needs it"
+      write-scoped:
+        args:
+          - "--agent=accept-edits"
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--enabled-tools=write_file"
+          - "--enabled-tools=edit"
+          - "--disabled-tools=bash"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write_scoped"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write_scoped"
+      run-one-command:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "no Vibe argument pre-approves one named shell command (the bash allowlist is a config.toml setting, and vibe-acp takes no tool arguments), so run-one-command cannot be held from the argument list"
+          mac: "no Vibe argument pre-approves one named shell command (the bash allowlist is a config.toml setting, and vibe-acp takes no tool arguments), so run-one-command cannot be held from the argument list"
+      write:
+        args:
+          - "--auto-approve"
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--enabled-tools=write_file"
+          - "--enabled-tools=edit"
+          - "--enabled-tools=bash"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write"
+      full:
+        args:
+          - "--auto-approve"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_full"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_full"
+  vibe-study:
+    command: [vibe-study]
+    levels:
+      read:
+        args:
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--disabled-tools=bash"
+          - "--disabled-tools=edit"
+          - "--disabled-tools=write_file"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_read"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_read"
+      read-web:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved"
+          mac: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved"
+      research:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved; research needs it"
+          mac: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved; research needs it"
+      write-scoped:
+        args:
+          - "--agent=accept-edits"
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--enabled-tools=write_file"
+          - "--enabled-tools=edit"
+          - "--disabled-tools=bash"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write_scoped"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write_scoped"
+      run-one-command:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "no Vibe argument pre-approves one named shell command (the bash allowlist is a config.toml setting, and vibe-acp takes no tool arguments), so run-one-command cannot be held from the argument list"
+          mac: "no Vibe argument pre-approves one named shell command (the bash allowlist is a config.toml setting, and vibe-acp takes no tool arguments), so run-one-command cannot be held from the argument list"
+      write:
+        args:
+          - "--auto-approve"
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--enabled-tools=write_file"
+          - "--enabled-tools=edit"
+          - "--enabled-tools=bash"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write"
+      full:
+        args:
+          - "--auto-approve"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_full"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_full"
 ids: {}
