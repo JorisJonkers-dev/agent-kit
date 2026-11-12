@@ -1,0 +1,115 @@
+{
+  "workflow": {
+    "description": "The flow stepper (/flow) as a Gold Band template over the critique runner (issue #627, Wave 3): a run-start node refuses the run when the repository rule or the family allowlist forbids a bound agent, then the runner's `state` command runs as a gate node (the pinned gold-band-gate wrapper around `critique state --strict`) followed by the read-only copier that verifies its report. The template runs the same command as the direct lane and holds no logic of its own: the runner computes the flow state and the next step, and the steps only the owner can take (the grill, the spec, the tickets, the implementation) stay the owner's commands.",
+    "version": "0.1",
+    "id": "flow",
+    "entry": "gate-flow-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-flow-start",
+        "executionSlotId": "slot-gate-flow-start",
+        "provider": "gate-flow-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for the flow stepper (/flow), which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-flow-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-flow",
+        "executionSlotId": "slot-gate-flow",
+        "provider": "gate-flow",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique state --strict` for the flow stepper (/flow) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-flow-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-flow",
+        "executionSlotId": "slot-copy-flow",
+        "provider": "copy-flow",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the state gate of the flow stepper (/flow) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-flow-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-flow-start",
+        "to": "gate-flow",
+        "on": "success"
+      },
+      {
+        "from": "gate-flow",
+        "to": "copy-flow",
+        "on": "success"
+      },
+      {
+        "from": "copy-flow",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-flow-start",
+        "agentId": "gate-flow-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-flow",
+        "agentId": "gate-flow",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-flow",
+        "agentId": "copy-flow",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}

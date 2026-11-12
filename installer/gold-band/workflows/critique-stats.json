@@ -1,0 +1,115 @@
+{
+  "workflow": {
+    "description": "The critique stats report (/critique-stats) as a Gold Band template over the critique runner (issue #627, Wave 3): a run-start node refuses the run when the repository rule or the family allowlist forbids a bound agent, then the runner's `stats` command runs as a gate node (the pinned gold-band-gate wrapper around `critique stats --strict`) followed by the read-only copier that verifies its report. The template runs the same command as the direct lane and holds no logic of its own: the runner reads the ledger and computes every figure, writes nothing, and the owner retunes the routing from its suggestions.",
+    "version": "0.1",
+    "id": "critique-stats",
+    "entry": "gate-critique-stats-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-critique-stats-start",
+        "executionSlotId": "slot-gate-critique-stats-start",
+        "provider": "gate-critique-stats-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for the critique stats report (/critique-stats), which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-stats-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-stats",
+        "executionSlotId": "slot-gate-critique-stats",
+        "provider": "gate-critique-stats",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique stats --strict` for the critique stats report (/critique-stats) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-stats-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-stats",
+        "executionSlotId": "slot-copy-critique-stats",
+        "provider": "copy-critique-stats",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the stats gate of the critique stats report (/critique-stats) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-stats-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-critique-stats-start",
+        "to": "gate-critique-stats",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-stats",
+        "to": "copy-critique-stats",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-stats",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-critique-stats-start",
+        "agentId": "gate-critique-stats-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-stats",
+        "agentId": "gate-critique-stats",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-stats",
+        "agentId": "copy-critique-stats",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}

@@ -1,0 +1,380 @@
+{
+  "workflow": {
+    "description": "The critique runner's own entry points as a Gold Band template (issue #627, Wave 3): a run-start node refuses the run when the repository rule or the family allowlist forbids a bound agent, then the runner's prepare, fan-out, refute and record each run as a gate node (the pinned gold-band-gate wrapper around one `critique <command> --strict`, where --strict turns a refusal into a failing exit status) followed by the read-only copier that verifies its report. These are the commands the direct lane runs, in the same order, and the template holds no logic of its own: the runner stays the executor, so the critics keep its read-only tripwire, packet confinement, time limits and family allowlist, and Gold Band only sequences the commands and pauses on the manual check when the orchestrator leaves a finding open. The orchestrator's verdict node sits between fan-out and refute. The stage templates (critique-<stage>) are this template bound to one stage's inputs.",
+    "version": "0.1",
+    "id": "critique",
+    "entry": "gate-critique-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-critique-start",
+        "executionSlotId": "slot-gate-critique-start",
+        "provider": "gate-critique-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for the critique runner, which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-prepare",
+        "executionSlotId": "slot-gate-critique-prepare",
+        "provider": "gate-critique-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique prepare --strict` for the run and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-prepare-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-prepare",
+        "executionSlotId": "slot-copy-critique-prepare",
+        "provider": "copy-critique-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the prepare gate of the critique runner and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-prepare-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-fan-out",
+        "executionSlotId": "slot-gate-critique-fan-out",
+        "provider": "gate-critique-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique fan-out --strict` for the run and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-fan-out-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-fan-out",
+        "executionSlotId": "slot-copy-critique-fan-out",
+        "provider": "copy-critique-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the fan-out gate of the critique runner and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-fan-out-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "critique-verdicts",
+        "executionSlotId": "slot-critique-verdicts",
+        "provider": "vibe-study",
+        "model": "deepseek-v4-1-flash-1017",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the orchestrator of the critique runner. The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
+        "output": {
+          "kind": "json",
+          "artifact": "critique-open-findings",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "critique-needs-human",
+        "executionSlotId": "slot-critique-needs-human",
+        "provider": "vibe-study",
+        "model": "deepseek-v4-1-flash-1017",
+        "profile": "pf-builtin-dev",
+        "goal": "Some finding of the critique runner cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-refute",
+        "executionSlotId": "slot-gate-critique-refute",
+        "provider": "gate-critique-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique refute --strict` for the run and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-refute-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-refute",
+        "executionSlotId": "slot-copy-critique-refute",
+        "provider": "copy-critique-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the refute gate of the critique runner and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-refute-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-record",
+        "executionSlotId": "slot-gate-critique-record",
+        "provider": "gate-critique-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique record --strict` for the run and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-record-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-record",
+        "executionSlotId": "slot-copy-critique-record",
+        "provider": "copy-critique-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the record gate of the critique runner and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-record-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-critique-start",
+        "to": "gate-critique-prepare",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-prepare",
+        "to": "copy-critique-prepare",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-prepare",
+        "to": "gate-critique-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-fan-out",
+        "to": "copy-critique-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-fan-out",
+        "to": "critique-verdicts",
+        "on": "success"
+      },
+      {
+        "from": "critique-verdicts",
+        "to": "gate-critique-refute",
+        "on": "success"
+      },
+      {
+        "from": "critique-verdicts",
+        "to": "critique-needs-human",
+        "on": "failure"
+      },
+      {
+        "from": "critique-needs-human",
+        "to": "gate-critique-refute",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-refute",
+        "to": "copy-critique-refute",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-refute",
+        "to": "gate-critique-record",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-record",
+        "to": "copy-critique-record",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-record",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-critique-start",
+        "agentId": "gate-critique-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-prepare",
+        "agentId": "gate-critique-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-prepare",
+        "agentId": "copy-critique-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-fan-out",
+        "agentId": "gate-critique-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-fan-out",
+        "agentId": "copy-critique-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-critique-verdicts",
+        "agentId": "vibe-study",
+        "modelId": "deepseek-v4-1-flash-1017"
+      },
+      {
+        "executionSlotId": "slot-critique-needs-human",
+        "agentId": "vibe-study",
+        "modelId": "deepseek-v4-1-flash-1017"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-refute",
+        "agentId": "gate-critique-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-refute",
+        "agentId": "copy-critique-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-record",
+        "agentId": "gate-critique-record",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-record",
+        "agentId": "copy-critique-record",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}

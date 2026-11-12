@@ -243,6 +243,67 @@ fn every_critique_stage_template_ends_in_its_expected_state() {
     }
 }
 
+/// The Wave 3 templates over the runners (issue #627), with the gates each one runs.
+const WAVE_3: [(&str, &[&str]); 4] = [
+    (
+        "critique",
+        &[
+            "critique-start",
+            "critique-prepare",
+            "critique-fan-out",
+            "critique-refute",
+            "critique-record",
+        ],
+    ),
+    (
+        "critique-stats",
+        &["critique-stats-start", "critique-stats"],
+    ),
+    ("flow", &["flow-start", "flow"]),
+    ("build-tracker", &["build-tracker-start", "build-tracker"]),
+];
+
+#[test]
+fn every_wave_3_template_ends_in_its_expected_state() {
+    let Some(gold_band) = gold_band() else { return };
+    for (name, gates) in WAVE_3 {
+        let workflow = manifest_dir().join(format!(
+            "../../../installer/gold-band/workflows/{name}.json"
+        ));
+        let records = scratch(&format!("wave3-{name}"));
+        let output = prove(&workflow, &records, &[], &gold_band);
+        let stdout = text(&output.stdout);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{name}: {stdout}\n{}",
+            text(&output.stderr)
+        );
+        assert!(
+            stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
+            "{name}: {stdout}"
+        );
+        // Only the critique template has an orchestrator, so only it pauses.
+        assert_eq!(
+            stdout.contains("needs-human: expected exit 2, got 2 (paused/"),
+            name == "critique",
+            "{name}: {stdout}"
+        );
+        for gate in gates {
+            assert!(
+                stdout.contains(&format!(
+                    "gate-fail-{gate}: expected exit 1, got 1 (completed/failure)"
+                )),
+                "{name} {gate}: {stdout}"
+            );
+        }
+        assert!(
+            stdout.contains("gold-band-proof: passed"),
+            "{name}: {stdout}"
+        );
+    }
+}
+
 #[test]
 fn a_run_that_expects_success_from_a_failing_gate_fails_the_proof() {
     let Some(gold_band) = gold_band() else { return };
