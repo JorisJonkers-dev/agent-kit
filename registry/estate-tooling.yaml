@@ -1931,6 +1931,12 @@ vibe_delegate_agents:
     surfaces: [workstation]
 
 # -------------------------------------------------------------------
+# MCP layering rule (spec #392, user story 60). Declare each MCP server in
+# exactly one layer per agent. The same-name overlap test records that a name
+# declared in both the user layer and the project layer is not listed twice but
+# overridden, with the project layer winning, in Claude and OpenCode; Vibe is
+# not yet tested (docs/SETUP.md, "Same-name MCP servers in two layers", #439).
+# -------------------------------------------------------------------
 # Gold Band instances (ADR-0011).
 #
 # Two separately configured Gold Band instances, split by employer. The

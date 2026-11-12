@@ -815,6 +815,31 @@ caveman hooks and security-guidance among them — and so do plugin MCP servers
 and skills once, at start. When `opencode service status` shows it running,
 setup restarts it at the end of a run so the new configuration takes effect.
 
+## Same-name MCP servers in two layers
+
+Result of the same-name overlap test (#439): a trivial stdio server named
+`overlap-echo`, with one tool `echo`, declared with the same name in the user
+layer (the agent's own config) and the project layer (a file in the working
+directory) at once, in the personal instance on the Linux workstation
+(2026-11-12). Each declaration returned `layer=<user|project>` and logs a line when
+it starts, so the winner shows in the tool output and the start log.
+
+| Agent | User layer | Project layer | Result |
+| --- | --- | --- | --- |
+| Claude (`~/.claude.json`, `.mcp.json`) | declared | declared | One tool, `mcp__overlap-echo__echo`; the project server answered and the user server was never started. The name overrides; nothing appears twice. |
+| OpenCode (`~/.config/opencode/opencode.json`, `opencode.json`) | declared | declared | One tool, `overlap-echo.echo`; the project server answered. The name overrides; nothing appears twice. |
+| Vibe (`~/.vibe/config.toml`, `.vibe/config.toml`) | not run | not run | Not tested: the check may not edit or back up Vibe's shared home, which also holds the credentials. |
+
+The work instance is not on this machine (it lives on the work Mac only), so it
+was not tested; the agents it binds are Claude and Codex, and Codex was not
+tested in either instance.
+
+In Claude and OpenCode the project layer overrides the user layer for the same
+name, so a server declared in both is not duplicated, but the user-layer
+declaration is then dead weight and might hide a stale command (a risk, not
+observed); the registry's layering rule is to declare
+each server in exactly one layer per agent.
+
 ## Language servers have two halves
 
 A `*-lsp` plugin declares the LSP wiring; the language server **binary** does
