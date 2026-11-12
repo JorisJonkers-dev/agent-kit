@@ -584,6 +584,15 @@ def _gold_band_skill_sets(path: Path) -> tuple[Any, dict[str, str]]:
     return data["gold_band"].get("skill_sets"), sources
 
 
+def _gold_band_set_names(chosen: Any) -> list[str] | None:
+    """The set names an agent's ``skill_set`` names: one string, or a list of them."""
+    if isinstance(chosen, str):
+        return [chosen]
+    if isinstance(chosen, list) and chosen and all(isinstance(name, str) for name in chosen):
+        return list(dict.fromkeys(chosen))
+    return None
+
+
 def _gold_band_skill_set_problems(
     declared: list[dict[str, Any]], raw_sets: Any, sources: dict[str, str], kit: Path
 ) -> tuple[list[str], dict[str, list[str]]]:
@@ -624,12 +633,20 @@ def _gold_band_skill_set_problems(
         chosen = agent.get("skill_set")
         if chosen is None:
             continue
-        if not isinstance(chosen, str):
-            problems.append(f"{raw_id}: skill_set must be a set name")
+        names = _gold_band_set_names(chosen)
+        if names is None:
+            problems.append(f"{raw_id}: skill_set must be a set name or a list of set names")
             continue
-        if chosen not in sets:
-            problems.append(f"{raw_id}: skill_set {chosen} is not a declared set")
+        unknown = [name for name in names if name not in sets]
+        if unknown:
+            problems.append(f"{raw_id}: skill_set {', '.join(unknown)} is not a declared set")
             continue
+        held: set[str] = set()
+        for name in names:
+            both = held.intersection(sets[name])
+            if both:
+                problems.append(f"{raw_id}: skill sets overlap on {', '.join(sorted(both))}")
+            held.update(sets[name])
         replaced = [key for key in GOLD_BAND_SKILL_SET_REPLACES if key in agent]
         if replaced:
             problems.append(f"{raw_id}: skill_set replaces {', '.join(replaced)}")
@@ -1218,7 +1235,9 @@ def gold_band(args: argparse.Namespace) -> int:
     # One directory per installed id that names a set, holding exactly that
     # set's skills: no id shares another's directory.
     wanted: dict[str, list[str]] = {
-        agent["id"]: sets[agent["skill_set"]]
+        agent["id"]: list(
+            dict.fromkeys(skill for name in _gold_band_set_names(agent["skill_set"]) or [] for skill in sets[name])
+        )
         for agent in launched
         if agent["id"] in installed_ids and agent.get("skill_set") is not None
     }

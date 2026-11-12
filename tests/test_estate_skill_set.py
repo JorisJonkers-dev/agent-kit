@@ -20,6 +20,7 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 import converge  # noqa: E402
 
 REGISTRY = KIT_ROOT / "registry" / "estate-tooling.yaml"
+GENERAL = ["agent-session-bootstrap", "kb-first", "token-economy"]
 ESTATE = ["estate-bootstrap", "estate-delivery-status", "estate-project-intent", "estate-rollback"]
 
 
@@ -51,22 +52,35 @@ def test_the_estate_set_holds_the_four_estate_skills() -> None:
     assert sorted(_registry()["gold_band"]["skill_sets"]["estate"]) == ESTATE
 
 
+def test_each_general_set_holds_its_one_skill_and_both_groups_agree() -> None:
+    sets = _registry()["gold_band"]["skill_sets"]
+    for skill in GENERAL:
+        assert sets[skill] == [skill]
+        source = (KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md").read_bytes()
+        for target in ("claude", "codex"):
+            assert (KIT_ROOT / "skills" / "repo" / skill / target / "SKILL.md").read_bytes() == source
+
+
+def _tree(root: Path) -> dict[str, bytes]:
+    return {str(path.relative_to(root)): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+
+
 def test_every_declared_personal_agent_names_the_estate_set() -> None:
     agents = _registry()["gold_band"]["agents"]
     # Other agents (claude, codex, pi and the rest) keep their own directories.
     named = [agent for agent in agents if "skill_set" in agent]
     assert [agent["id"] for agent in named] == ["opencode", "vibe", "vibe-study"]
-    assert {agent["skill_set"] for agent in named} == {"estate"}
+    assert {tuple(agent["skill_set"]) for agent in named} == {("estate", *GENERAL)}
 
 
-def test_an_id_that_names_the_set_gets_exactly_the_four_skills(
+def test_an_id_that_names_the_sets_gets_exactly_their_skills(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     settings = _converge(tmp_path, monkeypatch)
     for agent_id in ("opencode", "vibe", "vibe-study"):
         directory = settings.parent / "skill-sets" / agent_id
-        assert sorted(child.name for child in directory.iterdir()) == ESTATE
-        for skill in ESTATE:
+        assert sorted(child.name for child in directory.iterdir()) == sorted(ESTATE + GENERAL)
+        for skill in ESTATE + GENERAL:
             assert (directory / skill / "SKILL.md").is_file()
         entry = json.loads(settings.read_text())["agents"][agent_id]
         assert entry["primaryAgentDir"] == str(directory)
@@ -86,3 +100,21 @@ def test_an_id_that_does_not_name_the_set_gets_none(tmp_path: Path, monkeypatch:
     assert entry["primaryAgentDir"] == ".vibe"
     assert entry["compatibleAgentDirs"] == [".agents"]
     assert (settings.parent / "skill-sets" / "opencode").is_dir()
+
+
+def test_ids_that_name_no_set_get_none_and_the_direct_lane_copies_are_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    direct = [KIT_ROOT / "skills" / group / skill for group in ("workstation", "repo") for skill in GENERAL + ESTATE]
+    before = [_tree(path) for path in direct if path.is_dir()]
+    assert before
+    settings = _converge(tmp_path, monkeypatch)
+    assert [_tree(path) for path in direct if path.is_dir()] == before
+    agents = json.loads(settings.read_text())["agents"]
+    assert "claude" not in agents or not (settings.parent / "skill-sets" / "claude").exists()
+    assert sorted(p.name for p in (settings.parent / "skill-sets").iterdir()) == ["opencode", "vibe", "vibe-study"]
+    for agent_id, entry in agents.items():
+        assert ("skill_set" in entry) is False
+        assert (agent_id in {"opencode", "vibe", "vibe-study"}) == (
+            entry["primaryAgentDir"] == str(settings.parent / "skill-sets" / agent_id)
+        )

@@ -211,6 +211,17 @@ The shipped registry declares one set, `estate`: the four estate skills
 instance's declared agents, name it, so each gets those four skills in its own
 directory and an id that does not name it gets none.
 
+Three general sets follow, one skill each: `agent-session-bootstrap`,
+`kb-first` and `token-economy`. An agent's `skill_set` is one set name or a
+list of them (the skills are merged, and two named sets may not hold the same
+skill), so the three personal-instance agents with a skill directory name
+`[estate, agent-session-bootstrap, kb-first, token-economy]`. `claude`, `pi`,
+`agy` and `hermes` keep their own agent directories and resolve to no set.
+The repo group's Claude and Codex renderings of the three skills are
+byte-identical to the workstation sources a set copies, so both groups are
+covered; setup writes only under the instance's `skill-sets/` directory and
+never touches the direct-lane copies.
+
 ## The run-start shim
 
 Every Gold Band workflow opens with a cheap, read-only node that runs one

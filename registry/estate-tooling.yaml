@@ -262,7 +262,7 @@ gold_band:
         displayName: OpenCode
         env: {}
       icon: opencode
-      skill_set: estate
+      skill_set: [estate, agent-session-bootstrap, kb-first, token-economy]
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
@@ -331,7 +331,7 @@ gold_band:
         args: []
         env: {}
       icon: vibe
-      skill_set: estate
+      skill_set: [estate, agent-session-bootstrap, kb-first, token-economy]
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
@@ -346,7 +346,7 @@ gold_band:
         args: [--acp]
         env: {}
       icon: vibe
-      skill_set: estate
+      skill_set: [estate, agent-session-bootstrap, kb-first, token-economy]
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
@@ -423,15 +423,28 @@ gold_band:
   # <agent id>/`, holding exactly that set's skills, and points the entry's
   # primaryAgentDir at it with no compatibleAgentDirs. An agent that names a
   # set may not also declare primaryAgentDir, projectPrimaryAgentDir or
-  # compatibleAgentDirs. See docs/GOLD-BAND.md.
+  # compatibleAgentDirs. `skill_set` is one set name or a list of them (their
+  # skills are merged; two sets may not hold the same skill). See
+  # docs/GOLD-BAND.md.
   skill_sets:
     # The four estate skills: how the estate delivers, rolls back and starts
-    # a repository today. Every personal-instance agent names it.
+    # a repository today. Every personal-instance agent that holds a skill
+    # directory names it.
     estate:
       - estate-bootstrap
       - estate-project-intent
       - estate-delivery-status
       - estate-rollback
+    # The general skills, one set each so an id binds exactly the ones it
+    # needs. The repo group's claude/ and codex/ renderings of each are
+    # byte-identical to the workstation source named here. The direct-lane
+    # copies are never touched: a set directory is a copy.
+    agent-session-bootstrap:
+      - agent-session-bootstrap
+    kb-first:
+      - kb-first
+    token-economy:
+      - token-economy
   # Agent ids setup removes even when the keep file names them.
   retired_agents: []
   # The roles both instances hold, rendered from the critique skill's own role
