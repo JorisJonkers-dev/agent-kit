@@ -501,6 +501,18 @@ the template is expanded, and
 (open) the desktop Code tab. A session without the variable has no github MCP tools; use `gh`
 instead.
 
+Checked live on the Linux workstation (2026-11-12): `GITHUB_PERSONAL_ACCESS_TOKEN`,
+`GITHUB_PAT`, `GH_TOKEN` and `GITHUB_TOKEN` were all unset in the environment
+Claude Code was started from, and the session's MCP status listed
+`plugin:github:github` as failed with exactly the 400 above, so the cause here
+is the missing variable, not an upstream defect and not an agent-kit bug (the
+plugin ships the `Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}` header itself and
+setup cannot rewrite it). The owner step: export the variable from a private,
+uncommitted shell profile (`export GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth
+token)"`, or a fine-grained token with repository read and write), then start a
+new Claude Code session. A token with a trailing newline or a `Bearer ` prefix
+of its own would produce the same 400, so keep the value to the bare token.
+
 ## Package proxy
 
 One step of the run then points every package manager on the machine at the
