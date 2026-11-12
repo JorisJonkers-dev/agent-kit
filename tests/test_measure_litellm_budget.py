@@ -74,6 +74,15 @@ def test_prints_only_the_budget_fields_and_a_redacted_request(proxy, capsys) -> 
         assert secret not in out.out + out.err
 
 
+def test_without_an_edge_token_the_key_is_the_standard_bearer(proxy, capsys, tmp_path) -> None:
+    url, seen = proxy
+    empty = tmp_path / "secret"
+    empty.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(1)\n")
+    shown, _ = measure.measure("vibe", url, {"LITELLM_VIBE_KEY": KEY}, secret=empty)
+    assert seen[0]["authorization"] == f"Bearer {KEY}" and "x-litellm-api-key" not in seen[0]
+    assert KEY not in shown and EDGE not in shown
+
+
 def test_an_unset_budget_prints_null(capsys) -> None:
     for url, _ in stub(200, b'{"info": {"spend": 0}}'):
         assert measure.main(["--url", url], ENV) == 0

@@ -28,14 +28,19 @@ it is the owner's to rescale if the exchange rate matters.
 
 ## What a request carries
 
-The proxy is internal only: its host is `audience: authenticated`, so the edge
-signs a caller in first. A request carries an auth-api service token as
-`Authorization: Bearer` (`LITELLM_EDGE_TOKEN`, pasted once at setup like the
-keys; the owner mints it with `POST /api/v1/auth/service-tokens {"service":"LITELLM","label":"<device>"}`
-once [auth-api#150](https://github.com/JorisJonkers-dev/auth-api/pull/150) (issue auth-api#149) is deployed) and its virtual key in
-`x-litellm-api-key`. Pi, Vibe and OpenCode will be configured from `routes.json`
-with those two values. The Pi and launcher wiring that reads it lands with the
-Gold Band instances (B1); this repository ships the table and the gate.
+The proxy is anonymous at the edge (litellm#17): LiteLLM authenticates every request
+itself, so a request carries its virtual key as a standard `Authorization: Bearer sk-...`, which
+any client can send. Pi, Vibe and OpenCode will be configured from `routes.json` with that one
+header. The Pi and launcher wiring that reads it lands with the Gold Band instances (B1); this
+repository ships the table and the gate.
+
+**Legacy edge token.** While the host still signs callers in (before litellm#17 is deployed), the
+edge wants an auth-api service token as `Authorization: Bearer`, so the key goes in
+`x-litellm-api-key` instead. LiteLLM always accepts that header and prefers it to
+`Authorization`, so it works in both states. The tools use that two-header form only while
+`LITELLM_EDGE_TOKEN` is stored (`litellm-gate --edge-token-env`, `measure_litellm_budget.py`).
+Once the anonymous edge is live, remove `LITELLM_EDGE_TOKEN` from the store and the tools send
+the plain bearer. The auth-api service-token path for LiteLLM is then unused.
 
 ## A budget refusal fails the node
 
@@ -49,19 +54,18 @@ below the cap passes, and exhausted fails.
 
 ```bash
 litellm-gate check --node research-fetch --url https://litellm.jorisjonkers.dev/v1 \
-  --key-env LITELLM_VIBE_KEY --edge-token-env LITELLM_EDGE_TOKEN --model vibe/zai-glm-5-3-flash
+  --key-env LITELLM_VIBE_KEY --model vibe/zai-glm-5-3-flash
 ```
 
 ## Making the keys (owner, once the proxy is deployed)
 
 With the proxy's master key (never stored in this repository):
 
-Put the headers in a curl config on stdin so no token reaches argv:
+Put the header in a curl config on stdin so no key reaches argv:
 
 ```bash
 curl -sS --config - https://litellm.jorisjonkers.dev/key/generate <<CFG
-header = "Authorization: Bearer $EDGE_TOKEN"
-header = "x-litellm-api-key: Bearer $MASTER"
+header = "Authorization: Bearer $MASTER"
 header = "Content-Type: application/json"
 data = "{\"key_alias\":\"vibe\",\"max_budget\":255,\"models\":[\"vibe/*\"]}"
 CFG
