@@ -3739,8 +3739,8 @@ for install in installs:
     if [ "${CLOUD}" = 1 ]; then
       log "kubernetes: not set up in cloud mode"
     else
-      if ! npm ls -g --depth=0 "kubernetes-mcp-server@0.1.1" >/dev/null 2>&1; then
-        run_sh 'npm install -g "kubernetes-mcp-server@0.1.1"' || true
+      if ! npm ls -g --depth=0 "kubernetes-mcp-server@0.1.2" >/dev/null 2>&1; then
+        run_sh 'npm install -g "kubernetes-mcp-server@0.1.2"' || true
       fi
       command -v kubernetes-mcp-server >/dev/null 2>&1 \
         || warn "kubernetes: kubernetes-mcp-server is not on PATH; skipping"
