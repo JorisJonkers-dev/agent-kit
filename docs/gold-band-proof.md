@@ -23,6 +23,8 @@ a temporary directory:
   | `findings` | anything else | the findings document for the verdict |
   | `questions` | a node whose `output.schema` has an `open_questions` key | `{"open_questions": []}`, or one open question under the verdict `open-questions` |
   | `answer` | a node whose `output.schema` is an object without a `findings` key | `{"ok": true}` |
+  | `dynamic:<agent ids>` | an agent id an `ai-dynamic` node's `agentStrategy` names | for an AI-DYNAMIC internal prompt, the node's `dynamic-node-completion`: the bootstrap fans out to one worker per listed agent id and every other internal node ends; any other prompt gets `{"ok": true}` |
+  | `verdict:<n>` | `verdict-<n>` | `{"actionable": 1}` under the verdict `actionable=K` when `n <= K`, else `{"actionable": 0}` |
   | `gate:<name>` | `gate-<name>` | `{"exit_code": N}`, the exit code `gold-band-gate run` earned |
   | `copy:<name>` | `copy-<name>` | the gate report `gold-band-gate verify` printed, or a report-shaped refusal carrying its exit code |
 
@@ -47,6 +49,7 @@ mapping: completed and success is 0, completed otherwise 1, paused 2).
 | `clean` | empty findings, no open questions | from the walk (0, or 2 when a manual check is reached) | always |
 | `needs-human` | one major finding | from the walk (2 when a failure edge leads to a manual check) | a findings node is reached |
 | `open-questions` | one open question | from the walk | a questions node is reached |
+| `actionable-<k>` | the critics' findings are actionable in rounds `1` to `k` | from the walk (0 when a repair clears them, 2 when the escalation's manual check is reached) | a verdict node `verdict-<n>` is reached, one scenario per round |
 | `gate-fail-<name>` | the gate's command fails | from the walk (1 without a failure edge) | the workflow has a `gate-<name>` agent that the segment reaches, one scenario per gate, sorted by name |
 
 The expected exit code comes from walking the workflow graph under the
@@ -55,7 +58,7 @@ copier named by `gate-fail=`, a findings node under `needs-human`, a questions
 node under `open-questions`), the walk follows the edge for the outcome, a
 manual check pauses (2), a missing edge ends the run (0 after success, 1 after
 failure) and `$end` ends it. A scenario is added only when it fails a node, so
-a gate that sits behind a pause is not claimed by the first segment, and a failure of a node that an earlier segment already proved is not run again in a later one.
+a gate that sits behind a pause is not claimed by the first segment, and a failure of the same nodes that an earlier segment already proved is not run again in a later one (the key is every node the walk fails, in order, so `actionable-1` and `actionable-3` are both kept).
 
 ### Segments
 
@@ -118,6 +121,20 @@ variables `GOLD_BAND_BIN_URL_LINUX` / `GOLD_BAND_BIN_URL_MACOS` with the
 matching `..._SHA256_...`), and runs `prove` over every workflow in
 `installer/gold-band/workflows/`. When no binary is supplied for an OS the job
 prints the skip reason and passes without proving anything.
+
+### ai-dynamic nodes
+
+An `ai-dynamic` node needs a planner that proposes its internal nodes, which no
+fixed answer covers. The harness declares every agent id of its `agentStrategy`
+(`provider`, `bootstrapProvider` and each `availableAgents` provider) with the
+`dynamic` role. The stub reads the node it is asked to run from Gold Band's runtime
+context in the prompt; the bootstrap writes the handoff files Gold Band requires
+(`handoff/summary.md` and one task file per worker, the merge and the acceptance
+under the node's attachments directory) and answers a fan-out with one worker per
+listed agent id, and every other internal node ends. An ai-dynamic node never fails
+in the walk. What a fanned-out critic writes, and what the finding check reads, is
+not proved: the gate shim runs `true`, so the proof checks the node's limits,
+sequencing and routing only.
 
 ## Not covered
 

@@ -103,7 +103,7 @@ fn the_spec_stage_template_ends_with_exit_0_and_pauses_with_exit_2() {
 }
 
 #[test]
-fn workflow_b_ends_in_success_on_the_happy_path_and_in_failure_when_a_gate_fails() {
+fn workflow_b_repairs_twice_then_escalates_to_a_manual_check_and_fails_closed_on_a_gate() {
     let Some(gold_band) = gold_band() else { return };
     let records = scratch("workflow-b");
     let output = prove(&workflow_b(), &records, &[], &gold_band);
@@ -118,7 +118,22 @@ fn workflow_b_ends_in_success_on_the_happy_path_and_in_failure_when_a_gate_fails
         stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
         "{stdout}"
     );
-    for gate in ["build", "test", "lint", "coverage"] {
+    // A repair that clears the findings ends the run in success.
+    for round in ["actionable-1", "actionable-2"] {
+        assert!(
+            stdout.contains(&format!(
+                "{round}: expected exit 0, got 0 (completed/success)"
+            )),
+            "{stdout}"
+        );
+    }
+    // The second failed repair reaches the escalation node and pauses (exit 2);
+    // the run never ends on the control limit.
+    assert!(
+        stdout.contains("actionable-3: expected exit 2, got 2 (paused/none)"),
+        "{stdout}"
+    );
+    for gate in ["build", "test", "lint", "coverage", "findings-1"] {
         assert!(
             stdout.contains(&format!(
                 "gate-fail-{gate}: expected exit 1, got 1 (completed/failure)"

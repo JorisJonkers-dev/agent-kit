@@ -11,7 +11,7 @@
 //! failing gate.
 
 use std::cell::RefCell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs;
 use std::io::{BufRead, Write};
@@ -43,6 +43,9 @@ pub const OPEN_QUESTIONS: &str = "open-questions";
 /// The verdict that makes the stub fail the prompt instead of answering it.
 pub const FAIL: &str = "fail";
 
+/// The prefix a verdict node's verdict carries: `actionable=K`.
+pub const ACTIONABLE_PREFIX: &str = "actionable=";
+
 /// The run id every gate and copier the stub runs reports under.
 const RUN_ID: &str = "proof-run";
 
@@ -51,6 +54,39 @@ const ATTEMPT: &str = "1";
 
 /// The seconds a gate command the stub runs may take.
 const TIMEOUT_SECS: &str = "30";
+
+/// The internal node id of an AI-DYNAMIC node that fans its workers out.
+const BOOTSTRAP_NODE: &str = "bootstrap";
+
+/// The label of the internal node id line in an AI-DYNAMIC prompt.
+const NODE_LABEL: &str = "内部节点：";
+
+/// The label of the Dynamic root line in an AI-DYNAMIC prompt.
+const ROOT_LABEL: &str = "Dynamic 根目录：";
+
+/// The label of the internal node's path relative to the Dynamic root.
+const NODE_REL_LABEL: &str = "内部节点（相对 Dynamic 根目录）：";
+
+/// The label of the attempt's path relative to the internal node.
+const ATTEMPT_LABEL: &str = "当前 attempt（相对内部节点）：";
+
+/// The label of the attachments path relative to the current attempt.
+const ATTACHMENTS_LABEL: &str = "attachments（相对当前 attempt）：";
+
+/// The kind of the completion document an AI-DYNAMIC node answers with.
+const COMPLETION_KIND: &str = "dynamic-node-completion";
+
+/// The summary the stub writes into every handoff directory.
+const SUMMARY: &str = "Summary written by the headless proof stub.\n";
+
+/// The task the stub writes for a fanned-out critic.
+const CRITIC_TASK: &str = "Critic task written by the headless proof stub.\n";
+
+/// The task the stub writes for the merge node of a fan-out.
+const MERGE_TASK: &str = "Merge task written by the headless proof stub.\n";
+
+/// The task the stub writes for the acceptance node of a fan-out.
+const ACCEPTANCE_TASK: &str = "Acceptance task written by the headless proof stub.\n";
 
 /// What a stub agent answers a prompt with.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -66,6 +102,14 @@ pub enum Role {
     Gate(String),
     /// A copier shim: run the verify and answer the report it prints.
     Copy(String),
+    /// An agent that serves an ai-dynamic node, listing the agent ids its
+    /// fanned-out workers run as: it plans the fan-out and finishes every
+    /// internal node with a `dynamic-node-completion`, and answers any other
+    /// prompt as [`Role::Answer`] does.
+    Dynamic(Vec<String>),
+    /// The verdict node of critic round N: answer how many findings are
+    /// actionable, `{"actionable": 0}` or `{"actionable": 1}`.
+    Verdict(u32),
 }
 
 impl Role {
@@ -85,6 +129,21 @@ impl Role {
         if let Some(name) = text.strip_prefix("copy:").filter(|name| !name.is_empty()) {
             return Role::Copy(name.to_string());
         }
+        if let Some(list) = text.strip_prefix("dynamic:") {
+            return Role::Dynamic(
+                list.split(',')
+                    .map(str::trim)
+                    .filter(|id| !id.is_empty())
+                    .map(str::to_string)
+                    .collect(),
+            );
+        }
+        if let Some(round) = text
+            .strip_prefix("verdict:")
+            .and_then(|round| round.parse::<u32>().ok())
+        {
+            return Role::Verdict(round);
+        }
         Role::Findings
     }
 
@@ -96,6 +155,8 @@ impl Role {
             Role::Questions => "questions".to_string(),
             Role::Gate(name) => format!("gate:{}", name),
             Role::Copy(name) => format!("copy:{}", name),
+            Role::Dynamic(workers) => format!("dynamic:{}", workers.join(",")),
+            Role::Verdict(round) => format!("verdict:{}", round),
         }
     }
 }
@@ -152,6 +213,21 @@ pub fn questions_document(verdict: &str) -> Value {
 /// The open questions document for a verdict, wrapped in a json code fence.
 pub fn fenced_questions(verdict: &str) -> String {
     fenced(&questions_document(verdict))
+}
+
+/// The verdict document for a round: one actionable finding while the round is
+/// within the count the verdict names, none after it. A verdict that does not
+/// carry a count leaves nothing actionable.
+pub fn verdict_document(round: u32, verdict: &str) -> Value {
+    let count = verdict
+        .trim()
+        .strip_prefix(ACTIONABLE_PREFIX)
+        .and_then(|count| count.parse::<u32>().ok());
+    let actionable = match count {
+        Some(count) if round <= count => 1,
+        _ => 0,
+    };
+    json!({ "actionable": actionable })
 }
 
 /// A JSON value as one fenced json block.
@@ -249,6 +325,9 @@ pub struct Stub {
     next_session: u64,
     role: Role,
     report_dir: String,
+    /// The last completion the dynamic role answered in each session, which it
+    /// repeats when Gold Band sends a repair or reminder prompt in that session.
+    completions: BTreeMap<String, String>,
 }
 
 impl Stub {
@@ -266,6 +345,7 @@ impl Stub {
             next_session: 0,
             role,
             report_dir,
+            completions: BTreeMap::new(),
         }
     }
 
@@ -330,7 +410,16 @@ impl Stub {
         if verdict.trim() == FAIL {
             return vec![error(request, -32000, "stub failure")];
         }
-        let text = self.answer(verdict);
+        let mut text = self.answer(verdict, &prompt_text(params));
+        if matches!(self.role, Role::Dynamic(_)) {
+            // A repair or reminder prompt carries no runtime context: answer it
+            // with the completion the session gave last.
+            if text.contains(COMPLETION_KIND) {
+                self.completions.insert(session_id.clone(), text.clone());
+            } else if let Some(last) = self.completions.get(&session_id) {
+                text = last.clone();
+            }
+        }
         vec![
             notify(
                 "session/update",
@@ -347,13 +436,16 @@ impl Stub {
     }
 
     /// The answer text for a prompt: one fenced json block, chosen by the role.
-    fn answer(&self, verdict: &str) -> String {
+    /// Only the dynamic role reads the prompt text.
+    fn answer(&self, verdict: &str, prompt: &str) -> String {
         match &self.role {
             Role::Findings => fenced_findings(verdict),
             Role::Answer => fenced(&json!({ "ok": true })),
             Role::Questions => fenced_questions(verdict),
             Role::Gate(name) => fenced(&self.gate_answer(verdict, name)),
             Role::Copy(name) => self.copy_answer(verdict, name),
+            Role::Dynamic(workers) => self.dynamic_answer(prompt, workers),
+            Role::Verdict(round) => fenced(&verdict_document(*round, verdict)),
         }
     }
 
@@ -407,6 +499,88 @@ impl Stub {
         let dir = Path::new(&self.report_dir).join(name);
         fs::create_dir_all(&dir).ok()?;
         Some(dir)
+    }
+
+    /// The answer to an AI-DYNAMIC prompt: write the node's handoff files and
+    /// answer the completion the node's kind calls for. A prompt without the
+    /// runtime context block is not an AI-DYNAMIC one, and a handoff that
+    /// cannot be written falls back to the plain answer, so the proof fails
+    /// visibly instead of passing on a missing handoff.
+    fn dynamic_answer(&self, prompt: &str, workers: &[String]) -> String {
+        let field = |label: &str| {
+            prompt.lines().find_map(|line| {
+                // Gold Band lists the context as a markdown bullet list.
+                line.trim()
+                    .trim_start_matches("- ")
+                    .strip_prefix(label)
+                    .map(|value| value.trim().to_string())
+            })
+        };
+        let (Some(node), Some(root), Some(node_rel), Some(attempt), Some(attachments)) = (
+            field(NODE_LABEL),
+            field(ROOT_LABEL),
+            field(NODE_REL_LABEL),
+            field(ATTEMPT_LABEL),
+            field(ATTACHMENTS_LABEL),
+        ) else {
+            return fenced(&json!({ "ok": true }));
+        };
+        let handoff = Path::new(&root)
+            .join(&node_rel)
+            .join(&attempt)
+            .join(&attachments)
+            .join("handoff");
+        let written = (|| -> std::io::Result<()> {
+            fs::create_dir_all(&handoff)?;
+            fs::write(handoff.join("summary.md"), SUMMARY)?;
+            if node != BOOTSTRAP_NODE {
+                return Ok(());
+            }
+            for index in 1..=workers.len() {
+                fs::write(handoff.join(format!("critic-{}.md", index)), CRITIC_TASK)?;
+            }
+            fs::write(handoff.join("merge.md"), MERGE_TASK)?;
+            fs::write(handoff.join("acceptance.md"), ACCEPTANCE_TASK)
+        })();
+        if written.is_err() {
+            return fenced(&json!({ "ok": true }));
+        }
+        if node != BOOTSTRAP_NODE {
+            return fenced(&json!({
+                "version": "0.1",
+                "kind": "dynamic-node-completion",
+                "status": "success",
+                "summaryPath": "handoff/summary.md",
+                "next": { "type": "end" },
+            }));
+        }
+        let nodes: Vec<Value> = workers
+            .iter()
+            .enumerate()
+            .map(|(index, provider)| {
+                json!({
+                    "id": format!("critic-{}", index + 1),
+                    "kind": "worker",
+                    "title": format!("Critic {}", index + 1),
+                    "taskPath": format!("handoff/critic-{}.md", index + 1),
+                    "provider": provider,
+                    "dependsOn": [node],
+                })
+            })
+            .collect();
+        fenced(&json!({
+            "version": "0.1",
+            "kind": "dynamic-node-completion",
+            "status": "success",
+            "summaryPath": "handoff/summary.md",
+            "next": {
+                "type": "fanout",
+                "groupId": "critics",
+                "nodes": nodes,
+                "merge": { "title": "Merge critics", "taskPath": "handoff/merge.md" },
+                "acceptance": { "title": "Accept critics", "taskPath": "handoff/acceptance.md" },
+            },
+        }))
     }
 }
 
@@ -463,6 +637,22 @@ pub fn serve_with_role<R: BufRead, W: Write>(
 /// The string value of `key` in the request's params, when it is a string.
 fn param_str<'a>(params: Option<&'a Value>, key: &str) -> Option<&'a str> {
     params?.get(key)?.as_str()
+}
+
+/// The text of every `params.prompt` entry that carries one, joined with
+/// newlines; empty when the prompt has no text.
+fn prompt_text(params: Option<&Value>) -> String {
+    let Some(entries) = params
+        .and_then(|params| params.get("prompt"))
+        .and_then(Value::as_array)
+    else {
+        return String::new();
+    };
+    let texts: Vec<&str> = entries
+        .iter()
+        .filter_map(|entry| entry.get("text").and_then(Value::as_str))
+        .collect();
+    texts.join("\n")
 }
 
 /// A JSON-RPC result frame for the request's id.

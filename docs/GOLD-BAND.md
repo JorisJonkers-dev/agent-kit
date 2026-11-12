@@ -315,8 +315,9 @@ wrong or invent a quote, so a finding drives a repair only when it can be
 checked. The finding check node is a gate node between the critics and the
 repair nodes: the pinned `gold-band-gate run` wrapper around
 `gold-band-findings check`, followed by the read-only copier
-(`gold-band-gate verify`). The crate is `scripts/crates/gold-band-findings`; wiring the
-node into Workflow B's graph belongs to the critics ticket (#451).
+(`gold-band-gate verify`). The crate is `scripts/crates/gold-band-findings`;
+Workflow B wires the node after every critics round (see "Workflow B's critics,
+repairs and escalation" below).
 
 ```bash
 gold-band-findings check --run-id ID --attempt N --diff FILE --ticket FILE \
@@ -341,6 +342,48 @@ document (not JSON, an unknown key, `findings` not an array, or a missing or emp
 `no_findings_reason` where it is required or given), so it is not
 read as "no findings". Exit `2`: bad usage, an unreadable input or an unwritable report directory. The
 old `findings-check.json` is removed before each run.
+
+## Workflow B's critics, repairs and escalation
+
+`installer/gold-band/workflows/workflow-b.json` (spec #392, stories 78 and 90;
+issue #451) continues the main path (test author, one writer, the build, test,
+lint and coverage gates) with the review and the repairs. Everything below is
+fixed nodes: the file has no cycle and no `$new-round` edge, so its cost is known
+before it runs.
+
+1. **Critics.** `critics-1` is one `ai-dynamic` node with a dynamic strategy.
+   Its candidate workers are Vibe GLM (`vibe`, `glm-5-3`) and Claude (`claude`,
+   `sonnet`), both different families from the writer's (Vibe-study, DeepSeek)
+   and the test author's (Vibe, Mistral). The routing prompt tells the planner to
+   fan out exactly two workers, one per provider, with the `pf-diff-reviewer`
+   profile, and each critic writes its whole answer in the critic finding schema
+   to `findings/<its node id>.json` in its worktree, committed so the merge
+   brings it back. The node's limits are explicit: at most two fanned-out nodes,
+   two in parallel, one group deep, no nested dynamic node and five dynamic nodes
+   in all (the bootstrap, two critics, the merge and the acceptance).
+2. **Finding check.** `gate-findings-N` and `copy-findings-N` are the finding check
+   node above, then `verdict-N`, a read-only worker that reads
+   `findings-check.json` and answers `{"actionable": N}`. Its success condition is
+   `actionable` equal to `0`, so a run with hints only goes on and never repairs.
+   The gate wrapper's arguments (the findings files, the diff and the ticket) are
+   pinned by the live wiring ticket (#455), as for every other gate agent id.
+3. **Repairs.** A verdict that fails goes to `repair-1`, the writer's agent and
+   model, which fixes the kept findings only. The build, tests, lint and coverage
+   gates run again (`gate-build-r1` and so on), then `critics-2`, its finding
+   check and `verdict-2`. A second failure goes to `repair-2`, the same chain and
+   `critics-3`. Two repairs is the cap: there is no `repair-3`.
+4. **Escalation.** When `verdict-3` fails, `workflow-b-escalation` runs, the one
+   node in the personal instance that binds Opus (its id ends in `-escalation`,
+   as the workflow lint requires). It judges the ticket and the last findings,
+   and either outcome of it goes to `escalation-check`, a manual check, so the run
+   pauses (exit 2) for the owner and never ends on a control limit.
+
+A failing gate or copier, in any round, has no failure edge and ends the run in
+failure, as on the main path. `control.max_attempts` stays `1`: Gold Band counts a
+failure-triggered jump per edge (from one node to another), and in a graph with no
+cycle every edge runs at most once, so the cap is never exceeded and the run cannot
+end on the control limit before it reaches the escalation. The CI wait is added by a
+later ticket.
 
 ## The critique stage templates
 
