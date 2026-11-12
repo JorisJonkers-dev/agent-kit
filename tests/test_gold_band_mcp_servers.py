@@ -8,6 +8,7 @@ temporary registry, settings file and keep file.
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -223,7 +224,7 @@ def test_the_personal_instance_gets_every_bound_server_and_the_work_instance_non
     assert docs["command"] == "docs-mcp" and docs["args"] == ["--fast"] and docs["env"] == {"BASE": "https://x"}
     # The token is never written: the server is the proxy, named by the secret's name.
     assert notes["transport"] == "stdio" and notes["command"] == "/bin/sh"
-    assert notes["args"][1].endswith("--url 'https://notes.example/mcp' --secret NOTES_KEY")
+    assert notes["args"][1].endswith("--url https://notes.example/mcp --secret NOTES_KEY")
     assert run.settings.stat().st_mode & 0o777 == 0o600
 
 
@@ -276,6 +277,25 @@ def test_a_server_whose_declaration_changed_is_rewritten(
     assert run.servers()[0]["url"] == "https://wiki.example/mcp"
 
 
+def test_a_server_the_owner_switched_off_stays_off(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    off = {"id": "wiki", "name": "wiki", "enabled": False, "transport": "http", "url": "https://old", "headers": {}}
+    run = Run(tmp_path, monkeypatch, [HTTP], settings={"contextServers": [off]})
+    assert run.go() == 0
+    assert run.servers()[0]["enabled"] is False and run.servers()[0]["url"] == "https://wiki.example/mcp"
+    assert run.go() == 0
+    assert run.servers()[0]["enabled"] is False
+
+
+def test_the_proxy_command_quotes_the_url_and_the_secret_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    odd = {**TOKEN, "url_workstation": "https://n.example/mcp?a=1&b='2'"}
+    run = Run(tmp_path, monkeypatch, [odd], settings={})
+    assert run.go() == 0
+    command = run.servers()[0]["args"][1]
+    assert shlex.split(command)[2:] == ["--url", "https://n.example/mcp?a=1&b='2'", "--secret", "NOTES_KEY"]
+
+
 def test_check_writes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -310,6 +330,9 @@ def test_a_registry_with_no_server_list_is_fine(tmp_path: Path, monkeypatch: pyt
         ([{**STDIO, "command": ""}], "needs a command"),
         ([{**STDIO, "transport": "sse"}], "transport must be http or stdio"),
         ([{**HTTP, "instances": "x"}], "instances must be a list"),
+        ([{**HTTP, "instances": [WORK]}], "takes its servers from the overlay"),
+        ([{**STDIO, "args": "--fast"}], "args must be a list"),
+        ([{**STDIO, "env": ["A"]}], "env must be a mapping"),
     ],
 )
 def test_a_malformed_bound_server_is_refused_before_anything_is_written(
@@ -349,11 +372,18 @@ def test_the_real_registry_gives_the_personal_instance_ten_servers_and_the_work_
     run.registry.write_text(yaml.safe_dump({**real, "gold_band": {"agents": []}}))
     assert run.go() == 0
     assert sorted(s["id"] for s in run.servers()) == sorted(WAVE_6)
-    text = run.settings.read_text()
-    for secret in ("GITHUB_PAT", "HINDSIGHT_API_TOKEN"):
-        # Only ever named, as the proxy's --secret argument.
-        assert f"--secret {secret}" in text or secret not in text
-    assert "Bearer" not in text
+    credentialed = {
+        s["name"]: s["credential"]
+        for s in real["mcp_servers"]
+        if s.get("instances") and s.get("credential") and s["transport"] == "http"
+    }
+    assert set(credentialed) == {"memory-api", "github", "grimoire", "outline"}
+    for server in run.servers():
+        assert server.get("headers", {}) == {} and "Bearer" not in json.dumps(server)
+        if server["id"] in credentialed:
+            # The secret is only ever named, as the proxy's --secret argument.
+            assert server["command"] == "/bin/sh"
+            assert server["args"][1].endswith(f"--secret {credentialed[server['id']]}")
     run.settings.write_text(json.dumps({"contextServers": run.servers()}))
     assert run.go(WORK) == 0
     assert json.loads(run.settings.read_text())["contextServers"] == []

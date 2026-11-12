@@ -57,6 +57,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -694,6 +695,10 @@ def _gold_band_server_problems(server: dict[str, Any]) -> list[str]:
     elif server.get("transport") == "stdio":
         if not isinstance(server.get("command"), str) or not server["command"]:
             return [f"mcp server {name}: a stdio server needs a command"]
+        if not isinstance(server.get("args") or [], list):
+            return [f"mcp server {name}: args must be a list"]
+        if not isinstance(server.get("env") or {}, dict):
+            return [f"mcp server {name}: env must be a mapping"]
     else:
         return [f"mcp server {name}: transport must be http or stdio"]
     return []
@@ -711,7 +716,7 @@ def _gold_band_server_entry(server: dict[str, Any]) -> dict[str, Any]:
         url = server["url_workstation"]
         credential = server.get("credential")
         if credential:
-            command = f'exec "{GOLD_BAND_MCP_PROXY}" --url \'{url}\' --secret {credential}'
+            command = f'exec "{GOLD_BAND_MCP_PROXY}" --url {shlex.quote(url)} --secret {shlex.quote(str(credential))}'
             entry.update(transport="stdio", command="/bin/sh", args=["-c", command], env={})
         else:
             entry.update(transport="http", url=url, headers={})
@@ -748,6 +753,8 @@ def _gold_band_servers(path: Path, instance: str) -> tuple[dict[str, dict[str, A
             problems.append(f"mcp server {server.get('name')}: instances must be a list of instance ids")
             continue
         found = _gold_band_server_problems(server)
+        if GOLD_BAND_WORK_INSTANCE in instances:
+            found.append(f"mcp server {server.get('name')}: the work instance takes its servers from the overlay")
         problems += found
         if found:
             continue
@@ -792,10 +799,11 @@ def _gold_band_merge_servers(
             merged.append(entry)
         elif name in wanted:
             seen.add(name)
-            if all(entry.get(key) == value for key, value in wanted[name].items()):
+            # `enabled` is the owner's switch in the app: written once, never reset.
+            if all(entry.get(key) == value for key, value in wanted[name].items() if key != "enabled"):
                 merged.append(entry)
             else:
-                merged.append(wanted[name])
+                merged.append({**wanted[name], "enabled": entry.get("enabled", True)})
                 lines.append(f"changed server {name}")
         elif entry.get("managed") is True or name in keep:
             merged.append(entry)
