@@ -480,6 +480,43 @@ proved in the `after-publication-check` segment. What the proof does not check:
 that `ticket-publish` creates real issues (its tests fake `gh`), and that a
 real model asks sensible questions.
 
+## Wave 4: the human-gate workflows
+
+`grill-me`, `grill-with-docs`, `brainstorming`, `to-spec`, `to-tickets` and
+`pr-composer` (issue #628) are checked-in templates under
+`installer/gold-band/workflows/`. Gold Band has no per-node loop counter, so each
+file carries its question rounds **unrolled**: one round node and one
+manual-check node per round, up to the round cap its description states. A round
+answers with `open_questions`; an empty list goes on, any other answer pauses on
+that round's check for the owner's answers (in the app or over IM), and the next
+round reads them. After the last round the check hands over regardless.
+
+| Workflow | Round nodes | Cap | After the rounds |
+| --- | --- | --- | --- |
+| `grill-me` | `grill-round-<n>`, `grill-check-<n>` | 5 | `grill-summary` |
+| `grill-with-docs` | `grill-round-<n>`, `grill-check-<n>` | 5 | `docs-update` writes the answers that change a decision into CONTEXT.md and the ADRs |
+| `brainstorming` | `explore-round-<n>`, `explore-check-<n>` | 4 | `design-draft`, the `design-approval` manual check on every run, then `design-record` |
+| `to-spec` | `spec-round-<n>`, `spec-check-<n>` | 3 | `spec-write` |
+| `to-tickets` | `tickets-round-<n>`, `tickets-check-<n>` | 3 | `tickets-write` writes `tickets.json`; nothing is created in a tracker |
+| `pr-composer` | `pr-confirm-<n>`, `pr-apply-<n>` | 3 | the push-and-create gate |
+
+`pr-composer` orients, gathers context, asks for linked issues and threads
+(`pr-links`, with `pr-links-check` as its manual check), drafts the body and runs
+the template check as a gate shim, then renders the preview. Each confirmation
+round pauses on `pr-confirm-<n>` on every run; `pr-apply-<n>` answers with an
+empty `open_questions` only when the owner's answer is an explicit affirmative
+for this preview, and otherwise applies the owner's edits and re-renders for the
+next round. `gate-pr-composer-publish` (the push and the pull request create) has
+no incoming edge except from the `pr-apply-<n>` nodes, each of which follows its
+own confirmation check (a test removes the confirmation nodes and asserts the gate
+is unreachable). After round three without a confirmation the run ends in failure
+with nothing pushed or created. The proof only ever runs the gate shim's stub, so
+no proof pushes, creates or posts anything.
+
+The proof of each is segmented, as for Workflow C: it pauses (exit 2) at a round
+with an open question, at the check after it, and so on, and ends in its expected
+state in the segment after the last check (see [gold-band-proof.md](gold-band-proof.md)).
+
 ## The generated roles
 
 Gold Band reads a role as a **profile**: a Markdown file with YAML front

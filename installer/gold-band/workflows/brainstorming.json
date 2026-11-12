@@ -1,0 +1,362 @@
+{
+  "workflow": {
+    "description": "Brainstorming for the Gold Band instances (issue #628, wave 4): explore the owner's intent, requirements and design before any implementation. A run-start gate refuses the run when the repository rule or the family allowlist forbids a bound agent. Up to four exploration rounds follow, unrolled and capped at four: a round that leaves a question open pauses on its manual check for the owner's answers, then the next round runs; after round four the last check hands over to the design regardless. The design is drafted from the answers only, then pauses on the design approval manual check on every run; it is recorded only after the owner passes it. No shim node has a failure edge, so a failing gate ends the run in failure.",
+    "version": "0.1",
+    "id": "brainstorming",
+    "entry": "gate-brainstorming-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-brainstorming-start",
+        "executionSlotId": "slot-gate-brainstorming-start",
+        "provider": "gate-brainstorming-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for brainstorming, which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds. Answer with one fenced json block holding its exit status and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-brainstorming-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "explore-round-1",
+        "executionSlotId": "slot-explore-round-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the exploration agent for round 1 of brainstorming (explore intent, requirements and design) (at most 4 rounds). Read the requirement and the owner's answers so far in the exploration record, and ask the owner the questions about intent, requirements and design that are still open: one question each, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the exploration record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "explore-round-1-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "explore-check-1",
+        "executionSlotId": "slot-explore-check-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 1 of brainstorming (explore intent, requirements and design) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "explore-round-2",
+        "executionSlotId": "slot-explore-round-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the exploration agent for round 2 of brainstorming (explore intent, requirements and design) (at most 4 rounds). Read the requirement and the owner's answers so far in the exploration record, and ask the owner the questions about intent, requirements and design that are still open: one question each, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the exploration record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "explore-round-2-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "explore-check-2",
+        "executionSlotId": "slot-explore-check-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 2 of brainstorming (explore intent, requirements and design) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "explore-round-3",
+        "executionSlotId": "slot-explore-round-3",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the exploration agent for round 3 of brainstorming (explore intent, requirements and design) (at most 4 rounds). Read the requirement and the owner's answers so far in the exploration record, and ask the owner the questions about intent, requirements and design that are still open: one question each, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the exploration record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "explore-round-3-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "explore-check-3",
+        "executionSlotId": "slot-explore-check-3",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 3 of brainstorming (explore intent, requirements and design) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "explore-round-4",
+        "executionSlotId": "slot-explore-round-4",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the exploration agent for round 4 of brainstorming (explore intent, requirements and design) (at most 4 rounds). Read the requirement and the owner's answers so far in the exploration record, and ask the owner the questions about intent, requirements and design that are still open: one question each, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the exploration record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "explore-round-4-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "explore-check-4",
+        "executionSlotId": "slot-explore-check-4",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 4 of brainstorming (explore intent, requirements and design) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "design-draft",
+        "executionSlotId": "slot-design-draft",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the design author. Draft the design the exploration settled to the design file the exploration record names: only what the owner answered, with the approaches considered and the one chosen. Do not start any implementation. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "design-draft",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "design-approval",
+        "executionSlotId": "slot-design-approval",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "The design is drafted. Read the design file and state it to the owner in one short paragraph per section. Do not write any file and do not start any implementation; the design is recorded only when the owner passes this manual check.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "design-record",
+        "executionSlotId": "slot-design-record",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the design recorder. The owner approved the design: write it as the approved design beside the exploration record and change nothing in it. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "design-record",
+          "schema": {
+            "ok": true
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-brainstorming-start",
+        "to": "explore-round-1",
+        "on": "success"
+      },
+      {
+        "from": "explore-round-1",
+        "to": "design-draft",
+        "on": "success"
+      },
+      {
+        "from": "explore-round-1",
+        "to": "explore-check-1",
+        "on": "failure"
+      },
+      {
+        "from": "explore-check-1",
+        "to": "explore-round-2",
+        "on": "success"
+      },
+      {
+        "from": "explore-round-2",
+        "to": "design-draft",
+        "on": "success"
+      },
+      {
+        "from": "explore-round-2",
+        "to": "explore-check-2",
+        "on": "failure"
+      },
+      {
+        "from": "explore-check-2",
+        "to": "explore-round-3",
+        "on": "success"
+      },
+      {
+        "from": "explore-round-3",
+        "to": "design-draft",
+        "on": "success"
+      },
+      {
+        "from": "explore-round-3",
+        "to": "explore-check-3",
+        "on": "failure"
+      },
+      {
+        "from": "explore-check-3",
+        "to": "explore-round-4",
+        "on": "success"
+      },
+      {
+        "from": "explore-round-4",
+        "to": "design-draft",
+        "on": "success"
+      },
+      {
+        "from": "explore-round-4",
+        "to": "explore-check-4",
+        "on": "failure"
+      },
+      {
+        "from": "explore-check-4",
+        "to": "design-draft",
+        "on": "success"
+      },
+      {
+        "from": "design-draft",
+        "to": "design-approval",
+        "on": "success"
+      },
+      {
+        "from": "design-approval",
+        "to": "design-record",
+        "on": "success"
+      },
+      {
+        "from": "design-record",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-brainstorming-start",
+        "agentId": "gate-brainstorming-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-explore-round-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-explore-check-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-explore-round-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-explore-check-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-explore-round-3",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-explore-check-3",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-explore-round-4",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-explore-check-4",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-design-draft",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      },
+      {
+        "executionSlotId": "slot-design-approval",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-design-record",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      }
+    ]
+  }
+}
