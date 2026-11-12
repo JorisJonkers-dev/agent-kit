@@ -1002,8 +1002,15 @@ them:
   (`codex-work`, `claude-work`), whatever an entry says. A work client never
   sits in a base or deep roster or a fallback list (routing refuses it
   there), Codex is dropped as `no-grant` without a live grant for the
-  `workflow` (or `flow`) the call names, and a client with no launcher on the
-  machine is dropped as `unavailable`. A stage whose roster drops every critic still
+  `workflow` (or `flow`) the call names (under the gateway client routing
+  names for it), and a client that cannot run on the machine is dropped as
+  `unavailable`: Codex through `codex exec` in its read-only sandbox, the work
+  Claude agent through `claude -p` in plan mode with the read tools, always in
+  the work profile directory `~/.claude`; each is ready when its CLI is on
+  `PATH` and its own status command (`codex login status`, `claude auth
+  status`) says it is signed in. A refute round on a `nedap` repository picks
+  from the work slots alone, never a family that raised the finding or the
+  orchestrator's, and asks Codex's grant again. A stage whose roster drops every critic still
   prepares a run with no critics; fan-out then launches nothing and marks
   the run degraded, as it does when every critic fails, and record's
   summary and report open with `degraded: no critique ran`. #173 adds

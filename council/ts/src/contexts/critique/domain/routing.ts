@@ -516,12 +516,25 @@ function familyReason(family: CriticFamily, request: RosterRequest): DroppedCrit
  * Whether Codex may run for a `nedap` repository now: a live model-gateway
  * grant covers the run's workflow, or `detail` says what is missing.
  */
-export type WorkGrant = { readonly live: true } | { readonly live: false; readonly detail: string }
+export type WorkGrant = { readonly live: true; readonly workflow: string } | { readonly live: false; readonly detail: string }
 
 export interface WorkRosterRequest {
   readonly stage: CritiqueStage
   readonly orchestratorFamily: OrchestratorFamily
   readonly grant: WorkGrant
+}
+
+/**
+ * The gateway client a stage's Codex work slot is granted under: the one its
+ * routing names, else its kind. A grant is written per gateway client, so the
+ * check follows routing rather than a fixed name.
+ */
+export function workGrantClient(routing: Routing, stage: CritiqueStage): string {
+  for (const slot of stageRouting(routing, { stage }).work) {
+    const client = routing.clients[slot.client]
+    if (client?.kind === 'codex') return client.gateway?.client ?? client.kind
+  }
+  return 'codex'
 }
 
 /** Codex needs the grant; the work Claude agent runs on the work account and needs none. */

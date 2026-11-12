@@ -5,6 +5,8 @@ import { GhCliAdapter } from '../adapters/gh/index.js'
 import { NodeProcessAdapter } from '../adapters/process/index.js'
 import {
   AgyCriticClient,
+  WorkClaudeCriticClient,
+  WorkCodexCriticClient,
   createCritiqueCommands,
   CritiqueError,
   GatewayGrants,
@@ -176,6 +178,9 @@ export function defaultCritiqueRuntime(
       assetsRoot,
       clients: {
         agy: new AgyCriticClient(processPort, files, env, platform),
+        // Only a nedap repository's work roster names these two.
+        claude: new WorkClaudeCriticClient(processPort, files, env),
+        codex: new WorkCodexCriticClient(processPort, files, env),
         vibe: new VibeCriticClient(processPort, files, env, platform),
       },
       clock,
