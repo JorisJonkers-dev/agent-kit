@@ -94,6 +94,7 @@ asks only for what is missing or refused by its host. Optional credentials
 | `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
 | `OUTLINE_API_KEY` | the `outline` MCP server (Outline at notes.jorisjonkers.dev) | required for `outline`; without it the server is not registered |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
+| `OPENROUTER_API_KEY` | this host's own OpenRouter key (Hermes reads it) | optional; one key per host, never shared |
 
 `HINDSIGHT_API_TOKEN` and `MEMORY_PRIVATE_TOKEN` are **per-host, individually
 revocable** service tokens, not shared secrets — mint one per device with
@@ -392,6 +393,45 @@ Vibe saves to Private Memory only what is worth keeping, by tool:
 plans, decisions and their reasons, and anything you ask it to remember, and
 never to copy personal notes into `memory-api`, which Hermes and every other
 agent read. Nothing is saved every turn.
+
+### Revoking a host token, and the per-host OpenRouter key (#508)
+
+**Revoke demonstration.** Setup records each minted token's id in
+`~/.config/agent-kit/token-ids.json` (ids only, never tokens). Revoke one host's
+token and watch its host refuse it; nothing prints a token:
+
+```bash
+cd ~/Projects/JorisJonkers-dev/agent-kit
+python3 scripts/agent-kit-keys.py --table registry/generated/workstation-secrets.json status          # HINDSIGHT_API_TOKEN ok
+python3 scripts/agent-kit-keys.py --table registry/generated/workstation-secrets.json revoke HINDSIGHT_API_TOKEN   # asks password and TOTP
+python3 scripts/agent-kit-keys.py --table registry/generated/workstation-secrets.json status          # HINDSIGHT_API_TOKEN invalid
+```
+
+`status` asks the token's own host (`hindsight-api.jorisjonkers.dev`) with the stored
+token, so `invalid` is that host refusing it. Other hosts' tokens keep working. Running
+setup afterwards sees the refused value and mints a fresh one (`ensure`).
+
+**OpenRouter key per host.** Each host keeps its own `OPENROUTER_API_KEY` in its own
+secret store (Keychain or Secret Service), so no key is shared and a lost machine's key
+is revoked alone on openrouter.ai. Make a key on openrouter.ai/settings/keys named for the
+host, then run setup in a terminal and paste it when asked (it is checked against
+OpenRouter's key endpoint before it is stored). To store one without a full setup run:
+
+```bash
+read -rs -p "OpenRouter key for $(hostname): " k; echo; printf %s "$k" | agent-kit-secret put OPENROUTER_API_KEY; unset k
+agent-kit-secret has OPENROUTER_API_KEY && echo stored
+```
+
+**Overleaf CLI login decision.** The options for how `olcli` logs in to
+`overleaf.jorisjonkers.dev`: (1) `olcli auth` with the `overleaf.sid` session cookie,
+which olcli keeps in its own config and later commands reuse until it expires; (2)
+`OVERLEAF_SESSION` in the secret store, exported by `env.sh` as an override; (3) email
+and password with `--save-password`, which keeps the password in plaintext and re-logs in
+on expiry. Decision (recommended, the owner confirms in #508): option 1, per host, with
+no saved password. The cookie is short-lived and revocable by signing out, an exported
+`OVERLEAF_SESSION` would put it in every child process's environment, and a plaintext
+password is the worst of the three. When the cookie expires, run `olcli auth` again.
+On this machine olcli holds no login yet.
 
 ### Per-host service tokens (memory-api / memory-private)
 

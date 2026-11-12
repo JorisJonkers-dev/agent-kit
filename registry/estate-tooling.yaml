@@ -133,6 +133,15 @@ workstation_secrets:
     paste: "the LiteLLM virtual key for the local agent id (the GPU workstation's model server), made on the proxy with no max budget"
     unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
     export: false
+  # This host's own OpenRouter key: one key per machine, made on openrouter.ai
+  # and named for the host, so a lost machine's key is revoked alone. It lives
+  # only in this machine's secret store; nothing shares it between hosts. Hermes
+  # reads it as OPENROUTER_API_KEY. The check is OpenRouter's own key endpoint.
+  - env: OPENROUTER_API_KEY
+    paste: "this host's own OpenRouter key: openrouter.ai/settings/keys, a new key named for this host"
+    check: "https://openrouter.ai/api/v1/key"
+    check_method: GET
+    export: true
   # An API key made while signed in as a separate Outline user, not the
   # owner's own account: the key reads and writes exactly what that user can,
   # so the agent sees only the collections and documents shared with it.
