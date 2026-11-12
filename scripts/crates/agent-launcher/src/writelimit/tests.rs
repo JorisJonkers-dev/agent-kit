@@ -446,7 +446,7 @@ fn git_commits_in_a_worktree_but_cannot_install_hooks_or_change_config() {
                 "a-write".into(),
             ],
             host,
-            &Landlock,
+            &*native(),
             &c,
         )
     };
