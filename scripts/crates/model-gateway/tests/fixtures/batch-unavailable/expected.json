@@ -1,0 +1,17 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"batch_id\": \"batch-20261103T120000Z-@RAND1@\",\n  \"cost_usd\": 0,\n  \"delegations\": [\n    {\n      \"attempts\": [],\n      \"client\": \"claude\",\n      \"cost_usd\": 0,\n      \"id\": \"gone\",\n      \"model\": \"claude-haiku-5-5\",\n      \"output_path\": null,\n      \"reason\": \"unavailable\",\n      \"status\": \"failed\",\n      \"summary\": \"claude:claude-haiku-5-5 cannot start, and no other permitted subsidised client model covers its tier; the gateway never moves into a costlier cost class by itself; the family anthropic is binding, so no other family answers\"\n    },\n    {\n      \"client\": \"claude\",\n      \"cost_usd\": 0,\n      \"id\": \"after\",\n      \"model\": \"claude-haiku-5-5\",\n      \"output_path\": null,\n      \"skipped_because\": \"gone\",\n      \"status\": \"skipped\",\n      \"summary\": \"\"\n    }\n  ],\n  \"reservations_released_usd\": 0,\n  \"status\": \"failed\",\n  \"workflow\": \"w\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "tmp/": null,
+        "work/": null
+      }
+    }
+  ]
+}

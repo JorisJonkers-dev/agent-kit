@@ -11,7 +11,7 @@ use crate::launchers::{launcher, LaunchExtras, LaunchPaths, LaunchRequest, DELEG
 use crate::ports::{FileStamp, Files, FsError, Process, ProcessCommand, ProcessResult};
 use crate::run::{RunClient, RunMode, NO_TOKENS};
 use crate::vibe_sign_in::{keyring_query, node_platform, node_platform_of, vibe_signed_in};
-use std::cell::RefCell;
+use std::sync::Mutex;
 use std::collections::{BTreeMap, HashMap};
 
 const HOME: &str = "/home/test";
@@ -110,18 +110,18 @@ impl Files for Memory {
 /// A process that records every launch and answers them from a queue, or by the program's name.
 #[derive(Default)]
 struct Fake {
-    ran: RefCell<Vec<ProcessCommand>>,
-    queue: RefCell<Vec<Result<ProcessResult, String>>>,
+    ran: Mutex<Vec<ProcessCommand>>,
+    queue: Mutex<Vec<Result<ProcessResult, String>>>,
     by_program: HashMap<String, Result<ProcessResult, String>>,
 }
 
 impl Fake {
     fn answering(stdout: &str) -> Fake {
-        Fake { queue: RefCell::new(vec![Ok(finished(stdout, 0))]), ..Fake::default() }
+        Fake { queue: Mutex::new(vec![Ok(finished(stdout, 0))]), ..Fake::default() }
     }
 
     fn failing(error: &str) -> Fake {
-        Fake { queue: RefCell::new(vec![Err(error.to_string())]), ..Fake::default() }
+        Fake { queue: Mutex::new(vec![Err(error.to_string())]), ..Fake::default() }
     }
 
     fn program(mut self, program: &str, answer: Result<ProcessResult, String>) -> Fake {
@@ -130,11 +130,11 @@ impl Fake {
     }
 
     fn first(&self) -> ProcessCommand {
-        self.ran.borrow()[0].clone()
+        self.ran.lock().expect("the launches")[0].clone()
     }
 
     fn count(&self) -> usize {
-        self.ran.borrow().len()
+        self.ran.lock().expect("the launches").len()
     }
 }
 
@@ -148,11 +148,11 @@ impl Process for Fake {
     }
 
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
-        self.ran.borrow_mut().push(command.clone());
+        self.ran.lock().expect("the launches").push(command.clone());
         if let Some(answer) = self.by_program.get(&command.command) {
             return answer.clone();
         }
-        self.queue.borrow_mut().remove(0)
+        self.queue.lock().expect("the answers").remove(0)
     }
 }
 
@@ -566,7 +566,7 @@ fn reports_a_program_that_will_not_start_and_the_result_of_one_that_exits_badly(
     let error = launch(&Memory::default(), &Fake::failing("spawn vibe ENOENT"), &vibe(RunExtras::default())).expect_err("a spawn failure");
     assert_eq!(error, ClientRunError::Spawn("spawn vibe ENOENT".to_string()));
 
-    let bad = Fake { queue: RefCell::new(vec![Ok(finished("", 3))]), ..Fake::default() };
+    let bad = Fake { queue: Mutex::new(vec![Ok(finished("", 3))]), ..Fake::default() };
     let outcome = launch(&Memory::default(), &bad, &vibe(RunExtras::default())).expect("the launch");
     assert_eq!(outcome.result.exit_code, 3);
 }
@@ -737,7 +737,7 @@ fn signed_in(platform: &str, keyring: Option<(&str, Result<ProcessResult, String
     }
     let files = dotenv.map_or_else(Memory::default, |text| Memory::default().with("/h/.vibe/.env", text));
     let answer = vibe_signed_in(&process, &files, "/h/.vibe", platform).expect("the check");
-    let ran = process.ran.borrow().clone();
+    let ran = process.ran.lock().expect("the launches").clone();
     (answer, ran)
 }
 

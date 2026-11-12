@@ -171,6 +171,8 @@ fn run_record(object: &Object) -> LedgerRecord {
         run_id: string_member(object, "run_id").unwrap_or_default(),
         tokens: tokens_member(object),
         workflow: string_member(object, "workflow").unwrap_or_default(),
+        batch_id: string_member(object, "batch_id"),
+        delegation: string_member(object, "delegation"),
     }
 }
 

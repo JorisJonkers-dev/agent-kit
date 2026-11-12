@@ -12,8 +12,9 @@ use crate::lock::FileLock;
 use crate::ports::{Clock, Files, FsError, LockTimings, Runtime};
 use crate::text::{basename, dirname, join, normalize, resolve};
 use crate::timestamps::{parse as parse_time, to_iso};
-use std::cell::Cell;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
+use std::sync::Mutex;
 
 /// A runtime over a fresh sandbox, with the state home inside it.
 fn sandbox_runtime(sandbox: &Sandbox, now: i64) -> Runtime {
@@ -336,19 +337,6 @@ fn the_command_line_runs_against_the_real_system() {
 }
 
 #[test]
-fn batch_answers_not_ported() {
-    let runtime = crate::default_runtime();
-    let cases: [(&str, &[&str]); 1] = [("batch", &["batch", "--json", "{}"])];
-    for (name, words) in cases {
-        let result = run_cli(&argv(words), &runtime);
-        let message = format!("{name} is not ported to the Rust gateway yet; use the node runner");
-        assert_eq!(result.exit_code, 1, "{name}");
-        assert_eq!(result.stdout, format!("{{\"status\":\"error\",\"code\":\"not-ported\",\"message\":\"{message}\"}}\n"), "{name}");
-        assert_eq!(result.stderr, format!("model-gateway {name}: {message}\n"), "{name}");
-    }
-}
-
-#[test]
 fn a_workflow_name_must_start_with_a_letter_or_digit() {
     let sandbox = Sandbox::new();
     let runtime = sandbox_runtime(&sandbox, FIXED_NOW);
@@ -361,15 +349,23 @@ fn a_workflow_name_must_start_with_a_letter_or_digit() {
 
 /// The lock file held in memory, so a stale one and a contended one can be made on demand.
 struct LockFiles {
-    present: Cell<bool>,
-    modified: Cell<Option<i64>>,
-    removed: Cell<usize>,
+    present: AtomicBool,
+    modified: Mutex<Option<i64>>,
+    removed: AtomicUsize,
     create_error: Option<FsError>,
 }
 
 impl LockFiles {
     fn new(present: bool, modified: Option<i64>) -> LockFiles {
-        LockFiles { present: Cell::new(present), modified: Cell::new(modified), removed: Cell::new(0), create_error: None }
+        LockFiles { present: AtomicBool::new(present), modified: Mutex::new(modified), removed: AtomicUsize::new(0), create_error: None }
+    }
+
+    fn present(&self) -> bool {
+        self.present.load(Ordering::SeqCst)
+    }
+
+    fn removed(&self) -> usize {
+        self.removed.load(Ordering::SeqCst)
     }
 }
 
@@ -402,21 +398,20 @@ impl Files for LockFiles {
         if let Some(error) = &self.create_error {
             return Err(error.clone());
         }
-        if self.present.get() {
+        if self.present.swap(true, Ordering::SeqCst) {
             return Ok(false);
         }
-        self.present.set(true);
         Ok(true)
     }
 
     fn remove_file(&self, _path: &str) -> Result<(), FsError> {
-        self.removed.set(self.removed.get() + 1);
-        self.present.set(false);
+        self.removed.fetch_add(1, Ordering::SeqCst);
+        self.present.store(false, Ordering::SeqCst);
         Ok(())
     }
 
     fn modified_ms(&self, _path: &str) -> Option<i64> {
-        self.modified.get()
+        *self.modified.lock().expect("the modification time")
     }
 
     fn exists(&self, _path: &str) -> Result<bool, FsError> {
@@ -438,7 +433,7 @@ impl Files for LockFiles {
 
 /// A clock that moves on at every reading, so a wait that never ends runs out at once.
 struct TickingClock {
-    now: Cell<i64>,
+    now: AtomicI64,
     step: i64,
 }
 
@@ -448,9 +443,7 @@ impl Clock for TickingClock {
     }
 
     fn now_ms(&self) -> i64 {
-        let value = self.now.get();
-        self.now.set(value + self.step);
-        value
+        self.now.fetch_add(self.step, Ordering::SeqCst)
     }
 }
 
@@ -463,20 +456,20 @@ fn a_lock_left_by_a_dead_writer_is_broken() {
     let lock = FileLock::new("workflows", LockTimings { retry_ms: 0, stale_ms: 5_000, timeout_ms: 10_000 });
     assert_eq!(lock.run(LOCK, &files, &clock, || Ok("done")), Ok("done"));
     // Once to break the stale lock, once to release the one it took.
-    assert_eq!(files.removed.get(), 2);
-    assert!(!files.present.get());
+    assert_eq!(files.removed(), 2);
+    assert!(!files.present());
 }
 
 #[test]
 fn a_lock_that_never_frees_is_given_up_on() {
     let files = LockFiles::new(true, None);
     // A millisecond a reading, so the wait sleeps a few times before it gives up.
-    let clock = TickingClock { now: Cell::new(0), step: 1 };
+    let clock = TickingClock { now: AtomicI64::new(0), step: 1 };
     let lock = FileLock::new("workflows", LockTimings { retry_ms: 0, stale_ms: 5_000, timeout_ms: 10 });
     let error = lock.run(LOCK, &files, &clock, || Ok("never")).expect_err("the lock never came free");
     assert_eq!(error.code, "unexpected");
     assert_eq!(error.message, format!("{LOCK}: another gateway process held the workflows lock for 10 ms"));
-    assert_eq!(files.removed.get(), 0);
+    assert_eq!(files.removed(), 0);
 }
 
 #[test]
@@ -486,8 +479,8 @@ fn the_lock_is_released_when_the_action_fails() {
     let lock = FileLock::new("workflows", LockTimings::default());
     let error = lock.run(LOCK, &files, &clock, || Err::<&str, GatewayError>(GatewayError::new("invalid-config", "the file is not JSON"))).expect_err("the action failed");
     assert_eq!(error, GatewayError::new("invalid-config", "the file is not JSON"));
-    assert_eq!(files.removed.get(), 1);
-    assert!(!files.present.get());
+    assert_eq!(files.removed(), 1);
+    assert!(!files.present());
 }
 
 #[test]

@@ -1,6 +1,6 @@
 //! The commands the Rust gateway carries: `models`, `usage`, `grant write`,
-//! `grant reserve`, `grant list`, `worktrees clean` and the three workflow
-//! commands, and `run`, read-only and writing. `batch` answers `not-ported`.
+//! `grant reserve`, `grant list`, `worktrees clean`, the three workflow
+//! commands, `run`, read-only and writing, and `batch`.
 
 use crate::availability;
 use crate::caps;
@@ -40,7 +40,7 @@ pub enum Command {
 }
 
 /// Runs one subcommand over its parsed input.
-pub fn run(command: Command, name: &str, input: &Object, runtime: &Runtime) -> Result<Value, GatewayError> {
+pub fn run(command: Command, _name: &str, input: &Object, runtime: &Runtime) -> Result<Value, GatewayError> {
     match command {
         Command::Models => models_command(input, runtime),
         Command::Usage => usage_command(input, runtime),
@@ -49,10 +49,13 @@ pub fn run(command: Command, name: &str, input: &Object, runtime: &Runtime) -> R
         Command::GrantReserve => crate::reserve::reserve(input, runtime),
         Command::WorktreesClean => crate::worktrees::clean(input, runtime),
         Command::Run => crate::run_command::RunCommand { runtime }.run(&Value::Obj(input.clone())),
+        Command::Batch => {
+            let runs = crate::run_command::RunCommand { runtime };
+            crate::batch_command::BatchCommand { runtime, runs: &runs }.run(&Value::Obj(input.clone()))
+        }
         Command::WorkflowStart => workflow_start(input, runtime),
         Command::WorkflowEnd => workflow_end(input, runtime),
         Command::WorkflowList => workflow_list(runtime),
-        _ => Err(GatewayError::new("not-ported", format!("{name} is not ported to the Rust gateway yet; use the node runner"))),
     }
 }
 

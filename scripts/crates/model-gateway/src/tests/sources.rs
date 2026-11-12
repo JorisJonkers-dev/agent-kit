@@ -10,10 +10,9 @@ use crate::ports::{FileStamp, Files, FsError, Git, GitRemote, LockTimings, Proce
 use crate::sources::list_client;
 use crate::status::{read_status, STATUS_TIMEOUT_MS};
 use crate::usage::{ClientStatusReading, SignedIn};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 /// 2026-11-03T12:00:00Z, the instant every test reads the clock at.
 const NOW: i64 = 1_793_707_200_000;
@@ -39,15 +38,15 @@ const VIBE_ALIASES: [&str; 4] = ["glm-5-3", "mistral-large-4-0-3", "mistral-medi
 
 /// The files a fake file system holds, shared with the test so it can read what a call wrote.
 #[derive(Clone, Default)]
-struct Memory(Rc<RefCell<HashMap<String, String>>>);
+struct Memory(Arc<Mutex<HashMap<String, String>>>);
 
 impl Memory {
     fn get(&self, path: &str) -> Option<String> {
-        self.0.borrow().get(path).cloned()
+        self.0.lock().expect("the files").get(path).cloned()
     }
 
     fn put(&self, path: &str, content: &str) {
-        self.0.borrow_mut().insert(path.to_string(), content.to_string());
+        self.0.lock().expect("the files").insert(path.to_string(), content.to_string());
     }
 }
 
@@ -181,8 +180,8 @@ impl Files for FakeFiles {
 struct FakeProcess {
     resolved: HashMap<String, String>,
     answers: HashMap<String, Result<ProcessResult, String>>,
-    ran: Rc<RefCell<Vec<String>>>,
-    timeouts: Rc<RefCell<Vec<Option<u64>>>>,
+    ran: Arc<Mutex<Vec<String>>>,
+    timeouts: Arc<Mutex<Vec<Option<u64>>>>,
 }
 
 impl FakeProcess {
@@ -190,8 +189,8 @@ impl FakeProcess {
         FakeProcess {
             resolved: HashMap::new(),
             answers: HashMap::new(),
-            ran: Rc::new(RefCell::new(Vec::new())),
-            timeouts: Rc::new(RefCell::new(Vec::new())),
+            ran: Arc::new(Mutex::new(Vec::new())),
+            timeouts: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -213,8 +212,8 @@ impl Process for FakeProcess {
 
     fn exec(&self, command: &str, args: &[&str], timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
         let key = std::iter::once(command).chain(args.iter().copied()).collect::<Vec<_>>().join(" ");
-        self.ran.borrow_mut().push(key.clone());
-        self.timeouts.borrow_mut().push(timeout_ms);
+        self.ran.lock().expect("the launches").push(key.clone());
+        self.timeouts.lock().expect("the time limits").push(timeout_ms);
         match self.answers.get(&key) {
             Some(answer) => answer.clone(),
             None => Err(format!("cannot run {command}")),
@@ -480,13 +479,13 @@ fn vibe_lists_the_aliases_its_refusal_names_and_keeps_the_answer_for_the_calls_t
     let runtime = runtime(process, files, env());
 
     assert_eq!(list_client(&runtime, "vibe"), Some(probe_listing()));
-    assert_eq!(*ran.borrow(), vec![PROBE.to_string()]);
-    assert_eq!(*timeouts.borrow(), vec![Some(30_000)]);
+    assert_eq!(*ran.lock().expect("the launches"), vec![PROBE.to_string()]);
+    assert_eq!(*timeouts.lock().expect("the time limits"), vec![Some(30_000)]);
     assert_eq!(memory.get(CACHE), Some(fresh_entry()));
 
     // The answer is kept, so the call that follows reads it instead of starting Vibe again.
     assert_eq!(list_client(&runtime, "vibe"), Some(probe_listing()));
-    assert_eq!(ran.borrow().len(), 1);
+    assert_eq!(ran.lock().expect("the launches").len(), 1);
 }
 
 #[test]
@@ -614,7 +613,7 @@ fn vibe_offers_no_model_and_runs_no_probe_when_the_configuration_declares_the_pr
             "listing failed: {CONFIG} declares the gateway's probe id 'model-gateway-probe' as a model, so the probe could run it instead of being refused: rename or remove the alias"
         )))
     );
-    assert!(ran.borrow().is_empty());
+    assert!(ran.lock().expect("the launches").is_empty());
 }
 
 #[test]
@@ -665,7 +664,7 @@ fn an_answer_this_vibe_gave_inside_its_window_is_read_without_probing() {
     let runtime = runtime(process, files, env());
 
     assert_eq!(list_client(&runtime, "vibe"), Some(ClientListing::Models(vec![model("glm-5-3")])));
-    assert!(ran.borrow().is_empty());
+    assert!(ran.lock().expect("the launches").is_empty());
 }
 
 #[test]
@@ -696,7 +695,7 @@ fn an_answer_is_read_only_for_the_vibe_and_the_configuration_that_gave_it() {
         list_client(&runtime, "vibe"),
         Some(ClientListing::Models(vec![model("glm-5-3"), named("mistral-large-4-0-3", &["mistral-large-latest"])]))
     );
-    assert!(ran.borrow().is_empty());
+    assert!(ran.lock().expect("the launches").is_empty());
 
     // The same answer, keyed by no Vibe and no configuration, is not this Vibe's.
     memory.put(CACHE, &entry(&[]));
@@ -709,7 +708,7 @@ fn an_answer_is_read_only_for_the_vibe_and_the_configuration_that_gave_it() {
             model("zai-glm-5-3-flash"),
         ]))
     );
-    assert_eq!(ran.borrow().len(), 1);
+    assert_eq!(ran.lock().expect("the launches").len(), 1);
 }
 
 #[test]
@@ -743,7 +742,7 @@ fn an_answer_that_is_not_this_vibes_this_configurations_or_inside_its_window_is_
     for (index, bad) in not_the_answer.iter().enumerate() {
         memory.put(CACHE, bad);
         assert_eq!(list_client(&runtime, "vibe"), Some(probe_listing()), "{bad}");
-        assert_eq!(ran.borrow().len(), index + 1, "{bad}");
+        assert_eq!(ran.lock().expect("the launches").len(), index + 1, "{bad}");
     }
     assert_eq!(memory.get(CACHE), Some(fresh_entry()));
 }
@@ -761,13 +760,13 @@ fn an_answer_file_that_is_not_json_or_cannot_be_read_is_no_answer() {
     let process = FakeProcess::new().answering(PROBE, probe(VIBE_PROBE));
     let ran = process.ran.clone();
     assert_eq!(list_client(&runtime(process, unreadable, env()), "vibe"), Some(probe_listing()));
-    assert_eq!(ran.borrow().len(), 1);
+    assert_eq!(ran.lock().expect("the launches").len(), 1);
 
     let denied = FakeFiles::new().denying(CACHE);
     let process = FakeProcess::new().answering(PROBE, probe(VIBE_PROBE));
     let ran = process.ran.clone();
     assert_eq!(list_client(&runtime(process, denied, env()), "vibe"), Some(probe_listing()));
-    assert_eq!(ran.borrow().len(), 1);
+    assert_eq!(ran.lock().expect("the launches").len(), 1);
 }
 
 #[test]
@@ -784,7 +783,7 @@ fn a_status_command_is_given_the_time_limit_it_is_handed() {
             detail: "Logged in using ChatGPT".to_string(),
         })
     );
-    assert_eq!(*timeouts.borrow(), vec![Some(50)]);
+    assert_eq!(*timeouts.lock().expect("the time limits"), vec![Some(50)]);
 }
 
 #[test]

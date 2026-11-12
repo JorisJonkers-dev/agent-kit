@@ -465,9 +465,14 @@ run directory, `result.json` and the ledger line. A writing run is ported too: i
 repository's common directory on a branch of its own, entered in the kept list, the other checkouts of the
 repository watched and held to the state the delegate found them in, the Codex git-writable directories and
 the repository's brief, the staging and listing of the delegate's work, and the caller's check run with
-`sh -c` in the worktree, held to the run's time limit and to what its grant leaves. Not ported yet: `batch`,
-which fails with `not-ported` (exit 1) at once, and the binary swap. The engine guard and slots are not part
-of `run` and are not ported.
+`sh -c` in the worktree, held to the run's time limit and to what its grant leaves. `batch` is ported too: the
+plan read and checked as a whole (its dependencies, every delegation's client model, data policy, workflow and
+grant, and the sum of the metered estimates reserved together in one locked ledger update), a refused plan
+reported with every problem and holding nothing, each delegation run through the same single-delegation path,
+independent delegations in parallel at most `max_parallel_per_client` per client (a `std::thread::scope` whose workers report over a channel, with a
+mutex-and-condvar slot table, and a slot of the client each attempt really runs on), a delegation that fails for
+good skipping only what depends on it, and the reservations of delegations that never ran given back with reason
+`not-run`. Not ported yet: the binary swap. The engine guard is not part of `run` or `batch` and is not ported.
 
 Known differences from the node runner: a zone-less date-time in a state file
 reads as UTC, not local time (the goldens run with `TZ=UTC`); `Date.parse`'s

@@ -13,9 +13,8 @@ use crate::locations::{grants_path, ledger_path, override_path};
 use crate::ports::{Git, GitRemote, LockTimings, Process, ProcessResult, Runtime};
 use crate::state_file::workflows_path;
 use crate::timestamps;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 /// 2026-11-04T10:00:00.000Z.
 pub fn now_ms() -> i64 {
@@ -25,27 +24,27 @@ pub fn now_ms() -> i64 {
 /// The programs a machine has installed and what their commands answer.
 #[derive(Clone, Default)]
 pub struct FakeProcess {
-    installed: Rc<RefCell<Vec<String>>>,
-    answers: Rc<RefCell<HashMap<String, Result<ProcessResult, String>>>>,
+    installed: Arc<Mutex<Vec<String>>>,
+    answers: Arc<Mutex<HashMap<String, Result<ProcessResult, String>>>>,
 }
 
 impl FakeProcess {
     pub fn install(&self, binary: &str) {
-        self.installed.borrow_mut().push(binary.to_string());
+        self.installed.lock().expect("the installed list").push(binary.to_string());
     }
 
     pub fn answer(&self, command: &str, result: Result<ProcessResult, String>) {
-        self.answers.borrow_mut().insert(command.to_string(), result);
+        self.answers.lock().expect("the answers").insert(command.to_string(), result);
     }
 }
 
 impl Process for FakeProcess {
     fn resolve(&self, binary: &str) -> Option<String> {
-        self.installed.borrow().iter().any(|name| name == binary).then(|| format!("/bin/{binary}"))
+        self.installed.lock().expect("the installed list").iter().any(|name| name == binary).then(|| format!("/bin/{binary}"))
     }
 
     fn exec(&self, command: &str, _args: &[&str], _timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
-        self.answers.borrow().get(command).cloned().unwrap_or_else(|| Err("no answer was stubbed".to_string()))
+        self.answers.lock().expect("the answers").get(command).cloned().unwrap_or_else(|| Err("no answer was stubbed".to_string()))
     }
 
     fn run(&self, command: &crate::ports::ProcessCommand) -> Result<ProcessResult, String> {

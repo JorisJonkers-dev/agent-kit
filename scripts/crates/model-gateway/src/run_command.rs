@@ -8,7 +8,8 @@
 //! the repository's other checkouts, stages what its delegate left, and runs the caller's check in the
 //! worktree. What that adds to the result is in `write_run`.
 
-use crate::cap_guard::{run_cost_class, CapGuard, CapSource, Reservation, ReserveArgs};
+use crate::cap_guard::{run_cost_class, CapGuard, CapSource, Reservation, ReserveArgs, MIN_GRANT_TIME_LEFT_S};
+use crate::caps::Estimate;
 use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};
 use crate::config::{ClientConfig, CostClass, GatewayConfig, ModelEntry};
 use crate::config_parse::load_config;
@@ -29,6 +30,7 @@ use crate::run::{
     input_json, named_reset, price_run, read_only_proof, read_run_input, require_allowed_provider, run_failure_reason, run_id, summary_of, wrapped_prompt,
     ClientReport, LaunchExit, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens, FORBIDDEN_PROVIDERS, NO_TOKENS, PROVIDER_CLIENTS,
 };
+use crate::slots::SlotGuard;
 use crate::state_file::Workflows;
 use crate::text::join;
 use crate::timestamps::to_iso;
@@ -160,6 +162,58 @@ struct Placed {
     root: Option<String>,
 }
 
+/// What a delegation needs before it can run, as a batch plan checks it: where it stands, what it costs and what
+/// holds that cost.
+pub struct Checked {
+    pub repository: Option<String>,
+    pub client: ClientConfig,
+    pub config: GatewayConfig,
+    pub entry: Option<ModelEntry>,
+    pub family: String,
+    pub root: Option<String>,
+    pub cap: CapSource,
+    pub cost_class: CostClass,
+    pub estimate: Option<Estimate>,
+}
+
+/// What a batch writes on the ledger line of each attempt of one of its delegations.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BatchTag {
+    pub batch_id: String,
+    pub delegation: String,
+}
+
+/// What one attempt is launched with: the escalation's own options, and the reservation a batch already took for it.
+pub struct RunOptions<'a> {
+    /// Absent on the first attempt, which nothing links to.
+    pub link: Option<crate::escalation::AttemptLink>,
+    /// Called once everything that can refuse the run has passed and before anything is launched.
+    pub start_check: Option<crate::escalation_run::StartCheck<'a>>,
+    /// A reservation taken up front for this attempt, which it uses and settles instead of reserving its own.
+    pub reservation: Option<Reservation>,
+    /// The batch plan and delegation this attempt belongs to, written on its ledger line.
+    pub tag: Option<BatchTag>,
+}
+
+impl RunOptions<'_> {
+    /// The options of a run that is not part of a batch: nothing taken up front, and nothing tagged.
+    fn plain<'a, 'b: 'a>(options: &'a AttemptOptions<'b>) -> RunOptions<'a> {
+        RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: None, tag: None }
+    }
+}
+
+/// Takes a slot of the client an attempt is about to run on; the attempt gives it back when it ends.
+pub type SlotTaker<'a, 'b> = &'a dyn Fn(&str) -> SlotGuard<'b>;
+
+/// What a batch hands one delegation: its pre-taken reservation, its tag, and the slot it must hold on the client
+/// each attempt runs on.
+#[derive(Default)]
+pub struct DelegationOptions<'a, 'b> {
+    pub reservation: Option<Reservation>,
+    pub tag: Option<BatchTag>,
+    pub slot: Option<SlotTaker<'a, 'b>>,
+}
+
 /// Where a run works, and how it leaves: in the repository itself when the client model's read-only proof
 /// passed, else in a throwaway directory that `release` deletes. A writing run works in a worktree of its own,
 /// which it never releases: the kept list is what removes it.
@@ -202,7 +256,7 @@ impl RunCommand<'_> {
     /// Reads the input and runs the delegation: a run, retried, climbed and swapped as the escalation decides.
     pub fn run(&self, raw: &Value) -> Result<Value, GatewayError> {
         let input = read_run_input(raw)?;
-        let delegation = (EscalatedRun { runtime: self.runtime }).run(&input, &mut |attempt, options| self.run_once(attempt, options))?;
+        let delegation = (EscalatedRun { runtime: self.runtime }).run(&input, &mut |attempt, options| self.run_once(attempt, &RunOptions::plain(options)))?;
         Ok(match delegation {
             Delegation::Run(escalated) => {
                 let mut result = escalated.run.to_object();
@@ -215,11 +269,59 @@ impl RunCommand<'_> {
         })
     }
 
+    /// One delegation whose input is already read, with the reservation a batch took for it. Only its first
+    /// attempt holds that reservation: a retry, a climb or a swap reserves its own, as any attempt does. Each
+    /// attempt holds a slot of the client it really runs on, which after a fall-through is not the client its
+    /// delegation was planned for.
+    pub fn delegation(&self, input: &RunInput, given: &DelegationOptions) -> Result<Delegation<RunResult>, GatewayError> {
+        let mut held = given.reservation.clone();
+        (EscalatedRun { runtime: self.runtime }).run(input, &mut |attempt, options| {
+            let taken = held.take();
+            let give = given.slot.map(|slot| slot(&attempt.client));
+            let result = self.run_once(
+                attempt,
+                &RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: taken, tag: given.tag.clone() },
+            );
+            drop(give);
+            result
+        })
+    }
+
+    /// What a delegation needs before it can run, as a batch plan checks it without launching or reserving
+    /// anything: its client model, the data policy, its workflow, its estimate, and the grant that covers it. The
+    /// first thing wrong is the refusal it returns.
+    pub fn check(&self, input: &RunInput) -> Result<Checked, GatewayError> {
+        let placed = self.place(input)?;
+        let cost_class = run_cost_class(&placed.client, input);
+        let estimate = (CapGuard { runtime: self.runtime }).estimate(input, placed.entry.as_ref(), &placed.config)?;
+        self.require_workflow_open(&input.workflow)?;
+        let cap = self.cap_source(cost_class, input)?;
+        Ok(Checked {
+            repository: placed.repository,
+            client: placed.client,
+            config: placed.config,
+            entry: placed.entry,
+            family: placed.family,
+            root: placed.root,
+            cap,
+            cost_class,
+            estimate,
+        })
+    }
+
+    /// A fresh run id, and the run directory that run keeps its prompt, output and result in.
+    pub fn allot(&self, root: Option<&str>, at_ms: i64) -> Result<(String, String), GatewayError> {
+        let id = run_id(at_ms, &crate::commands::random_suffix());
+        let run_dir = self.run_dir(root, &id)?;
+        Ok((run_dir, id))
+    }
+
     /// One attempt: a single run of one client model, which the escalation wraps.
-    fn run_once(&self, given: &RunInput, options: &AttemptOptions) -> Result<RunResult, AttemptError> {
+    fn run_once(&self, given: &RunInput, options: &RunOptions) -> Result<RunResult, AttemptError> {
         self.refuse_nested()?;
         let placed = self.place(given)?;
         let Placed { repository, client, config, entry, family, root } = placed;
+        let held = options.reservation.as_ref();
         let cost_class = run_cost_class(&client, given);
         // The other checkouts of the repository, watched from before anything is taken: the listing itself
         // refuses the run when it cannot be read, so a refusal leaves no reservation to settle, no workflow
@@ -228,40 +330,59 @@ impl RunCommand<'_> {
             Some(write) => self.watch_others(root.as_deref().unwrap_or(write.repo))?,
             None => Vec::new(),
         };
+        // A metered-employer delegation that starts later than its plan was checked (a batch's dependent) needs
+        // its grant to still stand.
+        let within = match held {
+            Some(_) if cost_class == CostClass::MeteredEmployer => Some(self.within_grant(given)?),
+            _ => None,
+        };
+        let input = within.as_ref().unwrap_or(given);
         if let Some(start_check) = options.start_check {
-            if let Some(blocked) = start_check(given)? {
+            if let Some(blocked) = start_check(input)? {
+                (CapGuard { runtime: self.runtime }).release(held, self.runtime.clock.now_ms())?;
                 return Err(AttemptError::CannotStart(blocked));
             }
         }
         // A writing run never works in a throwaway directory: its worktree is the caller's to take.
-        let throwaway = match writing(given) {
+        let throwaway = match writing(input) {
             Some(_) => false,
-            None => self.needs_throwaway(given, entry.as_ref())?,
+            None => self.needs_throwaway(input, entry.as_ref())?,
         };
         let caps = CapGuard { runtime: self.runtime };
-        let estimate = caps.estimate(given, entry.as_ref(), &config)?;
-        self.require_workflow_open(&given.workflow)?;
-        let cap = self.cap_source(cost_class, given)?;
+        let estimate = match held {
+            Some(reservation) => Some(reservation.estimate.clone()),
+            None => caps.estimate(input, entry.as_ref(), &config)?,
+        };
+        self.require_workflow_open(&input.workflow)?;
+        let cap = match held {
+            Some(_) => CapSource::MeteredPersonal,
+            None => self.cap_source(cost_class, input)?,
+        };
         let started_at = self.runtime.clock.now_ms();
         let started_ms = self.runtime.clock.monotonic_ms();
-        let id = run_id(started_at, &crate::commands::random_suffix());
-        let run_dir = self.run_dir(root.as_deref(), &id)?;
-        let reservation = caps.reserve(&ReserveArgs {
-            cap: &cap,
-            config: &config,
-            cost_class,
-            estimate: estimate.as_ref(),
-            input: given,
-            now_ms: self.runtime.clock.now_ms(),
-            run_dir: &run_dir,
-            run_id: &id,
-        })?;
-        self.join_workflow(&given.workflow, reservation.as_ref())?;
-        let workplace = match writing(given) {
+        let (run_dir, id) = match held {
+            Some(reservation) => (reservation.record.run_dir.clone(), reservation.record.run_id.clone()),
+            None => self.allot(root.as_deref(), started_at)?,
+        };
+        let reservation = match held {
+            Some(reservation) => Some(reservation.clone()),
+            None => caps.reserve(&ReserveArgs {
+                cap: &cap,
+                config: &config,
+                cost_class,
+                estimate: estimate.as_ref(),
+                input,
+                now_ms: self.runtime.clock.now_ms(),
+                run_dir: &run_dir,
+                run_id: &id,
+            })?,
+        };
+        self.join_workflow(&input.workflow, reservation.as_ref())?;
+        let workplace = match writing(input) {
             Some(write) => self.write_workplace(&write, root.as_deref().unwrap_or(write.repo), &id, started_at)?,
             None => self.workplace(root.as_deref(), throwaway)?,
         };
-        let input = held_to(given, reservation.as_ref());
+        let input = held_to(input, reservation.as_ref());
         let delegated = self.delegate(&Delegated {
             started_at,
             started_ms,
@@ -285,7 +406,7 @@ impl RunCommand<'_> {
             result.attempt_of = link.attempt_of.clone();
         }
         result.cleanup_warning = warning;
-        (LedgerStore { runtime: self.runtime }).append_run(&self.ledger_record(&result, repository.as_deref(), started_ms, cost_class))?;
+        (LedgerStore { runtime: self.runtime }).append_run(&self.ledger_record(&result, repository.as_deref(), started_ms, cost_class, options.tag.as_ref()))?;
         caps.settle(reservation.as_ref(), result.cost_usd, self.runtime.clock.now_ms())?;
         let ledger = (LedgerStore { runtime: self.runtime }).read()?;
         let windows = plan_windows(
@@ -301,8 +422,36 @@ impl RunCommand<'_> {
         Ok(result)
     }
 
+    /// A metered-employer delegation that starts later than its plan was checked (a batch's dependent) needs its
+    /// grant to still stand: it is refused `no-grant` when every grant lapsed, and `grant-expiring` when under a
+    /// minute is left on it, and a run with more time than that is held to what is left.
+    pub(crate) fn within_grant(&self, input: &RunInput) -> Result<RunInput, GatewayError> {
+        let now = self.runtime.clock.now_ms();
+        let grant = (GrantGuard { runtime: self.runtime }).require(&input.workflow, &input.client, now)?;
+        let expires = crate::timestamps::parse(&grant.expires_at).unwrap_or_default();
+        let left_s = (expires - now).div_euclid(1000);
+        if left_s < MIN_GRANT_TIME_LEFT_S {
+            return Err(GatewayError::new(
+                "grant-expiring",
+                format!(
+                    "grant {} for workflow {} has {} seconds left, under the {} a run needs",
+                    grant.id,
+                    input.workflow,
+                    left_s.max(0),
+                    MIN_GRANT_TIME_LEFT_S
+                ),
+            ));
+        }
+        if left_s as f64 >= input.time_limit_s {
+            return Ok(input.clone());
+        }
+        let mut held = input.clone();
+        held.time_limit_s = left_s as f64;
+        Ok(held)
+    }
+
     /// A delegate may not delegate on: the mark is in its environment, so this call came from inside one.
-    fn refuse_nested(&self) -> Result<(), GatewayError> {
+    pub(crate) fn refuse_nested(&self) -> Result<(), GatewayError> {
         if self.runtime.env.contains_key(DELEGATION_MARK) {
             return Err(GatewayError::new("nested-delegation", format!("a delegate may not delegate on: {DELEGATION_MARK} is set in this environment")));
         }
@@ -550,7 +699,7 @@ impl RunCommand<'_> {
     }
 
     /// The run's one ledger line: what it was, what it cost and how it ended.
-    fn ledger_record(&self, result: &RunResult, repository: Option<&str>, started_ms: f64, cost_class: CostClass) -> Value {
+    fn ledger_record(&self, result: &RunResult, repository: Option<&str>, started_ms: f64, cost_class: CostClass, tag: Option<&BatchTag>) -> Value {
         let mut members = vec![
             ("at", Value::Str(to_iso(self.runtime.clock.now_ms()))),
             ("client", Value::str(&result.client)),
@@ -573,6 +722,11 @@ impl RunCommand<'_> {
             ("attempt_of", result.attempt_of.as_deref().map(Value::str)),
         ];
         members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
+        // A batch's tag goes last, as the node runner spreads it.
+        if let Some(tag) = tag {
+            members.push(("batch_id", Value::str(&tag.batch_id)));
+            members.push(("delegation", Value::str(&tag.delegation)));
+        }
         json::object(members)
     }
 }

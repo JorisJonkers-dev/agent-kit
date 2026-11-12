@@ -11,17 +11,17 @@ use crate::ports::{Clock, FileStamp, Files, FsError, Git, GitRemote, Process, Pr
 use crate::run::{RunMode, RunTokens};
 use crate::run_command::{RunCommand, RunResult};
 use crate::write_run::{CheckReport, WriteReport};
-use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// A clock the test moves: the client's launch can put it past the moment a grant lapses.
 #[derive(Clone)]
-struct Movable(Rc<Cell<i64>>);
+struct Movable(Arc<AtomicI64>);
 
 impl Clock for Movable {
     fn now_ms(&self) -> i64 {
-        self.0.get()
+        self.0.load(Ordering::SeqCst)
     }
     fn monotonic_ms(&self) -> f64 {
         0.0
@@ -52,7 +52,7 @@ struct GitState {
 /// Claude Code. A worktree it creates is a real directory, as git's own would be.
 #[derive(Clone, Default)]
 struct FakeGit {
-    state: Rc<RefCell<GitState>>,
+    state: Arc<Mutex<GitState>>,
 }
 
 impl FakeGit {
@@ -66,11 +66,11 @@ impl FakeGit {
     }
 
     fn set(&self, change: impl FnOnce(&mut GitState)) {
-        change(&mut self.state.borrow_mut());
+        change(&mut self.state.lock().expect("the git state"));
     }
 
     fn calls(&self) -> Vec<String> {
-        self.state.borrow().calls.clone()
+        self.state.lock().expect("the git state").calls.clone()
     }
 }
 
@@ -88,19 +88,19 @@ impl Git for FakeGit {
     }
 
     fn remove_worktree(&self, repo: &str, path: &str) -> Result<(), String> {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock().expect("the git state");
         state.calls.push(format!("remove {repo} {path}"));
         state.remove.clone().unwrap_or(Ok(()))
     }
 
     fn delete_branch(&self, repo: &str, branch: &str) -> Result<(), String> {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock().expect("the git state");
         state.calls.push(format!("branch {repo} {branch}"));
         state.branch.clone().unwrap_or(Ok(()))
     }
 
     fn common_dir(&self, _path: &str) -> Result<String, String> {
-        self.state.borrow().common.clone().expect("a common directory")
+        self.state.lock().expect("the git state").common.clone().expect("a common directory")
     }
 
     fn add_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
@@ -108,13 +108,13 @@ impl Git for FakeGit {
     }
 
     fn git_dir(&self, path: &str) -> Result<String, String> {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock().expect("the git state");
         state.calls.push(format!("git-dir {path}"));
         state.git_dir.clone().unwrap_or_else(|| Err("no git directory".to_string()))
     }
 
     fn create_worktree(&self, repo: &str, path: &str, branch: &str, base: &str) -> Result<(), String> {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock().expect("the git state");
         state.calls.push(format!("create {repo} {path} {branch} {base}"));
         std::fs::create_dir_all(path).expect("the worktree directory");
         if state.brief_is_dir {
@@ -126,25 +126,25 @@ impl Git for FakeGit {
     }
 
     fn stage_all(&self, path: &str) -> Result<(), String> {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock().expect("the git state");
         state.calls.push(format!("stage {path}"));
         state.stage.clone().unwrap_or(Ok(()))
     }
 
     fn staged_files(&self, path: &str, base: Option<&str>) -> Result<Vec<String>, String> {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock().expect("the git state");
         state.calls.push(format!("staged {path} {}", base.unwrap_or("-")));
         state.staged.clone().unwrap_or(Ok(Vec::new()))
     }
 
     fn list_worktrees(&self, repo: &str) -> Result<Vec<String>, String> {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock().expect("the git state");
         state.calls.push(format!("list {repo}"));
         state.worktrees.clone().expect("a worktree listing")
     }
 
     fn status(&self, path: &str) -> Result<String, String> {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock().expect("the git state");
         state.calls.push(format!("status {path}"));
         let queue = state.statuses.get_mut(path).unwrap_or_else(|| panic!("the test reads no status of {path}"));
         if queue.len() > 1 {
@@ -159,19 +159,24 @@ impl Git for FakeGit {
 /// client has run, so the check finds its grant lapsed.
 #[derive(Clone, Default)]
 struct FakeProcess {
-    answers: Rc<RefCell<HashMap<String, Result<ProcessResult, String>>>>,
-    commands: Rc<RefCell<Vec<ProcessCommand>>>,
-    clock: Rc<Cell<i64>>,
-    jump: Rc<Cell<Option<i64>>>,
+    answers: Arc<Mutex<HashMap<String, Result<ProcessResult, String>>>>,
+    commands: Arc<Mutex<Vec<ProcessCommand>>>,
+    clock: Arc<AtomicI64>,
+    jump: Arc<Mutex<Option<i64>>>,
 }
 
 impl FakeProcess {
     fn answer(&self, command: &str, result: Result<ProcessResult, String>) {
-        self.answers.borrow_mut().insert(command.to_string(), result);
+        self.answers.lock().expect("the answers").insert(command.to_string(), result);
     }
 
     fn commands(&self) -> Vec<ProcessCommand> {
-        self.commands.borrow().clone()
+        self.commands.lock().expect("the launches").clone()
+    }
+
+    /// Moves the clock on once the client has run, as the time passing in the world would.
+    fn jump_to(&self, at: i64) {
+        *self.jump.lock().expect("the jump") = Some(at);
     }
 
     /// The one check the gateway ran.
@@ -191,15 +196,16 @@ impl Process for FakeProcess {
     }
 
     fn exec(&self, command: &str, _args: &[&str], _timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
-        self.answers.borrow().get(command).cloned().unwrap_or_else(|| Err("no answer was stubbed".to_string()))
+        self.answers.lock().expect("the answers").get(command).cloned().unwrap_or_else(|| Err("no answer was stubbed".to_string()))
     }
 
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
-        self.commands.borrow_mut().push(command.clone());
+        self.commands.lock().expect("the launches").push(command.clone());
         if command.command != "sh" {
-            if let Some(at) = self.jump.get() {
-                self.clock.set(at);
-                self.jump.set(None);
+            let jump = *self.jump.lock().expect("the jump");
+            if let Some(at) = jump {
+                self.clock.store(at, Ordering::SeqCst);
+                *self.jump.lock().expect("the jump") = None;
             }
         }
         self.exec(&command.command, &[], command.timeout_ms)
@@ -267,10 +273,10 @@ struct WriteMachine {
 fn machine() -> WriteMachine {
     let mut machine = Machine::new(DEFAULTS);
     let root = machine.sandbox.text();
-    let clock = Rc::new(Cell::new(now_ms()));
-    let process = FakeProcess { clock: Rc::clone(&clock), ..FakeProcess::default() };
+    let clock = Arc::new(AtomicI64::new(now_ms()));
+    let process = FakeProcess { clock: Arc::clone(&clock), ..FakeProcess::default() };
     let git = FakeGit::new(&format!("{root}/common"));
-    machine.runtime.clock = Box::new(Movable(Rc::clone(&clock)));
+    machine.runtime.clock = Box::new(Movable(Arc::clone(&clock)));
     machine.runtime.process = Box::new(process.clone());
     machine.runtime.git = Box::new(git.clone());
     WriteMachine { machine, git, process }
@@ -754,7 +760,7 @@ fn a_check_that_would_outlive_the_grant_is_not_started() {
     write.process.answer("codex", answer(CODEX_ANSWER));
     write.git.set(|state| state.staged = Some(Ok(vec!["a.txt".to_string()])));
     // The delegate spends the whole grant.
-    write.process.jump.set(Some(now_ms() + 600_000));
+    write.process.jump_to(now_ms() + 600_000);
 
     let result = write.run(&codex_write("")).expect("a result");
 
@@ -771,7 +777,7 @@ fn the_check_is_held_to_the_time_left_on_the_grant() {
     write.process.answer("codex", answer(CODEX_ANSWER));
     write.process.answer("sh", exited(0, "", ""));
     // The delegate spends half the grant, so the check gets what is left of it.
-    write.process.jump.set(Some(now_ms() + 300_000));
+    write.process.jump_to(now_ms() + 300_000);
 
     let result = write.run(&codex_write("")).expect("a result");
 
@@ -786,7 +792,7 @@ fn a_check_gets_at_least_a_second_of_what_the_grant_leaves() {
     write.process.answer("codex", answer(CODEX_ANSWER));
     write.process.answer("sh", exited(0, "", ""));
     // Half a second is left: the check still gets a second to start.
-    write.process.jump.set(Some(now_ms() + 599_500));
+    write.process.jump_to(now_ms() + 599_500);
 
     let result = write.run(&codex_write("")).expect("a result");
 

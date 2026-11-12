@@ -17,9 +17,9 @@ use crate::json::compact;
 use crate::ledger::{LedgerEntry, LedgerRecord, ReservationRecord, RunTokens, SettledRecord};
 use crate::ledger_file::{parse_ledger_line, settle_stale, LedgerChange, LedgerStore};
 use crate::ports::{Clock, FileStamp, Files, FsError, Git, GitRemote, LockTimings, Runtime};
-use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
-use std::rc::Rc;
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 /// The ledger and the grants file a runtime with `HOME=/home/me` names.
 const LEDGER: &str = "/home/me/.local/state/agent-kit/model-gateway/ledger.jsonl";
@@ -32,66 +32,70 @@ const CONFIG_DIR: &str = "/home/me/.config/agent-kit";
 /// The files, the lock and the failures a real file system can give, in memory.
 #[derive(Default)]
 struct MemoryState {
-    files: RefCell<BTreeMap<String, String>>,
-    dirs: RefCell<Vec<String>>,
-    read_errors: RefCell<BTreeMap<String, FsError>>,
-    exists_errors: RefCell<BTreeMap<String, FsError>>,
-    mkdir_error: RefCell<Option<FsError>>,
-    append_error: RefCell<Option<FsError>>,
-    write_error: RefCell<Option<FsError>>,
-    lock_present: Cell<bool>,
-    lock_modified: Cell<Option<i64>>,
-    appended: RefCell<Vec<(String, String)>>,
-    made: RefCell<Vec<String>>,
-    written: RefCell<Vec<(String, String)>>,
-    released: Cell<usize>,
+    files: BTreeMap<String, String>,
+    dirs: Vec<String>,
+    read_errors: BTreeMap<String, FsError>,
+    exists_errors: BTreeMap<String, FsError>,
+    mkdir_error: Option<FsError>,
+    append_error: Option<FsError>,
+    write_error: Option<FsError>,
+    lock_present: bool,
+    lock_modified: Option<i64>,
+    appended: Vec<(String, String)>,
+    made: Vec<String>,
+    written: Vec<(String, String)>,
+    released: usize,
 }
 
 /// A handle on the in-memory files; every clone shares the same state.
 #[derive(Clone, Default)]
 struct MemoryFiles {
-    state: Rc<MemoryState>,
+    state: Arc<Mutex<MemoryState>>,
 }
 
 impl MemoryFiles {
+    fn state(&self) -> MutexGuard<'_, MemoryState> {
+        self.state.lock().expect("the memory files")
+    }
+
     fn with_file(path: &str, content: &str) -> MemoryFiles {
         let files = MemoryFiles::default();
-        files.state.files.borrow_mut().insert(path.to_string(), content.to_string());
+        files.state().files.insert(path.to_string(), content.to_string());
         files
     }
 
     fn with_dir(path: &str) -> MemoryFiles {
         let files = MemoryFiles::default();
-        files.state.dirs.borrow_mut().push(path.to_string());
+        files.state().dirs.push(path.to_string());
         files
     }
 
     fn text(&self, path: &str) -> Option<String> {
-        self.state.files.borrow().get(path).cloned()
+        self.state().files.get(path).cloned()
     }
 
     fn appended(&self) -> Vec<(String, String)> {
-        self.state.appended.borrow().clone()
+        self.state().appended.clone()
     }
 
     fn written(&self) -> Vec<(String, String)> {
-        self.state.written.borrow().clone()
+        self.state().written.clone()
     }
 
     fn made(&self) -> Vec<String> {
-        self.state.made.borrow().clone()
+        self.state().made.clone()
     }
 
     fn released(&self) -> usize {
-        self.state.released.get()
+        self.state().released
     }
 
     fn fail_read(&self, path: &str, code: &str, message: &str) {
-        self.state.read_errors.borrow_mut().insert(path.to_string(), FsError { code: code.to_string(), message: message.to_string() });
+        self.state().read_errors.insert(path.to_string(), FsError { code: code.to_string(), message: message.to_string() });
     }
 
     fn fail_exists(&self, path: &str, code: &str, message: &str) {
-        self.state.exists_errors.borrow_mut().insert(path.to_string(), FsError { code: code.to_string(), message: message.to_string() });
+        self.state().exists_errors.insert(path.to_string(), FsError { code: code.to_string(), message: message.to_string() });
     }
 }
 
@@ -109,64 +113,70 @@ impl Files for MemoryFiles {
     }
 
     fn read_text(&self, path: &str) -> Result<String, FsError> {
-        if let Some(error) = self.state.read_errors.borrow().get(path) {
+        if let Some(error) = self.state().read_errors.get(path) {
             return Err(error.clone());
         }
-        match self.state.files.borrow().get(path) {
+        match self.state().files.get(path) {
             Some(text) => Ok(text.clone()),
             None => Err(FsError { code: "ENOENT".to_string(), message: format!("ENOENT: no such file or directory, open '{path}'") }),
         }
     }
 
     fn write_atomic(&self, path: &str, content: &str) -> Result<(), FsError> {
-        if let Some(error) = self.state.write_error.borrow().as_ref() {
+        if let Some(error) = self.state().write_error.as_ref() {
             return Err(error.clone());
         }
-        self.state.written.borrow_mut().push((path.to_string(), content.to_string()));
-        self.state.files.borrow_mut().insert(path.to_string(), content.to_string());
+        let mut state = self.state();
+        state.written.push((path.to_string(), content.to_string()));
+        state.files.insert(path.to_string(), content.to_string());
         Ok(())
     }
 
     fn mkdir_all(&self, path: &str) -> Result<(), FsError> {
-        if let Some(error) = self.state.mkdir_error.borrow().as_ref() {
+        if let Some(error) = self.state().mkdir_error.as_ref() {
             return Err(error.clone());
         }
-        self.state.made.borrow_mut().push(path.to_string());
-        self.state.dirs.borrow_mut().push(path.to_string());
+        let mut state = self.state();
+        state.made.push(path.to_string());
+        state.dirs.push(path.to_string());
         Ok(())
     }
 
     fn create_exclusive(&self, _path: &str) -> Result<bool, FsError> {
-        if self.state.lock_present.get() {
+        let mut state = self.state();
+        if state.lock_present {
             return Ok(false);
         }
-        self.state.lock_present.set(true);
+        state.lock_present = true;
         Ok(true)
     }
 
     fn remove_file(&self, _path: &str) -> Result<(), FsError> {
-        self.state.released.set(self.state.released.get() + 1);
-        self.state.lock_present.set(false);
+        let mut state = self.state();
+        state.released += 1;
+        state.lock_present = false;
         Ok(())
     }
 
     fn modified_ms(&self, _path: &str) -> Option<i64> {
-        self.state.lock_modified.get()
+        self.state().lock_modified
     }
 
     fn exists(&self, path: &str) -> Result<bool, FsError> {
-        if let Some(error) = self.state.exists_errors.borrow().get(path) {
+        if let Some(error) = self.state().exists_errors.get(path) {
             return Err(error.clone());
         }
-        Ok(self.state.files.borrow().contains_key(path) || self.state.dirs.borrow().iter().any(|dir| dir == path))
+        let state = self.state();
+        Ok(state.files.contains_key(path) || state.dirs.iter().any(|dir| dir == path))
     }
 
     fn append(&self, path: &str, content: &str) -> Result<(), FsError> {
-        if let Some(error) = self.state.append_error.borrow().as_ref() {
+        if let Some(error) = self.state().append_error.as_ref() {
             return Err(error.clone());
         }
-        self.state.appended.borrow_mut().push((path.to_string(), content.to_string()));
-        self.state.files.borrow_mut().entry(path.to_string()).or_default().push_str(content);
+        let mut state = self.state();
+        state.appended.push((path.to_string(), content.to_string()));
+        state.files.entry(path.to_string()).or_default().push_str(content);
         Ok(())
     }
 
@@ -183,16 +193,16 @@ impl Files for MemoryFiles {
 #[derive(Clone)]
 struct StubGit {
     root: Result<Option<String>, String>,
-    asked: Rc<RefCell<Vec<String>>>,
+    asked: Arc<Mutex<Vec<String>>>,
 }
 
 impl StubGit {
     fn answering(root: Result<Option<String>, String>) -> StubGit {
-        StubGit { root, asked: Rc::new(RefCell::new(Vec::new())) }
+        StubGit { root, asked: Arc::new(Mutex::new(Vec::new())) }
     }
 
     fn asked(&self) -> Vec<String> {
-        self.asked.borrow().clone()
+        self.asked.lock().expect("the questions").clone()
     }
 }
 
@@ -206,7 +216,7 @@ impl Git for StubGit {
     }
 
     fn root(&self, path: &str) -> Result<Option<String>, String> {
-        self.asked.borrow_mut().push(path.to_string());
+        self.asked.lock().expect("the questions").push(path.to_string());
         self.root.clone()
     }
 
@@ -249,7 +259,7 @@ impl Git for StubGit {
 
 /// A clock that moves on at every reading, so a wait that never ends runs out at once.
 struct TickingClock {
-    now: Cell<i64>,
+    now: AtomicI64,
     step: i64,
 }
 
@@ -259,9 +269,7 @@ impl Clock for TickingClock {
     }
 
     fn now_ms(&self) -> i64 {
-        let value = self.now.get();
-        self.now.set(value + self.step);
-        value
+        self.now.fetch_add(self.step, Ordering::SeqCst)
     }
 }
 
@@ -364,6 +372,8 @@ fn parse_ledger_line_reads_a_run_line_leniently() {
     assert_eq!(
         parse_ledger_line(full),
         Some(LedgerEntry::Run(LedgerRecord {
+            batch_id: None,
+            delegation: None,
             at: "2026-11-03T12:00:00.000Z".to_string(),
             client: "vibe".to_string(),
             cost_class: Some(CostClass::Subsidised),
@@ -381,6 +391,8 @@ fn parse_ledger_line_reads_a_run_line_leniently() {
     assert_eq!(
         parse_ledger_line("{}"),
         Some(LedgerEntry::Run(LedgerRecord {
+            batch_id: None,
+            delegation: None,
             at: String::new(),
             client: String::new(),
             cost_class: None,
@@ -557,7 +569,7 @@ fn an_update_that_settles_nothing_appends_nothing() {
 #[test]
 fn an_update_that_cannot_make_the_state_directory_names_the_platform_error() {
     let files = MemoryFiles::default();
-    *files.state.mkdir_error.borrow_mut() = Some(FsError { code: "EACCES".to_string(), message: "EACCES: permission denied, mkdir '/home/me/.local'".to_string() });
+    files.state().mkdir_error = Some(FsError { code: "EACCES".to_string(), message: "EACCES: permission denied, mkdir '/home/me/.local'".to_string() });
     let runtime = memory_runtime(&files, StubGit::answering(Ok(None)), LockTimings::default(), Box::new(FixedClock(FIXED_NOW)));
     assert_eq!(
         LedgerStore { runtime: &runtime }.update(|_| LedgerChange { append: Vec::new(), result: () }),
@@ -569,7 +581,7 @@ fn an_update_that_cannot_make_the_state_directory_names_the_platform_error() {
 #[test]
 fn an_update_that_cannot_append_names_the_platform_error() {
     let files = MemoryFiles::default();
-    *files.state.append_error.borrow_mut() = Some(FsError { code: "ENOSPC".to_string(), message: "ENOSPC: no space left on device, write".to_string() });
+    files.state().append_error = Some(FsError { code: "ENOSPC".to_string(), message: "ENOSPC: no space left on device, write".to_string() });
     let runtime = memory_runtime(&files, StubGit::answering(Ok(None)), LockTimings::default(), Box::new(FixedClock(FIXED_NOW)));
     assert_eq!(
         LedgerStore { runtime: &runtime }.update(|_| LedgerChange { append: vec![settled("one", 0.25)], result: () }),
@@ -582,12 +594,12 @@ fn an_update_that_cannot_append_names_the_platform_error() {
 #[test]
 fn an_update_gives_up_when_another_process_holds_the_ledger_lock() {
     let files = MemoryFiles::default();
-    files.state.lock_present.set(true);
+    files.state().lock_present = true;
     let runtime = memory_runtime(
         &files,
         StubGit::answering(Ok(None)),
         LockTimings { retry_ms: 0, stale_ms: 5_000, timeout_ms: 10 },
-        Box::new(TickingClock { now: Cell::new(0), step: 1 }),
+        Box::new(TickingClock { now: AtomicI64::new(0), step: 1 }),
     );
     let error = LedgerStore { runtime: &runtime }.update(|_| LedgerChange { append: Vec::new(), result: () }).expect_err("the lock never came free");
     assert_eq!(error, GatewayError::new("unexpected", format!("{LEDGER_LOCK}: another gateway process held the ledger lock for 10 ms")));
@@ -597,8 +609,8 @@ fn an_update_gives_up_when_another_process_holds_the_ledger_lock() {
 #[test]
 fn an_update_breaks_a_lock_left_by_a_dead_writer() {
     let files = MemoryFiles::default();
-    files.state.lock_present.set(true);
-    files.state.lock_modified.set(Some(0));
+    files.state().lock_present = true;
+    files.state().lock_modified = Some(0);
     let runtime = memory_runtime(
         &files,
         StubGit::answering(Ok(None)),
@@ -619,7 +631,7 @@ fn settle_stale_settles_a_finished_run_and_an_expired_one() {
         reservation_line("waiting", "/runs/waiting", 3.0, "2026-11-03T13:00:00.000Z")
     );
     let files = MemoryFiles::with_file(LEDGER, &text);
-    files.state.files.borrow_mut().insert("/runs/finished/result.json".to_string(), r#"{"cost_usd":0.25}"#.to_string());
+    files.state().files.insert("/runs/finished/result.json".to_string(), r#"{"cost_usd":0.25}"#.to_string());
     let runtime = memory_runtime(&files, StubGit::answering(Ok(None)), LockTimings::default(), Box::new(FixedClock(FIXED_NOW)));
     settle_stale(&runtime, FIXED_NOW).expect("the stale reservations settle");
     let appended = files.appended();
@@ -653,12 +665,12 @@ fn settle_stale_leaves_a_reservation_whose_result_it_cannot_read() {
     );
     let files = MemoryFiles::with_file(LEDGER, &text);
     {
-        let mut held = files.state.files.borrow_mut();
-        held.insert("/runs/torn/result.json".to_string(), "{\"cost_usd\":".to_string());
-        held.insert("/runs/negative/result.json".to_string(), r#"{"cost_usd":-1}"#.to_string());
-        held.insert("/runs/text/result.json".to_string(), r#"{"cost_usd":"1"}"#.to_string());
-        held.insert("/runs/list/result.json".to_string(), "[]".to_string());
-        held.insert("/runs/infinite/result.json".to_string(), r#"{"cost_usd":1e999}"#.to_string());
+        let mut state = files.state();
+        state.files.insert("/runs/torn/result.json".to_string(), "{\"cost_usd\":".to_string());
+        state.files.insert("/runs/negative/result.json".to_string(), r#"{"cost_usd":-1}"#.to_string());
+        state.files.insert("/runs/text/result.json".to_string(), r#"{"cost_usd":"1"}"#.to_string());
+        state.files.insert("/runs/list/result.json".to_string(), "[]".to_string());
+        state.files.insert("/runs/infinite/result.json".to_string(), r#"{"cost_usd":1e999}"#.to_string());
     }
     files.fail_read("/runs/unreadable/result.json", "EACCES", "EACCES: permission denied, open '/runs/unreadable/result.json'");
     files.fail_exists("/runs/unlooked/result.json", "EACCES", "EACCES: permission denied, access '/runs/unlooked/result.json'");
@@ -778,7 +790,7 @@ fn an_update_writes_the_grants_it_holds_and_reports_the_one_it_added() {
 #[test]
 fn an_update_that_cannot_make_the_configuration_directory_names_the_platform_error() {
     let files = MemoryFiles::default();
-    *files.state.mkdir_error.borrow_mut() = Some(FsError { code: "EROFS".to_string(), message: "EROFS: read-only file system, mkdir '/home/me/.config'".to_string() });
+    files.state().mkdir_error = Some(FsError { code: "EROFS".to_string(), message: "EROFS: read-only file system, mkdir '/home/me/.config'".to_string() });
     let git = StubGit::answering(Ok(None));
     let runtime = memory_runtime(&files, git, LockTimings::default(), Box::new(FixedClock(FIXED_NOW)));
     assert_eq!(
@@ -791,7 +803,7 @@ fn an_update_that_cannot_make_the_configuration_directory_names_the_platform_err
 #[test]
 fn an_update_that_cannot_write_names_the_platform_error() {
     let files = MemoryFiles::default();
-    *files.state.write_error.borrow_mut() = Some(FsError { code: "ENOSPC".to_string(), message: "ENOSPC: no space left on device, write".to_string() });
+    files.state().write_error = Some(FsError { code: "ENOSPC".to_string(), message: "ENOSPC: no space left on device, write".to_string() });
     let git = StubGit::answering(Ok(None));
     let runtime = memory_runtime(&files, git, LockTimings::default(), Box::new(FixedClock(FIXED_NOW)));
     assert_eq!(
@@ -804,13 +816,13 @@ fn an_update_that_cannot_write_names_the_platform_error() {
 #[test]
 fn an_update_gives_up_when_another_process_holds_the_grants_lock() {
     let files = MemoryFiles::default();
-    files.state.lock_present.set(true);
+    files.state().lock_present = true;
     let git = StubGit::answering(Ok(None));
     let runtime = memory_runtime(
         &files,
         git,
         LockTimings { retry_ms: 0, stale_ms: 5_000, timeout_ms: 10 },
-        Box::new(TickingClock { now: Cell::new(0), step: 1 }),
+        Box::new(TickingClock { now: AtomicI64::new(0), step: 1 }),
     );
     let error = GrantsStore { runtime: &runtime }
         .update(|_| Ok(GrantChange { grants: vec![grant()], grant: grant() }))

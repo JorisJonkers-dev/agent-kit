@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { addBatchScenarios } from './gen-scenarios-batch.mjs'
 import { addClientScenarios } from './gen-scenarios-clients.mjs'
 import { addReserveScenarios } from './gen-scenarios-reserve.mjs'
 import { addRunScenarios } from './gen-scenarios-run.mjs'
@@ -109,6 +110,7 @@ scenarios['workflow-environment'] = [
 ]
 
 addClientScenarios(scenarios, step)
+addBatchScenarios(scenarios, step)
 addReserveScenarios(scenarios, step)
 addRunScenarios(scenarios, step)
 addWriteScenarios(scenarios, step)

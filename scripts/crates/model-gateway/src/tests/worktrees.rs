@@ -7,13 +7,12 @@ use crate::cli::run_cli;
 use crate::json::{parse, Value};
 use crate::kept_file::KeptStore;
 use crate::ports::{FileStamp, Files, FsError, Git, GitRemote, LockTimings, Runtime};
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 /// A git that answers for no repository, fails the paths and branches it is told to, and notes every call.
 struct RecordingGit {
-    calls: Rc<RefCell<Vec<String>>>,
+    calls: Arc<Mutex<Vec<String>>>,
 }
 
 impl Git for RecordingGit {
@@ -34,7 +33,7 @@ impl Git for RecordingGit {
     }
 
     fn remove_worktree(&self, repo: &str, path: &str) -> Result<(), String> {
-        self.calls.borrow_mut().push(format!("remove {repo} {path}"));
+        self.calls.lock().expect("the calls").push(format!("remove {repo} {path}"));
         if path.contains("stuck") {
             return Err("fatal: stuck".to_string());
         }
@@ -42,7 +41,7 @@ impl Git for RecordingGit {
     }
 
     fn delete_branch(&self, repo: &str, branch: &str) -> Result<(), String> {
-        self.calls.borrow_mut().push(format!("branch {repo} {branch}"));
+        self.calls.lock().expect("the calls").push(format!("branch {repo} {branch}"));
         if branch.contains("keep") {
             return Err("error: branch is checked out".to_string());
         }
@@ -74,7 +73,7 @@ impl Git for RecordingGit {
     }
 }
 
-fn runtime(sandbox: &Sandbox, calls: &Rc<RefCell<Vec<String>>>) -> Runtime {
+fn runtime(sandbox: &Sandbox, calls: &Arc<Mutex<Vec<String>>>) -> Runtime {
     let root = sandbox.text();
     std::fs::create_dir_all(format!("{root}/state/agent-kit/model-gateway")).expect("state");
     let env = HashMap::from([("HOME".to_string(), format!("{root}/home")), ("XDG_STATE_HOME".to_string(), format!("{root}/state"))]);
@@ -83,7 +82,7 @@ fn runtime(sandbox: &Sandbox, calls: &Rc<RefCell<Vec<String>>>) -> Runtime {
         files: Box::new(SystemFiles { cwd: root }),
         lock: LockTimings::default(),
         process: Box::new(crate::adapters::process::SystemProcess { env: env.clone() }),
-        git: Box::new(RecordingGit { calls: Rc::clone(calls) }),
+        git: Box::new(RecordingGit { calls: Arc::clone(calls) }),
         env,
         defaults: crate::SHIPPED_DEFAULTS.to_string(),
         defaults_path: "defaults.json".to_string(),
@@ -109,7 +108,7 @@ fn write_kept(sandbox: &Sandbox, text: &str) {
 #[test]
 fn adding_a_worktree_appends_it_to_the_kept_list_under_the_lock() {
     let sandbox = Sandbox::new();
-    let calls = Rc::new(RefCell::new(Vec::new()));
+    let calls = Arc::new(Mutex::new(Vec::new()));
     write_kept(&sandbox, r#"{"version":1,"worktrees":[{"run_id":"a","workflow":"w","repo":"/r","path":"/a","branch":"ba"}]}"#);
     let runtime = runtime(&sandbox, &calls);
     let entry = parse(r#"{"at":"2026-11-04T10:00:00.000Z","branch":"gateway/b","path":"/b","repo":"/r","run_id":"b","workflow":"w"}"#).expect("an entry");
@@ -125,7 +124,7 @@ fn adding_a_worktree_appends_it_to_the_kept_list_under_the_lock() {
 #[test]
 fn an_entry_without_a_path_fails_and_stays_kept_and_one_without_a_repository_is_handed_to_git_as_javascript_spells_it() {
     let sandbox = Sandbox::new();
-    let calls = Rc::new(RefCell::new(Vec::new()));
+    let calls = Arc::new(Mutex::new(Vec::new()));
     write_kept(
         &sandbox,
         r#"{"version":1,"worktrees":[null,{"run_id":"r1","workflow":"w","path":"/p","branch":["x",null,2]},{"run_id":"r2","workflow":"w","repo":"/r"},{"run_id":"r3","workflow":"w","repo":false,"path":"/ok","branch":{"a":1}},{"run_id":"r4","repo":null,"path":"/q","branch":true}]}"#,
@@ -145,14 +144,14 @@ fn an_entry_without_a_path_fails_and_stays_kept_and_one_without_a_repository_is_
     .expect("expected");
     assert_eq!(printed, expected);
     let asked: Vec<String> = ["remove undefined /p", "branch undefined x,,2", "remove false /ok", "branch false [object Object]", "remove null /q", "branch null true"].iter().map(|call| call.to_string()).collect();
-    assert_eq!(*calls.borrow(), asked);
+    assert_eq!(*calls.lock().expect("the calls"), asked);
     assert!(kept_file(&sandbox).contains("\"run_id\": \"r2\"") && !kept_file(&sandbox).contains("\"run_id\": \"r3\""));
 }
 
 #[test]
 fn a_named_workflow_leaves_entries_of_other_workflows_and_entries_without_one() {
     let sandbox = Sandbox::new();
-    let calls = Rc::new(RefCell::new(Vec::new()));
+    let calls = Arc::new(Mutex::new(Vec::new()));
     write_kept(
         &sandbox,
         r#"{"version":1,"worktrees":[{"run_id":"a","workflow":"w","repo":"/r","path":"/stuck","branch":"ba"},{"run_id":"b","workflow":"other","repo":"/r","path":"/b","branch":"bb"},{"run_id":"c","repo":"/r","path":"/c","branch":"bc"},{"run_id":"d","workflow":"w","repo":"/r","path":"/d","branch":"keep-d"}]}"#,
@@ -175,7 +174,7 @@ fn a_named_workflow_leaves_entries_of_other_workflows_and_entries_without_one() 
 fn an_entry_whose_run_id_is_not_text_is_removed_and_forgotten_like_any_other() {
     // The second entry has no run id and the first has the number 5; a number is spelled as JavaScript spells it.
     let sandbox = Sandbox::new();
-    let calls = Rc::new(RefCell::new(Vec::new()));
+    let calls = Arc::new(Mutex::new(Vec::new()));
     write_kept(&sandbox, r#"{"version":1,"worktrees":[{"run_id":5,"workflow":"w","repo":1.5,"path":"/p","branch":"b"},{"workflow":"w","repo":"/r","path":"/q"}]}"#);
 
     let printed = clean(&runtime(&sandbox, &calls), r#"{"all":true}"#);
@@ -189,7 +188,7 @@ fn an_entry_whose_run_id_is_not_text_is_removed_and_forgotten_like_any_other() {
 #[test]
 fn a_kept_file_that_is_not_a_list_of_worktrees_is_refused() {
     let sandbox = Sandbox::new();
-    let calls = Rc::new(RefCell::new(Vec::new()));
+    let calls = Arc::new(Mutex::new(Vec::new()));
     let runtime = runtime(&sandbox, &calls);
     for (text, message) in [
         ("not json", "kept-worktrees.json: not JSON: "),
@@ -203,13 +202,13 @@ fn a_kept_file_that_is_not_a_list_of_worktrees_is_refused() {
         assert_eq!(object.get("code").and_then(Value::as_str), Some("invalid-config"), "{text}");
         assert!(object.get("message").and_then(Value::as_str).unwrap_or_default().contains(message), "{text}: {printed:?}");
     }
-    assert!(calls.borrow().is_empty());
+    assert!(calls.lock().expect("the calls").is_empty());
 }
 
 #[test]
 fn a_kept_file_that_cannot_be_read_is_an_error() {
     let sandbox = Sandbox::new();
-    let calls = Rc::new(RefCell::new(Vec::new()));
+    let calls = Arc::new(Mutex::new(Vec::new()));
     let runtime = runtime(&sandbox, &calls);
     // A directory where the file belongs reads as an error that is not "no such file".
     std::fs::create_dir_all(format!("{}/state/agent-kit/model-gateway/kept-worktrees.json", sandbox.text())).expect("directory");
@@ -279,7 +278,7 @@ impl Files for FullDisk {
 #[test]
 fn a_kept_file_that_cannot_be_written_is_an_error_after_the_worktrees_were_removed() {
     let sandbox = Sandbox::new();
-    let calls = Rc::new(RefCell::new(Vec::new()));
+    let calls = Arc::new(Mutex::new(Vec::new()));
     let mut runtime = runtime(&sandbox, &calls);
     runtime.files = Box::new(FullDisk(SystemFiles { cwd: sandbox.text() }));
     write_kept(&sandbox, r#"{"version":1,"worktrees":[{"run_id":"a","workflow":"w","repo":"/r","path":"/p","branch":"b"}]}"#);
@@ -289,6 +288,6 @@ fn a_kept_file_that_cannot_be_written_is_an_error_after_the_worktrees_were_remov
     let object = printed.as_object().expect("object");
     assert_eq!(object.get("code").and_then(Value::as_str), Some("unexpected"));
     assert_eq!(object.get("message").and_then(Value::as_str), Some("ENOSPC: no space left on device, write"));
-    assert_eq!(*calls.borrow(), vec!["remove /r /p".to_string(), "branch /r b".to_string()]);
+    assert_eq!(*calls.lock().expect("the calls"), vec!["remove /r /p".to_string(), "branch /r b".to_string()]);
     assert!(kept_file(&sandbox).contains("\"run_id\":\"a\""), "the file is as it was");
 }

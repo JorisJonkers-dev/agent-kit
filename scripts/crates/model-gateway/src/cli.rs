@@ -214,7 +214,7 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
     }
     let Some(named) = subcommand(argv) else {
         let message = format!("unknown subcommand {}; the gateway has {COMMAND_NAMES}", unknown_subcommand(argv));
-        return failure("unknown-command", &message, None);
+        return failure("unknown-command", &message, None, &[]);
     };
     // `grant write` also takes `--max-starts N`, which sets the grant's max_starts beside the JSON object.
     let split = if named.name == "grant write" { without_max_starts(named.args) } else { Some((named.args.to_vec(), None)) };
@@ -226,7 +226,7 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
     };
     match run_command(&named, input, max_starts, runtime) {
         Ok(result) => CliResult { exit_code: 0, stdout: format!("{}\n", json::pretty(&result)), stderr: String::new() },
-        Err(error) => failure(&error.code, &error.message, Some(named.name)),
+        Err(error) => failure(&error.code, &error.message, Some(named.name), &error.problems),
     }
 }
 
@@ -248,7 +248,7 @@ fn run_command(named: &Named<'_>, input: Input<'_>, max_starts: Option<Value>, r
 /// The error for arguments that are not one of `--json` or `--input`.
 fn usage_failure(name: &str) -> CliResult {
     let extra = if name == "grant write" { ", and may take --max-starts <whole number>" } else { "" };
-    failure("invalid-input", &format!("{name} takes one of --json '<object>' or --input <file>{extra}"), Some(name))
+    failure("invalid-input", &format!("{name} takes one of --json '<object>' or --input <file>{extra}"), Some(name), &[])
 }
 
 /// The arguments of `grant write` without a `--max-starts N` pair, and that N as a number (anything that is not
@@ -326,12 +326,16 @@ fn parse_input(text: &str) -> Result<Object, GatewayError> {
     }
 }
 
-/// One error, as the contract prints it: one JSON object on stdout, and a line for the owner on stderr.
-fn failure(code: &str, message: &str, name: Option<&str>) -> CliResult {
+/// One error, as the contract prints it: one JSON object on stdout, and a line for the owner on stderr. A refused
+/// plan carries every problem it found beside its code.
+fn failure(code: &str, message: &str, name: Option<&str>, problems: &[crate::batch::PlanProblem]) -> CliResult {
     let mut object = Object::new();
     object.set("status", Value::str("error"));
     object.set("code", Value::str(code));
     object.set("message", Value::str(message));
+    if !problems.is_empty() {
+        object.set("problems", Value::Arr(problems.iter().map(crate::batch::PlanProblem::to_json).collect()));
+    }
     let prefix = name.map_or_else(|| "model-gateway".to_string(), |name| format!("model-gateway {name}"));
     CliResult { exit_code: 1, stdout: format!("{}\n", json::compact(&Value::Obj(object))), stderr: format!("{prefix}: {message}\n") }
 }
