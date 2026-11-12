@@ -304,6 +304,23 @@ gold_band:
       systemPromptDelivery: none
       externalSessionSyncSupported: false
       externalSessionSyncEnabled: false
+    # Codex, the work instance's second agent (ADR-0011). It is not the app's
+    # built-in `codex-acp` id (the work instance names it `codex`), so its
+    # adapter command is written here, pinned. The personal instance refuses it.
+    - id: codex
+      instance: gold-band
+      binary: codex
+      adapter:
+        displayName: Codex
+        command: npx
+        args: [-y, "@agentclientprotocol/codex-acp@2.5.0"]
+        env: {}
+      icon: codex
+      primaryAgentDir: .codex
+      compatibleAgentDirs: []
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
     # Vibe speaks ACP through its own `vibe-acp` server, with the personal
     # login Vibe keeps itself. The adapter env is forwarded, so no key is
     # written here.

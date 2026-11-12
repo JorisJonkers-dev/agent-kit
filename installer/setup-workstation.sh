@@ -2697,6 +2697,58 @@ gold_band_converge() {
 }
 gold_band_converge
 
+# The work Mac: where the per-machine overlay names the work instance
+# (gold-band), converge that instance's agent map onto the registry's work
+# agents (claude-work and codex) and apply the overlay's settings and MCP
+# servers. macOS only. The overlay is read from the machine, never from the
+# registry; no overlay, or one that names no work instance, is left alone.
+gold_band_work_converge() {
+  local out rc=0 line named overlay_file overlay_err
+  if [ "$(uname -s)" != Darwin ]; then
+    log "gold band work instance: only the work Mac is converged here, skipped"
+    return 0
+  fi
+  if [ "${CLOUD}" = 1 ]; then
+    log "gold band work instance: not converged in a cloud session"
+    return 0
+  fi
+  overlay_file="${HOME}/.config/agent-kit/overlay.yaml"
+  if [ ! -f "${overlay_file}" ]; then
+    log "gold band work instance: no overlay, the work instance is left alone"
+    return 0
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; the Gold Band work instance is not converged"
+    return 0
+  fi
+  overlay_err="$(mktemp)"
+  if ! named=$(uv run --no-project --exclude-newer "7 days" --with pyyaml python "${KIT_ROOT}/scripts/gold_band_instances.py" names-work-instance \
+      --overlay "${overlay_file}" 2>"${overlay_err}"); then
+    fail "gold band work instance: the overlay cannot be read ($(cat "${overlay_err}"))"
+    rm -f "${overlay_err}"
+    return 0
+  fi
+  rm -f "${overlay_err}"
+  if [ "${named}" != yes ]; then
+    log "gold band work instance: the overlay does not name it, left alone"
+    return 0
+  fi
+  local band_home="${GOLD_BAND_HOME:-}"
+  [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"
+  local args=(--instance gold-band --keep "${HOME}/.config/agent-kit/keep.yaml"
+    --settings "${band_home}/.gold-band/settings.json" --overlay "${overlay_file}")
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \
+    "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" = 4 ]; then
+    fail "Gold Band is running: setup stopped before its remaining write groups; quit it and re-run setup"
+    exit 1
+  fi
+  [ "${rc}" = 0 ] || fail "the Gold Band work instance did not converge (see above)"
+}
+gold_band_work_converge
+
 # Renders the registry's declared roles from the critique skill's own role and
 # lens files into the instance's context/profiles directory (templating off),
 # removes a retired or undeclared one unless the keep file names it, and leaves
