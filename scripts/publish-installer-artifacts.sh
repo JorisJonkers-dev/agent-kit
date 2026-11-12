@@ -67,6 +67,9 @@ KIT_PATHS=(
   scripts/hermes-merge-mcp.py
   scripts/codex-add-url-mcp.py
   scripts/converge.py
+  scripts/gold_band_instances.py
+  scripts/crates/gold-band-registry/Cargo.toml
+  scripts/crates/gold-band-registry/src
   scripts/vibe-merge-mcp.py
   scripts/vibe-no-commit-signature.py
   scripts/antigravity-merge-mcp.py
