@@ -114,7 +114,9 @@ GOLD_BAND_REGISTRY_ONLY = ("id", "binary", "instance", "config_dir", "skill_set"
 GOLD_BAND_HOSTS = ("linux", "mac")
 GOLD_BAND_OS_FIELDS = ("binary", "command_from_binary", "adapter")
 # Where macOS keeps what an agent launches; none of it may be written on Linux.
-GOLD_BAND_MAC_PATH = re.compile(r"/Applications\b|/opt/homebrew|/usr/local/Cellar|/Library/|/Users/|homebrew|\.app/", re.I)
+GOLD_BAND_MAC_PATH = re.compile(
+    r"/Applications\b|/opt/homebrew|/usr/local/Cellar|/Library/|/Users/|homebrew|\.app/", re.I
+)
 GOLD_BAND_ADAPTER_FIELDS = ("displayName", "command", "args", "env")
 # A generated profile's front matter carries a fixed stamp, so a second run
 # rewrites nothing. The app's own profiles carry this id prefix and are never
@@ -482,7 +484,9 @@ def _gold_band_os_problems(raw: str, agent: dict[str, Any]) -> list[str]:
             elif not isinstance(section, dict):
                 problems.append(f"{raw}: os.{host} must be a mapping")
             else:
-                problems += [f"{raw}: unknown field os.{host}.{key}" for key in section if key not in GOLD_BAND_OS_FIELDS]
+                problems += [
+                    f"{raw}: unknown field os.{host}.{key}" for key in section if key not in GOLD_BAND_OS_FIELDS
+                ]
                 label = f"{raw} os.{host}"
                 if not section:
                     problems.append(f"{label}: must declare binary, command_from_binary or adapter")
@@ -495,8 +499,10 @@ def _gold_band_os_problems(raw: str, agent: dict[str, Any]) -> list[str]:
                 problems += _gold_band_adapter_problems(label, section.get("adapter"))
     linux = _gold_band_for_host(agent, "linux") if not problems else None
     if linux is not None:
-        adapter = linux.get("adapter") if isinstance(linux.get("adapter"), dict) else {}
-        args = adapter.get("args") if isinstance(adapter.get("args"), list) else []
+        raw_adapter = linux.get("adapter")
+        adapter: dict[str, Any] = raw_adapter if isinstance(raw_adapter, dict) else {}
+        raw_args = adapter.get("args")
+        args: list[Any] = raw_args if isinstance(raw_args, list) else []
         written = [linux.get("binary"), adapter.get("command"), *args]
         if any(isinstance(item, str) and GOLD_BAND_MAC_PATH.search(item) for item in written):
             problems.append(f"{raw}: a macOS path (Homebrew or /Applications) is written on Linux")
