@@ -268,8 +268,42 @@ git directory could set `core.hooksPath`). Reads and the network are never
 limited. The launcher refuses to start the agent, exit 1, when Landlock is
 missing, disabled, or older than ABI 3 (Linux 6.2); it never runs an agent
 without its limit. The tests run without root and need a kernel with Landlock
-ABI 3. On macOS the `sandbox-exec` backend is not built yet, so a limited level
-is refused there.
+ABI 3.
+
+On macOS the backend is `sandbox-exec` (`/usr/bin/sandbox-exec`, never looked up
+on `PATH`). The launcher starts the agent as `sandbox-exec -p <profile> -D
+name=path ... <agent command>`. The profile allows everything, denies every file
+write, then grants the same directories (`subpath`) and devices (`literal`) as the
+table above. Paths reach the profile only as `-D` parameters, made canonical
+first (`/var` is `/private/var`, and Seatbelt checks the resolved path), and the
+profile uses no regular expression. After the grants come the denials, which
+Seatbelt can place inside a grant, where Landlock cannot: the three files that
+locate the git directory (`.git`, `commondir`, `gitdir`) cannot be written,
+replaced or renamed at all; the shared `hooks`, the shared `config` and every
+effective `core.hooksPath` are denied; each granted directory itself cannot be
+renamed or removed (its contents stay writable), so a granted directory cannot be
+moved away and replaced; and `file-link` is denied (so `git clone --local` and hard-link based tools fail under `write`), since a hard link to a hook
+made inside the worktree would otherwise be writable by its new name (the
+profile checks paths, not inodes). A symlink may be made, but a write through
+it is checked against where it leads. The layout check, the overlap check and the
+guard that puts the pointer files back run exactly as on Linux, before and after
+the agent. Before it starts the agent the launcher runs `sandbox-exec` once with
+the finished profile and `/usr/bin/true`, so a profile that does not load, or a
+`sandbox-exec` that cannot run from here (it cannot nest), refuses the launch.
+It refuses, exit 1, when `sandbox-exec` is missing. The denial is `EPERM`
+(Operation not permitted) rather than Landlock's `EACCES`. An agent command
+that starts with `-` is refused, since `sandbox-exec` would read it as one of its
+own options. The profile also denies the worktree's `config.worktree` and the
+shared `objects/info/alternates`. Not covered, on either OS: the limit is a write
+limit, not a containment boundary against a hostile agent. Anything the agent can
+ask a process outside the sandbox to do (a launchd job, an Apple event, a
+`systemd --user` unit) is outside it, and git state files inside the
+granted git directory (`rebase-merge/git-rebase-todo` with an `exec` line), a
+repository nested in the worktree, a `core.hooksPath` set through a global
+git config's `include` (only the repository config's includes are refused),
+and files in the worktree that the owner's own tools run (`.envrc`, a `Makefile`, an editor task) are writable. CI runs this crate's
+tests on a macOS runner (the `Rust Tests (macos)` job), where the enforcement
+tests start a stub agent under the real `sandbox-exec`.
 
 For an id that names a `skill_set`, `run` also exports `AGENT_KIT_SKILL_SET`
 with that name and `AGENT_KIT_SKILLS_DIR` with the directory setup builds for

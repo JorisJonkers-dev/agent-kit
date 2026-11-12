@@ -20,7 +20,7 @@
 //!   nothing.
 //!
 //! The operating-system write limit (ADR-0013) is the `writelimit` module: one
-//! interface, with Landlock as the Linux backend. `run` refuses to start an
+//! interface, with Landlock on Linux and sandbox-exec on macOS. `run` refuses to start an
 //! agent whose limit this OS cannot hold.
 
 mod record;
@@ -35,7 +35,11 @@ use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub use record::{cell, id_rule_problems, parse, problems, Record, LEVELS, OSES};
-pub use writelimit::{policy_for, Arm, Armed, Guard, Landlock, Policy, Scope, WriteLimit};
+#[cfg(target_os = "linux")]
+pub use writelimit::Landlock;
+pub use writelimit::{
+    native, policy_for, Arm, Armed, Guard, Policy, SandboxExec, Scope, Unsupported, WriteLimit,
+};
 
 /// The crate's name, which prefixes every message line.
 pub const NAME: &str = env!("CARGO_PKG_NAME");
@@ -128,7 +132,7 @@ pub fn run_on<I>(args: I, os: &str) -> i32
 where
     I: IntoIterator<Item = OsString>,
 {
-    run_with(args, os, &Landlock, &Context::from_env())
+    run_with(args, os, &*native(), &Context::from_env())
 }
 
 /// The system and global git config files for this user.
@@ -335,11 +339,30 @@ fn start(
         ),
         None => None,
     };
-    let mut command = Command::new(&plan.argv[0]);
-    command
-        .args(&plan.argv[1..])
-        .args(extra)
-        .env("AGENT_KIT_REACH", &plan.level);
+    // A backend that wraps the command (sandbox-exec) names the program; the
+    // agent's own command follows it.
+    let wrapper = armed.as_ref().map(|a| a.prefix()).unwrap_or_default();
+    // After the wrapper's own options, a leading `-` would be read as one of
+    // them (`-p` or `-f` swaps the profile).
+    if !wrapper.is_empty() && plan.argv[0].starts_with('-') {
+        return Err(format!(
+            "the agent command {:?} starts with '-' and could be read as an option of the write-limit wrapper",
+            plan.argv[0]
+        ));
+    }
+    let mut command = match wrapper.split_first() {
+        Some((program, lead)) => {
+            let mut command = Command::new(program);
+            command.args(lead).args(&plan.argv);
+            command
+        }
+        None => {
+            let mut command = Command::new(&plan.argv[0]);
+            command.args(&plan.argv[1..]);
+            command
+        }
+    };
+    command.args(extra).env("AGENT_KIT_REACH", &plan.level);
     if let Some(dir) = &plan.output_dir {
         command.env("AGENT_KIT_OUTPUT_DIR", dir);
     }
