@@ -504,4 +504,7 @@ A default for every machine is a change to agent-kit's
 each critic client's precision, unique catches, fabrication, cost and
 failures per stage. It suggests a swap only on 20 or more adjudicated
 findings, flags a stage with no unique catch across its last three features,
-and never edits routing.
+and never edits routing. Once a cell has those 20 adjudicated findings
+(routing's `stats.min_adjudicated_findings`) the report adds its calibration:
+precision over the older and the newer half of its findings, the drift
+between them, and precision per severity.

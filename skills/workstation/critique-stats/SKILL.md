@@ -51,7 +51,7 @@ an error.
 ### 2. Show the report
 
 Print the result's `report` field as it stands: one table per stage, the
-removal candidates, then the suggestions. Add nothing to the figures.
+calibration table, the removal candidates, then the suggestions. Add nothing to the figures.
 
 Done when the owner has the report.
 
@@ -86,6 +86,17 @@ result's `cells`:
 - **Unique**: accepted findings no other critic client raised.
 - **Fabricated**: the share of the cell's findings rejected because a quote is
   in no packet file.
+- **Calibration**: whether a critic is right over time. Only a cell with
+  `min_adjudicated_findings` adjudicated findings has a row, and a cell with
+  fewer has `calibration: null`. `earlier` and `recent` are precision over the
+  older and the newer half of the cell's accepted and rejected findings, ordered by when
+  their run was recorded (the odd finding goes to the newer half), with the
+  count in brackets; `drift` is recent minus earlier, so a falling number
+  means the critic is getting worse. The `critical`, `major` and `minor`
+  columns are precision per recorded severity: a critic whose criticals are
+  accepted less often than its minors is not calibrated. A dash means nothing
+  was adjudicated in that slice. Calibration never drives a suggestion; it is
+  there for the owner to read.
 - **Cost per accepted**: the cell's known cost over its accepted findings. A
   dash means no accepted finding or no priced run (Antigravity reports no
   cost).
