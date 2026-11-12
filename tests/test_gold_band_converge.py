@@ -9,6 +9,8 @@ detection itself is covered in ``test_gold_band_instance_guard.py``.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -521,3 +523,158 @@ def test_the_kits_registry_declares_vibe_and_vibe_study_without_a_key(
     text = machine.settings.read_text()
     assert "sentinel" not in text
     assert "sentinel" not in converge.REGISTRY_PATH.read_text()
+
+
+QUIET = {
+    "updater": {"enabled": False},
+    "metrics": {"enabled": False},
+    "feedback": {"enabled": False},
+    "connectors": {"slack": False},
+    "taskBoard": {"enabled": False},
+    "editor": {"theme": "dark", "nested": {"a": [1, 2]}},
+}
+
+
+def test_a_failed_replace_leaves_the_old_settings_and_one_backup_and_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, **QUIET})
+    original = machine.settings.read_bytes()
+    real_replace = os.replace
+
+    def refuse(src: object, dst: object) -> None:
+        if Path(str(dst)) == machine.settings:
+            raise PermissionError("replace refused")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", refuse)
+    assert machine.run() == 1
+    assert "old file is in place" in capsys.readouterr().out
+    assert machine.settings.read_bytes() == original
+    assert machine.backup.read_bytes() == original
+    assert sorted(p.name for p in machine.settings.parent.iterdir()) == ["settings.json", "settings.json.bak"]
+
+
+def test_a_failed_backup_leaves_the_old_settings_and_no_staged_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
+    original = machine.settings.read_bytes()
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(shutil, "copy2", refuse)
+    assert machine.run() == 1
+    assert "not replaced" in capsys.readouterr().out
+    assert machine.settings.read_bytes() == original
+    assert [p.name for p in machine.settings.parent.iterdir()] == ["settings.json"]
+
+
+def test_keys_setup_does_not_declare_are_unchanged_and_the_quiet_ones_stay_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, **QUIET})
+    assert machine.run() == 0
+    written = json.loads(machine.settings.read_text())
+    assert {key: value for key, value in written.items() if key != "agents"} == QUIET
+    assert written["agents"]
+
+
+def test_a_fresh_settings_file_holds_only_the_agent_map_so_nothing_is_enabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch)
+    assert machine.run() == 0
+    assert list(json.loads(machine.settings.read_text())) == ["agents"]
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_the_data_directory_is_owner_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bool
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}} if existing else None)
+    if existing:
+        machine.settings.parent.chmod(0o755)
+    assert machine.run() == 0
+    assert machine.settings.parent.stat().st_mode & 0o777 == 0o700
+    assert machine.settings.stat().st_mode & 0o777 == 0o600
+    assert (not existing) or machine.backup.stat().st_mode & 0o777 == 0o600
+
+
+def test_an_unchanged_run_still_makes_the_data_directory_owner_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch)
+    assert machine.run() == 0
+    machine.settings.parent.chmod(0o755)
+    assert machine.run() == 0
+    assert machine.settings.parent.stat().st_mode & 0o777 == 0o700
+
+
+LOUD = {
+    "desktopMetricsEnabled": True,
+    "desktopMetricsBaseUrl": "https://m.example",
+    "desktopMulticaEnabled": True,
+    "desktopUpdaterUrlOverride": "https://updates.example/latest.json",
+    "imIntegrations": {
+        "channels": [
+            {"kind": "wecom", "enabled": True, "publicIdentity": "a"},
+            {"kind": "slack", "enabled": False, "publicIdentity": "b"},
+        ]
+    },
+    "logLevel": "debug",
+}
+
+
+def test_setup_turns_metrics_task_board_and_connectors_off_and_leaves_the_updater_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, **LOUD})
+    assert machine.run() == 0
+    written = json.loads(machine.settings.read_text())
+    assert written["desktopMetricsEnabled"] is False
+    assert written["desktopMulticaEnabled"] is False
+    assert written["desktopUpdaterUrlOverride"] == "https://updates.example/latest.json"
+    assert [c["enabled"] for c in written["imIntegrations"]["channels"]] == [False, False]
+    assert written["desktopMetricsBaseUrl"] == "https://m.example"
+    assert written["logLevel"] == "debug"
+    assert written["imIntegrations"]["channels"] == [
+        {**channel, "enabled": False} for channel in LOUD["imIntegrations"]["channels"]
+    ]
+
+
+def test_absent_quiet_keys_stay_absent_and_check_mode_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, "logLevel": "info"})
+    assert machine.run() == 0
+    written = json.loads(machine.settings.read_text())
+    assert not {k for k in written if k.startswith(("desktop", "im", "feedback"))}
+    machine.settings.write_text(json.dumps({"agents": {}, **LOUD}))
+    before = machine.settings.read_bytes()
+    assert machine.run(check=True) == 0
+    assert machine.settings.read_bytes() == before
+
+
+def test_a_settings_file_that_only_needs_quieting_is_still_rewritten(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = Machine(tmp_path, monkeypatch)
+    assert first.run() == 0
+    doc = json.loads(first.settings.read_text())
+    first.settings.write_text(json.dumps({**doc, "desktopMetricsEnabled": True}))
+    assert first.run() == 0
+    assert json.loads(first.settings.read_text())["desktopMetricsEnabled"] is False
+    settled = first.settings.read_bytes()
+    assert first.run() == 0
+    assert first.settings.read_bytes() == settled
+
+
+def test_odd_connector_shapes_are_left_alone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, "imIntegrations": {"channels": ["x", {}]}})
+    assert machine.run() == 0
+    assert json.loads(machine.settings.read_text())["imIntegrations"] == {"channels": ["x", {}]}
+    machine.settings.write_text(json.dumps({"agents": {}, "imIntegrations": 3}))
+    assert machine.run() == 0
+    assert json.loads(machine.settings.read_text())["imIntegrations"] == 3

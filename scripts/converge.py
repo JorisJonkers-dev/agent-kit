@@ -774,6 +774,35 @@ def _gold_band_skills(
     return lines
 
 
+def _gold_band_quiet(document: dict[str, Any]) -> dict[str, Any]:
+    """``document`` with the app's outbound components off; every other key is as it was.
+
+    Keys of the pinned app's ``SettingsConfig`` (src/config/mod.rs): the metrics
+    switch ``desktopMetricsEnabled`` (:881), the task-board integration
+    ``desktopMulticaEnabled`` (:892), the chat connectors ``imIntegrations.channels[].enabled``
+    (:888, src/im/model.rs:485). The updater has no switch: its only setting is
+    ``desktopUpdaterUrlOverride`` (:877), an endpoint override, so it is left
+    exactly as it is. The app has no feedback setting. A key that is absent stays absent;
+    the app defaults each of these to off.
+    """
+    quiet = dict(document)
+    for key in ("desktopMetricsEnabled", "desktopMulticaEnabled"):
+        if quiet.get(key) is True:
+            quiet[key] = False
+    im = quiet.get("imIntegrations")
+    channels = im.get("channels") if isinstance(im, dict) else None
+    if isinstance(im, dict) and isinstance(channels, list):
+        quiet["imIntegrations"] = {
+            **im,
+            "channels": [
+                {**channel, "enabled": False} if isinstance(channel, dict) and channel.get("enabled") is True
+                else channel
+                for channel in channels
+            ],
+        }
+    return quiet
+
+
 def gold_band(args: argparse.Namespace) -> int:
     instance = args.instance
     # The default path is the current user's instance. The work instance lives
@@ -856,8 +885,11 @@ def gold_band(args: argparse.Namespace) -> int:
     for line in _gold_band_skills(skills_root, args.kit, wanted, sources, skipped_ids, keep - retired, args.check):
         print(line)
     # The map keeps its slot among the other top-level keys; a new one is appended.
-    new_doc = {**doc, "agents": merged}
+    new_doc = _gold_band_quiet({**doc, "agents": merged})
     if new_doc == doc:
+        # An unchanged map still leaves the data directory owner-only.
+        if not args.check and settings.parent.is_dir():
+            os.chmod(settings.parent, 0o700)
         print("settings unchanged")
         return 0
     for name in added:
@@ -873,15 +905,44 @@ def gold_band(args: argparse.Namespace) -> int:
     running = _gold_band_running(settings.parent, instance)
     if running:
         return _gold_band_stopped("gold-band-agents", running, [], [settings.name])
-    if settings.is_file():
-        shutil.copy2(settings, settings.with_name(settings.name + ".bak"))
-    settings.parent.mkdir(parents=True, exist_ok=True)
-    # Written beside it and renamed, so a starting Gold Band never reads half a file.
-    staged = settings.with_name(settings.name + ".agent-kit-tmp")
-    staged.write_text(json.dumps(new_doc, indent=2) + "\n")
-    os.chmod(staged, 0o600)
-    os.replace(staged, settings)
+    try:
+        _gold_band_write_settings(settings, new_doc)
+    except OSError as exc:
+        print(f"gold-band-agents: settings were not replaced, the old file is in place: {exc}")
+        return 1
     return 0
+
+
+def _gold_band_write_settings(settings: Path, document: dict[str, Any]) -> None:
+    """Replace ``settings`` atomically, keeping one backup of what it held.
+
+    The data directory ends owner-only. The new file is written 0o600 beside the
+    old one and renamed over it, so a failure at any step leaves the old file
+    untouched and no staged file behind; only keys this run changed differ.
+    """
+    data_dir = settings.parent
+    data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(data_dir, 0o700)
+    backup = settings.with_name(settings.name + ".bak")
+    staged = settings.with_name(settings.name + ".agent-kit-tmp")
+    staged_backup = settings.with_name(settings.name + ".bak.agent-kit-tmp")
+    try:
+        if settings.is_file():
+            shutil.copy2(settings, staged_backup)
+            os.chmod(staged_backup, 0o600)
+            os.replace(staged_backup, backup)
+        staged.unlink(missing_ok=True)
+        fd = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(document, indent=2) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(staged, 0o600)
+        os.replace(staged, settings)
+    except BaseException:
+        staged.unlink(missing_ok=True)
+        staged_backup.unlink(missing_ok=True)
+        raise
 
 
 def _gold_band_roles_registry(path: Path) -> tuple[str | None, list[dict[str, Any]], set[str]]:
