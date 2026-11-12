@@ -347,8 +347,8 @@ downgraded). Pi holds `read`, `write-scoped`, `write` and `full` through its
 `read-web`, `research` and `run-one-command` are refused). OpenCode (its CLI has
 no tool or permission flag) and Hermes (toolset fixed over ACP) hold `full`
 only. Antigravity documents no tool, permission or sandbox flag, so all its cells are
-refused on macOS; on Linux they are also refused because main declares no
-Linux command for it until #431 lands.
+refused on both macOS and Linux (the Linux command is declared, but it cannot
+pin a level any more than the macOS one).
 
 For an id that names a `skill_set`, `run` also exports `AGENT_KIT_SKILL_SET`
 with that name and `AGENT_KIT_SKILLS_DIR` with the directory setup builds for
