@@ -77,8 +77,23 @@ alerts group by it.
 **Not measured yet.** The caps are set without `budget_duration`, so each is
 a lifetime cap until measured. The ticket asks this section to state the
 window and reset as measured on the real proxy, with the request that measured
-them; that needs the deployed proxy and a throwaway key (`max_budget` 0.01,
-called until refused, HTTP code recorded). Record the result here then.
+them. `scripts/measure_litellm_budget.py` makes that request: one
+`GET /key/info` with the agent id's key (no model call, no spend), printing only
+`max_budget`, `budget_duration`, `budget_reset_at` and `spend`, and the request
+with both credentials redacted. It reads the key and the edge token from the
+environment or the secret store, where setup put them:
+
+```bash
+python3 scripts/measure_litellm_budget.py --agent vibe
+```
+
+Result, to be pasted here by the owner (`_pending_`): the request line, the four
+fields, the date it was run, and one sentence: is the cap a lifetime cap
+(`budget_duration` null) or a window that resets (and when)?
+
+```text
+_pending_
+```
 
 ## What the owner adds
 
