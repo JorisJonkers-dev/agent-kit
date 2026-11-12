@@ -780,16 +780,15 @@ def _gold_band_quiet(document: dict[str, Any]) -> dict[str, Any]:
     Keys of the pinned app's ``SettingsConfig`` (src/config/mod.rs): the metrics
     switch ``desktopMetricsEnabled`` (:881), the task-board integration
     ``desktopMulticaEnabled`` (:892), the chat connectors ``imIntegrations.channels[].enabled``
-    (:888, src/im/model.rs:485), and the updater, which has no switch: its only
-    setting is ``desktopUpdaterUrlOverride`` (:877), dropped so the stock endpoint
-    applies. The app has no feedback setting. A key that is absent stays absent;
+    (:888, src/im/model.rs:485). The updater has no switch: its only setting is
+    ``desktopUpdaterUrlOverride`` (:877), an endpoint override, so it is left
+    exactly as it is. The app has no feedback setting. A key that is absent stays absent;
     the app defaults each of these to off.
     """
     quiet = dict(document)
     for key in ("desktopMetricsEnabled", "desktopMulticaEnabled"):
         if quiet.get(key) is True:
             quiet[key] = False
-    quiet.pop("desktopUpdaterUrlOverride", None)
     im = quiet.get("imIntegrations")
     channels = im.get("channels") if isinstance(im, dict) else None
     if isinstance(im, dict) and isinstance(channels, list):

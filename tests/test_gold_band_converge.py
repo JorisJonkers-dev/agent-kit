@@ -627,7 +627,7 @@ LOUD = {
 }
 
 
-def test_setup_turns_the_updater_metrics_task_board_and_connectors_off_and_nothing_else(
+def test_setup_turns_metrics_task_board_and_connectors_off_and_leaves_the_updater_override(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, **LOUD})
@@ -635,7 +635,7 @@ def test_setup_turns_the_updater_metrics_task_board_and_connectors_off_and_nothi
     written = json.loads(machine.settings.read_text())
     assert written["desktopMetricsEnabled"] is False
     assert written["desktopMulticaEnabled"] is False
-    assert "desktopUpdaterUrlOverride" not in written
+    assert written["desktopUpdaterUrlOverride"] == "https://updates.example/latest.json"
     assert [c["enabled"] for c in written["imIntegrations"]["channels"]] == [False, False]
     assert written["desktopMetricsBaseUrl"] == "https://m.example"
     assert written["logLevel"] == "debug"

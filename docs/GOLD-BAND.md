@@ -468,3 +468,26 @@ runs setup:
 * Nothing is written while the desktop app runs (setup stops and says so), a
   machine without Gold Band gets no profiles directory, and `--check` only
   reports.
+
+## Quiet settings and the updater gap
+
+Setup replaces `settings.json` atomically (a staged 0600 file renamed over the
+old one, one `.bak` kept, the data directory 0700) and keeps every key it does
+not declare. It also turns the app's outbound components off, in the pinned
+app's `SettingsConfig` (`src/config/mod.rs`):
+
+* `desktopMetricsEnabled` (line 881) is set to false.
+* `desktopMulticaEnabled`, the task-board integration (line 892), is set to false.
+* Each `imIntegrations.channels[].enabled`, the chat connectors (line 888,
+  `src/im/model.rs:485`), is set to false.
+
+A key that is absent stays absent; the app defaults each to off.
+
+Two components cannot be switched off from settings:
+
+* **Updater.** The app has no updater switch. The only setting is
+  `desktopUpdaterUrlOverride` (`src/config/mod.rs:877`), an endpoint override.
+  Dropping it would not turn the updater off and could send a machine pinned
+  to a mirror back to the public endpoint, so setup leaves it untouched.
+  "Updater off" is a gap to raise upstream.
+* **Feedback.** The app has no feedback setting, so there is nothing to write.
