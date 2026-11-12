@@ -388,16 +388,17 @@ instance's `contextServers` on its next run unless the keep file names it.
 - name: outline
   instances: [gold-band-personal]
   reach: [research, write-scoped, write, full]   # levels allowed to use it
-  agent_ids: [claude-research]                    # optional: ids it is listed for
+  agent_ids: [claude-research]                    # optional: ids it is declared for (checked, not filtered)
 ```
 
 * `reach:` is required and lists reach levels (`read` to `full`); `run-one-command`
   is never listed, since that level takes no tools. A server that changes
   something outside the machine starts at `write`.
+* Gold Band keeps one `contextServers` list per instance, so the app cannot show a server to some ids only: `reach:` and `agent_ids:` are checked by validation, not filtered per agent.
 * `agent_ids:` is checked against `registry/reach-levels.yaml`: each id must be
   declared there, be an agent of the named instance and sit at a level `reach:`
   allows. Validation fails otherwise.
-* A server with a `credential:` is written as the stdio secret proxy
+* An http server with a `credential:` is written as the stdio secret proxy
   (`antigravity-mcp-proxy`, which reads the token from the secret store at
   launch), so no token reaches `settings.json`. Settings keep the app's own
   managed servers; any other undeclared server in the personal instance is
