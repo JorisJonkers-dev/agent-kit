@@ -50,6 +50,16 @@ def _tar(files: dict[str, bytes], extra_members: list[str] | None = None) -> byt
     return buf.getvalue()
 
 
+def _tar_with_link(kind: bytes) -> bytes:
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        info = tarfile.TarInfo("./home/x")
+        info.type = kind
+        info.linkname = "/etc"
+        tar.addfile(info)
+    return buf.getvalue()
+
+
 def _package(extra_members: list[str] | None = None, bad_sums: bool = False) -> bytes:
     files = {
         "./home/.claude/skills/new/SKILL.md": b"new skill\n",
@@ -193,6 +203,13 @@ def test_paths_that_escape_the_overlay_fall_back(session: Session, member: str) 
     session.publish(_package(extra_members=[member]))
     result = session.run()
     _assert_baked(session, result, f"{VERSION} holds an absolute or parent-relative path")
+
+
+@pytest.mark.parametrize("kind", [tarfile.SYMTYPE, tarfile.LNKTYPE, tarfile.CHRTYPE])
+def test_links_and_special_files_fall_back(session: Session, kind: bytes) -> None:
+    session.publish(_tar_with_link(kind))
+    result = session.run()
+    _assert_baked(session, result, f"{VERSION} holds a link or special file")
 
 
 def test_a_tarball_whose_own_sums_disagree_falls_back(session: Session) -> None:

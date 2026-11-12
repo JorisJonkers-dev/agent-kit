@@ -31,7 +31,10 @@ check_agent_kit_manifest() {
 # runtime-home artifact in AGENT_KIT_RUNTIME_REF (tag or digest reference); oras
 # pulls it and nothing is installed until the tarball matches the .sha256 the
 # release published beside it, the optional AGENT_KIT_RUNTIME_DIGEST the
-# platform pinned, and the SHA256SUMS inside it. Any failure leaves the baked
+# platform pinned, and the SHA256SUMS inside it. The .sha256 travels in the
+# same artifact, so it catches corruption; authenticity comes from pinning
+# AGENT_KIT_RUNTIME_DIGEST (or naming the artifact by @sha256: digest, which
+# oras verifies itself). Any failure leaves the baked
 # kit untouched and says so; the session reports the version it ended up with.
 KIT_FETCH_DIR="${AGENT_KIT_FETCH_DIR:-${HOME}/.agent-kit-fetched}"
 
@@ -88,6 +91,12 @@ $_entries
     *"
 /"*|*"../"*|*"/.."*) kit_fallback "${_version} holds an absolute or parent-relative path"; return 0 ;;
   esac
+  # Only files and directories: a link or device member could point the
+  # extraction outside the staging directory.
+  if tar -tvzf "$_tarball" 2>/dev/null | grep -Eq '^[^-d]| -> | link to '; then
+    kit_fallback "${_version} holds a link or special file"
+    return 0
+  fi
   tar -xzf "$_tarball" -C "$_kit_stage/kit" || { kit_fallback "cannot extract ${_version}"; return 0; }
   (cd "$_kit_stage/kit" && sha256sum -c SHA256SUMS >/dev/null 2>&1) ||
     { kit_fallback "SHA256SUMS inside ${_version} does not match its files"; return 0; }
@@ -95,9 +104,11 @@ $_entries
 
   mkdir -p "$HOME" "$KIT_FETCH_DIR" || { kit_fallback "cannot write ${HOME} or ${KIT_FETCH_DIR}"; return 0; }
   # Credentials stay as the runner mounted them.
-  (cd "$_kit_stage/kit/home" && tar -cf - \
-    --exclude=./.claude/.credentials.json --exclude=./.codex/auth.json --exclude=./.codex/config.toml .) |
-    (cd "$HOME" && tar -xf -) || { kit_fallback "cannot install the home of ${_version}"; return 0; }
+  (cd "$_kit_stage/kit/home" && tar -cf "$_kit_stage/overlay.tar" \
+    --exclude=./.claude/.credentials.json --exclude=./.codex/auth.json --exclude=./.codex/config.toml .) ||
+    { kit_fallback "cannot stage the home of ${_version}"; return 0; }
+  (cd "$HOME" && tar -xf "$_kit_stage/overlay.tar") ||
+    { kit_fallback "cannot install the home of ${_version}; ${HOME} may be partly overlaid"; return 0; }
   if [ -d "$_kit_stage/kit/mcp" ]; then
     rm -rf "$KIT_FETCH_DIR/mcp"
     cp -R "$_kit_stage/kit/mcp" "$KIT_FETCH_DIR/mcp" || { kit_fallback "cannot install the MCP profiles of ${_version}"; return 0; }
