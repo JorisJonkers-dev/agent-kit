@@ -1,0 +1,107 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"home-only\"}"
+      ],
+      "env": {
+        "XDG_STATE_HOME": null
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "env": {
+        "XDG_STATE_HOME": null
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"relative\"}"
+      ],
+      "env": {
+        "XDG_STATE_HOME": "relative/state"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"empty\"}"
+      ],
+      "env": {
+        "XDG_STATE_HOME": ""
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"no-home\"}"
+      ],
+      "env": {
+        "XDG_STATE_HOME": null,
+        "HOME": null
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "env": {
+        "HOME": null
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"elsewhere\"}"
+      ],
+      "env": {
+        "XDG_STATE_HOME": "@SANDBOX@/elsewhere"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "env": {
+        "XDG_STATE_HOME": "@SANDBOX@/elsewhere"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"blocked\"}"
+      ],
+      "write": {
+        "blocker": "x"
+      },
+      "env": {
+        "XDG_STATE_HOME": "@SANDBOX@/blocker"
+      }
+    }
+  ]
+}

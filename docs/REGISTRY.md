@@ -49,15 +49,23 @@ every agent id may use it. Its `args` are its allowlist: `--root` and a path,
 repeated. The registry holds the personal roots only
 (`args: ["--root", "~/Projects/JorisJonkers-dev"]`), and the renderer refuses
 an argument naming `nedap`. A work root goes in the work machine's overlay, which
-the gold-band-registry crate validates (work instance only); setup does not yet
-register overlay servers:
+the gold-band-registry crate validates (work instance only):
 
 ```yaml
 instances:
   gold-band:
     mcp_servers:
-      code-nav: {command: code-nav, args: ["--root", "~/Projects/nedap"]}
+      code-nav: {command: code-nav, args: ["--root", "~/Projects/<work-root>"]}
 ```
+
+Setup, run in the work account, reads that entry through
+`scripts/gold_band_instances.py code-nav-roots` (the overlay is validated by the
+crate first) and appends each `--root` to the Claude and Codex `code-nav`
+registrations, after the registry's personal root. The entry must be
+`command: code-nav` with `--root PATH` pairs only. A missing overlay adds
+nothing; a refused one is reported and the personal root alone is registered.
+Vibe, OpenCode, Antigravity and Hermes render from public generated files and
+keep the personal root only.
 
 The personal instance never takes a work root.
 
@@ -257,6 +265,60 @@ run. A macOS app that ships as a Homebrew cask names `cask:` instead:
 - Both keys are `clis:` keys only. The renderer rejects them on a plugin,
   language server, MCP server, skill source or local skill.
 
+## A CLI installed from pinned npm packages
+
+A `clis:` entry can install pinned npm packages instead of a floating
+`install:`/`update:` pair. Give it a `pinned_npm:` block naming the exact
+packages and versions, and `binary:` as usual -- that is the binary whose
+absolute path setup prints at the end of the step:
+
+```yaml
+- name: pi
+  binary: pi-acp
+  surfaces: [workstation]
+  throwaway_only: true
+  pinned_npm:
+    packages:
+      - datasource: npm
+        package: "@earendil-works/pi-coding-agent"
+        version: "1.5.0"
+      - datasource: npm
+        package: "pi-acp"
+        version: "0.0.34"
+```
+
+- Presence is each pin, the way an `install_pinned` MCP server checks its own:
+  setup runs `npm ls -g --depth=0 <pkg>@<version>` for every package and
+  installs only when one is missing.
+- Setup installs ONE command line for the whole block:
+  `npm install -g --ignore-scripts --before=<cutoff> <every pin>`. Install
+  scripts are off (`--ignore-scripts`), and the cutoff is computed at setup
+  time as now minus 7 days, UTC: npm's `--before` resolves every package --
+  transitive ones included -- as the registry stood at that moment, so
+  nothing published in the last 7 days can install (issue #337; the same
+  discipline as the 7-day crate cooldown, standards ADR-0014).
+- Before installing, setup checks each pin's own publish time
+  (`npm view <pkg>@<version> time --json`) against the same cutoff. A pin
+  younger than 7 days fails the step and installs nothing, and so does a pin
+  whose publish time cannot be proven: the step fails closed, the way
+  crate-age does.
+- Each pin must also publish a `sha512` tarball digest (`npm view <pkg>@<version>
+  dist.integrity`); npm verifies every download against it, and a pin with none
+  fails the step. The digest is not copied into the registry, so Renovate can
+  bump a pin without leaving a stale checksum behind. npm goes through the
+  package proxy when `package-proxy-merge.py` has written the npmrc.
+- `datasource: npm` on each pin lets the registry's Renovate manager bump it
+  (npm tags are bare versions, so no `extractVersion` rule is needed).
+- After the install, setup resolves the entry's `binary` to its absolute
+  installed path (`npm prefix -g` + `/bin/<binary>`) and prints it. Without
+  npm on PATH the step is skipped and says so. The Gold Band agent `pi`
+  (`gold_band.agents`) sets `command_from_binary: true`, which makes converge
+  write the adapter command as the absolute path of the installed `binary`;
+  nothing is fetched at launch, and a machine without it skips and reports Pi.
+- `throwaway_only: true` records that the CLI may run only inside throwaway
+  repositories. Pi is why the field exists (it runs with no permission
+  prompts), and the renderer refuses a Pi entry without it.
+
 ## A first-party skill whose directory is not written yet
 
 A `local_skills:` entry can be registered before the issue that writes the
@@ -311,6 +373,39 @@ price per million input and output tokens, nothing else:
 - `surfaces: []` retires an agent: its generated file goes, and setup removes
   the installed one. Agents in that directory the registry does not name are
   the owner's, and setup leaves them alone.
+
+## MCP servers of a Gold Band instance
+
+A server entry that names `instances:` is registered in those Gold Band
+instances: `scripts/converge.py gold-band` writes it to the instance's
+`contextServers` in `settings.json`, and `render_registry.py` validates it.
+Only `gold-band-personal` may be named. The work instance reads its servers
+from the overlay (`instances.gold-band.mcp_servers`), so a registry entry that
+names `gold-band` is refused and a personal server is removed from the work
+instance's `contextServers` on its next run unless the keep file names it.
+
+```yaml
+- name: outline
+  instances: [gold-band-personal]
+  reach: [research, write-scoped, write, full]   # levels allowed to use it
+  agent_ids: [claude-research]                    # optional: ids it is declared for (checked, not filtered)
+```
+
+* `reach:` is required and lists reach levels (`read` to `full`); `run-one-command`
+  is never listed, since that level takes no tools. A server that changes
+  something outside the machine starts at `write`.
+* Gold Band keeps one `contextServers` list per instance, so the app cannot show a server to some ids only: `reach:` and `agent_ids:` are checked by validation, not filtered per agent.
+* `agent_ids:` is checked against `registry/reach-levels.yaml`: each id must be
+  declared there, be an agent of the named instance and sit at a level `reach:`
+  allows. Validation fails otherwise.
+* An http server with a `credential:` is written as the stdio secret proxy
+  (`antigravity-mcp-proxy`, which reads the token from the secret store at
+  launch), so no token reaches `settings.json`. Settings keep the app's own
+  managed servers; any other undeclared server in the personal instance is
+  removed unless the keep file names it.
+* The ten Wave 6 servers are `memory-api`, `n8n`, `n8n-mcp`, `kubernetes`,
+  `github`, `grimoire`, `outline`, `playwright`, `drawio` and `overleaf`.
+  `exclude_tools` is not carried to Gold Band, which has no per-tool filter.
 
 ## Gold Band instances and the overlay
 

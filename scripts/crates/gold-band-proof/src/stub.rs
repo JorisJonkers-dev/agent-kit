@@ -5,10 +5,10 @@
 //! picker and, on every prompt, streams one fenced json block back. What that
 //! block holds is the stub's [`Role`]: the findings document a critic answers
 //! with, `{"ok": true}` for a model node, the open questions a grill round
-//! asks, the exit code a gate shim earned, or the report a copier shim
-//! verified. The verdict is a parameter, so the same stub proves the clean
-//! path, the needs-human path, the open-questions path, the failing path and a
-//! failing gate.
+//! asks, the exit code a gate shim earned, the report a copier shim verified,
+//! or the exit code a grant-check shim would earn. The verdict is a parameter,
+//! so the same stub proves the clean path, the needs-human path, the
+//! open-questions path, the failing path, a failing gate and a lapsed grant.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -102,6 +102,10 @@ pub enum Role {
     Gate(String),
     /// A copier shim: run the verify and answer the report it prints.
     Copy(String),
+    /// A grant-check shim: answer the exit code the pinned
+    /// `gold-band-run-start grant-check` wrapper would earn, 1 when the grant
+    /// lapsed. No wrapper is run.
+    Grant(String),
     /// An agent that serves an ai-dynamic node, listing the agent ids its
     /// fanned-out workers run as: it plans the fan-out and finishes every
     /// internal node with a `dynamic-node-completion`, and answers any other
@@ -129,6 +133,9 @@ impl Role {
         if let Some(name) = text.strip_prefix("copy:").filter(|name| !name.is_empty()) {
             return Role::Copy(name.to_string());
         }
+        if let Some(name) = text.strip_prefix("grant:").filter(|name| !name.is_empty()) {
+            return Role::Grant(name.to_string());
+        }
         if let Some(list) = text.strip_prefix("dynamic:") {
             return Role::Dynamic(
                 list.split(',')
@@ -155,6 +162,7 @@ impl Role {
             Role::Questions => "questions".to_string(),
             Role::Gate(name) => format!("gate:{}", name),
             Role::Copy(name) => format!("copy:{}", name),
+            Role::Grant(name) => format!("grant:{}", name),
             Role::Dynamic(workers) => format!("dynamic:{}", workers.join(",")),
             Role::Verdict(round) => format!("verdict:{}", round),
         }
@@ -264,6 +272,16 @@ fn gate_command(verdict: &str, name: &str) -> Vec<String> {
     } else {
         vec!["true".to_string()]
     }
+}
+
+/// The answer a grant-check shim gives: the exit code the pinned wrapper would
+/// earn, 1 when the verdict says this grant lapsed and 0 otherwise, in the
+/// report's shape (a grant-check node's output schema is the report, as for the
+/// real wrapper). The wrapper itself is not run; the real shim and gateway are
+/// proved by their own tests.
+fn grant_answer(verdict: &str, name: &str) -> Value {
+    let lapsed = verdict.trim().strip_prefix("grant-lapse=") == Some(name);
+    report_document(if lapsed { 1 } else { 0 })
 }
 
 /// The ACP model picker for the comma separated model ids, with `current`
@@ -444,6 +462,7 @@ impl Stub {
             Role::Questions => fenced_questions(verdict),
             Role::Gate(name) => fenced(&self.gate_answer(verdict, name)),
             Role::Copy(name) => self.copy_answer(verdict, name),
+            Role::Grant(name) => fenced(&grant_answer(verdict, name)),
             Role::Dynamic(workers) => self.dynamic_answer(prompt, workers),
             Role::Verdict(round) => fenced(&verdict_document(*round, verdict)),
         }

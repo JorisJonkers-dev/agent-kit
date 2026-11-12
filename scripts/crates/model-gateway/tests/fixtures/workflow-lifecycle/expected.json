@@ -1,0 +1,156 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"spec-293\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"spec-293\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"other:ticket/1.2_x\",\n    \"started_at\": \"2026-11-03T13:30:00.250Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": null,\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\",\n      \"state\": \"running\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n    \"name\": \"spec-293\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"ended\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\",\n      \"ended_at\": \"2026-11-03T15:00:00.000Z\"\n    },\n    {\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n    \"name\": \"spec-293\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"ended\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\",\n      \"state\": \"ended\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\",\n      \"state\": \"running\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"workflow-ended\",\"message\":\"workflow spec-293 ended at 2026-11-03T15:00:00.000Z: a run may not join it, so start a new workflow\"}\n",
+      "stderr": "model-gateway workflow start: workflow spec-293 ended at 2026-11-03T15:00:00.000Z: a run may not join it, so start a new workflow\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unknown-workflow\",\"message\":\"no workflow named never-started has started on this machine\"}\n",
+      "stderr": "model-gateway workflow end: no workflow named never-started has started on this machine\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": \"2026-11-03T18:00:00.000Z\",\n    \"name\": \"other:ticket/1.2_x\",\n    \"started_at\": \"2026-11-03T13:30:00.250Z\",\n    \"state\": \"ended\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\",\n      \"ended_at\": \"2026-11-03T18:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\",\n      \"state\": \"ended\"\n    },\n    {\n      \"ended_at\": \"2026-11-03T18:00:00.000Z\",\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\",\n      \"state\": \"ended\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T15:00:00.000Z\",\n      \"name\": \"spec-293\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"other:ticket/1.2_x\",\n      \"started_at\": \"2026-11-03T13:30:00.250Z\",\n      \"ended_at\": \"2026-11-03T18:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

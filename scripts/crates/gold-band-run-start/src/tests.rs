@@ -2,6 +2,8 @@ use super::*;
 use std::cell::RefCell;
 use std::path::PathBuf;
 
+mod grant_check;
+
 /// 2026-11-11T09:30:00Z.
 const NOW: u64 = 1_794_389_400;
 const NEDAP: &str = "https://github.com/nedap/healthcare.git";
@@ -14,6 +16,9 @@ struct Fake {
     env: Vec<(&'static str, String)>,
     out: RefCell<String>,
     err: RefCell<String>,
+    /// What the fake gateway answers to `grant reserve`, and the calls it got.
+    gateway: Result<(i32, String, String), String>,
+    calls: RefCell<Vec<(String, Vec<String>)>>,
 }
 
 impl Clock for Fake {
@@ -35,6 +40,12 @@ impl Host for Fake {
     fn print(&self, stderr: bool, text: &str) {
         let target = if stderr { &self.err } else { &self.out };
         target.borrow_mut().push_str(text);
+    }
+    fn run_command(&self, exe: &str, args: &[String]) -> Result<(i32, String, String), String> {
+        self.calls
+            .borrow_mut()
+            .push((exe.to_string(), args.to_vec()));
+        self.gateway.clone()
     }
 }
 
@@ -69,6 +80,8 @@ fn case(tag: &str, instance: &str, remotes: &[&str]) -> Case {
             env: vec![("HOME", dir.join("home").to_string_lossy().into_owned())],
             out: RefCell::default(),
             err: RefCell::default(),
+            gateway: Err("no gateway in this case".to_string()),
+            calls: RefCell::default(),
         },
         args: Vec::new(),
         dir,
@@ -861,8 +874,11 @@ fn bad_usage_exits_2_prints_usage_and_still_reports_when_it_can() {
     let c = case("usage", "gold-band-personal", &[OTHER]);
     let report_dir = c.path("reports");
     for (line, why) in [
-        (vec![], "the one subcommand is check"),
-        (vec!["verify".to_string()], "the one subcommand is check"),
+        (vec![], "the subcommands are check and grant-check"),
+        (
+            vec!["verify".to_string()],
+            "the subcommands are check and grant-check",
+        ),
         (
             vec!["check".into(), "stray".into()],
             "unexpected argument stray",
@@ -1098,4 +1114,25 @@ fn the_real_host_reads_the_process_environment() {
         None
     );
     assert!(RealHost::new().unix_seconds() > 1_794_000_000);
+}
+
+#[test]
+fn the_real_host_runs_a_command_without_a_shell() {
+    let (code, out, err) = RealHost::new()
+        .run_command(
+            "sh",
+            &[
+                "-c".to_string(),
+                "echo out; echo err >&2; exit 3".to_string(),
+            ],
+        )
+        .unwrap();
+    assert_eq!((code, out.as_str(), err.as_str()), (3, "out\n", "err\n"));
+    let missing = RealHost::new()
+        .run_command("gb-no-such-gateway", &[])
+        .unwrap_err();
+    assert!(
+        missing.starts_with("cannot run gb-no-such-gateway"),
+        "{missing}"
+    );
 }

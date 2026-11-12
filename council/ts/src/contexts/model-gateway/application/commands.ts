@@ -1,5 +1,12 @@
 import { BatchCommand, type BatchResult } from './batch.js'
-import { GrantListCommand, GrantWriteCommand, type GrantListResult, type GrantWriteResult } from './grants.js'
+import {
+  GrantListCommand,
+  GrantReserveCommand,
+  GrantWriteCommand,
+  type GrantListResult,
+  type GrantReserveResult,
+  type GrantWriteResult,
+} from './grants.js'
 import { ModelsCommand, type ModelsInput, type ModelsResult } from './models.js'
 import { RunCommand, type RunOutcome } from './run.js'
 import { UsageCommand } from './usage.js'
@@ -18,6 +25,7 @@ import {
 export interface ModelGatewayCommands {
   readonly batch: ModelGatewayCommand<unknown, BatchResult>
   readonly grantList: ModelGatewayCommand<unknown, GrantListResult>
+  readonly grantReserve: ModelGatewayCommand<unknown, GrantReserveResult>
   readonly grantWrite: ModelGatewayCommand<unknown, GrantWriteResult>
   readonly models: ModelGatewayCommand<ModelsInput, ModelsResult>
   readonly run: ModelGatewayCommand<unknown, RunOutcome>
@@ -33,6 +41,7 @@ export function createModelGatewayCommands(deps: ModelGatewayDependencies): Mode
   return {
     batch: new BatchCommand(deps, run),
     grantList: new GrantListCommand(deps),
+    grantReserve: new GrantReserveCommand(deps),
     grantWrite: new GrantWriteCommand(deps),
     models: new ModelsCommand(deps),
     run,

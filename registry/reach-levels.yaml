@@ -10,7 +10,446 @@
 #          it runs on, and an output_dir for research and write-scoped. An id
 #          may only name a verified cell on every host it lists.
 #
-# No cell is verified yet. The per-agent tickets (B1-14 to B1-16) add each
-# agent's cells with the check that proves them, and the ids that use them.
-agents: {}
+# check:   for each OS, the check that proves the cell (a verified cell) or the
+#          reason it is refused (an unsupported one): `<file>::<test>` for a
+#          check that runs in CI, on that OS's runner. A verified cell without
+#          its check is refused by `validate`.
+#
+# What "verified" means for claude (B1-15, #435): on that OS, the real
+# launcher starts a stub claude (never the owner's ~/.claude or credentials)
+# at the level, the stub receives exactly the level's tool arguments below,
+# and the operating-system write limit (ADR-0013) holds for it as the table
+# says. The arguments use a tool list and deny rules, never the allowed-tools
+# setting alone (it only pre-approves). `run-one-command` pre-approves no Bash
+# command here: the node names its one command with an extra
+# `--allowedTools 'Bash(<command>)'`, and the operating system confines where
+# it may write. MCP servers are never listed here (`--strict-mcp-config`): a
+# node adds `--mcp-config` for the servers its level allows.
+#
+# Pi, OpenCode, Hermes and Antigravity (B1-17, #437): the same meaning of
+# verified, with stub commands and `other_reach.rs`. A level the agent cannot
+# express from launcher arguments is `unsupported`, and its check field says
+# why: the launcher refuses an id that names it, and nothing is downgraded.
+# Pi holds read, write-scoped, write and full (its tool allow-list); opencode
+# and hermes hold full only; antigravity holds none (no tool flags documented,
+# and no Linux command on main until #431 lands).
+#
+# What "verified" means for vibe and vibe-study (B1-16, #436) is the same, with
+# Vibe's own flags: `--enabled-tools` (in headless mode it disables every
+# unlisted tool), `--disabled-tools`, `--agent=accept-edits` (approves edits, not
+# the shell) and `--auto-approve`. Both run the same Vibe CLI (`vibe-study` only
+# supplies the Study account key), so they share arguments and checks. `vibe-acp`
+# takes no tool arguments (only `--help`, `--version`, `--setup`), so the
+# arguments here are for the headless CLI. An unsupported cell carries its
+# reason instead of a check.
+#
+# The ids are added by the tickets that bind agents (Gold Band workflows).
+agents:
+  claude:
+    command: [claude]
+    levels:
+      read:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob"
+          - "--allowedTools=Read,Grep,Glob"
+          - "--disallowedTools=Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_read"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_read"
+      read-web:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,WebFetch,WebSearch"
+          - "--allowedTools=Read,Grep,Glob,WebFetch,WebSearch"
+          - "--disallowedTools=Bash,Edit,Write,NotebookEdit"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_read_web"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_read_web"
+      research:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,WebFetch,WebSearch,Write"
+          - "--allowedTools=Read,Grep,Glob,WebFetch,WebSearch,Write"
+          - "--disallowedTools=Bash,Edit,NotebookEdit"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_research"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_research"
+      write-scoped:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,Write,Edit"
+          - "--allowedTools=Read,Grep,Glob,Write,Edit"
+          - "--disallowedTools=Bash,NotebookEdit,WebFetch,WebSearch"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_write_scoped"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_write_scoped"
+      run-one-command:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,Bash"
+          - "--allowedTools=Read,Grep,Glob"
+          - "--disallowedTools=Edit,Write,NotebookEdit,WebFetch,WebSearch"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_run_one_command"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_run_one_command"
+      write:
+        args:
+          - "--permission-mode=dontAsk"
+          - "--strict-mcp-config"
+          - "--tools=Read,Grep,Glob,Write,Edit,NotebookEdit,Bash"
+          - "--allowedTools=Read,Grep,Glob,Write,Edit,NotebookEdit,Bash"
+          - "--disallowedTools=WebFetch,WebSearch"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_write"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_write"
+      full:
+        args:
+          - "--permission-mode=bypassPermissions"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_full"
+          mac: "scripts/crates/agent-launcher/tests/claude_reach.rs::claude_reach_full"
+  pi:
+    command: [pi]
+    levels:
+      read:
+        args:
+          - "--tools"
+          - "read,grep,find,ls"
+          - "--no-mcp"
+          - "--no-extensions"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/other_reach.rs::pi_reach_read"
+          mac: "scripts/crates/agent-launcher/tests/other_reach.rs::pi_reach_read"
+      read-web:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "pi has no web tool: its built-in tools are read, bash, edit, write, grep, find and ls, so a web level cannot be expressed and is refused, never downgraded to read"
+          mac: "pi has no web tool: its built-in tools are read, bash, edit, write, grep, find and ls, so a web level cannot be expressed and is refused, never downgraded to read"
+      research:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "pi has no web tool (built-in tools: read, bash, edit, write, grep, find, ls), so a level that needs web access cannot be expressed and is refused"
+          mac: "pi has no web tool (built-in tools: read, bash, edit, write, grep, find, ls), so a level that needs web access cannot be expressed and is refused"
+      write-scoped:
+        args:
+          - "--tools"
+          - "read,grep,find,ls,write,edit"
+          - "--no-mcp"
+          - "--no-extensions"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/other_reach.rs::pi_reach_write_scoped"
+          mac: "scripts/crates/agent-launcher/tests/other_reach.rs::pi_reach_write_scoped"
+      run-one-command:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "pi has no permission prompts or command allow-list: enabling bash lets it run any command, so a level that holds one command cannot be expressed and is refused"
+          mac: "pi has no permission prompts or command allow-list: enabling bash lets it run any command, so a level that holds one command cannot be expressed and is refused"
+      write:
+        args:
+          - "--tools"
+          - "read,grep,find,ls,write,edit,bash"
+          - "--no-mcp"
+          - "--no-extensions"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/other_reach.rs::pi_reach_write"
+          mac: "scripts/crates/agent-launcher/tests/other_reach.rs::pi_reach_write"
+      full:
+        args: []
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/other_reach.rs::pi_reach_full"
+          mac: "scripts/crates/agent-launcher/tests/other_reach.rs::pi_reach_full"
+  opencode:
+    command: [opencode, run]
+    levels:
+      read:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+          mac: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+      read-web:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+          mac: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+      research:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+          mac: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+      write-scoped:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+          mac: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+      run-one-command:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+          mac: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+      write:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+          mac: "opencode's command line has no tool list or permission flag (`opencode run` takes --agent and --auto only): permissions live in its config file, which launcher arguments cannot carry, and its built-in agents all allow shell and web fetch, so a restricted level cannot be expressed and is refused"
+      full:
+        args:
+          - "--auto"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/other_reach.rs::opencode_reach_full"
+          mac: "scripts/crates/agent-launcher/tests/other_reach.rs::opencode_reach_full"
+  hermes:
+    command: [hermes-acp]
+    levels:
+      read:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+          mac: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+      read-web:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+          mac: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+      research:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+          mac: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+      write-scoped:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+          mac: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+      run-one-command:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+          mac: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+      write:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+          mac: "hermes runs over ACP (`hermes-acp`), whose toolset is fixed: its --toolsets flag exists only on `hermes chat`, so the web, terminal and file tools cannot be switched off per level (ADR-0013) and a restricted level is refused"
+      full:
+        args: []
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/other_reach.rs::hermes_reach_full"
+          mac: "scripts/crates/agent-launcher/tests/other_reach.rs::hermes_reach_full"
+  antigravity:
+    command: [agy]
+    levels:
+      read:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
+      read-web:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
+      research:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
+      write-scoped:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
+      run-one-command:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
+      write:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
+      full:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "the agy command is not declared for Linux on main (setup skips it; the Linux install is #431, not merged), so no Linux launch exists to verify and the cell is refused until it lands; agy also documents no tool, permission or sandbox flag"
+          mac: "agy documents no tool, permission or sandbox flag and no way to run without approval prompts (only -p and -i; approval modes switch inside the prompt box), so no level can be pinned from launcher arguments and its cells are refused until it does"
+  vibe:
+    command: [vibe]
+    levels:
+      read:
+        args:
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--disabled-tools=bash"
+          - "--disabled-tools=edit"
+          - "--disabled-tools=write_file"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_read"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_read"
+      read-web:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved"
+          mac: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved"
+      research:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved; research needs it"
+          mac: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved; research needs it"
+      write-scoped:
+        args:
+          - "--agent=accept-edits"
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--enabled-tools=write_file"
+          - "--enabled-tools=edit"
+          - "--disabled-tools=bash"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write_scoped"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write_scoped"
+      run-one-command:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "no Vibe argument pre-approves one named shell command (the bash allowlist is a config.toml setting, and vibe-acp takes no tool arguments), so run-one-command cannot be held from the argument list"
+          mac: "no Vibe argument pre-approves one named shell command (the bash allowlist is a config.toml setting, and vibe-acp takes no tool arguments), so run-one-command cannot be held from the argument list"
+      write:
+        args:
+          - "--auto-approve"
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--enabled-tools=write_file"
+          - "--enabled-tools=edit"
+          - "--enabled-tools=bash"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write"
+      full:
+        args:
+          - "--auto-approve"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_full"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_full"
+  vibe-study:
+    command: [vibe-study]
+    levels:
+      read:
+        args:
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--disabled-tools=bash"
+          - "--disabled-tools=edit"
+          - "--disabled-tools=write_file"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_read"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_read"
+      read-web:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved"
+          mac: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved"
+      research:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved; research needs it"
+          mac: "Vibe's web_search and web_fetch need an approval in headless mode (their permission is ask) and headless Vibe drops its search tools under a restricted tool list (#284, B4), so the web tools cannot be held by a tool list, and a deny list with --auto-approve would leave every tool Vibe ships and not named enabled and approved; research needs it"
+      write-scoped:
+        args:
+          - "--agent=accept-edits"
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--enabled-tools=write_file"
+          - "--enabled-tools=edit"
+          - "--disabled-tools=bash"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write_scoped"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write_scoped"
+      run-one-command:
+        args: []
+        support: {linux: unsupported, mac: unsupported}
+        check:
+          linux: "no Vibe argument pre-approves one named shell command (the bash allowlist is a config.toml setting, and vibe-acp takes no tool arguments), so run-one-command cannot be held from the argument list"
+          mac: "no Vibe argument pre-approves one named shell command (the bash allowlist is a config.toml setting, and vibe-acp takes no tool arguments), so run-one-command cannot be held from the argument list"
+      write:
+        args:
+          - "--auto-approve"
+          - "--enabled-tools=read_file"
+          - "--enabled-tools=grep"
+          - "--enabled-tools=write_file"
+          - "--enabled-tools=edit"
+          - "--enabled-tools=bash"
+          - "--disabled-tools=web_fetch"
+          - "--disabled-tools=web_search"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_write"
+      full:
+        args:
+          - "--auto-approve"
+        support: {linux: verified, mac: verified}
+        check:
+          linux: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_full"
+          mac: "scripts/crates/agent-launcher/tests/vibe_reach.rs::vibe_reach_full"
 ids: {}

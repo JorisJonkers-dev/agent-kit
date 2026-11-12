@@ -1,0 +1,256 @@
+{
+  "workflow": {
+    "description": "To-tickets for the Gold Band instances (issue #628, wave 4): cut a spec's tickets through question rounds. A run-start gate refuses the run when the repository rule or the family allowlist forbids a bound agent. Up to three question rounds follow, unrolled and capped at three: a round that leaves a question open pauses on its manual check for the owner's answers, then the next round runs; after round three the last check hands over to the ticket draft regardless. The tickets are written as tickets.json and nothing is created in any tracker: publishing is Workflow C's publication check. No shim node has a failure edge, so a failing gate ends the run in failure.",
+    "version": "0.1",
+    "id": "to-tickets",
+    "entry": "gate-to-tickets-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-to-tickets-start",
+        "executionSlotId": "slot-gate-to-tickets-start",
+        "provider": "gate-to-tickets-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for to-tickets, which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds. Answer with one fenced json block holding its exit status and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-to-tickets-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-round-1",
+        "executionSlotId": "slot-tickets-round-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the ticket question agent for round 1 of to-tickets (cut a spec into tickets) (at most 3 rounds). Read the spec and the owner's answers so far in the ticket record, and ask the owner the questions the cut still needs answered (slices, order, what each ticket covers): one question each, none the record already settles. Write the round's questions and the answers so far to the ticket record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-round-1-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-check-1",
+        "executionSlotId": "slot-tickets-check-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 1 of to-tickets (cut a spec into tickets) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "tickets-round-2",
+        "executionSlotId": "slot-tickets-round-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the ticket question agent for round 2 of to-tickets (cut a spec into tickets) (at most 3 rounds). Read the spec and the owner's answers so far in the ticket record, and ask the owner the questions the cut still needs answered (slices, order, what each ticket covers): one question each, none the record already settles. Write the round's questions and the answers so far to the ticket record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-round-2-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-check-2",
+        "executionSlotId": "slot-tickets-check-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 2 of to-tickets (cut a spec into tickets) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "tickets-round-3",
+        "executionSlotId": "slot-tickets-round-3",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the ticket question agent for round 3 of to-tickets (cut a spec into tickets) (at most 3 rounds). Read the spec and the owner's answers so far in the ticket record, and ask the owner the questions the cut still needs answered (slices, order, what each ticket covers): one question each, none the record already settles. Write the round's questions and the answers so far to the ticket record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-round-3-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-check-3",
+        "executionSlotId": "slot-tickets-check-3",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 3 of to-tickets (cut a spec into tickets) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "tickets-write",
+        "executionSlotId": "slot-tickets-write",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the ticket author. Break the spec into tickets, each one vertical slice with a title, a body and labels; use only labels from the repository's setup file (docs/agents/setup.yaml, the labels list). Write them as tickets.json beside the ticket record, in the form {\"tickets\":[{\"title\":...,\"body\":...,\"labels\":[...]}]}. Create nothing in any tracker. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-write",
+          "schema": {
+            "ok": true
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-to-tickets-start",
+        "to": "tickets-round-1",
+        "on": "success"
+      },
+      {
+        "from": "tickets-round-1",
+        "to": "tickets-write",
+        "on": "success"
+      },
+      {
+        "from": "tickets-round-1",
+        "to": "tickets-check-1",
+        "on": "failure"
+      },
+      {
+        "from": "tickets-check-1",
+        "to": "tickets-round-2",
+        "on": "success"
+      },
+      {
+        "from": "tickets-round-2",
+        "to": "tickets-write",
+        "on": "success"
+      },
+      {
+        "from": "tickets-round-2",
+        "to": "tickets-check-2",
+        "on": "failure"
+      },
+      {
+        "from": "tickets-check-2",
+        "to": "tickets-round-3",
+        "on": "success"
+      },
+      {
+        "from": "tickets-round-3",
+        "to": "tickets-write",
+        "on": "success"
+      },
+      {
+        "from": "tickets-round-3",
+        "to": "tickets-check-3",
+        "on": "failure"
+      },
+      {
+        "from": "tickets-check-3",
+        "to": "tickets-write",
+        "on": "success"
+      },
+      {
+        "from": "tickets-write",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-to-tickets-start",
+        "agentId": "gate-to-tickets-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-tickets-round-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-tickets-check-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-tickets-round-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-tickets-check-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-tickets-round-3",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-tickets-check-3",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-tickets-write",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      }
+    ]
+  }
+}

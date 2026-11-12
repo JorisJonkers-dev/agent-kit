@@ -12,20 +12,20 @@ export const WORKFLOWS_VERSION = 1
 /** How long a workflow lives when nobody ends it. */
 export const WORKFLOW_TTL_MS = 24 * 60 * 60 * 1000
 
-/** The characters a workflow name may hold: a letter or digit first, then letters, digits and `._:/-`, at most 80. */
-export const WORKFLOW_NAME = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/
+/** The characters a workflow name may hold: a letter or digit first, then letters, digits and `._:/@-`, at most 80. */
+export const WORKFLOW_NAME = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,79}$/
 
 /**
  * The workflow name `value` names, refused when it is missing or is not a name
  * a workflow may carry. A name reaches the shell command the gateway suggests
- * and the paths a run keeps, so it is held to letters, digits and `._:/-`.
+ * and the paths a run keeps, so it is held to letters, digits and `._:/@-`.
  */
 export function requireWorkflowName(value: unknown, missing: string): string {
   if (typeof value !== 'string' || value === '') throw new ModelGatewayError('invalid-input', missing)
   if (!WORKFLOW_NAME.test(value)) {
     throw new ModelGatewayError(
       'invalid-input',
-      `workflow ${JSON.stringify(value)} is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters`,
+      `workflow ${JSON.stringify(value)} is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters`,
     )
   }
   return value

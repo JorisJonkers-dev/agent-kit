@@ -204,6 +204,8 @@ export type ModelGatewayErrorCode =
    * quietly double the cap.
    */
   | 'grant-exists'
+  /** `grant reserve` found a grant with no `max_starts`: a grant for dollars allows no Codex node starts, and the gateway never falls back to `cap_usd`. */
+  | 'no-max-starts'
   /** The grants file lies inside a git repository, and a grant is never written into one. */
   | 'grants-in-repository'
   /** `grant write` could not read the ledger, so a standing grant cannot be ruled out: it fails closed. */

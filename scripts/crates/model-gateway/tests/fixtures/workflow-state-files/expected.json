@@ -1,0 +1,371 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: not JSON: Unexpected token 'o', \\\"not json\\\" is not valid JSON\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: not JSON: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "not json",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: not JSON: Unexpected end of JSON input\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: not JSON: Unexpected end of JSON input\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: the workflows file must be a JSON object\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: the workflows file must be a JSON object\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "[]",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: the workflows file must be a JSON object\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: the workflows file must be a JSON object\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "null",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: version must be 1\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: version must be 1\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: version must be 1\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: version must be 1\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":2,\"workflows\":[]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows must be a list\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows must be a list\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows must be a list\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows must be a list\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":{}}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0] must be an object\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0] must be an object\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[5]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0] must be an object\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0] must be an object\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[[]]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].name must be a non-empty string\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].name must be a non-empty string\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].name must be a non-empty string\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].name must be a non-empty string\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"yesterday\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":5}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].ended_at must be an ISO timestamp\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].ended_at must be an ISO timestamp\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00Z\",\"ended_at\":\"later\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].ended_at must be an ISO timestamp\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].ended_at must be an ISO timestamp\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00Z\",\"ended_at\":null}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": null,\n      \"name\": \"a\",\n      \"started_at\": \"2026-11-03T12:00:00Z\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": \"2026-11-03T13:00:00Z\",\n      \"name\": \"b\",\n      \"started_at\": \"2026-11-03T12:00:00Z\",\n      \"state\": \"ended\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00Z\"},{\"name\":\"b\",\"started_at\":\"2026-11-03T12:00:00Z\",\"ended_at\":\"2026-11-03T13:00:00Z\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": null,\n      \"name\": \"a\",\n      \"started_at\": \"2026-11-03T12:00:00+02:00\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"b\",\n      \"started_at\": \"2026-11-03\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"c\",\n      \"started_at\": \"2026-11-03T12:00\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"d\",\n      \"started_at\": \"2026-11-03T12:00:00.5Z\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"e\",\n      \"started_at\": \"+002026-11-03T12:00:00Z\",\n      \"state\": \"running\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00+02:00\"},{\"name\":\"b\",\"started_at\":\"2026-11-03\"},{\"name\":\"c\",\"started_at\":\"2026-11-03T12:00\"},{\"name\":\"d\",\"started_at\":\"2026-11-03T12:00:00.5Z\"},{\"name\":\"e\",\"started_at\":\"+002026-11-03T12:00:00Z\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-01-02T00:00:00.000Z\",\n      \"name\": \"a\",\n      \"started_at\": \"2026\",\n      \"state\": \"ended\"\n    },\n    {\n      \"ended_at\": \"2026-11-02T00:00:00.000Z\",\n      \"name\": \"b\",\n      \"started_at\": \"2026-11\",\n      \"state\": \"ended\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"c\",\n      \"started_at\": \"2026-11-31\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": \"2026-11-05T00:00:00.000Z\",\n      \"name\": \"d\",\n      \"started_at\": \"2026-11-03T24:00\",\n      \"state\": \"ended\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026\"},{\"name\":\"b\",\"started_at\":\"2026-11\"},{\"name\":\"c\",\"started_at\":\"2026-11-31\"},{\"name\":\"d\",\"started_at\":\"2026-11-03T24:00\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-32\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T24:00:01\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"new\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T13:00:00Z\",\n      \"name\": \"b\",\n      \"started_at\": \"2026-11-03T12:00:00Z\"\n    },\n    {\n      \"name\": \"a\",\n      \"started_at\": \"2026-11-03T12:00:00Z\"\n    },\n    {\n      \"name\": \"new\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": \"2026-11-03T14:00:00.000Z\",\n    \"name\": \"a\",\n    \"started_at\": \"2026-11-03T12:00:00Z\",\n    \"state\": \"ended\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T13:00:00Z\",\n      \"name\": \"b\",\n      \"started_at\": \"2026-11-03T12:00:00Z\"\n    },\n    {\n      \"name\": \"a\",\n      \"started_at\": \"2026-11-03T12:00:00Z\",\n      \"ended_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"name\": \"new\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": \"2026-11-03T13:00:00Z\",\n    \"name\": \"b\",\n    \"started_at\": \"2026-11-03T12:00:00Z\",\n    \"state\": \"ended\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-11-03T13:00:00Z\",\n      \"name\": \"b\",\n      \"started_at\": \"2026-11-03T12:00:00Z\"\n    },\n    {\n      \"ended_at\": \"2026-11-03T14:00:00.000Z\",\n      \"name\": \"a\",\n      \"started_at\": \"2026-11-03T12:00:00Z\"\n    },\n    {\n      \"name\": \"new\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"x\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"a\",\n      \"started_at\": \"2026-11-03T12:00:00Z\"\n    },\n    {\n      \"name\": \"x\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "state/agent-kit/model-gateway/workflows.json.d/": null,
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: cannot read the workflows: EISDIR: illegal operation on a directory, read\"}\n",
+      "stderr": "model-gateway workflow start: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: cannot read the workflows: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json/": null,
+        "state/agent-kit/model-gateway/workflows.json.d/": null,
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: cannot read the workflows: EISDIR: illegal operation on a directory, read\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: cannot read the workflows: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json/": null,
+        "state/agent-kit/model-gateway/workflows.json.d/": null,
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

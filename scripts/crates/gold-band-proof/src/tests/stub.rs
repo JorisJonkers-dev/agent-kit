@@ -124,6 +124,8 @@ fn role_parse_reads_every_spelling() {
     assert_eq!(Role::parse(" questions "), Role::Questions);
     assert_eq!(Role::parse("gate:build"), Role::Gate("build".to_string()));
     assert_eq!(Role::parse("copy:lint"), Role::Copy("lint".to_string()));
+    assert_eq!(Role::parse("grant:build"), Role::Grant("build".to_string()));
+    assert_eq!(Role::parse("grant:"), Role::Findings);
     assert_eq!(Role::parse("gate:"), Role::Findings);
     assert_eq!(Role::parse("copy:"), Role::Findings);
     assert_eq!(
@@ -144,6 +146,7 @@ fn role_text_round_trips_through_parse() {
     assert_eq!(Role::Questions.as_text(), "questions");
     assert_eq!(Role::Gate("build".to_string()).as_text(), "gate:build");
     assert_eq!(Role::Copy("lint".to_string()).as_text(), "copy:lint");
+    assert_eq!(Role::Grant("build".to_string()).as_text(), "grant:build");
     assert_eq!(
         Role::Dynamic(vec!["vibe".to_string(), "claude".to_string()]).as_text(),
         "dynamic:vibe,claude"
@@ -155,6 +158,7 @@ fn role_text_round_trips_through_parse() {
         Role::Questions,
         Role::Gate("build".to_string()),
         Role::Copy("lint".to_string()),
+        Role::Grant("build".to_string()),
         Role::Dynamic(vec!["vibe".to_string(), "claude".to_string()]),
         Role::Dynamic(Vec::new()),
         Role::Verdict(2),
@@ -973,5 +977,38 @@ fn the_dynamic_role_repeats_its_completion_for_a_repair_prompt_in_the_same_sessi
         .as_str()
         .expect("the update carries text");
     assert_eq!(fenced_body(text), json!({ "ok": true }));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The report-shaped answer a grant-check shim gives, with its exit code.
+fn report(exit_code: i32) -> Value {
+    json!({
+        "run_id": "",
+        "attempt": 0,
+        "command": "",
+        "exit_code": exit_code,
+        "output_hash": "",
+        "timestamp": "",
+    })
+}
+
+#[test]
+fn the_grant_role_answers_zero_until_the_verdict_lapses_its_grant() {
+    let dir = temp_dir("grant-role");
+    let mut stub = Stub::with_role(
+        Role::Grant("build".to_string()),
+        dir.to_string_lossy().into_owned(),
+    );
+    for verdict in ["clean", "grant-lapse=lint", "gate-fail=build"] {
+        assert_eq!(
+            fenced_body(&prompt_text(&mut stub, verdict)),
+            report(0),
+            "{verdict}"
+        );
+    }
+    assert_eq!(
+        fenced_body(&prompt_text(&mut stub, "grant-lapse=build")),
+        report(1)
+    );
     let _ = fs::remove_dir_all(&dir);
 }

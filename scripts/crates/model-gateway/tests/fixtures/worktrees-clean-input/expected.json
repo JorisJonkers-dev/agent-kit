@@ -1,0 +1,239 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean needs \\\"workflow\\\", the workflow that ended, or \\\"all\\\": true\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean needs \"workflow\", the workflow that ended, or \"all\": true\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean takes the workflow that ended, or all, not both\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean takes the workflow that ended, or all, not both\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean needs \\\"workflow\\\", the workflow that ended, or \\\"all\\\": true\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean needs \"workflow\", the workflow that ended, or \"all\": true\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean needs \\\"workflow\\\", the workflow that ended, or \\\"all\\\": true\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean needs \"workflow\", the workflow that ended, or \"all\": true\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean needs \\\"workflow\\\", the workflow that ended, or \\\"all\\\": true\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean needs \"workflow\", the workflow that ended, or \"all\": true\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean needs \\\"workflow\\\", the workflow that ended, or \\\"all\\\": true\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean needs \"workflow\", the workflow that ended, or \"all\": true\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow must be the non-empty name of the workflow that ended\"}\n",
+      "stderr": "model-gateway worktrees clean: workflow must be the non-empty name of the workflow that ended\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow must be the non-empty name of the workflow that ended\"}\n",
+      "stderr": "model-gateway worktrees clean: workflow must be the non-empty name of the workflow that ended\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow must be the non-empty name of the workflow that ended\"}\n",
+      "stderr": "model-gateway worktrees clean: workflow must be the non-empty name of the workflow that ended\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"bad name\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway worktrees clean: workflow \"bad name\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"-lead\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway worktrees clean: workflow \"-lead\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway worktrees clean: workflow \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"ünï\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway worktrees clean: workflow \"ünï\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway worktrees clean: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway worktrees clean: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway worktrees clean: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway worktrees clean: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unexpected token 'o', \\\"not json\\\" is not valid JSON\"}\n",
+      "stderr": "model-gateway worktrees clean: the input is not JSON: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean takes one of --json '<object>' or --input <file>\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean takes one of --json '<object>' or --input <file>\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean takes one of --json '<object>' or --input <file>\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean takes one of --json '<object>' or --input <file>\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean takes one of --json '<object>' or --input <file>\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean takes one of --json '<object>' or --input <file>\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"worktrees clean takes one of --json '<object>' or --input <file>\"}\n",
+      "stderr": "model-gateway worktrees clean: worktrees clean takes one of --json '<object>' or --input <file>\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"missing.json: cannot read the input: ENOENT: no such file or directory, open 'missing.json'\"}\n",
+      "stderr": "model-gateway worktrees clean: missing.json: cannot read the input: ENOENT: no such file or directory, open 'missing.json'\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/in.json": "{\"workflow\":\"w1\"}"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/in.json": "{\"all\":true}"
+      }
+    }
+  ]
+}

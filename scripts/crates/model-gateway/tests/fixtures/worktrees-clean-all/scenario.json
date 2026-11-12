@@ -1,0 +1,80 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/git": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/git-calls\"\ncase \"$3 $4\" in\n  \"worktree remove\")\n    case \"$6\" in\n      *failrm*) echo \"fatal: $6 is not a working tree\" >&2; exit 128 ;;\n      *failprune*) echo \"fatal: cannot remove $6\" >&2; exit 128 ;;\n      *failquiet*) exit 1 ;;\n    esac\n    rm -rf \"$6\"\n    exit 0 ;;\n  \"worktree prune\")\n    case \"$*\" in\n      *failprune*) echo \"error: failed to prune worktrees\" >&2; exit 1 ;;\n      *failquiet*) exit 1 ;;\n    esac\n    exit 0 ;;\n  \"branch -D\")\n    case \"$5\" in\n      *failbranchquiet*) exit 1 ;;\n      *failbranch*) echo \"error: the branch $5 is not fully merged\" >&2; exit 1 ;;\n    esac\n    exit 0 ;;\nesac\nexit 0\n",
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-ok1\",\n      \"branch\": \"gateway/ok1\",\n      \"run_id\": \"ok1\",\n      \"workflow\": \"w1\"\n    },\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-failrm1\",\n      \"branch\": \"gateway/bad1\",\n      \"run_id\": \"bad1\",\n      \"workflow\": \"w1\"\n    },\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-ok2\",\n      \"branch\": \"gateway/failbranch2\",\n      \"run_id\": \"ok2\",\n      \"workflow\": \"w2\"\n    },\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-ok3\",\n      \"branch\": \"gateway/ok3\",\n      \"run_id\": \"ok3\",\n      \"workflow\": \"w2\"\n    }\n  ]\n}\n"
+      },
+      "exec": [
+        "bin/git"
+      ],
+      "mkdir": [
+        "work/repo-a",
+        "work/wt-ok1",
+        "work/wt-failrm1",
+        "work/wt-ok2",
+        "work/wt-ok3"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-ok1\",\n      \"branch\": \"gateway/ok1\",\n      \"run_id\": \"ok1\",\n      \"workflow\": \"w1\"\n    },\n    {\n      \"repo\": \"@SANDBOX@/work/repo-a\",\n      \"path\": \"@SANDBOX@/work/wt-ok3\",\n      \"branch\": \"gateway/ok3\",\n      \"run_id\": \"ok3\",\n      \"workflow\": \"w2\"\n    }\n  ]\n}\n"
+      },
+      "mkdir": [
+        "work/wt-ok1",
+        "work/wt-ok3"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

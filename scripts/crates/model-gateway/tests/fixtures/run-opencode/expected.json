@@ -1,0 +1,61 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"client\": \"opencode\",\n  \"cost_usd\": 0.004,\n  \"family\": \"zhipu\",\n  \"mode\": \"read-only\",\n  \"model\": \"opencode-go/glm-5.3-flash\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"opencode is fine\",\n  \"tokens\": {\n    \"cached\": 30,\n    \"input\": 135,\n    \"output\": 50\n  },\n  \"workflow\": \"w\",\n  \"attempts\": [\n    {\n      \"client\": \"opencode\",\n      \"model\": \"opencode-go/glm-5.3-flash\",\n      \"run_id\": \"20261103T120000Z-@RAND1@\",\n      \"status\": \"ok\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/calls/": null,
+        "home/calls/opencode.n": "1\n",
+        "home/calls/opencode.txt": "status auth list\ncall 1\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP1@\narg run\narg --standalone\narg --model\narg opencode-go/glm-5.3-flash\narg --format\narg json\narg Look it up.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/canned/": null,
+        "home/canned/opencode.out": "{\"type\":\"step_start\"}\n{\"type\":\"text\",\"part\":{\"text\":\"Looked it up.\\nSUMMARY: opencode is fine\"}}\n{\"type\":\"step_finish\",\"part\":{\"cost\":0.004,\"tokens\":{\"input\":100,\"output\":40,\"reasoning\":10,\"cache\":{\"read\":30,\"write\":5}}}}\n",
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"opencode\",\"cost_class\":\"subsidised\",\"cost_usd\":0.004,\"duration_s\":0,\"family\":\"zhipu\",\"mode\":\"read-only\",\"model\":\"opencode-go/glm-5.3-flash\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"20261103T120000Z-@RAND1@\",\"tokens\":{\"cached\":30,\"input\":135,\"output\":50},\"workflow\":\"w\"}\n",
+        "state/agent-kit/model-gateway/runs/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"opencode\",\n  \"mode\": \"read-only\",\n  \"model\": \"opencode-go/glm-5.3-flash\",\n  \"prompt\": \"Look it up.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json": "{\"type\":\"step_start\"}\n{\"type\":\"text\",\"part\":{\"text\":\"Looked it up.\\nSUMMARY: opencode is fine\"}}\n{\"type\":\"step_finish\",\"part\":{\"cost\":0.004,\"tokens\":{\"input\":100,\"output\":40,\"reasoning\":10,\"cache\":{\"read\":30,\"write\":5}}}}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/prompt.md": "Look it up.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/result.json": "{\n  \"client\": \"opencode\",\n  \"cost_usd\": 0.004,\n  \"family\": \"zhipu\",\n  \"mode\": \"read-only\",\n  \"model\": \"opencode-go/glm-5.3-flash\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"opencode is fine\",\n  \"tokens\": {\n    \"cached\": 30,\n    \"input\": 135,\n    \"output\": 50\n  },\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "tmp/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"client\": \"opencode\",\n  \"cost_usd\": 0.004,\n  \"family\": \"moonshot\",\n  \"mode\": \"read-only\",\n  \"model\": \"opencode-go/kimi-k3.1-pro\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120500Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"Second.\",\n  \"tokens\": {\n    \"cached\": 30,\n    \"input\": 135,\n    \"output\": 50\n  },\n  \"workflow\": \"w\",\n  \"attempts\": [\n    {\n      \"client\": \"opencode\",\n      \"model\": \"opencode-go/kimi-k3.1-pro\",\n      \"run_id\": \"20261103T120500Z-@RAND1@\",\n      \"status\": \"ok\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/calls/": null,
+        "home/calls/opencode.n": "2\n",
+        "home/calls/opencode.txt": "status auth list\ncall 1\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP1@\narg run\narg --standalone\narg --model\narg opencode-go/glm-5.3-flash\narg --format\narg json\narg Look it up.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\nstatus auth list\ncall 2\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP2@\narg run\narg --standalone\narg --model\narg opencode-go/kimi-k3.1-pro\narg --format\narg json\narg A second one.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/canned/": null,
+        "home/canned/opencode.out": "{\"type\":\"step_start\"}\n{\"type\":\"text\",\"part\":{\"text\":\"Second.\"}}\n{\"type\":\"step_finish\",\"part\":{\"cost\":0.004,\"tokens\":{\"input\":100,\"output\":40,\"reasoning\":10,\"cache\":{\"read\":30,\"write\":5}}}}\n",
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"opencode\",\"cost_class\":\"subsidised\",\"cost_usd\":0.004,\"duration_s\":0,\"family\":\"zhipu\",\"mode\":\"read-only\",\"model\":\"opencode-go/glm-5.3-flash\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"20261103T120000Z-@RAND2@\",\"tokens\":{\"cached\":30,\"input\":135,\"output\":50},\"workflow\":\"w\"}\n{\"at\":\"2026-11-03T12:05:00.000Z\",\"client\":\"opencode\",\"cost_class\":\"subsidised\",\"cost_usd\":0.004,\"duration_s\":0,\"family\":\"moonshot\",\"mode\":\"read-only\",\"model\":\"opencode-go/kimi-k3.1-pro\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"20261103T120500Z-@RAND1@\",\"tokens\":{\"cached\":30,\"input\":135,\"output\":50},\"workflow\":\"w\"}\n",
+        "state/agent-kit/model-gateway/runs/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/input.json": "{\n  \"client\": \"opencode\",\n  \"mode\": \"read-only\",\n  \"model\": \"opencode-go/glm-5.3-flash\",\n  \"prompt\": \"Look it up.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/output.json": "{\"type\":\"step_start\"}\n{\"type\":\"text\",\"part\":{\"text\":\"Looked it up.\\nSUMMARY: opencode is fine\"}}\n{\"type\":\"step_finish\",\"part\":{\"cost\":0.004,\"tokens\":{\"input\":100,\"output\":40,\"reasoning\":10,\"cache\":{\"read\":30,\"write\":5}}}}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/prompt.md": "Look it up.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/result.json": "{\n  \"client\": \"opencode\",\n  \"cost_usd\": 0.004,\n  \"family\": \"zhipu\",\n  \"mode\": \"read-only\",\n  \"model\": \"opencode-go/glm-5.3-flash\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND2@\",\n  \"status\": \"ok\",\n  \"summary\": \"opencode is fine\",\n  \"tokens\": {\n    \"cached\": 30,\n    \"input\": 135,\n    \"output\": 50\n  },\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/": null,
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/input.json": "{\n  \"client\": \"opencode\",\n  \"mode\": \"read-only\",\n  \"model\": \"opencode-go/kimi-k3.1-pro\",\n  \"prompt\": \"A second one.\",\n  \"time_limit_s\": 600,\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/output.json": "{\"type\":\"step_start\"}\n{\"type\":\"text\",\"part\":{\"text\":\"Second.\"}}\n{\"type\":\"step_finish\",\"part\":{\"cost\":0.004,\"tokens\":{\"input\":100,\"output\":40,\"reasoning\":10,\"cache\":{\"read\":30,\"write\":5}}}}\n",
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/prompt.md": "A second one.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/result.json": "{\n  \"client\": \"opencode\",\n  \"cost_usd\": 0.004,\n  \"family\": \"moonshot\",\n  \"mode\": \"read-only\",\n  \"model\": \"opencode-go/kimi-k3.1-pro\",\n  \"output_path\": \"@SANDBOX@/state/agent-kit/model-gateway/runs/20261103T120500Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120500Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"Second.\",\n  \"tokens\": {\n    \"cached\": 30,\n    \"input\": 135,\n    \"output\": 50\n  },\n  \"workflow\": \"w\"\n}\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "tmp/": null,
+        "work/": null
+      }
+    }
+  ]
+}

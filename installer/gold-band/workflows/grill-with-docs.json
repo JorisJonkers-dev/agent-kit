@@ -1,0 +1,376 @@
+{
+  "workflow": {
+    "description": "Grill-with-docs for the Gold Band instances (issue #628, wave 4): the grill-me rounds, then the answers that change a decision are written into the repository's decision docs. A run-start gate refuses the run when the repository rule or the family allowlist forbids a bound agent. Up to five grill rounds follow, unrolled and capped at five: a round that leaves a question open pauses on its manual check for the owner's answers, then the next round runs; after round five the last check hands over to the docs update regardless. The docs update writes only decisions the owner answered, to CONTEXT.md and the ADRs. No shim node has a failure edge, so a failing gate ends the run in failure.",
+    "version": "0.1",
+    "id": "grill-with-docs",
+    "entry": "gate-grill-with-docs-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-grill-with-docs-start",
+        "executionSlotId": "slot-gate-grill-with-docs-start",
+        "provider": "gate-grill-with-docs-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for grill-with-docs, which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds. Answer with one fenced json block holding its exit status and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-grill-with-docs-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-round-1",
+        "executionSlotId": "slot-grill-round-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the grill agent for round 1 of grill-with-docs (grill and write the decision docs) (at most 5 rounds). Read the requirement and the owner's answers so far in the grill record, and ask the owner the questions that are still open: one decision per question, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the grill record. Read CONTEXT.md and the ADRs first and ask about every answer that would change a decision they record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grill-round-1-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-check-1",
+        "executionSlotId": "slot-grill-check-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 1 of grill-with-docs (grill and write the decision docs) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "grill-round-2",
+        "executionSlotId": "slot-grill-round-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the grill agent for round 2 of grill-with-docs (grill and write the decision docs) (at most 5 rounds). Read the requirement and the owner's answers so far in the grill record, and ask the owner the questions that are still open: one decision per question, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the grill record. Read CONTEXT.md and the ADRs first and ask about every answer that would change a decision they record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grill-round-2-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-check-2",
+        "executionSlotId": "slot-grill-check-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 2 of grill-with-docs (grill and write the decision docs) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "grill-round-3",
+        "executionSlotId": "slot-grill-round-3",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the grill agent for round 3 of grill-with-docs (grill and write the decision docs) (at most 5 rounds). Read the requirement and the owner's answers so far in the grill record, and ask the owner the questions that are still open: one decision per question, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the grill record. Read CONTEXT.md and the ADRs first and ask about every answer that would change a decision they record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grill-round-3-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-check-3",
+        "executionSlotId": "slot-grill-check-3",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 3 of grill-with-docs (grill and write the decision docs) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "grill-round-4",
+        "executionSlotId": "slot-grill-round-4",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the grill agent for round 4 of grill-with-docs (grill and write the decision docs) (at most 5 rounds). Read the requirement and the owner's answers so far in the grill record, and ask the owner the questions that are still open: one decision per question, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the grill record. Read CONTEXT.md and the ADRs first and ask about every answer that would change a decision they record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grill-round-4-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-check-4",
+        "executionSlotId": "slot-grill-check-4",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 4 of grill-with-docs (grill and write the decision docs) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "grill-round-5",
+        "executionSlotId": "slot-grill-round-5",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the grill agent for round 5 of grill-with-docs (grill and write the decision docs) (at most 5 rounds). Read the requirement and the owner's answers so far in the grill record, and ask the owner the questions that are still open: one decision per question, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the grill record. Read CONTEXT.md and the ADRs first and ask about every answer that would change a decision they record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grill-round-5-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-check-5",
+        "executionSlotId": "slot-grill-check-5",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "Round 5 of grill-with-docs (grill and write the decision docs) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "docs-update",
+        "executionSlotId": "slot-docs-update",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the docs author. Write each answer in the grill record that changes a decision into the decision docs: CONTEXT.md for a term, a new or amended ADR for a decision. Only decisions the owner answered, no decision of your own; leave the docs alone for an answer that changes nothing. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "docs-update",
+          "schema": {
+            "ok": true
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-grill-with-docs-start",
+        "to": "grill-round-1",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-1",
+        "to": "docs-update",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-1",
+        "to": "grill-check-1",
+        "on": "failure"
+      },
+      {
+        "from": "grill-check-1",
+        "to": "grill-round-2",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-2",
+        "to": "docs-update",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-2",
+        "to": "grill-check-2",
+        "on": "failure"
+      },
+      {
+        "from": "grill-check-2",
+        "to": "grill-round-3",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-3",
+        "to": "docs-update",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-3",
+        "to": "grill-check-3",
+        "on": "failure"
+      },
+      {
+        "from": "grill-check-3",
+        "to": "grill-round-4",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-4",
+        "to": "docs-update",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-4",
+        "to": "grill-check-4",
+        "on": "failure"
+      },
+      {
+        "from": "grill-check-4",
+        "to": "grill-round-5",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-5",
+        "to": "docs-update",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-5",
+        "to": "grill-check-5",
+        "on": "failure"
+      },
+      {
+        "from": "grill-check-5",
+        "to": "docs-update",
+        "on": "success"
+      },
+      {
+        "from": "docs-update",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-grill-with-docs-start",
+        "agentId": "gate-grill-with-docs-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grill-round-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-grill-check-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-grill-round-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-grill-check-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-grill-round-3",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-grill-check-3",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-grill-round-4",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-grill-check-4",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-grill-round-5",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-grill-check-5",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-docs-update",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      }
+    ]
+  }
+}

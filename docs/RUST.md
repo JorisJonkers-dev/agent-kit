@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Twenty members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Twenty-one members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -29,6 +29,8 @@ on the Linux workstation.
   it takes serde, serde_json and serde_yaml, each pinned exactly.
   `crates/agent-launcher` is the reach-level launcher (below); it takes serde
   and serde_yaml, each pinned exactly.
+  `crates/model-gateway` is the first slice of the Rust model gateway (below);
+  std-only.
   `crates/build-tracker` is the Rust port of the build tracker (below); it is
   std-only, with the ordered JSON its state file needs written in the crate.
   `crates/litellm-gate` is the node-side check that a LiteLLM per-key budget is
@@ -217,8 +219,11 @@ hold on this OS. It reads the support record, `registry/reach-levels.yaml`:
 * `agents:` each agent's `command` and, per reach level (`read`, `read-web`,
   `research`, `write-scoped`, `run-one-command`, `write`, `full`), its tool
   `args` and a `support:` cell for each OS (`linux`, `mac`), one of `verified`,
-  `unverified` or `unsupported`. A cell is verified separately on each OS; a
-  level proven on the Mac is never assumed on Linux.
+  `unverified` or `unsupported`, and a `check:` for each OS: the test that
+  proves a `verified` cell (`<file>::<test>`) or the reason an `unsupported`
+  one is refused. `validate` refuses a verified cell without its check. A cell
+  is verified separately on each OS; a level proven on the Mac is never
+  assumed on Linux.
 * `ids:` each agent id, naming its `agent`, its `reach` level, an optional
   `skill_set`, the `hosts` it runs on and, for `research` and `write-scoped`,
   its `output_dir`.
@@ -316,6 +321,35 @@ tests start a stub agent under the real `sandbox-exec`. The same job runs
 `code-nav`'s `read_reach` test (below), which starts the server through this
 launcher at `read` reach.
 
+**Claude's cells.** The record's `claude` agent holds all seven levels, each
+verified on Linux and on macOS by `crates/agent-launcher/tests/claude_reach.rs`
+(one test per level, `claude_reach_<level>` with `-` as `_`; the record cites each). The test
+starts the launcher binary on the real record with the command swapped for a
+stub shell script (never Claude, never `~/.claude` or a credential: `HOME` is a
+scratch directory) under the real write limit, and checks three things: the
+level's tool arguments reach the process (a `--tools` list, a `--disallowedTools`
+deny list of every powerful tool the level lacks, `--permission-mode=dontAsk`,
+`--strict-mcp-config`; `full` is `--permission-mode=bypassPermissions` alone);
+the writes the operating system allows are exactly the table above; and the
+record's cell for this OS is `verified` and cites that test. It runs in the
+`Rust Tests (macos)` job and the Linux workspace job. What it does not prove is
+how a live Claude Code reads those flags: that was checked against its
+`--help`, and a live run needs the owner's credentials. `run-one-command`
+pre-approves no Bash command; a node adds `--allowedTools 'Bash(<command>)'`
+after `--`, and the OS limit confines where that command may write.
+
+**Pi, OpenCode, Hermes and Antigravity** (`tests/other_reach.rs`, same method,
+stub commands, one test per verified cell and one per refused example). A level an
+agent cannot express from launcher arguments is `unsupported`, the record's
+`check` field says why, and the launcher refuses an id naming it (nothing is
+downgraded). Pi holds `read`, `write-scoped`, `write` and `full` through its
+`--tools` allow-list (it has no web tool and no command allow-list, so
+`read-web`, `research` and `run-one-command` are refused). OpenCode (its CLI has
+no tool or permission flag) and Hermes (toolset fixed over ACP) hold `full`
+only. Antigravity documents no tool, permission or sandbox flag, so all its cells are
+refused on macOS; on Linux they are also refused because main declares no
+Linux command for it until #431 lands.
+
 For an id that names a `skill_set`, `run` also exports `AGENT_KIT_SKILL_SET`
 with that name and `AGENT_KIT_SKILLS_DIR` with the directory setup builds for
 it, `<GOLD_BAND_HOME or $HOME>/.gold-band/skill-sets/<id>`; an id without one
@@ -375,6 +409,78 @@ UTC` stamp: the node runner is run with its clock fixed (`fixtures/fake-clock.mj
 and the replay uses a fixed clock too; a separate test runs on the real clock and
 compares the page with the stamp normalised. Regenerate the goldens only when the
 node runner's behaviour changes on purpose.
+
+## model-gateway
+
+`model-gateway` is the Rust port of the model gateway
+(`skills/workstation/model-gateway/model-gateway.mjs`, built from
+`council/ts/src/model-gateway-cli/` and `council/ts/src/contexts/model-gateway/`),
+ported command by command behind the same command line and JSON contract. The
+node runner stays installed; swapping the binary in is a later step (ticket #500
+stays open until the port is whole).
+
+The gateway's own tests are vitest tests over in-memory ports, so they cannot be
+pointed at a binary. Parity is proved the way the build tracker's is: goldens
+generated by the node runner, replayed through the library.
+
+Ported (byte for byte on every golden scenario): the command shell (`--help`,
+subcommand resolution, `--json`/`--input`, the error object and exit codes),
+`workflow start|end|list` with the state file, its lock and its key order, and
+`models`, `usage`, `grant write`, `grant list`, `grant reserve` and `worktrees clean` with what they need:
+configuration and the shipped defaults (`skills/workstation/model-gateway/defaults.json`,
+embedded in the binary) with this machine's override, the family allowlist and
+the data policy (git remotes decide the repository's identity), each client's own
+model listing and login status command, the Vibe probe and its ten-minute cache,
+the ledger reads and the settling of dead reservations that `usage` and the grant
+commands do first, grants with the refuse-inside-a-repository rule and their
+lock, a start reserved against a grant's `max_starts` in one locked ledger update
+(`grant reserve`; `tests/concurrency.rs` runs the real binary with parallel processes and
+checks that exactly the grant's starts pass), and the kept-worktrees file with `git worktree
+remove` and `git branch -D` (`worktrees clean`), and the read-only `run` for every client (vibe, agy, claude,
+opencode, hermes, codex): launchers, the retry, climb and swap, cost estimation and cap or grant reservation,
+the read-only proof (critique's `routing.json` is embedded like `defaults.json`), throwaway worktrees, the
+run directory, `result.json` and the ledger line. Not ported yet: write-mode `run` and `batch`. A writing run
+reads and validates its input like the node runner (and is refused the same way for an unknown client or model,
+a policy refusal or a repository it cannot read) and then fails with code `not-ported` before anything is
+reserved, written or launched; `batch` fails with `not-ported` (exit 1) at once. The engine guard and slots
+are not part of `run` and are not ported.
+
+Known differences from the node runner: a zone-less date-time in a state file
+reads as UTC, not local time (the goldens run with `TZ=UTC`); `Date.parse`'s
+legacy non-ISO formats (`2026/11/03`, `2026-1-03`, a `+0200` offset) are not accepted; an empty
+`HOME` resolves the state directory under `/` rather than the working directory;
+a failure to remove the lock file is not reported; a lone UTF-16 surrogate
+escape reads as U+FFFD; the V8 JSON error texts and errno
+wordings are the same where `src/json.rs` and `src/adapters/fs.rs` reproduce
+them, and differ for rare ones. Also different: a ledger line that is not a JSON
+object is skipped (the node runner stops on it), a run line missing a field the
+runner reads reads that field as empty or zero, the Vibe probe cache entry
+is the same JSON but the file's change time is read as seconds times 1000 plus nanoseconds over a
+million, so a cache written by the other runner may count as a miss and be probed again, the shipped
+defaults are embedded in the binary instead of read from a file beside it, and a grant's random id
+suffix comes from the standard library's hasher rather than from `randomBytes`; a client named like an object property (`constructor`) is an unknown client, where the node runner trips over the property; a kept worktree with no `path` (a hand-edited kept-worktrees file) is a failed entry with its own reason, where the node runner passes `undefined` to git and cannot delete it by hand, and a JSON `null` entry in that file is treated like any entry with no path; the OS error words of a worktree directory that cannot be deleted by hand differ.
+
+Also different in `run`: the tools a client's `extras.env` adds are ordered by name (`BTreeMap`) rather than by insertion (only an in-process caller can send them); a surrogate pair in a client's output is cut by characters, not UTF-16 units, where the two differ; a `named_reset` past the last moment a JavaScript `Date` holds gives none, as the node runner gives an invalid date; an error that is not one of the gateway's own (a file that cannot be written) has the code `unexpected`; the process adapter calls `kill` through an `extern "C"` declaration (the only `unsafe`), since std cannot send SIGTERM; and the monotonic clock is `Instant`-based, frozen at 0 in the goldens as the node clock fake freezes `performance.now`.
+
+```bash
+node scripts/crates/model-gateway/tests/gen-scenarios.mjs        # the scenario inputs (gen-scenarios-clients.mjs: models, usage, grants; -reserve and -worktrees: grant reserve, worktrees clean; -run: read-only `run` through fake clients)
+node scripts/crates/model-gateway/tests/regenerate-fixtures.mjs  # the goldens, from the node runner
+cargo test --manifest-path scripts/Cargo.toml -p model-gateway   # SCENARIO=<name> replays one scenario
+```
+
+The scenarios for `models`, `usage` and the grant commands write fake client programs (shell
+scripts under the sandbox's `bin/`, which is the whole `PATH` of those steps, plus a `git` link
+where a step asks for one), so what `models` lists, what the Vibe probe cache holds and what the
+status commands answer are the same in both runners; a grant id's random suffix, and the
+change time and inode in the probe cache, are masked (`@RAND@`, `@N@`) in the goldens.
+
+The `run-*` scenarios drive `run` through fake clients that log how they were launched (argv,
+working directory, the environment that matters, stdin) and print canned output; a step may make
+repositories with the host's git (`"git"`), snapshot more directories (`"roots"`), and points
+`TMPDIR` into the sandbox. The random parts of run ids and temporary directories are numbered per
+step by first appearance (`@RAND1@`, `@TMP1@`, in file names too), and the node runner's clock and
+monotonic reading are fixed (a run's duration is 0). They are replayed with every other
+scenario (`SCENARIO=run-vibe`, or `SCENARIO=run-` for all of them, replays only those).
 
 ## Measuring line coverage
 

@@ -1,0 +1,11 @@
+[package]
+name = "model-gateway"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The model gateway: one JSON object in, one JSON object out, ported from the node runner command by command."
+
+# std only: the ordered JSON the state files need is written here (src/json.rs)
+# rather than pulled from a registry, so nothing in the lockfile has an age to
+# question (docs/RUST.md).
+[dependencies]

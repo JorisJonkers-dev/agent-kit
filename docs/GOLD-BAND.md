@@ -109,6 +109,17 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
   account key from the secret store at launch and hands it to `vibe-acp`, so no
   key is written to a Gold Band file. With the key missing it starts nothing
   and says to run `vibe-study --login`.
+* An agent declares its launch command per OS with `os:`, a map from `linux`
+  and/or `mac` to a partial override of `binary`, `command_from_binary` and
+  `adapter` (the adapter's keys win). Antigravity (`agy`) declares `mac` only:
+  its adapter command is the installed `agy`'s absolute path, so no Homebrew
+  prefix is written in the registry, and Linux skips it
+  (`skipped: agy (no launch command declared for linux)`) until #431 settles
+  whether it has a Linux build. Setup refuses a Linux launch whose binary,
+  command or arguments name a macOS path (Homebrew, `/Applications`,
+  `/Library`). Hermes runs `hermes-acp` on both OSes; the local Hermes CLI is
+  still declared (only the cluster Hermes is retired), and its toolset cannot
+  be restricted over ACP, so only the `write` reach is possible for it.
 * A Claude agent (`claude`, `claude-work`) declares `config_dir`, a path that is
   absolute or starts with `~/`. It is registry-only: setup writes it as the
   entry's `adapter.env.CLAUDE_CONFIG_DIR`. Gold Band sets every `adapter.env`
@@ -119,11 +130,15 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
   `instance: gold-band`) holds `~/.claude`. Setup refuses a Claude agent with
   no `config_dir`, two agents on one directory, and an `adapter.env` that
   names `CLAUDE_CONFIG_DIR` by hand. The work agent is converged on the work
-  instance with `converge.py gold-band --instance gold-band`; setup runs only
-  the personal instance on Linux.
-* An undeclared agent is removed unless the keep file names it. An id that
-  names Codex and any id in `gold_band.retired_agents` are removed even when
-  kept.
+  instance with `converge.py gold-band --instance gold-band`; setup runs the
+  personal instance on Linux and the work instance on the work Mac (below).
+* The work instance holds exactly `claude-work` and `codex` (`instance:
+  gold-band`, adapter `@agentclientprotocol/codex-acp`, pinned). Codex in an
+  adapter command is refused for every agent of the personal instance, and
+  allowed for the work instance's own.
+* An undeclared agent is removed unless the keep file names it. On the personal
+  instance an id that names Codex goes even when kept; any id in
+  `gold_band.retired_agents` is removed even when kept.
 * An agent whose `binary` is not on PATH is skipped and reported
   (`skipped: <id> (<binary> is not installed)`); its existing entry is left alone.
 * Every other key of `settings.json` keeps its value and its order. A second
@@ -131,6 +146,24 @@ keep file (`~/.config/agent-kit/keep.yaml`) names:
   `settings.json.bak`.
 * Nothing is written while the desktop app runs (setup stops and says so), and
   a machine without Gold Band gets no settings file. `--check` only reports.
+
+## The work instance on the Mac
+
+On macOS setup converges the work instance when the per-machine overlay
+(`~/.config/agent-kit/overlay.yaml`) names it under `instances.gold-band`; no
+overlay, or one that names only the personal instance, leaves it alone. The call
+is `converge.py gold-band --instance gold-band --settings
+${GOLD_BAND_HOME:-$HOME}/.gold-band/settings.json --overlay <overlay>`. The
+`agents` map ends as exactly `claude-work` and `codex` (the keep file is not read for
+the work instance); the
+overlay's `settings` are set at their dotted paths in `settings.json` and its
+`mcp_servers` become `contextServers` entries (upserted by id; an entry the
+overlay no longer names is left for the owner to remove). The overlay is
+validated by the `gold-band-registry` crate first (so `cargo` or `GOLD_BAND_REGISTRY_BIN` is needed) and refused whole when it
+fails, and it may not set `agents` or `contextServers` as a setting. Nothing in
+it is copied into the registry, and the registry holds no employer value. The
+work account's own `settings.json` is the target: the personal instance runs
+under the second macOS user.
 
 ## Skill sets per agent id
 
@@ -174,6 +207,12 @@ gold_band:
   `local_skills`, a skill source without `SKILL.md` and a set name that is not a
   Gold Band id are all refused before anything is written.
 
+The shipped registry declares one set, `estate`: the four estate skills
+(`estate-bootstrap`, `estate-project-intent`, `estate-delivery-status`,
+`estate-rollback`). `opencode`, `vibe` and `vibe-study`, the personal
+instance's declared agents, name it, so each gets those four skills in its own
+directory and an id that does not name it gets none.
+
 ## The run-start shim
 
 Every Gold Band workflow opens with a cheap, read-only node that runs one
@@ -214,7 +253,8 @@ prefixed `gold-band-run-start:`:
   gateway's grants record (`model-gateway-grants.json`): client `codex`, that
   workflow, not ended, and not past `expires_at`. The refusal names the nodes
   and prints the `model-gateway grant write --json` call to ask the owner with.
-  The cap counts Codex node starts in the per-node grant check, not here.
+  The grant's `max_starts` counts Codex node starts in the per-node grant
+  check, not here.
 
 Exit codes: `0` every check passed, `1` refused, `2` bad usage or unreadable
 input (a missing file, malformed JSON, a directory that is not a repository).
@@ -225,6 +265,49 @@ printed output), `timestamp` (UTC) and, only when the run did not pass,
 `failed_check` (`repository-rule`, `family-allowlist`, `grant`, `usage` or
 `input`). `tests/test_gold_band_run_start.py` proves the refusals headless
 against the pinned `gold-band` binary with stub agents.
+
+## The grant-check node
+
+In the work instance every node that binds Codex is preceded by a grant-check
+node that runs the same pinned wrapper "for the grant alone" (ADR-0011):
+
+```bash
+gold-band-run-start grant-check --repo DIR --workflow-name NAME --run-id ID \
+    --attempt N --node NODE --report-dir DIR [--gateway CMD]
+```
+
+It names the run's gateway workflow `<workflow name>@<host/owner/repo>@<run
+id>` (the `@` is allowed in a gateway workflow name for this) and calls the
+TypeScript gateway, `model-gateway grant reserve`, which holds one Codex node
+start against that run's grant. A Gold Band grant counts node starts in its own
+field, `max_starts` (`grant write --max-starts N`, or `"max_starts"` in the
+object), because the gateway never sees Gold Band spend; `cap_usd` stays dollars
+and is never read as a start count, and a grant without `max_starts` makes the
+reservation fail with `no-max-starts` (spec #392 story 17). The
+reservation is decided and written inside the gateway's ledger lock, so two
+parallel Codex nodes cannot both take the grant's last start; a reservation
+holds for about a minute and then settles, and a settled start still counts, so
+none is given back (a wrapper that reserves and then crashes before it reports still used a
+start). The gateway keys a start by workflow, node and attempt, so a node whose
+agent runs the wrapper twice still holds one. The grant is read just before the
+ledger lock is taken, so a grant that lapses in those few milliseconds is caught
+by the next node's check, not this one.
+
+Only the gateway's own `status: ok` passes (exit 0, the report
+`<report-dir>/grant-check.json`, the grant and the starts left printed). The
+node fails otherwise, which a workflow routes by a failure edge to a manual
+check, so a run never goes on to Codex past its grant: exit 1 with
+`failed_check` `grant-lapsed` (no grant, or it lapsed by time or workflow
+end), `grant-no-start-left` (a live grant with every `max_starts` start taken)
+or `grant-reserve` (any other gateway answer, such as `no-max-starts` for a
+grant written for dollars, a gateway that cannot be started or prints no JSON); `repository-rule` when the repository has no remote
+to name the run by. The gateway is `--gateway`, else `GOLD_BAND_MODEL_GATEWAY`,
+else `model-gateway` on `PATH`. `tests/test_gold_band_grant_check.py` proves it
+against the real gateway bundle in a throw-away configuration: a grant that
+lapses mid-run pauses the headless run at the next Codex node's manual check
+(exit 2), and parallel wrapper processes cannot pass on the last start. The
+proof harness (`docs/gold-band-proof.md`) gives an agent id `grant-<name>` the
+`grant` role and a `grant-lapse-<name>` scenario for a checked-in workflow.
 
 ## The gate shim
 
@@ -385,6 +468,55 @@ cycle every edge runs at most once, so the cap is never exceeded and the run can
 end on the control limit before it reaches the escalation. The CI wait is added by a
 later ticket.
 
+## Workflow B in the work instance
+
+`installer/gold-band/workflows/workflow-b-work.json` (spec #392, stories 80 and
+81; issue #462) is Workflow B bound to the work instance's two agents only,
+`claude-work` (Anthropic) and `codex` (OpenAI), beside the personal
+`workflow-b.json`, which is unchanged. It has the same gates, critics rounds,
+two unrolled repairs and escalation. The bindings differ, and each round's critics
+become one worker (below); the writer and the reviewer are always of different
+families. With two families, the test author and the critics share one (Claude): the
+critic reviews the writer's change, tests included, and the writer is never of that family:
+
+* **Claude** writes the failing tests (`test-author`), is the one critic of each
+  round (`critics-N`, one `claude-work` worker rather than an `ai-dynamic` fan-out,
+  which Gold Band refuses below two nodes) and judges the escalation (`workflow-b-escalation`, `opus`, and the
+  `escalation-check` manual check).
+* **Codex** (`gpt-5.5`) is the writer and the two repairs, so the critics are
+  never of the writer's family and the test author is never of its family.
+* **A grant-check node precedes every Codex node.** `grant-check-writer`,
+  `grant-check-repair-1` and `grant-check-repair-2` each run the pinned
+  `gold-band-run-start grant-check` wrapper for the node they guard (`--node
+  <name>`), and the guarded node has no other way in. A refused check (no grant,
+  a lapsed one, or every `max_starts` start taken) takes the node's failure edge
+  to the `grant-refused` manual check, so the run pauses (exit 2) before Codex
+  starts. A run reserves at most three Codex starts, so a grant needs
+  `max_starts` of 3.
+
+The gate, copier, verdict and grant-check nodes bind stub agent ids (`gate-*`,
+`copy-*`, `verdict-*`, `grant-*`) as in the personal template; the live wiring
+that gives them real agents is the live wiring ticket's. A real run on a `nedap`
+repository still needs the run-start shim and a live grant for the run
+(`workflow-b-work@<host/owner/repo>@<run id>`).
+
+The proof is two layers. `gold-band-proof prove` runs the whole template
+against the stub agents: the clean run, both repairs, the escalation pause, a
+failing gate (build, tests, lint, coverage and the finding check) and `grant-lapse-writer` (the grant-check node fails
+and the run pauses at `grant-refused`). `tests/test_gold_band_workflow_b_work.py`
+runs each Codex node's stretch of the real template with the real wrapper and
+the real gateway bundle over a fake grants file in a throw-away configuration
+outside any repository: with no grant the run pauses before Codex and no start is
+reserved; with a live grant Codex runs after one reservation; with no start left
+the next Codex node is refused. The workflow lint runs over a `*-work.json`
+template as the work instance (`gold-band`), which may bind Codex.
+
+**Reach levels.** Workflows bind agent ids by `provider`, and
+`registry/reach-levels.yaml` holds no id yet (`ids: {}`), so this template needs
+no reach cell. The support record has no `codex` agent either: Codex's reach
+levels are unverified and are the Codex reach ticket's, so a work node that must
+run at a held reach level (not just by the work instance's own limits) waits for it.
+
 ## The critique stage templates
 
 `installer/gold-band/workflows/critique-<stage>.json` wraps each critique
@@ -490,8 +622,8 @@ pauses on a manual check wherever the owner has to settle something:
 The spec and ticket drafts are written by a different family (Vibe, Mistral)
 from the orchestrator that rules on their review (Vibe-study, DeepSeek) and
 from the critics the runner picks. No node writes memory and none binds Codex
-or Opus; the grill rounds use Vibe GLM. The work-instance variant is a
-separate ticket.
+or Opus; the grill rounds use Vibe GLM. The work-instance variant is
+`workflow-c-work.json` (next section); this file is not changed by it.
 
 A headless run cannot continue past a manual check (`gold-band continue`
 refuses a run that waits for user input), so the proof proves each stretch of
@@ -503,6 +635,77 @@ and at the publication check (`clean`); the publish gate and its failure are
 proved in the `after-publication-check` segment. What the proof does not check:
 that `ticket-publish` creates real issues (its tests fake `gh`), and that a
 real model asks sensible questions.
+
+## Workflow C in the work instance
+
+`installer/gold-band/workflows/workflow-c-work.json` (issue #463) is the same
+graph bound to the work instance's two agents, `claude-work` and `codex`, and
+nothing else. What differs from the personal file:
+
+* The grill rounds, the drafts, the needs-human checks and the publication
+  check run on `claude-work`; the two review orchestrators (`spec-verdicts`,
+  `tickets-verdicts`) run on `codex`, so the author is not the family that
+  rules on the review. Shim nodes keep their `gate-`, `copy-` agents.
+* Each Codex node is reached only through its grant-check node
+  (`grant-check-spec-verdicts`, `grant-check-tickets-verdicts`, the `gold-band-run-start
+  grant-check` shim, see "The grant-check node"). A refused grant takes the
+  failure edge to a manual check (`grant-refused`, shared by both)
+  that has no way on: the owner asks for a new grant and starts the run again.
+  The run-start gate also needs a live grant for the run before any node.
+* The critique steps are the stage templates' nodes; their prepare and fan-out
+  gate goals say that a `nedap` repository routes to the work-only critic
+  roster (Codex under the grant and the work Claude agent, never the
+  orchestrator's own family). The routing itself is the critique runner's; the
+  launchers for those critics are ticket #558, so until it lands the runner
+  reports the work critics as unavailable and the review does not pass.
+* Publication still pauses on `publication-check` for the owner, and only
+  after it does the publish gate create GitHub issues, through the pinned
+  `ticket-publish` wrapper, in the repository the work repository's own
+  `docs/agents/setup.yaml` names.
+
+Its tests (`tests/test_gold_band_workflow_c_work.py`) use a fixture setup file
+(`tests/fixtures/gold-band/work-repo`) naming a placeholder repository and a
+fake `gh`; no real repository is named and no issue is created. The headless
+proof adds `grant-lapse-spec-verdicts` and `grant-lapse-tickets-verdicts`, each
+pausing (exit 2) at its grant manual check.
+
+## Wave 4: the human-gate workflows
+
+`grill-me`, `grill-with-docs`, `brainstorming`, `to-spec`, `to-tickets` and
+`pr-composer` (issue #628) are checked-in templates under
+`installer/gold-band/workflows/`. Gold Band has no per-node loop counter, so each
+file carries its question rounds **unrolled**: one round node and one
+manual-check node per round, up to the round cap its description states. A round
+answers with `open_questions`; an empty list goes on, any other answer pauses on
+that round's check for the owner's answers (in the app or over IM), and the next
+round reads them. After the last round the check hands over regardless.
+
+| Workflow | Round nodes | Cap | After the rounds |
+| --- | --- | --- | --- |
+| `grill-me` | `grill-round-<n>`, `grill-check-<n>` | 5 | `grill-summary` |
+| `grill-with-docs` | `grill-round-<n>`, `grill-check-<n>` | 5 | `docs-update` writes the answers that change a decision into CONTEXT.md and the ADRs |
+| `brainstorming` | `explore-round-<n>`, `explore-check-<n>` | 4 | `design-draft`, the `design-approval` manual check on every run, then `design-record` |
+| `to-spec` | `spec-round-<n>`, `spec-check-<n>` | 3 | `spec-write` |
+| `to-tickets` | `tickets-round-<n>`, `tickets-check-<n>` | 3 | `tickets-write` writes `tickets.json`; nothing is created in a tracker |
+| `pr-composer` | `pr-confirm-<n>`, `pr-apply-<n>` | 3 | the push-and-create gate |
+
+`pr-composer` orients, gathers context, asks for linked issues and threads
+(`pr-links`, with `pr-links-check` as its manual check), drafts the body and runs
+the template check as a gate shim, then renders the preview. The first
+confirmation round pauses on `pr-confirm-1` on every run (a later one only
+after the owner asked for an edit); `pr-apply-<n>` answers with an
+empty `open_questions` only when the owner's answer is an explicit affirmative
+for this preview, and otherwise applies the owner's edits and re-renders for the
+next round. `gate-pr-composer-publish` (the push and the pull request create) has
+no incoming edge except from the `pr-apply-<n>` nodes, each of which follows its
+own confirmation check (a test removes the confirmation nodes and asserts the gate
+is unreachable). After round three without a confirmation the run ends in failure
+with nothing pushed or created. The proof only ever runs the gate shim's stub, so
+no proof pushes, creates or posts anything.
+
+The proof of each is segmented, as for Workflow C: it pauses (exit 2) at a round
+with an open question, at the check after it, and so on, and ends in its expected
+state in the segment after the last check (see [gold-band-proof.md](gold-band-proof.md)).
 
 ## The generated roles
 

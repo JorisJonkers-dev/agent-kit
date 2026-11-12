@@ -1,0 +1,1055 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"yes\",\n    \"cap_usd\": 5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"question\": \"may I?\",\n    \"workflow\": \"spec-1\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"spec-1\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"grant-exists\",\"message\":\"workflow spec-1 already has live grant grant-20261103T120000Z-@RAND@ of $5.00 with $5.00 left: the owner re-approves only after it lapsed\"}\n",
+      "stderr": "model-gateway grant write: workflow spec-1 already has live grant grant-20261103T120000Z-@RAND@ of $5.00 with $5.00 left: the owner re-approves only after it lapsed\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"grant-exists\",\"message\":\"workflow spec-1 already has live grant grant-20261103T120000Z-@RAND@ of $5.00 with $5.00 left: the owner re-approves only after it lapsed\"}\n",
+      "stderr": "model-gateway grant write: workflow spec-1 already has live grant grant-20261103T120000Z-@RAND@ of $5.00 with $5.00 left: the owner re-approves only after it lapsed\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"spec-2\",\n    \"started_at\": \"2026-11-03T13:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 0.5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n    \"id\": \"grant-20261103T140000Z-@RAND@\",\n    \"question\": \"q\",\n    \"workflow\": \"spec-2\",\n    \"written_at\": \"2026-11-03T14:00:00.000Z\",\n    \"remaining_usd\": 0.5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 1.25,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n    \"id\": \"grant-20261103T140000Z-@RAND@\",\n    \"question\": \"q\",\n    \"workflow\": \"unstarted\",\n    \"written_at\": \"2026-11-03T14:00:00.000Z\",\n    \"remaining_usd\": 1.25,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 0.5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 1.25,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 0.5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 1.25,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 1.25,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 0.5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [],\n  \"lapsed\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 0.5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 1.25,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"expired\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [],\n  \"lapsed\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 0.5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 1.25,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"expired\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": \"2026-11-04T12:00:00.000Z\",\n    \"name\": \"spec-1\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"ended\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"workflow-ended\",\"message\":\"workflow spec-1 ended at 2026-11-04T12:00:00.000Z: a run may not join it, so start a new workflow\"}\n",
+      "stderr": "model-gateway grant write: workflow spec-1 ended at 2026-11-04T12:00:00.000Z: a run may not join it, so start a new workflow\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [],\n  \"lapsed\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 0.5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 1.25,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"expired\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"workflow-ended\",\"message\":\"workflow spec-2 ended at 2026-11-04T13:00:00.000Z: a run may not join it, so start a new workflow\"}\n",
+      "stderr": "model-gateway grant write: workflow spec-2 ended at 2026-11-04T13:00:00.000Z: a run may not join it, so start a new workflow\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"nested-delegation\",\"message\":\"a delegate may not write a grant: only the agent the owner works in may, after asking the owner\"}\n",
+      "stderr": "model-gateway grant write: a delegate may not write a grant: only the agent the owner works in may, after asking the owner\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"claude is subsidised: a grant is for a metered-employer client, which is the one that spends someone else's money\"}\n",
+      "stderr": "model-gateway grant write: claude is subsidised: a grant is for a metered-employer client, which is the one that spends someone else's money\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"hermes is metered-personal: a grant is for a metered-employer client, which is the one that spends someone else's money\"}\n",
+      "stderr": "model-gateway grant write: hermes is metered-personal: a grant is for a metered-employer client, which is the one that spends someone else's money\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unknown-model\",\"message\":\"the gateway knows no client nobody\"}\n",
+      "stderr": "model-gateway grant write: the gateway knows no client nobody\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"cap_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway grant write: cap_usd must be a number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"cap_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway grant write: cap_usd must be a number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"cap_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway grant write: cap_usd must be a number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"cap_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway grant write: cap_usd must be a number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"cap_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway grant write: cap_usd must be a number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a grant must name its question\"}\n",
+      "stderr": "model-gateway grant write: a grant must name its question\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a grant must name its answer\"}\n",
+      "stderr": "model-gateway grant write: a grant must name its answer\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a grant must name its client\"}\n",
+      "stderr": "model-gateway grant write: a grant must name its client\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"bad name\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway grant write: workflow \"bad name\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a grant must name its client\"}\n",
+      "stderr": "model-gateway grant write: a grant must name its client\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"quote\\\"d\",\n    \"cap_usd\": 1,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"question\": \"line\\nbreak\",\n    \"workflow\": \"w\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 1,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"quote\\\"d\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"line\\nbreak\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 0.5,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\",\n      \"remaining_usd\": 1.25,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"quote\\\"d\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"line\\nbreak\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\",\n      \"remaining_usd\": 1,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"quote\\\"d\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"line\\nbreak\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway grant list: the input must be a JSON object\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"may I?\",\n      \"workflow\": \"spec-1\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 0.5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T13:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"spec-2\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1.25,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T14:00:00.000Z\",\n      \"id\": \"grant-20261103T140000Z-@RAND@\",\n      \"question\": \"q\",\n      \"workflow\": \"unstarted\",\n      \"written_at\": \"2026-11-03T14:00:00.000Z\"\n    },\n    {\n      \"answer\": \"quote\\\"d\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"question\": \"line\\nbreak\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: not JSON: Unexpected token 'o', \\\"nope\\\" is not valid JSON\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: not JSON: Unexpected token 'o', \"nope\" is not valid JSON\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "nope",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: the grants file must be a JSON object\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: the grants file must be a JSON object\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "[]",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: version must be 1\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: version must be 1\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":2,\"grants\":[]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants must be a list\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants must be a list\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":{}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0] must be an object\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0] must be an object\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[1]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].cap_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].cap_usd must be a number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":0,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].cap_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].cap_usd must be a number above 0\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":\"x\",\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].answer must be a non-empty string\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].answer must be a non-empty string\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].client must be a non-empty string\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].client must be a non-empty string\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":1,\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].expires_at must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].expires_at must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].expires_at must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].expires_at must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-02-30T00:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].written_at must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].written_at must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"now\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].ended_at must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].ended_at must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"ended_at\":5}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].id must be a non-empty string\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].id must be a non-empty string\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].question must be a non-empty string\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].question must be a non-empty string\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":null,\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].workflow must be a non-empty string\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: grants[0].workflow must be a non-empty string\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":[],\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 2,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T11:00:00Z\",\n      \"id\": \"g2\",\n      \"question\": \"q\",\n      \"workflow\": \"w2\",\n      \"written_at\": \"2026-11-03T11:00:00Z\",\n      \"remaining_usd\": 1.25,\n      \"reserved_usd\": 0.5,\n      \"spent_usd\": 0.25\n    }\n  ],\n  \"lapsed\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T11:00:00.500Z\",\n      \"id\": \"g1\",\n      \"question\": \"q\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T11:00:00Z\",\n      \"ended_at\": \"2026-11-03T11:30:00Z\",\n      \"remaining_usd\": 1,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T10:00:00Z\",\n      \"id\": \"g3\",\n      \"question\": \"q\",\n      \"workflow\": \"w3\",\n      \"written_at\": \"2026-11-03T10:00:00Z\",\n      \"remaining_usd\": 0,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 1,\n      \"reason\": \"cap-spent\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T10:30:00.000Z\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"cost_usd\":1,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"s1\",\"workflow\":\"w3\"}\n{\"kind\":\"reservation\",\"run_id\":\"r2\",\"workflow\":\"w2\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"model\":\"m\",\"estimate_usd\":0.5,\"reserved_at\":\"2026-11-03T11:30:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n{\"kind\":\"settled\",\"run_id\":\"s9\",\"workflow\":\"w2\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"cost_usd\":0.25,\"reserved_at\":\"2026-11-03T11:15:00.000Z\",\"settled_at\":\"2026-11-03T09:30:00.000Z\",\"reason\":\"expired\"}\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:00:00Z\",\"expires_at\":\"2026-11-04T11:00:00.500Z\",\"ended_at\":\"2026-11-03T11:30:00Z\"},{\"id\":\"g2\",\"workflow\":\"w2\",\"client\":\"codex\",\"cap_usd\":2,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:00:00Z\",\"expires_at\":\"2026-11-04T11:00:00Z\"},{\"id\":\"g3\",\"workflow\":\"w3\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T10:00:00Z\",\"expires_at\":\"2026-11-04T10:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"grant-exists\",\"message\":\"workflow w2 already has live grant g2 of $2.00 with $2.00 left: the owner re-approves only after it lapsed\"}\n",
+      "stderr": "model-gateway grant write: workflow w2 already has live grant g2 of $2.00 with $2.00 left: the owner re-approves only after it lapsed\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T10:00:00.000Z\",\"client\":\"vibe\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"z\",\"workflow\":\"w\"}\nnot json at all\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:00:00Z\",\"expires_at\":\"2026-11-04T11:00:00.500Z\",\"ended_at\":\"2026-11-03T11:30:00Z\"},{\"id\":\"g2\",\"workflow\":\"w2\",\"client\":\"codex\",\"cap_usd\":2,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:00:00Z\",\"expires_at\":\"2026-11-04T11:00:00Z\"},{\"id\":\"g3\",\"workflow\":\"w3\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T10:00:00Z\",\"expires_at\":\"2026-11-04T10:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"ledger-unreadable\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/ledger.jsonl: the ledger cannot be read, so a standing grant cannot be ruled out and no grant is written: EISDIR: illegal operation on a directory, read\"}\n",
+      "stderr": "model-gateway grant write: @SANDBOX@/state/agent-kit/model-gateway/ledger.jsonl: the ledger cannot be read, so a standing grant cannot be ruled out and no grant is written: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:00:00Z\",\"expires_at\":\"2026-11-04T11:00:00.500Z\",\"ended_at\":\"2026-11-03T11:30:00Z\"},{\"id\":\"g2\",\"workflow\":\"w2\",\"client\":\"codex\",\"cap_usd\":2,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:00:00Z\",\"expires_at\":\"2026-11-04T11:00:00Z\"},{\"id\":\"g3\",\"workflow\":\"w3\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T10:00:00Z\",\"expires_at\":\"2026-11-04T10:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grants\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 2,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T11:00:00Z\",\n      \"id\": \"g2\",\n      \"question\": \"q\",\n      \"workflow\": \"w2\",\n      \"written_at\": \"2026-11-03T11:00:00Z\",\n      \"remaining_usd\": 2,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    },\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T10:00:00Z\",\n      \"id\": \"g3\",\n      \"question\": \"q\",\n      \"workflow\": \"w3\",\n      \"written_at\": \"2026-11-03T10:00:00Z\",\n      \"remaining_usd\": 1,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0\n    }\n  ],\n  \"lapsed\": [\n    {\n      \"answer\": \"a\",\n      \"cap_usd\": 1,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T11:00:00.500Z\",\n      \"id\": \"g1\",\n      \"question\": \"q\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T11:00:00Z\",\n      \"ended_at\": \"2026-11-03T11:30:00Z\",\n      \"remaining_usd\": 1,\n      \"reserved_usd\": 0,\n      \"spent_usd\": 0,\n      \"reason\": \"workflow-ended\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:00:00Z\",\"expires_at\":\"2026-11-04T11:00:00.500Z\",\"ended_at\":\"2026-11-03T11:30:00Z\"},{\"id\":\"g2\",\"workflow\":\"w2\",\"client\":\"codex\",\"cap_usd\":2,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:00:00Z\",\"expires_at\":\"2026-11-04T11:00:00Z\"},{\"id\":\"g3\",\"workflow\":\"w3\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T10:00:00Z\",\"expires_at\":\"2026-11-04T10:00:00Z\"}]}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: cannot read the grants: EISDIR: illegal operation on a directory, read\"}\n",
+      "stderr": "model-gateway grant write: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: cannot read the grants: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"grants-in-repository\",\"message\":\"@SANDBOX@/work/repo/conf/agent-kit/model-gateway-grants.json is inside the git repository @SANDBOX@/work/repo: a grant lives in the machine configuration, never in a repository\"}\n",
+      "stderr": "model-gateway grant write: @SANDBOX@/work/repo/conf/agent-kit/model-gateway-grants.json is inside the git repository @SANDBOX@/work/repo: a grant lives in the machine configuration, never in a repository\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[core]\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"grants-in-repository\",\"message\":\"@SANDBOX@/work/repo/conf/deeper/still/agent-kit/model-gateway-grants.json is inside the git repository @SANDBOX@/work/repo: a grant lives in the machine configuration, never in a repository\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/work/repo/conf/deeper/still/agent-kit/model-gateway-grants.json is inside the git repository @SANDBOX@/work/repo: a grant lives in the machine configuration, never in a repository\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[core]\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/work/repo/.git/agent-kit/model-gateway-grants.json: cannot tell whether @SANDBOX@/work/repo/.git is inside a git repository, so no grant is read or written: fatal: this operation must be run in a work tree\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/work/repo/.git/agent-kit/model-gateway-grants.json: cannot tell whether @SANDBOX@/work/repo/.git is inside a git repository, so no grant is read or written: fatal: this operation must be run in a work tree\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[core]\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"a\",\n    \"cap_usd\": 1,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"question\": \"q\",\n    \"workflow\": \"w9\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 1,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[core]\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: cannot tell whether @SANDBOX@/home/.config/agent-kit is inside a git repository, so no grant is read or written: cannot run git: spawn git ENOENT\"}\n",
+      "stderr": "model-gateway grant list: @SANDBOX@/home/.config/agent-kit/model-gateway-grants.json: cannot tell whether @SANDBOX@/home/.config/agent-kit is inside a git repository, so no grant is read or written: cannot run git: spawn git ENOENT\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[core]\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unexpected\",\"message\":\"required environment variable is missing: HOME\"}\n",
+      "stderr": "model-gateway grant list: required environment variable is missing: HOME\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[core]\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/blockedcfg/agent-kit/model-gateway-grants.json: cannot tell whether @SANDBOX@/blockedcfg is inside a git repository, so no grant is read or written: fatal: cannot change to '@SANDBOX@/blockedcfg': Not a directory\"}\n",
+      "stderr": "model-gateway grant write: @SANDBOX@/blockedcfg/agent-kit/model-gateway-grants.json: cannot tell whether @SANDBOX@/blockedcfg is inside a git repository, so no grant is read or written: fatal: cannot change to '@SANDBOX@/blockedcfg': Not a directory\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"spec-1\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"spec-2\",\n      \"started_at\": \"2026-11-03T13:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[core]\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    }
+  ]
+}

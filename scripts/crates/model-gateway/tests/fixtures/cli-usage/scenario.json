@@ -1,0 +1,97 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ]
+    },
+    {
+      "argv": [
+        "-h"
+      ]
+    },
+    {
+      "argv": []
+    },
+    {
+      "argv": [
+        "bogus"
+      ]
+    },
+    {
+      "argv": [
+        "workflow"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "bogus"
+      ]
+    },
+    {
+      "argv": [
+        "grant"
+      ]
+    },
+    {
+      "argv": [
+        "grant",
+        "bogus",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees"
+      ]
+    },
+    {
+      "argv": [
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}",
+        "extra"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--bogus",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}",
+        "--input",
+        "x"
+      ]
+    }
+  ]
+}

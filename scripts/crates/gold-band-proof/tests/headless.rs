@@ -22,8 +22,16 @@ fn workflow_b() -> PathBuf {
     manifest_dir().join("../../../installer/gold-band/workflows/workflow-b.json")
 }
 
+fn workflow_b_work() -> PathBuf {
+    manifest_dir().join("../../../installer/gold-band/workflows/workflow-b-work.json")
+}
+
 fn workflow_c() -> PathBuf {
     manifest_dir().join("../../../installer/gold-band/workflows/workflow-c.json")
+}
+
+fn workflow_c_work() -> PathBuf {
+    manifest_dir().join("../../../installer/gold-band/workflows/workflow-c-work.json")
 }
 
 fn fixture() -> PathBuf {
@@ -145,6 +153,50 @@ fn workflow_b_repairs_twice_then_escalates_to_a_manual_check_and_fails_closed_on
 }
 
 #[test]
+fn workflow_b_work_pauses_at_a_refused_grant_check_before_any_codex_node() {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("workflow-b-work");
+    let output = prove(&workflow_b_work(), &records, &[], &gold_band);
+    let stdout = text(&output.stdout);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&output.stderr)
+    );
+    assert!(
+        stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+    // A lapsed grant fails the grant-check node, whose failure edge leads to a manual check.
+    assert!(
+        stdout.contains("grant-lapse-writer: expected exit 2, got 2 (paused/"),
+        "{stdout}"
+    );
+    for round in ["actionable-1", "actionable-2"] {
+        assert!(
+            stdout.contains(&format!(
+                "{round}: expected exit 0, got 0 (completed/success)"
+            )),
+            "{stdout}"
+        );
+    }
+    assert!(
+        stdout.contains("actionable-3: expected exit 2, got 2 (paused/none)"),
+        "{stdout}"
+    );
+    for gate in ["build", "test", "lint", "coverage", "findings-1"] {
+        assert!(
+            stdout.contains(&format!(
+                "gate-fail-{gate}: expected exit 1, got 1 (completed/failure)"
+            )),
+            "{stdout}"
+        );
+    }
+    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
+#[test]
 fn workflow_c_pauses_at_each_grill_round_and_finding_and_publishes_only_after_the_check() {
     let Some(gold_band) = gold_band() else { return };
     let records = scratch("workflow-c");
@@ -186,6 +238,169 @@ fn workflow_c_pauses_at_each_grill_round_and_finding_and_publishes_only_after_th
     assert!(
         !stdout.contains("\n  gate-fail-workflow-c-publish:"),
         "the publish gate is not reachable before the check: {stdout}"
+    );
+    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
+#[test]
+fn workflow_c_work_pauses_on_a_lapsed_grant_before_each_codex_node_and_publishes_only_after_the_check(
+) {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("workflow-c-work");
+    let output = prove(&workflow_c_work(), &records, &[], &gold_band);
+    let stdout = text(&output.stdout);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&output.stderr)
+    );
+    // A lapsed grant before a Codex orchestrator pauses the run on a manual check.
+    for scenario in ["grant-lapse-spec-verdicts", "grant-lapse-tickets-verdicts"] {
+        assert!(
+            stdout.contains(&format!("{scenario}: expected exit 2, got 2 (paused/")),
+            "{scenario}: {stdout}"
+        );
+    }
+    // Publication pauses for the owner: the publish gate lies only after its check.
+    assert!(
+        stdout
+            .contains("after-publication-check.clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "after-publication-check.gate-fail-workflow-c-publish: expected exit 1, got 1 (completed/failure)"
+        ),
+        "{stdout}"
+    );
+    // The run itself pauses (exit 2) at a manual check before any publication.
+    assert!(
+        stdout.contains("  clean: expected exit 2, got 2 (paused/"),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\n  gate-fail-workflow-c-publish:"),
+        "the publish gate is not reachable before the check: {stdout}"
+    );
+    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
+/// The Wave 4 human-gate workflows (issue #628): the workflow, its round-check
+/// prefix, its round cap and the scenarios that must end in the expected state.
+/// Every round's manual check is reached by the first segment's
+/// `open-questions` scenario or by the one after the check before it; the last
+/// check's segment ends the run.
+const WAVE4: [(&str, &str, u32); 5] = [
+    ("grill-me", "grill-check-", 5),
+    ("grill-with-docs", "grill-check-", 5),
+    ("brainstorming", "explore-check-", 4),
+    ("to-spec", "spec-check-", 3),
+    ("to-tickets", "tickets-check-", 3),
+];
+
+#[test]
+fn each_wave4_workflow_pauses_at_every_round_check_and_ends_once_answered() {
+    let Some(gold_band) = gold_band() else { return };
+    for (name, prefix, cap) in WAVE4 {
+        let workflow = manifest_dir().join(format!(
+            "../../../installer/gold-band/workflows/{name}.json"
+        ));
+        let records = scratch(&format!("wave4-{name}"));
+        let output = prove(&workflow, &records, &[], &gold_band);
+        let stdout = text(&output.stdout);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{name}: {stdout}\n{}",
+            text(&output.stderr)
+        );
+        // Round 1's check pauses the first segment; round n+1's pauses the segment after check n.
+        assert!(
+            stdout.contains("open-questions: expected exit 2, got 2 (paused/"),
+            "{name}: {stdout}"
+        );
+        for round in 1..cap {
+            assert!(
+                stdout.contains(&format!(
+                    "after-{prefix}{round}.open-questions: expected exit 2, got 2 (paused/"
+                )),
+                "{name} {round}: {stdout}"
+            );
+        }
+        // Once the last check is answered the run ends (or, for brainstorming, pauses at the design approval).
+        let exit = if name == "brainstorming" {
+            "2, got 2 (paused/"
+        } else {
+            "0, got 0 (completed/success)"
+        };
+        let after_last = format!("after-{prefix}{cap}.clean: expected exit {exit}");
+        assert!(stdout.contains(&after_last), "{name}: {stdout}");
+        assert!(
+            stdout.contains("gold-band-proof: passed"),
+            "{name}: {stdout}"
+        );
+    }
+}
+
+#[test]
+fn brainstorming_records_the_design_only_after_the_approval_check() {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("wave4-brainstorming-design");
+    let workflow = manifest_dir().join("../../../installer/gold-band/workflows/brainstorming.json");
+    let stdout = text(&prove(&workflow, &records, &[], &gold_band).stdout);
+    assert!(
+        stdout.contains("after-explore-check-4.clean: expected exit 2, got 2 (paused/"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("after-design-approval.clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+}
+
+#[test]
+fn pr_composer_pauses_at_every_confirmation_and_creates_only_after_one() {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("pr-composer");
+    let workflow = manifest_dir().join("../../../installer/gold-band/workflows/pr-composer.json");
+    let output = prove(&workflow, &records, &[], &gold_band);
+    let stdout = text(&output.stdout);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&output.stderr)
+    );
+    // The first segment pauses at the first confirmation check, never reaching the publish gate.
+    for scenario in [
+        "clean",
+        "open-questions",
+        "after-pr-links-check.clean",
+        "after-pr-confirm-1.open-questions",
+        "after-pr-confirm-2.open-questions",
+    ] {
+        assert!(
+            stdout.contains(&format!("{scenario}: expected exit 2, got 2 (paused/")),
+            "{scenario}: {stdout}"
+        );
+    }
+    // The push-and-create gate runs only in a segment that starts after a confirmation check.
+    for round in 1..=3 {
+        assert!(
+            stdout.contains(&format!(
+                "after-pr-confirm-{round}.clean: expected exit 0, got 0 (completed/success)"
+            )),
+            "{round}: {stdout}"
+        );
+    }
+    assert!(
+        stdout.contains("after-pr-confirm-1.gate-fail-pr-composer-publish: expected exit 1, got 1 (completed/failure)"),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\n  gate-fail-pr-composer-publish:"),
+        "the publish gate is reachable before a confirmation: {stdout}"
     );
     assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
 }
@@ -444,16 +659,30 @@ fn without_a_binary_the_proof_is_skipped_with_its_reason_and_a_real_run_is_refus
 
 #[test]
 fn every_checked_in_workflow_passes_the_workflow_lint() {
+    // A work variant (`<name>-work.json`) belongs to the work instance, which may bind Codex;
+    // every other workflow is the personal instance's, which may not.
     let dir = manifest_dir().join("../../../installer/gold-band/workflows");
-    let mut files: Vec<String> = std::fs::read_dir(&dir)
-        .expect("the workflows directory")
-        .map(|entry| entry.expect("entry").path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
-        .map(|path| path.to_string_lossy().into_owned())
-        .collect();
-    files.sort();
-    assert!(!files.is_empty());
-    let mut args = vec!["--instance".to_string(), "gold-band-personal".to_string()];
-    args.extend(files);
-    assert_eq!(workflow_lint::run(args.into_iter().map(Into::into)), 0);
+    let mut personal: Vec<String> = Vec::new();
+    let mut work: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("the workflows directory") {
+        let path = entry.expect("entry").path();
+        if path.extension().is_none_or(|ext| ext != "json") {
+            continue;
+        }
+        let shown = path.to_string_lossy().into_owned();
+        if shown.ends_with("-work.json") {
+            work.push(shown);
+        } else {
+            personal.push(shown);
+        }
+    }
+    personal.sort();
+    work.sort();
+    assert!(!personal.is_empty());
+    assert!(!work.is_empty());
+    for (instance, files) in [("gold-band-personal", personal), ("gold-band", work)] {
+        let mut args = vec!["--instance".to_string(), instance.to_string()];
+        args.extend(files);
+        assert_eq!(workflow_lint::run(args.into_iter().map(Into::into)), 0);
+    }
 }

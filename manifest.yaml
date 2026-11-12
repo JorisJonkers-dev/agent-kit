@@ -400,7 +400,7 @@ council:
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs
-      sha256: 80a35a2ee78c5c185b301448310f260b0385b8dcbbd488370f6e53bcb71e2559
+      sha256: 19e7076a8230ec657692f30a301d20137fc896945cdbb7340bc7d4f6fb3aa147
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
       sha256: 4bcf6d9cefbef0eb638d5dac328c84a22f120e7799cd834f677daaa48fcef65c
@@ -537,7 +537,7 @@ build_tracker:
 model_gateway:
   files:
     - path: skills/workstation/model-gateway/model-gateway.mjs
-      sha256: 1ff9f6e729e21b38f547f0592c11e4fe8b3445508289574050c7c0d51d2df4a4
+      sha256: 36df6c4ba8728a44e6fece34d23308a9ab40922d6db9cf187f208bfd81291732
       mode: "0755"
     - path: skills/workstation/model-gateway/defaults.json
       sha256: cd3e03f27609ad8411b80fb8f2e508d2e4154ae72d38eb6fcdf780b6e9d40b17
@@ -569,7 +569,7 @@ agent_runner_runtime:
       sha256: a1257f248ca4a5bf6b2420759914d71f3b2f18e095dda5d3d5c9a8ebcbedbc70
       mode: "0644"
     - path: runner/manifests/runtime/entrypoint.sh
-      sha256: a8de7b50673ba50c850c77b1e10ac7251eee02aff87a09d916fe3d594988f9e1
+      sha256: f83ca0208c239d1a6d63da32673c42222a43cc8f86a9cf401737f869252be7a4
       mode: "0755"
     - path: runner/manifests/runtime/mcp/claude-mcp-servers.cluster.json
       sha256: 08ad6f507bbba017272e1737d136eb12b31ef5df5b36d1ca6c2685302af4f317
@@ -602,7 +602,7 @@ agent_runner_runtime:
       sha256: 4e299f6a333cc016efd99fd904e05aa7672ee7a65159ad3c9627185a50acf0fc
       mode: "0644"
     - path: runner/manifests/runtime/runtime-package.yaml
-      sha256: 235ee200300ed011c4861343b043c457e1d39a457056ef11156eeb408f62638a
+      sha256: dfb1d343386232bf1cfc152f5737b11546f22286c1b65849506651936333962b
       mode: "0644"
 
 # The top-level `installer:` block (install.sh/install-agents.sh sha256 pins)

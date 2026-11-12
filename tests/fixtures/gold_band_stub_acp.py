@@ -38,6 +38,11 @@ report, as one fenced JSON block when it exited 0, and otherwise with a report-s
 document whose ``exit_code`` is its non-zero exit code, so a refusing copier
 can never be masked into a pass.
 
+One more serves the grant-check proof (issue #460). With ``STUB_ACP_MARKER``
+set and ``STUB_ACP_AFTER`` set to a JSON argv, the model node runs that command
+after it wrote its marker, ignoring its exit code: time passing while Codex
+works, such as the run's grant lapsing.
+
 Run as ``gold_band_stub_acp.py`` (the test launches it with
 ``sys.executable``); it needs no arguments and talks only on stdio.
 """
@@ -173,6 +178,9 @@ def prompt_answer() -> str:
     if marker:
         with open(marker, "w", encoding="utf-8") as handle:
             handle.write("the model node ran\n")
+        after = os.environ.get("STUB_ACP_AFTER")
+        if after:
+            subprocess.run(json.loads(after), check=False, capture_output=True)
         return '```json\n{"ok": true}\n```'
     return fenced_findings()
 

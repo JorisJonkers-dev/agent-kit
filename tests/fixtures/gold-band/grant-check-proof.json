@@ -1,0 +1,167 @@
+{
+  "workflow": {
+    "description": "The grant-check shim proof (issue #460): each Codex node is preceded by a grant-check node that runs the pinned gold-band-run-start grant-check wrapper and answers with its report. A refused reservation fails the node, and the failure edge leads to a manual check, so the run pauses before the Codex node. The Codex nodes write marker files when they run.",
+    "version": "0.1",
+    "id": "grant-check-proof",
+    "entry": "grant-check-1",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "grant-check-1",
+        "executionSlotId": "slot-grant-check-1",
+        "provider": "GRANT_AGENT_1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the first Codex node and answer with the report it wrote, as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-1-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "codex-1",
+        "executionSlotId": "slot-codex-1",
+        "provider": "CODEX_AGENT_1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Stand in for the first Codex node. Answer with one fenced json block holding ok.",
+        "output": {
+          "kind": "json",
+          "artifact": "codex-1-result",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-2",
+        "executionSlotId": "slot-grant-check-2",
+        "provider": "GRANT_AGENT_2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the second Codex node and answer with the report it wrote, as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-2-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "codex-2",
+        "executionSlotId": "slot-codex-2",
+        "provider": "CODEX_AGENT_2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Stand in for the second Codex node. Answer with one fenced json block holding ok.",
+        "output": {
+          "kind": "json",
+          "artifact": "codex-2-result",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-manual-check",
+        "executionSlotId": "slot-grant-manual-check",
+        "provider": "MANUAL_AGENT",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "The grant lapsed before a Codex node: the owner reads why and decides whether to ask for a new grant.",
+        "manual_check": true
+      }
+    ],
+    "edges": [
+      {
+        "from": "grant-check-1",
+        "to": "codex-1",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-1",
+        "to": "grant-manual-check",
+        "on": "failure"
+      },
+      {
+        "from": "codex-1",
+        "to": "grant-check-2",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-2",
+        "to": "codex-2",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-2",
+        "to": "grant-manual-check",
+        "on": "failure"
+      },
+      {
+        "from": "codex-2",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-grant-check-1",
+        "agentId": "GRANT_AGENT_1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-codex-1",
+        "agentId": "CODEX_AGENT_1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grant-check-2",
+        "agentId": "GRANT_AGENT_2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-codex-2",
+        "agentId": "CODEX_AGENT_2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grant-manual-check",
+        "agentId": "MANUAL_AGENT",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}

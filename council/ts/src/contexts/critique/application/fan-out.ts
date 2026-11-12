@@ -10,7 +10,8 @@ import { listedFiles, parseManifest, specReference, type RunManifest } from '../
 import { mergeFindings } from '../domain/merge.js'
 import type { CriticToolset } from '../domain/critic-tools.js'
 import { assemblePrompt, type CriticPrompt } from '../domain/prompt.js'
-import type { CriticClient, RosterCritic } from '../domain/routing.js'
+import { isWorkClient, type CriticClient, type RosterCritic } from '../domain/routing.js'
+import { CritiqueError } from '../domain/outcomes.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
 import { FlowBudget } from './budget.js'
 import { FINDING_SCHEMA, readFrozenPacket, runCritic } from './critic-run.js'
@@ -82,6 +83,11 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
   async run(raw: unknown): Promise<FanOutResult> {
     const runDir = readInput(raw, 'fan-out', (fields) => fields.string('run_dir'))
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
+    // A work client sees nedap code only: a run of any other repository that names one is refused, whatever its manifest says.
+    const stray = manifest.work === undefined ? manifest.critics.find((critic) => isWorkClient(critic.client_config)) : undefined
+    if (stray !== undefined) {
+      throw new CritiqueError('invalid-run', `critic ${stray.critic_id} runs on the work client ${stray.client}, which only a nedap repository's run may use`)
+    }
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest)
     const packet = indexPacket(await readFrozenPacket(this.deps, manifest), manifest.ticket_check?.ticket_ids)
     const budget = new FlowBudget(this.deps)

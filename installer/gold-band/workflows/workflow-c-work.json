@@ -1,0 +1,1177 @@
+{
+  "workflow": {
+    "description": "Workflow C for the work instance (issue #463): the personal Workflow C's graph bound to the work agents, `claude-work` and `codex`, and nothing else. It grills an idea into tickets with a manual check at every point where the owner must settle something, runs the spec review (/review-spec) and the ticket review (/review-tickets) through the critique runner, which for a repository with a `nedap`-owned remote routes to the work-only critic roster (Codex on the work account under a grant, and the work Claude agent, never the orchestrator's own family), and pauses on the publication manual check; only after the owner passes it does the publish gate create the tickets, through the pinned ticket-publish wrapper, as GitHub issues in the tracker the work repository's docs/agents/setup.yaml names. The run-start gate refuses a repository that is not `nedap`-owned, a family the allowlist forbids and a Codex agent without a live grant; the orchestrators of the spec review and the ticket review bind Codex, so each is preceded by a grant-check node whose failure edge pauses the run on a manual check. No shim node has a failure edge, so a failing gate ends the run in failure.",
+    "version": "0.1",
+    "id": "workflow-c-work",
+    "entry": "gate-workflow-c-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-workflow-c-start",
+        "executionSlotId": "slot-gate-workflow-c-start",
+        "provider": "gate-workflow-c-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for Workflow C for the work instance (grill to tickets), which checks that every remote of the repository is owned by nedap, the grant for every Codex agent id this workflow binds, the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-workflow-c-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-workflow-c-setup",
+        "executionSlotId": "slot-gate-workflow-c-setup",
+        "provider": "gate-workflow-c-setup",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `ticket-publish check` for the repository and answer with its exit status as one fenced json block and nothing else. The check refuses a repository whose docs/agents/setup.yaml is missing or invalid, so Workflow C never starts without the tracker setup.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-workflow-c-setup-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-workflow-c-setup",
+        "executionSlotId": "slot-copy-workflow-c-setup",
+        "provider": "copy-workflow-c-setup",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the setup gate of Workflow C and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-workflow-c-setup-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-round-1",
+        "executionSlotId": "slot-grill-round-1",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the grill agent for round 1 of Workflow C. Read the requirement and the owner's answers so far in the grill record, and ask the owner the questions that are still open: one decision per question, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the grill record. Answer with one fenced json block holding open_questions: an empty list when no decision is left to settle, and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grill-round-1-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-check-1",
+        "executionSlotId": "slot-grill-check-1",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "Grill round 1 of Workflow C left questions open: read the round's open questions in the grill record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "grill-round-2",
+        "executionSlotId": "slot-grill-round-2",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the grill agent for round 2 of Workflow C. Read the requirement and the owner's answers so far in the grill record, and ask the owner the questions that are still open: one decision per question, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the grill record. Answer with one fenced json block holding open_questions: an empty list when no decision is left to settle, and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grill-round-2-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-check-2",
+        "executionSlotId": "slot-grill-check-2",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "Grill round 2 of Workflow C left questions open: read the round's open questions in the grill record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "grill-round-3",
+        "executionSlotId": "slot-grill-round-3",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the grill agent for round 3 of Workflow C. Read the requirement and the owner's answers so far in the grill record, and ask the owner the questions that are still open: one decision per question, none the record already settles, none you can answer by reading the repository. Write the round's questions and the answers so far to the grill record. Answer with one fenced json block holding open_questions: an empty list when no decision is left to settle, and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grill-round-3-open-questions",
+          "schema": {
+            "open_questions": [
+              {
+                "id": "string",
+                "question": "string"
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.open_questions",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grill-check-3",
+        "executionSlotId": "slot-grill-check-3",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "Grill round 3 of Workflow C left questions open: read the round's open questions in the grill record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "spec-draft",
+        "executionSlotId": "slot-spec-draft",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the spec author, from a different family than the review's orchestrator. Write the spec the grilling settled to the spec file the grill record names: only decisions the owner answered, no decision of your own, no ticket yet. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-draft",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-prepare",
+        "executionSlotId": "slot-gate-critique-spec-prepare",
+        "provider": "gate-critique-spec-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique prepare --strict` for the stage for the spec review (/review-spec) and answer with its exit status as one fenced json block and nothing else. The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family).",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-prepare-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-spec-prepare",
+        "executionSlotId": "slot-copy-critique-spec-prepare",
+        "provider": "copy-critique-spec-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the prepare gate of the spec review (/review-spec) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-prepare-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-fan-out",
+        "executionSlotId": "slot-gate-critique-spec-fan-out",
+        "provider": "gate-critique-spec-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique fan-out --strict` for the stage for the spec review (/review-spec) and answer with its exit status as one fenced json block and nothing else. The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family).",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-fan-out-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-spec-fan-out",
+        "executionSlotId": "slot-copy-critique-spec-fan-out",
+        "provider": "copy-critique-spec-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the fan-out gate of the spec review (/review-spec) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-fan-out-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-spec-verdicts",
+        "executionSlotId": "slot-grant-check-spec-verdicts",
+        "provider": "grant-spec-verdicts",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node spec-verdicts (--node spec-verdicts) of Workflow C for the work instance, which holds one Codex node start against the run's grant, and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-spec-verdicts-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-verdicts",
+        "executionSlotId": "slot-spec-verdicts",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the orchestrator of the spec review (/review-spec). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-open-findings",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-needs-human",
+        "executionSlotId": "slot-spec-needs-human",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "Some finding of the spec review (/review-spec) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-refute",
+        "executionSlotId": "slot-gate-critique-spec-refute",
+        "provider": "gate-critique-spec-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique refute --strict` for the stage for the spec review (/review-spec) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-refute-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-spec-refute",
+        "executionSlotId": "slot-copy-critique-spec-refute",
+        "provider": "copy-critique-spec-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the refute gate of the spec review (/review-spec) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-refute-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-record",
+        "executionSlotId": "slot-gate-critique-spec-record",
+        "provider": "gate-critique-spec-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique record --strict` for the stage for the spec review (/review-spec) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-record-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-spec-record",
+        "executionSlotId": "slot-copy-critique-spec-record",
+        "provider": "copy-critique-spec-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the record gate of the spec review (/review-spec) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-record-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-draft",
+        "executionSlotId": "slot-tickets-draft",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the ticket author. Break the reviewed spec into tickets, each one vertical slice with a title, a body and labels; use only labels from the repository's setup file (docs/agents/setup.yaml, the labels list). Write them as tickets.json beside the runner's files, in the form {\"tickets\":[{\"title\",\"body\",\"labels\"}]}. Do not create any issue and do not call the tracker. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-draft",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-tickets-prepare",
+        "executionSlotId": "slot-gate-critique-tickets-prepare",
+        "provider": "gate-critique-tickets-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique prepare --strict` for the stage for the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else. The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family).",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-prepare-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-tickets-prepare",
+        "executionSlotId": "slot-copy-critique-tickets-prepare",
+        "provider": "copy-critique-tickets-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the prepare gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-prepare-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-tickets-fan-out",
+        "executionSlotId": "slot-gate-critique-tickets-fan-out",
+        "provider": "gate-critique-tickets-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique fan-out --strict` for the stage for the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else. The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family).",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-fan-out-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-tickets-fan-out",
+        "executionSlotId": "slot-copy-critique-tickets-fan-out",
+        "provider": "copy-critique-tickets-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the fan-out gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-fan-out-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-tickets-verdicts",
+        "executionSlotId": "slot-grant-check-tickets-verdicts",
+        "provider": "grant-tickets-verdicts",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node tickets-verdicts (--node tickets-verdicts) of Workflow C for the work instance, which holds one Codex node start against the run's grant, and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-tickets-verdicts-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-verdicts",
+        "executionSlotId": "slot-tickets-verdicts",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the orchestrator of the ticket review (/review-tickets). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-open-findings",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-needs-human",
+        "executionSlotId": "slot-tickets-needs-human",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "Some finding of the ticket review (/review-tickets) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-tickets-refute",
+        "executionSlotId": "slot-gate-critique-tickets-refute",
+        "provider": "gate-critique-tickets-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique refute --strict` for the stage for the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-refute-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-tickets-refute",
+        "executionSlotId": "slot-copy-critique-tickets-refute",
+        "provider": "copy-critique-tickets-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the refute gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-refute-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-tickets-record",
+        "executionSlotId": "slot-gate-critique-tickets-record",
+        "provider": "gate-critique-tickets-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique record --strict` for the stage for the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-record-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-tickets-record",
+        "executionSlotId": "slot-copy-critique-tickets-record",
+        "provider": "copy-critique-tickets-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the record gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-record-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "publication-check",
+        "executionSlotId": "slot-publication-check",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "The reviewed tickets are ready to publish. Read tickets.json and the repository's setup file and state to the owner, in one short paragraph, the tracker repository they will be created in and each ticket's title and labels. Do not write any file and do not create any issue; publication starts only when the owner passes this manual check.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "gate-workflow-c-publish",
+        "executionSlotId": "slot-gate-workflow-c-publish",
+        "provider": "gate-workflow-c-publish",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `ticket-publish publish` for the repository and its tickets.json and answer with its exit status as one fenced json block and nothing else. The publisher creates the tickets only in the tracker repository the repository's setup file names, and refuses a label the setup file does not list.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-workflow-c-publish-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-workflow-c-publish",
+        "executionSlotId": "slot-copy-workflow-c-publish",
+        "provider": "copy-workflow-c-publish",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the publish gate of Workflow C and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-workflow-c-publish-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-refused",
+        "executionSlotId": "slot-grant-refused",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "A grant-check node refused: the run has no live grant for Codex, or its Codex node starts are used up. The owner reads the grant-check report and either writes a grant (model-gateway grant write) and starts the run again, or stops the run. Do not write any file and do not ask for a grant yourself.",
+        "manual_check": true
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-workflow-c-start",
+        "to": "gate-workflow-c-setup",
+        "on": "success"
+      },
+      {
+        "from": "gate-workflow-c-setup",
+        "to": "copy-workflow-c-setup",
+        "on": "success"
+      },
+      {
+        "from": "copy-workflow-c-setup",
+        "to": "grill-round-1",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-1",
+        "to": "spec-draft",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-1",
+        "to": "grill-check-1",
+        "on": "failure"
+      },
+      {
+        "from": "grill-check-1",
+        "to": "grill-round-2",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-2",
+        "to": "spec-draft",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-2",
+        "to": "grill-check-2",
+        "on": "failure"
+      },
+      {
+        "from": "grill-check-2",
+        "to": "grill-round-3",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-3",
+        "to": "spec-draft",
+        "on": "success"
+      },
+      {
+        "from": "grill-round-3",
+        "to": "grill-check-3",
+        "on": "failure"
+      },
+      {
+        "from": "grill-check-3",
+        "to": "spec-draft",
+        "on": "success"
+      },
+      {
+        "from": "spec-draft",
+        "to": "gate-critique-spec-prepare",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-spec-prepare",
+        "to": "copy-critique-spec-prepare",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-spec-prepare",
+        "to": "gate-critique-spec-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-spec-fan-out",
+        "to": "copy-critique-spec-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-spec-fan-out",
+        "to": "grant-check-spec-verdicts",
+        "on": "success"
+      },
+      {
+        "from": "spec-verdicts",
+        "to": "gate-critique-spec-refute",
+        "on": "success"
+      },
+      {
+        "from": "spec-verdicts",
+        "to": "spec-needs-human",
+        "on": "failure"
+      },
+      {
+        "from": "spec-needs-human",
+        "to": "gate-critique-spec-refute",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-spec-refute",
+        "to": "copy-critique-spec-refute",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-spec-refute",
+        "to": "gate-critique-spec-record",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-spec-record",
+        "to": "copy-critique-spec-record",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-spec-record",
+        "to": "tickets-draft",
+        "on": "success"
+      },
+      {
+        "from": "tickets-draft",
+        "to": "gate-critique-tickets-prepare",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-tickets-prepare",
+        "to": "copy-critique-tickets-prepare",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-tickets-prepare",
+        "to": "gate-critique-tickets-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-tickets-fan-out",
+        "to": "copy-critique-tickets-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-tickets-fan-out",
+        "to": "grant-check-tickets-verdicts",
+        "on": "success"
+      },
+      {
+        "from": "tickets-verdicts",
+        "to": "gate-critique-tickets-refute",
+        "on": "success"
+      },
+      {
+        "from": "tickets-verdicts",
+        "to": "tickets-needs-human",
+        "on": "failure"
+      },
+      {
+        "from": "tickets-needs-human",
+        "to": "gate-critique-tickets-refute",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-tickets-refute",
+        "to": "copy-critique-tickets-refute",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-tickets-refute",
+        "to": "gate-critique-tickets-record",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-tickets-record",
+        "to": "copy-critique-tickets-record",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-tickets-record",
+        "to": "publication-check",
+        "on": "success"
+      },
+      {
+        "from": "publication-check",
+        "to": "gate-workflow-c-publish",
+        "on": "success"
+      },
+      {
+        "from": "gate-workflow-c-publish",
+        "to": "copy-workflow-c-publish",
+        "on": "success"
+      },
+      {
+        "from": "copy-workflow-c-publish",
+        "to": "$end",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-spec-verdicts",
+        "to": "spec-verdicts",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-spec-verdicts",
+        "to": "grant-refused",
+        "on": "failure"
+      },
+      {
+        "from": "grant-check-tickets-verdicts",
+        "to": "tickets-verdicts",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-tickets-verdicts",
+        "to": "grant-refused",
+        "on": "failure"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-workflow-c-start",
+        "agentId": "gate-workflow-c-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-workflow-c-setup",
+        "agentId": "gate-workflow-c-setup",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-workflow-c-setup",
+        "agentId": "copy-workflow-c-setup",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grill-round-1",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grill-check-1",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grill-round-2",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grill-check-2",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grill-round-3",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grill-check-3",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-spec-draft",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-prepare",
+        "agentId": "gate-critique-spec-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-spec-prepare",
+        "agentId": "copy-critique-spec-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-fan-out",
+        "agentId": "gate-critique-spec-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-spec-fan-out",
+        "agentId": "copy-critique-spec-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grant-check-spec-verdicts",
+        "agentId": "grant-spec-verdicts",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-spec-verdicts",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-spec-needs-human",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-refute",
+        "agentId": "gate-critique-spec-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-spec-refute",
+        "agentId": "copy-critique-spec-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-record",
+        "agentId": "gate-critique-spec-record",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-spec-record",
+        "agentId": "copy-critique-spec-record",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-tickets-draft",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-tickets-prepare",
+        "agentId": "gate-critique-tickets-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-tickets-prepare",
+        "agentId": "copy-critique-tickets-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-tickets-fan-out",
+        "agentId": "gate-critique-tickets-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-tickets-fan-out",
+        "agentId": "copy-critique-tickets-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grant-check-tickets-verdicts",
+        "agentId": "grant-tickets-verdicts",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-tickets-verdicts",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-tickets-needs-human",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-tickets-refute",
+        "agentId": "gate-critique-tickets-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-tickets-refute",
+        "agentId": "copy-critique-tickets-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-tickets-record",
+        "agentId": "gate-critique-tickets-record",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-tickets-record",
+        "agentId": "copy-critique-tickets-record",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-publication-check",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-gate-workflow-c-publish",
+        "agentId": "gate-workflow-c-publish",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-workflow-c-publish",
+        "agentId": "copy-workflow-c-publish",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grant-refused",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      }
+    ]
+  }
+}

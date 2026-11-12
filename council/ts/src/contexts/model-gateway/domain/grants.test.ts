@@ -100,6 +100,14 @@ describe('parseGrantsFile', () => {
     expect(() => parseGrantsFile(JSON.stringify({ grants: [grant({ cap_usd: 0 })], version: 1 }))).toThrow(
       /grants\[0\]\.cap_usd must be a number above 0/,
     )
+    for (const max_starts of [0, 1.5, '2']) {
+      expect(() => parseGrantsFile(JSON.stringify({ grants: [{ ...grant(), max_starts }], version: 1 }))).toThrow(
+        /grants\[0\]\.max_starts must be a whole number above 0/,
+      )
+    }
+    expect(
+      parseGrantsFile(JSON.stringify({ grants: [{ ...grant(), ended_at: '2026-11-04T11:00:00.000Z', max_starts: 3 }], version: 1 }))[0],
+    ).toMatchObject({ ended_at: '2026-11-04T11:00:00.000Z', max_starts: 3 })
     expect(() => parseGrantsFile(JSON.stringify({ grants: [grant({ expires_at: 'soon' })], version: 1 }))).toThrow(
       /grants\[0\]\.expires_at must be an ISO-8601 UTC timestamp/,
     )

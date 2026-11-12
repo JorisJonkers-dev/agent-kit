@@ -58,7 +58,7 @@
           'path': 'standards'
           'token': '${{ steps.app-token.outputs.token }}'
           'persist-credentials': false
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@8aaf024208bf4b29acb468aecd3cd7ee130d5ac1' # v0.49.1
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'

@@ -2412,6 +2412,100 @@ else
   fi
 fi
 
+# Pi coding agent and its ACP adapter, installed pinned rather
+# than latest (issue #337): npm's install scripts are off, and a
+# release cutoff computed at setup time -- now minus 7 days, UTC
+# -- makes npm resolve every package, transitive ones included, as
+# the registry stood at that moment. Setup refuses a pin published
+# inside that window, and prints the installed binary's absolute
+# path for the Gold Band declaration.
+if [ "${CLOUD}" = 1 ]; then
+  log "pi: not set up in cloud mode"
+else
+  if ! command -v npm >/dev/null 2>&1; then
+    log "pi: npm is not on PATH; skipped (install Node, then re-run)"
+  else
+    # Pinned, install scripts off, behind the release cutoff: --before makes
+    # npm resolve every package (transitive ones included) as the registry
+    # stood at the cutoff, so nothing published in the last 7 days can
+    # install. Each pin's own publish time is proven against the same cutoff
+    # first: a pin younger than that, or one whose age cannot be proven,
+    # fails the step and installs nothing.
+    pi_cutoff="$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S.000Z"))')"
+    pi_installed=1
+    npm ls -g --depth=0 "@earendil-works/pi-coding-agent@1.5.0" >/dev/null 2>&1 || pi_installed=0
+    npm ls -g --depth=0 "pi-acp@0.0.34" >/dev/null 2>&1 || pi_installed=0
+    _pi_pin_age() {
+      # $1 package, $2 version: prints the version's own publish time and
+      # exits 0 only when it is no younger than the cutoff; an age that
+      # cannot be proven fails closed.
+      npm view "$1@$2" time --json | python3 -c 'import json, sys
+from datetime import datetime
+
+def when(stamp):
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+
+try:
+    published = when(json.load(sys.stdin)[sys.argv[2]])
+except (ValueError, KeyError, TypeError):
+    sys.exit(1)
+print(published.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
+sys.exit(0 if published <= when(sys.argv[1]) else 1)' "${pi_cutoff}" "$2"
+    }
+    _pi_pin_checksum() {
+      # $1 package, $2 version: the registry's published sha512 digest for the
+      # tarball (npm verifies every download against it); a pin with no sha512
+      # digest fails closed.
+      npm view "$1@$2" dist.integrity | grep -q "^sha512-"
+    }
+    if [ "${pi_installed}" = 1 ]; then
+      ok "pi: pinned packages already installed"
+    else
+      if [ "${CHECK_ONLY}" = 1 ]; then
+        log "pi would be installed at its pins (@earendil-works/pi-coding-agent@1.5.0, pi-acp@0.0.34), behind the 7-day release cutoff"
+      else
+        pi_refused=0
+        if pi_published="$(_pi_pin_age "@earendil-works/pi-coding-agent" "1.5.0")"; then
+          log "pi: @earendil-works/pi-coding-agent@1.5.0 was published ${pi_published}, outside the cutoff"
+        else
+          pi_refused=1
+          fail "pi: @earendil-works/pi-coding-agent@1.5.0 was published ${pi_published:-<no time proven>}, inside the 7-day release cutoff; nothing installed"
+        fi
+        if ! _pi_pin_checksum "@earendil-works/pi-coding-agent" "1.5.0"; then
+          pi_refused=1
+          fail "pi: @earendil-works/pi-coding-agent@1.5.0 has no sha512 checksum to verify; nothing installed"
+        fi
+        if pi_published="$(_pi_pin_age "pi-acp" "0.0.34")"; then
+          log "pi: pi-acp@0.0.34 was published ${pi_published}, outside the cutoff"
+        else
+          pi_refused=1
+          fail "pi: pi-acp@0.0.34 was published ${pi_published:-<no time proven>}, inside the 7-day release cutoff; nothing installed"
+        fi
+        if ! _pi_pin_checksum "pi-acp" "0.0.34"; then
+          pi_refused=1
+          fail "pi: pi-acp@0.0.34 has no sha512 checksum to verify; nothing installed"
+        fi
+        if [ "${pi_refused}" = 0 ]; then
+          npm install -g --ignore-scripts --before="${pi_cutoff}" "@earendil-works/pi-coding-agent@1.5.0" "pi-acp@0.0.34"
+          pi_installed=1
+          npm ls -g --depth=0 "@earendil-works/pi-coding-agent@1.5.0" >/dev/null 2>&1 || pi_installed=0
+          npm ls -g --depth=0 "pi-acp@0.0.34" >/dev/null 2>&1 || pi_installed=0
+          if [ "${pi_installed}" = 1 ]; then
+            ok "pi: installed at its pins"
+            new_binaries+=("pi-acp")
+          else
+            fail "pi: npm install did not leave the pins installed"
+          fi
+        fi
+      fi
+    fi
+    if [ "${pi_installed}" = 1 ]; then
+      pi_bin="$(npm prefix -g)/bin/pi-acp"
+      ok "pi: pi-acp -> ${pi_bin}"
+    fi
+  fi
+fi
+
 # Google Antigravity CLI (`agy`). Gets the workstation MCP fleet
 # minus Private Memory, the agent-kit instructions pointer and the
 # kit's skills.
@@ -2603,6 +2697,58 @@ gold_band_converge() {
 }
 gold_band_converge
 
+# The work Mac: where the per-machine overlay names the work instance
+# (gold-band), converge that instance's agent map onto the registry's work
+# agents (claude-work and codex) and apply the overlay's settings and MCP
+# servers. macOS only. The overlay is read from the machine, never from the
+# registry; no overlay, or one that names no work instance, is left alone.
+gold_band_work_converge() {
+  local out rc=0 line named overlay_file overlay_err
+  if [ "$(uname -s)" != Darwin ]; then
+    log "gold band work instance: only the work Mac is converged here, skipped"
+    return 0
+  fi
+  if [ "${CLOUD}" = 1 ]; then
+    log "gold band work instance: not converged in a cloud session"
+    return 0
+  fi
+  overlay_file="${HOME}/.config/agent-kit/overlay.yaml"
+  if [ ! -f "${overlay_file}" ]; then
+    log "gold band work instance: no overlay, the work instance is left alone"
+    return 0
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; the Gold Band work instance is not converged"
+    return 0
+  fi
+  overlay_err="$(mktemp)"
+  if ! named=$(uv run --no-project --exclude-newer "7 days" --with pyyaml python "${KIT_ROOT}/scripts/gold_band_instances.py" names-work-instance \
+      --overlay "${overlay_file}" 2>"${overlay_err}"); then
+    fail "gold band work instance: the overlay cannot be read ($(cat "${overlay_err}"))"
+    rm -f "${overlay_err}"
+    return 0
+  fi
+  rm -f "${overlay_err}"
+  if [ "${named}" != yes ]; then
+    log "gold band work instance: the overlay does not name it, left alone"
+    return 0
+  fi
+  local band_home="${GOLD_BAND_HOME:-}"
+  [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"
+  local args=(--instance gold-band --keep "${HOME}/.config/agent-kit/keep.yaml"
+    --settings "${band_home}/.gold-band/settings.json" --overlay "${overlay_file}")
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \
+    "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" = 4 ]; then
+    fail "Gold Band is running: setup stopped before its remaining write groups; quit it and re-run setup"
+    exit 1
+  fi
+  [ "${rc}" = 0 ] || fail "the Gold Band work instance did not converge (see above)"
+}
+gold_band_work_converge
+
 # Renders the registry's declared roles from the critique skill's own role and
 # lens files into the instance's context/profiles directory (templating off),
 # removes a retired or undeclared one unless the keep file names it, and leaves
@@ -2721,7 +2867,7 @@ else
   log "plugin marketplaces"
   ensure_marketplace claude-plugins-official anthropics/claude-plugins-official 43fd1f9db0941b2b83cb62268e35970d4a67c202 agent-kit-official
   ensure_marketplace caveman JuliusBrussee/caveman 8b0c1d3699b8d83e87fe4605b378da20c41555e0
-  ensure_marketplace drawio jgraph/drawio-mcp 14b318b19cc37b159f841227b9d11fbd18ce18ea
+  ensure_marketplace drawio jgraph/drawio-mcp cfc1b916b9deaa7c78d23d719d4124bd76d2d0bf
   ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill 34f93c1e409156958cc7c410ab1aa88ab512f10f
   if [ "${CLOUD}" = 1 ]; then
     log "ai-software-architect: not set up in cloud mode"
@@ -2932,7 +3078,7 @@ for install in installs:
         plugin_drift+=("caveman: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio 14b318b19cc37b159f841227b9d11fbd18ce18ea)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio cfc1b916b9deaa7c78d23d719d4124bd76d2d0bf)"
     installed_commit="$(installed_plugin_commit "${manifest}" "drawio@drawio")"
     if [ -z "${expected_commit}" ]; then
       warn "drawio: its marketplace entry pins no commit, so it cannot be pinned"
@@ -3772,9 +3918,27 @@ for install in installs:
         command -v code-nav >/dev/null 2>&1 \
           || warn "code-nav: code-nav is not on PATH; skipping"
       fi
+      overlay_roots=()
+      overlay_err="$(mktemp)"
+      overlay_file="${HOME}/.config/agent-kit/overlay.yaml"
+      if [ -f "${overlay_file}" ]; then
+        if overlay_out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml python \
+            "${KIT_ROOT}/scripts/gold_band_instances.py" code-nav-roots \
+            --registry "${KIT_ROOT}/registry/estate-tooling.yaml" \
+            --overlay "${overlay_file}" 2>"${overlay_err}"); then
+          while IFS= read -r overlay_root; do
+            [ -n "${overlay_root}" ] && overlay_roots+=(--root "${overlay_root}")
+          done <<< "${overlay_out}"
+          [ "${#overlay_roots[@]}" = 0 ] \
+            || ok "code-nav: $(( ${#overlay_roots[@]} / 2 )) work overlay root(s) applied"
+        else
+          warn "code-nav: the work overlay was not applied ($(cat "${overlay_err}"))"
+        fi
+      fi
+      rm -f "${overlay_err}"
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user code-nav >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add code-nav" claude_each_profile claude mcp add --scope user code-nav -- code-nav --root ~/Projects/JorisJonkers-dev; then
+        if run_redacted "claude mcp add code-nav" claude_each_profile claude mcp add --scope user code-nav -- code-nav --root ~/Projects/JorisJonkers-dev ${overlay_roots[@]+"${overlay_roots[@]}"}; then
           ok "code-nav registered (claude)"
         else
           fail "code-nav registration failed (claude)"
@@ -3782,7 +3946,7 @@ for install in installs:
       fi
       if command -v codex >/dev/null 2>&1; then
         run codex mcp remove code-nav >/dev/null 2>&1 || true
-        if run_redacted "codex mcp add code-nav" codex mcp add code-nav -- code-nav --root ~/Projects/JorisJonkers-dev; then
+        if run_redacted "codex mcp add code-nav" codex mcp add code-nav -- code-nav --root ~/Projects/JorisJonkers-dev ${overlay_roots[@]+"${overlay_roots[@]}"}; then
           ok "code-nav registered (codex)"
         else
           fail "code-nav registration failed (codex)"

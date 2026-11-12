@@ -1,0 +1,94 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [\n    {\n      \"branch\": \"gateway/failbranch2\",\n      \"reason\": \"error: the branch gateway/failbranch2 is not fully merged\",\n      \"run_id\": \"ok2\"\n    }\n  ],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/ok1\",\n      \"run_id\": \"ok1\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-ok1\"\n    },\n    {\n      \"branch\": \"gateway/bad1\",\n      \"run_id\": \"bad1\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-failrm1\"\n    },\n    {\n      \"branch\": \"gateway/failbranch2\",\n      \"run_id\": \"ok2\",\n      \"workflow\": \"w2\",\n      \"worktree\": \"@SANDBOX@/work/wt-ok2\"\n    },\n    {\n      \"branch\": \"gateway/ok3\",\n      \"run_id\": \"ok3\",\n      \"workflow\": \"w2\",\n      \"worktree\": \"@SANDBOX@/work/wt-ok3\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok1\n-C @SANDBOX@/work/repo-a branch -D gateway/ok1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/bad1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok2\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch2\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/ok3\n",
+        "work/repo-a/": null,
+        "work/wt-ok1/": null,
+        "work/wt-ok2/": null,
+        "work/wt-ok3/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok1\n-C @SANDBOX@/work/repo-a branch -D gateway/ok1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/bad1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok2\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch2\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/ok3\n",
+        "work/repo-a/": null,
+        "work/wt-ok1/": null,
+        "work/wt-ok2/": null,
+        "work/wt-ok3/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/ok1\",\n      \"run_id\": \"ok1\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-ok1\"\n    },\n    {\n      \"branch\": \"gateway/ok3\",\n      \"run_id\": \"ok3\",\n      \"workflow\": \"w2\",\n      \"worktree\": \"@SANDBOX@/work/wt-ok3\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok1\n-C @SANDBOX@/work/repo-a branch -D gateway/ok1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/bad1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok2\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch2\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/ok3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok1\n-C @SANDBOX@/work/repo-a branch -D gateway/ok1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/ok3\n",
+        "work/repo-a/": null,
+        "work/wt-ok1/": null,
+        "work/wt-ok2/": null,
+        "work/wt-ok3/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok1\n-C @SANDBOX@/work/repo-a branch -D gateway/ok1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/bad1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok2\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch2\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/ok3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok1\n-C @SANDBOX@/work/repo-a branch -D gateway/ok1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/ok3\n",
+        "work/repo-a/": null,
+        "work/wt-ok1/": null,
+        "work/wt-ok2/": null,
+        "work/wt-ok3/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok1\n-C @SANDBOX@/work/repo-a branch -D gateway/ok1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-failrm1\n-C @SANDBOX@/work/repo-a worktree prune\n-C @SANDBOX@/work/repo-a branch -D gateway/bad1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok2\n-C @SANDBOX@/work/repo-a branch -D gateway/failbranch2\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/ok3\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok1\n-C @SANDBOX@/work/repo-a branch -D gateway/ok1\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-ok3\n-C @SANDBOX@/work/repo-a branch -D gateway/ok3\n",
+        "work/repo-a/": null,
+        "work/wt-ok1/": null,
+        "work/wt-ok2/": null,
+        "work/wt-ok3/": null
+      }
+    }
+  ]
+}

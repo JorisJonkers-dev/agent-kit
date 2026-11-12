@@ -31,6 +31,8 @@ import {
   ProcessSearchClient,
   runSearchServer,
   VibeCriticClient,
+  WorkClaudeCriticClient,
+  WorkCodexCriticClient,
   type ClaudeCriticClient,
   type ClientReadiness,
   type RepoMapPort,
@@ -957,6 +959,103 @@ export class FakeAgyProcess implements ProcessPort {
   }
 }
 
+/** One canned run of a work CLI (Codex or the work Claude agent). */
+export interface WorkScript {
+  readonly stdout: string
+  readonly stderr?: string
+  readonly exitCode?: number
+  /** What the critic does while it runs: `cwd` is its working directory, `repo` the repository. */
+  readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
+  /** The run never returned and the outer timer killed it. */
+  readonly timedOut?: boolean
+}
+
+/** How a stubbed work CLI behaves on this machine; every flag is on unless named. */
+export interface WorkCli {
+  /** Whether the binary is on PATH. */
+  readonly onPath?: boolean
+  /** What its sign-in status command answers: signed in, signed out, or a result as it is. */
+  readonly status?: 'signed-in' | 'signed-out' | 'spawn-error' | ProcessResult
+  /** What `--version` prints. */
+  readonly version?: string
+  readonly scripts?: WorkScript[]
+}
+
+/**
+ * Plays canned runs of a work CLI, and answers the status command its
+ * readiness check makes (`codex login status`, `claude auth status`). Nothing
+ * here reaches a real work service.
+ */
+export class FakeWorkProcess implements ProcessPort {
+  readonly commands: ProcessCommand[] = []
+
+  constructor(
+    private readonly name: string,
+    private readonly repo: string,
+    private readonly cli: WorkCli,
+    private readonly log: LaunchLog,
+  ) {}
+
+  /** The critic launches only, without the status calls and version reads. */
+  get launches(): readonly ProcessCommand[] {
+    return this.commands.filter((command) => !this.isProbe(command))
+  }
+
+  /** The status calls only. */
+  get statusCalls(): readonly ProcessCommand[] {
+    return this.commands.filter((command) => command.args.length === 2 && this.isProbe(command))
+  }
+
+  private isProbe(command: ProcessCommand): boolean {
+    const [first] = command.args
+    return command.args.length === 1 ? first === '--version' : command.args.length === 2 && (first === 'login' || first === 'auth')
+  }
+
+  async exec(command: ProcessCommand): Promise<ProcessResult> {
+    this.commands.push(command)
+    if (command.args.length === 1 && command.args[0] === '--version') {
+      if (this.cli.onPath === false) throw new Error(`spawn ${command.command} ENOENT`)
+      return { exitCode: 0, stderr: '', stdout: `${this.cli.version ?? `${this.name} 1.0.0`}\n` }
+    }
+    if (this.isProbe(command)) {
+      const status = this.cli.status ?? 'signed-in'
+      if (status === 'spawn-error') throw new Error(`spawn ${command.command} EACCES`)
+      if (status === 'signed-in') return { exitCode: 0, stderr: '', stdout: 'Logged in\n' }
+      if (status === 'signed-out') return { exitCode: 1, stderr: '', stdout: 'Not logged in\n' }
+      return status
+    }
+    const script = this.cli.scripts?.shift()
+    if (script === undefined) throw new Error(`unexpected ${this.name} launch`)
+    await this.log.play(this.name)
+    await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
+    return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
+  }
+}
+
+/** What `codex exec --json` prints for a run whose final message is `text`. */
+export function codexStream(text: string, usage: { input_tokens: number; cached_input_tokens: number; output_tokens: number } = { cached_input_tokens: 40, input_tokens: 100, output_tokens: 20 }): string {
+  return [
+    { type: 'thread.started', thread_id: 't1' },
+    { type: 'item.completed', item: { id: 'i0', text, type: 'agent_message' } },
+    { type: 'turn.completed', usage },
+  ]
+    .map((event) => JSON.stringify(event))
+    .join('\n')
+}
+
+/** What `claude -p --output-format json` prints for a run whose final message is `text`. */
+export function claudeResult(text: string, overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    is_error: false,
+    result: text,
+    total_cost_usd: 0.05,
+    type: 'result',
+    usage: { cache_creation_input_tokens: 10, cache_read_input_tokens: 40, input_tokens: 60, output_tokens: 20 },
+    ...overrides,
+  })
+}
+
 /** `agy --version` and `agy models`: the calls that read agy without starting a critic. */
 function isAgyProbe(command: ProcessCommand): boolean {
   return command.args.length === 1 && (command.args[0] === '--version' || command.args[0] === 'models')
@@ -1095,6 +1194,8 @@ export interface Harness {
   readonly gh: FakeGh
   readonly process: FakeVibeProcess
   readonly agy: FakeAgyProcess
+  /** The stubbed work CLIs, present for the ones `workCli` named. */
+  readonly workCli: { readonly codex?: FakeWorkProcess; readonly claude?: FakeWorkProcess }
   readonly launches: LaunchLog
   readonly clock: FixedClock
   readonly commands: CritiqueCommands
@@ -1211,6 +1312,11 @@ export async function harness(
      * Neither is wired unless named, as on a machine with no launcher for them.
      */
     readonly workClients?: { readonly codex?: ClientReadiness; readonly claude?: ClientReadiness }
+    /**
+     * Wires the real Codex and work Claude critic clients over stubbed CLIs,
+     * for the ones named; it replaces `workClients` for those.
+     */
+    readonly workCli?: { readonly codex?: WorkCli; readonly claude?: WorkCli }
     /** The grants the owner gave, in `~/.config/agent-kit/model-gateway-grants.json`. */
     readonly grants?: readonly Record<string, unknown>[]
   } = {},
@@ -1280,6 +1386,13 @@ export async function harness(
   const agyVersion = (options.agyOnPath ?? true) ? (options.agyVersion ?? '1.4.12') : null
   const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agyModels ?? 'signed-in', launches, agyVersion)
   const files = new NodeCritiqueFiles()
+  const workProcesses: { codex?: FakeWorkProcess; claude?: FakeWorkProcess } = {}
+  for (const name of ['codex', 'claude'] as const) {
+    const cli = options.workCli?.[name]
+    if (cli === undefined) continue
+    if (cli.onPath ?? true) await writeFile(join(bin, name), '#!/bin/sh\n')
+    workProcesses[name] = new FakeWorkProcess(name, repo, cli, launches)
+  }
   const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':'), ...options.env })
   const clock = new FixedClock('2026-10-30T12:00:00.000Z')
   const commands = createCritiqueCommands({
@@ -1288,6 +1401,8 @@ export async function harness(
       agy: new AgyCriticClient(agy, files, env, options.platform ?? 'darwin'),
       vibe: new VibeCriticClient(process, files, env, options.platform ?? 'darwin'),
       ...workClients(options.workClients),
+      ...(workProcesses.codex === undefined ? {} : { codex: new WorkCodexCriticClient(workProcesses.codex, files, env) }),
+      ...(workProcesses.claude === undefined ? {} : { claude: new WorkClaudeCriticClient(workProcesses.claude, files, env) }),
     },
     clock,
     env,
@@ -1305,6 +1420,7 @@ export async function harness(
   return {
     agy,
     assetsRoot,
+    workCli: workProcesses,
     cleanup: () => rm(base, { force: true, recursive: true }),
     clock,
     commands,

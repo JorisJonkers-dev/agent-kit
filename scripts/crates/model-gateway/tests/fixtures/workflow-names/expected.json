@@ -1,0 +1,234 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a workflow command must name its workflow\"}\n",
+      "stderr": "model-gateway workflow start: a workflow command must name its workflow\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a workflow command must name its workflow\"}\n",
+      "stderr": "model-gateway workflow start: a workflow command must name its workflow\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a workflow command must name its workflow\"}\n",
+      "stderr": "model-gateway workflow start: a workflow command must name its workflow\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a workflow command must name its workflow\"}\n",
+      "stderr": "model-gateway workflow start: a workflow command must name its workflow\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a workflow command must name its workflow\"}\n",
+      "stderr": "model-gateway workflow start: a workflow command must name its workflow\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"-lead\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"-lead\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\".lead\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \".lead\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"has space\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"has space\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"semi;colon\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"semi;colon\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"newline\\\\nname\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"newline\\nname\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"quote\\\\\\\"d\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"quote\\\"d\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"tab\\\\tname\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"tab\\tname\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"ünï\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"ünï\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"A\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"A\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"9\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"A\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"9\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a workflow command must name its workflow\"}\n",
+      "stderr": "model-gateway workflow end: a workflow command must name its workflow\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"A\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"9\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"bad name\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow end: workflow \"bad name\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"A\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"9\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"ünï\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow end: workflow \"ünï\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"A\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"9\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"quote\\\\\\\"d\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow end: workflow \"quote\\\"d\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"A\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"9\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": null,\n      \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"A\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"9\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\",\n      \"state\": \"running\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"A\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"9\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

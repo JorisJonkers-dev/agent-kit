@@ -1,0 +1,109 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"spec-293\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"spec-293\"}"
+      ],
+      "now": "2026-11-03T13:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"other:ticket/1.2_x\"}"
+      ],
+      "now": "2026-11-03T13:30:00.250Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "now": "2026-11-03T14:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"spec-293\"}"
+      ],
+      "now": "2026-11-03T15:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"spec-293\"}"
+      ],
+      "now": "2026-11-03T16:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"ignored\":true}"
+      ],
+      "now": "2026-11-03T16:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"spec-293\"}"
+      ],
+      "now": "2026-11-03T17:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"never-started\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"other:ticket/1.2_x\"}"
+      ],
+      "now": "2026-11-03T18:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "now": "2026-11-03T18:00:00Z"
+    }
+  ]
+}

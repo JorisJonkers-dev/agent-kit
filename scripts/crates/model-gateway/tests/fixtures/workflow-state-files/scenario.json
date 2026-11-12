@@ -1,0 +1,311 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "not json"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": ""
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "[]"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "null"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":2,\"workflows\":[]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":{}}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[5]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[[]]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"yesterday\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":5}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00Z\",\"ended_at\":\"later\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00Z\",\"ended_at\":null}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00Z\"},{\"name\":\"b\",\"started_at\":\"2026-11-03T12:00:00Z\",\"ended_at\":\"2026-11-03T13:00:00Z\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00+02:00\"},{\"name\":\"b\",\"started_at\":\"2026-11-03\"},{\"name\":\"c\",\"started_at\":\"2026-11-03T12:00\"},{\"name\":\"d\",\"started_at\":\"2026-11-03T12:00:00.5Z\"},{\"name\":\"e\",\"started_at\":\"+002026-11-03T12:00:00Z\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026\"},{\"name\":\"b\",\"started_at\":\"2026-11\"},{\"name\":\"c\",\"started_at\":\"2026-11-31\"},{\"name\":\"d\",\"started_at\":\"2026-11-03T24:00\"}]}"
+      },
+      "now": "2026-12-01T12:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-32\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T24:00:01\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"new\"}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"ended_at\":\"2026-11-03T13:00:00Z\",\"name\":\"b\",\"started_at\":\"2026-11-03T12:00:00Z\"},{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00Z\"}],\"extra\":true}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"a\"}"
+      ],
+      "now": "2026-11-03T14:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"b\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"x\"}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T12:00:00Z\"}]}"
+      },
+      "mkdir": [
+        "state/agent-kit/model-gateway/workflows.json.d"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"x\"}"
+      ],
+      "remove": [
+        "state/agent-kit/model-gateway/workflows.json"
+      ],
+      "mkdir": [
+        "state/agent-kit/model-gateway/workflows.json"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ]
+    }
+  ]
+}

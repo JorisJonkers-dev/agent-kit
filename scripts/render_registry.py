@@ -29,6 +29,9 @@ import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
+REACH_PATH = KIT_ROOT / "registry" / "reach-levels.yaml"
+# The reach levels, weakest first (crates/agent-launcher/src/record.rs LEVELS).
+REACH_LEVELS = ("read", "read-web", "research", "write-scoped", "run-one-command", "write", "full")
 
 SETUP_SCRIPT = Path("installer/setup-workstation.sh")
 CONTAINER_SETUP_SCRIPT = Path("installer/setup-container.sh")
@@ -99,7 +102,44 @@ SKILL_AGENT_HOMES = {
     "opencode": ["OPENCODE_HOME"],
 }
 
+# A `pinned_npm:` CLI installs behind a release cutoff this many days deep,
+# computed at setup time (issue #337): npm's --before resolves every package --
+# transitive ones included -- as the registry stood at that moment, so nothing
+# published inside the window can install. The same discipline as the 7-day
+# crate cooldown (standards ADR-0014, docs/RUST.md).
+PIN_CUTOFF_DAYS = 7
+# The generated cutoff computation: now minus the cutoff, UTC, printed in
+# npm's own publish-time format so the --before flag and the age check
+# compare like with like.
+PIN_CUTOFF_PY = (
+    "import datetime; print((datetime.datetime.now(datetime.timezone.utc)"
+    f" - datetime.timedelta(days={PIN_CUTOFF_DAYS})"
+    ').strftime("%Y-%m-%dT%H:%M:%S.000Z"))'
+)
+# A pin's own publish-time check, run against `npm view <pkg>@<version> time
+# --json` on stdin: prints that time (argv: the cutoff, then the version) and
+# exits 0 only when the version is no younger than the cutoff. An age that
+# cannot be proven exits 1, so the step fails closed, like crate-age does.
+PIN_AGE_PY = """import json, sys
+from datetime import datetime
+
+def when(stamp):
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+
+try:
+    published = when(json.load(sys.stdin)[sys.argv[2]])
+except (ValueError, KeyError, TypeError):
+    sys.exit(1)
+print(published.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
+sys.exit(0 if published <= when(sys.argv[1]) else 1)"""
+
 RETIRED_SKILL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+# An exact npm version: MAJOR.MINOR.PATCH with an optional -prerelease. A
+# range (`^1.5.0`, `>=1.0.0`), a tag (`latest`), an x-version (`1.x`) or a
+# YAML float (`1.5`) renders a floating install whose publish time cannot be
+# proven, so a `pinned_npm:` entry naming one is refused at render time.
+EXACT_NPM_PIN = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
@@ -158,7 +198,86 @@ def _entries(data: dict[str, Any], key: str) -> list[dict[str, Any]]:
     return value
 
 
-def validate(data: dict[str, Any]) -> None:
+def _reach_ids(path: Path) -> dict[str, dict[str, Any]]:
+    """The agent ids of the reach-level support record (``ids:``)."""
+    try:
+        record = yaml.safe_load(path.read_text())
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise RegistryError(f"{path} cannot be read: {exc}") from exc
+    ids = record.get("ids") if isinstance(record, dict) else None
+    if ids is None:
+        return {}
+    if not isinstance(ids, dict):
+        raise RegistryError(f"{path}: ids must be a mapping")
+    return {str(name): body if isinstance(body, dict) else {} for name, body in ids.items()}
+
+
+def _validate_instance_server(
+    server: dict[str, Any], data: dict[str, Any], reach_path: Path,
+) -> None:
+    """A server bound to Gold Band instances (B3-14): where it is registered
+    and which agent ids it is listed for, by reach level."""
+    name = server.get("name")
+    instances = server.get("instances")
+    extras = [key for key in ("reach", "agent_ids") if key in server]
+    if instances is None:
+        if extras:
+            raise RegistryError(f"mcp server {name}: {' and '.join(extras)} only apply to a server with instances")
+        return
+    held = data.get("gold_band_instances") or {}
+    if not isinstance(instances, list) or not instances or not all(isinstance(i, str) for i in instances):
+        raise RegistryError(f"mcp server {name}: instances must be a non-empty list of instance ids")
+    for instance in instances:
+        if instance == "gold-band":
+            raise RegistryError(
+                f"mcp server {name}: instances may not name {instance}; "
+                "the work instance reads its servers from the per-machine overlay, never from the public registry",
+            )
+        if instance not in held:
+            raise RegistryError(
+                f"mcp server {name}: instances names {instance!r}, which gold_band_instances does not declare",
+            )
+    if len(set(instances)) != len(instances):
+        raise RegistryError(f"mcp server {name}: instances lists an instance twice")
+    if session_only(server):
+        raise RegistryError(f"mcp server {name}: a server with instances may not be session-only")
+    if server.get("transport") == "http" and not server.get("url_workstation"):
+        raise RegistryError(f"mcp server {name}: an http server with instances must have a url_workstation")
+    levels = server.get("reach")
+    if not isinstance(levels, list) or not levels:
+        raise RegistryError(f"mcp server {name}: a server with instances must list the reach levels that may use it")
+    for level in levels:
+        if level not in REACH_LEVELS:
+            raise RegistryError(f"mcp server {name}: reach names {level!r}, not one of {', '.join(REACH_LEVELS)}")
+    if len(set(levels)) != len(levels):
+        raise RegistryError(f"mcp server {name}: reach lists a level twice")
+    if "run-one-command" in levels:
+        raise RegistryError(f"mcp server {name}: reach may not list run-one-command, which takes no tools")
+    agent_ids = server.get("agent_ids")
+    if agent_ids is None:
+        return
+    if not isinstance(agent_ids, list) or not all(isinstance(i, str) for i in agent_ids):
+        raise RegistryError(f"mcp server {name}: agent_ids must be a list of agent ids")
+    if len(set(agent_ids)) != len(agent_ids):
+        raise RegistryError(f"mcp server {name}: agent_ids lists an id twice")
+    declared = _reach_ids(reach_path)
+    for agent_id in agent_ids:
+        entry = declared.get(agent_id)
+        if entry is None:
+            raise RegistryError(f"mcp server {name}: agent id {agent_id!r} is not declared in {reach_path.name}")
+        if entry.get("reach") not in levels:
+            raise RegistryError(
+                f"mcp server {name}: agent id {agent_id!r} is at reach level {entry.get('reach')!r}, "
+                f"which the server does not allow ({', '.join(levels)})",
+            )
+        if not all(entry.get("agent") in ((held.get(i) or {}).get("agents") or []) for i in instances):
+            raise RegistryError(
+                f"mcp server {name}: agent id {agent_id!r} names agent {entry.get('agent')!r}, "
+                f"which is not an agent of {', '.join(instances)}",
+            )
+
+
+def validate(data: dict[str, Any], reach_path: Path = REACH_PATH) -> None:
     known_surfaces = {"workstation", "runner", "container"}
 
     marketplaces = {m["name"] for m in _entries(data, "marketplaces")}
@@ -280,6 +399,7 @@ def validate(data: dict[str, Any]) -> None:
                     f"mcp server {name}: args name a work root; "
                     "work roots belong in the work machine overlay, never in the public registry",
                 )
+        _validate_instance_server(server, data, reach_path)
         if session_only(server) and (
             transport != "http" or server.get("surfaces") != ["workstation"] or server.get("cloud") is not False
         ):
@@ -524,8 +644,19 @@ def validate(data: dict[str, Any]) -> None:
             continue
         if not cli.get("binary"):
             raise RegistryError(f"cli {cli.get('name')} must name a binary, or a cask that installs it")
-        if on_surface(cli, "workstation") and not cli.get("install"):
+        # A pinned npm CLI's install step is generated from its pin block.
+        if on_surface(cli, "workstation") and not cli.get("install") and not cli.get("pinned_npm"):
             raise RegistryError(f"cli {cli.get('name')} must name an install command, or a cask")
+    for cli in _entries(data, "clis"):
+        if cli.get("pinned_npm"):
+            _validate_pinned_npm_cli(cli, cli["pinned_npm"])
+        # Pi has no permission prompts: it runs only in throwaway repositories,
+        # so an entry for it that does not say so is refused rather than trusted.
+        if cli.get("name") == "pi" and cli.get("throwaway_only") is not True:
+            raise RegistryError(
+                "cli pi must set throwaway_only: true: Pi has no permission prompts, "
+                "so it runs only in throwaway repositories",
+            )
     for key in ("plugins", "language_servers", "mcp_servers", "skill_sources", "local_skills"):
         for item in _entries(data, key):
             for field in ("cask", "macos_only"):
@@ -560,6 +691,29 @@ def pinned_source(server: dict[str, Any]) -> dict[str, Any]:
 def workstation_pins(data: dict[str, Any]) -> list[dict[str, Any]]:
     """The `pin:` blocks of workstation-only pinned installs, which Renovate moves like container pins."""
     return [dict(s["pin"]) for s in _entries(data, "mcp_servers") if s.get("install_pinned") and s.get("pin")]
+
+
+def pinned_npm_cli_pin_specs(pin: dict[str, Any]) -> list[str]:
+    """A `pinned_npm:` block's package@version pins, in the registry's order."""
+    return [f"{entry['package']}@{entry['version']}" for entry in pin["packages"]]
+
+
+def _validate_pinned_npm_cli(cli: dict[str, Any], pin: dict[str, Any]) -> None:
+    """A `pinned_npm:` CLI declares the exact packages setup installs behind the cutoff."""
+    name = str(cli.get("name"))
+    if not isinstance(pin, dict):
+        raise RegistryError(f"cli {name} pinned_npm must be a mapping with a packages list")
+    packages = pin.get("packages")
+    if not isinstance(packages, list) or not packages:
+        raise RegistryError(f"cli {name} pinned_npm must list its pinned packages")
+    for entry in packages:
+        if not isinstance(entry, dict) or not entry.get("package"):
+            raise RegistryError(f"cli {name} pinned_npm needs a package name for every pin")
+        version = str(entry.get("version") or "")
+        if not EXACT_NPM_PIN.fullmatch(version):
+            raise RegistryError(
+                f"cli {name} must pin an exact version of {entry.get('package')}, not {version!r}",
+            )
 
 
 def on_surface(item: dict[str, Any], surface: str) -> bool:
@@ -638,6 +792,37 @@ def _pinned_guard(block: list[str], market: str, name: str, indent: str) -> list
         f"{indent}  ;;",
         f"{indent}esac",
     ]
+
+
+def _overlay_roots_block(indent: str) -> list[str]:
+    """Shell that fills ``overlay_roots`` with ``--root PATH`` for the work overlay's code-nav roots.
+
+    Only a machine whose overlay file exists does anything. The overlay is
+    validated by gold_band_instances (the gold-band-registry crate underneath),
+    and a refusal or a missing validator leaves the personal roots alone, said
+    out loud, so a bad overlay never widens or blocks the registration.
+    """
+    lines = [
+        "overlay_roots=()",
+        'overlay_err="$(mktemp)"',
+        'overlay_file="${HOME}/.config/agent-kit/overlay.yaml"',
+        'if [ -f "${overlay_file}" ]; then',
+        "  if overlay_out=$(uv run --no-project --exclude-newer \"7 days\" --with pyyaml python \\",
+        '      "${KIT_ROOT}/scripts/gold_band_instances.py" code-nav-roots \\',
+        '      --registry "${KIT_ROOT}/registry/estate-tooling.yaml" \\',
+        '      --overlay "${overlay_file}" 2>"${overlay_err}"); then',
+        "    while IFS= read -r overlay_root; do",
+        '      [ -n "${overlay_root}" ] && overlay_roots+=(--root "${overlay_root}")',
+        '    done <<< "${overlay_out}"',
+        '    [ "${#overlay_roots[@]}" = 0 ] \\',
+        '      || ok "code-nav: $(( ${#overlay_roots[@]} / 2 )) work overlay root(s) applied"',
+        "  else",
+        '    warn "code-nav: the work overlay was not applied ($(cat "${overlay_err}"))"',
+        "  fi",
+        "fi",
+        'rm -f "${overlay_err}"',
+    ]
+    return [f"{indent}{line}" for line in lines]
 
 
 def _cloud_guard(block: list[str], item: dict[str, Any], indent: str) -> list[str]:
@@ -2823,6 +3008,64 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w("}")
     w("gold_band_converge")
     w("")
+    w("# The work Mac: where the per-machine overlay names the work instance")
+    w("# (gold-band), converge that instance's agent map onto the registry's work")
+    w("# agents (claude-work and codex) and apply the overlay's settings and MCP")
+    w("# servers. macOS only. The overlay is read from the machine, never from the")
+    w("# registry; no overlay, or one that names no work instance, is left alone.")
+    w("gold_band_work_converge() {")
+    w("  local out rc=0 line named overlay_file overlay_err")
+    w('  if [ "$(uname -s)" != Darwin ]; then')
+    w('    log "gold band work instance: only the work Mac is converged here, skipped"')
+    w("    return 0")
+    w("  fi")
+    w('  if [ "${CLOUD}" = 1 ]; then')
+    w('    log "gold band work instance: not converged in a cloud session"')
+    w("    return 0")
+    w("  fi")
+    w('  overlay_file="${HOME}/.config/agent-kit/overlay.yaml"')
+    w('  if [ ! -f "${overlay_file}" ]; then')
+    w('    log "gold band work instance: no overlay, the work instance is left alone"')
+    w("    return 0")
+    w("  fi")
+    w("  if ! command -v uv >/dev/null 2>&1; then")
+    w('    warn "uv is not on PATH; the Gold Band work instance is not converged"')
+    w("    return 0")
+    w("  fi")
+    w('  overlay_err="$(mktemp)"')
+    w(
+        '  if ! named=$(uv run --no-project --exclude-newer "7 days" --with pyyaml python '
+        '"${KIT_ROOT}/scripts/gold_band_instances.py" names-work-instance \\'
+    )
+    w('      --overlay "${overlay_file}" 2>"${overlay_err}"); then')
+    w('    fail "gold band work instance: the overlay cannot be read ($(cat "${overlay_err}"))"')
+    w('    rm -f "${overlay_err}"')
+    w("    return 0")
+    w("  fi")
+    w('  rm -f "${overlay_err}"')
+    w('  if [ "${named}" != yes ]; then')
+    w('    log "gold band work instance: the overlay does not name it, left alone"')
+    w("    return 0")
+    w("  fi")
+    w('  local band_home="${GOLD_BAND_HOME:-}"')
+    w('  [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"')
+    w('  local args=(--instance gold-band --keep "${HOME}/.config/agent-kit/keep.yaml"')
+    w('    --settings "${band_home}/.gold-band/settings.json" --overlay "${overlay_file}")')
+    w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
+    w(
+        '  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
+        '"${KIT_ROOT}/scripts/converge.py" gold-band \\'
+    )
+    w('    "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?')
+    w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  if [ "${rc}" = 4 ]; then')
+    w('    fail "Gold Band is running: setup stopped before its remaining write groups; quit it and re-run setup"')
+    w("    exit 1")
+    w("  fi")
+    w('  [ "${rc}" = 0 ] || fail "the Gold Band work instance did not converge (see above)"')
+    w("}")
+    w("gold_band_work_converge")
+    w("")
     w("# Renders the registry's declared roles from the critique skill's own role and")
     w("# lens files into the instance's context/profiles directory (templating off),")
     w("# removes a retired or undeclared one unless the keep file names it, and leaves")
@@ -2865,6 +3108,103 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w("}")
     w("gold_band_roles")
     w("")
+
+
+def _pinned_npm_cli_block(cli: dict[str, Any], pin: dict[str, Any]) -> list[str]:
+    """A `pinned_npm:` CLI's step: pinned, install scripts off, behind the cutoff.
+
+    The cutoff is computed at SETUP time, so ``--before`` holds while npm
+    resolves every package -- transitive ones included -- as the registry
+    stood at that moment, and nothing published in the last
+    ``PIN_CUTOFF_DAYS`` days can install. Each pin's own publish time is
+    proven against the same cutoff before anything installs; a pin younger
+    than the window, or one whose age cannot be proven, fails the step with
+    nothing installed, the way crate-age fails a young crate closed. The step
+    ends by resolving the entry's binary to its absolute installed path and
+    printing it, which is the adapter command the Gold Band declaration
+    uses (the registry's ``gold_band:`` section holds the placeholder).
+    """
+    name = str(cli["name"])
+    binary = str(cli["binary"])
+    packages = [str(entry["package"]) for entry in pin["packages"]]
+    versions = [str(entry["version"]) for entry in pin["packages"]]
+    specs = pinned_npm_cli_pin_specs(pin)
+    install_args = " ".join(f'"{spec}"' for spec in specs)
+    listed = ", ".join(specs)
+    block: list[str] = []
+    b = block.append
+    b("# Pinned, install scripts off, behind the release cutoff: --before makes")
+    b("# npm resolve every package (transitive ones included) as the registry")
+    b(f"# stood at the cutoff, so nothing published in the last {PIN_CUTOFF_DAYS} days can")
+    b("# install. Each pin's own publish time is proven against the same cutoff")
+    b("# first: a pin younger than that, or one whose age cannot be proven,")
+    b("# fails the step and installs nothing.")
+    b(f"{name}_cutoff=\"$(python3 -c {_q(PIN_CUTOFF_PY)})\"")
+    b(f"{name}_installed=1")
+    for spec in specs:
+        b(f'npm ls -g --depth=0 "{spec}" >/dev/null 2>&1 || {name}_installed=0')
+    b(f"_{name}_pin_age() {{")
+    b("  # $1 package, $2 version: prints the version's own publish time and")
+    b("  # exits 0 only when it is no younger than the cutoff; an age that")
+    b("  # cannot be proven fails closed.")
+    b(f'  npm view "$1@$2" time --json | python3 -c {_q(PIN_AGE_PY)} "${{{name}_cutoff}}" "$2"')
+    b("}")
+    b(f"_{name}_pin_checksum() {{")
+    b("  # $1 package, $2 version: the registry's published sha512 digest for the")
+    b("  # tarball (npm verifies every download against it); a pin with no sha512")
+    b("  # digest fails closed.")
+    b('  npm view "$1@$2" dist.integrity | grep -q "^sha512-"')
+    b("}")
+    b(f'if [ "${{{name}_installed}}" = 1 ]; then')
+    b(f'  ok "{name}: pinned packages already installed"')
+    b("else")
+    b('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    b(f'    log "{name} would be installed at its pins ({listed}), behind the {PIN_CUTOFF_DAYS}-day release cutoff"')
+    b("  else")
+    b(f"    {name}_refused=0")
+    for package, version, spec in zip(packages, versions, specs, strict=True):
+        b(f'    if {name}_published="$(_{name}_pin_age "{package}" "{version}")"; then')
+        b(f'      log "{name}: {spec} was published ${{{name}_published}}, outside the cutoff"')
+        b("    else")
+        b(f"      {name}_refused=1")
+        too_young = (
+            f"{name}: {spec} was published ${{{name}_published:-<no time proven>}}, inside "
+            f"the {PIN_CUTOFF_DAYS}-day release cutoff; nothing installed"
+        )
+        b(f'      fail "{too_young}"')
+        b("    fi")
+        b(f'    if ! _{name}_pin_checksum "{package}" "{version}"; then')
+        b(f"      {name}_refused=1")
+        b(f'      fail "{name}: {spec} has no sha512 checksum to verify; nothing installed"')
+        b("    fi")
+    b(f'    if [ "${{{name}_refused}}" = 0 ]; then')
+    b(f'      npm install -g --ignore-scripts --before="${{{name}_cutoff}}" {install_args}')
+    b(f"      {name}_installed=1")
+    for spec in specs:
+        b(f'      npm ls -g --depth=0 "{spec}" >/dev/null 2>&1 || {name}_installed=0')
+    b(f'      if [ "${{{name}_installed}}" = 1 ]; then')
+    b(f'        ok "{name}: installed at its pins"')
+    b(f'        new_binaries+=("{binary}")')
+    b("      else")
+    b(f'        fail "{name}: npm install did not leave the pins installed"')
+    b("      fi")
+    b("    fi")
+    b("  fi")
+    b("fi")
+    b(f'if [ "${{{name}_installed}}" = 1 ]; then')
+    b(f'  {name}_bin="$(npm prefix -g)/bin/{binary}"')
+    b(f'  ok "{name}: {binary} -> ${{{name}_bin}}"')
+    b("fi")
+    # No npm (no Node installed yet): skip and say so, rather than fail on it.
+    return [
+        'if ! command -v npm >/dev/null 2>&1; then',
+        f'  log "{name}: npm is not on PATH; skipped (install Node, then re-run)"',
+        "else",
+        *[f"  {line}" if line else line for line in block],
+        "fi",
+    ]
+
+
 
 
 def render_setup_script(data: dict[str, Any]) -> str:
@@ -4086,6 +4426,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("")
         for chunk in _wrap(str(cli.get("purpose") or "").strip(), 64):
             w(f"# {chunk}")
+        pin_block = cli.get("pinned_npm")
+        if pin_block:
+            # The whole step is generated from the pin block, so a pinned
+            # npm CLI takes no install:/update:/version_command: of its own.
+            out.extend(_cloud_guard(_pinned_npm_cli_block(cli, pin_block), cli, ""))
+            continue
         block: list[str] = []
         b = block.append
         if cask:
@@ -4613,6 +4959,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b(f'{indent}  command -v {binary} >/dev/null 2>&1 \\')
             b(f'{indent}    || warn "{name}: {binary} is not on PATH; skipping"')
             b(f"{indent}fi")
+        extra = ""
+        if server.get("overlay_roots"):
+            if server["transport"] != "stdio":
+                raise RegistryError(f"mcp server {name}: overlay_roots only applies to a stdio server")
+            extra = ' ${overlay_roots[@]+"${overlay_roots[@]}"}'
+            for line in _overlay_roots_block(indent):
+                b(line)
         # --- Claude Code ---
         b(f"{indent}if command -v claude >/dev/null 2>&1; then")
         b(f'{indent}  run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
@@ -4629,7 +4982,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             # Name BEFORE the --env flags: claude 2.x rejects the redeclared
             # order (`--env K=V` then the name) with "missing required argument
             # 'commandOrUrl'". Verified against claude 2.1.267.
-            add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip()
+            add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip() + extra
         b(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
         b(f'{indent}    ok "{name} registered (claude)"')
         b(f"{indent}  else")
@@ -4656,7 +5009,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             else:
                 args = " ".join(server.get("args") or [])
                 env_flags = _mcp_env_flags(server, credential, optional_cred)
-                add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip()
+                add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip() + extra
             b(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
         b(f'{indent}    ok "{name} registered (codex)"')
         b(f"{indent}  else")

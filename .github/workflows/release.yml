@@ -39,7 +39,7 @@
       - 'uses': 'actions/checkout@v6'
         'with':
           'ref': '${{ needs.release-please.outputs.tag_name }}'
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@8aaf024208bf4b29acb468aecd3cd7ee130d5ac1' # v0.49.1
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
@@ -59,6 +59,9 @@
             --artifact-type application/vnd.jorisjonkers.agent-kit.runtime-home.v1.tar+gzip \
             "dist/agent-kit-runtime-home-${tag}.tar.gz:application/gzip" \
             "dist/agent-kit-runtime-home-${tag}.tar.gz.sha256:text/plain"
+          # The runner follows :latest at session start and verifies the
+          # tarball against the .sha256 pushed beside it.
+          oras tag "ghcr.io/jorisjonkers-dev/agent-kit/runtime-home:${tag}" latest
       - 'name': 'Attach release assets'
         'env':
           'GH_TOKEN': '${{ secrets.GITHUB_TOKEN }}'
