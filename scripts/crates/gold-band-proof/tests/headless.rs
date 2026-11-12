@@ -30,6 +30,10 @@ fn workflow_c() -> PathBuf {
     manifest_dir().join("../../../installer/gold-band/workflows/workflow-c.json")
 }
 
+fn workflow_c_work() -> PathBuf {
+    manifest_dir().join("../../../installer/gold-band/workflows/workflow-c-work.json")
+}
+
 fn fixture() -> PathBuf {
     manifest_dir().join("tests/fixtures/fails-closed.json")
 }
@@ -229,6 +233,50 @@ fn workflow_c_pauses_at_each_grill_round_and_finding_and_publishes_only_after_th
         stdout.contains(
             "after-publication-check.gate-fail-workflow-c-publish: expected exit 1, got 1 (completed/failure)"
         ),
+        "{stdout}"
+    );
+    assert!(
+        !stdout.contains("\n  gate-fail-workflow-c-publish:"),
+        "the publish gate is not reachable before the check: {stdout}"
+    );
+    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
+#[test]
+fn workflow_c_work_pauses_on_a_lapsed_grant_before_each_codex_node_and_publishes_only_after_the_check(
+) {
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("workflow-c-work");
+    let output = prove(&workflow_c_work(), &records, &[], &gold_band);
+    let stdout = text(&output.stdout);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&output.stderr)
+    );
+    // A lapsed grant before a Codex orchestrator pauses the run on a manual check.
+    for scenario in ["grant-lapse-spec-verdicts", "grant-lapse-tickets-verdicts"] {
+        assert!(
+            stdout.contains(&format!("{scenario}: expected exit 2, got 2 (paused/")),
+            "{scenario}: {stdout}"
+        );
+    }
+    // Publication pauses for the owner: the publish gate lies only after its check.
+    assert!(
+        stdout
+            .contains("after-publication-check.clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "after-publication-check.gate-fail-workflow-c-publish: expected exit 1, got 1 (completed/failure)"
+        ),
+        "{stdout}"
+    );
+    // The run itself pauses (exit 2) at a manual check before any publication.
+    assert!(
+        stdout.contains("  clean: expected exit 2, got 2 (paused/"),
         "{stdout}"
     );
     assert!(
