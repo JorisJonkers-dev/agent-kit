@@ -873,15 +873,43 @@ def gold_band(args: argparse.Namespace) -> int:
     running = _gold_band_running(settings.parent, instance)
     if running:
         return _gold_band_stopped("gold-band-agents", running, [], [settings.name])
-    if settings.is_file():
-        shutil.copy2(settings, settings.with_name(settings.name + ".bak"))
-    settings.parent.mkdir(parents=True, exist_ok=True)
-    # Written beside it and renamed, so a starting Gold Band never reads half a file.
-    staged = settings.with_name(settings.name + ".agent-kit-tmp")
-    staged.write_text(json.dumps(new_doc, indent=2) + "\n")
-    os.chmod(staged, 0o600)
-    os.replace(staged, settings)
+    try:
+        _gold_band_write_settings(settings, new_doc)
+    except OSError as exc:
+        print(f"gold-band-agents: settings were not replaced, the old file is in place: {exc}")
+        return 1
     return 0
+
+
+def _gold_band_write_settings(settings: Path, document: dict[str, Any]) -> None:
+    """Replace ``settings`` atomically, keeping one backup of what it held.
+
+    The data directory ends owner-only. The new file is written 0o600 beside the
+    old one and renamed over it, so a failure at any step leaves the old file
+    untouched and no staged file behind; only keys this run changed differ.
+    """
+    data_dir = settings.parent
+    data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(data_dir, 0o700)
+    backup = settings.with_name(settings.name + ".bak")
+    staged = settings.with_name(settings.name + ".agent-kit-tmp")
+    staged_backup = settings.with_name(settings.name + ".bak.agent-kit-tmp")
+    try:
+        if settings.is_file():
+            shutil.copy2(settings, staged_backup)
+            os.chmod(staged_backup, 0o600)
+            os.replace(staged_backup, backup)
+        fd = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(document, indent=2) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(staged, 0o600)
+        os.replace(staged, settings)
+    except OSError:
+        staged.unlink(missing_ok=True)
+        staged_backup.unlink(missing_ok=True)
+        raise
 
 
 def _gold_band_roles_registry(path: Path) -> tuple[str | None, list[dict[str, Any]], set[str]]:
