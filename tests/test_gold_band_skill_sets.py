@@ -38,7 +38,7 @@ LOCAL_SKILLS = [
 SETS = {"estate": ["estate-bootstrap", "estate-rollback"], "writing": ["council"]}
 
 
-def _agent(name: str, skill_set: str | None, **extra: object) -> dict:
+def _agent(name: str, skill_set: str | list[str] | None, **extra: object) -> dict:
     agent: dict = {"id": name, "binary": name, "adapter": {"displayName": name.title()}}
     if skill_set is not None:
         agent["skill_set"] = skill_set
@@ -147,6 +147,19 @@ def test_exactly_the_declared_set_lands(tmp_path: Path, monkeypatch: pytest.Monk
     for name in ("estate-bootstrap", "estate-rollback"):
         for relative, text in SKILLS[name].items():
             assert (target / name / relative).read_text() == text
+
+
+def test_an_id_naming_several_sets_gets_their_skills_merged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = _registry(agents=[_agent("opencode", ["estate", "writing", "estate"]), _agent("vibe", "writing")])
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}}, registry=registry)
+    assert machine.run() == 0
+    assert sorted(child.name for child in machine.directory("opencode").iterdir()) == [
+        "council",
+        "estate-bootstrap",
+        "estate-rollback",
+    ]
+    assert sorted(child.name for child in machine.directory("vibe").iterdir()) == ["council"]
+    assert machine.agents()["opencode"]["primaryAgentDir"] == str(machine.directory("opencode"))
 
 
 def test_two_ids_with_different_sets_get_different_directories(
@@ -413,7 +426,30 @@ NO_SKILL_MD = {
     [
         (
             lambda r: r["gold_band"]["agents"][0].update(skill_set=3),
-            "opencode: skill_set must be a set name",
+            "opencode: skill_set must be a set name or a list of set names",
+            None,
+        ),
+        (
+            lambda r: r["gold_band"]["agents"][0].update(skill_set=[]),
+            "opencode: skill_set must be a set name or a list of set names",
+            None,
+        ),
+        (
+            lambda r: r["gold_band"]["agents"][0].update(skill_set=["estate", 3]),
+            "opencode: skill_set must be a set name or a list of set names",
+            None,
+        ),
+        (
+            lambda r: r["gold_band"]["agents"][0].update(skill_set=["estate", "nope"]),
+            "opencode: skill_set nope is not a declared set",
+            None,
+        ),
+        (
+            lambda r: (
+                r["gold_band"]["skill_sets"].update(again=["estate-rollback"]),
+                r["gold_band"]["agents"][0].update(skill_set=["estate", "again"]),
+            ),
+            "opencode: skill sets overlap on estate-rollback",
             None,
         ),
         (
