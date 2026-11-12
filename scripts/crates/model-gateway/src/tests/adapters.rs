@@ -467,3 +467,98 @@ fn write_private_cleans_up_after_a_write_that_cannot_land() {
     assert_eq!(error.code, "EACCES");
     assert!(error.message.starts_with("EACCES: permission denied, open '"), "{}", error.message);
 }
+
+/// A real repository with one commit, in `sandbox/repo`.
+fn repository_with_a_commit(sandbox: &Sandbox) -> PathBuf {
+    let repo = sandbox.path.join("repo");
+    std::fs::create_dir_all(&repo).expect("repository folder");
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "first"]);
+    repo
+}
+
+#[test]
+fn git_removes_a_worktree_with_its_directory_and_then_its_branch() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let worktree = sandbox.path.join("kept");
+    git(&repo, &["worktree", "add", "-q", "-b", "gateway/run-1", &text(&worktree), "HEAD"]);
+    let repositories = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+
+    assert_eq!(repositories.remove_worktree(&text(&repo), &text(&worktree)), Ok(()));
+    assert!(!worktree.exists());
+    assert_eq!(repositories.delete_branch(&text(&repo), "gateway/run-1"), Ok(()));
+    let error = repositories.delete_branch(&text(&repo), "gateway/run-1").expect_err("the branch is gone");
+    assert!(error.contains("gateway/run-1"), "{error}");
+}
+
+#[test]
+fn git_deletes_a_worktree_it_no_longer_knows_by_hand_and_prunes() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+    // A directory git never made a worktree of, a plain file, and a path that is not there at all.
+    let directory = sandbox.path.join("not-a-worktree");
+    std::fs::create_dir_all(directory.join("inner")).expect("directory");
+    std::fs::write(directory.join("inner").join("file"), "x").expect("file");
+    let file = sandbox.path.join("a-file");
+    std::fs::write(&file, "x").expect("file");
+
+    assert_eq!(repositories.remove_worktree(&text(&repo), &text(&directory)), Ok(()));
+    assert_eq!(repositories.remove_worktree(&text(&repo), &text(&file)), Ok(()));
+    assert_eq!(repositories.remove_worktree(&text(&repo), &text(&sandbox.path.join("nowhere"))), Ok(()));
+    assert!(!directory.exists() && !file.exists());
+}
+
+#[test]
+fn git_reports_a_leftover_it_cannot_delete_and_a_prune_that_fails() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+    // The parent of the path is a file, so the path can be neither looked at nor deleted.
+    let parent = sandbox.path.join("parent-file");
+    std::fs::write(&parent, "x").expect("file");
+    let error = repositories.remove_worktree(&text(&repo), &text(&parent.join("child"))).expect_err("cannot delete");
+    assert!(error.starts_with(&format!("{}: cannot remove: ", text(&parent.join("child")))), "{error}");
+
+    let bin = sandbox.path.join("bin");
+    std::fs::create_dir_all(&bin).expect("bin folder");
+    script(&bin, "git", "#!/bin/sh\necho \"fatal: $*\" >&2\nexit 128\n");
+    let failing = SystemGit { env: env_with_path(&text(&bin)), timeout_ms: TIMEOUT_MS };
+    assert_eq!(
+        failing.remove_worktree(&text(&repo), &text(&sandbox.path.join("gone"))),
+        Err(format!("fatal: -C {} worktree prune", text(&repo)))
+    );
+    assert_eq!(failing.delete_branch(&text(&repo), "b"), Err(format!("fatal: -C {} branch -D b", text(&repo))));
+}
+
+#[test]
+fn git_worktree_commands_say_when_git_cannot_run() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repositories = SystemGit { env: env_with_path(&sandbox.text()), timeout_ms: TIMEOUT_MS };
+
+    assert_eq!(repositories.remove_worktree(&sandbox.text(), "w"), Err("cannot run git: spawn git ENOENT".to_string()));
+    assert_eq!(repositories.delete_branch(&sandbox.text(), "b"), Err("cannot run git: spawn git ENOENT".to_string()));
+}
+
+#[test]
+fn git_never_deletes_by_hand_the_main_worktree_or_a_locked_one() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+    let error = repositories.remove_worktree(&text(&repo), &text(&repo)).expect_err("the main worktree stays");
+    assert!(error.contains("main working tree"), "{error}");
+    assert!(repo.join(".git").exists());
+
+    let locked = sandbox.path.join("locked");
+    git(&repo, &["worktree", "add", "-q", "-b", "gateway/locked", &text(&locked), "HEAD"]);
+    git(&repo, &["worktree", "lock", &text(&locked)]);
+    let error = repositories.remove_worktree(&text(&repo), &text(&locked)).expect_err("a locked worktree stays");
+    assert!(error.contains("locked"), "{error}");
+    assert!(locked.exists());
+}

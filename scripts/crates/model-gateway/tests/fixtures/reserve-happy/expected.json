@@ -1,0 +1,131 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"grant\": {\n    \"answer\": \"yes\",\n    \"cap_usd\": 5,\n    \"client\": \"codex\",\n    \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n    \"id\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 3,\n    \"question\": \"may I?\",\n    \"workflow\": \"w\",\n    \"written_at\": \"2026-11-03T12:00:00.000Z\",\n    \"remaining_usd\": 5,\n    \"reserved_usd\": 0,\n    \"spent_usd\": 0\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"may I?\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"reservation\": {\n    \"attempt\": 1,\n    \"client\": \"codex\",\n    \"grant\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 3,\n    \"node\": \"codex-1\",\n    \"remaining\": 2,\n    \"repeated\": false,\n    \"reserved_at\": \"2026-11-03T12:00:00.000Z\",\n    \"run_id\": \"start-912e0862c021a4d4\",\n    \"started\": 1,\n    \"workflow\": \"w\"\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-912e0862c021a4d4\",\"run_id\":\"start-912e0862c021a4d4\",\"workflow\":\"w\"}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"may I?\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"reservation\": {\n    \"attempt\": 1,\n    \"client\": \"codex\",\n    \"grant\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 3,\n    \"node\": \"codex-2\",\n    \"remaining\": 1,\n    \"repeated\": false,\n    \"reserved_at\": \"2026-11-03T12:00:00.000Z\",\n    \"run_id\": \"start-089d9a51e8faf8ae\",\n    \"started\": 2,\n    \"workflow\": \"w\"\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-912e0862c021a4d4\",\"run_id\":\"start-912e0862c021a4d4\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-089d9a51e8faf8ae\",\"run_id\":\"start-089d9a51e8faf8ae\",\"workflow\":\"w\"}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"may I?\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"reservation\": {\n    \"attempt\": 1,\n    \"client\": \"codex\",\n    \"grant\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 3,\n    \"node\": \"codex-3\",\n    \"remaining\": 0,\n    \"repeated\": false,\n    \"reserved_at\": \"2026-11-03T12:00:00.000Z\",\n    \"run_id\": \"start-a3f67a66ad0112e7\",\n    \"started\": 3,\n    \"workflow\": \"w\"\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-912e0862c021a4d4\",\"run_id\":\"start-912e0862c021a4d4\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-089d9a51e8faf8ae\",\"run_id\":\"start-089d9a51e8faf8ae\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-a3f67a66ad0112e7\",\"run_id\":\"start-a3f67a66ad0112e7\",\"workflow\":\"w\"}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"may I?\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"cap-exceeded\",\"message\":\"grant grant-20261103T120000Z-@RAND@ allows 3 Codex node starts for workflow w: 3 taken, no start left for node codex-4\"}\n",
+      "stderr": "model-gateway grant reserve: grant grant-20261103T120000Z-@RAND@ allows 3 Codex node starts for workflow w: 3 taken, no start left for node codex-4\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-912e0862c021a4d4\",\"run_id\":\"start-912e0862c021a4d4\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-089d9a51e8faf8ae\",\"run_id\":\"start-089d9a51e8faf8ae\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-a3f67a66ad0112e7\",\"run_id\":\"start-a3f67a66ad0112e7\",\"workflow\":\"w\"}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"may I?\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"reservation\": {\n    \"attempt\": 1,\n    \"client\": \"codex\",\n    \"grant\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 3,\n    \"node\": \"codex-1\",\n    \"remaining\": 0,\n    \"repeated\": true,\n    \"reserved_at\": \"2026-11-03T12:00:00.000Z\",\n    \"run_id\": \"start-912e0862c021a4d4\",\n    \"started\": 3,\n    \"workflow\": \"w\"\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-912e0862c021a4d4\",\"run_id\":\"start-912e0862c021a4d4\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-089d9a51e8faf8ae\",\"run_id\":\"start-089d9a51e8faf8ae\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-a3f67a66ad0112e7\",\"run_id\":\"start-a3f67a66ad0112e7\",\"workflow\":\"w\"}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"may I?\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"reservation\": {\n    \"attempt\": 1,\n    \"client\": \"codex\",\n    \"grant\": \"grant-20261103T120000Z-@RAND@\",\n    \"max_starts\": 3,\n    \"node\": \"codex-2\",\n    \"remaining\": 0,\n    \"repeated\": true,\n    \"reserved_at\": \"2026-11-03T12:00:00.000Z\",\n    \"run_id\": \"start-089d9a51e8faf8ae\",\n    \"started\": 3,\n    \"workflow\": \"w\"\n  },\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-912e0862c021a4d4\",\"run_id\":\"start-912e0862c021a4d4\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-089d9a51e8faf8ae\",\"run_id\":\"start-089d9a51e8faf8ae\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-a3f67a66ad0112e7\",\"run_id\":\"start-a3f67a66ad0112e7\",\"workflow\":\"w\"}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"may I?\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"cap-exceeded\",\"message\":\"grant grant-20261103T120000Z-@RAND@ allows 3 Codex node starts for workflow w: 3 taken, no start left for node codex-1\"}\n",
+      "stderr": "model-gateway grant reserve: grant grant-20261103T120000Z-@RAND@ allows 3 Codex node starts for workflow w: 3 taken, no start left for node codex-1\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-912e0862c021a4d4\",\"run_id\":\"start-912e0862c021a4d4\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-089d9a51e8faf8ae\",\"run_id\":\"start-089d9a51e8faf8ae\",\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0,\"expires_at\":\"2026-11-03T12:01:01.000Z\",\"kind\":\"reservation\",\"model\":\"node-start\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/state/agent-kit/model-gateway/node-starts/start-a3f67a66ad0112e7\",\"run_id\":\"start-a3f67a66ad0112e7\",\"workflow\":\"w\"}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/model-gateway-grants.json": "{\n  \"grants\": [\n    {\n      \"answer\": \"yes\",\n      \"cap_usd\": 5,\n      \"client\": \"codex\",\n      \"expires_at\": \"2026-11-04T12:00:00.000Z\",\n      \"id\": \"grant-20261103T120000Z-@RAND@\",\n      \"max_starts\": 3,\n      \"question\": \"may I?\",\n      \"workflow\": \"w\",\n      \"written_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ],\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,224 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: not JSON: Unexpected token 'o', \\\"not json\\\" is not valid JSON\"}\n",
+      "stderr": "model-gateway worktrees clean: @SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: not JSON: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "not json",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\\\"version\\\": 1, \\\"worktrees\\\": [...]}\"}\n",
+      "stderr": "model-gateway worktrees clean: @SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\"version\": 1, \"worktrees\": [...]}\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "[]",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\\\"version\\\": 1, \\\"worktrees\\\": [...]}\"}\n",
+      "stderr": "model-gateway worktrees clean: @SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\"version\": 1, \"worktrees\": [...]}\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\\\"version\\\": 1, \\\"worktrees\\\": [...]}\"}\n",
+      "stderr": "model-gateway worktrees clean: @SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\"version\": 1, \"worktrees\": [...]}\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "null",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\\\"version\\\": 1, \\\"worktrees\\\": [...]}\"}\n",
+      "stderr": "model-gateway worktrees clean: @SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\"version\": 1, \"worktrees\": [...]}\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\"version\":1}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\\\"version\\\": 1, \\\"worktrees\\\": [...]}\"}\n",
+      "stderr": "model-gateway worktrees clean: @SANDBOX@/state/agent-kit/model-gateway/kept-worktrees.json: must be {\"version\": 1, \"worktrees\": [...]}\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\"version\":1,\"worktrees\":{}}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/s\",\n      \"run_id\": \"s\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-s\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n",
+        "work/wt-s/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/s\",\n      \"run_id\": \"s\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-s\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n",
+        "work/wt-s/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\"}\n",
+      "stderr": "model-gateway worktrees clean: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json/": null,
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n",
+        "work/wt-s/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unexpected\",\"message\":\"ENOTDIR: not a directory, mkdir '@SANDBOX@/state/agent-kit/model-gateway'\"}\n",
+      "stderr": "model-gateway worktrees clean: ENOTDIR: not a directory, mkdir '@SANDBOX@/state/agent-kit/model-gateway'\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit": "x",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n",
+        "work/wt-s/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unexpected\",\"message\":\"required environment variable is missing: HOME\"}\n",
+      "stderr": "model-gateway worktrees clean: required environment variable is missing: HOME\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit": "x",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n",
+        "work/wt-s/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit": "x",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n",
+        "work/wt-s/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit": "x",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n",
+        "work/wt-s/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit": "x",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "work/": null,
+        "work/elsewhere/": null,
+        "work/elsewhere/agent-kit/": null,
+        "work/elsewhere/agent-kit/model-gateway/": null,
+        "work/elsewhere/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-s\n-C @SANDBOX@/work/repo-a branch -D gateway/s\n",
+        "work/wt-s/": null
+      }
+    }
+  ]
+}

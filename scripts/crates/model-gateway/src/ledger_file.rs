@@ -29,6 +29,13 @@ pub struct LedgerChange<T> {
     pub result: T,
 }
 
+/// What a change that may also reserve asks for: the settlements to append, then the reservation to hold, and what it decided.
+pub struct LedgerAppend<T> {
+    pub settled: Vec<SettledRecord>,
+    pub reserved: Option<ReservationRecord>,
+    pub result: T,
+}
+
 impl LedgerStore<'_> {
     /// Every record the ledger holds, oldest first.
     pub fn read(&self) -> Result<Vec<LedgerEntry>, GatewayError> {
@@ -37,19 +44,26 @@ impl LedgerStore<'_> {
 
     /// Applies `change` to the ledger under the lock and appends what it settles.
     pub fn update<T>(&self, change: impl FnOnce(&[LedgerEntry]) -> LedgerChange<T>) -> Result<T, GatewayError> {
+        self.update_with(|entries| {
+            let changed = change(entries);
+            Ok(LedgerAppend { settled: changed.append, reserved: None, result: changed.result })
+        })
+    }
+
+    /// Applies `change` to the ledger under the lock: it reads, decides and appends in one locked step, and a
+    /// change that refuses appends nothing.
+    pub fn update_with<T>(&self, change: impl FnOnce(&[LedgerEntry]) -> Result<LedgerAppend<T>, GatewayError>) -> Result<T, GatewayError> {
         let path = locations::ledger_path(&self.runtime.env)?;
         self.runtime.files.mkdir_all(dirname(&path)).map_err(GatewayError::from_fs)?;
         let lock = FileLock::new("ledger", self.runtime.lock);
         let files = self.runtime.files.as_ref();
         let clock = self.runtime.clock.as_ref();
         lock.run(&format!("{path}.lock"), files, clock, || {
-            let changed = change(&self.load()?);
-            if !changed.append.is_empty() {
-                let text: String = changed
-                    .append
-                    .iter()
-                    .map(|record| format!("{}\n", json::compact(&caps::settled_record_json(record))))
-                    .collect();
+            let changed = change(&self.load()?)?;
+            let mut lines: Vec<Value> = changed.settled.iter().map(caps::settled_record_json).collect();
+            lines.extend(changed.reserved.iter().map(caps::reservation_record_json));
+            if !lines.is_empty() {
+                let text: String = lines.iter().map(|line| format!("{}\n", json::compact(line))).collect();
                 self.runtime.files.append(&path, &text).map_err(GatewayError::from_fs)?;
             }
             Ok(changed.result)
@@ -166,14 +180,20 @@ fn cost_class_member(object: &Object) -> Option<CostClass> {
 /// really cost rather than its estimate.
 pub fn settle_stale(runtime: &Runtime, now_ms: i64) -> Result<(), GatewayError> {
     let store = LedgerStore { runtime };
-    let entries = store.read()?;
+    let costs = finished_costs(runtime, &store.read()?);
+    store.update(|entries| LedgerChange { append: caps::settle_expired(entries, now_ms, &costs), result: () })
+}
+
+/// What each live reservation's run directory says the run cost, by run id: a run that left a result is
+/// finished, whatever its expiry says.
+pub fn finished_costs(runtime: &Runtime, entries: &[LedgerEntry]) -> BTreeMap<String, f64> {
     let mut costs: BTreeMap<String, f64> = BTreeMap::new();
-    for reservation in caps::live_reservations(&entries) {
+    for reservation in caps::live_reservations(entries) {
         if let Some(cost) = result_cost(runtime, &reservation.run_dir) {
             costs.insert(reservation.run_id.clone(), cost);
         }
     }
-    store.update(|entries| LedgerChange { append: caps::settle_expired(entries, now_ms, &costs), result: () })
+    costs
 }
 
 /// What a run directory's result says the run cost, or `None` when it left none

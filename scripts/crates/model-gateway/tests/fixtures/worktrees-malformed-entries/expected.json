@@ -1,0 +1,92 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [\n    {\n      \"branch\": \"gateway/a\",\n      \"run_id\": \"a\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-a\"\n    },\n    {\n      \"branch\": \"gateway/b\",\n      \"run_id\": \"b\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-b\"\n    },\n    {\n      \"run_id\": \"d\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-d\"\n    },\n    {\n      \"branch\": \"gateway/e\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-e\"\n    },\n    {\n      \"branch\": \"gateway/f\",\n      \"run_id\": \"f\",\n      \"worktree\": \"@SANDBOX@/work/wt-f\"\n    },\n    {\n      \"branch\": \"gateway/g\",\n      \"run_id\": \"g\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-g\"\n    },\n    {\n      \"branch\": 7,\n      \"run_id\": \"h\",\n      \"workflow\": \"w1\",\n      \"worktree\": \"@SANDBOX@/work/wt-h\"\n    }\n  ],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-a\n-C @SANDBOX@/work/repo-a branch -D gateway/a\n-C undefined worktree remove --force @SANDBOX@/work/wt-b\n-C undefined branch -D gateway/b\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-d\n-C @SANDBOX@/work/repo-a branch -D undefined\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-e\n-C @SANDBOX@/work/repo-a branch -D gateway/e\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-f\n-C @SANDBOX@/work/repo-a branch -D gateway/f\n-C 5 worktree remove --force @SANDBOX@/work/wt-g\n-C 5 branch -D gateway/g\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-h\n-C @SANDBOX@/work/repo-a branch -D 7\n",
+        "work/repo-a/": null,
+        "work/wt-a/": null,
+        "work/wt-b/": null,
+        "work/wt-d/": null,
+        "work/wt-e/": null,
+        "work/wt-f/": null,
+        "work/wt-g/": null,
+        "work/wt-h/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-a\n-C @SANDBOX@/work/repo-a branch -D gateway/a\n-C undefined worktree remove --force @SANDBOX@/work/wt-b\n-C undefined branch -D gateway/b\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-d\n-C @SANDBOX@/work/repo-a branch -D undefined\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-e\n-C @SANDBOX@/work/repo-a branch -D gateway/e\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-f\n-C @SANDBOX@/work/repo-a branch -D gateway/f\n-C 5 worktree remove --force @SANDBOX@/work/wt-g\n-C 5 branch -D gateway/g\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-h\n-C @SANDBOX@/work/repo-a branch -D 7\n",
+        "work/repo-a/": null,
+        "work/wt-a/": null,
+        "work/wt-b/": null,
+        "work/wt-d/": null,
+        "work/wt-e/": null,
+        "work/wt-f/": null,
+        "work/wt-g/": null,
+        "work/wt-h/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-a\n-C @SANDBOX@/work/repo-a branch -D gateway/a\n-C undefined worktree remove --force @SANDBOX@/work/wt-b\n-C undefined branch -D gateway/b\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-d\n-C @SANDBOX@/work/repo-a branch -D undefined\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-e\n-C @SANDBOX@/work/repo-a branch -D gateway/e\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-f\n-C @SANDBOX@/work/repo-a branch -D gateway/f\n-C 5 worktree remove --force @SANDBOX@/work/wt-g\n-C 5 branch -D gateway/g\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-h\n-C @SANDBOX@/work/repo-a branch -D 7\n",
+        "work/repo-a/": null,
+        "work/wt-a/": null,
+        "work/wt-b/": null,
+        "work/wt-d/": null,
+        "work/wt-e/": null,
+        "work/wt-f/": null,
+        "work/wt-g/": null,
+        "work/wt-h/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"branch_kept\": [],\n  \"failed\": [],\n  \"removed\": [],\n  \"status\": \"ok\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": []\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/git-calls": "-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-a\n-C @SANDBOX@/work/repo-a branch -D gateway/a\n-C undefined worktree remove --force @SANDBOX@/work/wt-b\n-C undefined branch -D gateway/b\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-d\n-C @SANDBOX@/work/repo-a branch -D undefined\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-e\n-C @SANDBOX@/work/repo-a branch -D gateway/e\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-f\n-C @SANDBOX@/work/repo-a branch -D gateway/f\n-C 5 worktree remove --force @SANDBOX@/work/wt-g\n-C 5 branch -D gateway/g\n-C @SANDBOX@/work/repo-a worktree remove --force @SANDBOX@/work/wt-h\n-C @SANDBOX@/work/repo-a branch -D 7\n",
+        "work/repo-a/": null,
+        "work/wt-a/": null,
+        "work/wt-b/": null,
+        "work/wt-d/": null,
+        "work/wt-e/": null,
+        "work/wt-f/": null,
+        "work/wt-g/": null,
+        "work/wt-h/": null
+      }
+    }
+  ]
+}

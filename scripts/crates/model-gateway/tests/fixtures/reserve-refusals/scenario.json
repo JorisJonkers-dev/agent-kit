@@ -1,0 +1,248 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":3,\"ended_at\":\"2026-11-03T11:30:00Z\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-03T11:00:00Z\",\"max_starts\":3}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":3}]}",
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"w\",\"started_at\":\"2026-11-03T09:00:00Z\",\"ended_at\":\"2026-11-03T10:00:00Z\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":3}]}",
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"w\",\"started_at\":\"2026-11-02T11:00:00Z\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":5},{\"id\":\"g2\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T11:30:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1}]}",
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"w\",\"started_at\":\"2026-11-03T09:00:00Z\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1},{\"id\":\"g2\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":4}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"yesterday\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"other\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":3}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"hermes\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":3}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1}]}",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"kind\":\"reservation\",\"run_id\":\"before\",\"workflow\":\"w\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"model\":\"node-start\",\"estimate_usd\":0,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1}]}",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T11:30:00.000Z\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"cost_usd\":1,\"duration_s\":3,\"family\":\"openai\",\"mode\":\"read-only\",\"model\":\"gpt-5.5\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"spent\",\"workflow\":\"w\"}\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1}]}",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"kind\":\"reservation\",\"run_id\":\"other-workflow\",\"workflow\":\"other\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"model\":\"node-start\",\"estimate_usd\":0,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n{\"kind\":\"reservation\",\"run_id\":\"other-client\",\"workflow\":\"w\",\"client\":\"hermes\",\"cost_class\":\"metered-employer\",\"model\":\"node-start\",\"estimate_usd\":0,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n{\"kind\":\"reservation\",\"run_id\":\"other-model\",\"workflow\":\"w\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"model\":\"gpt-5.5\",\"estimate_usd\":0,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

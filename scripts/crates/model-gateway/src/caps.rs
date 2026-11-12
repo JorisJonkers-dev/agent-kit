@@ -153,6 +153,23 @@ pub fn settled_record_json(record: &SettledRecord) -> Value {
     Value::Obj(object)
 }
 
+/// The reservation as the ledger writes it: one JSON object, its keys in the
+/// order the node runner's literal writes them.
+pub fn reservation_record_json(record: &ReservationRecord) -> Value {
+    let mut object = Object::new();
+    object.set("client", Value::str(&record.client));
+    object.set("cost_class", Value::str(record.cost_class.as_str()));
+    object.set("estimate_usd", Value::Num(record.estimate_usd));
+    object.set("expires_at", Value::str(&record.expires_at));
+    object.set("kind", Value::str("reservation"));
+    object.set("model", Value::str(&record.model));
+    object.set("reserved_at", Value::str(&record.reserved_at));
+    object.set("run_dir", Value::str(&record.run_dir));
+    object.set("run_id", Value::str(&record.run_id));
+    object.set("workflow", Value::str(&record.workflow));
+    Value::Obj(object)
+}
+
 /// Whether the estimate still fits what a cap has left, to the cent the ledger
 /// counts in.
 pub fn fits(limit_usd: f64, spent_usd: f64, reserved_usd: f64, estimate_usd: f64) -> bool {

@@ -1,0 +1,230 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/git": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/git-calls\"\ncase \"$3 $4\" in\n  \"worktree remove\")\n    case \"$6\" in\n      *failrm*) echo \"fatal: $6 is not a working tree\" >&2; exit 128 ;;\n      *failprune*) echo \"fatal: cannot remove $6\" >&2; exit 128 ;;\n      *failquiet*) exit 1 ;;\n    esac\n    rm -rf \"$6\"\n    exit 0 ;;\n  \"worktree prune\")\n    case \"$*\" in\n      *failprune*) echo \"error: failed to prune worktrees\" >&2; exit 1 ;;\n      *failquiet*) exit 1 ;;\n    esac\n    exit 0 ;;\n  \"branch -D\")\n    case \"$5\" in\n      *failbranchquiet*) exit 1 ;;\n      *failbranch*) echo \"error: the branch $5 is not fully merged\" >&2; exit 1 ;;\n    esac\n    exit 0 ;;\nesac\nexit 0\n"
+      },
+      "exec": [
+        "bin/git"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "not json"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "[]"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{}"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "null"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\"version\":1}"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\"version\":1,\"worktrees\":{}}"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\"version\":2,\"worktrees\":[{\"repo\":\"@SANDBOX@/work/repo-a\",\"path\":\"@SANDBOX@/work/wt-s\",\"branch\":\"gateway/s\",\"run_id\":\"s\",\"workflow\":\"w1\"}]}"
+      },
+      "mkdir": [
+        "work/wt-s"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\"version\":1,\"worktrees\":[{\"repo\":\"@SANDBOX@/work/repo-a\",\"path\":\"@SANDBOX@/work/wt-s\",\"branch\":\"gateway/s\",\"run_id\":\"s\",\"workflow\":\"w1\"}]}"
+      },
+      "mkdir": [
+        "work/wt-s"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "state/agent-kit/model-gateway/kept-worktrees.json"
+      ],
+      "mkdir": [
+        "state/agent-kit/model-gateway/kept-worktrees.json"
+      ]
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "state"
+      ],
+      "write": {
+        "state/agent-kit": "x"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_STATE_HOME": null,
+        "HOME": null
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_STATE_HOME": "relative/state"
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_STATE_HOME": ""
+      }
+    },
+    {
+      "argv": [
+        "worktrees",
+        "clean",
+        "--json",
+        "{\"all\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_STATE_HOME": "@SANDBOX@/work/elsewhere"
+      }
+    }
+  ]
+}

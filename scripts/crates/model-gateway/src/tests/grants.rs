@@ -4,7 +4,7 @@
 use crate::config::CostClass;
 use crate::grants::{
     compact_timestamp, grant_file_text, grant_id, grant_json, grant_lapse, grant_room, grant_view_json, grant_views,
-    lapsed_grant_json, live_grant, new_grant, parse_grants_file, Grant, GrantLapse, GrantView, NewGrant, GRANTS_VERSION,
+    lapsed_grant_json, live_grant, new_grant, newest_grant, no_grant_message, parse_grants_file, Grant, GrantLapse, GrantView, NewGrant, GRANTS_VERSION,
     GRANT_TTL_MS,
 };
 use crate::json::{compact, pretty};
@@ -552,4 +552,26 @@ fn grant_file_text_writes_the_pretty_file_the_adapter_holds() {
     assert_eq!(grant_file_text(&[]), "{\n  \"grants\": [],\n  \"version\": 1\n}\n");
     assert_eq!(GRANTS_VERSION, 1.0);
     assert_eq!(pretty(&grant_json(&grant())).lines().count(), 10);
+}
+
+#[test]
+fn newest_grant_is_the_one_written_last_lapsed_or_not_and_never_replaced_by_a_written_at_it_cannot_read() {
+    let older = Grant { id: "older".to_string(), written_at: "2026-11-04T10:40:00.000Z".to_string(), ..grant() };
+    let newer = Grant { id: "newer".to_string(), written_at: "2026-11-04T10:50:00.000Z".to_string(), ended_at: Some("2026-11-04T10:51:00.000Z".to_string()), ..grant() };
+    let unreadable = Grant { id: "unreadable".to_string(), written_at: "soon".to_string(), ..grant() };
+    let other = Grant { id: "other".to_string(), workflow: "spec-294".to_string(), ..grant() };
+
+    assert_eq!(newest_grant(&[older.clone(), newer.clone(), other], "spec-293", "codex"), Some(newer.clone()));
+    assert_eq!(newest_grant(&[newer.clone(), unreadable.clone()], "spec-293", "codex"), Some(newer));
+    assert_eq!(newest_grant(&[unreadable.clone(), older], "spec-293", "codex"), Some(unreadable));
+    assert_eq!(newest_grant(&[], "spec-293", "codex"), None);
+}
+
+#[test]
+fn the_message_for_a_workflow_no_grant_covers_quotes_the_call_that_would_add_one() {
+    assert_eq!(
+        no_grant_message("spec-293", "codex"),
+        r#"no live grant covers workflow spec-293, so codex may not run: ask the owner, then add one with model-gateway grant write --json '{"workflow":"spec-293","client":"codex","cap_usd":5,"question":"<what you asked the owner>","answer":"<what the owner answered>"}'"#
+    );
+    assert!(no_grant_message("w", "it's").contains(r#""client":"it'\''s""#));
 }

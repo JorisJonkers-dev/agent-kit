@@ -1,0 +1,278 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":2}]}",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"torn\":\nnot json at all\n[]\n{\"kind\":\"reservation\",\"run_id\":\"before\",\"workflow\":\"w\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"model\":\"node-start\",\"estimate_usd\":0,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n{\"at\":\"2026-11-03T11:30:00.000Z\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"openai\",\"mode\":\"read-only\",\"model\":\"gpt-5.5\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"ran\",\"workflow\":\"w\"}\n"
+      },
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-2\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "state/agent-kit/model-gateway/ledger.jsonl"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-3\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "state/agent-kit/model-gateway/ledger.jsonl"
+      ],
+      "mkdir": [
+        "state/agent-kit/model-gateway/ledger.jsonl"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "state/agent-kit/model-gateway/ledger.jsonl"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "nope"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":2,\"grants\":[]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/model-gateway-grants.json"
+      ],
+      "mkdir": [
+        "home/.config/agent-kit/model-gateway-grants.json"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/model-gateway-grants.json"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":2}]}",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"kind\":\"reservation\",\"run_id\":\"dead\",\"workflow\":\"w\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"model\":\"node-start\",\"estimate_usd\":0,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T11:30:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":2}]}",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"kind\":\"reservation\",\"run_id\":\"done\",\"workflow\":\"w\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"model\":\"node-start\",\"estimate_usd\":0,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/done\"}\n",
+        "work/runs/done/result.json": "{\"cost_usd\":0.5}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "XDG_STATE_HOME": null
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "XDG_STATE_HOME": "relative/state"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "HOME": null
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "XDG_CONFIG_HOME": "@SANDBOX@/work/repo/conf"
+      },
+      "write": {
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[core]\n",
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":2}]}"
+      },
+      "mkdir": [
+        "work/repo/.git/objects",
+        "work/repo/.git/refs/heads"
+      ]
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "XDG_CONFIG_HOME": "@SANDBOX@/work/repo/conf/deeper/still"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "bin/git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "reserve",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"node\":\"codex-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "XDG_CONFIG_HOME": "@SANDBOX@/elsewhere"
+      },
+      "shims": [
+        "git"
+      ]
+    }
+  ]
+}
