@@ -1,0 +1,275 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unexpected end of JSON input\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Unexpected end of JSON input\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unexpected end of JSON input\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Unexpected end of JSON input\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Expected ':' after property name in JSON at position 5 (line 1 column 6)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Expected ':' after property name in JSON at position 5 (line 1 column 6)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway workflow list: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway workflow list: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway workflow list: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input must be a JSON object\"}\n",
+      "stderr": "model-gateway workflow list: the input must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unexpected token 'o', \\\"nope\\\" is not valid JSON\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Unexpected token 'o', \"nope\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unexpected non-whitespace character after JSON at position 8 (line 1 column 9)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Unexpected non-whitespace character after JSON at position 8 (line 1 column 9)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unexpected number in JSON at position 6 (line 1 column 7)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Unexpected number in JSON at position 6 (line 1 column 7)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: No number after minus sign in JSON at position 6 (line 1 column 7)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: No number after minus sign in JSON at position 6 (line 1 column 7)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unterminated fractional number in JSON at position 7 (line 1 column 8)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Unterminated fractional number in JSON at position 7 (line 1 column 8)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Exponent part is missing a number in JSON at position 7 (line 1 column 8)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Exponent part is missing a number in JSON at position 7 (line 1 column 8)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Bad escaped character in JSON at position 7 (line 1 column 8)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Bad escaped character in JSON at position 7 (line 1 column 8)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Bad control character in string literal in JSON at position 10 (line 1 column 11)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Bad control character in string literal in JSON at position 10 (line 1 column 11)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unexpected token ']', \\\"{\\\"a\\\":[1,2,]}\\\" is not valid JSON\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Unexpected token ']', \"{\"a\":[1,2,]}\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unexpected token '}', \\\"{\\\"a\\\":tru}\\\" is not valid JSON\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Unexpected token '}', \"{\"a\":tru}\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Expected double-quoted property name in JSON at position 40 (line 1 column 41)\"}\n",
+      "stderr": "model-gateway workflow list: the input is not JSON: Expected double-quoted property name in JSON at position 40 (line 1 column 41)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"missing.json: cannot read the input: ENOENT: no such file or directory, open 'missing.json'\"}\n",
+      "stderr": "model-gateway workflow list: missing.json: cannot read the input: ENOENT: no such file or directory, open 'missing.json'\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"@SANDBOX@/work: cannot read the input: EISDIR: illegal operation on a directory, read\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/work: cannot read the input: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/in.json": "{}"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"from-file\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"from-file\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/in.json": "{\"name\":\"from-file\"}"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"from-abs\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"from-file\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"from-abs\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/in.json": "{\"name\":\"from-file\"}",
+        "work/in2.json": "{\"name\":\"from-abs\"}"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"the input is not JSON: Unexpected token 'o', \\\"not json\\\" is not valid JSON\"}\n",
+      "stderr": "model-gateway workflow start: the input is not JSON: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"from-file\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"from-abs\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "work/": null,
+        "work/bad.json": "not json",
+        "work/in.json": "{\"name\":\"from-file\"}",
+        "work/in2.json": "{\"name\":\"from-abs\"}"
+      }
+    }
+  ]
+}

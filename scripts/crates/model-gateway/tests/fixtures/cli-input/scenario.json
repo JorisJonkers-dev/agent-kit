@@ -1,0 +1,243 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        ""
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\" 1}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "[1]"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "null"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "\"text\""
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "5"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "nope"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":1} x"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{'a':1}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":01}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":-}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":1.}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":1e}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":\"\\x\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":\"line\nbreak\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":[1,2,]}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":tru}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"an unexpectedly long key name here\":1,}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{\"a\":1}\n"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "  {}  "
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--input",
+        "missing.json"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--input",
+        "@SANDBOX@/work"
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--input",
+        "in.json"
+      ],
+      "write": {
+        "work/in.json": "{}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--input",
+        "in.json"
+      ],
+      "write": {
+        "work/in.json": "{\"name\":\"from-file\"}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--input",
+        "@SANDBOX@/work/in2.json"
+      ],
+      "write": {
+        "work/in2.json": "{\"name\":\"from-abs\"}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--input",
+        "bad.json"
+      ],
+      "write": {
+        "work/bad.json": "not json"
+      }
+    }
+  ]
+}

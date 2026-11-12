@@ -1,0 +1,180 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":5}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":null}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":[\"a\"]}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"-lead\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\".lead\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"has space\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"semi;colon\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"newline\\nname\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"quote\\\"d\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"tab\\tname\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"ünï\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"A\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"9\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"bad name\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"ünï\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"quote\\\"d\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ]
+    }
+  ]
+}

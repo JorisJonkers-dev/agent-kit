@@ -1,0 +1,130 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"home-only\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": null,\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\",\n      \"state\": \"running\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"relative\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"relative\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"empty\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"relative\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"empty\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unexpected\",\"message\":\"required environment variable is missing: HOME\"}\n",
+      "stderr": "model-gateway workflow start: required environment variable is missing: HOME\n",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"relative\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"empty\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"relative\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"empty\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"elsewhere\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"relative\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"empty\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": null,\n      \"name\": \"elsewhere\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\",\n      \"state\": \"running\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"relative\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"empty\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unexpected\",\"message\":\"ENOTDIR: not a directory, mkdir '@SANDBOX@/blocker/agent-kit/model-gateway'\"}\n",
+      "stderr": "model-gateway workflow start: ENOTDIR: not a directory, mkdir '@SANDBOX@/blocker/agent-kit/model-gateway'\n",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/state/": null,
+        "home/.local/state/agent-kit/": null,
+        "home/.local/state/agent-kit/model-gateway/": null,
+        "home/.local/state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"home-only\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"relative\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    },\n    {\n      \"name\": \"empty\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "work/": null
+      }
+    }
+  ]
+}
