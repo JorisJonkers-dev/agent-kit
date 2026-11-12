@@ -396,7 +396,7 @@ council:
 # council's. skills/workstation/critique/ is itself the copy setup installs (there is no
 # repo copy beside it), so the pin is on it. Its SKILL.md is the skill's text,
 # not the runner's, and is left out. `pnpm run build` in council/ts rebuilds
-# critique.mjs: update its sha256 here in the same commit.
+# 585165a8e1804776ec69e7a67f1070814a2215b9b80c5c19257cbd95c3227c7a update its sha256 here in the same commit.
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs

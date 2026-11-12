@@ -7,7 +7,7 @@ import type { RepoRanking } from '../../domain/ranking.js'
 
 /** The longest the map may take: it walks a tree and answers in seconds. */
 const MAP_TIMEOUT_MS = 30_000
-/** Files the map ranks: code-nav's most per list. */
+/** The most files code-nav lists in one answer. */
 const MAP_LIMIT = 200
 
 const REQUESTS = [

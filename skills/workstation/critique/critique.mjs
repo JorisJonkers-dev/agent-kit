@@ -14262,9 +14262,9 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
       grants: new GatewayGrants(env, clock),
       ledger: new NodeModelGatewayLedger(env),
       plan: new GatewayPlanLimit(env, clock, join41(assetsRoot, "..", "model-gateway", "defaults.json")),
-      // Vibe starts the search server as `node critique.mjs search-server ...`.
       // The tree sample is ordered by code-nav's repository map when code-nav is installed.
       repoMap: new CodeNavRepoMap(processPort),
+      // Vibe starts the search server as `node critique.mjs search-server ...`.
       search: new ProcessSearchClient(processPort, { args: [join41(assetsRoot, "critique.mjs")], command: process.execPath })
     }),
     readFile: (path) => files.readText(path),
