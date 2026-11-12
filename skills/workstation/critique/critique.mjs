@@ -738,6 +738,18 @@ function shorten(signature) {
   return flat.length <= SIGNATURE_CHARS ? flat : `${flat.slice(0, SIGNATURE_CHARS - 1)}\u2026`;
 }
 
+// src/contexts/critique/domain/ranking.ts
+function rankingNote(ranking) {
+  return ranking.status === "ranked" ? `code-nav's repository map ranked ${String(ranking.files.length)} files by how often their symbols are referenced; the tree sample takes those files first within their tier, in that order.` : `code-nav's repository map was not used (${ranking.detail}), so the tree sample keeps its path order.`;
+}
+function rankedPaths(ranking) {
+  return ranking?.status === "ranked" ? ranking.files.map((file) => file.path) : [];
+}
+function rankIndex(ranked) {
+  const places = new Map(ranked.map((path, place) => [path, place]));
+  return (path) => places.get(path) ?? Infinity;
+}
+
 // src/contexts/critique/domain/line-references.ts
 var URL = /\b[a-z][a-z0-9+.-]*:\/\/\S*/gi;
 var REFERENCE = /(?<![\w./@+-])((?:\.\/)?(?:[\w@+.-]+\/)*[\w@+.-]+):(\d+)(?:\s*[-–]\s*(\d+))?/g;
@@ -927,17 +939,36 @@ function renderRepoMap(entries, options) {
     `Every source file the runner's symbol scan reads at commit \`${options.commit}\`, with its top-level symbols and their signatures. Files are ranked by how many other files reference their symbols, most first; a file references a symbol when it imports the symbol's file and names it. Each symbol's line is its line in \`tree/<path>\`, which holds the file when the packet cap let it in. This map is a fact the runner computed.`,
     ""
   ].join("\n");
-  const blocks = entries.map(renderEntry);
+  return { ...capBlocks(head, entries.map(renderEntry), options.capBytes, "No source file in a language the scan reads.\n"), source: "scan" };
+}
+function renderCodeNavMap(ranking, options) {
+  const head = [
+    "# Repo map",
+    "",
+    `Files and symbols at commit \`${options.commit}\`, ranked by code-nav's map: a symbol's references are the whole-word occurrences of its name in the other scanned files, a file's score is the sum over the symbols it declares, most referenced first. A symbol's line is its line in \`tree/<path>\`, which holds the file when the packet cap let it in. The map lists the most referenced files and symbols only. This map is a fact the runner read from code-nav.`,
+    ""
+  ].join("\n");
+  const blocks = ranking.files.map((file) => {
+    const symbols = ranking.symbols.filter((symbol) => symbol.path === file.path).map((symbol) => `- \`${symbol.name}\` (${symbol.kind}, line ${String(symbol.line)}, ${String(symbol.refs)} refs)`);
+    return `
+## \`${file.path}\` (${String(file.refs)} references)
+
+${symbols.length === 0 ? "No symbol among the most referenced." : symbols.join("\n")}
+`;
+  });
+  return { ...capBlocks(head, blocks, options.capBytes, "code-nav listed no symbol in this tree.\n"), source: "code-nav" };
+}
+function capBlocks(head, blocks, capBytes, empty) {
   let size = bytes(head);
   let listed = 0;
   for (const block of blocks) {
-    const footer = listed + 1 === blocks.length ? "" : droppedLine(blocks.length, options.capBytes);
-    if (size + bytes(block) + bytes(footer) > options.capBytes) break;
+    const footer = listed + 1 === blocks.length ? "" : droppedLine(blocks.length, capBytes);
+    if (size + bytes(block) + bytes(footer) > capBytes) break;
     size += bytes(block);
     listed += 1;
   }
   const dropped = blocks.length - listed;
-  const tail = dropped === 0 ? blocks.length === 0 ? "No source file in a language the scan reads.\n" : "" : droppedLine(dropped, options.capBytes);
+  const tail = dropped === 0 ? blocks.length === 0 ? empty : "" : droppedLine(dropped, capBytes);
   return { dropped, listed, text: `${head}${blocks.slice(0, listed).join("")}${tail}` };
 }
 function renderEntry(entry2) {
@@ -5835,11 +5866,11 @@ function planFilePathOrNull(repository, tracker, draft) {
 }
 function namedPlanPath(repository, path) {
   const absolute = isAbsolute4(path) ? path : resolve2(repository.root, path);
-  const inside = (base) => {
+  const inside2 = (base) => {
     const rel = relative2(base, absolute);
     return rel !== ".." && !rel.startsWith("../") && !isAbsolute4(rel);
   };
-  if (!inside(repository.root) && !inside(repository.commonDir)) {
+  if (!inside2(repository.root) && !inside2(repository.commonDir)) {
     throw new CritiqueError("outside-repository", `${path} is outside the repository and its git directory, where a plan lives`);
   }
   return absolute;
@@ -9432,18 +9463,6 @@ import { join as join30 } from "node:path";
 // src/contexts/critique/application/adr-packet.ts
 import { join as join25 } from "node:path";
 
-// src/contexts/critique/domain/ranking.ts
-function rankingNote(ranking) {
-  return ranking.status === "ranked" ? `code-nav's repository map ranked ${String(ranking.paths.length)} files by how often their symbols are referenced; the tree sample takes those files first within their tier, in that order.` : `code-nav's repository map was not used (${ranking.detail}), so the tree sample keeps its path order.`;
-}
-function rankedPaths(ranking) {
-  return ranking?.status === "ranked" ? ranking.paths : [];
-}
-function rankIndex(ranked) {
-  const places = new Map(ranked.map((path, place) => [path, place]));
-  return (path) => places.get(path) ?? Infinity;
-}
-
 // src/contexts/critique/domain/recovery.ts
 var HISTORY_LOG_PATH = "history/log.txt";
 var HISTORY_ISSUES_DIR = "history/issues";
@@ -9662,7 +9681,7 @@ function indexText(request, [leftOut = [], diffDropped = [], slices = [], tree =
     "",
     "## Files",
     "",
-    `- \`${REPO_MAP_PATH}\`: every source file's top-level symbols and their signatures, ranked by how many other files reference them${repoMap.dropped === 0 ? "" : `; its cap left out the ${String(repoMap.dropped)} least referenced files`}.`,
+    `- \`${REPO_MAP_PATH}\`: ${repoMap.source === "code-nav" ? "the files and symbols code-nav's map ranks, by how often their symbols are referenced" : "every source file's top-level symbols and their signatures, ranked by how many other files reference them"}${repoMap.dropped === 0 ? "" : `; its cap left out the ${String(repoMap.dropped)} least referenced files`}.`,
     "",
     "## Limits",
     "",
@@ -9882,8 +9901,9 @@ var CodePacketReader = class {
       changed.map(async (path) => ({ before: await this.before(root, base, path), path, text: texts.get(path) ?? "" }))
     );
     const documents = [...tickets.files, { kind: "spec", path: join24("spec", spec.name), source: spec.reference, text: spec.text }];
-    const repoMap = renderRepoMap(buildRepoMap(graph), { capBytes: limits.repo_map_cap_bytes, commit: head });
     const ranking = await this.deps.repoMap?.rank(root);
+    const navMap = ranking?.status === "ranked" ? onlyTracked(ranking, texts) : void 0;
+    const repoMap = navMap === void 0 || navMap.files.length === 0 ? renderRepoMap(buildRepoMap(graph), { capBytes: limits.repo_map_cap_bytes, commit: head }) : renderCodeNavMap(navMap, { capBytes: limits.repo_map_cap_bytes, commit: head });
     const sample = sampleCodeTree({
       changed,
       commit: head,
@@ -9894,7 +9914,7 @@ var CodePacketReader = class {
       leftOut: read.left_out,
       limits,
       namedText: documents.map((file) => file.text).join("\n"),
-      ...ranking === void 0 ? {} : { ranked: rankedPaths(ranking), rankingNote: rankingNote(ranking) },
+      ...ranking === void 0 ? {} : { ranked: rankedPaths(ranking), rankingNote: `${rankingNote(ranking)} ${repoMap.source === "code-nav" ? `\`${REPO_MAP_PATH}\` is built from that map.` : `\`${REPO_MAP_PATH}\` comes from the runner's own scan.`}` },
       repoMap,
       slices: contextSlices(graph, changedFiles),
       tracked
@@ -9954,6 +9974,9 @@ var CodePacketReader = class {
 };
 function ticketFile(name, reference, text) {
   return { kind: "ticket", path: join24("tickets", name), source: reference, text };
+}
+function onlyTracked(ranking, texts) {
+  return { files: ranking.files.filter((file) => texts.has(file.path)), symbols: ranking.symbols.filter((symbol) => texts.has(symbol.path)) };
 }
 
 // src/contexts/critique/application/adr-packet.ts
@@ -10103,8 +10126,8 @@ var DecisionDocs = class {
   }
   /** A file as itself, a directory as the markdown files directly inside it, anything missing as nothing. */
   async expand(root, path) {
-    const inside = await this.markdownIn(root, path);
-    if (inside.length > 0) return inside;
+    const inside2 = await this.markdownIn(root, path);
+    if (inside2.length > 0) return inside2;
     return await this.isFile(root, path) ? [path] : [];
   }
   async markdownIn(root, directory) {
@@ -13459,7 +13482,8 @@ var REQUESTS = [
   { jsonrpc: "2.0", method: "notifications/initialized" },
   { id: 2, jsonrpc: "2.0", method: "tools/call", params: { arguments: { limit: MAP_LIMIT }, name: "map" } }
 ];
-var FILE_LINE = /^(.+) \(\d+ refs, \d+ symbols\)$/;
+var FILE_LINE = /^(.+) \((\d+) refs, \d+ symbols\)$/;
+var SYMBOL_LINE = /^(.+):(\d+) (\S+) (.+) \((\d+) refs\)$/;
 var CodeNavRepoMap = class {
   constructor(process2, command2 = "code-nav") {
     this.process = process2;
@@ -13485,7 +13509,7 @@ var CodeNavRepoMap = class {
     }
     const text = mapText(result.stdout);
     if (text === void 0) return { detail: "code-nav answered no map", status: "unavailable" };
-    return { paths: filesOf(text, canonical), status: "ranked" };
+    return { ...mapOf(text, canonical), status: "ranked" };
   }
 };
 function mapText(stdout) {
@@ -13508,19 +13532,30 @@ function parsed2(line2) {
     return void 0;
   }
 }
-function filesOf(text, root) {
-  const paths = [];
-  let inFiles = false;
+function mapOf(text, root) {
+  const files = [];
+  const symbols = [];
+  let section2;
   for (const line2 of text.split("\n")) {
-    if (line2 === "files:") inFiles = true;
-    else if (line2 === "symbols:") break;
-    else if (inFiles) {
-      const path = FILE_LINE.exec(line2)?.[1];
-      const inside = path === void 0 ? void 0 : relative5(root, path);
-      if (inside !== void 0 && inside !== "" && !inside.startsWith("..")) paths.push(inside.split("\\").join("/"));
+    if (line2 === "files:" || line2 === "symbols:") {
+      section2 = line2 === "files:" ? "files" : "symbols";
+      continue;
+    }
+    if (section2 === "files") {
+      const found = FILE_LINE.exec(line2);
+      const path = found?.[1] === void 0 ? void 0 : inside(root, found[1]);
+      if (path !== void 0) files.push({ path, refs: Number(found?.[2]) });
+    } else if (section2 === "symbols") {
+      const found = SYMBOL_LINE.exec(line2);
+      const path = found?.[1] === void 0 ? void 0 : inside(root, found[1]);
+      if (found !== null && path !== void 0) symbols.push({ kind: found[3] ?? "", line: Number(found[2]), name: found[4] ?? "", path, refs: Number(found[5]) });
     }
   }
-  return paths;
+  return { files, symbols };
+}
+function inside(root, path) {
+  const repository = relative5(root, path);
+  return repository === "" || repository.startsWith("..") ? void 0 : repository.split("\\").join("/");
 }
 
 // src/contexts/critique/adapters/search/server.ts

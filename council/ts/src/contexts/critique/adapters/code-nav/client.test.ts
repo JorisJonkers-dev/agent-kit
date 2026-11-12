@@ -36,12 +36,22 @@ const ok = (stdout: string): ProcessResult => ({ exitCode: 0, stderr: '', stdout
 describe('the code-nav repository map client', () => {
   it('ranks the files the map lists, as paths inside the root, and asks only for the map', async () => {
     const dir = await root()
-    const text = `files:\n${join(dir, 'src/a b.ts')} (9 refs, 2 symbols)\n${join(dir, 'z.ts')} (1 refs, 1 symbols)\n/elsewhere/x.ts (7 refs, 1 symbols)\nnot a file line\nsymbols:\n${join(dir, 'ignored.ts')}:1 fn x (1 refs)`
+    const text = `files:\n${join(dir, 'src/a b.ts')} (9 refs, 2 symbols)\n${join(dir, 'z.ts')} (1 refs, 1 symbols)\n/elsewhere/x.ts (7 refs, 1 symbols)\nnot a file line\nsymbols:\n${join(dir, 'src/a b.ts')}:12 fn do it (9 refs)\n${join(dir, 'z.ts')}:3 struct Z (1 refs)\n/elsewhere/x.ts:1 fn x (7 refs)\nnot a symbol line\nshowing 2 of 2 files`
     const process = new FakeNav(() => ok(reply(content(text))))
 
     const ranking = await new CodeNavRepoMap(process).rank(dir)
 
-    expect(ranking).toEqual({ paths: ['src/a b.ts', 'z.ts'], status: 'ranked' })
+    expect(ranking).toEqual({
+      files: [
+        { path: 'src/a b.ts', refs: 9 },
+        { path: 'z.ts', refs: 1 },
+      ],
+      status: 'ranked',
+      symbols: [
+        { kind: 'fn', line: 12, name: 'do it', path: 'src/a b.ts', refs: 9 },
+        { kind: 'struct', line: 3, name: 'Z', path: 'z.ts', refs: 1 },
+      ],
+    })
     const [command] = process.commands
     expect(command?.command).toBe('code-nav')
     expect(command?.args.slice(0, 1)).toEqual(['--root'])
@@ -51,13 +61,13 @@ describe('the code-nav repository map client', () => {
   it('ranks nothing when the tree has no symbols', async () => {
     const ranking = await new CodeNavRepoMap(new FakeNav(() => ok(reply(content('no symbols'))))).rank(await root())
 
-    expect(ranking).toEqual({ paths: [], status: 'ranked' })
+    expect(ranking).toEqual({ files: [], status: 'ranked', symbols: [] })
   })
 
   it('works on a root that does not exist, keeping the name it was given', async () => {
     const ranking = await new CodeNavRepoMap(new FakeNav(() => ok(reply(content('files:\n/gone/a.ts (1 refs, 1 symbols)')))), 'nav').rank('/gone')
 
-    expect(ranking).toEqual({ paths: ['a.ts'], status: 'ranked' })
+    expect(ranking).toEqual({ files: [{ path: 'a.ts', refs: 1 }], status: 'ranked', symbols: [] })
   })
 
   it.each([
@@ -82,6 +92,6 @@ describe('the code-nav repository map client', () => {
 
     const ranking = await new CodeNavRepoMap(new FakeNav(() => ok(reply(parts)))).rank('/r')
 
-    expect(ranking).toEqual({ paths: ['a.ts'], status: 'ranked' })
+    expect(ranking).toEqual({ files: [{ path: 'a.ts', refs: 1 }], status: 'ranked', symbols: [] })
   })
 })

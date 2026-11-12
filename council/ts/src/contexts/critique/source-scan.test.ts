@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { changedLines, contextSlices } from './domain/context-slices.js'
-import { buildRepoMap, renderRepoMap, SourceGraph } from './domain/repo-map.js'
+import { buildRepoMap, renderCodeNavMap, renderRepoMap, SourceGraph } from './domain/repo-map.js'
 import { mentionLines, resolveImport, scanSource } from './domain/source-scan.js'
 
 /**
@@ -245,5 +245,38 @@ describe('the repo map', () => {
     expect(renderRepoMap(buildRepoMap(SourceGraph.build([{ path: 'run.py', text: 'main()\n' }])), { capBytes: 4000, commit: 'c1' }).text).toContain(
       '## `run.py` (referenced by 0 files)\n\nNo top-level symbols.\n',
     )
+  })
+})
+
+describe('the repo map built from code-nav', () => {
+  const ranking = {
+    files: [
+      { path: 'a.ts', refs: 3 },
+      { path: 'b.ts', refs: 1 },
+    ],
+    symbols: [{ kind: 'fn', line: 2, name: 'a', path: 'a.ts', refs: 3 }],
+  }
+
+  it('lists every ranked file with its symbols', () => {
+    const map = renderCodeNavMap(ranking, { capBytes: 4000, commit: 'c1' })
+
+    expect(map).toMatchObject({ dropped: 0, listed: 2, source: 'code-nav' })
+    expect(map.text).toContain('## `a.ts` (3 references)\n\n- `a` (fn, line 2, 3 refs)')
+    expect(map.text).toContain('## `b.ts` (1 references)')
+  })
+
+  it('leaves out the least referenced files that pass its cap, and says how many', () => {
+    const long = { ...ranking, files: [ranking.files[0] ?? { path: 'a.ts', refs: 3 }, { path: `${'b'.repeat(300)}.ts`, refs: 1 }] }
+    const capBytes = Buffer.byteLength(renderCodeNavMap(long, { capBytes: 100_000, commit: 'c1' }).text) - 1
+
+    const map = renderCodeNavMap(long, { capBytes, commit: 'c1' })
+
+    expect(map.listed).toBe(1)
+    expect(map.text).toContain('left out the 1 least referenced files')
+    expect(Buffer.byteLength(map.text)).toBeLessThanOrEqual(capBytes)
+  })
+
+  it('says so when code-nav listed nothing', () => {
+    expect(renderCodeNavMap({ files: [], symbols: [] }, { capBytes: 4000, commit: 'c1' }).text).toContain('code-nav listed no symbol')
   })
 })

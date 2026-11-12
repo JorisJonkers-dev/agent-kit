@@ -20,7 +20,19 @@ afterEach(async () => {
 
 /** A repository map that ranks `src/db.ts` above `src/cache.ts` and an unknown path. */
 const RANKED: RepoMapPort = {
-  rank: () => Promise.resolve({ paths: ['src/db.ts', 'src/nowhere.ts', 'src/cache.ts'], status: 'ranked' }),
+  rank: () =>
+    Promise.resolve({
+      files: [
+        { path: 'src/db.ts', refs: 5 },
+        { path: 'src/nowhere.ts', refs: 4 },
+        { path: 'src/cache.ts', refs: 1 },
+      ],
+      status: 'ranked',
+      symbols: [
+        { kind: 'const', line: 1, name: 'db', path: 'src/db.ts', refs: 5 },
+        { kind: 'const', line: 1, name: 'ghost', path: 'src/nowhere.ts', refs: 4 },
+      ],
+    }),
 }
 const MISSING: RepoMapPort = {
   rank: () => Promise.resolve({ detail: 'code-nav did not start: spawn code-nav ENOENT', status: 'unavailable' }),
@@ -100,11 +112,36 @@ describe('a code packet with code-nav installed', () => {
     expect(await readFile(join(run.packet_dir, 'facts', 'INDEX.md'), 'utf8')).toContain('## Ranking')
   })
 
-  it('falls back to path order with a note when code-nav is missing', async () => {
+  it('builds tree/REPO-MAP.md from code-nav\'s map, without the files the tree lacks, and says so', async () => {
+    const { run } = await code(RANKED)
+
+    const map = await readFile(join(run.packet_dir, 'tree', 'REPO-MAP.md'), 'utf8')
+    expect(map).toContain('code-nav')
+    expect(map.indexOf('`src/db.ts`')).toBeLessThan(map.indexOf('`src/cache.ts`'))
+    expect(map).toContain('- `db` (const, line 1, 5 refs)')
+    expect(map).toContain('No symbol among the most referenced.')
+    expect(map).not.toContain('nowhere')
+    const index = await readFile(join(run.packet_dir, 'facts', 'INDEX.md'), 'utf8')
+    expect(index).toContain('`tree/REPO-MAP.md` is built from that map.')
+    expect(index).toContain("the files and symbols code-nav's map ranks")
+  })
+
+  it('keeps the runner\'s own scan for tree/REPO-MAP.md when the map lists none of the tree\'s files', async () => {
+    const { run } = await code({ rank: () => Promise.resolve({ files: [{ path: 'elsewhere.ts', refs: 1 }], status: 'ranked', symbols: [] }) })
+
+    expect(await readFile(join(run.packet_dir, 'tree', 'REPO-MAP.md'), 'utf8')).toContain("the runner's symbol scan")
+    expect(await readFile(join(run.packet_dir, 'facts', 'INDEX.md'), 'utf8')).toContain("comes from the runner's own scan")
+  })
+
+  it('falls back to path order and the runner\'s own scan with a note when code-nav is missing', async () => {
     const { h, run } = await code(MISSING)
+    const map = await readFile(join(run.packet_dir, 'tree', 'REPO-MAP.md'), 'utf8')
+    expect(map).toContain("the runner's symbol scan")
 
     const order = (await treeOrder(h, run)).filter((path) => path.startsWith('src/'))
     expect(order).toEqual(['src/widget.ts', 'src/cache.ts', 'src/db.ts'])
-    expect(await readFile(join(run.packet_dir, 'facts', 'INDEX.md'), 'utf8')).toContain('was not used')
+    const index = await readFile(join(run.packet_dir, 'facts', 'INDEX.md'), 'utf8')
+    expect(index).toContain('was not used')
+    expect(index).toContain("`tree/REPO-MAP.md` comes from the runner's own scan.")
   })
 })

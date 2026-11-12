@@ -4,8 +4,8 @@ import { sampleCodeTree, sliceReason } from '../domain/code-sample.js'
 import { contextSlices, type ChangedFile } from '../domain/context-slices.js'
 import type { CodeSource, PacketFileKind, PacketWindow } from '../domain/manifest.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
-import { rankedPaths, rankingNote } from '../domain/ranking.js'
-import { buildRepoMap, renderRepoMap, REPO_MAP_PATH, SourceGraph } from '../domain/repo-map.js'
+import { rankedPaths, rankingNote, type RankedFile, type RankedSymbol, type RepoRanking } from '../domain/ranking.js'
+import { buildRepoMap, renderCodeNavMap, renderRepoMap, REPO_MAP_PATH, SourceGraph } from '../domain/repo-map.js'
 import { FACTS_INDEX_PATH, type PacketLimits } from '../domain/repository-packet.js'
 import type { CritiqueStage } from '../domain/stage.js'
 import type { CodeChange } from '../domain/triage.js'
@@ -109,8 +109,13 @@ export class CodePacketReader {
       changed.map(async (path): Promise<ChangedFile> => ({ before: await this.before(root, base, path), path, text: texts.get(path) ?? '' })),
     )
     const documents: UnfrozenFile[] = [...tickets.files, { kind: 'spec', path: join('spec', spec.name), source: spec.reference, text: spec.text }]
-    const repoMap = renderRepoMap(buildRepoMap(graph), { capBytes: limits.repo_map_cap_bytes, commit: head })
     const ranking = await this.deps.repoMap?.rank(root)
+    // code-nav's map, limited to the files this tree holds; the runner's own scan when code-nav gave none.
+    const navMap = ranking?.status === 'ranked' ? onlyTracked(ranking, texts) : undefined
+    const repoMap =
+      navMap === undefined || navMap.files.length === 0
+        ? renderRepoMap(buildRepoMap(graph), { capBytes: limits.repo_map_cap_bytes, commit: head })
+        : renderCodeNavMap(navMap, { capBytes: limits.repo_map_cap_bytes, commit: head })
     const sample = sampleCodeTree({
       changed,
       commit: head,
@@ -121,7 +126,7 @@ export class CodePacketReader {
       leftOut: read.left_out,
       limits,
       namedText: documents.map((file) => file.text).join('\n'),
-      ...(ranking === undefined ? {} : { ranked: rankedPaths(ranking), rankingNote: rankingNote(ranking) }),
+      ...(ranking === undefined ? {} : { ranked: rankedPaths(ranking), rankingNote: `${rankingNote(ranking)} ${repoMap.source === 'code-nav' ? `\`${REPO_MAP_PATH}\` is built from that map.` : `\`${REPO_MAP_PATH}\` comes from the runner's own scan.`}` }),
       repoMap,
       slices: contextSlices(graph, changedFiles),
       tracked,
@@ -188,4 +193,12 @@ export class CodePacketReader {
 
 export function ticketFile(name: string, reference: string, text: string): UnfrozenFile {
   return { kind: 'ticket', path: join('tickets', name), source: reference, text }
+}
+
+/** code-nav's map without the files and symbols the tree does not hold, which the map read from the working tree. */
+function onlyTracked(
+  ranking: Extract<RepoRanking, { readonly status: 'ranked' }>,
+  texts: ReadonlyMap<string, string>,
+): { readonly files: readonly RankedFile[]; readonly symbols: readonly RankedSymbol[] } {
+  return { files: ranking.files.filter((file) => texts.has(file.path)), symbols: ranking.symbols.filter((symbol) => texts.has(symbol.path)) }
 }

@@ -3,7 +3,7 @@ import { relative } from 'node:path'
 
 import type { ProcessPort } from '../../../../ports/index.js'
 import type { RepoMapPort } from '../../application/ports.js'
-import type { RepoRanking } from '../../domain/ranking.js'
+import type { RankedFile, RankedSymbol, RepoRanking } from '../../domain/ranking.js'
 
 /** The longest the map may take: it walks a tree and answers in seconds. */
 const MAP_TIMEOUT_MS = 30_000
@@ -17,7 +17,9 @@ const REQUESTS = [
 ]
 
 /** A file line of the map's text: `<path> (<n> refs, <n> symbols)`. */
-const FILE_LINE = /^(.+) \(\d+ refs, \d+ symbols\)$/
+const FILE_LINE = /^(.+) \((\d+) refs, \d+ symbols\)$/
+/** A symbol line of the map's text: `<path>:<line> <kind> <name> (<n> refs)`. */
+const SYMBOL_LINE = /^(.+):(\d+) (\S+) (.+) \((\d+) refs\)$/
 
 /**
  * Asks code-nav's `map` tool, over stdio the way an MCP client does, for a
@@ -50,7 +52,7 @@ export class CodeNavRepoMap implements RepoMapPort {
     }
     const text = mapText(result.stdout)
     if (text === undefined) return { detail: 'code-nav answered no map', status: 'unavailable' }
-    return { paths: filesOf(text, canonical), status: 'ranked' }
+    return { ...mapOf(text, canonical), status: 'ranked' }
   }
 }
 
@@ -77,18 +79,31 @@ function parsed(line: string): Readonly<Record<string, unknown>> | undefined {
   }
 }
 
-/** The files section of the map's text, as repository paths in rank order. */
-function filesOf(text: string, root: string): readonly string[] {
-  const paths: string[] = []
-  let inFiles = false
+/** The files and the symbols of the map's text, in rank order, as repository paths inside the root. */
+function mapOf(text: string, root: string): { readonly files: readonly RankedFile[]; readonly symbols: readonly RankedSymbol[] } {
+  const files: RankedFile[] = []
+  const symbols: RankedSymbol[] = []
+  let section: 'files' | 'symbols' | undefined
   for (const line of text.split('\n')) {
-    if (line === 'files:') inFiles = true
-    else if (line === 'symbols:') break
-    else if (inFiles) {
-      const path = FILE_LINE.exec(line)?.[1]
-      const inside = path === undefined ? undefined : relative(root, path)
-      if (inside !== undefined && inside !== '' && !inside.startsWith('..')) paths.push(inside.split('\\').join('/'))
+    if (line === 'files:' || line === 'symbols:') {
+      section = line === 'files:' ? 'files' : 'symbols'
+      continue
+    }
+    if (section === 'files') {
+      const found = FILE_LINE.exec(line)
+      const path = found?.[1] === undefined ? undefined : inside(root, found[1])
+      if (path !== undefined) files.push({ path, refs: Number(found?.[2]) })
+    } else if (section === 'symbols') {
+      const found = SYMBOL_LINE.exec(line)
+      const path = found?.[1] === undefined ? undefined : inside(root, found[1])
+      if (found !== null && path !== undefined) symbols.push({ kind: found[3] ?? '', line: Number(found[2]), name: found[4] ?? '', path, refs: Number(found[5]) })
     }
   }
-  return paths
+  return { files, symbols }
+}
+
+/** A path the map printed, as a repository path; nothing for one outside the root. */
+function inside(root: string, path: string): string | undefined {
+  const repository = relative(root, path)
+  return repository === '' || repository.startsWith('..') ? undefined : repository.split('\\').join('/')
 }
