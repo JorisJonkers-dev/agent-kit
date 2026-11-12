@@ -36,6 +36,13 @@ pub struct LedgerAppend<T> {
     pub result: T,
 }
 
+/// What a change that reserves several runs asks for: the settlements to append, then the reservations to hold, and what it decided.
+pub struct LedgerBatch<T> {
+    pub settled: Vec<SettledRecord>,
+    pub reserved: Vec<ReservationRecord>,
+    pub result: T,
+}
+
 impl LedgerStore<'_> {
     /// Every record the ledger holds, oldest first.
     pub fn read(&self) -> Result<Vec<LedgerEntry>, GatewayError> {
@@ -53,6 +60,14 @@ impl LedgerStore<'_> {
     /// Applies `change` to the ledger under the lock: it reads, decides and appends in one locked step, and a
     /// change that refuses appends nothing.
     pub fn update_with<T>(&self, change: impl FnOnce(&[LedgerEntry]) -> Result<LedgerAppend<T>, GatewayError>) -> Result<T, GatewayError> {
+        self.update_many(|entries| {
+            let changed = change(entries)?;
+            Ok(LedgerBatch { settled: changed.settled, reserved: changed.reserved.into_iter().collect(), result: changed.result })
+        })
+    }
+
+    /// Like `update_with`, for a change that holds any number of reservations in the same locked step.
+    pub fn update_many<T>(&self, change: impl FnOnce(&[LedgerEntry]) -> Result<LedgerBatch<T>, GatewayError>) -> Result<T, GatewayError> {
         let path = locations::ledger_path(&self.runtime.env)?;
         self.runtime.files.mkdir_all(dirname(&path)).map_err(GatewayError::from_fs)?;
         let lock = FileLock::new("ledger", self.runtime.lock);

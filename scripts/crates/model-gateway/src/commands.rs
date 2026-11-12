@@ -2,6 +2,7 @@
 //! `grant reserve`, `grant list`, `worktrees clean` and the three workflow
 //! commands. `run` and `batch` answer `not-ported`.
 
+use crate::availability;
 use crate::caps;
 use crate::config::GatewayConfig;
 use crate::config_parse::load_config;
@@ -17,7 +18,6 @@ use crate::policy::{self, PolicySubject};
 use crate::ports::Runtime;
 use crate::sources;
 use crate::state_file::Workflows;
-use crate::status;
 use crate::usage::{self, ClientReading};
 use crate::workflows;
 use std::collections::{BTreeMap, BTreeSet};
@@ -156,15 +156,7 @@ fn usage_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErro
 
 /// What the gateway finds out about each client without sending a prompt: PATH, and the client's own status command.
 fn read_clients(runtime: &Runtime, config: &GatewayConfig) -> Vec<ClientReading> {
-    config
-        .clients
-        .iter()
-        .map(|(id, client)| {
-            let installed = runtime.process.resolve(&client.binary).is_some();
-            let status = if installed { status::read_status(runtime, id, status::STATUS_TIMEOUT_MS) } else { None };
-            ClientReading { client: id.clone(), installed, status }
-        })
-        .collect()
+    availability::read_clients(runtime, config.clients.iter())
 }
 
 /// A field a grant must name, refused when it is missing or blank.

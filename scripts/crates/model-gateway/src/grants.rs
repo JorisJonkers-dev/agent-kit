@@ -335,6 +335,24 @@ pub fn grant_room(entries: &[LedgerEntry], grant: &Grant) -> GrantRoom {
     }
 }
 
+/// Why a run does not fit its grant, naming the grant, its cap, what is spent
+/// and reserved, and the run's estimate; `None` when it fits.
+pub fn grant_refusal(entries: &[LedgerEntry], grant: &Grant, estimate_usd: f64, client: &str, model: &str) -> Option<String> {
+    let room = grant_room(entries, grant);
+    if caps::fits(grant.cap_usd, room.spent_usd, room.reserved_usd, estimate_usd) {
+        return None;
+    }
+    Some(format!(
+        "{client}:{model} does not fit grant {} of {} for workflow {}: {} spent and {} reserved, and its estimate is {}",
+        grant.id,
+        caps::usd(grant.cap_usd),
+        grant.workflow,
+        caps::usd(room.spent_usd),
+        caps::usd(room.reserved_usd),
+        caps::usd(estimate_usd)
+    ))
+}
+
 /// Why a grant no longer covers a run, or `None` while it does: its workflow
 /// ended, its 24 hours ran out, or its cap is spent, in that order.
 pub fn grant_lapse(grant: &Grant, room: &GrantRoom, record: Option<&WorkflowRecord>, now_ms: i64) -> Option<GrantLapse> {

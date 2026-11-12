@@ -8,15 +8,20 @@
 
 pub mod adapters;
 pub mod allowlist;
+pub mod availability;
+pub mod cap_guard;
 pub mod caps;
 pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod config_parse;
 pub mod error;
+pub mod escalation;
+pub mod escalation_run;
 pub mod extras;
 pub mod git_remote;
 pub mod grants;
+pub mod grant_guard;
 pub mod grants_file;
 pub mod json;
 pub mod kept_file;
@@ -26,6 +31,7 @@ pub mod lock;
 pub mod locations;
 pub mod models;
 pub mod outputs;
+pub mod plan;
 pub mod policy;
 pub mod ports;
 pub mod reserve;

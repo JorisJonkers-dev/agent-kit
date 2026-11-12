@@ -14,3 +14,8 @@ mod commands;
 mod worktrees;
 mod run;
 mod outputs;
+mod machine;
+mod escalation;
+mod cap_guard;
+mod guards;
+mod escalation_run;
