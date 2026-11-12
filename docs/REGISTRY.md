@@ -374,6 +374,38 @@ price per million input and output tokens, nothing else:
   the installed one. Agents in that directory the registry does not name are
   the owner's, and setup leaves them alone.
 
+## MCP servers of a Gold Band instance
+
+A server entry that names `instances:` is registered in those Gold Band
+instances: `scripts/converge.py gold-band` writes it to the instance's
+`contextServers` in `settings.json`, and `render_registry.py` validates it.
+Only `gold-band-personal` may be named. The work instance reads its servers
+from the overlay (`instances.gold-band.mcp_servers`), so a registry entry that
+names `gold-band` is refused and a personal server is removed from the work
+instance's `contextServers` on its next run unless the keep file names it.
+
+```yaml
+- name: outline
+  instances: [gold-band-personal]
+  reach: [research, write-scoped, write, full]   # levels allowed to use it
+  agent_ids: [claude-research]                    # optional: ids it is listed for
+```
+
+* `reach:` is required and lists reach levels (`read` to `full`); `run-one-command`
+  is never listed, since that level takes no tools. A server that changes
+  something outside the machine starts at `write`.
+* `agent_ids:` is checked against `registry/reach-levels.yaml`: each id must be
+  declared there, be an agent of the named instance and sit at a level `reach:`
+  allows. Validation fails otherwise.
+* A server with a `credential:` is written as the stdio secret proxy
+  (`antigravity-mcp-proxy`, which reads the token from the secret store at
+  launch), so no token reaches `settings.json`. Settings keep the app's own
+  managed servers; any other undeclared server in the personal instance is
+  removed unless the keep file names it.
+* The ten Wave 6 servers are `memory-api`, `n8n`, `n8n-mcp`, `kubernetes`,
+  `github`, `grimoire`, `outline`, `playwright`, `drawio` and `overleaf`.
+  `exclude_tools` is not carried to Gold Band, which has no per-tool filter.
+
 ## Gold Band instances and the overlay
 
 `gold_band_instances` declares the two Gold Band instances (ADR-0011):

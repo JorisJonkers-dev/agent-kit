@@ -2059,8 +2059,21 @@ skill_sources:
 # `credential:` names the secret field, never the value. On the workstation
 # it resolves from the environment.
 # -------------------------------------------------------------------
+# Wave 6 (spec #392, B3-14): a server that names `instances:` is registered in
+# those Gold Band instances (`converge.py gold-band` writes the instance's
+# `contextServers`). Only the personal instance may be named: the work
+# instance reads its servers from the per-machine overlay and never from this
+# file. `reach:` lists the reach levels allowed to use the server, and
+# `agent_ids:` the agent ids it is listed for; the registry validation refuses
+# an id whose reach level is not in `reach:` or that the support record
+# (registry/reach-levels.yaml) does not declare. `run-one-command` is never
+# listed: that level runs one gate command and takes no tools. A server that
+# changes anything outside the machine (workflows, issues, wiki, projects)
+# starts at `write`; one that only reads starts lower.
 mcp_servers:
   - name: memory-api
+    instances: [gold-band-personal]
+    reach: [read-web, research, write-scoped, write, full]
     transport: http
     purpose: Hindsight long-term memory -- explicit read/write/search knowledge tools.
     # Single-bank endpoint for the shared bank: hindsight-api.* routes nothing
@@ -2110,6 +2123,8 @@ mcp_servers:
       Claude, Codex, Vibe and local Hermes on the next setup run.
 
   - name: n8n
+    instances: [gold-band-personal]
+    reach: [write, full]
     transport: http
     purpose: n8n workflows through its instance-level MCP server.
     url_workstation: "https://n8n.jorisjonkers.dev/mcp-server/http"
@@ -2122,6 +2137,8 @@ mcp_servers:
     trust: estate
 
   - name: n8n-mcp
+    instances: [gold-band-personal]
+    reach: [read, read-web, research, write-scoped, write, full]
     transport: stdio
     purpose: n8n node docs and schemas, docs-only, no API key.
     command: n8n-mcp
@@ -2138,6 +2155,8 @@ mcp_servers:
       version: "2.101.0"
 
   - name: kubernetes
+    instances: [gold-band-personal]
+    reach: [read-web, research, write-scoped, write, full]
     transport: stdio
     purpose: Read-only cluster diagnostics, run locally against the workstation's read-only kube context.
     # `kubernetes-mcp-server` runs on the workstation over stdio. The command
@@ -2190,6 +2209,8 @@ mcp_servers:
       setup appends them to the Claude and Codex registrations there.
 
   - name: github
+    instances: [gold-band-personal]
+    reach: [write, full]
     transport: http
     purpose: Issues, branches, pull requests.
     url_workstation: "https://api.githubcopilot.com/mcp/"
@@ -2207,6 +2228,8 @@ mcp_servers:
       registry entry, so it is not registered twice.
 
   - name: grimoire
+    instances: [gold-band-personal]
+    reach: [write, full]
     transport: http
     purpose: Grimoire, the D&D 5e table companion at grimoire.jorisjonkers.dev, through its MCP server.
     url_workstation: "https://grimoire.jorisjonkers.dev/mcp"
@@ -2227,6 +2250,8 @@ mcp_servers:
       token and the server stays unregistered.
 
   - name: outline
+    instances: [gold-band-personal]
+    reach: [research, write-scoped, write, full]
     transport: http
     purpose: Outline wiki at notes.jorisjonkers.dev through its built-in MCP server, as a separate Outline user.
     url_workstation: "https://notes.jorisjonkers.dev/mcp"
@@ -2253,6 +2278,8 @@ mcp_servers:
     trust: hosted
 
   - name: playwright
+    instances: [gold-band-personal]
+    reach: [read-web, research, write-scoped, write, full]
     transport: stdio
     purpose: Browser automation.
     command: playwright-mcp
@@ -2279,6 +2306,8 @@ mcp_servers:
       requires: [node]
 
   - name: drawio
+    instances: [gold-band-personal]
+    reach: [write-scoped, write, full]
     transport: stdio
     purpose: Diagram authoring and export.
     command: drawio-mcp
@@ -2298,6 +2327,8 @@ mcp_servers:
       requires: [node]
 
   - name: overleaf
+    instances: [gold-band-personal]
+    reach: [write-scoped, write, full]
     transport: stdio
     purpose: Self-hosted Overleaf — pull, push, compile, review comments.
     command: olcli-mcp

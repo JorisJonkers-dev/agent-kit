@@ -89,6 +89,11 @@ GOLD_BAND_PROCESS_NAMES = ("gold-band-desktop", "Gold Band")
 # Exit code of a refusal because an instance runs; setup stops on it.
 GOLD_BAND_RUNNING_EXIT = 4
 GOLD_BAND_RUNNING_ENV = "AGENT_KIT_GOLD_BAND_RUNNING"
+# Gold Band's settings.json key for MCP servers (SettingsConfig.context_servers)
+# and the stdio proxy a token-bearing server is registered through: it reads
+# the token from the secret store at launch, so no secret reaches settings.json.
+GOLD_BAND_SERVERS_KEY = "contextServers"
+GOLD_BAND_MCP_PROXY = "$HOME/.local/bin/antigravity-mcp-proxy"
 GOLD_BAND_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # An adapter env value is a reference the app resolves at launch, never a
 # literal: a secret in settings.json is a secret in a file.
@@ -678,6 +683,133 @@ def _gold_band_entry(
     return entry
 
 
+def _gold_band_server_problems(server: dict[str, Any]) -> list[str]:
+    name = server.get("name")
+    label = name if isinstance(name, str) else "?"
+    if not isinstance(name, str) or not GOLD_BAND_ID.match(name):
+        return [f"mcp server {label}: name must match {GOLD_BAND_ID.pattern}"]
+    if server.get("transport") == "http":
+        if not isinstance(server.get("url_workstation"), str) or not server["url_workstation"]:
+            return [f"mcp server {name}: an http server needs a url_workstation"]
+    elif server.get("transport") == "stdio":
+        if not isinstance(server.get("command"), str) or not server["command"]:
+            return [f"mcp server {name}: a stdio server needs a command"]
+    else:
+        return [f"mcp server {name}: transport must be http or stdio"]
+    return []
+
+
+def _gold_band_server_entry(server: dict[str, Any]) -> dict[str, Any]:
+    """The ``contextServers`` entry for one registry server; never holds a secret.
+
+    A server with a credential is the stdio proxy, which reads the token from
+    the secret store at launch. The app expands no variable itself, so the
+    proxy is started by ``/bin/sh`` (a launcher's PATH holds no ``~/.local/bin``).
+    """
+    entry: dict[str, Any] = {"id": server["name"], "name": server["name"], "enabled": True}
+    if server["transport"] == "http":
+        url = server["url_workstation"]
+        credential = server.get("credential")
+        if credential:
+            command = f'exec "{GOLD_BAND_MCP_PROXY}" --url \'{url}\' --secret {credential}'
+            entry.update(transport="stdio", command="/bin/sh", args=["-c", command], env={})
+        else:
+            entry.update(transport="http", url=url, headers={})
+    else:
+        entry.update(
+            transport="stdio",
+            command=server["command"],
+            args=[str(arg) for arg in server.get("args") or []],
+            env={str(key): str(value) for key, value in (server.get("env") or {}).items()},
+        )
+    return entry
+
+
+def _gold_band_servers(path: Path, instance: str) -> tuple[dict[str, dict[str, Any]], set[str], list[str]]:
+    """The servers ``instance`` registers by id, every id the registry binds to
+    any instance, and the problems with the declared ones."""
+    try:
+        data = yaml.safe_load(path.read_text())
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise _CannotConverge(f"{path} cannot be read: {exc}") from exc
+    servers = data.get("mcp_servers") if isinstance(data, dict) else None
+    if servers is None:
+        return {}, set(), []
+    if not isinstance(servers, list) or not all(isinstance(server, dict) for server in servers):
+        raise _CannotConverge(f"{path}: mcp_servers must be a list of mappings")
+    declared: dict[str, dict[str, Any]] = {}
+    bound: set[str] = set()
+    problems: list[str] = []
+    for server in servers:
+        instances = server.get("instances")
+        if instances is None:
+            continue
+        if not isinstance(instances, list) or not all(isinstance(held, str) for held in instances):
+            problems.append(f"mcp server {server.get('name')}: instances must be a list of instance ids")
+            continue
+        found = _gold_band_server_problems(server)
+        problems += found
+        if found:
+            continue
+        bound.add(server["name"])
+        if instance in instances:
+            declared[server["name"]] = _gold_band_server_entry(server)
+    return declared, bound, problems
+
+
+def _gold_band_current_servers(path: Path, doc: dict[str, Any]) -> list[Any]:
+    """The settings document's ``contextServers`` list; absent is empty."""
+    current = doc.get(GOLD_BAND_SERVERS_KEY)
+    if current is None:
+        return []
+    if not isinstance(current, list):
+        raise _CannotConverge(f"{path}: {GOLD_BAND_SERVERS_KEY} is not a list")
+    return current
+
+
+def _gold_band_merge_servers(
+    current: list[Any],
+    wanted: dict[str, dict[str, Any]],
+    bound: set[str],
+    keep: set[str],
+    instance: str,
+) -> tuple[list[Any], list[str]]:
+    """The ``contextServers`` list after converging, and one line per change.
+
+    A declared server is written (an entry that already holds every declared
+    field stays as the app saved it). The app's own managed entries stay. A
+    server the registry binds to another instance is removed, which is how the
+    work instance never holds a personal one, unless the keep file names it.
+    The personal instance also drops any other undeclared server, as it does
+    an undeclared agent; the work instance leaves the rest to its overlay.
+    """
+    merged: list[Any] = []
+    lines: list[str] = []
+    seen: set[str] = set()
+    for entry in current:
+        name = entry.get("id") if isinstance(entry, dict) else None
+        if not isinstance(name, str):
+            merged.append(entry)
+        elif name in wanted:
+            seen.add(name)
+            if all(entry.get(key) == value for key, value in wanted[name].items()):
+                merged.append(entry)
+            else:
+                merged.append(wanted[name])
+                lines.append(f"changed server {name}")
+        elif entry.get("managed") is True or name in keep:
+            merged.append(entry)
+        elif name in bound or instance == GOLD_BAND_INSTANCE:
+            lines.append(f"removed server {name}")
+        else:
+            merged.append(entry)
+    for name, entry in wanted.items():
+        if name not in seen:
+            merged.append(entry)
+            lines.append(f"added server {name}")
+    return merged, lines
+
+
 def _gold_band_document(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     """The settings document and its ``agents`` map; a missing file is an empty one."""
     if not path.is_file():
@@ -1028,6 +1160,8 @@ def gold_band(args: argparse.Namespace) -> int:
         problems += _gold_band_everyone_problems(everyone)
         set_problems, sets = _gold_band_skill_set_problems(declared, raw_sets, sources, args.kit)
         problems += set_problems
+        wanted_servers, bound_servers, server_problems = _gold_band_servers(args.registry, instance)
+        problems += server_problems
         if problems:
             for problem in problems:
                 print(f"gold-band-agents: {problem}")
@@ -1041,6 +1175,7 @@ def gold_band(args: argparse.Namespace) -> int:
             return GOLD_BAND_RUNNING_EXIT
         doc, current = _gold_band_document(settings)
         overlay = _gold_band_overlay_block(args.registry, args.overlay) if args.overlay is not None else {}
+        current_servers = _gold_band_current_servers(settings, doc)
     except _OverlayRefused as exc:
         for problem in exc.problems:
             print(f"gold-band-agents: overlay: {problem}")
@@ -1110,8 +1245,14 @@ def gold_band(args: argparse.Namespace) -> int:
         print(line)
     # The map keeps its slot among the other top-level keys; a new one is appended.
     overlay_notes: list[str] = []
+    merged_servers, server_lines = _gold_band_merge_servers(
+        current_servers, wanted_servers, bound_servers, keep, instance
+    )
+    new_doc = {**doc, "agents": merged}
+    if merged_servers or GOLD_BAND_SERVERS_KEY in doc:
+        new_doc[GOLD_BAND_SERVERS_KEY] = merged_servers
     try:
-        new_doc = _gold_band_overlay_settings({**doc, "agents": merged}, overlay.get("settings"), overlay_notes)
+        new_doc = _gold_band_overlay_settings(new_doc, overlay.get("settings"), overlay_notes)
         new_doc = _gold_band_overlay_servers(new_doc, overlay.get("mcp_servers"), overlay_notes)
     except _CannotConverge as exc:
         print(f"gold-band-agents: cannot converge: {exc}")
@@ -1130,6 +1271,8 @@ def gold_band(args: argparse.Namespace) -> int:
         print(f"changed {name}")
     for name in removed:
         print(f"removed {name}")
+    for line in server_lines:
+        print(line)
     for note in overlay_notes:
         print(note)
     if args.check:

@@ -29,6 +29,9 @@ import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
+REACH_PATH = KIT_ROOT / "registry" / "reach-levels.yaml"
+# The reach levels, weakest first (crates/agent-launcher/src/record.rs LEVELS).
+REACH_LEVELS = ("read", "read-web", "research", "write-scoped", "run-one-command", "write", "full")
 
 SETUP_SCRIPT = Path("installer/setup-workstation.sh")
 CONTAINER_SETUP_SCRIPT = Path("installer/setup-container.sh")
@@ -195,7 +198,86 @@ def _entries(data: dict[str, Any], key: str) -> list[dict[str, Any]]:
     return value
 
 
-def validate(data: dict[str, Any]) -> None:
+def _reach_ids(path: Path) -> dict[str, dict[str, Any]]:
+    """The agent ids of the reach-level support record (``ids:``)."""
+    try:
+        record = yaml.safe_load(path.read_text())
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise RegistryError(f"{path} cannot be read: {exc}") from exc
+    ids = record.get("ids") if isinstance(record, dict) else None
+    if ids is None:
+        return {}
+    if not isinstance(ids, dict):
+        raise RegistryError(f"{path}: ids must be a mapping")
+    return {str(name): body if isinstance(body, dict) else {} for name, body in ids.items()}
+
+
+def _validate_instance_server(
+    server: dict[str, Any], data: dict[str, Any], reach_path: Path,
+) -> None:
+    """A server bound to Gold Band instances (B3-14): where it is registered
+    and which agent ids it is listed for, by reach level."""
+    name = server.get("name")
+    instances = server.get("instances")
+    extras = [key for key in ("reach", "agent_ids") if key in server]
+    if instances is None:
+        if extras:
+            raise RegistryError(f"mcp server {name}: {' and '.join(extras)} only apply to a server with instances")
+        return
+    held = data.get("gold_band_instances") or {}
+    if not isinstance(instances, list) or not instances or not all(isinstance(i, str) for i in instances):
+        raise RegistryError(f"mcp server {name}: instances must be a non-empty list of instance ids")
+    for instance in instances:
+        if instance == "gold-band":
+            raise RegistryError(
+                f"mcp server {name}: instances may not name {instance}; "
+                "the work instance reads its servers from the per-machine overlay, never from the public registry",
+            )
+        if instance not in held:
+            raise RegistryError(
+                f"mcp server {name}: instances names {instance!r}, which gold_band_instances does not declare",
+            )
+    if len(set(instances)) != len(instances):
+        raise RegistryError(f"mcp server {name}: instances lists an instance twice")
+    if session_only(server):
+        raise RegistryError(f"mcp server {name}: a server with instances may not be session-only")
+    if server.get("transport") == "http" and not server.get("url_workstation"):
+        raise RegistryError(f"mcp server {name}: an http server with instances must have a url_workstation")
+    levels = server.get("reach")
+    if not isinstance(levels, list) or not levels:
+        raise RegistryError(f"mcp server {name}: a server with instances must list the reach levels that may use it")
+    for level in levels:
+        if level not in REACH_LEVELS:
+            raise RegistryError(f"mcp server {name}: reach names {level!r}, not one of {', '.join(REACH_LEVELS)}")
+    if len(set(levels)) != len(levels):
+        raise RegistryError(f"mcp server {name}: reach lists a level twice")
+    if "run-one-command" in levels:
+        raise RegistryError(f"mcp server {name}: reach may not list run-one-command, which takes no tools")
+    agent_ids = server.get("agent_ids")
+    if agent_ids is None:
+        return
+    if not isinstance(agent_ids, list) or not all(isinstance(i, str) for i in agent_ids):
+        raise RegistryError(f"mcp server {name}: agent_ids must be a list of agent ids")
+    if len(set(agent_ids)) != len(agent_ids):
+        raise RegistryError(f"mcp server {name}: agent_ids lists an id twice")
+    declared = _reach_ids(reach_path)
+    for agent_id in agent_ids:
+        entry = declared.get(agent_id)
+        if entry is None:
+            raise RegistryError(f"mcp server {name}: agent id {agent_id!r} is not declared in {reach_path.name}")
+        if entry.get("reach") not in levels:
+            raise RegistryError(
+                f"mcp server {name}: agent id {agent_id!r} is at reach level {entry.get('reach')!r}, "
+                f"which the server does not allow ({', '.join(levels)})",
+            )
+        if not all(entry.get("agent") in ((held.get(i) or {}).get("agents") or []) for i in instances):
+            raise RegistryError(
+                f"mcp server {name}: agent id {agent_id!r} names agent {entry.get('agent')!r}, "
+                f"which is not an agent of {', '.join(instances)}",
+            )
+
+
+def validate(data: dict[str, Any], reach_path: Path = REACH_PATH) -> None:
     known_surfaces = {"workstation", "runner", "container"}
 
     marketplaces = {m["name"] for m in _entries(data, "marketplaces")}
@@ -317,6 +399,7 @@ def validate(data: dict[str, Any]) -> None:
                     f"mcp server {name}: args name a work root; "
                     "work roots belong in the work machine overlay, never in the public registry",
                 )
+        _validate_instance_server(server, data, reach_path)
         if session_only(server) and (
             transport != "http" or server.get("surfaces") != ["workstation"] or server.get("cloud") is not False
         ):
