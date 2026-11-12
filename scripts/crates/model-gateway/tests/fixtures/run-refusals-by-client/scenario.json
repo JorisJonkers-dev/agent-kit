@@ -1,0 +1,238 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Rate limited.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/claude": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/claude.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/claude.n\" ] && read n < \"$D/claude.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/claude.n\"\npick() { if [ -f \"$C/claude.$1.$n\" ]; then echo \"$C/claude.$1.$n\"; else echo \"$C/claude.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/claude.txt\"\ncat > \"$D/claude.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/vibe": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/vibe.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/vibe.n\" ] && read n < \"$D/vibe.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/vibe.n\"\npick() { if [ -f \"$C/vibe.$1.$n\" ]; then echo \"$C/vibe.$1.$n\"; else echo \"$C/vibe.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/vibe.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/agy": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/agy.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/agy.n\" ] && read n < \"$D/agy.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/agy.n\"\npick() { if [ -f \"$C/agy.$1.$n\" ]; then echo \"$C/agy.$1.$n\"; else echo \"$C/agy.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/agy.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/canned/claude.err": "Error: rate limit exceeded. Resets in 2h30m.\n",
+        "home/canned/claude.exit": "1\n"
+      },
+      "exec": [
+        "bin/claude",
+        "bin/vibe",
+        "bin/agy"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "remove": [
+        "home/canned/claude.out",
+        "home/canned/claude.err",
+        "home/canned/claude.exit",
+        "home/canned/claude.export",
+        "home/canned/claude.usage",
+        "home/canned/claude.sleep",
+        "home/canned/claude.act"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"agy\",\"model\":\"gemini-3.8-flash-low\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Quota.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/agy.out",
+        "home/canned/agy.err",
+        "home/canned/agy.exit",
+        "home/canned/agy.export",
+        "home/canned/agy.usage",
+        "home/canned/agy.sleep",
+        "home/canned/agy.act"
+      ],
+      "write": {
+        "home/canned/agy.out": "{\"status\":\"ERROR\",\"usage\":{\"input_tokens\":900,\"output_tokens\":90,\"cache_read_tokens\":300},\"error\":{\"message\":\"quota exceeded\",\"status\":429}}\n",
+        "home/canned/agy.exit": "0\n"
+      },
+      "now": "2026-11-03T12:01:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-small-latest\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Not signed in.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/vibe.out",
+        "home/canned/vibe.err",
+        "home/canned/vibe.exit",
+        "home/canned/vibe.export",
+        "home/canned/vibe.usage",
+        "home/canned/vibe.sleep",
+        "home/canned/vibe.act"
+      ],
+      "write": {
+        "home/canned/vibe.err": "Error: 401 Unauthorized: invalid api key\n",
+        "home/canned/vibe.exit": "1\n"
+      },
+      "now": "2026-11-03T12:02:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"claude\",\"model\":\"claude-sonnet-5-5\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Not logged in.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/claude.out",
+        "home/canned/claude.err",
+        "home/canned/claude.exit",
+        "home/canned/claude.export",
+        "home/canned/claude.usage",
+        "home/canned/claude.sleep",
+        "home/canned/claude.act"
+      ],
+      "write": {
+        "home/canned/claude.out": "{\"type\":\"result\",\"result\":\"Not logged in. Please log in.\",\"total_cost_usd\":0.05,\"usage\":{\"input_tokens\":10,\"cache_read_input_tokens\":20,\"cache_creation_input_tokens\":5,\"output_tokens\":30},\"is_error\":true}\n",
+        "home/canned/claude.exit": "0\n"
+      },
+      "now": "2026-11-03T12:03:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"glm-5-3\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Hosted outside, named reset.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/vibe.out",
+        "home/canned/vibe.err",
+        "home/canned/vibe.exit",
+        "home/canned/vibe.export",
+        "home/canned/vibe.usage",
+        "home/canned/vibe.sleep",
+        "home/canned/vibe.act"
+      ],
+      "write": {
+        "home/canned/vibe.err": "The model is hosted outside your region. Resets in 1h5m10s.\n",
+        "home/canned/vibe.exit": "1\n"
+      },
+      "now": "2026-11-03T12:04:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"deepseek-v4-1-flash-1017\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Hosted outside, no reset.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/vibe.out",
+        "home/canned/vibe.err",
+        "home/canned/vibe.exit",
+        "home/canned/vibe.export",
+        "home/canned/vibe.usage",
+        "home/canned/vibe.sleep",
+        "home/canned/vibe.act"
+      ],
+      "write": {
+        "home/canned/vibe.err": "deepseek-v4-1-flash-1017 is hosted outside your region\n",
+        "home/canned/vibe.exit": "1\n"
+      },
+      "now": "2026-11-03T12:05:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\necho \"Error: unknown model 'model-gateway-probe'. Available: mistral-small-latest, glm-5-3, deepseek-v4-1-flash-1017.\" >&2\nexit 1\n",
+        "bin/agy": "#!/bin/sh\nexit 0\n"
+      },
+      "now": "2026-11-03T12:06:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

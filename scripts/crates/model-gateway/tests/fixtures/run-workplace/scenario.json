@@ -1,0 +1,335 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-small-latest\",\"mode\":\"read-only\",\"prompt\":\"Unproven in a repository.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/vibe.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/vibe.n\" ] && read n < \"$D/vibe.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/vibe.n\"\npick() { if [ -f \"$C/vibe.$1.$n\" ]; then echo \"$C/vibe.$1.$n\"; else echo \"$C/vibe.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/vibe.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "repo/README.md": "demo\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\",\"google\"],\"code\":true,\"history\":false}}}",
+        "home/canned/vibe.out": "[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"ok\\nSUMMARY: s\"}]}]\n",
+        "home/canned/vibe.export": "{\"usage\":{\"input_tokens\":1000,\"output_tokens\":200,\"cached_input_tokens\":400},\"cost_usd\":0.0123}\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "-b",
+          "main",
+          "@SANDBOX@/repo"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "remote",
+          "add",
+          "origin",
+          "https://github.com/JorisJonkers-dev/demo.git"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "commit",
+          "-q",
+          "-m",
+          "init"
+        ]
+      ],
+      "remove": [
+        "home/canned/vibe.out",
+        "home/canned/vibe.err",
+        "home/canned/vibe.exit",
+        "home/canned/vibe.export",
+        "home/canned/vibe.usage",
+        "home/canned/vibe.sleep",
+        "home/canned/vibe.act"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-medium-3.5\",\"mode\":\"read-only\",\"prompt\":\"Proven in a repository.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-proof\":{\"kind\":\"vibe\",\"model\":\"mistral-medium-3.5\"}}}",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"read-only:vibe-proof\":{\"result\":\"pass\"}}}"
+      },
+      "now": "2026-11-03T12:05:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-medium-3.5\",\"mode\":\"read-only\",\"prompt\":\"Proven, no repository.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:10:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-medium-3.5\",\"mode\":\"read-only\",\"prompt\":\"Setup says fail.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-proof\":{\"kind\":\"vibe\",\"model\":\"mistral-medium-3.5\"}}}",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"read-only:vibe-proof\":{\"result\":\"fail\"}}}"
+      },
+      "now": "2026-11-03T12:15:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"glm-5-3\",\"mode\":\"read-only\",\"prompt\":\"Proven by a name of the catalogue.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\",\"zhipu\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-glm\":{\"kind\":\"vibe\",\"model\":\"zai-glm-5-3\"}}}",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"read-only:vibe-glm\":{\"result\":\"pass\"}}}"
+      },
+      "now": "2026-11-03T12:20:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"agy\",\"model\":\"gemini-3.8-flash-low\",\"mode\":\"read-only\",\"prompt\":\"agy proven.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/agy": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/agy.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/agy.n\" ] && read n < \"$D/agy.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/agy.n\"\npick() { if [ -f \"$C/agy.$1.$n\" ]; then echo \"$C/agy.$1.$n\"; else echo \"$C/agy.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/agy.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/canned/agy.out": "{\"response\":\"Read the files.\\nSUMMARY: agy is fine\",\"status\":\"SUCCESS\",\"usage\":{\"input_tokens\":900,\"output_tokens\":90,\"cache_read_tokens\":300}}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"agy-proof\":{\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-low\"}}}",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"read-only:agy-proof\":{\"result\":\"pass\"}}}"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "remove": [
+        "home/canned/agy.out",
+        "home/canned/agy.err",
+        "home/canned/agy.exit",
+        "home/canned/agy.export",
+        "home/canned/agy.usage",
+        "home/canned/agy.sleep",
+        "home/canned/agy.act"
+      ],
+      "now": "2026-11-03T12:25:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"mode\":\"read-only\",\"prompt\":\"Claude is never proven.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/claude": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/claude.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/claude.n\" ] && read n < \"$D/claude.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/claude.n\"\npick() { if [ -f \"$C/claude.$1.$n\" ]; then echo \"$C/claude.$1.$n\"; else echo \"$C/claude.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/claude.txt\"\ncat > \"$D/claude.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"anthropic\"],\"code\":true,\"history\":false}}}",
+        "home/canned/claude.out": "{\"type\":\"result\",\"result\":\"Reviewed.\\nSUMMARY: claude is fine\",\"total_cost_usd\":0.05,\"usage\":{\"input_tokens\":10,\"cache_read_input_tokens\":20,\"cache_creation_input_tokens\":5,\"output_tokens\":30}}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"claude-proof\":{\"kind\":\"claude\",\"model\":\"claude-haiku-5-5\"}}}",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"read-only:claude-proof\":{\"result\":\"pass\"}}}"
+      },
+      "exec": [
+        "bin/claude"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "remove": [
+        "home/canned/claude.out",
+        "home/canned/claude.err",
+        "home/canned/claude.exit",
+        "home/canned/claude.export",
+        "home/canned/claude.usage",
+        "home/canned/claude.sleep",
+        "home/canned/claude.act"
+      ],
+      "now": "2026-11-03T12:30:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-small-latest\",\"mode\":\"read-only\",\"prompt\":\"Proven by the shipped routing.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{}}",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"read-only:vibe-mistral-small\":{\"result\":\"pass\"}}}"
+      },
+      "now": "2026-11-03T12:32:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-small-latest\",\"mode\":\"read-only\",\"prompt\":\"Not a repository, an existing directory.\",\"repo\":\"@SANDBOX@/work\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:35:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-small-latest\",\"mode\":\"read-only\",\"prompt\":\"A path that is not there.\",\"repo\":\"@SANDBOX@/nowhere\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:40:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

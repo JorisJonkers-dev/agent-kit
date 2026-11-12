@@ -1,0 +1,38 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"client\": \"vibe\",\n  \"cost_usd\": 0.0123,\n  \"family\": \"mistral\",\n  \"mode\": \"read-only\",\n  \"model\": \"mistral-small-latest\",\n  \"output_path\": \"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"s\",\n  \"tokens\": {\n    \"cached\": 400,\n    \"input\": 1000,\n    \"output\": 200\n  },\n  \"workflow\": \"w\",\n  \"cleanup_warning\": \"cannot remove the throwaway worktree @SANDBOX@/tmp/model-gateway-worktree-@TMP1@: fatal: not a git repository (or any of the parent directories): .git\",\n  \"attempts\": [\n    {\n      \"client\": \"vibe\",\n      \"model\": \"mistral-small-latest\",\n      \"run_id\": \"20261103T120000Z-@RAND1@\",\n      \"status\": \"ok\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/calls/": null,
+        "home/calls/vibe.n": "1\n",
+        "home/calls/vibe.txt": "call 1\ncwd @SANDBOX@/tmp/model-gateway-worktree-@TMP1@\narg --prompt-file\narg @SANDBOX@/repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/prompt.md\narg --model\narg mistral-small-latest\narg --agent\narg delegate-readonly\narg --trust\narg --workdir\narg @SANDBOX@/tmp/model-gateway-worktree-@TMP1@\narg --output\narg json\narg --time-limit\narg 900\narg --output-dir\narg @SANDBOX@/repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/vibe\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=false\nenv VIBE_ENABLE_SUBAGENTS=false\nenv VIBE_INCLUDE_PROJECT_CONTEXT=false\nenv VIBE_OUTSIDE_WORKDIR=deny\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/canned/": null,
+        "home/canned/vibe.act": "rm \"$HOME/../repo/.git/HEAD\"\n",
+        "home/canned/vibe.export": "{\"usage\":{\"input_tokens\":1000,\"output_tokens\":200,\"cached_input_tokens\":400},\"cost_usd\":0.0123}\n",
+        "home/canned/vibe.out": "[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\\nSUMMARY: s\"}]}]\n",
+        "repo/.git/model-gateway/": null,
+        "repo/.git/model-gateway/runs/": null,
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"vibe\",\n  \"mode\": \"read-only\",\n  \"model\": \"mistral-small-latest\",\n  \"prompt\": \"The client breaks the repository.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\",\n  \"repo\": \"@SANDBOX@/repo\"\n}\n",
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/output.json": "[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\\nSUMMARY: s\"}]}]\n",
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/prompt.md": "The client breaks the repository.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/result.json": "{\n  \"client\": \"vibe\",\n  \"cost_usd\": 0.0123,\n  \"family\": \"mistral\",\n  \"mode\": \"read-only\",\n  \"model\": \"mistral-small-latest\",\n  \"output_path\": \"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"s\",\n  \"tokens\": {\n    \"cached\": 400,\n    \"input\": 1000,\n    \"output\": 200\n  },\n  \"workflow\": \"w\",\n  \"cleanup_warning\": \"cannot remove the throwaway worktree @SANDBOX@/tmp/model-gateway-worktree-@TMP1@: fatal: not a git repository (or any of the parent directories): .git\"\n}\n",
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/vibe/": null,
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/vibe/export.json": "{\"usage\":{\"input_tokens\":1000,\"output_tokens\":200,\"cached_input_tokens\":400},\"cost_usd\":0.0123}\n",
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"vibe\",\"cost_class\":\"subsidised\",\"cost_usd\":0.0123,\"duration_s\":0,\"family\":\"mistral\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"outcome\":\"ok\",\"repository\":\"github.com/jorisjonkers-dev/demo\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"tokens\":{\"cached\":400,\"input\":1000,\"output\":200},\"workflow\":\"w\"}\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "tmp/": null,
+        "work/": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,378 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Exits non-zero.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/claude": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/claude.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/claude.n\" ] && read n < \"$D/claude.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/claude.n\"\npick() { if [ -f \"$C/claude.$1.$n\" ]; then echo \"$C/claude.$1.$n\"; else echo \"$C/claude.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/claude.txt\"\ncat > \"$D/claude.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/opencode": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/opencode.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/opencode.n\" ] && read n < \"$D/opencode.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/opencode.n\"\npick() { if [ -f \"$C/opencode.$1.$n\" ]; then echo \"$C/opencode.$1.$n\"; else echo \"$C/opencode.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/opencode.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/agy": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/agy.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/agy.n\" ] && read n < \"$D/agy.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/agy.n\"\npick() { if [ -f \"$C/agy.$1.$n\" ]; then echo \"$C/agy.$1.$n\"; else echo \"$C/agy.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/agy.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/codex": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/codex.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/codex.n\" ] && read n < \"$D/codex.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/codex.n\"\npick() { if [ -f \"$C/codex.$1.$n\" ]; then echo \"$C/codex.$1.$n\"; else echo \"$C/codex.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/codex.txt\"\ncat > \"$D/codex.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/hermes": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/hermes.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/hermes.n\" ] && read n < \"$D/hermes.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/hermes.n\"\npick() { if [ -f \"$C/hermes.$1.$n\" ]; then echo \"$C/hermes.$1.$n\"; else echo \"$C/hermes.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/hermes.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/vibe": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/vibe.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/vibe.n\" ] && read n < \"$D/vibe.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/vibe.n\"\npick() { if [ -f \"$C/vibe.$1.$n\" ]; then echo \"$C/vibe.$1.$n\"; else echo \"$C/vibe.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/vibe.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "home/canned/claude.out": "partial\n",
+        "home/canned/claude.err": "it broke\n",
+        "home/canned/claude.exit": "3\n"
+      },
+      "exec": [
+        "bin/claude",
+        "bin/opencode",
+        "bin/agy",
+        "bin/codex",
+        "bin/hermes",
+        "bin/vibe"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "remove": [
+        "home/canned/claude.out",
+        "home/canned/claude.err",
+        "home/canned/claude.exit",
+        "home/canned/claude.export",
+        "home/canned/claude.usage",
+        "home/canned/claude.sleep",
+        "home/canned/claude.act"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Prints nothing.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/claude.out",
+        "home/canned/claude.err",
+        "home/canned/claude.exit",
+        "home/canned/claude.export",
+        "home/canned/claude.usage",
+        "home/canned/claude.sleep",
+        "home/canned/claude.act"
+      ],
+      "write": {
+        "home/canned/claude.out": "\n"
+      },
+      "now": "2026-11-03T12:01:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Claude reports an error.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/claude.out",
+        "home/canned/claude.err",
+        "home/canned/claude.exit",
+        "home/canned/claude.export",
+        "home/canned/claude.usage",
+        "home/canned/claude.sleep",
+        "home/canned/claude.act"
+      ],
+      "write": {
+        "home/canned/claude.out": "{\"type\":\"result\",\"result\":\"the tool crashed\",\"total_cost_usd\":0.05,\"usage\":{\"input_tokens\":10,\"cache_read_input_tokens\":20,\"cache_creation_input_tokens\":5,\"output_tokens\":30},\"is_error\":true}\n"
+      },
+      "now": "2026-11-03T12:02:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"agy\",\"model\":\"gemini-3.8-flash-low\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Agy is denied.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/agy.out",
+        "home/canned/agy.err",
+        "home/canned/agy.exit",
+        "home/canned/agy.export",
+        "home/canned/agy.usage",
+        "home/canned/agy.sleep",
+        "home/canned/agy.act"
+      ],
+      "write": {
+        "home/canned/agy.out": "{\"response\":\"Read the files.\\nSUMMARY: agy is fine\",\"status\":\"SUCCESS\",\"usage\":{\"input_tokens\":900,\"output_tokens\":90,\"cache_read_tokens\":300},\"denied_actions\":[\"write_file\"]}\n"
+      },
+      "now": "2026-11-03T12:03:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"agy\",\"model\":\"gemini-3.8-flash-low\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Agy times out itself.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/agy.out",
+        "home/canned/agy.err",
+        "home/canned/agy.exit",
+        "home/canned/agy.export",
+        "home/canned/agy.usage",
+        "home/canned/agy.sleep",
+        "home/canned/agy.act"
+      ],
+      "write": {
+        "home/canned/agy.out": "{\"response\":\"Read the files.\\nSUMMARY: agy is fine\",\"status\":\"SUCCESS\",\"usage\":{\"input_tokens\":900,\"output_tokens\":90,\"cache_read_tokens\":300},\"finished_reason\":\"print_timeout\"}\n"
+      },
+      "now": "2026-11-03T12:04:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"agy\",\"model\":\"gemini-3.8-flash-low\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Agy fails.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/agy.out",
+        "home/canned/agy.err",
+        "home/canned/agy.exit",
+        "home/canned/agy.export",
+        "home/canned/agy.usage",
+        "home/canned/agy.sleep",
+        "home/canned/agy.act"
+      ],
+      "write": {
+        "home/canned/agy.out": "{\"response\":\"Read the files.\\nSUMMARY: agy is fine\",\"status\":\"ERROR\",\"usage\":{\"input_tokens\":900,\"output_tokens\":90,\"cache_read_tokens\":300}}\n"
+      },
+      "now": "2026-11-03T12:05:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"provider\":\"anthropic\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Hermes fails.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/hermes.out",
+        "home/canned/hermes.err",
+        "home/canned/hermes.exit",
+        "home/canned/hermes.export",
+        "home/canned/hermes.usage",
+        "home/canned/hermes.sleep",
+        "home/canned/hermes.act"
+      ],
+      "write": {
+        "home/canned/hermes.out": "Sorry.\n",
+        "home/canned/hermes.usage": "{\"input_tokens\":2000,\"output_tokens\":300,\"cache_read_tokens\":500,\"estimated_cost_usd\":0.002,\"failed\":true}\n"
+      },
+      "now": "2026-11-03T12:06:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"model\":\"gpt-5.5\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Codex fails.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repo/README.md": "demo\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"openai\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "home/canned/codex.out": "{\"type\":\"turn.failed\",\"error\":{\"message\":\"the sandbox refused\"}}\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "-b",
+          "main",
+          "@SANDBOX@/repo"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "remote",
+          "add",
+          "origin",
+          "https://github.com/JorisJonkers-dev/demo.git"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "commit",
+          "-q",
+          "-m",
+          "init"
+        ]
+      ],
+      "remove": [
+        "home/canned/codex.out",
+        "home/canned/codex.err",
+        "home/canned/codex.exit",
+        "home/canned/codex.export",
+        "home/canned/codex.usage",
+        "home/canned/codex.sleep",
+        "home/canned/codex.act"
+      ],
+      "now": "2026-11-03T12:07:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"opencode\",\"model\":\"opencode-go/glm-5.3-flash\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Opencode errors.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/opencode.out",
+        "home/canned/opencode.err",
+        "home/canned/opencode.exit",
+        "home/canned/opencode.export",
+        "home/canned/opencode.usage",
+        "home/canned/opencode.sleep",
+        "home/canned/opencode.act"
+      ],
+      "write": {
+        "home/canned/opencode.out": "{\"type\":\"error\",\"error\":{\"message\":\"something odd\"}}\n"
+      },
+      "now": "2026-11-03T12:08:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-small-latest\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Vibe prints no journal.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/vibe.out",
+        "home/canned/vibe.err",
+        "home/canned/vibe.exit",
+        "home/canned/vibe.export",
+        "home/canned/vibe.usage",
+        "home/canned/vibe.sleep",
+        "home/canned/vibe.act"
+      ],
+      "write": {
+        "home/canned/vibe.out": "not a journal\n",
+        "home/canned/vibe.export": "{\"usage\":{\"input_tokens\":1000,\"output_tokens\":200,\"cached_input_tokens\":400},\"cost_usd\":0.0123}\n"
+      },
+      "now": "2026-11-03T12:09:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

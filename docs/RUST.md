@@ -455,7 +455,7 @@ defaults are embedded in the binary instead of read from a file beside it, and a
 suffix comes from the standard library's hasher rather than from `randomBytes`; a client named like an object property (`constructor`) is an unknown client, where the node runner trips over the property; a kept worktree with no `path` (a hand-edited kept-worktrees file) is a failed entry with its own reason, where the node runner passes `undefined` to git and cannot delete it by hand, and a JSON `null` entry in that file is treated like any entry with no path; the OS error words of a worktree directory that cannot be deleted by hand differ.
 
 ```bash
-node scripts/crates/model-gateway/tests/gen-scenarios.mjs        # the scenario inputs (gen-scenarios-clients.mjs: models, usage, grants; -reserve and -worktrees: grant reserve, worktrees clean)
+node scripts/crates/model-gateway/tests/gen-scenarios.mjs        # the scenario inputs (gen-scenarios-clients.mjs: models, usage, grants; -reserve and -worktrees: grant reserve, worktrees clean; -run: read-only `run` through fake clients)
 node scripts/crates/model-gateway/tests/regenerate-fixtures.mjs  # the goldens, from the node runner
 cargo test --manifest-path scripts/Cargo.toml -p model-gateway   # SCENARIO=<name> replays one scenario
 ```
@@ -465,6 +465,14 @@ scripts under the sandbox's `bin/`, which is the whole `PATH` of those steps, pl
 where a step asks for one), so what `models` lists, what the Vibe probe cache holds and what the
 status commands answer are the same in both runners; a grant id's random suffix, and the
 change time and inode in the probe cache, are masked (`@RAND@`, `@N@`) in the goldens.
+
+The `run-*` scenarios drive `run` through fake clients that log how they were launched (argv,
+working directory, the environment that matters, stdin) and print canned output; a step may make
+repositories with the host's git (`"git"`), snapshot more directories (`"roots"`), and points
+`TMPDIR` into the sandbox. The random parts of run ids and temporary directories are numbered per
+step by first appearance (`@RAND1@`, `@TMP1@`, in file names too), and the node runner's clock and
+monotonic reading are fixed (a run's duration is 0). They are replayed only when named
+(`SCENARIO=run-vibe`, or `SCENARIO=run-` for all, or `PENDING=1`) until the port of `run` lands.
 
 ## Measuring line coverage
 

@@ -1,0 +1,35 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"mode\":\"read-only\",\"escalate\":false,\"prompt\":\"Cannot start.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "mkdir": [
+        "tmp",
+        "bin/claude"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}
