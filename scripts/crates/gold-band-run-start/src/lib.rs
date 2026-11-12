@@ -27,6 +27,17 @@
 //!   from the gateway's own grants record (ADR-0008, ADR-0014). The cap is
 //!   counted in Codex node starts by the per-node grant check, not here.
 //!
+//! The second subcommand, `grant-check`, is the per-node check the workflow
+//! runs through this same pinned wrapper before every Codex node, "for the
+//! grant alone". It reserves ONE Codex node start against the run's grant in
+//! the gateway's grant record (`model-gateway grant reserve --json ...`, the
+//! gateway holding the lock and keying the start by workflow, node and
+//! attempt, so a node whose agent runs the wrapper twice holds one start),
+//! refuses when the reservation does not fit and
+//! fails once the grant has lapsed, so the workflow's failure edge routes to
+//! a manual check. Only the gateway's own `status: ok` with exit 0 passes:
+//! nothing is retried and the grants file is never read as a fallback.
+//!
 //! Usage:
 //!
 //! ```text
@@ -34,14 +45,18 @@
 //!     --repo DIR --workflow-name NAME --run-id ID --attempt N
 //!     --workflow FILE --families FILE [--allowlist FILE] [--grants FILE]
 //!     [--now RFC3339] --report-dir DIR
+//! gold-band-run-start grant-check --repo DIR --workflow-name NAME --run-id ID
+//!     --attempt N --node NODE --report-dir DIR [--gateway CMD]
 //! ```
 //!
-//! The report (`gold-band-report`) goes to `<report-dir>/run-start.json`:
-//! the command line, the exit code, the SHA-256 of the printed output, the
-//! time and, when refused, the failed check. Problems go to stderr one per
-//! line prefixed `gold-band-run-start:`; a pass prints `gold-band-run-start:
-//! ok` on stdout. Exit 0 clean, 1 refused, 2 bad usage or unreadable input
-//! (which also tries to write a failed report).
+//! The report (`gold-band-report`) goes to `<report-dir>/run-start.json` for
+//! `check` and `<report-dir>/grant-check.json` for `grant-check`: the command
+//! line, the exit code, the SHA-256 of the printed output, the time and, when
+//! refused, the failed check. Problems go to stderr one per line prefixed
+//! `gold-band-run-start:`; a `check` pass prints `gold-band-run-start: ok` on
+//! stdout, a `grant-check` pass the grant it reserved against. Exit 0 clean,
+//! 1 refused, 2 bad usage or unreadable input (which also tries to write a
+//! failed report).
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -55,10 +70,21 @@ use serde_json::Value;
 pub const NAME: &str = "gold-band-run-start";
 /// The file the report is written to, inside the report directory.
 pub const REPORT_FILE: &str = "run-start.json";
+/// The file the `grant-check` report is written to, inside the report
+/// directory.
+pub const GRANT_CHECK_REPORT_FILE: &str = "grant-check.json";
+
+/// The subcommand that runs the three run-start checks.
+const CHECK: &str = "check";
+/// The subcommand that reserves one Codex node start against the run's grant.
+const GRANT_CHECK: &str = "grant-check";
 
 const CHECK_REPOSITORY: &str = "repository-rule";
 const CHECK_FAMILY: &str = "family-allowlist";
 const CHECK_GRANT: &str = "grant";
+const CHECK_GRANT_LAPSED: &str = "grant-lapsed";
+const CHECK_GRANT_NO_START: &str = "grant-no-start-left";
+const CHECK_GRANT_RESERVE: &str = "grant-reserve";
 const CHECK_USAGE: &str = "usage";
 const CHECK_INPUT: &str = "input";
 
@@ -68,6 +94,10 @@ const WORK_OWNER: &str = "nedap";
 const NEDAP_AGENTS: [&str; 2] = ["claude-work", "codex"];
 /// The gateway client a Codex agent id runs as.
 const CODEX_CLIENT: &str = "codex";
+/// The gateway executable `grant-check` runs when nothing names another.
+const GATEWAY: &str = "model-gateway";
+/// The environment variable that names the gateway executable instead.
+const GATEWAY_ENV: &str = "GOLD_BAND_MODEL_GATEWAY";
 
 /// The outside world the shim reaches for. Tests fake it; [`RealHost`] is
 /// the real one.
@@ -79,6 +109,10 @@ pub trait Host: Clock {
     fn env(&self, key: &str) -> Option<String>;
     /// Prints text on stdout, or on stderr when `stderr` is set.
     fn print(&self, stderr: bool, text: &str);
+    /// Runs one executable with its arguments, without a shell and with
+    /// stdin closed: `Ok((exit code, stdout, stderr))`, or `Err` when it
+    /// cannot be started.
+    fn run_command(&self, exe: &str, args: &[String]) -> Result<(i32, String, String), String>;
 }
 
 /// The real host: git, the process environment and the system clock.
@@ -131,6 +165,19 @@ impl Host for RealHost {
             print!("{text}");
         }
     }
+
+    fn run_command(&self, exe: &str, args: &[String]) -> Result<(i32, String, String), String> {
+        let out = std::process::Command::new(exe)
+            .args(args)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .map_err(|e| format!("cannot run {exe}: {e}"))?;
+        Ok((
+            out.status.code().unwrap_or(-1),
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        ))
+    }
 }
 
 /// `git remote -v` output as (name, URL) pairs: `name<TAB>url (fetch)` and
@@ -172,6 +219,27 @@ struct Options {
     report_dir: String,
 }
 
+impl Options {
+    /// Where this run's report goes.
+    fn reported(&self) -> Reported<'_> {
+        Reported {
+            run_id: &self.run_id,
+            attempt: self.attempt,
+            report_dir: &self.report_dir,
+            report_file: REPORT_FILE,
+        }
+    }
+}
+
+/// The run a report belongs to and where the report goes: what both
+/// subcommands report the same way.
+struct Reported<'a> {
+    run_id: &'a str,
+    attempt: u32,
+    report_dir: &'a str,
+    report_file: &'a str,
+}
+
 /// A problem line: the check that raised it and what to change.
 struct Problem {
     check: &'static str,
@@ -197,25 +265,46 @@ const FLAGS: [&str; 11] = [
     "report-dir",
 ];
 
+/// The value flags `grant-check` takes.
+const GRANT_FLAGS: [&str; 7] = [
+    "repo",
+    "workflow-name",
+    "run-id",
+    "attempt",
+    "node",
+    "report-dir",
+    "gateway",
+];
+
 /// The usage text a bad command line prints on stderr.
-fn usage() -> String {
-    format!(
-        "usage: {NAME} check --instance gold-band|gold-band-personal --repo DIR --workflow-name NAME --run-id ID --attempt N --workflow FILE --families FILE [--allowlist FILE] [--grants FILE] [--now RFC3339] --report-dir DIR"
-    )
+fn usage(subcommand: &str) -> String {
+    match subcommand {
+        GRANT_CHECK => format!(
+            "usage: {NAME} {GRANT_CHECK} --repo DIR --workflow-name NAME --run-id ID --attempt N --node NODE --report-dir DIR [--gateway CMD]"
+        ),
+        _ => format!(
+            "usage: {NAME} {CHECK} --instance gold-band|gold-band-personal --repo DIR --workflow-name NAME --run-id ID --attempt N --workflow FILE --families FILE [--allowlist FILE] [--grants FILE] [--now RFC3339] --report-dir DIR"
+        ),
+    }
 }
 
-/// Splits the command line into its value flags, refusing a missing
-/// subcommand, an unknown or repeated flag and a flag without a value.
-fn flags(args: &[String]) -> Result<BTreeMap<String, String>, String> {
+/// Splits the command line into its value flags, refusing a missing or
+/// unknown subcommand, an unknown or repeated flag and a flag without a
+/// value.
+fn flags(
+    args: &[String],
+    subcommand: &str,
+    allowed: &[&str],
+) -> Result<BTreeMap<String, String>, String> {
     let mut rest = args.iter();
-    if rest.next().map(String::as_str) != Some("check") {
-        return Err("the one subcommand is check".to_string());
+    if rest.next().map(String::as_str) != Some(subcommand) {
+        return Err(format!("the subcommands are {CHECK} and {GRANT_CHECK}"));
     }
     let mut found = BTreeMap::new();
     while let Some(arg) = rest.next() {
         let name = arg
             .strip_prefix("--")
-            .filter(|name| FLAGS.contains(name))
+            .filter(|name| allowed.contains(name))
             .ok_or_else(|| format!("unexpected argument {arg}"))?;
         let value = rest
             .next()
@@ -288,26 +377,42 @@ where
         .map(|a| a.to_string_lossy().into_owned())
         .collect();
     let command = format!("{NAME} {}", args.join(" "));
-    let found = match flags(&args) {
+    if args.first().map(String::as_str) == Some(GRANT_CHECK) {
+        return grant_check(&command, &args, host);
+    }
+    let found = match flags(&args, CHECK, &FLAGS) {
         Ok(found) => found,
-        Err(why) => return bad_input(host, &command, None, &found_of(&args), &why, true),
+        Err(why) => {
+            let read = found_of(&args, &FLAGS);
+            let reported = reported_from(&read, REPORT_FILE);
+            return bad_input(host, &command, reported.as_ref(), CHECK, &why, true);
+        }
     };
     let opts = match options(&found) {
         Ok(opts) => opts,
-        Err(why) => return bad_input(host, &command, None, &found, &why, true),
+        Err(why) => {
+            let reported = reported_from(&found, REPORT_FILE);
+            return bad_input(host, &command, reported.as_ref(), CHECK, &why, true);
+        }
     };
     match check(&opts, host) {
-        Err(why) => bad_input(host, &command, Some(&opts), &found, &why, false),
-        Ok(problems) => finish(host, &command, &opts, &problems),
+        Err(why) => bad_input(host, &command, Some(&opts.reported()), CHECK, &why, false),
+        Ok(problems) => finish(
+            host,
+            &command,
+            &opts.reported(),
+            &format!("{NAME}: ok\n"),
+            &problems,
+        ),
     }
 }
 
 /// The flags that could be read from a command line that did not parse in
 /// full, so a failed report can still go to its `--report-dir`.
-fn found_of(args: &[String]) -> BTreeMap<String, String> {
+fn found_of(args: &[String], allowed: &[&str]) -> BTreeMap<String, String> {
     let mut found = BTreeMap::new();
     for pair in args.windows(2) {
-        if let Some(name) = pair[0].strip_prefix("--").filter(|n| FLAGS.contains(n)) {
+        if let Some(name) = pair[0].strip_prefix("--").filter(|n| allowed.contains(n)) {
             found
                 .entry(name.to_string())
                 .or_insert_with(|| pair[1].clone());
@@ -316,39 +421,55 @@ fn found_of(args: &[String]) -> BTreeMap<String, String> {
     found
 }
 
+/// The report target a command line that did not parse in full still names:
+/// its `--report-dir`, `--run-id` and `--attempt` when they could be read.
+fn reported_from<'a>(
+    found: &'a BTreeMap<String, String>,
+    report_file: &'a str,
+) -> Option<Reported<'a>> {
+    Some(Reported {
+        run_id: found.get("run-id").map_or("unknown", String::as_str),
+        attempt: found
+            .get("attempt")
+            .and_then(|a| a.parse().ok())
+            .unwrap_or(0),
+        report_dir: found.get("report-dir")?,
+        report_file,
+    })
+}
+
 /// Exit 2: prints the reason (and the usage for a bad command line) and
 /// tries to leave a failed report in the report directory.
 fn bad_input(
     host: &dyn Host,
     command: &str,
-    opts: Option<&Options>,
-    found: &BTreeMap<String, String>,
+    reported: Option<&Reported>,
+    subcommand: &str,
     why: &str,
     show_usage: bool,
 ) -> i32 {
     let mut output = format!("{NAME}: {why}\n");
     if show_usage {
-        output.push_str(&format!("{}\n", usage()));
+        output.push_str(&format!("{}\n", usage(subcommand)));
     }
     host.print(true, &output);
-    if let Some(dir) = found.get("report-dir") {
-        let run_id = opts.map_or_else(
-            || found.get("run-id").map_or("unknown", String::as_str),
-            |o| o.run_id.as_str(),
-        );
-        let attempt = opts.map_or_else(
-            || {
-                found
-                    .get("attempt")
-                    .and_then(|a| a.parse().ok())
-                    .unwrap_or(0)
-            },
-            |o| o.attempt,
-        );
+    if let Some(reported) = reported {
         let check = if show_usage { CHECK_USAGE } else { CHECK_INPUT };
-        let report = Report::build(run_id, attempt, command, 2, &output, Some(check), host);
+        let report = Report::build(
+            reported.run_id,
+            reported.attempt,
+            command,
+            2,
+            &output,
+            Some(check),
+            host,
+        );
         // The report is best effort here: the exit code is 2 either way.
-        if let Err(e) = gold_band_report::write(Path::new(dir), REPORT_FILE, &report) {
+        if let Err(e) = gold_band_report::write(
+            Path::new(reported.report_dir),
+            reported.report_file,
+            &report,
+        ) {
             host.print(true, &format!("{NAME}: cannot write the report: {e}\n"));
         }
     }
@@ -356,9 +477,15 @@ fn bad_input(
 }
 
 /// Exit 0 or 1: prints the answer, writes the report, returns the code.
-fn finish(host: &dyn Host, command: &str, opts: &Options, problems: &[Problem]) -> i32 {
+fn finish(
+    host: &dyn Host,
+    command: &str,
+    reported: &Reported,
+    pass: &str,
+    problems: &[Problem],
+) -> i32 {
     let (code, output, failed) = match problems.first() {
-        None => (0, format!("{NAME}: ok\n"), None),
+        None => (0, pass.to_string(), None),
         Some(first) => {
             let lines: String = problems
                 .iter()
@@ -369,15 +496,19 @@ fn finish(host: &dyn Host, command: &str, opts: &Options, problems: &[Problem]) 
     };
     host.print(code != 0, &output);
     let report = Report::build(
-        &opts.run_id,
-        opts.attempt,
+        reported.run_id,
+        reported.attempt,
         command,
         code,
         &output,
         failed,
         host,
     );
-    match gold_band_report::write(Path::new(&opts.report_dir), REPORT_FILE, &report) {
+    match gold_band_report::write(
+        Path::new(reported.report_dir),
+        reported.report_file,
+        &report,
+    ) {
         Ok(_) => code,
         Err(e) => {
             host.print(true, &format!("{NAME}: cannot write the report: {e}\n"));
@@ -408,19 +539,25 @@ impl Remote {
     }
 }
 
-/// Runs the three checks and returns every problem, in check order. `Err`
-/// is unreadable input: exit 2.
-fn check(opts: &Options, host: &dyn Host) -> Result<Vec<Problem>, String> {
-    let remotes: Vec<Remote> = host
-        .remotes(Path::new(&opts.repo))
-        .map_err(|e| format!("{}: cannot list the remotes: {e}", opts.repo))?
+/// The repository's remotes with their keys. `Err` when they cannot be
+/// listed: exit 2.
+fn read_remotes(repo: &str, host: &dyn Host) -> Result<Vec<Remote>, String> {
+    Ok(host
+        .remotes(Path::new(repo))
+        .map_err(|e| format!("{repo}: cannot list the remotes: {e}"))?
         .into_iter()
         .map(|(name, url)| Remote {
             key: repo_key(&url),
             name,
             url,
         })
-        .collect();
+        .collect())
+}
+
+/// Runs the three checks and returns every problem, in check order. `Err`
+/// is unreadable input: exit 2.
+fn check(opts: &Options, host: &dyn Host) -> Result<Vec<Problem>, String> {
+    let remotes = read_remotes(&opts.repo, host)?;
     let workflow = read_workflow(&opts.workflow)?;
     let families = read_families(&opts.families)?;
     let mut problems = repository_problems(opts.instance, &remotes);
@@ -821,6 +958,233 @@ fn grant_problems(
             rfc3339(now)
         ),
     )])
+}
+
+/// Everything the `grant-check` flags carry.
+struct GrantOptions {
+    repo: String,
+    workflow_name: String,
+    run_id: String,
+    attempt: u32,
+    node: String,
+    report_dir: String,
+    gateway: String,
+}
+
+impl GrantOptions {
+    /// Where this run's grant-check report goes.
+    fn reported(&self) -> Reported<'_> {
+        Reported {
+            run_id: &self.run_id,
+            attempt: self.attempt,
+            report_dir: &self.report_dir,
+            report_file: GRANT_CHECK_REPORT_FILE,
+        }
+    }
+}
+
+/// The typed options out of the `grant-check` flags. The gateway is the
+/// flag, else `GOLD_BAND_MODEL_GATEWAY`, else `model-gateway` on PATH.
+fn grant_options(
+    found: &BTreeMap<String, String>,
+    host: &dyn Host,
+) -> Result<GrantOptions, String> {
+    let get = |name: &str| {
+        found
+            .get(name)
+            .cloned()
+            .ok_or_else(|| format!("--{name} is required"))
+    };
+    let attempt: u32 = get("attempt")?
+        .parse()
+        .map_err(|_| "--attempt must be a non-negative integer".to_string())?;
+    let gateway = found
+        .get("gateway")
+        .cloned()
+        .or_else(|| host.env(GATEWAY_ENV))
+        .unwrap_or_else(|| GATEWAY.to_string());
+    Ok(GrantOptions {
+        repo: get("repo")?,
+        workflow_name: get("workflow-name")?,
+        run_id: get("run-id")?,
+        attempt,
+        node: get("node")?,
+        report_dir: get("report-dir")?,
+        gateway,
+    })
+}
+
+/// The grant a start was reserved against, and the starts left after it.
+struct Reservation {
+    grant: String,
+    remaining: f64,
+}
+
+/// What one grant check found: the reservation it made, or the problem that
+/// refused it.
+enum Answer {
+    Reserved(Reservation),
+    Refused(Problem),
+}
+
+/// The `grant-check` subcommand: reserves one Codex node start against the
+/// run's grant before the node runs, and refuses when it does not fit.
+fn grant_check(command: &str, args: &[String], host: &dyn Host) -> i32 {
+    // A report left by an earlier attempt must never stand for this one.
+    if let Some(dir) = found_of(args, &GRANT_FLAGS).get("report-dir") {
+        let _ = fs::remove_file(Path::new(dir).join(GRANT_CHECK_REPORT_FILE));
+    }
+    let found = match flags(args, GRANT_CHECK, &GRANT_FLAGS) {
+        Ok(found) => found,
+        Err(why) => {
+            let read = found_of(args, &GRANT_FLAGS);
+            let reported = reported_from(&read, GRANT_CHECK_REPORT_FILE);
+            return bad_input(host, command, reported.as_ref(), GRANT_CHECK, &why, true);
+        }
+    };
+    let opts = match grant_options(&found, host) {
+        Ok(opts) => opts,
+        Err(why) => {
+            let reported = reported_from(&found, GRANT_CHECK_REPORT_FILE);
+            return bad_input(host, command, reported.as_ref(), GRANT_CHECK, &why, true);
+        }
+    };
+    match reserve(&opts, host) {
+        Err(why) => bad_input(
+            host,
+            command,
+            Some(&opts.reported()),
+            GRANT_CHECK,
+            &why,
+            false,
+        ),
+        Ok(Answer::Refused(problem)) => finish(host, command, &opts.reported(), "", &[problem]),
+        Ok(Answer::Reserved(reservation)) => finish(
+            host,
+            command,
+            &opts.reported(),
+            &reserved_line(&opts, &reservation),
+            &[],
+        ),
+    }
+}
+
+/// Reserves one Codex node start against the run's grant through the
+/// gateway, which holds the lock. `Err` is unreadable input: exit 2.
+fn reserve(opts: &GrantOptions, host: &dyn Host) -> Result<Answer, String> {
+    let remotes = read_remotes(&opts.repo, host)?;
+    let Some(key) = run_key(&remotes) else {
+        return Ok(Answer::Refused(problem(
+            CHECK_REPOSITORY,
+            "repository has no remote with a host/owner/repo, so the run's gateway workflow name cannot be built".to_string(),
+        )));
+    };
+    let name = format!("{}@{key}@{}", opts.workflow_name, opts.run_id);
+    let request = format!(
+        "{{\"workflow\":{},\"client\":\"{CODEX_CLIENT}\",\"node\":{},\"attempt\":{}}}",
+        Value::String(name.clone()),
+        Value::String(opts.node.clone()),
+        opts.attempt
+    );
+    let args = vec![
+        "grant".to_string(),
+        "reserve".to_string(),
+        "--json".to_string(),
+        request,
+    ];
+    let (code, stdout, stderr) = match host.run_command(&opts.gateway, &args) {
+        Ok(answer) => answer,
+        Err(e) => {
+            return Ok(Answer::Refused(problem(
+                CHECK_GRANT_RESERVE,
+                format!(
+                    "workflow {name}: cannot reserve a start of node {}: {e}",
+                    opts.node
+                ),
+            )))
+        }
+    };
+    Ok(read_answer(code, &stdout, &stderr, &name, &opts.node))
+}
+
+/// The gateway's answer to `grant reserve`, read as the gateway writes it:
+/// `status` `ok` with a reservation, or an error code and message. Only exit
+/// 0 with `status` `ok` and a reservation passes.
+fn read_answer(code: i32, stdout: &str, stderr: &str, name: &str, node: &str) -> Answer {
+    let value: Value = match serde_json::from_str(stdout.trim()) {
+        Ok(value) => value,
+        Err(e) => {
+            return Answer::Refused(problem(
+                CHECK_GRANT_RESERVE,
+                format!(
+                    "workflow {name}: the gateway printed no JSON ({e}): {}",
+                    printed(stdout, stderr)
+                ),
+            ))
+        }
+    };
+    if code == 0 && value.get("status").and_then(Value::as_str) == Some("ok") {
+        let reservation = value.get("reservation");
+        let grant = reservation
+            .and_then(|r| r.get("grant"))
+            .and_then(Value::as_str)
+            .filter(|g| !g.is_empty());
+        let remaining = reservation
+            .and_then(|r| r.get("remaining"))
+            .and_then(Value::as_f64);
+        return match (grant, remaining) {
+            (Some(grant), Some(remaining)) => Answer::Reserved(Reservation {
+                grant: grant.to_string(),
+                remaining,
+            }),
+            _ => Answer::Refused(problem(
+                CHECK_GRANT_RESERVE,
+                format!(
+                    "workflow {name}: the gateway answered ok without a reservation (grant and remaining): {}",
+                    printed(stdout, stderr)
+                ),
+            )),
+        };
+    }
+    let message = value
+        .get("message")
+        .and_then(Value::as_str)
+        .filter(|m| !m.is_empty())
+        .map_or_else(|| printed(stdout, stderr), str::to_string);
+    let check = match value.get("code").and_then(Value::as_str) {
+        Some("no-grant") => CHECK_GRANT_LAPSED,
+        Some("cap-exceeded") => CHECK_GRANT_NO_START,
+        _ => CHECK_GRANT_RESERVE,
+    };
+    Answer::Refused(problem(
+        check,
+        format!("workflow {name}: the gateway refused the start of node {node}: {message}"),
+    ))
+}
+
+/// What the gateway printed, for a message: its stdout, else its stderr,
+/// trimmed onto one line.
+fn printed(stdout: &str, stderr: &str) -> String {
+    let text = if stdout.trim().is_empty() {
+        stderr
+    } else {
+        stdout
+    };
+    let text = text.trim();
+    if text.is_empty() {
+        "nothing".to_string()
+    } else {
+        text.replace('\n', " ")
+    }
+}
+
+/// What a pass prints: the grant the start was reserved against and the
+/// starts left.
+fn reserved_line(opts: &GrantOptions, reservation: &Reservation) -> String {
+    format!(
+        "{NAME}: {GRANT_CHECK}: ok reserved a start of grant {} for node {} ({} left)\n",
+        reservation.grant, opts.node, reservation.remaining
+    )
 }
 
 /// The repository key of a remote URL: `host/owner/repo`, lowercased, a

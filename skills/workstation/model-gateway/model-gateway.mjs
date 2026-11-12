@@ -3,7 +3,7 @@
 
 // src/model-gateway-cli/index.ts
 import { readFile as readFile6 } from "node:fs/promises";
-import { join as join9 } from "node:path";
+import { join as join10 } from "node:path";
 
 // src/adapters/clock/index.ts
 import { performance } from "node:perf_hooks";
@@ -337,13 +337,13 @@ function invalid(message) {
 // src/contexts/model-gateway/domain/workflows.ts
 var WORKFLOWS_VERSION = 1;
 var WORKFLOW_TTL_MS = 24 * 60 * 60 * 1e3;
-var WORKFLOW_NAME = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
+var WORKFLOW_NAME = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,79}$/;
 function requireWorkflowName(value, missing) {
   if (typeof value !== "string" || value === "") throw new ModelGatewayError("invalid-input", missing);
   if (!WORKFLOW_NAME.test(value)) {
     throw new ModelGatewayError(
       "invalid-input",
-      `workflow ${JSON.stringify(value)} is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters`
+      `workflow ${JSON.stringify(value)} is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters`
     );
   }
   return value;
@@ -1851,7 +1851,8 @@ var CapGuard = class {
    * What each live reservation's run directory says the run cost, by run id: a
    * run that left a result is finished, whatever its expiry says. It is read
    * before the ledger's lock is taken, so the lock is held for the decision
-   * alone; a reservation that settles meanwhile is skipped there.
+   * alone; a reservation that settles meanwhile is skipped there. A command
+   * that decides inside the ledger's lock settles with it, as `reserve` does.
    */
   async finishedCosts() {
     const costs = /* @__PURE__ */ new Map();
@@ -2978,7 +2979,10 @@ function round2(value, places) {
 }
 
 // src/contexts/model-gateway/application/grants.ts
-import { randomBytes as randomBytes2 } from "node:crypto";
+import { createHash, randomBytes as randomBytes2 } from "node:crypto";
+import { join as join5 } from "node:path";
+var NODE_START_ESTIMATE_USD = 1;
+var NODE_START_TIME_LIMIT_S = 1;
 var GrantWriteCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -3063,6 +3067,108 @@ var GrantWriteCommand = class {
     }
   }
 };
+var GrantReserveCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.caps = new CapGuard(deps);
+  }
+  deps;
+  caps;
+  async run(raw) {
+    const input = readReserveInput(raw);
+    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
+    const client = config.clients[input.client];
+    if (client === void 0) throw new ModelGatewayError("unknown-model", `the gateway knows no client ${input.client}`);
+    if (client.cost_class !== "metered-employer") {
+      throw new ModelGatewayError(
+        "invalid-input",
+        `${input.client} is ${client.cost_class}: a grant is for a metered-employer client, which is the one that spends someone else's money`
+      );
+    }
+    const now = this.deps.clock.now();
+    const grants = await this.deps.grants.read();
+    const records = await this.deps.workflows.read();
+    const record = records.find((candidate) => candidate.name === input.workflow);
+    const costs = await this.caps.finishedCosts();
+    const runId2 = startId(input);
+    const reservation = reservationRecord({
+      client: input.client,
+      cost_class: "metered-employer",
+      estimate_usd: NODE_START_ESTIMATE_USD,
+      model: "node-start",
+      reserved_at: now,
+      // A start has no run directory of its own, and a path that holds no result is one no settle reads a cost from.
+      run_dir: join5(stateDir(this.deps.env), "node-starts", runId2),
+      run_id: runId2,
+      time_limit_s: NODE_START_TIME_LIMIT_S,
+      workflow: input.workflow
+    });
+    return await this.deps.ledger.update((entries) => {
+      const settled = settleExpired(entries, now, costs);
+      const all = [...entries, ...settled];
+      const repeated = all.some((entry) => (isReservation(entry) || isSettled(entry)) && entry.run_id === runId2);
+      const grant = startGrant(grants, input, all, record, now, repeated);
+      const room2 = grantRoom(all, grant);
+      if (repeated) {
+        return { append: settled, result: startResult(grant, input, runId2, reservation.reserved_at, room2, true) };
+      }
+      const start = { limit_usd: grant.cap_usd, reserved_usd: room2.reserved_usd, spent_usd: room2.spent_usd };
+      if (!fits(start, NODE_START_ESTIMATE_USD)) {
+        throw new ModelGatewayError(
+          "cap-exceeded",
+          `grant ${grant.id} allows ${String(grant.cap_usd)} Codex node starts for workflow ${input.workflow}: ${String(room2.spent_usd)} started, ${String(room2.reserved_usd)} reserved, no start left for node ${input.node}`
+        );
+      }
+      const held = grantRoom([...all, reservation], grant);
+      return { append: [...settled, reservation], result: startResult(grant, input, runId2, reservation.reserved_at, held, false) };
+    });
+  }
+};
+function startResult(grant, input, runId2, reservedAt, room2, repeated) {
+  return {
+    reservation: {
+      attempt: input.attempt,
+      cap: grant.cap_usd,
+      client: input.client,
+      grant: grant.id,
+      node: input.node,
+      remaining: room2.remaining_usd,
+      repeated,
+      reserved: room2.reserved_usd,
+      reserved_at: reservedAt,
+      run_id: runId2,
+      spent: room2.spent_usd,
+      workflow: input.workflow
+    },
+    status: "ok"
+  };
+}
+function startId(input) {
+  const key = JSON.stringify([input.workflow, input.client, input.node, input.attempt]);
+  return `start-${createHash("sha256").update(key).digest("hex").slice(0, 16)}`;
+}
+function startGrant(grants, input, entries, record, now, repeated) {
+  const newest = newestGrant(grants, input.workflow, input.client);
+  if (newest === void 0) throw new ModelGatewayError("no-grant", noGrantMessage(input.workflow, input.client));
+  const lapse = grantLapse(newest, grantRoom(entries, newest), record, now);
+  if (lapse === void 0 || repeated && lapse === "cap-spent") return newest;
+  const live = liveGrant(grants, input.workflow, input.client, entries, record, now);
+  if (live === void 0) {
+    throw new ModelGatewayError(
+      "no-grant",
+      `grant ${newest.id} for workflow ${input.workflow} has lapsed (${lapse}): ask the owner for a new grant`
+    );
+  }
+  return live;
+}
+function newestGrant(grants, workflow, client) {
+  let newest;
+  for (const grant of grants) {
+    if (grant.workflow !== workflow || grant.client !== client) continue;
+    if (newest === void 0 || Date.parse(grant.written_at) >= Date.parse(newest.written_at)) newest = grant;
+  }
+  return newest;
+}
 var GrantListCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -3139,6 +3245,23 @@ function requireText(value, name) {
     throw new ModelGatewayError("invalid-input", `a grant must name its ${name}`);
   }
   return value;
+}
+function readReserveInput(raw) {
+  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
+  const node = raw.node;
+  if (typeof node !== "string" || node.trim() === "") {
+    throw new ModelGatewayError("invalid-input", "a node start must name its node");
+  }
+  const attempt = raw.attempt ?? 1;
+  if (typeof attempt !== "number" || !Number.isInteger(attempt) || attempt < 0) {
+    throw new ModelGatewayError("invalid-input", "attempt must be a whole number, 0 or more");
+  }
+  return {
+    attempt,
+    client: requireText(raw.client, "client"),
+    node,
+    workflow: requireWorkflowName(raw.workflow, "a node start must name its workflow")
+  };
 }
 function readListInput(raw) {
   if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
@@ -3285,10 +3408,10 @@ function readModelsInput(raw) {
 
 // src/contexts/model-gateway/application/run.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { join as join6, sep } from "node:path";
+import { join as join7, sep } from "node:path";
 
 // src/contexts/model-gateway/application/escalation.ts
-import { dirname, join as join5 } from "node:path";
+import { dirname, join as join6 } from "node:path";
 
 // src/contexts/model-gateway/application/usage.ts
 var UsageCommand = class {
@@ -3468,7 +3591,7 @@ ${run.summary}`.slice(0, summaryMax) };
    */
   async failureDetail(run) {
     const check = run.reason?.startsWith("check-") === true ? run.check?.output_path : void 0;
-    for (const path of [check, join5(dirname(run.output_path), "stderr.txt"), run.output_path]) {
+    for (const path of [check, join6(dirname(run.output_path), "stderr.txt"), run.output_path]) {
       const text = path === void 0 ? "" : await this.readQuietly(path);
       if (text.trim() !== "") return text;
     }
@@ -3620,7 +3743,7 @@ var RunCommand = class {
       planWindows(input.client, client.plan_limits ?? [], runRecords(await this.deps.ledger.read()), this.deps.clock.now(), config.settings.plan_warning_ratio)
     );
     const recorded = warnings.length === 0 ? released : { ...released, warnings };
-    await this.deps.files.writeText(join6(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
+    await this.deps.files.writeText(join7(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
 `);
     return recorded;
   }
@@ -3681,15 +3804,15 @@ var RunCommand = class {
     const { config, entry, input, runDir } = run;
     const codex2 = await this.codexWorker(run);
     const paths = {
-      exportDir: join6(runDir, "vibe"),
-      promptPath: join6(runDir, "prompt.md"),
+      exportDir: join7(runDir, "vibe"),
+      promptPath: join7(runDir, "prompt.md"),
       runDir,
       workDir: run.workDir,
       ...codex2.gitWritable === void 0 ? {} : { gitWritable: codex2.gitWritable }
     };
     const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode, codex2.worker);
     await this.deps.files.writeText(paths.promptPath, prompt);
-    await this.deps.files.writeText(join6(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
+    await this.deps.files.writeText(join7(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
 `);
     const launched = await this.launch(run.binary, input, paths, prompt);
     const output = launched.output;
@@ -3698,9 +3821,9 @@ var RunCommand = class {
     const reason = finished === void 0 ? delegateReason : finished.reason;
     const unavailableUntil = delegateReason === "rate-limited" || delegateReason === "model-unavailable" ? namedReset(launched.result, output.error, new Date(run.at.getTime() + (this.deps.clock.monotonicMs() - run.startedMs))) : void 0;
     const cost = priceRun(output.charged, output.tokens, entry?.prices);
-    const outputPath = join6(runDir, "output.json");
+    const outputPath = join7(runDir, "output.json");
     await this.deps.files.writeText(outputPath, launched.result.stdout);
-    if (launched.result.stderr !== "") await this.deps.files.writeText(join6(runDir, "stderr.txt"), launched.result.stderr);
+    if (launched.result.stderr !== "") await this.deps.files.writeText(join7(runDir, "stderr.txt"), launched.result.stderr);
     const result2 = {
       client: input.client,
       cost_usd: cost,
@@ -3746,14 +3869,14 @@ var RunCommand = class {
       const gitDir = await this.deps.git.gitDir(workDir);
       const common = await this.commonDir(repo);
       if (gitDir === common) return void 0;
-      return [gitDir, join6(common, "objects"), join6(common, "refs"), join6(common, "logs")];
+      return [gitDir, join7(common, "objects"), join7(common, "refs"), join7(common, "logs")];
     } catch {
       return void 0;
     }
   }
   /** The brief the worktree keeps for a Codex writing run, cut at the limit; undefined when it keeps none. */
   async codexBrief(workDir) {
-    const path = join6(workDir, CODEX_BRIEF_FILE);
+    const path = join7(workDir, CODEX_BRIEF_FILE);
     try {
       if (!await this.deps.files.exists(path)) return void 0;
       return (await this.deps.files.readText(path)).slice(0, CODEX_BRIEF_MAX_CHARS);
@@ -3845,7 +3968,7 @@ var RunCommand = class {
       throw new ModelGatewayError("worktree-failed", `${repo}: cannot list the worktrees to watch: ${messageOf3(error)}`);
     }
     const common = await this.commonDir(repo);
-    const kept = join6(common, "model-gateway", "worktrees");
+    const kept = join7(common, "model-gateway", "worktrees");
     const watched = [];
     for (const path of worktrees) {
       if (path === kept || path.startsWith(`${kept}${sep}`)) continue;
@@ -3902,7 +4025,7 @@ var RunCommand = class {
     } catch (error) {
       result2 = { exitCode: 127, stderr: messageOf3(error), stdout: "" };
     }
-    const outputPath = join6(run.runDir, "check-output.txt");
+    const outputPath = join7(run.runDir, "check-output.txt");
     const report = { command: input.check, exit_code: result2.exitCode, output_path: outputPath };
     try {
       await this.deps.files.writeText(outputPath, `${result2.stdout}${result2.stderr}`);
@@ -4038,8 +4161,8 @@ var RunCommand = class {
    * directory otherwise.
    */
   async runDir(root, id) {
-    if (root === void 0) return join6(runsDir(this.deps.env), id);
-    return join6(await this.commonDir(root), "model-gateway", "runs", id);
+    if (root === void 0) return join7(runsDir(this.deps.env), id);
+    return join7(await this.commonDir(root), "model-gateway", "runs", id);
   }
   /** The repository's common directory, which every gateway directory of the repository sits in. */
   async commonDir(root) {
@@ -4058,7 +4181,7 @@ var RunCommand = class {
    * branch are removed again, and the list's error is the run's.
    */
   async writeWorkplace(input, root, id, at) {
-    const dir = join6(await this.commonDir(root), "model-gateway", "worktrees", id);
+    const dir = join7(await this.commonDir(root), "model-gateway", "worktrees", id);
     const branch = `gateway/${id}`;
     try {
       await this.deps.git.createWorktree(root, dir, branch, input.base);
@@ -4257,6 +4380,7 @@ function createModelGatewayCommands(deps) {
   return {
     batch: new BatchCommand(deps, run),
     grantList: new GrantListCommand(deps),
+    grantReserve: new GrantReserveCommand(deps),
     grantWrite: new GrantWriteCommand(deps),
     models: new ModelsCommand(deps),
     run,
@@ -4269,10 +4393,10 @@ function createModelGatewayCommands(deps) {
 }
 
 // src/contexts/model-gateway/adapters/fs/index.ts
-import { createHash, randomBytes as randomBytes4 } from "node:crypto";
+import { createHash as createHash2, randomBytes as randomBytes4 } from "node:crypto";
 import { access, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname as dirname2, join as join7 } from "node:path";
+import { dirname as dirname2, join as join8 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 async function writeFileAtomic(path, content, mode) {
   const temp = `${path}.${randomBytes4(6).toString("hex")}.tmp`;
@@ -4306,7 +4430,7 @@ var NodeModelGatewayFiles = class {
     await mkdir(path, { recursive: true });
   }
   async tempDir(prefix) {
-    return mkdtemp(join7(tmpdir(), prefix));
+    return mkdtemp(join8(tmpdir(), prefix));
   }
   async remove(path) {
     await rm(path, { force: true, recursive: true });
@@ -4326,7 +4450,7 @@ var NodeModelGatewayFiles = class {
         ctimeMs: of.ctimeMs,
         ino: of.ino,
         realpath: real,
-        sha256: createHash("sha256").update(await readFile(real)).digest("hex"),
+        sha256: createHash2("sha256").update(await readFile(real)).digest("hex"),
         size: of.size
       };
     } catch {
@@ -5073,7 +5197,7 @@ var NodeModelGatewayKept = class {
 // src/contexts/model-gateway/adapters/process/index.ts
 import { constants } from "node:fs";
 import { access as access2 } from "node:fs/promises";
-import { delimiter, join as join8 } from "node:path";
+import { delimiter, join as join9 } from "node:path";
 
 // src/adapters/process/node-process.ts
 import { spawn } from "node:child_process";
@@ -5166,7 +5290,7 @@ var NodeModelGatewayProcess = class {
   async resolve(binary) {
     for (const folder of this.path.split(delimiter)) {
       if (folder === "") continue;
-      const candidate = join8(folder, binary);
+      const candidate = join9(folder, binary);
       try {
         await access2(candidate, constants.X_OK);
         return candidate;
@@ -5219,6 +5343,8 @@ var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/t
        model-gateway grant write --json '{"workflow": "spec-293", "client": "codex",
                                  "cap_usd": 5, "question": "may I spend $5 of nedap money?",
                                  "answer": "yes, up to five"}'
+       model-gateway grant reserve --json '{"workflow": "spec-293", "client": "codex",
+                                 "node": "codex-1"}'
        model-gateway grant list --json '{}'
        model-gateway workflow start --json '{"name": "spec-293"}'
        model-gateway workflow end --json '{"name": "spec-293"}'
@@ -5353,11 +5479,27 @@ workflow start, workflow end and workflow list keep a workflow's life: start
 and end take "name", and list takes nothing. A workflow nobody ends within 24
 hours counts as ended, and a run may not join one that ended.
 
+grant reserve holds one Codex node start against a workflow's grant, before the
+node starts: a Gold Band run names its workflow, its repository and its run id,
+and its grant's "cap_usd" counts node starts, one per reservation, so the
+reservation is what lets the node start. It takes "workflow", "client" (a
+metered-employer one), "node" and "attempt" (default 1; a node and attempt that
+ask again hold the one start), and prints the reservation with the grant's
+cap, what it has spent and reserved and what it has left, all in node starts.
+The decision and the reservation line are one locked ledger update, so two
+parallel nodes cannot both pass on the grant's last start; the reservation
+holds for about a minute and then settles at its full estimate, so a start is
+never given back. It refuses with "no-grant" when no grant covers the workflow
+and client, or when the newest one lapsed (naming the grant and why), and with
+"cap-exceeded" when no start is left. The workflow need not have a record: a
+Gold Band run is not necessarily a workflow this machine started.
+
 An error prints "status": "error" with its "code" and exits 1.
 `;
 var COMMANDS = {
   batch: "batch",
   "grant list": "grantList",
+  "grant reserve": "grantReserve",
   "grant write": "grantWrite",
   models: "models",
   run: "run",
@@ -5367,7 +5509,7 @@ var COMMANDS = {
   "workflow start": "workflowStart",
   "worktrees clean": "worktreesClean"
 };
-var COMMAND_NAMES = "models, run, batch, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean";
+var COMMAND_NAMES = "models, run, batch, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean";
 async function runModelGatewayCli(argv, runtime) {
   const [first] = argv;
   if (first === "--help" || first === "-h") return { exitCode: 0, stderr: "", stdout: MODEL_GATEWAY_USAGE };
@@ -5441,7 +5583,7 @@ function failure(code, message, name, problems) {
 function messageOf8(error) {
   return error instanceof Error ? error.message : String(error);
 }
-var DEFAULT_ROUTING_PATH = join9(import.meta.dirname, "..", "critique", "routing.json");
+var DEFAULT_ROUTING_PATH = join10(import.meta.dirname, "..", "critique", "routing.json");
 function defaultModelGatewayRuntime(options = {}) {
   const { routingPath = DEFAULT_ROUTING_PATH, ...overrides } = options;
   const env = overrides.env ?? new ProcessEnvAdapter();
@@ -5452,7 +5594,7 @@ function defaultModelGatewayRuntime(options = {}) {
   return {
     commands: createModelGatewayCommands({
       clock,
-      defaultsPath: join9(import.meta.dirname, "defaults.json"),
+      defaultsPath: join10(import.meta.dirname, "defaults.json"),
       env,
       files,
       git,

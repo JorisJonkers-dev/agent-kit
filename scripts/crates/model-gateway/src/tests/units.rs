@@ -357,7 +357,7 @@ fn a_workflow_name_must_start_with_a_letter_or_digit() {
     let runtime = sandbox_runtime(&sandbox, FIXED_NOW);
     let result = run_cli(&argv(&["workflow", "start", "--json", r#"{"name": "-bad"}"#]), &runtime);
     assert_eq!(result.exit_code, 1);
-    let message = r#"workflow \"-bad\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters"#;
+    let message = r#"workflow \"-bad\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters"#;
     assert_eq!(result.stdout, format!("{{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"{message}\"}}\n"));
     assert_eq!(result.stderr, format!("model-gateway workflow start: {}\n", message.replace("\\\"", "\"")));
 }

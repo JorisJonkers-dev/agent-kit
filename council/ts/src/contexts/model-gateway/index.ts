@@ -15,10 +15,14 @@ export { createModelGatewayCommands, type ModelGatewayCommands } from './applica
 export {
   GrantGuard,
   GrantListCommand,
+  GrantReserveCommand,
   GrantWriteCommand,
   type GrantListResult,
+  type GrantReserveInput,
+  type GrantReserveResult,
   type GrantWriteInput,
   type GrantWriteResult,
+  type NodeStartReservation,
 } from './application/grants.js'
 export { grantsPath, ledgerPath, runsDir, stateDir, workflowsPath } from './application/locations.js'
 export { readPlanLimit, type PlanLimitReading } from './application/plan.js'

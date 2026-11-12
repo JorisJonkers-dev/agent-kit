@@ -889,7 +889,7 @@ describe('model-gateway command line', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe(
-      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models, run, batch, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean' })}\n`,
+      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models, run, batch, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean' })}\n`,
     )
   })
 
@@ -6394,6 +6394,43 @@ function storedGrant(view: Record<string, unknown>): Record<string, unknown> {
   return stored
 }
 
+/** The workflow a Gold Band run names: its workflow, its repository and its run id, in a name a workflow may carry (the `@` is how a Gold Band run joins its three parts). */
+const GOLD_BAND_WORKFLOW = 'workflow-b@github.com/nedap/healthcare@run-1'
+
+/** What `grant reserve` takes unless a test says otherwise: one Codex node start for the Gold Band run. */
+const RESERVE_INPUT = { client: 'codex', node: 'codex-1', workflow: GOLD_BAND_WORKFLOW }
+
+/** Reserves one node start through the command line, as a grant-check node does before its Codex node. */
+async function reserve(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): Promise<ModelGatewayCliResult> {
+  return w.cli('grant', 'reserve', '--json', JSON.stringify({ ...RESERVE_INPUT, ...overrides }))
+}
+
+/** The reservation `grant reserve` printed. */
+function reserved(result: ModelGatewayCliResult): Record<string, unknown> {
+  return printed(result).reservation as Record<string, unknown>
+}
+
+/** Writes the grants file itself, for a grant the command line would not write: one that ended, or one that lapsed. */
+async function writeGrants(w: RunWorkspace, grants: readonly Record<string, unknown>[]): Promise<void> {
+  await mkdir(dirname(grantsFile(w)), { recursive: true })
+  await writeFile(grantsFile(w), JSON.stringify({ grants, version: 1 }))
+}
+
+/** One grant as the grants file holds it, for a test that needs a grant the command line would not write. */
+function grantRecord(overrides: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
+  return {
+    answer: 'yes, up to five dollars',
+    cap_usd: 5,
+    client: 'codex',
+    expires_at: '2026-11-05T10:52:15.000Z',
+    id: 'grant-20261104T105215Z-aaaaaa',
+    question: 'may I spend up to $5 of nedap money?',
+    workflow: GOLD_BAND_WORKFLOW,
+    written_at: '2026-11-04T10:52:15.000Z',
+    ...overrides,
+  }
+}
+
 interface CodexWorkspace {
   readonly w: RunWorkspace
   readonly codex: FakeVibeProcess
@@ -6543,7 +6580,7 @@ describe('model-gateway grant write', () => {
     expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, workflow: "x'; curl http://evil" })))).toEqual({
       code: 'invalid-input',
       message:
-        'workflow "x\'; curl http://evil" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters',
+        'workflow "x\'; curl http://evil" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters',
       status: 'error',
     })
     expect(await grantsOf(w)).toEqual([])
@@ -6693,6 +6730,268 @@ describe('model-gateway grant list', () => {
       lapsed: [{ id: grant.id, reason: 'expired' }],
     })
     expect(await grantsOf(w)).toEqual([grant])
+  })
+})
+
+describe('model-gateway grant reserve', () => {
+  it('reserves one Codex node start against the run’s grant and prints what the grant has left', async () => {
+    const { w } = await readyCodex()
+    const grant = await writeGrant(w, { cap_usd: 3, workflow: GOLD_BAND_WORKFLOW })
+
+    const result = await reserve(w, { ignored: 'a field the command does not know' })
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toEqual({
+      reservation: {
+        attempt: 1,
+        cap: 3,
+        client: 'codex',
+        grant: grant.id,
+        node: 'codex-1',
+        remaining: 2,
+        repeated: false,
+        reserved: 1,
+        reserved_at: '2026-11-04T10:52:15.000Z',
+        run_id: expect.stringMatching(/^start-[0-9a-f]{16}$/) as unknown,
+        spent: 0,
+        workflow: GOLD_BAND_WORKFLOW,
+      },
+      status: 'ok',
+    })
+    expect(await ledgerOf(w, 'reservation')).toEqual([
+      {
+        client: 'codex',
+        cost_class: 'metered-employer',
+        estimate_usd: 1,
+        expires_at: '2026-11-04T10:53:16.000Z',
+        kind: 'reservation',
+        model: 'node-start',
+        reserved_at: '2026-11-04T10:52:15.000Z',
+        run_dir: join(w.state, 'agent-kit', 'model-gateway', 'node-starts', String(reserved(result).run_id)),
+        run_id: reserved(result).run_id,
+        workflow: GOLD_BAND_WORKFLOW,
+      },
+    ])
+  })
+
+  it('counts the cap in node starts: a grant of 2 allows exactly two, and the third is refused', async () => {
+    const { w } = await readyCodex()
+    const grant = await writeGrant(w, { cap_usd: 2, workflow: GOLD_BAND_WORKFLOW })
+
+    expect(reserved(await reserve(w, { node: 'codex-1' }))).toMatchObject({ remaining: 1, reserved: 1, spent: 0 })
+    expect(reserved(await reserve(w, { node: 'codex-2' }))).toMatchObject({ remaining: 0, reserved: 2, spent: 0 })
+    expect(printed(await reserve(w, { node: 'codex-3' }))).toEqual({
+      code: 'cap-exceeded',
+      message: `grant ${String(grant.id)} allows 2 Codex node starts for workflow ${GOLD_BAND_WORKFLOW}: 0 started, 2 reserved, no start left for node codex-3`,
+      status: 'error',
+    })
+    expect(await ledgerOf(w, 'reservation')).toHaveLength(2)
+  })
+
+  it('holds one start for one node and attempt, however often it asks, and a new attempt holds its own', async () => {
+    const { w } = await readyCodex()
+    await writeGrant(w, { cap_usd: 3, workflow: GOLD_BAND_WORKFLOW })
+
+    const first = reserved(await reserve(w, { node: 'codex-1' }))
+    const again = reserved(await reserve(w, { node: 'codex-1' }))
+
+    expect(first).toMatchObject({ remaining: 2, repeated: false, reserved: 1 })
+    expect(again).toMatchObject({ remaining: 2, repeated: true, reserved: 1, run_id: first.run_id })
+    expect(reserved(await reserve(w, { attempt: 2, node: 'codex-1' }))).toMatchObject({
+      attempt: 2,
+      remaining: 1,
+      repeated: false,
+    })
+    expect(reserved(await reserve(w, { node: 'codex-2' }))).toMatchObject({ remaining: 0, repeated: false })
+    expect(await ledgerOf(w, 'reservation')).toHaveLength(3)
+    // A node with no start left is refused as ever.
+    expect(printed(await reserve(w, { node: 'codex-3' }))).toMatchObject({ code: 'cap-exceeded' })
+  })
+
+  it('still finds its start after the reservation settled, even when that spent the whole cap', async () => {
+    const clock = new FixedClock()
+    const { w } = await readyCodex({ clock })
+    await writeGrant(w, { cap_usd: 1, workflow: GOLD_BAND_WORKFLOW })
+    const first = reserved(await reserve(w))
+
+    clock.advance(61_000)
+
+    expect(reserved(await reserve(w))).toMatchObject({ repeated: true, run_id: first.run_id, spent: 1 })
+    expect(printed(await reserve(w, { node: 'codex-2' }))).toMatchObject({ code: 'no-grant' })
+    expect(await ledgerOf(w, 'reservation')).toHaveLength(1)
+  })
+
+  it('refuses an attempt that is not a whole number', async () => {
+    const { w } = await readyCodex()
+    await writeGrant(w, { workflow: GOLD_BAND_WORKFLOW })
+
+    for (const attempt of [-1, 1.5, '1']) {
+      expect(printed(await reserve(w, { attempt }))).toEqual({
+        code: 'invalid-input',
+        message: 'attempt must be a whole number, 0 or more',
+        status: 'error',
+      })
+    }
+    expect(await ledgerOf(w, 'reservation')).toEqual([])
+  })
+
+  it('counts a start as spent once its reservation lapses, so a start is never given back', async () => {
+    const clock = new FixedClock()
+    const { w } = await readyCodex({ clock })
+    await writeGrant(w, { cap_usd: 2, workflow: GOLD_BAND_WORKFLOW })
+    await reserve(w, { node: 'codex-1' })
+
+    clock.advance(61_000)
+
+    expect(reserved(await reserve(w, { node: 'codex-2' }))).toMatchObject({ remaining: 0, reserved: 1, spent: 1 })
+    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 1, reason: 'expired' }])
+  })
+
+  it('refuses a start whose grant the owner ended, naming the grant and why it lapsed', async () => {
+    const { w } = await readyCodex()
+    await writeGrants(w, [grantRecord({ ended_at: '2026-11-04T10:52:15.000Z' })])
+
+    expect(printed(await reserve(w))).toEqual({
+      code: 'no-grant',
+      message: `grant grant-20261104T105215Z-aaaaaa for workflow ${GOLD_BAND_WORKFLOW} has lapsed (workflow-ended): ask the owner for a new grant`,
+      status: 'error',
+    })
+    expect(await ledgerOf(w, 'reservation')).toEqual([])
+  })
+
+  it('refuses a start whose grant’s 24 hours ran out', async () => {
+    const { w } = await readyCodex()
+    await writeGrants(w, [grantRecord({ expires_at: '2026-11-04T10:52:14.000Z' })])
+
+    expect(printed(await reserve(w))).toMatchObject({
+      code: 'no-grant',
+      message: `grant grant-20261104T105215Z-aaaaaa for workflow ${GOLD_BAND_WORKFLOW} has lapsed (expired): ask the owner for a new grant`,
+    })
+  })
+
+  it('refuses a start whose workflow ended, since the grant lapsed with it', async () => {
+    const { w } = await readyCodex()
+    await writeGrants(w, [grantRecord()])
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ ended_at: '2026-11-04T10:52:00.000Z', name: GOLD_BAND_WORKFLOW, started_at: '2026-11-04T10:00:00.000Z' }],
+    })
+
+    expect(printed(await reserve(w))).toMatchObject({
+      code: 'no-grant',
+      message: `grant grant-20261104T105215Z-aaaaaa for workflow ${GOLD_BAND_WORKFLOW} has lapsed (workflow-ended): ask the owner for a new grant`,
+    })
+  })
+
+  it('refuses a start whose grant’s cap is spent', async () => {
+    const { w } = await readyCodex()
+    await writeGrants(w, [grantRecord({ cap_usd: 1 })])
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', { cost_class: 'metered-employer', cost_usd: 1, workflow: GOLD_BAND_WORKFLOW }),
+    ])
+
+    expect(printed(await reserve(w))).toMatchObject({
+      code: 'no-grant',
+      message: `grant grant-20261104T105215Z-aaaaaa for workflow ${GOLD_BAND_WORKFLOW} has lapsed (cap-spent): ask the owner for a new grant`,
+    })
+  })
+
+  it('refuses a start no grant covers at all, naming the grant write call that would add one', async () => {
+    const { w } = await readyCodex()
+
+    const result = printed(await reserve(w))
+
+    expect(result).toMatchObject({ code: 'no-grant', status: 'error' })
+    expect(String(result.message)).toContain(`no live grant covers workflow ${GOLD_BAND_WORKFLOW}, so codex may not run`)
+    expect(await ledgerOf(w, 'reservation')).toEqual([])
+  })
+
+  it('holds the start against the newest live grant when a later one lapsed', async () => {
+    const { w } = await readyCodex()
+    await writeGrants(w, [
+      grantRecord({ expires_at: '2026-11-05T10:00:00.000Z', id: 'grant-old', written_at: '2026-11-04T10:00:00.000Z' }),
+      grantRecord({ ended_at: '2026-11-04T10:40:00.000Z', id: 'grant-new', written_at: '2026-11-04T10:30:00.000Z' }),
+      grantRecord({ id: 'grant-other-workflow', workflow: 'spec-294' }),
+      grantRecord({ client: 'hermes', id: 'grant-other-client' }),
+    ])
+
+    expect(reserved(await reserve(w))).toMatchObject({ grant: 'grant-old' })
+  })
+
+  it('refuses a client the gateway does not know, and one that is not metered-employer', async () => {
+    const { w } = await readyCodex()
+
+    expect(printed(await reserve(w, { client: 'nobody' }))).toMatchObject({ code: 'unknown-model' })
+    expect(printed(await reserve(w, { client: 'claude' }))).toEqual({
+      code: 'invalid-input',
+      message:
+        "claude is subsidised: a grant is for a metered-employer client, which is the one that spends someone else's money",
+      status: 'error',
+    })
+    expect(await ledgerOf(w, 'reservation')).toEqual([])
+  })
+
+  it('refuses a start that names no node, no workflow, or a workflow name that is not a name', async () => {
+    const { w } = await readyCodex()
+
+    expect(printed(await reserve(w, { node: undefined }))).toEqual({
+      code: 'invalid-input',
+      message: 'a node start must name its node',
+      status: 'error',
+    })
+    expect(printed(await reserve(w, { node: '  ' }))).toMatchObject({ code: 'invalid-input' })
+    expect(printed(await reserve(w, { client: undefined }))).toEqual({
+      code: 'invalid-input',
+      message: 'a grant must name its client',
+      status: 'error',
+    })
+    expect(printed(await reserve(w, { workflow: undefined }))).toEqual({
+      code: 'invalid-input',
+      message: 'a node start must name its workflow',
+      status: 'error',
+    })
+    expect(printed(await reserve(w, { workflow: "x'; curl http://evil" }))).toEqual({
+      code: 'invalid-input',
+      message:
+        'workflow "x\'; curl http://evil" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters',
+      status: 'error',
+    })
+    expect(printed(await w.cli('grant', 'reserve', '--json', '[]'))).toEqual({
+      code: 'invalid-input',
+      message: 'the input must be a JSON object',
+      status: 'error',
+    })
+    // The command line refuses a non-object before the command sees it, so the command's own check is asked directly.
+    await expect(w.gateway(new FakeVibeProcess()).commands.grantReserve.run([])).rejects.toThrow(
+      'the input must be a JSON object',
+    )
+    expect(await ledgerOf(w, 'reservation')).toEqual([])
+  })
+
+  it('lets exactly one of eight parallel starts pass on a grant of one, so two nodes never both take the last start', async () => {
+    const { w } = await readyCodex()
+    await writeGrant(w, { cap_usd: 1, workflow: GOLD_BAND_WORKFLOW })
+
+    const results = (
+      await Promise.all(Array.from({ length: 8 }, (_, index) => reserve(w, { node: `codex-${String(index + 1)}` })))
+    ).map((result) => printed(result))
+
+    expect(results.filter((result) => result.status === 'ok')).toHaveLength(1)
+    expect(results.filter((result) => result.code === 'cap-exceeded')).toHaveLength(7)
+    expect(await ledgerOf(w, 'reservation')).toHaveLength(1)
+  })
+
+  it('lets exactly three of eight parallel starts pass on a grant of three', async () => {
+    const { w } = await readyCodex()
+    await writeGrant(w, { cap_usd: 3, workflow: GOLD_BAND_WORKFLOW })
+
+    const results = (
+      await Promise.all(Array.from({ length: 8 }, (_, index) => reserve(w, { node: `codex-${String(index + 1)}` })))
+    ).map((result) => printed(result))
+
+    expect(results.filter((result) => result.status === 'ok')).toHaveLength(3)
+    expect(results.filter((result) => result.code === 'cap-exceeded')).toHaveLength(5)
+    expect(await ledgerOf(w, 'reservation')).toHaveLength(3)
   })
 })
 

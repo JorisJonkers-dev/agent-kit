@@ -188,7 +188,7 @@ fall-through below), `family_binding` (default `true`; see below),
 changes nothing else: a run marked headless is refused and launched exactly
 like any other).
 `workflow` is required (`code: "invalid-input"`), and is a name: a letter or
-digit, then letters, digits and `. _ : / -` only, at most 80 characters. Every
+digit, then letters, digits and `. _ : / @ -` only, at most 80 characters. Every
 command that takes a workflow name holds it to that rule, because the name
 reaches the shell command the gateway suggests. A run can go to `client:
 "vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code), `"opencode"`,
@@ -750,6 +750,22 @@ The write is the last thing that can fail: when the ledger cannot be read
 afterwards, the result is still `ok`, with the grant it wrote, `"room": null`
 and a `warning` saying what it could not read. Never ask the owner again
 because of that warning — the grant stands.
+
+`grant reserve` is the Gold Band work instance's per-node grant check. A Gold
+Band run counts as one workflow, named `<gold band workflow>@<repository>@<run
+id>`, and its grant's `cap_usd` counts Codex node starts (one unit per start),
+because the gateway never sees Gold Band spend. Before every Codex node,
+`grant reserve --json '{"workflow":"<name>","client":"codex","node":"<node id>","attempt":1}'`
+holds one start (a node and attempt that ask again hold the one start,
+`"repeated": true`) against the grant and prints `{"status":"ok","reservation":{...}}`
+with `cap`, `spent`, `reserved` and `remaining` in starts. The decision and the
+reservation line are one locked ledger update, so two parallel nodes cannot both
+take the last start. A reservation holds for about a minute and then settles at
+its full estimate: a start is never given back. It refuses `cap-exceeded` when
+no start is left, and `no-grant` when no grant covers the workflow or the newest
+one lapsed (its message names the grant and why: `workflow-ended`, `expired` or
+`cap-spent`). The workflow need not have a record. The shim that calls it is
+`gold-band-run-start grant-check`.
 
 `grant list` prints `{"status":"ok","grants":[...],"lapsed":[...]}`. Each live
 grant carries its `cap_usd`, `spent_usd` (what its workflow has spent on that

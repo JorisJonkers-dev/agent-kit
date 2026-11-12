@@ -433,6 +433,23 @@ fn inspect_makes_an_open_questions_schema_the_questions_role() {
 }
 
 #[test]
+fn inspect_makes_a_grant_agent_the_grant_role() {
+    let text = r#"{"id":"grants","nodes":[
+        {"provider":"grant-build","output":{"schema":{"open_questions":[]}}},
+        {"provider":"grant-"},
+        {"provider":"grant"},
+        {"provider":"grants-build"}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    // The prefix wins over the schema, and only a non-empty name after it is a
+    // grant-check: an agent id that merely starts with `grant` keeps its role.
+    assert_eq!(info.roles["grant-build"], Role::Grant("build".to_string()));
+    assert_eq!(info.roles["grant-"], Role::Findings);
+    assert_eq!(info.roles["grant"], Role::Findings);
+    assert_eq!(info.roles["grants-build"], Role::Findings);
+}
+
+#[test]
 fn walk_follows_success_edges_to_the_end() {
     let info = graph(
         vec![
@@ -556,6 +573,56 @@ fn walk_fails_a_copier_under_its_gate_failure() {
     );
     assert_eq!(walk(&info, "copy-build", "gate-fail=build").exit, 1);
     assert_eq!(walk(&info, "copy-build", "gate-fail=lint").exit, 0);
+}
+
+/// The graph the grant-check tests walk: a grant-check node that runs before a
+/// Codex node, with a failure edge to the manual check the owner reads.
+fn grant_graph() -> WorkflowInfo {
+    graph(
+        vec![
+            node("grant-check", Some("grant-build"), false),
+            node("codex", Some("vibe"), false),
+            node("check", None, true),
+        ],
+        vec![
+            edge("grant-check", "codex", "success"),
+            edge("grant-check", "check", "failure"),
+            edge("codex", "$end", "success"),
+            edge("check", "$end", "success"),
+        ],
+        &[
+            ("grant-build", Role::Grant("build".to_string())),
+            ("vibe", Role::Answer),
+        ],
+    )
+}
+
+#[test]
+fn walk_pauses_at_the_manual_check_a_lapsed_grant_routes_to() {
+    let info = grant_graph();
+    // A grant that holds lets the run through to the Codex node and the end.
+    assert_eq!(
+        walk(&info, "grant-check", "clean"),
+        Walk {
+            exit: 0,
+            failed: None,
+            failures: Vec::new(),
+            visited: vec!["grant-check".to_string(), "codex".to_string()],
+        }
+    );
+    // A lapsed grant fails the node, and its failure edge pauses the run at the
+    // manual check before the Codex node is reached.
+    assert_eq!(
+        walk(&info, "grant-check", "grant-lapse=build"),
+        Walk {
+            exit: 2,
+            failed: Some("grant-check".to_string()),
+            failures: vec!["grant-check".to_string()],
+            visited: vec!["grant-check".to_string(), "check".to_string()],
+        }
+    );
+    // Another grant-check's lapse leaves this node alone.
+    assert_eq!(walk(&info, "grant-check", "grant-lapse=lint").exit, 0);
 }
 
 #[test]
@@ -687,6 +754,80 @@ fn default_scenarios_add_a_failing_gate_for_every_gate_the_clean_path_reaches() 
             "gate-fail-findings-1",
             "gate-fail-lint",
             "gate-fail-test",
+        ]
+    );
+}
+
+#[test]
+fn default_scenarios_add_a_lapsed_grant_for_every_grant_check_the_clean_path_reaches() {
+    let info = graph(
+        vec![
+            node("grant-check-1", Some("grant-build"), false),
+            node("codex-1", Some("vibe"), false),
+            node("grant-check-2", Some("grant-lint"), false),
+            node("codex-2", Some("vibe"), false),
+            node("check", None, true),
+        ],
+        vec![
+            edge("grant-check-1", "codex-1", "success"),
+            edge("grant-check-1", "check", "failure"),
+            edge("codex-1", "grant-check-2", "success"),
+            edge("grant-check-2", "codex-2", "success"),
+            edge("grant-check-2", "check", "failure"),
+            edge("codex-2", "$end", "success"),
+            edge("check", "$end", "success"),
+        ],
+        &[
+            ("grant-build", Role::Grant("build".to_string())),
+            ("grant-lint", Role::Grant("lint".to_string())),
+            ("vibe", Role::Answer),
+        ],
+    );
+    // One scenario per grant-check, sorted by name, each expecting the pause its
+    // failure edge leads to.
+    assert_eq!(
+        default_scenarios(&info),
+        vec![
+            spec("clean", "clean", 0),
+            spec("grant-lapse-build", "grant-lapse=build", 2),
+            spec("grant-lapse-lint", "grant-lapse=lint", 2),
+        ]
+    );
+}
+
+#[test]
+fn default_scenarios_give_a_grant_check_the_first_segment_walks_its_own_scenario() {
+    let info = graph(
+        vec![
+            node("grant-check", Some("grant-build"), false),
+            node("verdicts", Some("vibe"), false),
+            node("check", None, true),
+            node("refute", Some("grant-refute"), false),
+        ],
+        vec![
+            edge("grant-check", "verdicts", "success"),
+            edge("grant-check", "check", "failure"),
+            edge("verdicts", "refute", "success"),
+            edge("verdicts", "check", "failure"),
+            edge("check", "refute", "success"),
+            edge("refute", "$end", "success"),
+        ],
+        &[
+            ("grant-build", Role::Grant("build".to_string())),
+            ("grant-refute", Role::Grant("refute".to_string())),
+            ("vibe", Role::Findings),
+        ],
+    );
+    // The refute grant-check sits on the first segment's success path too, so it
+    // is proved there, and the segment after the check does not prove it again.
+    assert_eq!(
+        default_scenarios(&info),
+        vec![
+            spec("clean", "clean", 0),
+            spec("needs-human", "needs-human", 2),
+            spec("grant-lapse-build", "grant-lapse=build", 2),
+            spec("grant-lapse-refute", "grant-lapse=refute", 1),
+            segment_spec("after-check.clean", "clean", 0, "refute"),
         ]
     );
 }
@@ -898,6 +1039,16 @@ fn parse_scenario_reads_a_gate_failure() {
         parse_scenario("g:gate-fail=a.b_c-1:1").expect("parsed"),
         spec("g", "gate-fail=a.b_c-1", 1)
     );
+}
+
+#[test]
+fn parse_scenario_reads_a_grant_lapse() {
+    assert_eq!(
+        parse_scenario("grant-lapse-build:grant-lapse=build:2").expect("parsed"),
+        spec("grant-lapse-build", "grant-lapse=build", 2)
+    );
+    let message = parse_scenario("g:grant-lapse=:2").expect_err("rejected");
+    assert!(message.contains("grant-lapse=NAME"), "{}", message);
 }
 
 #[test]

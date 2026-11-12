@@ -47,8 +47,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"-lead\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow start: workflow \"-lead\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"-lead\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"-lead\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "home/": null,
         "work/": null
@@ -56,8 +56,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\".lead\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow start: workflow \".lead\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\".lead\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \".lead\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "home/": null,
         "work/": null
@@ -65,8 +65,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"has space\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow start: workflow \"has space\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"has space\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"has space\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "home/": null,
         "work/": null
@@ -74,8 +74,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"semi;colon\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow start: workflow \"semi;colon\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"semi;colon\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"semi;colon\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "home/": null,
         "work/": null
@@ -83,8 +83,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"newline\\\\nname\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow start: workflow \"newline\\nname\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"newline\\\\nname\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"newline\\nname\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "home/": null,
         "work/": null
@@ -92,8 +92,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"quote\\\\\\\"d\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow start: workflow \"quote\\\"d\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"quote\\\\\\\"d\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"quote\\\"d\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "home/": null,
         "work/": null
@@ -101,8 +101,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"tab\\\\tname\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow start: workflow \"tab\\tname\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"tab\\\\tname\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"tab\\tname\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "home/": null,
         "work/": null
@@ -110,8 +110,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"ünï\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow start: workflow \"ünï\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"ünï\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"ünï\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "home/": null,
         "work/": null
@@ -119,8 +119,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow start: workflow \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow start: workflow \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "home/": null,
         "work/": null
@@ -180,8 +180,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"bad name\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow end: workflow \"bad name\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"bad name\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow end: workflow \"bad name\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "state/": null,
         "state/agent-kit/": null,
@@ -193,8 +193,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"ünï\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow end: workflow \"ünï\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"ünï\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow end: workflow \"ünï\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "state/": null,
         "state/agent-kit/": null,
@@ -206,8 +206,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"quote\\\\\\\"d\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\"}\n",
-      "stderr": "model-gateway workflow end: workflow \"quote\\\"d\" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"workflow \\\"quote\\\\\\\"d\\\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\"}\n",
+      "stderr": "model-gateway workflow end: workflow \"quote\\\"d\" is not a workflow name: a letter or digit, then letters, digits and . _ : / @ - only, at most 80 characters\n",
       "files": {
         "state/": null,
         "state/agent-kit/": null,
