@@ -839,6 +839,11 @@ def test_a_macos_path_is_allowed_in_the_mac_section(tmp_path: Path, monkeypatch:
         ({"windows": {}}, "agy: os.windows is not one of linux, mac"),
         ({"mac": "agy"}, "agy: os.mac must be a mapping"),
         ({"mac": {"icon": "x"}}, "agy: unknown field os.mac.icon"),
+        ({"mac": {"binary": 42}}, "agy os.mac: binary must be a non-empty string"),
+        ({"mac": {"binary": None}}, "agy os.mac: binary must be a non-empty string"),
+        ({"mac": {"command_from_binary": False}}, "agy os.mac: command_from_binary must be true"),
+        ({"mac": {"adapter": {"comand": "agy"}}}, "agy os.mac: unknown adapter field comand"),
+        ({"mac": {"adapter": "agy"}}, "agy os.mac: adapter must be a mapping"),
     ],
 )
 def test_a_malformed_os_declaration_is_refused(

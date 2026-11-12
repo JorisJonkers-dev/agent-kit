@@ -483,6 +483,12 @@ def _gold_band_os_problems(raw: str, agent: dict[str, Any]) -> list[str]:
                 problems.append(f"{raw}: os.{host} must be a mapping")
             else:
                 problems += [f"{raw}: unknown field os.{host}.{key}" for key in section if key not in GOLD_BAND_OS_FIELDS]
+                label = f"{raw} os.{host}"
+                if "binary" in section and (not isinstance(section["binary"], str) or not section["binary"]):
+                    problems.append(f"{label}: binary must be a non-empty string")
+                if "command_from_binary" in section and section["command_from_binary"] is not True:
+                    problems.append(f"{label}: command_from_binary must be true")
+                problems += _gold_band_adapter_problems(label, section.get("adapter"))
     linux = _gold_band_for_host(agent, "linux") if not problems else None
     if linux is not None:
         adapter = linux.get("adapter") if isinstance(linux.get("adapter"), dict) else {}
