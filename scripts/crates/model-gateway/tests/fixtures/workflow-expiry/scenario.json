@@ -1,0 +1,75 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"old\"}"
+      ]
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "now": "2026-11-04T11:59:59.999Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "now": "2026-11-04T12:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"old\"}"
+      ],
+      "now": "2026-11-04T12:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"old\"}"
+      ],
+      "now": "2026-11-04T12:00:01Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "start",
+        "--json",
+        "{\"name\":\"fresh\"}"
+      ],
+      "now": "2026-11-04T12:00:01Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "end",
+        "--json",
+        "{\"name\":\"fresh\"}"
+      ],
+      "now": "2026-11-05T12:00:01Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "now": "2026-11-06T12:00:00Z"
+    }
+  ]
+}
