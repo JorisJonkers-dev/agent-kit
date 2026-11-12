@@ -6,7 +6,7 @@ import { dirname as dirname11 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/critique-cli/index.ts
-import { join as join41 } from "node:path";
+import { join as join42 } from "node:path";
 
 // src/adapters/clock/index.ts
 import { performance } from "node:perf_hooks";
@@ -13474,7 +13474,7 @@ function answerText(reply) {
 
 // src/contexts/critique/adapters/code-nav/client.ts
 import { realpath as realpath2 } from "node:fs/promises";
-import { relative as relative5 } from "node:path";
+import { isAbsolute as isAbsolute8, join as join40, relative as relative5 } from "node:path";
 var MAP_TIMEOUT_MS = 3e4;
 var MAP_LIMIT = 200;
 var REQUESTS = [
@@ -13554,8 +13554,8 @@ function mapOf(text, root) {
   return { files, symbols };
 }
 function inside(root, path) {
-  const repository = relative5(root, path);
-  return repository === "" || repository.startsWith("..") ? void 0 : repository.split("\\").join("/");
+  const repository = relative5(root, isAbsolute8(path) ? path : join40(root, path));
+  return repository === "" || repository === ".." || repository.startsWith("../") || repository.startsWith("..\\") ? void 0 : repository.split("\\").join("/");
 }
 
 // src/contexts/critique/adapters/search/server.ts
@@ -13563,7 +13563,7 @@ import { createInterface } from "node:readline";
 
 // src/contexts/critique/adapters/search/engine.ts
 import { lstat, readdir as readdir2, readFile as readFile6, realpath as realpath3 } from "node:fs/promises";
-import { isAbsolute as isAbsolute8, join as join40, relative as relative6, sep } from "node:path";
+import { isAbsolute as isAbsolute9, join as join41, relative as relative6, sep } from "node:path";
 var OUTSIDE = "Nothing: that path is outside the packet, or is not in it.";
 var PacketSearchEngine = class _PacketSearchEngine {
   constructor(root, limits, tools) {
@@ -13578,7 +13578,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
   static async open(root, limits) {
     const real = await realpath3(root);
     if (!(await lstat(real)).isDirectory()) throw new Error(`${root} is not a directory`);
-    const map = await lstat(join40(real, REPO_MAP_PATH)).catch(() => void 0);
+    const map = await lstat(join41(real, REPO_MAP_PATH)).catch(() => void 0);
     return new _PacketSearchEngine(real, limits, offeredSearchTools(map?.isFile() === true));
   }
   async call(tool, args) {
@@ -13601,7 +13601,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
     const hits = [];
     for (const path of await this.files(start)) {
       if (glob !== void 0 && !matchesGlob(path, glob)) continue;
-      const lines = (await readFile6(join40(this.root, path), "utf8")).split("\n");
+      const lines = (await readFile6(join41(this.root, path), "utf8")).split("\n");
       lines.forEach((line2, index) => {
         if (pattern.test(line2)) hits.push(`${path}:${String(index + 1)}: ${clipLine(line2)}`);
       });
@@ -13614,7 +13614,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
     return cappedAnswer(paths, this.limits, "paths", "No paths match.");
   }
   async symbol(args) {
-    const map = await readFile6(join40(this.root, REPO_MAP_PATH), "utf8");
+    const map = await readFile6(join41(this.root, REPO_MAP_PATH), "utf8");
     return cappedAnswer(symbolMatches(map, requiredString(args, "name")), this.limits, "matches", "No symbol of that name.");
   }
   /**
@@ -13622,8 +13622,8 @@ var PacketSearchEngine = class _PacketSearchEngine {
    * absolute, climbs out, passes through a symlink or does not exist.
    */
   async inside(path) {
-    if (isAbsolute8(path)) return void 0;
-    const target = join40(this.root, path);
+    if (isAbsolute9(path)) return void 0;
+    const target = join41(this.root, path);
     if (!within2(this.root, target)) return void 0;
     const real = await realpath3(target).catch(() => void 0);
     if (real !== target) return void 0;
@@ -13635,7 +13635,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
     if (stat3.isFile()) return [relative6(this.root, dir)];
     const found = [];
     for (const entry2 of await readdir2(dir, { withFileTypes: true })) {
-      const path = join40(dir, entry2.name);
+      const path = join41(dir, entry2.name);
       if (entry2.isDirectory()) found.push(...await this.files(path));
       else if (entry2.isFile()) found.push(relative6(this.root, path));
     }
@@ -13644,7 +13644,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
 };
 function within2(root, path) {
   const rel = relative6(root, path);
-  return rel === "" || rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute8(rel);
+  return rel === "" || rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute9(rel);
 }
 function requiredString(args, key2) {
   const value = args[key2];
@@ -14296,11 +14296,11 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
       // Codex critics of a nedap repository run under the gateway's grants.
       grants: new GatewayGrants(env, clock),
       ledger: new NodeModelGatewayLedger(env),
-      plan: new GatewayPlanLimit(env, clock, join41(assetsRoot, "..", "model-gateway", "defaults.json")),
+      plan: new GatewayPlanLimit(env, clock, join42(assetsRoot, "..", "model-gateway", "defaults.json")),
       // The tree sample is ordered by code-nav's repository map when code-nav is installed.
       repoMap: new CodeNavRepoMap(processPort),
       // Vibe starts the search server as `node critique.mjs search-server ...`.
-      search: new ProcessSearchClient(processPort, { args: [join41(assetsRoot, "critique.mjs")], command: process.execPath })
+      search: new ProcessSearchClient(processPort, { args: [join42(assetsRoot, "critique.mjs")], command: process.execPath })
     }),
     readFile: (path) => files.readText(path),
     readStdin: readStdin2

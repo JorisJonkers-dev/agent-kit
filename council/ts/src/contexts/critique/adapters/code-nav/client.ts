@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises'
-import { relative } from 'node:path'
+import { isAbsolute, join, relative } from 'node:path'
 
 import type { ProcessPort } from '../../../../ports/index.js'
 import type { RepoMapPort } from '../../application/ports.js'
@@ -104,6 +104,6 @@ function mapOf(text: string, root: string): { readonly files: readonly RankedFil
 
 /** A path the map printed, as a repository path; nothing for one outside the root. */
 function inside(root: string, path: string): string | undefined {
-  const repository = relative(root, path)
-  return repository === '' || repository.startsWith('..') ? undefined : repository.split('\\').join('/')
+  const repository = relative(root, isAbsolute(path) ? path : join(root, path))
+  return repository === '' || repository === '..' || repository.startsWith('../') || repository.startsWith('..\\') ? undefined : repository.split('\\').join('/')
 }

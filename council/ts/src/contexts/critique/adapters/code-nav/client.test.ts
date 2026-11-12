@@ -58,6 +58,15 @@ describe('the code-nav repository map client', () => {
     expect(command?.stdin).toContain('"name":"map"')
   })
 
+  it('resolves relative paths against the root and keeps names that merely start with two dots', async () => {
+    const dir = await root()
+    const text = `files:\nsrc/rel.ts (1 refs, 1 symbols)\n${join(dir, '..cfg.ts')} (1 refs, 1 symbols)\n${join(dir, '..', 'out.ts')} (1 refs, 1 symbols)\n`
+
+    const ranking = await new CodeNavRepoMap(new FakeNav(() => ok(reply(content(text))))).rank(dir)
+
+    expect(ranking).toMatchObject({ files: [{ path: 'src/rel.ts' }, { path: '..cfg.ts' }], status: 'ranked' })
+  })
+
   it('ranks nothing when the tree has no symbols', async () => {
     const ranking = await new CodeNavRepoMap(new FakeNav(() => ok(reply(content('no symbols'))))).rank(await root())
 
