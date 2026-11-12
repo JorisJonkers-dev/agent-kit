@@ -561,8 +561,8 @@ tested), so keep the value to the bare token.
 ## Playwright MCP on a cold cache
 
 The registry pins `@playwright/mcp` (container pin, `post_install` fetches the
-matching Chromium) and every agent starts it as the one `playwright-mcp`
-binary on `PATH`, headless:
+matching Chromium) and Claude and Codex start it as the one `playwright-mcp`
+binary on `PATH`, headless (Vibe's config was not read, see below):
 `playwright-mcp --headless --browser chromium`. It is never run through `npx`,
 so an empty `~/.npm/_npx` cannot change which binary starts.
 
@@ -573,8 +573,8 @@ aside (restored afterwards), `playwright-mcp` resolving to
 
 | Agent | Tools listed | Binary the server ran from |
 | --- | --- | --- |
-| Claude | 25 (`mcp__playwright__browser_*`), server `connected` | `node ~/.npm-global/bin/playwright-mcp --headless --browser chromium` |
-| Codex | 25 (`browser_*`, through the app-server MCP status call) | the same command, observed as a child of the Codex process |
+| Claude | 25 (`mcp__playwright__browser_*`), server `connected` | `playwright-mcp` from `~/.npm-global/bin` per its config; the process snapshot cannot tell its server from other sessions' |
+| Codex | 25 (`browser_*`, through the app-server MCP status call) | the same command; a new `playwright-mcp` process appeared during the Codex run, but its parent was not recorded as Codex |
 | Vibe | 25 (`browser_*`, through its tool search) | not observed: Vibe's process was not seen starting it and its config was not readable from the check |
 
 Codex was not logged in to a model account, so its tools were listed from its
