@@ -774,6 +774,20 @@ def test_container_tools_are_declared() -> None:
     assert {"claude-code", "codex", "hermes-agent", "node", "uv"} <= names
 
 
+def test_the_image_has_both_java_language_servers_and_oras_on_path() -> None:
+    tools = {t["binary"]: t for t in render_registry.container_tools(_registry())}
+    assert {"kotlin-lsp", "jdtls", "oras"} <= set(tools)
+    # Each one is installed from a version it reports, so --check proves the server and not just a JDK.
+    for binary in ("kotlin-lsp", "jdtls", "oras"):
+        assert "${VERSION}" in tools[binary]["install"]
+    script = render_registry.render_container_setup_script(_registry())
+    assert "ln -sf /opt/kotlin-lsp/kotlin-lsp.sh /usr/local/bin/kotlin-lsp" in script
+    assert "ln -sf /opt/jdtls/bin/jdtls /usr/local/bin/jdtls" in script
+    assert "temurin-21-jdk" in script  # the runtime jdtls needs
+    for path in ("/opt/kotlin-lsp", "/opt/jdtls"):
+        assert f"chmod -R a+rX '{path}'" in script
+
+
 @pytest.mark.parametrize("version", ["", "latest", None])
 def test_a_container_tool_must_pin_a_version(version: str | None) -> None:
     data = _registry()

@@ -114,6 +114,7 @@ if [ "${CHECK_ONLY}" = 0 ]; then
   install_tool gh 'v2.103.3' 'curl -fsSL "https://github.com/cli/cli/releases/download/${VERSION}/gh_${VERSION#v}_linux_${DEB_ARCH}.tar.gz" | tar -xz -C /usr/local --strip-components=1 "gh_${VERSION#v}_linux_${DEB_ARCH}/bin/gh"'
   install_tool go '1.27.3' 'curl -fsSL "https://go.dev/dl/go${VERSION}.linux-${DEB_ARCH}.tar.gz" | tar -xz -C /usr/local && ln -sf /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/'
   install_tool mise 'v2026.11.0' 'curl -fsSL -o /usr/local/bin/mise "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}" && chmod 755 /usr/local/bin/mise'
+  install_tool oras 'v1.3.6' 'base="https://github.com/oras-project/oras/releases/download/${VERSION}" && archive="oras_${VERSION#v}_linux_${DEB_ARCH}.tar.gz" && curl -fsSL -o "/tmp/${archive}" "${base}/${archive}" && curl -fsSL "${base}/oras_${VERSION#v}_checksums.txt" | grep " ${archive}$" | (cd /tmp && sha256sum -c -) && tar -xzf "/tmp/${archive}" -C /usr/local/bin oras && rm -f "/tmp/${archive}"'
   install_tool ast-grep '0.51.1' 'npm install -g "@ast-grep/cli@${VERSION}"'
   install_tool typescript '5.9.3' 'npm install -g "typescript@${VERSION}"'
   install_tool github-mcp-server 'v1.14.0' 'case "${DEB_ARCH}" in amd64) a=x86_64 ;; arm64) a=arm64 ;; esac && curl -fsSL "https://github.com/github/github-mcp-server/releases/download/${VERSION}/github-mcp-server_Linux_${a}.tar.gz" | tar -xz -C /usr/local/bin github-mcp-server'
@@ -122,12 +123,16 @@ if [ "${CHECK_ONLY}" = 0 ]; then
   install_tool drawio '1.10.1' 'npm install -g "@drawio/mcp@${VERSION}"'
   install_tool typescript-lsp '6.0.3' 'npm install -g "typescript-language-server@${VERSION}"'
   install_tool pyright-lsp '1.1.414' 'npm install -g "pyright@${VERSION}"'
+  install_tool kotlin-lsp '263.7084.0' 'base="https://download.jetbrains.com/language-server/kotlin-server/${VERSION}" && case "${DEB_ARCH}" in amd64) suffix="" ;; arm64) suffix="-aarch64" ;; *) exit 1 ;; esac && archive="kotlin-server-${VERSION}${suffix}.tar.gz" && curl -fsSL -o "/tmp/${archive}" "${base}/${archive}" && printf '\''%s */tmp/%s\n'\'' "$(curl -fsSL "${base}/${archive}.sha256" | cut -d'\'' '\'' -f1)" "${archive}" | sha256sum -c - && rm -rf /opt/kotlin-lsp && mkdir -p /opt/kotlin-lsp && tar -xzf "/tmp/${archive}" -C /opt/kotlin-lsp --strip-components=1 && rm -f "/tmp/${archive}" && ln -sf /opt/kotlin-lsp/kotlin-lsp.sh /usr/local/bin/kotlin-lsp'
+  install_tool jdtls-lsp '1.63.0' 'base="https://download.eclipse.org/jdtls/milestones/${VERSION}" && archive="$(curl -fsSL "${base}/latest.txt")" && case "${archive}" in jdt-language-server-${VERSION}-*.tar.gz) ;; *) exit 1 ;; esac && curl -fsSL -o "/tmp/${archive}" "${base}/${archive}" && printf '\''%s */tmp/%s\n'\'' "$(curl -fsSL "${base}/${archive}.sha256" | cut -d'\'' '\'' -f1)" "${archive}" | sha256sum -c - && rm -rf /opt/jdtls && mkdir -p /opt/jdtls && tar -xzf "/tmp/${archive}" -C /opt/jdtls && rm -f "/tmp/${archive}" && ln -sf /opt/jdtls/bin/jdtls /usr/local/bin/jdtls'
   install_tool gopls-lsp 'v0.24.0' 'GOBIN=/usr/local/bin GOPATH=/tmp/gopath GOCACHE=/tmp/gocache go install "golang.org/x/tools/gopls@${VERSION}" && GOPATH=/tmp/gopath go clean -modcache && rm -rf /tmp/gopath /tmp/gocache'
   install_tool php-lsp '1.18.5' 'npm install -g "intelephense@${VERSION}"'
   }
 
   [ ! -e '/opt/uv' ] || chmod -R a+rX '/opt/uv'
   [ ! -e '/ms-playwright' ] || chmod -R a+rX '/ms-playwright'
+  [ ! -e '/opt/kotlin-lsp' ] || chmod -R a+rX '/opt/kotlin-lsp'
+  [ ! -e '/opt/jdtls' ] || chmod -R a+rX '/opt/jdtls'
   npm cache clean --force >/dev/null 2>&1 || true
   rm -rf /var/lib/apt/lists/* /root/.cache /root/.npm /tmp/*
 fi
@@ -166,6 +171,7 @@ check_tool olcli '0.15.3' 'olcli --version'
 check_tool gh 'v2.103.3' 'gh --version'
 check_tool go '1.27.3' 'go version'
 check_tool mise 'v2026.11.0' 'mise --version'
+check_tool oras 'v1.3.6' 'oras version'
 check_tool ast-grep '0.51.1' 'ast-grep --version'
 check_tool tsserver '5.9.3' 'tsc --version'
 check_tool github-mcp-server 'v1.14.0' 'github-mcp-server --version'
@@ -174,6 +180,8 @@ check_tool playwright-mcp '0.0.84' 'npm ls -g @playwright/mcp'
 check_tool drawio-mcp '1.10.1' 'npm ls -g @drawio/mcp'
 check_tool typescript-language-server '6.0.3' 'typescript-language-server --version'
 check_tool pyright-langserver '1.1.414' 'pyright --version'
+check_tool kotlin-lsp '263.7084.0' 'cat /opt/kotlin-lsp/build.txt'
+check_tool jdtls '1.63.0' 'ls /opt/jdtls/plugins/org.eclipse.jdt.ls.core_*.jar | sed -E '\''s#.*core_([0-9]+[.][0-9]+[.][0-9]+)[.].*#\1#'\'''
 check_tool gopls 'v0.24.0' 'gopls version'
 check_tool intelephense '1.18.5' 'npm ls -g intelephense'
 
