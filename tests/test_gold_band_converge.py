@@ -678,3 +678,52 @@ def test_odd_connector_shapes_are_left_alone(tmp_path: Path, monkeypatch: pytest
     machine.settings.write_text(json.dumps({"agents": {}, "imIntegrations": 3}))
     assert machine.run() == 0
     assert json.loads(machine.settings.read_text())["imIntegrations"] == 3
+
+
+# --- an agent whose adapter command is the installed binary's absolute path ---
+
+PI = {
+    "id": "pi",
+    "binary": "pi-acp",
+    "command_from_binary": True,
+    "adapter": {"displayName": "Pi", "env": {}},
+    "icon": "pi",
+}
+
+
+def test_command_from_binary_writes_the_installed_binarys_absolute_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(
+        tmp_path,
+        monkeypatch,
+        binaries=("pi-acp",),
+        registry=_registry([PI], allowed=("pi",)),
+    )
+    assert machine.run() == 0
+    entry = machine.agents()["pi"]
+    assert entry["adapter"]["command"] == str(machine.bin / "pi-acp")
+    assert Path(entry["adapter"]["command"]).is_absolute()
+    assert "command_from_binary" not in entry and "binary" not in entry
+    before = machine.settings.read_text()
+    assert machine.run() == 0
+    assert machine.settings.read_text() == before
+
+
+def test_command_from_binary_with_the_binary_missing_is_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, binaries=(), registry=_registry([PI], allowed=("pi",)))
+    assert machine.run() == 0
+    assert "skipped: pi (pi-acp is not installed)" in capsys.readouterr().out
+    assert "pi" not in machine.agents()
+
+
+@pytest.mark.parametrize("bad", [{"command_from_binary": False}, {"command_from_binary": True, "binary": None}])
+def test_command_from_binary_must_be_true_and_needs_a_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], bad: dict
+) -> None:
+    agent = {k: v for k, v in {**PI, **bad}.items() if v is not None}
+    machine = Machine(tmp_path, monkeypatch, binaries=("pi-acp",), registry=_registry([agent], allowed=("pi",)))
+    assert machine.run() == 1
+    assert "pi: command_from_binary must be true and needs a binary" in capsys.readouterr().out

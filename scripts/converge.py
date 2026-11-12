@@ -92,6 +92,7 @@ GOLD_BAND_AGENT_FIELDS = (
     "instance",
     "config_dir",
     "skill_set",
+    "command_from_binary",
     "adapter",
     "icon",
     "primaryAgentDir",
@@ -105,7 +106,7 @@ GOLD_BAND_AGENT_FIELDS = (
 # directory, so it may not also declare one of these.
 GOLD_BAND_SKILL_SET_REPLACES = ("primaryAgentDir", "projectPrimaryAgentDir", "compatibleAgentDirs")
 # Declared in the registry only; never written to settings.json.
-GOLD_BAND_REGISTRY_ONLY = ("id", "binary", "instance", "config_dir", "skill_set")
+GOLD_BAND_REGISTRY_ONLY = ("id", "binary", "instance", "config_dir", "skill_set", "command_from_binary")
 GOLD_BAND_ADAPTER_FIELDS = ("displayName", "command", "args", "env")
 # A generated profile's front matter carries a fixed stamp, so a second run
 # rewrites nothing. The app's own profiles carry this id prefix and are never
@@ -456,6 +457,8 @@ def _gold_band_problems(
         if raw not in allowed:
             problems.append(f"{raw}: not in gold_band_instances.{instance}.agents")
         problems += [f"{raw}: unknown field {key}" for key in agent if key not in GOLD_BAND_AGENT_FIELDS]
+        if "command_from_binary" in agent and (agent["command_from_binary"] is not True or not agent.get("binary")):
+            problems.append(f"{raw}: command_from_binary must be true and needs a binary")
         problems += _gold_band_adapter_problems(raw, agent.get("adapter"))
         delivery = agent.get("systemPromptDelivery")
         if delivery is not None and delivery not in GOLD_BAND_PROMPT_DELIVERY:
@@ -540,14 +543,19 @@ def _gold_band_expand(value: str) -> str:
     return str(Path.home()) + value[1:] if value.startswith("~/") else value
 
 
-def _gold_band_entry(agent: dict[str, Any], skills_dir: Path | None = None) -> dict[str, Any]:
+def _gold_band_entry(
+    agent: dict[str, Any], skills_dir: Path | None = None, binary_path: str | None = None
+) -> dict[str, Any]:
     """The settings entry for a declared agent: its written fields, expanded.
 
     ``skill_set``, ``instance`` and ``config_dir`` are registry-only, so they are
     never written; ``config_dir`` becomes the adapter's ``CLAUDE_CONFIG_DIR``,
     set in the entry so no ambient value can replace it. An agent that names
     one gets its own skill directory as its primary agent directory and no
-    compatible ones, since nothing is shared between ids.
+    compatible ones, since nothing is shared between ids. ``command_from_binary``
+    (registry-only) writes the adapter command as the absolute path of the
+    installed ``binary`` (``binary_path``), so Gold Band launches that file and
+    never fetches the agent at launch.
     """
     entry = {
         key: value
@@ -563,6 +571,8 @@ def _gold_band_entry(agent: dict[str, Any], skills_dir: Path | None = None) -> d
         if agent["id"] in GOLD_BAND_BUILT_INS:
             adapter.pop("command", None)
             adapter.pop("args", None)
+        if agent.get("command_from_binary") and binary_path is not None:
+            adapter["command"] = binary_path
         if "command" in adapter:
             adapter["command"] = _gold_band_expand(adapter["command"])
         if "args" in adapter:
@@ -841,11 +851,15 @@ def gold_band(args: argparse.Namespace) -> int:
 
     installed_ids: set[str] = set()
     skipped: list[tuple[str, str]] = []
+    binary_paths: dict[str, str] = {}
     for agent in declared:
         binary = agent.get("binary")
-        if binary is not None and shutil.which(binary) is None:
+        found = shutil.which(binary) if binary is not None else None
+        if binary is not None and found is None:
             skipped.append((agent["id"], binary))
             continue
+        if found is not None:
+            binary_paths[agent["id"]] = os.path.abspath(found)
         installed_ids.add(agent["id"])
 
     # One directory per installed id that names a set, holding exactly that
@@ -859,7 +873,7 @@ def gold_band(args: argparse.Namespace) -> int:
     for agent in declared:
         if agent["id"] in installed_ids:
             directory = skills_root / agent["id"] if agent["id"] in wanted else None
-            installed[agent["id"]] = _gold_band_entry(agent, directory)
+            installed[agent["id"]] = _gold_band_entry(agent, directory, binary_paths.get(agent["id"]))
 
     # A skipped agent is declared, so its existing entry stays exactly as it is.
     skipped_ids = {name for name, _ in skipped}
