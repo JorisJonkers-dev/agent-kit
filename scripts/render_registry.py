@@ -4451,7 +4451,17 @@ def render_setup_script(data: dict[str, Any]) -> str:
             update = f"run_sh {_q(str(cli.get('update') or install_cmd))}"
             label = str(binary)
             failed = f"{binary} still not on PATH after install; open a new shell and re-run"
-        def emit(out_: list[str], present: str, install: str, update: str, label: str, failed: str) -> None:
+        def emit(
+            out_: list[str],
+            present: str,
+            install: str,
+            update: str,
+            label: str,
+            failed: str,
+            binary: Any = binary,
+            version_command: Any = version_command,
+            provides: Any = provides,
+        ) -> None:
             out_.append(f"if {present}; then")
             out_.append(f"  {update}")
             if version_command:
