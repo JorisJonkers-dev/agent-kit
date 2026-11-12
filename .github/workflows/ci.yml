@@ -20,7 +20,7 @@
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 'actions/checkout@v6'
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@8aaf024208bf4b29acb468aecd3cd7ee130d5ac1' # v0.49.1
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
@@ -37,7 +37,7 @@
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 'actions/checkout@v6'
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@8aaf024208bf4b29acb468aecd3cd7ee130d5ac1' # v0.49.1
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
@@ -70,7 +70,7 @@
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 'actions/checkout@v6'
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@8aaf024208bf4b29acb468aecd3cd7ee130d5ac1' # v0.49.1
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
@@ -162,7 +162,7 @@
       'GOLD_BAND_COMMIT': '${{ vars.GOLD_BAND_COMMIT }}'
     'steps':
       - 'uses': 'actions/checkout@v6'
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
@@ -230,7 +230,7 @@
     'runs-on': 'macos-latest'
     'steps':
       - 'uses': 'actions/checkout@v6'
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
@@ -252,7 +252,7 @@
       'BASE_SHA': '${{ github.event.pull_request.base.sha }}'
     'steps':
       - 'uses': 'actions/checkout@v6'
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@8aaf024208bf4b29acb468aecd3cd7ee130d5ac1' # v0.49.1
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
