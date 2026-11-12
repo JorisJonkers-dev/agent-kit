@@ -1,32 +1,46 @@
 //! model-gateway: one JSON object in, one JSON object out, ported from the node
 //! runner command by command. It carries the command line itself, `models`,
-//! `usage`, `grant write`, `grant reserve`, `grant list`, `worktrees clean` and the three
-//! workflow commands; `run` and `batch` answer `not-ported`.
+//! `usage`, `grant write`, `grant reserve`, `grant list`, `worktrees clean`, the three
+//! workflow commands and the read-only `run`; a writing `run` and `batch` answer `not-ported`.
 //!
 //! Real files, the clock and the environment sit behind the traits in `ports`;
 //! the command line takes them from a `Runtime`, so tests replace any of them.
 
 pub mod adapters;
 pub mod allowlist;
+pub mod availability;
+pub mod cap_guard;
 pub mod caps;
+pub mod client_run;
 pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod config_parse;
 pub mod error;
+pub mod escalation;
+pub mod escalation_run;
+pub mod extras;
 pub mod git_remote;
 pub mod grants;
+pub mod grant_guard;
 pub mod grants_file;
+pub mod home_mcp;
 pub mod json;
 pub mod kept_file;
+pub mod launchers;
 pub mod ledger;
 pub mod ledger_file;
 pub mod lock;
 pub mod locations;
 pub mod models;
+pub mod outputs;
+pub mod plan;
 pub mod policy;
 pub mod ports;
 pub mod reserve;
+pub mod proof;
+pub mod run;
+pub mod run_command;
 pub mod sha256;
 pub mod sources;
 pub mod state_file;
@@ -35,6 +49,7 @@ pub mod text;
 pub mod timestamps;
 pub mod toml;
 pub mod usage;
+pub mod vibe_sign_in;
 pub mod workflows;
 pub mod worktrees;
 
@@ -44,6 +59,9 @@ use std::io::Write;
 
 /// The shipped `defaults.json`, the one the node runner reads beside itself.
 pub const SHIPPED_DEFAULTS: &str = include_str!("../../../../skills/workstation/model-gateway/defaults.json");
+
+/// Critique's shipped routing, the one the node runner reads beside itself: the read-only proofs are matched against it.
+pub const SHIPPED_ROUTING: &str = include_str!("../../../../skills/workstation/critique/routing.json");
 
 /// The real runtime: the system's clock and files, the environment and the working directory.
 pub fn default_runtime() -> Runtime {
@@ -60,6 +78,7 @@ pub fn default_runtime() -> Runtime {
         env,
         defaults: SHIPPED_DEFAULTS.to_string(),
         defaults_path: "defaults.json".to_string(),
+        routing: crate::SHIPPED_ROUTING.to_string(),
     }
 }
 

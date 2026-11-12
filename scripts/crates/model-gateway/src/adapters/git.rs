@@ -130,6 +130,24 @@ impl Git for SystemGit {
             Err(words(&answer))
         }
     }
+
+    fn common_dir(&self, path: &str) -> Result<String, String> {
+        let answer = self.run(path, &["rev-parse", "--path-format=absolute", "--git-common-dir"])?;
+        let common = answer.stdout.trim();
+        if answer.exit_code != 0 || common.is_empty() {
+            return Err(words(&answer));
+        }
+        Ok(common.to_string())
+    }
+
+    fn add_worktree(&self, repo: &str, path: &str) -> Result<(), String> {
+        let answer = self.run_for(repo, &["worktree", "add", "--detach", path, "HEAD"], WORKTREE_TIMEOUT_MS)?;
+        if answer.exit_code == 0 {
+            Ok(())
+        } else {
+            Err(words(&answer))
+        }
+    }
 }
 
 /// `rm -rf`: a path that is not there is already gone.

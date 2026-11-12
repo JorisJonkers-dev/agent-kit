@@ -1,0 +1,215 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"model\":\"gpt-5.5\",\"mode\":\"read-only\",\"prompt\":\"No grant.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/codex": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/codex.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/codex.n\" ] && read n < \"$D/codex.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/codex.n\"\npick() { if [ -f \"$C/codex.$1.$n\" ]; then echo \"$C/codex.$1.$n\"; else echo \"$C/codex.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/codex.txt\"\ncat > \"$D/codex.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "repo/README.md": "demo\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"openai\"],\"code\":true,\"history\":false}}}",
+        "home/canned/codex.out": "{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Checked.\\nSUMMARY: codex is fine\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":5000,\"cached_input_tokens\":1000,\"output_tokens\":400}}\n"
+      },
+      "exec": [
+        "bin/codex"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "-b",
+          "main",
+          "@SANDBOX@/repo"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "remote",
+          "add",
+          "origin",
+          "https://github.com/JorisJonkers-dev/demo.git"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "commit",
+          "-q",
+          "-m",
+          "init"
+        ]
+      ],
+      "remove": [
+        "home/canned/codex.out",
+        "home/canned/codex.err",
+        "home/canned/codex.exit",
+        "home/canned/codex.export",
+        "home/canned/codex.usage",
+        "home/canned/codex.sleep",
+        "home/canned/codex.act"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"model\":\"gpt-5.5\",\"mode\":\"read-only\",\"prompt\":\"A grant that ends in thirty seconds.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-03T12:00:30Z\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"model\":\"gpt-5.5\",\"mode\":\"read-only\",\"prompt\":\"A grant that lapsed.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-03T12:00:30Z\"}]}"
+      },
+      "now": "2026-11-03T12:05:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"model\":\"gpt-5.5\",\"mode\":\"read-only\",\"prompt\":\"A grant too small.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":0.0001,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}"
+      },
+      "now": "2026-11-03T12:06:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"model\":\"gpt-5.5\",\"mode\":\"read-only\",\"prompt\":\"A grant that ends in ten minutes.\",\"repo\":\"@SANDBOX@/repo\",\"time_limit_s\":900}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-03T12:16:00Z\"}]}"
+      },
+      "now": "2026-11-03T12:06:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"codex\",\"model\":\"gpt-5.5\",\"mode\":\"read-only\",\"prompt\":\"The workflow ended.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"w\",\"started_at\":\"2026-11-03T09:00:00Z\",\"ended_at\":\"2026-11-03T11:00:00Z\"}]}"
+      },
+      "now": "2026-11-03T12:07:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"mode\":\"read-only\",\"prompt\":\"Never swaps into a costlier class.\",\"family_binding\":false,\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"anthropic\",\"openai\"],\"code\":true,\"history\":false}}}"
+      },
+      "now": "2026-11-03T12:08:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

@@ -55,6 +55,112 @@ pub fn mask_stamp(text: &str) -> String {
     out
 }
 
+/// Where the random parts of what a run makes sit, in text: a run id (`20261103T120000Z-ab12cd`) and a temporary directory
+/// (`model-gateway-run-Ab12Cd`, `model-gateway-worktree-Ab12Cd`). Each is the byte range of the random suffix.
+fn random_parts(text: &str, run_ids: bool) -> Vec<(usize, usize)> {
+    let bytes = text.as_bytes();
+    let mut found = Vec::new();
+    let mut at = 0;
+    while at < bytes.len() {
+        let length = if run_ids { run_id_at(&bytes[at..]) } else { temp_dir_at(&bytes[at..]) };
+        match length {
+            Some((prefix, suffix)) => {
+                found.push((at + prefix, at + prefix + suffix));
+                at += prefix + suffix;
+            }
+            None => at += 1,
+        }
+    }
+    found
+}
+
+/// `\d{8}T\d{6}Z-` then six lowercase hex digits: the prefix length and the suffix length.
+fn run_id_at(tail: &[u8]) -> Option<(usize, usize)> {
+    let shape = b"00000000T000000Z-";
+    let fits = tail.len() >= shape.len() + 6
+        && shape.iter().zip(tail).all(|(want, got)| if *want == b'0' { got.is_ascii_digit() } else { want == got })
+        && tail[shape.len()..shape.len() + 6].iter().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+    fits.then_some((shape.len(), 6))
+}
+
+/// `model-gateway-run-` or `model-gateway-worktree-` then six letters or digits.
+fn temp_dir_at(tail: &[u8]) -> Option<(usize, usize)> {
+    for prefix in [&b"model-gateway-run-"[..], &b"model-gateway-worktree-"[..]] {
+        if tail.starts_with(prefix) && tail.len() >= prefix.len() + 6 && tail[prefix.len()..prefix.len() + 6].iter().all(u8::is_ascii_alphanumeric) {
+            return Some((prefix.len(), 6));
+        }
+    }
+    None
+}
+
+/// The suffixes of one kind in first-appearance order, numbered from 1.
+#[derive(Default)]
+struct Numbered(Vec<String>);
+
+impl Numbered {
+    fn number(&mut self, suffix: &str) -> usize {
+        match self.0.iter().position(|seen| seen == suffix) {
+            Some(index) => index + 1,
+            None => {
+                self.0.push(suffix.to_string());
+                self.0.len()
+            }
+        }
+    }
+
+    fn scan(&mut self, text: &str, run_ids: bool) {
+        for (from, to) in random_parts(text, run_ids) {
+            self.number(&text[from..to]);
+        }
+    }
+
+    fn mask(&mut self, text: &str, run_ids: bool, label: &str) -> String {
+        let mut out = String::new();
+        let mut at = 0;
+        for (from, to) in random_parts(text, run_ids) {
+            out.push_str(&text[at..from]);
+            out.push_str(&format!("@{label}{}@", self.number(&text[from..to])));
+            at = to;
+        }
+        out.push_str(&text[at..]);
+        out
+    }
+}
+
+/// The ledger the scan visits before the other files, as in regenerate-fixtures.mjs.
+const LEDGER_FILE: &str = "state/agent-kit/model-gateway/ledger.jsonl";
+
+/// Numbers the random parts of run ids (`@RAND1@`, ...) and temporary directories (`@TMP1@`, ...) by first appearance, as
+/// regenerate-fixtures.mjs does: stdout, stderr, the ledger, every file in name order, then the names. The output, the file names
+/// and the file texts are rewritten, so two runs of one second keep their own names.
+pub fn mask_randoms(outcome: Outcome) -> Outcome {
+    let mut runs = Numbered::default();
+    let mut temps = Numbered::default();
+    let mut scan = |text: &str| {
+        runs.scan(text, true);
+        temps.scan(text, false);
+    };
+    // The kinds are separate maps, but the scan order is one: a text is scanned for both before the next.
+    scan(&outcome.stdout);
+    scan(&outcome.stderr);
+    if let Some(Some(ledger)) = outcome.files.get(LEDGER_FILE) {
+        scan(ledger);
+    }
+    for content in outcome.files.values().flatten() {
+        scan(content);
+    }
+    for name in outcome.files.keys() {
+        scan(name);
+    }
+    let mut mask = |text: &str| temps.mask(&runs.mask(text, true, "RAND"), false, "TMP");
+    Outcome {
+        exit: outcome.exit,
+        stdout: mask(&outcome.stdout),
+        stderr: mask(&outcome.stderr),
+        files: outcome.files.iter().map(|(name, content)| (mask(name), content.as_ref().map(|content| mask(content)))).collect(),
+    }
+}
+
 /// The first program of that name on the host's PATH.
 fn host_program(name: &str) -> PathBuf {
     let path = std::env::var("PATH").unwrap_or_default();
@@ -69,6 +175,11 @@ pub struct FixedClock(pub i64);
 impl Clock for FixedClock {
     fn now_ms(&self) -> i64 {
         self.0
+    }
+
+    /// Frozen at 0, as the node runner's clock fake freezes `performance.now`.
+    fn monotonic_ms(&self) -> f64 {
+        0.0
     }
 }
 
@@ -158,6 +269,27 @@ fn snapshot(sandbox: &Sandbox, roots: &[&str]) -> BTreeMap<String, Option<String
     files
 }
 
+/// The identity the repositories a step makes are given, so no setting of the host's is read.
+const GIT_IDENTITY: [&str; 8] = ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"];
+
+/// Runs one git command line of a step in the sandbox, with the host's git, a fixed identity and fixed instants.
+fn run_git(sandbox: &Path, args: &[String]) {
+    let output = std::process::Command::new(host_program("git"))
+        .args(GIT_IDENTITY)
+        .args(args)
+        .current_dir(sandbox)
+        .env_clear()
+        .env("PATH", std::env::var("PATH").unwrap_or_default())
+        .env("HOME", sandbox.join("home"))
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_AUTHOR_DATE", "2026-11-03T12:00:00Z")
+        .env("GIT_COMMITTER_DATE", "2026-11-03T12:00:00Z")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .expect("run git");
+    assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
+}
+
 /// What one step printed, and the files it left behind.
 pub struct Outcome {
     pub exit: i64,
@@ -219,6 +351,13 @@ impl Replay {
             let _ = std::fs::remove_file(&link);
             std::os::unix::fs::symlink(host_program(name), link).expect("symlink");
         }
+        for argv in list(step, "git") {
+            let args: Vec<String> = match argv {
+                Value::Arr(items) => items.iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect(),
+                _ => Vec::new(),
+            };
+            run_git(sandbox, &args);
+        }
         let mut env: HashMap<String, String> = HashMap::new();
         let path = match field(step, "path") {
             Some(Value::Arr(dirs)) => dirs.iter().map(|dir| sandbox.join(dir.as_str().unwrap_or_default()).to_string_lossy().into_owned()).collect::<Vec<_>>().join(":"),
@@ -252,15 +391,18 @@ impl Replay {
             env,
             defaults: crate::SHIPPED_DEFAULTS.to_string(),
             defaults_path: "defaults.json".to_string(),
+            routing: crate::SHIPPED_ROUTING.to_string(),
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);
         let normalise = |text: &str| mask_stamp(&mask_grant_ids(&text.replace(&self.sandbox.text(), "@SANDBOX@")));
-        let files = snapshot(&self.sandbox, &["state", "home", "work"])
+        let extra: Vec<&str> = list(step, "roots").iter().filter_map(Value::as_str).collect();
+        let roots: Vec<&str> = ["state", "home", "work"].into_iter().chain(extra).collect();
+        let files = snapshot(&self.sandbox, &roots)
             .into_iter()
-            .map(|(path, content)| (path, content.map(|content| normalise(&content))))
+            .map(|(path, content)| (normalise(&path), content.map(|content| normalise(&content))))
             .collect();
-        Outcome { exit: i64::from(result.exit_code), files, stderr: normalise(&result.stderr), stdout: normalise(&result.stdout) }
+        mask_randoms(Outcome { exit: i64::from(result.exit_code), files, stderr: normalise(&result.stderr), stdout: normalise(&result.stdout) })
     }
 }
 
@@ -292,6 +434,43 @@ pub fn scenario_names() -> Vec<String> {
     names
 }
 
+/// Whether `SCENARIO` (an exact name, or a prefix ending in `-`) asks for this scenario; without it every scenario is replayed.
+fn is_wanted(name: &str, only: Option<&str>) -> bool {
+    match only {
+        Some(only) => only == name || (only.ends_with('-') && name.starts_with(only)),
+        None => true,
+    }
+}
+
+#[test]
+fn which_scenarios_are_replayed() {
+    assert!(is_wanted("cli-input", None) && is_wanted("run-vibe", None));
+    assert!(is_wanted("run-vibe", Some("run-vibe")) && !is_wanted("run-agy", Some("run-vibe")));
+    assert!(is_wanted("run-agy", Some("run-")) && !is_wanted("cli-input", Some("run-")));
+}
+
+#[test]
+fn the_random_parts_of_a_run_are_numbered_by_first_appearance() {
+    let ledger = "{\"run_id\":\"20261103T120000Z-abcdef\"}\n{\"run_id\":\"20261103T120000Z-012345\"}\n";
+    let files: BTreeMap<String, Option<String>> = [
+        (LEDGER_FILE.to_string(), Some(ledger.to_string())),
+        ("state/runs/20261103T120000Z-012345/".to_string(), None),
+        ("state/runs/20261103T120000Z-abcdef/result.json".to_string(), Some("cwd /tmp/model-gateway-worktree-Ab12Cd and model-gateway-run-Zz99Yy and model-gateway-run-Ab12Cd".to_string())),
+        ("short".to_string(), Some("20261103T120000Z-abcde model-gateway-run-Ab1 20261103T120000Z-ABCDEF".to_string())),
+    ]
+    .into_iter()
+    .collect();
+    let masked = mask_randoms(Outcome { exit: 0, stdout: "id 20261103T120000Z-012345\n".into(), stderr: String::new(), files });
+    assert_eq!(masked.stdout, "id 20261103T120000Z-@RAND1@\n");
+    assert_eq!(masked.files[LEDGER_FILE].as_deref(), Some("{\"run_id\":\"20261103T120000Z-@RAND2@\"}\n{\"run_id\":\"20261103T120000Z-@RAND1@\"}\n"));
+    assert_eq!(masked.files.get("state/runs/20261103T120000Z-@RAND1@/"), Some(&None));
+    assert_eq!(
+        masked.files["state/runs/20261103T120000Z-@RAND2@/result.json"].as_deref(),
+        Some("cwd /tmp/model-gateway-worktree-@TMP1@ and model-gateway-run-@TMP2@ and model-gateway-run-@TMP1@")
+    );
+    assert_eq!(masked.files["short"].as_deref(), Some("20261103T120000Z-abcde model-gateway-run-Ab1 20261103T120000Z-ABCDEF"));
+}
+
 #[test]
 fn every_scenario_gives_the_bytes_the_node_runner_gave() {
     let names = scenario_names();
@@ -299,7 +478,7 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
     // Every mismatch is collected, so one run shows all of them; SCENARIO=<name> replays one scenario.
     let only = std::env::var("SCENARIO").ok();
     let mut mismatches: Vec<String> = Vec::new();
-    for name in names.iter().filter(|name| only.as_ref().is_none_or(|only| only == *name)) {
+    for name in names.iter().filter(|name| is_wanted(name, only.as_deref())) {
         let replay = Replay::new(name);
         let golden = read_json(&replay.dir.join("expected.json"));
         let steps = list(&replay.scenario, "steps");

@@ -1,0 +1,112 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"agy\",\"mode\":\"read-only\",\"model\":\"gemini-3.8-flash-high\",\"prompt\":\"Read the long document.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/agy": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/agy.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/agy.n\" ] && read n < \"$D/agy.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/agy.n\"\npick() { if [ -f \"$C/agy.$1.$n\" ]; then echo \"$C/agy.$1.$n\"; else echo \"$C/agy.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/agy.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/canned/agy.out": "{\"response\":\"Read the files.\\nSUMMARY: agy is fine\",\"status\":\"SUCCESS\",\"usage\":{\"input_tokens\":900,\"output_tokens\":90,\"cache_read_tokens\":300}}\n"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "remove": [
+        "home/canned/agy.out",
+        "home/canned/agy.err",
+        "home/canned/agy.exit",
+        "home/canned/agy.export",
+        "home/canned/agy.usage",
+        "home/canned/agy.sleep",
+        "home/canned/agy.act"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"agy\",\"mode\":\"read-only\",\"model\":\"gemini-3.8-flash-low\",\"prompt\":\"Short one.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/agy.out",
+        "home/canned/agy.err",
+        "home/canned/agy.exit",
+        "home/canned/agy.export",
+        "home/canned/agy.usage",
+        "home/canned/agy.sleep",
+        "home/canned/agy.act"
+      ],
+      "write": {
+        "home/canned/agy.out": "{\"response\":\"No summary line here.\",\"status\":\"SUCCESS\",\"usage\":{\"input_tokens\":900,\"output_tokens\":90,\"cache_read_tokens\":300}}\n"
+      },
+      "now": "2026-11-03T12:05:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"agy\",\"mode\":\"read-only\",\"model\":\"gemini-3.8-flash-medium\",\"prompt\":\"Stream.\",\"time_limit_s\":30}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/agy.out",
+        "home/canned/agy.err",
+        "home/canned/agy.exit",
+        "home/canned/agy.export",
+        "home/canned/agy.usage",
+        "home/canned/agy.sleep",
+        "home/canned/agy.act"
+      ],
+      "write": {
+        "home/canned/agy.out": "{\"event\":\"init\"}\n{\"event\":\"result\",\"result\":{\"response\":\"Read the files.\\nSUMMARY: agy is fine\",\"status\":\"SUCCESS\",\"usage\":{\"input_tokens\":900,\"output_tokens\":90,\"cache_read_tokens\":300}}}\n"
+      },
+      "now": "2026-11-03T12:10:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

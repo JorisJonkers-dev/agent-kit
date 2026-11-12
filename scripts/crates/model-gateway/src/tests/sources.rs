@@ -6,7 +6,7 @@ use crate::adapters::fs::SystemFiles;
 use crate::adapters::process::SystemProcess;
 use crate::json::{self, Object, Value};
 use crate::models::{ClientListing, ClientModel};
-use crate::ports::{FileStamp, Files, FsError, Git, GitRemote, LockTimings, Process, ProcessResult, Runtime};
+use crate::ports::{FileStamp, Files, FsError, Git, GitRemote, LockTimings, Process, ProcessCommand, ProcessResult, Runtime};
 use crate::sources::list_client;
 use crate::status::{read_status, STATUS_TIMEOUT_MS};
 use crate::usage::{ClientStatusReading, SignedIn};
@@ -107,6 +107,18 @@ fn failure(path: &str) -> FsError {
 }
 
 impl Files for FakeFiles {
+    fn write_text(&self, _path: &str, _content: &str) -> Result<(), FsError> {
+        unreachable!("the test does not write text")
+    }
+
+    fn temp_dir(&self, _parent: &str, _prefix: &str) -> Result<String, FsError> {
+        unreachable!("the test makes no temporary directory")
+    }
+
+    fn remove(&self, _path: &str) -> Result<(), FsError> {
+        unreachable!("the test removes nothing")
+    }
+
     fn read_text(&self, path: &str) -> Result<String, FsError> {
         if self.unreadable.iter().any(|unreadable| unreadable == path) {
             return Err(failure(path));
@@ -208,12 +220,25 @@ impl Process for FakeProcess {
             None => Err(format!("cannot run {command}")),
         }
     }
+
+    fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
+        self.exec(&command.command, &args, command.timeout_ms)
+    }
 }
 
 /// A git the listings never ask anything.
 struct NoGit;
 
 impl Git for NoGit {
+    fn common_dir(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test asks for no common directory")
+    }
+
+    fn add_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
+        unreachable!("the test adds no worktree")
+    }
+
     fn root(&self, _path: &str) -> Result<Option<String>, String> {
         Ok(None)
     }
@@ -245,6 +270,7 @@ fn runtime(process: FakeProcess, files: FakeFiles, env: HashMap<String, String>)
         git: Box::new(NoGit),
         defaults: String::new(),
         defaults_path: "defaults.json".to_string(),
+        routing: crate::SHIPPED_ROUTING.to_string(),
     }
 }
 
@@ -947,6 +973,7 @@ fn the_real_programs_answer_the_listings_the_gateway_reads() {
         env,
         defaults: String::new(),
         defaults_path: "defaults.json".to_string(),
+        routing: crate::SHIPPED_ROUTING.to_string(),
     };
 
     assert_eq!(list_client(&runtime, "agy"), Some(ClientListing::Models(vec![model("gemini-4-pro")])));
@@ -998,6 +1025,7 @@ fn the_real_vibe_probe_keeps_its_answer_where_only_its_owner_can_read_it() {
         env,
         defaults: String::new(),
         defaults_path: "defaults.json".to_string(),
+        routing: crate::SHIPPED_ROUTING.to_string(),
     };
 
     let first = list_client(&runtime, "vibe");

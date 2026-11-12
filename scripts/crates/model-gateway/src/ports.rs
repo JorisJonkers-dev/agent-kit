@@ -1,7 +1,7 @@
 //! The ports the gateway reaches the system through: the clock, the files and
 //! the environment. Tests replace any of them.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// A file system failure as the platform words it: `code` is `ENOENT` for a missing file.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,6 +31,12 @@ pub trait Files {
     fn stamp(&self, path: &str) -> Option<FileStamp>;
     /// Like `write_atomic`, in a directory only its owner may enter (0700) and a file only its owner may read (0600).
     fn write_private(&self, path: &str, content: &str) -> Result<(), FsError>;
+    /// Writes the file whole, making its directory first.
+    fn write_text(&self, path: &str, content: &str) -> Result<(), FsError>;
+    /// A fresh directory under `parent` named `prefix` and six letters or digits, as `mkdtemp` makes one; its path.
+    fn temp_dir(&self, parent: &str, prefix: &str) -> Result<String, FsError>;
+    /// `rm -rf`: says nothing when the path is not there.
+    fn remove(&self, path: &str) -> Result<(), FsError>;
 }
 
 /// What `stamp` reports of a file, followed through every symlink.
@@ -52,12 +58,36 @@ pub struct ProcessResult {
     pub timed_out: bool,
 }
 
-/// The programs the gateway starts: the clients' own listing and status commands.
+/// One launch of a program: what the node adapter's `ProcessCommand` carries.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProcessCommand {
+    pub command: String,
+    pub args: Vec<String>,
+    /// The directory it starts in; the caller's own when `None`.
+    pub cwd: Option<String>,
+    /// Variables added to the environment the adapter holds, which they win over.
+    pub env: BTreeMap<String, String>,
+    /// How long it may run before it is stopped; no limit when `None`.
+    pub timeout_ms: Option<u64>,
+    /// Written to its stdin, which is then closed; without it stdin is closed from the start.
+    pub stdin: Option<String>,
+}
+
+impl ProcessCommand {
+    pub fn new(command: &str, args: &[&str]) -> ProcessCommand {
+        ProcessCommand { command: command.to_string(), args: args.iter().map(|arg| (*arg).to_string()).collect(), ..ProcessCommand::default() }
+    }
+}
+
+/// The programs the gateway starts: the clients' own listing and status commands, and a delegation's client.
 pub trait Process {
     /// The path of the first executable file named `binary` in a folder of PATH; `None` when there is none.
     fn resolve(&self, binary: &str) -> Option<String>;
     /// Runs `command args` to its end, or kills it after `timeout_ms`; an `Err` is a command that could not start.
     fn exec(&self, command: &str, args: &[&str], timeout_ms: Option<u64>) -> Result<ProcessResult, String>;
+    /// Runs one launch with its own directory, environment and stdin: stopped with SIGTERM when it outlives its
+    /// time limit, and killed when it ignores that; an `Err` is a command that could not start.
+    fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String>;
 }
 
 /// One remote of a repository, as `git config` names it.
@@ -77,11 +107,17 @@ pub trait Git {
     fn remove_worktree(&self, repo: &str, path: &str) -> Result<(), String>;
     /// `git branch -D`.
     fn delete_branch(&self, repo: &str, branch: &str) -> Result<(), String>;
+    /// The repository's common directory as an absolute path, which every worktree of it shares.
+    fn common_dir(&self, path: &str) -> Result<String, String>;
+    /// A detached worktree of the repository's HEAD at `path`, which may be an empty directory already.
+    fn add_worktree(&self, repo: &str, path: &str) -> Result<(), String>;
 }
 
 pub trait Clock {
     /// Milliseconds since the Unix epoch.
     fn now_ms(&self) -> i64;
+    /// A monotonic reading in milliseconds, from which how long something took is measured.
+    fn monotonic_ms(&self) -> f64;
 }
 
 /// How long a writer waits for the workflows lock: how long it sleeps before it
@@ -113,6 +149,8 @@ pub struct Runtime {
     pub defaults: String,
     /// The path the shipped defaults are named by in an error.
     pub defaults_path: String,
+    /// Critique's shipped `routing.json`, as text: the read-only proofs are matched against it.
+    pub routing: String,
 }
 
 impl Runtime {

@@ -6,7 +6,7 @@ use super::scenarios::{Sandbox, EXEC_LOCK};
 use crate::adapters::fs::SystemFiles;
 use crate::adapters::git::{SystemGit, TIMEOUT_MS};
 use crate::adapters::process::SystemProcess;
-use crate::ports::{Files, Git, GitRemote, Process, ProcessResult};
+use crate::ports::{Files, Git, GitRemote, Process, ProcessCommand, ProcessResult};
 use crate::sha256::sha256_hex;
 use std::collections::HashMap;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -164,6 +164,102 @@ fn exec_reports_the_code_node_gives_a_program_a_signal_ended() {
 
     let result = process.exec(&text(&path), &[], None).expect("the script starts");
     assert_eq!((result.exit_code, result.timed_out), (124, false));
+}
+
+/// A launch of the shell script `body`, which the shell reads from its own arguments.
+fn shell(body: &str) -> ProcessCommand {
+    ProcessCommand::new("sh", &["-c", body])
+}
+
+#[test]
+fn run_passes_the_arguments_the_directory_the_added_environment_and_the_input() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let process = SystemProcess { env: HashMap::from([("PATH".to_string(), real_path()), ("KEPT".to_string(), "parent".to_string()), ("SHADOWED".to_string(), "parent".to_string())]) };
+    let mut command = shell("pwd; printf '%s|%s|%s|%s\\n' \"$KEPT\" \"$SHADOWED\" \"$ADDED\" \"$1\"; cat; echo err >&2; exit 4");
+    command.args.push("arg-one".to_string());
+    command.args.push("arg-one".to_string());
+    command.cwd = Some(text(&sandbox.path));
+    command.env = [("SHADOWED", "added"), ("ADDED", "yes")].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+    command.stdin = Some("from stdin".to_string());
+
+    let result = process.run(&command).expect("the shell runs");
+
+    let directory = std::fs::canonicalize(&sandbox.path).expect("sandbox");
+    assert_eq!(result.stdout, format!("{}\nparent|added|yes|arg-one\nfrom stdin", text(&directory)));
+    assert_eq!(result.stderr, "err\n");
+    assert_eq!((result.exit_code, result.timed_out), (4, false));
+}
+
+#[test]
+fn run_closes_stdin_from_the_start_when_given_no_input_and_survives_a_program_that_never_reads_it() {
+    let _guard = serialised();
+    let process = SystemProcess { env: env_with_path(&real_path()) };
+
+    let closed = process.run(&shell("cat; echo done")).expect("the shell runs");
+    assert_eq!(closed.stdout, "done\n");
+
+    let mut ignores = shell("exit 0");
+    ignores.stdin = Some("x".repeat(1 << 20));
+    assert_eq!(process.run(&ignores).expect("the shell runs").exit_code, 0);
+}
+
+#[test]
+fn run_stops_a_program_that_outlasts_its_limit_with_sigterm_and_reports_the_signal_code() {
+    let _guard = serialised();
+    let process = SystemProcess { env: env_with_path(&real_path()) };
+    let mut slow = shell("exec sleep 30");
+    slow.timeout_ms = Some(50);
+
+    let result = process.run(&slow).expect("the shell starts");
+
+    assert!(result.timed_out);
+    assert_eq!(result.exit_code, 124);
+}
+
+#[test]
+fn run_kills_a_program_that_ignores_sigterm_once_the_grace_ends() {
+    let _guard = serialised();
+    let process = SystemProcess { env: env_with_path(&real_path()) };
+    let mut stubborn = shell("trap '' TERM; exec sleep 30");
+    stubborn.timeout_ms = Some(50);
+
+    let started = std::time::Instant::now();
+    let result = process.run_with_grace(&stubborn, 100).expect("the shell starts");
+
+    assert!(result.timed_out);
+    assert_eq!(result.exit_code, 124);
+    assert!(started.elapsed() < std::time::Duration::from_secs(20));
+}
+
+#[test]
+fn run_uses_the_default_grace_for_a_program_that_exits_on_its_own() {
+    let _guard = serialised();
+    let process = SystemProcess { env: env_with_path(&real_path()) };
+    let mut quick = shell("echo quick");
+    quick.timeout_ms = Some(60_000);
+
+    let result = process.run(&quick).expect("the shell runs");
+
+    assert_eq!((result.stdout.as_str(), result.exit_code, result.timed_out), ("quick\n", 0, false));
+}
+
+#[test]
+fn run_names_a_program_it_cannot_start_and_a_directory_that_is_not_there() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let process = SystemProcess { env: env_with_path(&real_path()) };
+
+    let missing = sandbox.path.join("nowhere");
+    assert_eq!(process.run(&ProcessCommand::new(&text(&missing), &[])), Err(format!("spawn {} ENOENT", text(&missing))));
+
+    let plain = sandbox.path.join("plain");
+    std::fs::write(&plain, "not a program\n").expect("plain file");
+    assert_eq!(process.run(&ProcessCommand::new(&text(&plain), &[])), Err(format!("spawn {} EACCES", text(&plain))));
+
+    let mut elsewhere = shell("true");
+    elsewhere.cwd = Some(text(&missing));
+    assert_eq!(process.run(&elsewhere), Err("spawn sh ENOENT".to_string()));
 }
 
 #[test]
