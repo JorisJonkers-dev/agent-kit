@@ -472,7 +472,7 @@ reported with every problem and holding nothing, each delegation run through the
 independent delegations in parallel at most `max_parallel_per_client` per client (a `std::thread::scope` whose workers report over a channel, with a
 mutex-and-condvar slot table, and a slot of the client each attempt really runs on), a delegation that fails for
 good skipping only what depends on it, and the reservations of delegations that never ran given back with reason
-`not-run`. Not ported yet: the binary swap. The engine guard is not part of `run` or `batch` and is not ported.
+`not-run`. The binary swap is done (below). The engine guard is not part of `run` or `batch` and is not ported.
 
 Known differences from the node runner: a zone-less date-time in a state file
 reads as UTC, not local time (the goldens run with `TZ=UTC`); `Date.parse`'s
