@@ -59,6 +59,9 @@
             --artifact-type application/vnd.jorisjonkers.agent-kit.runtime-home.v1.tar+gzip \
             "dist/agent-kit-runtime-home-${tag}.tar.gz:application/gzip" \
             "dist/agent-kit-runtime-home-${tag}.tar.gz.sha256:text/plain"
+          # The runner follows :latest at session start and verifies the
+          # tarball against the .sha256 pushed beside it.
+          oras tag "ghcr.io/jorisjonkers-dev/agent-kit/runtime-home:${tag}" latest
       - 'name': 'Attach release assets'
         'env':
           'GH_TOKEN': '${{ secrets.GITHUB_TOKEN }}'

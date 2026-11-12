@@ -78,6 +78,18 @@ runtime:
       - name: AGENT_KIT_EXPECTED_VERSION
         required: false
         description: Expected installed agent-kit version marker.
+      - name: AGENT_KIT_RUNTIME_REF
+        required: false
+        description: OCI reference of the runtime-home artifact to overlay at session start (the release publishes tag v{version}). Unset keeps the baked kit.
+      - name: AGENT_KIT_RUNTIME_DIGEST
+        required: false
+        description: Optional sha256 the fetched tarball must match, as published in the release's .sha256 asset.
+      - name: AGENT_KIT_FETCH
+        required: false
+        description: Set to 0 to skip the session-start kit fetch.
+      - name: AGENT_KIT_FETCH_DIR
+        required: false
+        description: Where the fetch keeps its status file and MCP profiles. Defaults to ~/.agent-kit-fetched.
       - name: AGENT_RUNNER_CONTAINER
         required: false
         description: Set to 1 by the runtime Containerfile. The entrypoint writes the global git config, .claude.json and the Codex config.toml only when it is set or a container runtime marker file exists.

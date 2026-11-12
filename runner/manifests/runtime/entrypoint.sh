@@ -27,6 +27,93 @@ check_agent_kit_manifest() {
   fi
 }
 
+# Overlay the newest published kit onto the baked one. The platform names the
+# runtime-home artifact in AGENT_KIT_RUNTIME_REF (tag or digest reference); oras
+# pulls it and nothing is installed until the tarball matches the .sha256 the
+# release published beside it, the optional AGENT_KIT_RUNTIME_DIGEST the
+# platform pinned, and the SHA256SUMS inside it. Any failure leaves the baked
+# kit untouched and says so; the session reports the version it ended up with.
+KIT_FETCH_DIR="${AGENT_KIT_FETCH_DIR:-${HOME}/.agent-kit-fetched}"
+
+kit_fallback() {
+  _baked="$(awk -F= '/^version=/{print $2; exit}' "${CLAUDE_CONFIG_DIR}/${AGENT_KIT_VERSION_MARKER}" 2>/dev/null || true)"
+  _baked="${_baked:-unknown}"
+  echo "[entrypoint] WARN: kit fetch failed: $1; falling back to the baked kit (version ${_baked})"
+  mkdir -p "$KIT_FETCH_DIR" 2>/dev/null &&
+    printf 'source=baked\nversion=%s\nreason=%s\n' "$_baked" "$1" > "$KIT_FETCH_DIR/status" 2>/dev/null || true
+  rm -rf "${_kit_stage:-}"
+  return 0
+}
+
+fetch_newest_kit() {
+  _ref="${AGENT_KIT_RUNTIME_REF:-}"
+  if [ -z "$_ref" ]; then
+    echo "[entrypoint] kit fetch not configured (AGENT_KIT_RUNTIME_REF unset); using the baked kit"
+    return 0
+  fi
+  if [ "${AGENT_KIT_FETCH:-1}" = 0 ]; then
+    echo "[entrypoint] kit fetch disabled (AGENT_KIT_FETCH=0); using the baked kit"
+    return 0
+  fi
+  _kit_stage=""
+  command -v oras >/dev/null 2>&1 || { kit_fallback "oras is not on PATH"; return 0; }
+  command -v sha256sum >/dev/null 2>&1 || { kit_fallback "sha256sum is not on PATH"; return 0; }
+  _kit_stage="$(mktemp -d)" || { kit_fallback "cannot create a staging directory"; return 0; }
+  mkdir -p "$_kit_stage/pull" "$_kit_stage/kit"
+  oras pull "$_ref" -o "$_kit_stage/pull" >"$_kit_stage/oras.log" 2>&1 ||
+    { kit_fallback "oras pull of ${_ref} failed: $(tail -n 1 "$_kit_stage/oras.log")"; return 0; }
+
+  _tarballs="$(find "$_kit_stage/pull" -maxdepth 1 -type f -name 'agent-kit-runtime-home-v*.tar.gz')"
+  case "$_tarballs" in
+    ""|*"
+"*) kit_fallback "${_ref} did not hold exactly one runtime-home tarball"; return 0 ;;
+  esac
+  _tarball="$_tarballs"
+  _version="${_tarball##*/agent-kit-runtime-home-}"
+  _version="${_version%.tar.gz}"
+  _published="$(awk '{print $1; exit}' "${_tarball}.sha256" 2>/dev/null || true)"
+  _actual="$(sha256sum "$_tarball" | awk '{print $1}')"
+  [ -n "$_published" ] || { kit_fallback "${_ref} published no sha256 for ${_version}"; return 0; }
+  [ "$_published" = "$_actual" ] ||
+    { kit_fallback "sha256 of ${_version} is ${_actual}, the release published ${_published}"; return 0; }
+  if [ -n "${AGENT_KIT_RUNTIME_DIGEST:-}" ] && [ "${AGENT_KIT_RUNTIME_DIGEST#sha256:}" != "$_actual" ]; then
+    kit_fallback "sha256 of ${_version} is ${_actual}, not the pinned ${AGENT_KIT_RUNTIME_DIGEST}"
+    return 0
+  fi
+
+  _entries="$(tar -tzf "$_tarball" 2>/dev/null)" || { kit_fallback "${_version} is not a readable tarball"; return 0; }
+  case "
+$_entries
+" in
+    *"
+/"*|*"../"*|*"/.."*) kit_fallback "${_version} holds an absolute or parent-relative path"; return 0 ;;
+  esac
+  tar -xzf "$_tarball" -C "$_kit_stage/kit" || { kit_fallback "cannot extract ${_version}"; return 0; }
+  (cd "$_kit_stage/kit" && sha256sum -c SHA256SUMS >/dev/null 2>&1) ||
+    { kit_fallback "SHA256SUMS inside ${_version} does not match its files"; return 0; }
+  [ -d "$_kit_stage/kit/home" ] || { kit_fallback "${_version} has no home directory"; return 0; }
+
+  mkdir -p "$HOME" "$KIT_FETCH_DIR" || { kit_fallback "cannot write ${HOME} or ${KIT_FETCH_DIR}"; return 0; }
+  # Credentials stay as the runner mounted them.
+  (cd "$_kit_stage/kit/home" && tar -cf - \
+    --exclude=./.claude/.credentials.json --exclude=./.codex/auth.json --exclude=./.codex/config.toml .) |
+    (cd "$HOME" && tar -xf -) || { kit_fallback "cannot install the home of ${_version}"; return 0; }
+  if [ -d "$_kit_stage/kit/mcp" ]; then
+    rm -rf "$KIT_FETCH_DIR/mcp"
+    cp -R "$_kit_stage/kit/mcp" "$KIT_FETCH_DIR/mcp" || { kit_fallback "cannot install the MCP profiles of ${_version}"; return 0; }
+    AGENT_MCP_DIR="$KIT_FETCH_DIR/mcp"
+    export AGENT_MCP_DIR
+  fi
+  mkdir -p "$CLAUDE_CONFIG_DIR" "$CODEX_HOME"
+  printf 'version=%s\n' "$_version" > "${CLAUDE_CONFIG_DIR}/${AGENT_KIT_VERSION_MARKER}"
+  printf 'version=%s\n' "$_version" > "${CODEX_HOME}/${AGENT_KIT_VERSION_MARKER}"
+  printf 'source=fetched\nversion=%s\nsha256=%s\nref=%s\n' "$_version" "$_actual" "$_ref" > "$KIT_FETCH_DIR/status"
+  AGENT_KIT_FETCHED_VERSION="$_version"
+  export AGENT_KIT_FETCHED_VERSION
+  rm -rf "$_kit_stage"
+  echo "[entrypoint] kit fetched: agent-kit ${_version} (sha256 ${_actual} verified) from ${_ref}"
+}
+
 check_agent_kit_manifests() {
   check_agent_kit_manifest "Claude" "${CLAUDE_CONFIG_DIR}/${AGENT_KIT_VERSION_MARKER}"
   check_agent_kit_manifest "Codex" "${CODEX_HOME}/${AGENT_KIT_VERSION_MARKER}"
@@ -276,6 +363,9 @@ case "${AGENT_RUNNER_ENTRYPOINT_SELF_TEST:-}" in
     ;;
 esac
 
+if in_runner_container; then
+  fetch_newest_kit
+fi
 check_agent_kit_manifests
 
 export GIT_TERMINAL_PROMPT=0
