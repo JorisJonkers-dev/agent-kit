@@ -639,7 +639,22 @@ def test_setup_turns_the_updater_metrics_task_board_and_connectors_off_and_nothi
     assert [c["enabled"] for c in written["imIntegrations"]["channels"]] == [False, False]
     assert written["desktopMetricsBaseUrl"] == "https://m.example"
     assert written["logLevel"] == "debug"
-    assert [c["kind"] for c in written["imIntegrations"]["channels"]] == ["wecom", "slack"]
+    assert written["imIntegrations"]["channels"] == [
+        {**channel, "enabled": False} for channel in LOUD["imIntegrations"]["channels"]
+    ]
+
+
+def test_absent_quiet_keys_stay_absent_and_check_mode_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, "logLevel": "info"})
+    assert machine.run() == 0
+    written = json.loads(machine.settings.read_text())
+    assert not {k for k in written if k.startswith(("desktop", "im", "feedback"))}
+    machine.settings.write_text(json.dumps({"agents": {}, **LOUD}))
+    before = machine.settings.read_bytes()
+    assert machine.run(check=True) == 0
+    assert machine.settings.read_bytes() == before
 
 
 def test_a_settings_file_that_only_needs_quieting_is_still_rewritten(
@@ -651,7 +666,9 @@ def test_a_settings_file_that_only_needs_quieting_is_still_rewritten(
     first.settings.write_text(json.dumps({**doc, "desktopMetricsEnabled": True}))
     assert first.run() == 0
     assert json.loads(first.settings.read_text())["desktopMetricsEnabled"] is False
+    settled = first.settings.read_bytes()
     assert first.run() == 0
+    assert first.settings.read_bytes() == settled
 
 
 def test_odd_connector_shapes_are_left_alone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
