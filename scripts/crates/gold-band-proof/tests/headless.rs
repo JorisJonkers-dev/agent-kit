@@ -269,6 +269,17 @@ fn workflow_c_work_pauses_on_a_lapsed_grant_before_each_codex_node_and_publishes
         "{stdout}"
     );
     assert!(
+        stdout.contains(
+            "after-publication-check.gate-fail-workflow-c-publish: expected exit 1, got 1 (completed/failure)"
+        ),
+        "{stdout}"
+    );
+    // The run itself pauses (exit 2) at a manual check before any publication.
+    assert!(
+        stdout.contains("\n  clean: expected exit 2, got 2 (paused/"),
+        "{stdout}"
+    );
+    assert!(
         !stdout.contains("\n  gate-fail-workflow-c-publish:"),
         "the publish gate is not reachable before the check: {stdout}"
     );
