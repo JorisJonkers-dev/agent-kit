@@ -109,17 +109,15 @@ def test_a_claude_agent_without_an_adapter_gets_one_for_the_directory(
     assert machine.agents()["claude"] == {"adapter": {"env": {"CLAUDE_CONFIG_DIR": "/srv/profile"}}}
 
 
-def test_the_work_instance_keeps_codex_and_the_personal_one_removes_it(
+def test_the_keep_file_belongs_to_the_personal_instance_alone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine = Machine(tmp_path, monkeypatch, [_claude("claude-work", WORK_DIR, instance="gold-band")])
     machine.settings.parent.mkdir()
     machine.settings.write_text(json.dumps({"agents": {"codex": {"adapter": {}}}}))
     machine.keep.write_text(yaml.safe_dump({"keep": ["codex"]}))
+    # The work instance holds exactly its declared agents; the keep file is not its.
     assert machine.run("gold-band") == 0
-    assert "codex" in machine.agents()
-    # A kept Codex entry still goes on the personal instance.
-    assert machine.run() == 0
     assert "codex" not in machine.agents()
 
 
