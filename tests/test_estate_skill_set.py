@@ -53,8 +53,10 @@ def test_the_estate_set_holds_the_four_estate_skills() -> None:
 
 def test_every_declared_personal_agent_names_the_estate_set() -> None:
     agents = _registry()["gold_band"]["agents"]
-    assert [agent["id"] for agent in agents] == ["opencode", "vibe", "vibe-study"]
-    assert {agent["skill_set"] for agent in agents} == {"estate"}
+    # Other agents (claude, codex, pi and the rest) keep their own directories.
+    named = [agent for agent in agents if "skill_set" in agent]
+    assert [agent["id"] for agent in named] == ["opencode", "vibe", "vibe-study"]
+    assert {agent["skill_set"] for agent in named} == {"estate"}
 
 
 def test_an_id_that_names_the_set_gets_exactly_the_four_skills(
@@ -73,7 +75,7 @@ def test_an_id_that_names_the_set_gets_exactly_the_four_skills(
 
 def test_an_id_that_does_not_name_the_set_gets_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     registry = _registry()
-    vibe = registry["gold_band"]["agents"][1]
+    vibe = next(agent for agent in registry["gold_band"]["agents"] if agent["id"] == "vibe")
     vibe.pop("skill_set")
     vibe.update(primaryAgentDir=".vibe", compatibleAgentDirs=[".agents"])
     edited = tmp_path / "registry.yaml"
