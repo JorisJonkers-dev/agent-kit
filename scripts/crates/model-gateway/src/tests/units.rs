@@ -20,11 +20,16 @@ fn sandbox_runtime(sandbox: &Sandbox, now: i64) -> Runtime {
     let root = sandbox.text();
     std::fs::create_dir_all(format!("{root}/home")).expect("home");
     std::fs::create_dir_all(format!("{root}/state")).expect("state");
+    let env = HashMap::from([("HOME".to_string(), format!("{root}/home")), ("XDG_STATE_HOME".to_string(), format!("{root}/state"))]);
     Runtime {
         clock: Box::new(FixedClock(now)),
         files: Box::new(SystemFiles { cwd: root.clone() }),
-        env: HashMap::from([("HOME".to_string(), format!("{root}/home")), ("XDG_STATE_HOME".to_string(), format!("{root}/state"))]),
         lock: LockTimings::default(),
+        process: Box::new(crate::adapters::process::SystemProcess { env: env.clone() }),
+        git: Box::new(crate::adapters::git::SystemGit { env: env.clone(), timeout_ms: crate::adapters::git::TIMEOUT_MS }),
+        env,
+        defaults: crate::SHIPPED_DEFAULTS.to_string(),
+        defaults_path: "defaults.json".to_string(),
     }
 }
 
@@ -332,13 +337,9 @@ fn the_command_line_runs_against_the_real_system() {
 #[test]
 fn the_commands_the_gateway_does_not_carry_answer_not_ported() {
     let runtime = crate::default_runtime();
-    let cases: [(&str, &[&str]); 7] = [
-        ("models", &["models", "--json", "{}"]),
+    let cases: [(&str, &[&str]); 3] = [
         ("run", &["run", "--json", "{}"]),
         ("batch", &["batch", "--json", "{}"]),
-        ("usage", &["usage", "--json", "{}"]),
-        ("grant write", &["grant", "write", "--json", "{}"]),
-        ("grant list", &["grant", "list", "--json", "{}"]),
         ("worktrees clean", &["worktrees", "clean", "--json", "{}"]),
     ];
     for (name, words) in cases {
@@ -407,6 +408,22 @@ impl Files for LockFiles {
 
     fn modified_ms(&self, _path: &str) -> Option<i64> {
         self.modified.get()
+    }
+
+    fn exists(&self, _path: &str) -> Result<bool, FsError> {
+        Ok(false)
+    }
+
+    fn append(&self, _path: &str, _content: &str) -> Result<(), FsError> {
+        Ok(())
+    }
+
+    fn stamp(&self, _path: &str) -> Option<crate::ports::FileStamp> {
+        None
+    }
+
+    fn write_private(&self, _path: &str, _content: &str) -> Result<(), FsError> {
+        Ok(())
     }
 }
 

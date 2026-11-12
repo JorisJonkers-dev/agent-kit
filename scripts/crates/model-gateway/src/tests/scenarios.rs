@@ -3,6 +3,8 @@
 //! goldens the node runner produced.
 
 use crate::adapters::fs::SystemFiles;
+use crate::adapters::git::{SystemGit, TIMEOUT_MS};
+use crate::adapters::process::SystemProcess;
 use crate::cli::run_cli;
 use crate::json::{parse, Value};
 use crate::ports::{Clock, LockTimings, Runtime};
@@ -10,6 +12,54 @@ use crate::timestamps;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// Held across writing a fake client program and running anything, so no thread forks while a script is still open for writing (ETXTBSY).
+pub static EXEC_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// The random suffix of a grant id is @RAND@, as in the goldens: `grant-20261103T120000Z-ab12cd`.
+pub fn mask_grant_ids(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let shape = b"grant-00000000T000000Z-";
+    let mut out = String::new();
+    let mut at = 0;
+    while at < text.len() {
+        let tail = &bytes[at..];
+        let matches_shape = tail.len() >= shape.len() + 6
+            && shape.iter().zip(tail).all(|(want, got)| if *want == b'0' { got.is_ascii_digit() } else { want == got })
+            && tail[shape.len()..shape.len() + 6].iter().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+        if matches_shape {
+            out.push_str(&text[at..at + shape.len()]);
+            out.push_str("@RAND@");
+            at += shape.len() + 6;
+        } else {
+            let width = text[at..].chars().next().map_or(1, char::len_utf8);
+            out.push_str(&text[at..at + width]);
+            at += width;
+        }
+    }
+    out
+}
+
+/// The change time and inode of the client program in a Vibe probe's cache entry are @N@, as in the goldens.
+pub fn mask_stamp(text: &str) -> String {
+    let mut out = text.to_string();
+    for key in ["\"binary_ctime_ms\":", "\"binary_ino\":"] {
+        let mut from = 0;
+        while let Some(found) = out[from..].find(key) {
+            let start = from + found + key.len();
+            let width = out[start..].find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | 'e' | 'E' | '+' | '-'))).unwrap_or(out.len() - start);
+            out.replace_range(start..start + width, "@N@");
+            from = start + 3;
+        }
+    }
+    out
+}
+
+/// The first program of that name on the host's PATH.
+fn host_program(name: &str) -> PathBuf {
+    let path = std::env::var("PATH").unwrap_or_default();
+    path.split(':').map(|dir| Path::new(dir).join(name)).find(|candidate| candidate.exists()).unwrap_or_else(|| panic!("no {name} on PATH"))
+}
 
 /// 2026-11-03T12:00:00Z, the instant fake-clock.mjs gives the node runner.
 pub const FIXED_NOW: i64 = 1_793_707_200_000;
@@ -140,6 +190,7 @@ impl Replay {
 
     /// Applies a step's file changes, runs its command line and reports what happened.
     pub fn step(&self, step: &Value) -> Outcome {
+        let _held = EXEC_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let sandbox = &self.sandbox.path;
         for path in list(step, "remove") {
             let target = sandbox.join(path.as_str().unwrap_or_default());
@@ -156,7 +207,24 @@ impl Replay {
                 std::fs::write(target, self.substitute(content.as_str().unwrap_or_default())).expect("write file");
             }
         }
+        for path in list(step, "exec") {
+            use std::os::unix::fs::PermissionsExt;
+            let target = sandbox.join(path.as_str().unwrap_or_default());
+            std::fs::set_permissions(target, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+        }
+        for name in list(step, "shims") {
+            let name = name.as_str().unwrap_or_default();
+            std::fs::create_dir_all(sandbox.join("bin")).expect("bin");
+            let link = sandbox.join("bin").join(name);
+            let _ = std::fs::remove_file(&link);
+            std::os::unix::fs::symlink(host_program(name), link).expect("symlink");
+        }
         let mut env: HashMap<String, String> = HashMap::new();
+        let path = match field(step, "path") {
+            Some(Value::Arr(dirs)) => dirs.iter().map(|dir| sandbox.join(dir.as_str().unwrap_or_default()).to_string_lossy().into_owned()).collect::<Vec<_>>().join(":"),
+            _ => std::env::var("PATH").unwrap_or_default(),
+        };
+        env.insert("PATH".into(), path);
         env.insert("HOME".into(), sandbox.join("home").to_string_lossy().into_owned());
         env.insert("XDG_STATE_HOME".into(), sandbox.join("state").to_string_lossy().into_owned());
         if let Some(Value::Obj(overrides)) = field(step, "env") {
@@ -178,12 +246,16 @@ impl Replay {
         let runtime = Runtime {
             clock: Box::new(FixedClock(now)),
             files: Box::new(SystemFiles { cwd: sandbox.join("work").to_string_lossy().into_owned() }),
-            env,
             lock: LockTimings::default(),
+            process: Box::new(SystemProcess { env: env.clone() }),
+            git: Box::new(SystemGit { env: env.clone(), timeout_ms: TIMEOUT_MS }),
+            env,
+            defaults: crate::SHIPPED_DEFAULTS.to_string(),
+            defaults_path: "defaults.json".to_string(),
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);
-        let normalise = |text: &str| text.replace(&self.sandbox.text(), "@SANDBOX@");
+        let normalise = |text: &str| mask_stamp(&mask_grant_ids(&text.replace(&self.sandbox.text(), "@SANDBOX@")));
         let files = snapshot(&self.sandbox, &["state", "home", "work"])
             .into_iter()
             .map(|(path, content)| (path, content.map(|content| normalise(&content))))
@@ -223,9 +295,12 @@ pub fn scenario_names() -> Vec<String> {
 #[test]
 fn every_scenario_gives_the_bytes_the_node_runner_gave() {
     let names = scenario_names();
-    assert!(names.len() >= 7, "the fixture scenarios are missing: {names:?}");
-    for name in names {
-        let replay = Replay::new(&name);
+    assert!(names.len() >= 14, "the fixture scenarios are missing: {names:?}");
+    // Every mismatch is collected, so one run shows all of them; SCENARIO=<name> replays one scenario.
+    let only = std::env::var("SCENARIO").ok();
+    let mut mismatches: Vec<String> = Vec::new();
+    for name in names.iter().filter(|name| only.as_ref().is_none_or(|only| only == *name)) {
+        let replay = Replay::new(name);
         let golden = read_json(&replay.dir.join("expected.json"));
         let steps = list(&replay.scenario, "steps");
         assert!(!steps.is_empty(), "{name} has no steps");
@@ -233,10 +308,23 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
             let want = expected(&golden, index);
             let got = replay.step(step);
             let label = format!("{name} step {index} {:?}", list(step, "argv"));
-            assert_eq!(got.stdout, want.stdout, "{label}: stdout");
-            assert_eq!(got.stderr, want.stderr, "{label}: stderr");
-            assert_eq!(got.exit, want.exit, "{label}: exit code");
-            assert_eq!(got.files, want.files, "{label}: files");
+            if got.stdout != want.stdout {
+                mismatches.push(format!("{label}: stdout\n--- want\n{}\n--- got\n{}", want.stdout, got.stdout));
+            }
+            if got.stderr != want.stderr {
+                mismatches.push(format!("{label}: stderr\n--- want\n{}\n--- got\n{}", want.stderr, got.stderr));
+            }
+            if got.exit != want.exit {
+                mismatches.push(format!("{label}: exit code want {} got {}", want.exit, got.exit));
+            }
+            if got.files != want.files {
+                let mut changed: Vec<&String> = want.files.keys().chain(got.files.keys()).filter(|path| want.files.get(*path) != got.files.get(*path)).collect();
+                changed.dedup();
+                let detail: Vec<String> = changed.iter().map(|path| format!("{path}\n--- want {:?}\n--- got {:?}", want.files.get(*path), got.files.get(*path))).collect();
+                mismatches.push(format!("{label}: files differ\n{}", detail.join("\n")));
+            }
         }
     }
+    let shown: Vec<&String> = mismatches.iter().take(6).collect();
+    assert!(mismatches.is_empty(), "{} mismatches, first {}:\n{}", mismatches.len(), shown.len(), shown.iter().map(|m| m.as_str()).collect::<Vec<_>>().join("\n====\n"));
 }

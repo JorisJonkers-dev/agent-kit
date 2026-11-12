@@ -1,0 +1,415 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/vibe-calls\"\necho \"warning: could not reach the telemetry host\" >&2\necho \"Error: unknown model 'model-gateway-probe'. Available: deepseek-v4-1-flash-1017, glm-5-3, mistral-small-latest, zai-glm-5-3-flash, brand-new-id.\" >&2\nexit 1\n",
+        "bin/agy": "#!/bin/sh\nprintf 'Fetching available models...\\n'\nprintf 'gemini-3.8-flash-high\\tGemini 3.8 Flash High\\n'\nprintf 'gemini-3.8-flash-low\\tGemini Low\\n'\nprintf 'gemini-9-ultra\\tNew one\\n'\nprintf 'claude-sonnet-x\\tOther family\\n'\nprintf 'a line without a tab\\n'\nprintf '\\tno id\\n'\n",
+        "bin/opencode": "#!/bin/sh\ncase \"$1\" in\n  models)\n    printf 'opencode-go/glm-5.3\\nopencode-go/glm-5.3-flash\\nopencode-go/kimi-k3.1-pro\\nopencode/gpt-5-nano\\n  anthropic/claude-sonnet-4.6  \\nopencode-go/brand-new\\nopencode-go/glm-5.3\\nnoslash\\n/leading\\ntrailing/\\n\\n' ;;\n  auth) printf 'opencode-go  api key\\n' ;;\nesac\n",
+        "bin/hermes": "#!/bin/sh\ncase \"$1\" in\n  config) echo '{\"default\":\"anthropic/claude-sonnet-4.6\",\"provider\":\"openrouter\"}' ;;\n  auth) echo 'openrouter  api key' ;;\nesac\n",
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in\n  login) echo 'Logged in using ChatGPT' ;;\nesac\n",
+        "bin/claude": "#!/bin/sh\nexit 0\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T09:00:00.000Z\",\"client\":\"vibe\",\"cost_class\":\"subsidised\",\"cost_usd\":0.1234567891,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"a1\",\"workflow\":\"w\",\"tokens\":{\"input\":100,\"output\":50,\"cached\":10}}\n{\"at\":\"2026-11-03T09:30:00.000Z\",\"client\":\"vibe\",\"cost_class\":\"subsidised\",\"cost_usd\":0.2,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"a2\",\"workflow\":\"other\"}\n{\"at\":\"2026-11-02T23:59:59.999Z\",\"client\":\"vibe\",\"cost_class\":\"subsidised\",\"cost_usd\":1,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"a3\",\"workflow\":\"w\",\"tokens\":{\"input\":1,\"output\":2,\"cached\":3}}\n{\"at\":\"2026-11-01T01:00:00.000Z\",\"client\":\"vibe\",\"cost_class\":\"subsidised\",\"cost_usd\":5,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"a4\",\"workflow\":\"w\",\"tokens\":{\"input\":9,\"output\":9,\"cached\":9}}\n{\"at\":\"2026-11-03T08:00:00.000Z\",\"client\":\"opencode\",\"cost_class\":\"subsidised\",\"cost_usd\":0.05,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"a5\",\"workflow\":\"w\",\"tokens\":{\"input\":10,\"output\":10,\"cached\":0}}\n{\"at\":\"2026-11-03T08:00:00.000Z\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"cost_usd\":0.3,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"m\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"a6\",\"workflow\":\"w\"}\n{\"at\":\"2026-11-03T08:30:00.000Z\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"cost_usd\":1.5,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"a7\",\"workflow\":\"w\",\"tokens\":{\"input\":5,\"output\":5,\"cached\":5}}\n{\"bad\n\n{\"at\":\"2026-11-03T11:50:00.000Z\",\"client\":\"claude\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"a8\",\"workflow\":\"w\",\"reason\":\"exit-1\"}\n{\"kind\":\"reservation\",\"run_id\":\"live\",\"workflow\":\"w\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"model\":\"m\",\"estimate_usd\":0.4,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n{\"kind\":\"reservation\",\"run_id\":\"expired\",\"workflow\":\"w\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"model\":\"m\",\"estimate_usd\":0.6,\"reserved_at\":\"2026-11-03T07:00:00.000Z\",\"expires_at\":\"2026-11-03T08:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/expired\"}\n{\"kind\":\"reservation\",\"run_id\":\"finished\",\"workflow\":\"w\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"model\":\"m\",\"estimate_usd\":0.7,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/finished\"}\n{\"kind\":\"reservation\",\"run_id\":\"ran\",\"workflow\":\"w\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"model\":\"m\",\"estimate_usd\":0.8,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n{\"at\":\"2026-11-03T10:00:00.000Z\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"cost_usd\":0.05,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"ran\",\"workflow\":\"w\"}\n{\"kind\":\"reservation\",\"run_id\":\"done\",\"workflow\":\"w\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"model\":\"m\",\"estimate_usd\":0.9,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T13:00:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/res\"}\n{\"kind\":\"settled\",\"run_id\":\"done\",\"workflow\":\"w\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"cost_usd\":0.1,\"reserved_at\":\"2026-11-03T09:00:00.000Z\",\"settled_at\":\"2026-11-03T09:30:00.000Z\"}\n{\"kind\":\"reservation\",\"run_id\":\"badresult\",\"workflow\":\"w\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"model\":\"m\",\"estimate_usd\":0.2,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T11:30:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/badresult\"}\n{\"kind\":\"reservation\",\"run_id\":\"nocost\",\"workflow\":\"w\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"model\":\"m\",\"estimate_usd\":0.2,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T11:31:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/nocost\"}\n{\"kind\":\"reservation\",\"run_id\":\"negcost\",\"workflow\":\"w\",\"client\":\"hermes\",\"cost_class\":\"metered-personal\",\"model\":\"m\",\"estimate_usd\":0.2,\"reserved_at\":\"2026-11-03T11:00:00.000Z\",\"expires_at\":\"2026-11-03T11:32:00.000Z\",\"run_dir\":\"@SANDBOX@/work/runs/negcost\"}\n",
+        "work/runs/finished/result.json": "{\"cost_usd\":0.35}",
+        "work/runs/badresult/result.json": "not json",
+        "work/runs/nocost/result.json": "{\"status\":\"ok\"}",
+        "work/runs/negcost/result.json": "{\"cost_usd\":-1}"
+      },
+      "exec": [
+        "bin/vibe",
+        "bin/agy",
+        "bin/opencode",
+        "bin/hermes",
+        "bin/codex",
+        "bin/claude"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"days\":1}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"days\":30,\"workflow\":\"other\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"workflow\":\"nothing-here\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"days\":365}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"days\":0}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"days\":-1}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"days\":1.5}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"days\":\"3\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"days\":null}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"workflow\":\"\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"workflow\":\"bad name\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"workflow\":3}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{\"ignored\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-04T00:00:01Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"5h\",\"limit_usd\":0.5},{\"window\":\"day\",\"limit_runs\":3},{\"window\":\"week\",\"limit_usd\":100},{\"window\":\"month\",\"limit_runs\":4}]},\"opencode\":{\"plan_limits\":[{\"window\":\"day\",\"limit_usd\":0.05}]},\"codex\":{\"plan_limits\":[{\"window\":\"day\",\"limit_runs\":1}]}},\"settings\":{\"plan_warning_ratio\":0.5,\"availability_window_minutes\":90}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in login) echo \"Not logged in\" >&2; exit 1 ;; esac\n",
+        "bin/hermes": "#!/bin/sh\ncase \"$1\" in auth) exit 0 ;; esac\n",
+        "bin/opencode": "#!/bin/sh\ncase \"$1\" in auth) echo \"unknown command\" >&2; exit 2 ;; esac\n"
+      },
+      "exec": [
+        "bin/codex",
+        "bin/hermes",
+        "bin/opencode"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in login) echo \"weird\" >&2; exit 5 ;; esac\n",
+        "bin/hermes": "#!/bin/sh\ncase \"$1\" in auth) printf \"\\n  first\\nsecond\\n\" ;; esac\n",
+        "bin/opencode": "#!/bin/sh\ncase \"$1\" in auth) exit 9 ;; esac\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in login) printf \"\\n   \\n\"; exit 0 ;; esac\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in login) echo \"Unauthenticated\" ; exit 1 ;; esac\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in login) echo \"login required\" >&2; exit 1 ;; esac\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "bin/vibe",
+        "bin/agy",
+        "bin/opencode",
+        "bin/hermes",
+        "bin/codex",
+        "bin/claude"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/ledger.jsonl": ""
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "state/agent-kit/model-gateway/ledger.jsonl"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T11:30:00.000Z\",\"client\":\"vibe\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"x1\",\"workflow\":\"w\",\"reason\":\"rate-limited\"}\n{\"at\":\"2026-11-03T11:40:00.000Z\",\"client\":\"agy\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"m\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"x2\",\"workflow\":\"w\",\"reason\":\"auth\"}\n{\"at\":\"2026-11-03T08:00:00.000Z\",\"client\":\"opencode\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"x3\",\"workflow\":\"w\",\"reason\":\"rate-limited\"}\n{\"at\":\"2026-11-03T11:40:00.000Z\",\"client\":\"claude\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"x4\",\"workflow\":\"w\",\"reason\":\"rate-limited\",\"unavailable_until\":\"2026-11-03T15:00:00.000Z\"}\n{\"at\":\"2026-11-03T11:41:00.000Z\",\"client\":\"claude\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"x5\",\"workflow\":\"w\",\"reason\":\"model-unavailable\"}\n{\"at\":\"2026-11-03T11:00:00.000Z\",\"client\":\"hermes\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"x6\",\"workflow\":\"w\",\"reason\":\"rate-limited\"}\n{\"at\":\"2026-11-03T11:10:00.000Z\",\"client\":\"hermes\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"repository\":null,\"run_id\":\"x7\",\"workflow\":\"w\"}\n{\"at\":\"2026-11-03T11:20:00.000Z\",\"client\":\"hermes\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"x8\",\"workflow\":\"w\",\"reason\":\"auth\"}\n{\"at\":\"2026-11-03T11:45:00.000Z\",\"client\":\"vibe\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"duration_s\":3,\"family\":\"deepseek\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"failed\",\"repository\":null,\"run_id\":\"x9\",\"workflow\":\"w\"}\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "usage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/model-gateway.json",
+        "state/agent-kit/model-gateway/ledger.jsonl"
+      ],
+      "mkdir": [
+        "state/agent-kit/model-gateway/ledger.jsonl"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

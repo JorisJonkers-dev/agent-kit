@@ -23,6 +23,55 @@ pub trait Files {
     fn remove_file(&self, path: &str) -> Result<(), FsError>;
     /// The file's modification time in epoch milliseconds; `None` when it cannot be read.
     fn modified_ms(&self, path: &str) -> Option<i64>;
+    /// `Ok(false)` only when the file is not there (ENOENT or ENOTDIR); any other failure to look is an error.
+    fn exists(&self, path: &str) -> Result<bool, FsError>;
+    /// Appends text to the file, creating it when it is not there.
+    fn append(&self, path: &str, content: &str) -> Result<(), FsError>;
+    /// What makes a file the one it is: its real path, change time, size, inode and SHA-256; `None` when it cannot be read.
+    fn stamp(&self, path: &str) -> Option<FileStamp>;
+    /// Like `write_atomic`, in a directory only its owner may enter (0700) and a file only its owner may read (0600).
+    fn write_private(&self, path: &str, content: &str) -> Result<(), FsError>;
+}
+
+/// What `stamp` reports of a file, followed through every symlink.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FileStamp {
+    pub realpath: String,
+    pub ctime_ms: f64,
+    pub ino: f64,
+    pub sha256: String,
+    pub size: f64,
+}
+
+/// What a finished command left.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProcessResult {
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: i32,
+    pub timed_out: bool,
+}
+
+/// The programs the gateway starts: the clients' own listing and status commands.
+pub trait Process {
+    /// The path of the first executable file named `binary` in a folder of PATH; `None` when there is none.
+    fn resolve(&self, binary: &str) -> Option<String>;
+    /// Runs `command args` to its end, or kills it after `timeout_ms`; an `Err` is a command that could not start.
+    fn exec(&self, command: &str, args: &[&str], timeout_ms: Option<u64>) -> Result<ProcessResult, String>;
+}
+
+/// One remote of a repository, as `git config` names it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GitRemote {
+    pub name: String,
+    pub url: String,
+}
+
+/// What the gateway asks git: where a path's repository is and where it points.
+pub trait Git {
+    /// The repository root of `path`; `Ok(None)` when git says it is no repository; any other failure is an `Err` with git's own words.
+    fn root(&self, path: &str) -> Result<Option<String>, String>;
+    fn remotes(&self, path: &str) -> Result<Vec<GitRemote>, String>;
 }
 
 pub trait Clock {
@@ -53,6 +102,12 @@ pub struct Runtime {
     /// The environment the state home comes from: XDG_STATE_HOME, else HOME.
     pub env: HashMap<String, String>,
     pub lock: LockTimings,
+    pub process: Box<dyn Process>,
+    pub git: Box<dyn Git>,
+    /// The shipped `defaults.json`, as text.
+    pub defaults: String,
+    /// The path the shipped defaults are named by in an error.
+    pub defaults_path: String,
 }
 
 impl Runtime {
