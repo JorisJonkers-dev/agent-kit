@@ -5,6 +5,7 @@ use super::scenarios::{FixedClock, Sandbox, FIXED_NOW};
 use crate::adapters::fs::SystemFiles;
 use crate::cli::run_cli;
 use crate::json::{parse, Value};
+use crate::kept_file::KeptStore;
 use crate::ports::{FileStamp, Files, FsError, Git, GitRemote, LockTimings, Runtime};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -47,6 +48,30 @@ impl Git for RecordingGit {
         }
         Ok(())
     }
+
+    fn git_dir(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test asks for no git directory")
+    }
+
+    fn create_worktree(&self, _repo: &str, _path: &str, _branch: &str, _base: &str) -> Result<(), String> {
+        unreachable!("the test creates no worktree")
+    }
+
+    fn stage_all(&self, _path: &str) -> Result<(), String> {
+        unreachable!("the test stages nothing")
+    }
+
+    fn staged_files(&self, _path: &str, _base: Option<&str>) -> Result<Vec<String>, String> {
+        unreachable!("the test lists nothing")
+    }
+
+    fn list_worktrees(&self, _repo: &str) -> Result<Vec<String>, String> {
+        unreachable!("the test watches no worktree")
+    }
+
+    fn status(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test reads no status")
+    }
 }
 
 fn runtime(sandbox: &Sandbox, calls: &Rc<RefCell<Vec<String>>>) -> Runtime {
@@ -79,6 +104,22 @@ fn kept_file(sandbox: &Sandbox) -> String {
 fn write_kept(sandbox: &Sandbox, text: &str) {
     std::fs::create_dir_all(format!("{}/state/agent-kit/model-gateway", sandbox.text())).expect("state");
     std::fs::write(format!("{}/state/agent-kit/model-gateway/kept-worktrees.json", sandbox.text()), text).expect("kept file");
+}
+
+#[test]
+fn adding_a_worktree_appends_it_to_the_kept_list_under_the_lock() {
+    let sandbox = Sandbox::new();
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    write_kept(&sandbox, r#"{"version":1,"worktrees":[{"run_id":"a","workflow":"w","repo":"/r","path":"/a","branch":"ba"}]}"#);
+    let runtime = runtime(&sandbox, &calls);
+    let entry = parse(r#"{"at":"2026-11-04T10:00:00.000Z","branch":"gateway/b","path":"/b","repo":"/r","run_id":"b","workflow":"w"}"#).expect("an entry");
+
+    (KeptStore { runtime: &runtime }).add(&entry).expect("added");
+
+    let kept = kept_file(&sandbox);
+    assert!(kept.contains("\"run_id\": \"a\"") && kept.contains("\"run_id\": \"b\""), "{kept}");
+    assert!(kept.contains("\"version\": 1"), "{kept}");
+    assert_eq!((KeptStore { runtime: &runtime }).list().expect("listed").len(), 2);
 }
 
 #[test]

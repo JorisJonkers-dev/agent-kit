@@ -2,6 +2,8 @@
 // record how they were launched (argv, working directory, the environment that matters, stdin) and
 // print canned output in the client's own shape. PATH is the sandbox's bin/ alone. Imported by
 // gen-scenarios.mjs, which writes them out; regenerate-fixtures.mjs makes the goldens with the node runner.
+// The helpers below (the fake programs, the canned behaviour, the repositories, the grants) are exported
+// for gen-scenarios-write.mjs, which drives the same fakes through a writing run.
 //
 // How a fake client is told what to do: every program is the same script (fake()). It counts its own
 // calls in home/calls/<client>.n and appends what it saw to home/calls/<client>.txt. What it prints
@@ -15,8 +17,8 @@
 // Run ids and temporary directories carry random parts, which regenerate-fixtures.mjs numbers (@RAND1@,
 // @TMP1@). Time is fixed (and so is the monotonic reading, so a run's duration is always 0).
 
-const SBX = '@SANDBOX@'
-const ENV_BASE = { XDG_CACHE_HOME: `${SBX}/cache`, TMPDIR: `${SBX}/tmp` }
+export const SBX = '@SANDBOX@'
+export const ENV_BASE = { XDG_CACHE_HOME: `${SBX}/cache`, TMPDIR: `${SBX}/tmp` }
 const CONFIG = 'home/.config/agent-kit'
 const GRANTS = `${CONFIG}/model-gateway-grants.json`
 const OVERRIDE = `${CONFIG}/model-gateway.json`
@@ -26,10 +28,10 @@ const SETUP_RESULTS = 'home/.local/share/agent-kit/critique/machine-setup.json'
 const STATE = 'state/agent-kit/model-gateway'
 const LEDGER = `${STATE}/ledger.jsonl`
 const WORKFLOWS = `${STATE}/workflows.json`
-const REPO = `${SBX}/repo`
-const NOW = '2026-11-03T12:00:00.000Z'
-const SHIMS = ['git', 'env', 'cat', 'mkdir', 'sleep', 'rm', 'mv']
-const ROOTS = ['tmp', 'repo/.git/model-gateway']
+export const REPO = `${SBX}/repo`
+export const NOW = '2026-11-03T12:00:00.000Z'
+export const SHIMS = ['git', 'env', 'cat', 'mkdir', 'sleep', 'rm', 'mv']
+export const ROOTS = ['tmp', 'repo/.git/model-gateway']
 
 /** The variables a fake client reports on, each as its value or `<unset>`. */
 const WATCHED_ENV = [
@@ -44,7 +46,7 @@ const WATCHED_ENV = [
 ]
 
 /** One fake client program. `stdin` makes it keep what it was sent on stdin, as the client that reads its prompt there. */
-function fake(name, stdin) {
+export function fake(name, stdin) {
   const watched = WATCHED_ENV.map((variable) => `  echo "env ${variable}=\${${variable}-<unset>}"`).join('\n')
   return `#!/bin/sh
 D="$HOME/calls"
@@ -93,19 +95,19 @@ exit "$ex"
 }
 
 /** The canned behaviour of one client for one call (every call when `n` is left out). */
-function canned(client, spec, n) {
+export function canned(client, spec, n) {
   const at = n === undefined ? '' : `.${n}`
   const write = {}
   for (const [kind, content] of Object.entries(spec)) write[`home/canned/${client}.${kind}${at}`] = `${content}\n`
   return write
 }
 
-const journal = (text) => JSON.stringify([{ type: 'message', role: 'assistant', content: [{ type: 'text', text }] }])
-const vibeExport = (extra = {}) => JSON.stringify({ usage: { input_tokens: 1000, output_tokens: 200, cached_input_tokens: 400 }, cost_usd: 0.0123, ...extra })
-const agyOut = (extra = {}) => JSON.stringify({ response: 'Read the files.\nSUMMARY: agy is fine', status: 'SUCCESS', usage: { input_tokens: 900, output_tokens: 90, cache_read_tokens: 300 }, ...extra })
-const claudeOut = (extra = {}) =>
+export const journal = (text) => JSON.stringify([{ type: 'message', role: 'assistant', content: [{ type: 'text', text }] }])
+export const vibeExport = (extra = {}) => JSON.stringify({ usage: { input_tokens: 1000, output_tokens: 200, cached_input_tokens: 400 }, cost_usd: 0.0123, ...extra })
+export const agyOut = (extra = {}) => JSON.stringify({ response: 'Read the files.\nSUMMARY: agy is fine', status: 'SUCCESS', usage: { input_tokens: 900, output_tokens: 90, cache_read_tokens: 300 }, ...extra })
+export const claudeOut = (extra = {}) =>
   JSON.stringify({ type: 'result', result: 'Reviewed.\nSUMMARY: claude is fine', total_cost_usd: 0.05, usage: { input_tokens: 10, cache_read_input_tokens: 20, cache_creation_input_tokens: 5, output_tokens: 30 }, ...extra })
-const opencodeOut = (text = 'Looked it up.\nSUMMARY: opencode is fine') =>
+export const opencodeOut = (text = 'Looked it up.\nSUMMARY: opencode is fine') =>
   [
     { type: 'step_start' },
     { type: 'text', part: { text } },
@@ -113,8 +115,8 @@ const opencodeOut = (text = 'Looked it up.\nSUMMARY: opencode is fine') =>
   ]
     .map((event) => JSON.stringify(event))
     .join('\n')
-const hermesUsage = (extra = {}) => JSON.stringify({ input_tokens: 2000, output_tokens: 300, cache_read_tokens: 500, estimated_cost_usd: 0.002, failed: false, ...extra })
-const codexOut = (text = 'Checked.\nSUMMARY: codex is fine') =>
+export const hermesUsage = (extra = {}) => JSON.stringify({ input_tokens: 2000, output_tokens: 300, cache_read_tokens: 500, estimated_cost_usd: 0.002, failed: false, ...extra })
+export const codexOut = (text = 'Checked.\nSUMMARY: codex is fine') =>
   [
     { type: 'thread.started', thread_id: 't' },
     { type: 'item.completed', item: { type: 'agent_message', text } },
@@ -123,10 +125,10 @@ const codexOut = (text = 'Checked.\nSUMMARY: codex is fine') =>
     .map((event) => JSON.stringify(event))
     .join('\n')
 
-const text = (input) => (typeof input === 'string' ? input : JSON.stringify(input))
+export const text = (input) => (typeof input === 'string' ? input : JSON.stringify(input))
 
 /** Several step parts as one: files and environment merge, lists concatenate. */
-function merge(...parts) {
+export function merge(...parts) {
   const out = {}
   for (const part of parts) {
     for (const [key, value] of Object.entries(part ?? {})) {
@@ -138,76 +140,81 @@ function merge(...parts) {
   return out
 }
 
-export function addRunScenarios(scenarios, step) {
-  /** A step whose PATH is the sandbox's bin/, at its own instant. */
+/** The step builders a `run` scenario uses: a step whose PATH is the sandbox's bin/, at its own instant. */
+export function runSteps(step) {
   const on = (argv, extra = {}) => step(argv, { path: ['bin'], ...extra, env: { ...ENV_BASE, ...(extra.env ?? {}) } })
   const run = (input, extra) => on(['run', '--json', text(typeof input === 'string' ? input : { workflow: 'w', ...input })], extra)
   const modelsStep = (input, extra) => on(['models', '--json', text(input)], extra)
+  return { modelsStep, on, run }
+}
 
-  /** The fake client programs, the tools they use, and the temporary directory of a first step. */
-  const clients = (...names) => ({
-    write: Object.fromEntries(names.map((name) => [`bin/${name}`, fake(name, name === 'claude' || name === 'codex')])),
-    exec: names.map((name) => `bin/${name}`),
-    shims: SHIMS,
-    mkdir: ['tmp'],
+/** The fake client programs, the tools they use, and the temporary directory of a first step. */
+export const clients = (...names) => ({
+  write: Object.fromEntries(names.map((name) => [`bin/${name}`, fake(name, name === 'claude' || name === 'codex')])),
+  exec: names.map((name) => `bin/${name}`),
+  shims: SHIMS,
+  mkdir: ['tmp'],
+})
+/** What a client does from now on; a default (no call number) first forgets the earlier defaults. */
+export const KINDS = ['out', 'err', 'exit', 'export', 'usage', 'sleep', 'act']
+export const behaves = (client, spec, n) => ({
+  ...(n === undefined ? { remove: KINDS.map((kind) => `home/canned/${client}.${kind}`) } : {}),
+  write: canned(client, spec, n),
+})
+export const file = (path, value) => ({ write: { [path]: text(value) } })
+export const override = (value) => file(OVERRIDE, value)
+export const allowlist = (...families) =>
+  file(ALLOWLIST, { version: 1, repositories: { 'github.com/jorisjonkers-dev/demo': { families, code: true, history: false } } })
+export const grant = (o = {}) => ({ id: 'g1', workflow: 'w', client: 'codex', cap_usd: 1, question: 'q', answer: 'a', written_at: NOW, expires_at: '2026-11-04T12:00:00Z', ...o })
+export const grants = (...list) => file(GRANTS, { version: 1, grants: list })
+export const workflows = (...list) => file(WORKFLOWS, { version: 1, workflows: list })
+export const ledgerLines = (...lines) => ({ write: { [LEDGER]: `${lines.join('\n')}\n` } })
+export const spent = (o) =>
+  JSON.stringify({
+    at: '2026-11-03T10:00:00.000Z',
+    client: 'hermes',
+    cost_class: 'metered-personal',
+    cost_usd: 1,
+    duration_s: 3,
+    family: 'anthropic',
+    mode: 'read-only',
+    model: 'claude-sonnet-4.6',
+    outcome: 'ok',
+    repository: null,
+    run_id: 'earlier',
+    workflow: 'w',
+    ...o,
   })
-  /** What a client does from now on; a default (no call number) first forgets the earlier defaults. */
-  const KINDS = ['out', 'err', 'exit', 'export', 'usage', 'sleep', 'act']
-  const behaves = (client, spec, n) => ({
-    ...(n === undefined ? { remove: KINDS.map((kind) => `home/canned/${client}.${kind}`) } : {}),
-    write: canned(client, spec, n),
-  })
-  const file = (path, value) => ({ write: { [path]: text(value) } })
-  const override = (value) => file(OVERRIDE, value)
-  const allowlist = (...families) =>
-    file(ALLOWLIST, { version: 1, repositories: { 'github.com/jorisjonkers-dev/demo': { families, code: true, history: false } } })
-  const grant = (o = {}) => ({ id: 'g1', workflow: 'w', client: 'codex', cap_usd: 1, question: 'q', answer: 'a', written_at: NOW, expires_at: '2026-11-04T12:00:00Z', ...o })
-  const grants = (...list) => file(GRANTS, { version: 1, grants: list })
-  const workflows = (...list) => file(WORKFLOWS, { version: 1, workflows: list })
-  const ledgerLines = (...lines) => ({ write: { [LEDGER]: `${lines.join('\n')}\n` } })
-  const spent = (o) =>
-    JSON.stringify({
-      at: '2026-11-03T10:00:00.000Z',
-      client: 'hermes',
-      cost_class: 'metered-personal',
-      cost_usd: 1,
-      duration_s: 3,
-      family: 'anthropic',
-      mode: 'read-only',
-      model: 'claude-sonnet-4.6',
-      outcome: 'ok',
-      repository: null,
-      run_id: 'earlier',
-      workflow: 'w',
-      ...o,
-    })
-  /** A repository of its own with one commit and an allowlist entry for these families. */
-  const repo = (...families) =>
-    merge(
-      {
-        write: { 'repo/README.md': 'demo\n' },
-        git: [
-          ['init', '-q', '-b', 'main', REPO],
-          ['-C', REPO, 'remote', 'add', 'origin', 'https://github.com/JorisJonkers-dev/demo.git'],
-          ['-C', REPO, 'add', '-A'],
-          ['-C', REPO, 'commit', '-q', '-m', 'init'],
-        ],
-      },
-      allowlist(...families),
-    )
-  /** The proof a model needs to work in the place itself: a critic client of the machine's routing that runs it, and setup's passing result. */
-  const proven = (kind, model, result = 'pass') =>
-    merge(
-      file(ROUTING_OVERRIDE, { clients: { [`${kind}-proof`]: { kind, model } } }),
-      file(SETUP_RESULTS, { checks: { [`read-only:${kind}-proof`]: { result } } }),
-    )
-  const hermesMachine = merge(
-    override({
-      clients: { hermes: { providers: ['anthropic'] } },
-      models: [{ client: 'hermes', model: 'claude-sonnet-4.6', family: 'anthropic', tier: 'routine', notes: 'x', prices: { input: 3, cached_input: 0.3, output: 15 } }],
-    }),
+/** A repository of its own with one commit and an allowlist entry for these families. */
+export const repo = (...families) =>
+  merge(
+    {
+      write: { 'repo/README.md': 'demo\n' },
+      git: [
+        ['init', '-q', '-b', 'main', REPO],
+        ['-C', REPO, 'remote', 'add', 'origin', 'https://github.com/JorisJonkers-dev/demo.git'],
+        ['-C', REPO, 'add', '-A'],
+        ['-C', REPO, 'commit', '-q', '-m', 'init'],
+      ],
+    },
+    allowlist(...families),
   )
-  const VIBE_ISOLATION = { MISTRAL_API_KEY: 'study-account-key', VIBE_HOME: `${SBX}/home/.vibe-private` }
+/** The proof a model needs to work in the place itself: a critic client of the machine's routing that runs it, and setup's passing result. */
+export const proven = (kind, model, result = 'pass') =>
+  merge(
+    file(ROUTING_OVERRIDE, { clients: { [`${kind}-proof`]: { kind, model } } }),
+    file(SETUP_RESULTS, { checks: { [`read-only:${kind}-proof`]: { result } } }),
+  )
+export const hermesMachine = merge(
+  override({
+    clients: { hermes: { providers: ['anthropic'] } },
+    models: [{ client: 'hermes', model: 'claude-sonnet-4.6', family: 'anthropic', tier: 'routine', notes: 'x', prices: { input: 3, cached_input: 0.3, output: 15 } }],
+  }),
+)
+export const VIBE_ISOLATION = { MISTRAL_API_KEY: 'study-account-key', VIBE_HOME: `${SBX}/home/.vibe-private` }
+
+export function addRunScenarios(scenarios, step) {
+  const { modelsStep, run } = runSteps(step)
   const ok = (client) => behaves(client, {})
 
   // Each client's happy path: the launch it gets (flags, prompt, working directory, environment), the

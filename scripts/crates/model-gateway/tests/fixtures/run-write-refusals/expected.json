@@ -1,0 +1,121 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a writing run must name its base, a ref the worktree starts from\"}\n",
+      "stderr": "model-gateway run: a writing run must name its base, a ref the worktree starts from\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"anthropic\"],\"code\":true,\"history\":false}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"a writing run must name its check, a command that tests the change\"}\n",
+      "stderr": "model-gateway run: a writing run must name its check, a command that tests the change\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"anthropic\"],\"code\":true,\"history\":false}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"worktree-failed\",\"message\":\"@SANDBOX@/repo: cannot create a worktree off nope: fatal: invalid reference: nope\"}\n",
+      "stderr": "model-gateway run: @SANDBOX@/repo: cannot create a worktree off nope: fatal: invalid reference: nope\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:02:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"anthropic\"],\"code\":true,\"history\":false}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"repository-unreadable\",\"message\":\"@SANDBOX@/work: not a git repository\"}\n",
+      "stderr": "model-gateway run: @SANDBOX@/work: not a git repository\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:02:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"anthropic\"],\"code\":true,\"history\":false}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"no-grant\",\"message\":\"no live grant covers workflow w, so codex may not run: ask the owner, then add one with model-gateway grant write --json '{\\\"workflow\\\":\\\"w\\\",\\\"client\\\":\\\"codex\\\",\\\"cap_usd\\\":5,\\\"question\\\":\\\"<what you asked the owner>\\\",\\\"answer\\\":\\\"<what the owner answered>\\\"}'\"}\n",
+      "stderr": "model-gateway run: no live grant covers workflow w, so codex may not run: ask the owner, then add one with model-gateway grant write --json '{\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"<what you asked the owner>\",\"answer\":\"<what the owner answered>\"}'\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:02:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"anthropic\",\"openai\"],\"code\":true,\"history\":false}}}",
+        "home/calls/": null,
+        "home/calls/codex.txt": "status login status\n",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"claude:claude-haiku-5-5 is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\"}\n",
+      "stderr": "model-gateway run: claude:claude-haiku-5-5 is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:02:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/calls/": null,
+        "home/calls/codex.txt": "status login status\n",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"nested-delegation\",\"message\":\"a delegate may not delegate on: AGENT_KIT_DELEGATION is set in this environment\"}\n",
+      "stderr": "model-gateway run: a delegate may not delegate on: AGENT_KIT_DELEGATION is set in this environment\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:02:00.000Z\"\n    }\n  ]\n}\n",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/calls/": null,
+        "home/calls/codex.txt": "status login status\n",
+        "work/": null,
+        "tmp/": null
+      }
+    }
+  ]
+}

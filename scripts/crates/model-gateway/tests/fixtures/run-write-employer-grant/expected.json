@@ -1,0 +1,44 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"client\": \"codex\",\n  \"cost_usd\": 0.009125,\n  \"family\": \"openai\",\n  \"mode\": \"write\",\n  \"model\": \"gpt-5.5\",\n  \"output_path\": \"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"codex is fine\",\n  \"tokens\": {\n    \"cached\": 1000,\n    \"input\": 5000,\n    \"output\": 400\n  },\n  \"workflow\": \"w\",\n  \"branch\": \"gateway/20261103T120000Z-@RAND1@\",\n  \"worktree\": \"@SANDBOX@/repo/.git/model-gateway/worktrees/20261103T120000Z-@RAND1@\",\n  \"check\": {\n    \"command\": \"test -f new.txt\",\n    \"exit_code\": 0,\n    \"output_path\": \"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/check-output.txt\"\n  },\n  \"staged_files\": [\n    \"new.txt\"\n  ],\n  \"attempts\": [\n    {\n      \"client\": \"codex\",\n      \"model\": \"gpt-5.5\",\n      \"run_id\": \"20261103T120000Z-@RAND1@\",\n      \"status\": \"ok\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"openai\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-03T12:01:30Z\"}]}",
+        "home/calls/": null,
+        "home/calls/codex.1.stdin": "Under a short grant.\n\nEdit only files inside the working directory. When the change is done, commit it on the branch you are on with a Conventional Commits message. Never push.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "home/calls/codex.n": "1\n",
+        "home/calls/codex.txt": "status login status\ncall 1\ncwd @SANDBOX@/repo/.git/model-gateway/worktrees/20261103T120000Z-@RAND1@\narg exec\narg --json\narg --skip-git-repo-check\narg -m\narg gpt-5.5\narg -c\narg model_reasoning_effort=\"medium\"\narg -s\narg workspace-write\narg -C\narg @SANDBOX@/repo/.git/model-gateway/worktrees/20261103T120000Z-@RAND1@\narg --add-dir\narg @SANDBOX@/repo/.git/worktrees/20261103T120000Z-@RAND1@\narg --add-dir\narg @SANDBOX@/repo/.git/objects\narg --add-dir\narg @SANDBOX@/repo/.git/refs\narg --add-dir\narg @SANDBOX@/repo/.git/logs\nenv AGENT_KIT_DELEGATION=1\nenv MISTRAL_API_KEY=<unset>\nenv VIBE_HOME=<unset>\nenv VIBE_ENABLE_MCP=<unset>\nenv VIBE_ENABLE_SUBAGENTS=<unset>\nenv VIBE_INCLUDE_PROJECT_CONTEXT=<unset>\nenv VIBE_OUTSIDE_WORKDIR=<unset>\nenv VIBE_MCP_SERVERS=<unset>\n",
+        "home/canned/": null,
+        "home/canned/codex.act": "touch new.txt\n",
+        "home/canned/codex.out": "{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Checked.\\nSUMMARY: codex is fine\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":5000,\"cached_input_tokens\":1000,\"output_tokens\":400}}\n",
+        "repo/.git/model-gateway/": null,
+        "repo/.git/model-gateway/runs/": null,
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/check-output.txt": "",
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"codex\",\n  \"mode\": \"write\",\n  \"model\": \"gpt-5.5\",\n  \"prompt\": \"Under a short grant.\",\n  \"time_limit_s\": 90,\n  \"workflow\": \"w\",\n  \"repo\": \"@SANDBOX@/repo\",\n  \"base\": \"main\",\n  \"check\": \"test -f new.txt\",\n  \"max_price_usd\": 0.160008\n}\n",
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/output.json": "{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Checked.\\nSUMMARY: codex is fine\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":5000,\"cached_input_tokens\":1000,\"output_tokens\":400}}\n",
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/prompt.md": "Under a short grant.\n\nEdit only files inside the working directory. When the change is done, commit it on the branch you are on with a Conventional Commits message. Never push.\n\nEnd your answer with a line \"SUMMARY:\" followed by at most 1500 characters that summarise the result.",
+        "repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/result.json": "{\n  \"client\": \"codex\",\n  \"cost_usd\": 0.009125,\n  \"family\": \"openai\",\n  \"mode\": \"write\",\n  \"model\": \"gpt-5.5\",\n  \"output_path\": \"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/output.json\",\n  \"run_id\": \"20261103T120000Z-@RAND1@\",\n  \"status\": \"ok\",\n  \"summary\": \"codex is fine\",\n  \"tokens\": {\n    \"cached\": 1000,\n    \"input\": 5000,\n    \"output\": 400\n  },\n  \"workflow\": \"w\",\n  \"branch\": \"gateway/20261103T120000Z-@RAND1@\",\n  \"worktree\": \"@SANDBOX@/repo/.git/model-gateway/worktrees/20261103T120000Z-@RAND1@\",\n  \"check\": {\n    \"command\": \"test -f new.txt\",\n    \"exit_code\": 0,\n    \"output_path\": \"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@/check-output.txt\"\n  },\n  \"staged_files\": [\n    \"new.txt\"\n  ]\n}\n",
+        "repo/.git/model-gateway/worktrees/": null,
+        "repo/.git/model-gateway/worktrees/20261103T120000Z-@RAND1@/": null,
+        "repo/.git/model-gateway/worktrees/20261103T120000Z-@RAND1@/.git": "gitdir: @SANDBOX@/repo/.git/worktrees/20261103T120000Z-@RAND1@\n",
+        "repo/.git/model-gateway/worktrees/20261103T120000Z-@RAND1@/README.md": "demo\n",
+        "repo/.git/model-gateway/worktrees/20261103T120000Z-@RAND1@/new.txt": "",
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/kept-worktrees.json": "{\n  \"version\": 1,\n  \"worktrees\": [\n    {\n      \"at\": \"2026-11-03T12:00:00.000Z\",\n      \"branch\": \"gateway/20261103T120000Z-@RAND1@\",\n      \"path\": \"@SANDBOX@/repo/.git/model-gateway/worktrees/20261103T120000Z-@RAND1@\",\n      \"repo\": \"@SANDBOX@/repo\",\n      \"run_id\": \"20261103T120000Z-@RAND1@\",\n      \"workflow\": \"w\"\n    }\n  ]\n}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"estimate_usd\":0.160008,\"expires_at\":\"2026-11-03T12:02:30.000Z\",\"kind\":\"reservation\",\"model\":\"gpt-5.5\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_dir\":\"@SANDBOX@/repo/.git/model-gateway/runs/20261103T120000Z-@RAND1@\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"workflow\":\"w\"}\n{\"at\":\"2026-11-03T12:00:00.000Z\",\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"cost_usd\":0.009125,\"duration_s\":0,\"family\":\"openai\",\"mode\":\"write\",\"model\":\"gpt-5.5\",\"outcome\":\"ok\",\"repository\":\"github.com/jorisjonkers-dev/demo\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"tokens\":{\"cached\":1000,\"input\":5000,\"output\":400},\"workflow\":\"w\"}\n{\"client\":\"codex\",\"cost_class\":\"metered-employer\",\"cost_usd\":0.009125,\"kind\":\"settled\",\"reserved_at\":\"2026-11-03T12:00:00.000Z\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"settled_at\":\"2026-11-03T12:00:00.000Z\",\"workflow\":\"w\"}\n",
+        "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
+        "tmp/": null,
+        "work/": null
+      }
+    }
+  ]
+}

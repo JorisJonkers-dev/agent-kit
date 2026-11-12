@@ -1,7 +1,7 @@
 //! model-gateway: one JSON object in, one JSON object out, ported from the node
 //! runner command by command. It carries the command line itself, `models`,
 //! `usage`, `grant write`, `grant reserve`, `grant list`, `worktrees clean`, the three
-//! workflow commands and the read-only `run`; a writing `run` and `batch` answer `not-ported`.
+//! workflow commands and `run`, read-only and writing; `batch` answers `not-ported`.
 //!
 //! Real files, the clock and the environment sit behind the traits in `ports`;
 //! the command line takes them from a `Runtime`, so tests replace any of them.
@@ -52,6 +52,7 @@ pub mod usage;
 pub mod vibe_sign_in;
 pub mod workflows;
 pub mod worktrees;
+pub mod write_run;
 
 use ports::Runtime;
 use std::collections::HashMap;

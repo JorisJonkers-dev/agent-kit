@@ -97,7 +97,7 @@ pub struct GitRemote {
     pub url: String,
 }
 
-/// What the gateway asks git: where a path's repository is and where it points.
+/// What the gateway asks git: where a path's repository is, where it points, and the worktrees of it.
 pub trait Git {
     /// The repository root of `path`; `Ok(None)` when git says it is no repository; any other failure is an `Err` with git's own words.
     fn root(&self, path: &str) -> Result<Option<String>, String>;
@@ -111,6 +111,19 @@ pub trait Git {
     fn common_dir(&self, path: &str) -> Result<String, String>;
     /// A detached worktree of the repository's HEAD at `path`, which may be an empty directory already.
     fn add_worktree(&self, repo: &str, path: &str) -> Result<(), String>;
+    /// The git directory of `path`'s worktree as an absolute path, which sits outside the worktree itself.
+    fn git_dir(&self, path: &str) -> Result<String, String>;
+    /// A worktree of `repo` at `path`, on a branch of its own named `branch`, created off `base`.
+    fn create_worktree(&self, repo: &str, path: &str, branch: &str, base: &str) -> Result<(), String>;
+    /// `git add -A`: everything in the worktree, staged.
+    fn stage_all(&self, path: &str) -> Result<(), String>;
+    /// The files staged in `path`, against `base` when one is named, so a change committed on the worktree's
+    /// branch is listed too.
+    fn staged_files(&self, path: &str, base: Option<&str>) -> Result<Vec<String>, String>;
+    /// Every worktree of `repo`, without the blocks git marks `prunable`: a worktree whose directory is gone.
+    fn list_worktrees(&self, repo: &str) -> Result<Vec<String>, String>;
+    /// `git status --porcelain`, as git printed it.
+    fn status(&self, path: &str) -> Result<String, String>;
 }
 
 pub trait Clock {
