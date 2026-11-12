@@ -599,9 +599,9 @@ clis:
     # Gold Band's personal instance is a workstation thing; a cloud host skips it.
     cloud: false
     # Pi has no permission prompts: it runs every tool call without asking,
-    # so it may only ever run inside a throwaway repository -- the rule the
-    # Gold Band declaration inherits as throwawayOnly. The renderer refuses
-    # a Pi entry without this flag.
+    # so it may only ever run inside a throwaway repository. This flag is the
+    # registry's record of that decision (Gold Band's settings.json has no
+    # field for it); the renderer refuses a Pi entry without it.
     throwaway_only: true
     # The pinned npm install. Setup generates the whole step from this block
     # -- the release cutoff, the publish-time age check, --ignore-scripts --

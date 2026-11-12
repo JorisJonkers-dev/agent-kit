@@ -271,12 +271,12 @@ absolute path setup prints at the end of the step:
   throwaway_only: true
   pinned_npm:
     packages:
-      - package: "@earendil-works/pi-coding-agent"
+      - datasource: npm
+        package: "@earendil-works/pi-coding-agent"
         version: "1.5.0"
-        datasource: npm
-      - package: "pi-acp"
+      - datasource: npm
+        package: "pi-acp"
         version: "0.0.34"
-        datasource: npm
 ```
 
 - Presence is each pin, the way an `install_pinned` MCP server checks its own:
