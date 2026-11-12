@@ -59,6 +59,9 @@ BUILTIN_PROFILE = "pf-builtin-dev"
 #: ``tests/test_gold_band_spec_workflow.py``.
 OTHER_TEMPLATE = "critique-spec-stage.json"
 
+#: The Wave 3 template named for the stats report (tests/test_gold_band_wave3_templates.py).
+WAVE_3_TEMPLATE = "critique-stats.json"
+
 
 def _node_ids(stage: str) -> list[str]:
     """The stage's nodes in order, from the naming rule every template follows."""
@@ -281,8 +284,9 @@ def test_every_non_shim_node_uses_a_declared_profile(
 
 
 def test_the_eight_templates_are_the_whole_critique_family() -> None:
-    """The workflows directory holds these eight and the spec stage's own template, nothing else."""
+    """The directory holds these eight, plus the two named templates the glob leaves out."""
+    others = {OTHER_TEMPLATE, WAVE_3_TEMPLATE}
     found = sorted(
-        path.stem.removeprefix("critique-") for path in WORKFLOWS.glob("critique-*.json") if path.name != OTHER_TEMPLATE
+        path.stem.removeprefix("critique-") for path in WORKFLOWS.glob("critique-*.json") if path.name not in others
     )
     assert found == sorted(STAGES)

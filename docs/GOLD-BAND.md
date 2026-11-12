@@ -431,6 +431,30 @@ exits 4. The gate agent ids are pinned to their commands, and the run
 arguments they need, by the later wiring tickets: the node goals name the
 command only.
 
+## The Wave 3 templates over the runners
+
+`critique.json`, `critique-stats.json`, `flow.json` and `build-tracker.json` in
+`installer/gold-band/workflows/` are the four Wave 3 rows of
+`docs/gold-band-port-inventory.md` (issue #627, spec #392 story 106). Each node
+runs the same command the direct lane runs, through the gate shim, and no
+template holds logic of its own:
+
+| Template | Direct-lane command | Nodes |
+| --- | --- | --- |
+| `critique` | `critique prepare`, `fan-out`, `refute`, `record` | the run-start gate, prepare and fan-out shims, the orchestrator's `critique-verdicts` and its `critique-needs-human` manual check, then the refute and record shims. The eight stage templates are this shape bound to one stage. |
+| `critique-stats` | `critique stats` (`/critique-stats`) | the run-start gate, one `critique stats --strict` shim |
+| `flow` | `critique state` (`/flow`) | the run-start gate, one `critique state --strict` shim |
+| `build-tracker` | `build-tracker refresh` | the run-start gate, one `build-tracker refresh` shim |
+
+The gate adds `--strict` to a `critique` command, as the stage templates do, so a refusal fails the run instead of reading as a pass. Every shim is the pinned `gold-band-gate run` wrapper and the read-only copier
+that verifies its report; the run arguments are pinned to the gate agent ids by
+the wiring tickets, as in the stage templates. The steps only the owner can take
+in `/flow` (the grill, the spec, the tickets, the implementation) stay the
+owner's commands. The headless proof (`gold-band-proof prove`) checks each
+template's sequencing against stub agents: a clean run ends in success, the
+`critique` template's finding pauses at its manual check, and a failing gate
+ends the run in failure.
+
 ## Workflow C in the personal instance
 
 `installer/gold-band/workflows/workflow-c.json` is Workflow C, grill to tickets

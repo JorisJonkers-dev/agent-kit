@@ -1,0 +1,115 @@
+{
+  "workflow": {
+    "description": "The build tracker's refresh (build-tracker) as a Gold Band template over the build-tracker crate (issue #627, Wave 3): a run-start node refuses the run when the repository rule or the family allowlist forbids a bound agent, then `build-tracker refresh` runs as a gate node (the pinned gold-band-gate wrapper around it) followed by the read-only copier that verifies its report. The template runs the same command as the direct lane and holds no logic of its own: refresh initialises or syncs the spec's state, marks the tickets it is told have landed as merged and renders the page, and the page is a view for the owner, never the source of what is done.",
+    "version": "0.1",
+    "id": "build-tracker",
+    "entry": "gate-build-tracker-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-build-tracker-start",
+        "executionSlotId": "slot-gate-build-tracker-start",
+        "provider": "gate-build-tracker-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for the build tracker refresh (build-tracker), which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-build-tracker-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-build-tracker",
+        "executionSlotId": "slot-gate-build-tracker",
+        "provider": "gate-build-tracker",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `build-tracker refresh` for the build tracker refresh (build-tracker) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-build-tracker-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-build-tracker",
+        "executionSlotId": "slot-copy-build-tracker",
+        "provider": "copy-build-tracker",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the refresh gate of the build tracker refresh (build-tracker) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-build-tracker-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-build-tracker-start",
+        "to": "gate-build-tracker",
+        "on": "success"
+      },
+      {
+        "from": "gate-build-tracker",
+        "to": "copy-build-tracker",
+        "on": "success"
+      },
+      {
+        "from": "copy-build-tracker",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-build-tracker-start",
+        "agentId": "gate-build-tracker-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-build-tracker",
+        "agentId": "gate-build-tracker",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-build-tracker",
+        "agentId": "copy-build-tracker",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}
