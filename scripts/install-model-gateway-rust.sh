@@ -51,6 +51,9 @@ fi
 mkdir -p "$DEST_DIR" || { say "could not create $DEST_DIR"; exit 1; }
 tmp=$(mktemp "$DEST_DIR/.model-gateway.XXXXXX") || { say "could not install $DEST_DIR/model-gateway"; exit 1; }
 trap 'rm -f "$tmp"' EXIT
-cp "$built" "$tmp" && chmod 0755 "$tmp" && mv -f "$tmp" "$DEST_DIR/model-gateway" \
-  || { rm -f "$tmp"; say "could not install $DEST_DIR/model-gateway"; exit 1; }
-say "installed $DEST_DIR/model-gateway"
+if cp "$built" "$tmp" && chmod 0755 "$tmp" && mv -f "$tmp" "$DEST_DIR/model-gateway"; then
+  say "installed $DEST_DIR/model-gateway"
+else
+  say "could not install $DEST_DIR/model-gateway"
+  exit 1
+fi
