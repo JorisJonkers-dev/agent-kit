@@ -1022,7 +1022,7 @@ language_servers:
       version: "263.7084.0"
       install: >-
         base="https://download.jetbrains.com/language-server/kotlin-server/${VERSION}"
-        && case "${DEB_ARCH}" in amd64) suffix="" ;; arm64) suffix="-aarch64" ;; esac
+        && case "${DEB_ARCH}" in amd64) suffix="" ;; arm64) suffix="-aarch64" ;; *) exit 1 ;; esac
         && archive="kotlin-server-${VERSION}${suffix}.tar.gz"
         && curl -fsSL -o "/tmp/${archive}" "${base}/${archive}"
         && printf '%s */tmp/%s\n' "$(curl -fsSL "${base}/${archive}.sha256" | cut -d' ' -f1)" "${archive}" | sha256sum -c -
@@ -1055,6 +1055,7 @@ language_servers:
       install: >-
         base="https://download.eclipse.org/jdtls/milestones/${VERSION}"
         && archive="$(curl -fsSL "${base}/latest.txt")"
+        && case "${archive}" in jdt-language-server-${VERSION}-*.tar.gz) ;; *) exit 1 ;; esac
         && curl -fsSL -o "/tmp/${archive}" "${base}/${archive}"
         && printf '%s */tmp/%s\n' "$(curl -fsSL "${base}/${archive}.sha256" | cut -d' ' -f1)" "${archive}" | sha256sum -c -
         && rm -rf /opt/jdtls && mkdir -p /opt/jdtls
