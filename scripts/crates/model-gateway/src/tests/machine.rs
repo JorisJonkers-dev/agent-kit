@@ -47,6 +47,11 @@ impl Process for FakeProcess {
     fn exec(&self, command: &str, _args: &[&str], _timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
         self.answers.borrow().get(command).cloned().unwrap_or_else(|| Err("no answer was stubbed".to_string()))
     }
+
+    fn run(&self, command: &crate::ports::ProcessCommand) -> Result<ProcessResult, String> {
+        let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
+        self.exec(&command.command, &args, command.timeout_ms)
+    }
 }
 
 /// A git that finds no repository anywhere.
