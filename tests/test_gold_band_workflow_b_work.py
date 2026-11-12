@@ -30,14 +30,13 @@ import pytest
 # Reused from the grant-check proof: the throw-away machine, its stub agents and its skip rules.
 from test_gold_band_grant_check import (  # noqa: F401
     GOLD_BAND_BIN,
+    NO_TOOLS,
     RUN_ID,
     SETTINGS_SCHEMA_VERSION,
     TIMEOUT_SECONDS,
     Machine,
     _agent,
     _report,
-    needs_gold_band,
-    pytestmark,
     wrapper,
 )
 
@@ -97,7 +96,7 @@ def _is_shim(agent: str) -> bool:
 # ---- the template as a file ---------------------------------------------
 
 
-def test_the_work_variant_is_its_own_workflow_and_the_personal_one_is_unchanged(
+def test_the_work_variant_is_its_own_workflow_and_holds_no_work_agent_in_the_personal_one(
     workflow: dict[str, Any],
 ) -> None:
     assert workflow["id"] == WORKFLOW_NAME
@@ -141,7 +140,7 @@ def test_author_and_reviewer_are_always_of_different_families(
 def test_codex_is_bound_only_by_the_writer_and_its_two_repairs(
     nodes: dict[str, dict[str, Any]],
 ) -> None:
-    codex = [n["id"] for n in nodes.values() if any("codex" in a for a in _agents(n))]
+    codex = [n["id"] for n in nodes.values() if "codex" in _agents(n)]
     assert codex == CODEX_NODES
 
 
@@ -226,13 +225,16 @@ class WorkMachine(Machine):
             ),
         )
 
-    def end_workflow(self) -> list[str]:
-        return [str(self.gateway), "workflow", "end", "--json", json.dumps({"name": RUN_NAME})]
-
     def check_command(self, node: str, reports: Path) -> list[str]:
         command = super().check_command(node, reports)
         command[command.index("--workflow-name") + 1] = WORKFLOW_NAME
         return command
+
+
+needs_headless = pytest.mark.skipif(
+    NO_TOOLS or GOLD_BAND_BIN is None,
+    reason="GOLD_BAND_BIN, node, git or cargo (or GOLD_BAND_RUN_START_BIN) is missing: the headless proof cannot run",
+)
 
 
 @pytest.fixture
@@ -293,7 +295,7 @@ def _run(work: WorkMachine, template: dict[str, Any], codex_node: str) -> tuple[
     return done.returncode, markers, said
 
 
-@needs_gold_band
+@needs_headless
 @pytest.mark.parametrize("codex_node", CODEX_NODES)
 def test_a_missing_grant_refuses_before_the_codex_node_and_pauses_the_run(
     work: WorkMachine, template: dict[str, Any], codex_node: str
@@ -306,7 +308,7 @@ def test_a_missing_grant_refuses_before_the_codex_node_and_pauses_the_run(
     assert work.reservations() == []
 
 
-@needs_gold_band
+@needs_headless
 @pytest.mark.parametrize("codex_node", CODEX_NODES)
 def test_a_live_grant_lets_the_codex_node_run_after_reserving_one_start(
     work: WorkMachine, template: dict[str, Any], codex_node: str
@@ -320,7 +322,7 @@ def test_a_live_grant_lets_the_codex_node_run_after_reserving_one_start(
     assert len(reserved) == 1 and reserved[0]["workflow"] == RUN_NAME
 
 
-@needs_gold_band
+@needs_headless
 def test_a_grant_with_no_start_left_refuses_the_next_codex_node(work: WorkMachine, template: dict[str, Any]) -> None:
     work.grant(1)
     assert _run(work, template, "writer")[0] == 0

@@ -468,8 +468,10 @@ later ticket.
 81; issue #462) is Workflow B bound to the work instance's two agents only,
 `claude-work` (Anthropic) and `codex` (OpenAI), beside the personal
 `workflow-b.json`, which is unchanged. It has the same gates, critics rounds,
-two unrolled repairs and escalation. Only the bindings differ, and the author and
-the reviewer are always of different families:
+two unrolled repairs and escalation. The bindings differ, and each round's critics
+become one worker (below); the writer and the reviewer are always of different
+families. With two families, the test author and the critics share one (Claude): the
+critic reviews the writer's change, tests included, and the writer is never of that family:
 
 * **Claude** writes the failing tests (`test-author`), is the one critic of each
   round (`critics-N`, one `claude-work` worker rather than an `ai-dynamic` fan-out,
@@ -494,7 +496,7 @@ repository still needs the run-start shim and a live grant for the run
 
 The proof is two layers. `gold-band-proof prove` runs the whole template
 against the stub agents: the clean run, both repairs, the escalation pause, a
-failing gate in each round and `grant-lapse-writer` (the grant-check node fails
+failing gate (build, tests, lint, coverage and the finding check) and `grant-lapse-writer` (the grant-check node fails
 and the run pauses at `grant-refused`). `tests/test_gold_band_workflow_b_work.py`
 runs each Codex node's stretch of the real template with the real wrapper and
 the real gateway bundle over a fake grants file in a throw-away configuration
