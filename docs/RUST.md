@@ -338,6 +338,18 @@ how a live Claude Code reads those flags: that was checked against its
 pre-approves no Bash command; a node adds `--allowedTools 'Bash(<command>)'`
 after `--`, and the OS limit confines where that command may write.
 
+**Pi, OpenCode, Hermes and Antigravity** (`tests/other_reach.rs`, same method,
+stub commands, one test per verified cell and one per refused example). A level an
+agent cannot express from launcher arguments is `unsupported`, the record's
+`check` field says why, and the launcher refuses an id naming it (nothing is
+downgraded). Pi holds `read`, `write-scoped`, `write` and `full` through its
+`--tools` allow-list (it has no web tool and no command allow-list, so
+`read-web`, `research` and `run-one-command` are refused). OpenCode (its CLI has
+no tool or permission flag) and Hermes (toolset fixed over ACP) hold `full`
+only. Antigravity documents no tool, permission or sandbox flag, so all its cells are
+refused on macOS; on Linux they are also refused because main declares no
+Linux command for it until #431 lands.
+
 For an id that names a `skill_set`, `run` also exports `AGENT_KIT_SKILL_SET`
 with that name and `AGENT_KIT_SKILLS_DIR` with the directory setup builds for
 it, `<GOLD_BAND_HOME or $HOME>/.gold-band/skill-sets/<id>`; an id without one
