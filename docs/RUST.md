@@ -400,7 +400,10 @@ node runner and then fails with code `not-ported` (exit 1).
 
 Known differences from the node runner: a zone-less date-time in a state file
 reads as UTC, not local time (the goldens run with `TZ=UTC`); `Date.parse`'s
-legacy non-ISO formats are not accepted; the V8 JSON error texts and errno
+legacy non-ISO formats (`2026/11/03`, `2026-1-03`, a `+0200` offset) are not accepted; an empty
+`HOME` resolves the state directory under `/` rather than the working directory;
+a failure to remove the lock file is not reported; a lone UTF-16 surrogate
+escape reads as U+FFFD; the V8 JSON error texts and errno
 wordings are the same where `src/json.rs` and `src/adapters/fs.rs` reproduce
 them, and differ for rare ones.
 

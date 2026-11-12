@@ -171,21 +171,26 @@ fn timestamps_read_every_form_date_parse_accepts() {
 }
 
 #[test]
+fn timestamps_accept_the_short_and_rolling_forms_date_parse_accepts() {
+    assert_eq!(parse_time("2026"), Some(1_767_225_600_000));
+    assert_eq!(parse_time("2026-11"), Some(1_793_491_200_000));
+    assert_eq!(parse_time("2026-11-31"), Some(1_796_083_200_000));
+    assert_eq!(parse_time("2026-02-30"), Some(1_772_409_600_000));
+    assert_eq!(parse_time("2026-11-03T24:00"), Some(1_793_750_400_000));
+}
+
+#[test]
 fn timestamps_refuse_what_date_parse_refuses() {
     for text in [
         "",
-        "2026",
-        "2026-11",
         "2026-11-03X12:00",
         "2026-11-03T12:00:00Zx",
         "2026-13-01",
         "2026-00-01",
         "2026-11-00",
-        "2026-11-31",
-        "2026-04-31",
-        "2023-02-29",
-        "1900-02-29",
-        "2026-11-03T24:00",
+        "2026-11-32",
+        "2026-11-03T24:00:01",
+        "2026-11-03T25:00",
         "2026-11-03T12:60",
         "2026-11-03T12:00:60",
         "2026-1-03",
@@ -288,9 +293,9 @@ fn a_temporary_file_that_cannot_be_written_names_itself() {
         (21, "EISDIR"),
         (28, "ENOSPC"),
         (30, "EROFS"),
-        (36, "ENAMETOOLONG"),
-        (39, "ENOTEMPTY"),
-        (40, "ELOOP"),
+        (crate::adapters::fs::ENAMETOOLONG, "ENAMETOOLONG"),
+        (crate::adapters::fs::ENOTEMPTY, "ENOTEMPTY"),
+        (crate::adapters::fs::ELOOP, "ELOOP"),
         (5, "UNKNOWN"),
     ] {
         assert_eq!(fail(&std::io::Error::from_raw_os_error(errno), "open", Some("p")).code, code);

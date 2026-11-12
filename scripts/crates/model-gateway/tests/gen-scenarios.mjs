@@ -80,6 +80,8 @@ scenarios['workflow-state-files'] = [
   bad('{"version":1,"workflows":[{"name":"a","started_at":"2026-11-03T12:00:00Z","ended_at":null}]}'),
   bad('{"version":1,"workflows":[{"name":"a","started_at":"2026-11-03T12:00:00Z"},{"name":"b","started_at":"2026-11-03T12:00:00Z","ended_at":"2026-11-03T13:00:00Z"}]}'),
   bad('{"version":1,"workflows":[{"name":"a","started_at":"2026-11-03T12:00:00+02:00"},{"name":"b","started_at":"2026-11-03"},{"name":"c","started_at":"2026-11-03T12:00"},{"name":"d","started_at":"2026-11-03T12:00:00.5Z"},{"name":"e","started_at":"+002026-11-03T12:00:00Z"}]}'),
+  bad('{"version":1,"workflows":[{"name":"a","started_at":"2026"},{"name":"b","started_at":"2026-11"},{"name":"c","started_at":"2026-11-31"},{"name":"d","started_at":"2026-11-03T24:00"}]}', { now: '2026-12-01T12:00:00Z' }),
+  bad('{"version":1,"workflows":[{"name":"a","started_at":"2026-11-32"}]}'), bad('{"version":1,"workflows":[{"name":"a","started_at":"2026-11-03T24:00:01"}]}'),
   wf('start', { name: 'new' }, { write: file('{"version":1,"workflows":[{"ended_at":"2026-11-03T13:00:00Z","name":"b","started_at":"2026-11-03T12:00:00Z"},{"name":"a","started_at":"2026-11-03T12:00:00Z"}],"extra":true}') }),
   wf('end', { name: 'a' }, { now: '2026-11-03T14:00:00Z' }),
   wf('end', { name: 'b' }),

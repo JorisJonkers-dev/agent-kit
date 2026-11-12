@@ -249,6 +249,45 @@
     },
     {
       "exit": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"workflows\": [\n    {\n      \"ended_at\": \"2026-01-02T00:00:00.000Z\",\n      \"name\": \"a\",\n      \"started_at\": \"2026\",\n      \"state\": \"ended\"\n    },\n    {\n      \"ended_at\": \"2026-11-02T00:00:00.000Z\",\n      \"name\": \"b\",\n      \"started_at\": \"2026-11\",\n      \"state\": \"ended\"\n    },\n    {\n      \"ended_at\": null,\n      \"name\": \"c\",\n      \"started_at\": \"2026-11-31\",\n      \"state\": \"running\"\n    },\n    {\n      \"ended_at\": \"2026-11-05T00:00:00.000Z\",\n      \"name\": \"d\",\n      \"started_at\": \"2026-11-03T24:00\",\n      \"state\": \"ended\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026\"},{\"name\":\"b\",\"started_at\":\"2026-11\"},{\"name\":\"c\",\"started_at\":\"2026-11-31\"},{\"name\":\"d\",\"started_at\":\"2026-11-03T24:00\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-32\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\"}\n",
+      "stderr": "model-gateway workflow list: @SANDBOX@/state/agent-kit/model-gateway/workflows.json: workflows[0].started_at must be an ISO timestamp\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T24:00:01\"}]}",
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
       "stdout": "{\n  \"status\": \"ok\",\n  \"workflow\": {\n    \"ended_at\": null,\n    \"name\": \"new\",\n    \"started_at\": \"2026-11-03T12:00:00.000Z\",\n    \"state\": \"running\"\n  }\n}\n",
       "stderr": "",
       "files": {

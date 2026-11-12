@@ -212,6 +212,40 @@
     {
       "argv": [
         "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026\"},{\"name\":\"b\",\"started_at\":\"2026-11\"},{\"name\":\"c\",\"started_at\":\"2026-11-31\"},{\"name\":\"d\",\"started_at\":\"2026-11-03T24:00\"}]}"
+      },
+      "now": "2026-12-01T12:00:00Z"
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-32\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"a\",\"started_at\":\"2026-11-03T24:00:01\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "workflow",
         "start",
         "--json",
         "{\"name\":\"new\"}"

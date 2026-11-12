@@ -10,6 +10,15 @@ pub struct SystemFiles {
     pub cwd: String,
 }
 
+/// The errno numbers that differ between Linux and macOS.
+#[cfg(target_os = "macos")]
+const NUMBERS: (i32, i32, i32) = (63, 66, 62);
+#[cfg(not(target_os = "macos"))]
+const NUMBERS: (i32, i32, i32) = (36, 39, 40);
+pub const ENAMETOOLONG: i32 = NUMBERS.0;
+pub const ENOTEMPTY: i32 = NUMBERS.1;
+pub const ELOOP: i32 = NUMBERS.2;
+
 /// The errno numbers the gateway can meet, with the code and the words Node gives them.
 const ERRORS: [(i32, &str, &str); 11] = [
     (1, "EPERM", "operation not permitted"),
@@ -20,9 +29,9 @@ const ERRORS: [(i32, &str, &str); 11] = [
     (21, "EISDIR", "illegal operation on a directory"),
     (28, "ENOSPC", "no space left on device"),
     (30, "EROFS", "read-only file system"),
-    (36, "ENAMETOOLONG", "name too long"),
-    (39, "ENOTEMPTY", "directory not empty"),
-    (40, "ELOOP", "too many symbolic links encountered"),
+    (ENAMETOOLONG, "ENAMETOOLONG", "name too long"),
+    (ENOTEMPTY, "ENOTEMPTY", "directory not empty"),
+    (ELOOP, "ELOOP", "too many symbolic links encountered"),
 ];
 
 /// The error as Node words it: `ENOENT: no such file or directory, open '<path>'`.

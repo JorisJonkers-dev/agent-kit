@@ -9,15 +9,22 @@ const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 /// `Date.parse` for the ISO forms the file may hold: `YYYY-MM-DD`,
 /// `YYYY-MM-DDTHH:MM`, `...:SS`, fractional seconds of any length, `Z` or a
 /// `+HH:MM`/`-HH:MM` offset, and a `+YYYYYY` expanded year. A date-time
-/// without a zone is UTC. Anything else is `None`.
+/// without a zone is UTC. A year alone or a year and month are the first of
+/// it, and a day past the month's end rolls over, as in V8. Anything else is `None`.
 pub fn parse(text: &str) -> Option<i64> {
     let bytes = text.as_bytes();
     let mut at = 0;
     let year = year(bytes, &mut at)?;
-    expect(bytes, &mut at, b'-')?;
-    let month = number(bytes, &mut at, 2)?;
-    expect(bytes, &mut at, b'-')?;
-    let day = number(bytes, &mut at, 2)?;
+    // V8 takes a year alone (`2026`) and a year with a month (`2026-11`) as the first of it.
+    let (mut month, mut day) = (1, 1);
+    if at < bytes.len() && bytes[at] == b'-' {
+        at += 1;
+        month = number(bytes, &mut at, 2)?;
+        if at < bytes.len() && bytes[at] == b'-' {
+            at += 1;
+            day = number(bytes, &mut at, 2)?;
+        }
+    }
     let (mut hour, mut minute, mut second, mut millis, mut offset) = (0, 0, 0, 0, 0);
     if at < bytes.len() {
         if !matches!(bytes[at], b'T' | b't' | b' ') {
@@ -39,10 +46,13 @@ pub fn parse(text: &str) -> Option<i64> {
             offset = zone(bytes, &mut at)?;
         }
     }
-    if at != bytes.len() || !(1..=12).contains(&month) || day < 1 || day > days_in_month(year, month) {
+    // V8 lets a day past the month's end roll into the next month (`2026-11-31` is 2026-12-01), up to 31.
+    if at != bytes.len() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
         return None;
     }
-    if hour > 23 || minute > 59 || second > 59 {
+    // 24:00:00.000 is the end of the day; no other 24 is a time.
+    let end_of_day = hour == 24 && minute == 0 && second == 0 && millis == 0;
+    if (hour > 23 && !end_of_day) || minute > 59 || second > 59 {
         return None;
     }
     let days = days_from_civil(year, month, day);
@@ -149,18 +159,7 @@ fn zone(bytes: &[u8], at: &mut usize) -> Option<i64> {
     }
 }
 
-fn days_in_month(year: i64, month: i64) -> i64 {
-    match month {
-        2 if is_leap(year) => 29,
-        2 => 28,
-        4 | 6 | 9 | 11 => 30,
-        _ => 31,
-    }
-}
 
-fn is_leap(year: i64) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
-}
 
 /// Days from 1970-01-01 to `year-month-day`, as Howard Hinnant's `days_from_civil`.
 fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
