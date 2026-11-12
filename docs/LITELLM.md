@@ -38,7 +38,8 @@ repository ships the table and the gate.
 edge wants an auth-api service token as `Authorization: Bearer`, so the key goes in
 `x-litellm-api-key` instead. LiteLLM always accepts that header and prefers it to
 `Authorization`, so it works in both states. The tools use that two-header form only while
-`LITELLM_EDGE_TOKEN` is stored (`litellm-gate --edge-token-env`, `measure_litellm_budget.py`).
+`LITELLM_EDGE_TOKEN` is stored (`measure_litellm_budget.py` reads it from the store itself; `litellm-gate`
+only when given `--edge-token-env LITELLM_EDGE_TOKEN`, which a node needs until the anonymous edge is live).
 Once the anonymous edge is live, remove `LITELLM_EDGE_TOKEN` from the store and the tools send
 the plain bearer. The auth-api service-token path for LiteLLM is then unused.
 
