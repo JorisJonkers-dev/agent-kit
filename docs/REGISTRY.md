@@ -49,15 +49,23 @@ every agent id may use it. Its `args` are its allowlist: `--root` and a path,
 repeated. The registry holds the personal roots only
 (`args: ["--root", "~/Projects/JorisJonkers-dev"]`), and the renderer refuses
 an argument naming `nedap`. A work root goes in the work machine's overlay, which
-the gold-band-registry crate validates (work instance only); setup does not yet
-register overlay servers:
+the gold-band-registry crate validates (work instance only):
 
 ```yaml
 instances:
   gold-band:
     mcp_servers:
-      code-nav: {command: code-nav, args: ["--root", "~/Projects/nedap"]}
+      code-nav: {command: code-nav, args: ["--root", "~/Projects/<work-root>"]}
 ```
+
+Setup, run in the work account, reads that entry through
+`scripts/gold_band_instances.py code-nav-roots` (the overlay is validated by the
+crate first) and appends each `--root` to the Claude and Codex `code-nav`
+registrations, after the registry's personal root. The entry must be
+`command: code-nav` with `--root PATH` pairs only. A missing overlay adds
+nothing; a refused one is reported and the personal root alone is registered.
+Vibe, OpenCode, Antigravity and Hermes render from public generated files and
+keep the personal root only.
 
 The personal instance never takes a work root.
 

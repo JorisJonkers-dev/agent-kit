@@ -19,10 +19,12 @@ A missing overlay is an empty one.
 
 from __future__ import annotations
 
+import argparse
 import atexit
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -173,3 +175,89 @@ def validate(registry: dict[str, Any], overlay_path: Path | None = None) -> list
     if result.returncode != 1 or not lines:
         raise InstanceError(f"the {CRATE} crate failed ({result.returncode}): " + "; ".join(lines))
     return lines
+
+
+WORK_INSTANCE = "gold-band"
+CODE_NAV = "code-nav"
+
+
+def _expand(root: str) -> str:
+    """``~`` and ``$HOME`` resolved against the running user's HOME."""
+    return os.path.expandvars(os.path.expanduser(root))
+
+
+def _root_pairs(args: Any) -> list[str] | None:
+    """The paths of an exact ``--root PATH`` list, or None when ``args`` is anything else."""
+    if not isinstance(args, list) or not args or len(args) % 2:
+        return None
+    roots: list[str] = []
+    for flag, path in zip(args[::2], args[1::2], strict=True):
+        if flag != "--root" or not isinstance(path, str) or not path.strip() or path.startswith("-"):
+            return None
+        roots.append(path)
+    return roots
+
+
+def code_nav_roots(registry: dict[str, Any], overlay_path: Path) -> list[str]:
+    """The roots the work overlay adds to code-nav, expanded, beyond the registry's own.
+
+    Only the work instance's ``mcp_servers.code-nav`` is read: the overlay is
+    validated first (the crate refuses ``mcp_servers`` on the personal instance),
+    and no other instance or server is looked at. A missing overlay, or one with
+    no code-nav entry, adds nothing. An entry that is not ``command: code-nav``
+    with ``--root PATH`` pairs only is refused, so an overlay cannot smuggle a
+    flag or another binary into the registration.
+    """
+    overlay = load_overlay(overlay_path)
+    if overlay is None:
+        return []
+    refused = validate(registry, overlay_path)
+    if refused:
+        raise InstanceError("; ".join(refused))
+    block = overlay.get(OVERLAY_KEY) or {}
+    servers = ((block.get(WORK_INSTANCE) or {}).get("mcp_servers")) or {}
+    entry = servers.get(CODE_NAV)
+    if entry is None:
+        return []
+    roots = _root_pairs(entry.get("args")) if isinstance(entry, dict) and entry.get("command") == CODE_NAV else None
+    if roots is None:
+        raise InstanceError(
+            f"overlay {WORK_INSTANCE}.mcp_servers.{CODE_NAV} must be command {CODE_NAV} with only --root PATH pairs"
+        )
+    own = {
+        _expand(path)
+        for server in registry.get("mcp_servers") or []
+        if server.get("name") == CODE_NAV
+        for path in _root_pairs(server.get("args")) or []
+    }
+    found: list[str] = []
+    for root in map(_expand, roots):
+        if root not in own and root not in found:
+            found.append(root)
+    return found
+
+
+def main(argv: list[str] | None = None) -> int:
+    """``code-nav-roots``: print the overlay's extra code-nav roots, one per line.
+
+    Exit 0 with the roots (none is fine), 1 when the overlay is refused, with the
+    reason on stderr. Setup then registers the registry's personal roots alone.
+    """
+    parser = argparse.ArgumentParser(prog="gold_band_instances")
+    parser.add_argument("command", choices=["code-nav-roots"])
+    parser.add_argument("--registry", type=Path, default=KIT_ROOT / "registry" / "estate-tooling.yaml")
+    parser.add_argument("--overlay", type=Path, default=DEFAULT_OVERLAY)
+    args = parser.parse_args(argv)
+    try:
+        registry = yaml.safe_load(args.registry.read_text())
+        roots = code_nav_roots(registry, args.overlay)
+    except (InstanceError, OSError, yaml.YAMLError) as exc:
+        print(f"code-nav roots: {exc}", file=sys.stderr)
+        return 1
+    for root in roots:
+        print(root)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
