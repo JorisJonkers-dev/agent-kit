@@ -1936,7 +1936,7 @@ vibe_delegate_agents:
 # declared in both the user layer and the project layer is not listed twice but
 # overridden, with the project layer winning, in Claude and OpenCode; Vibe is
 # not yet tested (docs/SETUP.md, "Same-name MCP servers in two layers", #439).
-#
+# -------------------------------------------------------------------
 # Gold Band instances (ADR-0011).
 #
 # Two separately configured Gold Band instances, split by employer. The

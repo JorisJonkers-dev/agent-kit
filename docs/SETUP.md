@@ -821,8 +821,8 @@ Result of the same-name overlap test (#439): a trivial stdio server named
 `overlap-echo`, with one tool `echo`, declared with the same name in the user
 layer (the agent's own config) and the project layer (a file in the working
 directory) at once, in the personal instance on the Linux workstation
-(2026-11-12). Each declaration returned `layer=<user|project>` and logged its
-own start, so the winner shows in both the tool output and the start log.
+(2026-11-12). Each declaration returned `layer=<user|project>` and logs a line when
+it starts, so the winner shows in the tool output and the start log.
 
 | Agent | User layer | Project layer | Result |
 | --- | --- | --- | --- |
@@ -834,9 +834,10 @@ The work instance is not on this machine (it lives on the work Mac only), so it
 was not tested; the agents it binds are Claude and Codex, and Codex was not
 tested in either instance.
 
-The project layer overrides the user layer for the same name, so a server
-declared in both is not duplicated, but the user-layer declaration is then dead
-weight and can hide a stale command; the registry's layering rule is to declare
+In Claude and OpenCode the project layer overrides the user layer for the same
+name, so a server declared in both is not duplicated, but the user-layer
+declaration is then dead weight and might hide a stale command (a risk, not
+observed); the registry's layering rule is to declare
 each server in exactly one layer per agent.
 
 ## Language servers have two halves
