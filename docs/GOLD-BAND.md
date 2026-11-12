@@ -307,6 +307,41 @@ and that a deleted report, rewritten output, a rewritten command, a stale
 report and a report from another run or attempt each end the run in failure.
 Its stub does the tampering itself, since the limit is not in play there.
 
+## The finding check node
+
+Workflow B's critics answer in the critique runner's finding schema
+(`skills/workstation/critique/schemas/finding.schema.json`). A critic can be
+wrong or invent a quote, so a finding drives a repair only when it can be
+checked. The finding check node is a gate node between the critics and the
+repair nodes: the pinned `gold-band-gate run` wrapper around
+`gold-band-findings check`, followed by the read-only copier
+(`gold-band-gate verify`). The crate is `scripts/crates/gold-band-findings`; wiring the
+node into Workflow B's graph belongs to the critics ticket (#451).
+
+```bash
+gold-band-findings check --run-id ID --attempt N --diff FILE --ticket FILE \
+    --report-dir DIR FINDINGS_FILE...
+```
+
+Each `FINDINGS_FILE` is one critic's whole answer. A finding is **kept** when it
+validates against the schema and has at least one `quote` evidence item, every
+quote of which is found in the diff or the ticket (runs of whitespace count as
+one space; a quote shorter than 8 characters is too short to count). Every other
+finding is a **hint**, with its reason: `schema`, `no-quote`, `quote-too-short`
+or `quote-not-found`. A hint is kept in the report and never sent back to the
+writer.
+
+It writes `DIR/findings-check.json` and prints it: `run_id`, `attempt`,
+`actionable` (the number kept), `hint_count`, `kept` and `hints`. A kept entry is
+`{source, finding}`; a hint is `{source, id, reason, detail, finding}`, where
+`source` is the index of its findings file. A repair node is reached only when
+`actionable` is above zero, so a run with hints alone does not go back to the
+writer. Exit `0`: the check ran. Exit `1`: a critic's answer is not a finding
+document (not JSON, an unknown key, `findings` not an array, or a missing or empty
+`no_findings_reason` where it is required or given), so it is not
+read as "no findings". Exit `2`: bad usage, an unreadable input or an unwritable report directory. The
+old `findings-check.json` is removed before each run.
+
 ## The critique stage templates
 
 `installer/gold-band/workflows/critique-<stage>.json` wraps each critique

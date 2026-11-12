@@ -422,6 +422,15 @@ missing, stale, from another run or attempt, for another command, or does not
 match its captured output, so a faked pass ends in failure.
 _Avoid_: verifier node, report checker, gate checker
 
+**Finding check node**:
+The gate node between Workflow B's critics and its repair nodes. It runs
+`gold-band-findings check` under the gate wrapper and keeps only the findings
+that validate against the finding schema and quote the diff or the ticket. Every
+other finding is a hint: listed in the check's report, never sent back to the
+writer. A workflow routes to the writer only when the report's `actionable` count
+is above zero.
+_Avoid_: finding filter, critic gate
+
 **Overlay**:
 A per-machine file beside the keep file, `~/.config/agent-kit/overlay.yaml`,
 holding the work instance's employer-specific MCP servers and settings, so
