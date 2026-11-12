@@ -439,3 +439,19 @@ def test_linux_and_a_cloud_session_do_not_converge_the_work_instance(tmp_path: P
     assert "only the work Mac is converged here, skipped" in run.stdout
     run, uv = _setup(tmp_path / "cloud", WORK_OVERLAY, args=("--cloud",))
     assert _work_calls(uv) == []
+
+
+def test_the_overlay_cannot_turn_a_quiet_setting_back_on(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    overlay = {"instances": {"gold-band": {"settings": {"desktopMetricsEnabled": True}}}}
+    mac = Mac(tmp_path, monkeypatch, overlay=overlay)
+
+    assert mac.run() == 0
+    assert mac.document()["desktopMetricsEnabled"] is False
+
+
+def test_a_boolean_overwrites_an_equal_number(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mac = Mac(tmp_path, monkeypatch, overlay={"instances": {"gold-band": {"settings": {"fixtureFlag": True}}}})
+    mac.seed({"fixtureFlag": 1})
+
+    assert mac.run() == 0
+    assert mac.document()["fixtureFlag"] is True

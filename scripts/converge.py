@@ -955,7 +955,7 @@ def _gold_band_overlay_settings(
                 raise _CannotConverge(f"overlay settings.{path}: {key} holds a value that is not a mapping")
             node = child
         last = path.split(".")[-1]
-        if last not in node or node[last] != value:
+        if last not in node or node[last] != value or type(node[last]) is not type(value):
             node[last] = value
             notes.append(f"overlay: set {path}")
     return result
@@ -1109,14 +1109,15 @@ def gold_band(args: argparse.Namespace) -> int:
     for line in _gold_band_skills(skills_root, args.kit, wanted, sources, skipped_ids, keep - retired, args.check):
         print(line)
     # The map keeps its slot among the other top-level keys; a new one is appended.
-    new_doc = _gold_band_quiet({**doc, "agents": merged})
     overlay_notes: list[str] = []
     try:
-        new_doc = _gold_band_overlay_settings(new_doc, overlay.get("settings"), overlay_notes)
+        new_doc = _gold_band_overlay_settings({**doc, "agents": merged}, overlay.get("settings"), overlay_notes)
         new_doc = _gold_band_overlay_servers(new_doc, overlay.get("mcp_servers"), overlay_notes)
     except _CannotConverge as exc:
         print(f"gold-band-agents: cannot converge: {exc}")
         return 3
+    # Quiet last, so an overlay cannot turn the outbound components back on.
+    new_doc = _gold_band_quiet(new_doc)
     if new_doc == doc:
         # An unchanged map still leaves the data directory owner-only.
         if not args.check and settings.parent.is_dir():

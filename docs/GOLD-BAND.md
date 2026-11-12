@@ -159,7 +159,7 @@ the work instance); the
 overlay's `settings` are set at their dotted paths in `settings.json` and its
 `mcp_servers` become `contextServers` entries (upserted by id; an entry the
 overlay no longer names is left for the owner to remove). The overlay is
-validated by the `gold-band-registry` crate first and refused whole when it
+validated by the `gold-band-registry` crate first (so `cargo` or `GOLD_BAND_REGISTRY_BIN` is needed) and refused whole when it
 fails, and it may not set `agents` or `contextServers` as a setting. Nothing in
 it is copied into the registry, and the registry holds no employer value. The
 work account's own `settings.json` is the target: the personal instance runs
