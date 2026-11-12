@@ -150,7 +150,7 @@ export function renderCodeNavMap(
   const head = [
     '# Repo map',
     '',
-    `Files and symbols at commit \`${options.commit}\`, ranked by code-nav's map: a symbol's references are the whole-word occurrences of its name in the other scanned files, a file's score is the sum over the symbols it declares, most referenced first. A symbol's line is its line in \`tree/<path>\`, which holds the file when the packet cap let it in. The map lists the most referenced files and symbols only. This map is a fact the runner read from code-nav.`,
+    `Files and symbols ranked by code-nav's map, which reads the repository's working tree, so a line can differ from \`tree/<path>\` (read at commit \`${options.commit}\`) where the working tree has uncommitted edits: a symbol's references are the whole-word occurrences of its name in the other scanned files, a file's score is the sum over the symbols it declares, most referenced first. A symbol's line is its line in the working tree; \`tree/<path>\` holds the file when the packet cap let it in. The map lists the most referenced files and symbols only. This map is a fact the runner read from code-nav.`,
     '',
   ].join('\n')
   const blocks = ranking.files.map((file) => {

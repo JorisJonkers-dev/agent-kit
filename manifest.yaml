@@ -396,11 +396,11 @@ council:
 # council's. skills/workstation/critique/ is itself the copy setup installs (there is no
 # repo copy beside it), so the pin is on it. Its SKILL.md is the skill's text,
 # not the runner's, and is left out. `pnpm run build` in council/ts rebuilds
-# c431f940ede1446d7c8da5f4ef4ecaedf53232fa792aa5c2fe1308f9c8d81115 update its sha256 here in the same commit.
+# fe0e08c8842cbeee049f3d9bc75e58f94c183689292190ad201ad1f7bcc08ca8 update its sha256 here in the same commit.
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs
-      sha256: c431f940ede1446d7c8da5f4ef4ecaedf53232fa792aa5c2fe1308f9c8d81115
+      sha256: fe0e08c8842cbeee049f3d9bc75e58f94c183689292190ad201ad1f7bcc08ca8
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
       sha256: 4bcf6d9cefbef0eb638d5dac328c84a22f120e7799cd834f677daaa48fcef65c
