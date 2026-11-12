@@ -792,7 +792,7 @@ def _gold_band_quiet(document: dict[str, Any]) -> dict[str, Any]:
     quiet.pop("desktopUpdaterUrlOverride", None)
     im = quiet.get("imIntegrations")
     channels = im.get("channels") if isinstance(im, dict) else None
-    if isinstance(channels, list):
+    if isinstance(im, dict) and isinstance(channels, list):
         quiet["imIntegrations"] = {
             **im,
             "channels": [
