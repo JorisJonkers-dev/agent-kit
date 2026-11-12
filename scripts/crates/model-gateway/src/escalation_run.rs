@@ -76,6 +76,17 @@ impl AttemptError {
     }
 }
 
+impl From<GatewayError> for AttemptError {
+    /// A refusal of the gateway; a platform failure (code `unexpected`) is whatever else went wrong, by its message.
+    fn from(error: GatewayError) -> Self {
+        if error.code == "unexpected" {
+            AttemptError::Other(error.message)
+        } else {
+            AttemptError::Refused(error)
+        }
+    }
+}
+
 /// A delegation's last run, with what the escalation did to get there.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Escalated<R> {

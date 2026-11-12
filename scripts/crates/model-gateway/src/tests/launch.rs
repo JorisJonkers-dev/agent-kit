@@ -48,6 +48,18 @@ fn denied(path: &str) -> FsError {
 }
 
 impl Files for Memory {
+    fn write_text(&self, _path: &str, _content: &str) -> Result<(), FsError> {
+        unreachable!("the test does not write text")
+    }
+
+    fn temp_dir(&self, _parent: &str, _prefix: &str) -> Result<String, FsError> {
+        unreachable!("the test makes no temporary directory")
+    }
+
+    fn remove(&self, _path: &str) -> Result<(), FsError> {
+        unreachable!("the test removes nothing")
+    }
+
     fn read_text(&self, path: &str) -> Result<String, FsError> {
         if self.read_fails.iter().any(|failing| failing == path) {
             return Err(denied(path));

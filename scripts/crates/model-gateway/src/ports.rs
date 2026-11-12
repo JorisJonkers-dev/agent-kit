@@ -31,6 +31,12 @@ pub trait Files {
     fn stamp(&self, path: &str) -> Option<FileStamp>;
     /// Like `write_atomic`, in a directory only its owner may enter (0700) and a file only its owner may read (0600).
     fn write_private(&self, path: &str, content: &str) -> Result<(), FsError>;
+    /// Writes the file whole, making its directory first.
+    fn write_text(&self, path: &str, content: &str) -> Result<(), FsError>;
+    /// A fresh directory under `parent` named `prefix` and six letters or digits, as `mkdtemp` makes one; its path.
+    fn temp_dir(&self, parent: &str, prefix: &str) -> Result<String, FsError>;
+    /// `rm -rf`: says nothing when the path is not there.
+    fn remove(&self, path: &str) -> Result<(), FsError>;
 }
 
 /// What `stamp` reports of a file, followed through every symlink.
@@ -101,11 +107,17 @@ pub trait Git {
     fn remove_worktree(&self, repo: &str, path: &str) -> Result<(), String>;
     /// `git branch -D`.
     fn delete_branch(&self, repo: &str, branch: &str) -> Result<(), String>;
+    /// The repository's common directory as an absolute path, which every worktree of it shares.
+    fn common_dir(&self, path: &str) -> Result<String, String>;
+    /// A detached worktree of the repository's HEAD at `path`, which may be an empty directory already.
+    fn add_worktree(&self, repo: &str, path: &str) -> Result<(), String>;
 }
 
 pub trait Clock {
     /// Milliseconds since the Unix epoch.
     fn now_ms(&self) -> i64;
+    /// A monotonic reading in milliseconds, from which how long something took is measured.
+    fn monotonic_ms(&self) -> f64;
 }
 
 /// How long a writer waits for the workflows lock: how long it sleeps before it
@@ -137,6 +149,8 @@ pub struct Runtime {
     pub defaults: String,
     /// The path the shipped defaults are named by in an error.
     pub defaults_path: String,
+    /// Critique's shipped `routing.json`, as text: the read-only proofs are matched against it.
+    pub routing: String,
 }
 
 impl Runtime {

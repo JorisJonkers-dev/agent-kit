@@ -104,6 +104,9 @@ pub struct RunInput {
     pub headless: Option<bool>,
     /// How many attempts the delegation gets in all, the first included; 3 unless the caller says otherwise.
     pub max_attempts: Option<f64>,
+    /// The members that sit last in the object the node runner holds, in order: an attempt on a candidate moves
+    /// `provider` there, and a reservation adds `max_price_usd` there when the caller named none.
+    pub tail: Vec<&'static str>,
 }
 
 /// Reads a run's input, or says what is wrong with it. The checks run in the order the node runner runs them,
@@ -179,7 +182,42 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
         family_binding,
         headless,
         max_attempts,
+        tail: Vec::new(),
     })
+}
+
+/// The input as the node runner holds it as an object, which is what `input.json` is written from: the members in
+/// the order `readRunInput` builds them, those in `tail` last, and the ones the caller left out not at all.
+pub fn input_json(input: &RunInput) -> Value {
+    let mut members: Vec<(&'static str, Value)> = vec![
+        ("client", Value::str(&input.client)),
+        ("mode", Value::str(input.mode.as_str())),
+        ("model", Value::str(&input.model)),
+        ("prompt", Value::str(&input.prompt)),
+        ("time_limit_s", Value::Num(input.time_limit_s)),
+        ("workflow", Value::str(&input.workflow)),
+    ];
+    let optional = |key: &'static str, value: Option<Value>| value.map(|value| (key, value));
+    let carries = input.carries.map(|carries| json::object(vec![("code", Value::Bool(carries.code)), ("history", Value::Bool(carries.history))]));
+    members.extend(
+        [
+            optional("carries", carries),
+            optional("max_price_usd", input.max_price_usd.map(Value::Num)),
+            optional("provider", input.provider.as_deref().map(Value::str)),
+            optional("repo", input.repo.as_deref().map(Value::str)),
+            optional("escalate", input.escalate.map(Value::Bool)),
+            optional("family_binding", input.family_binding.map(Value::Bool)),
+            optional("max_attempts", input.max_attempts.map(Value::Num)),
+            optional("base", input.base.as_deref().map(Value::str)),
+            optional("check", input.check.as_deref().map(Value::str)),
+            optional("headless", input.headless.map(Value::Bool)),
+        ]
+        .into_iter()
+        .flatten(),
+    );
+    let (last, mut first): (Vec<_>, Vec<_>) = members.into_iter().partition(|(key, _)| input.tail.contains(key));
+    first.extend(input.tail.iter().filter_map(|key| last.iter().find(|(name, _)| name == key).cloned()));
+    json::object(first)
 }
 
 /// A flag the caller may leave out: `true` or `false`, and nothing else.

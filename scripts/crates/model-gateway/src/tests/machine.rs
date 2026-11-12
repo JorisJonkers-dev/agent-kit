@@ -58,6 +58,14 @@ impl Process for FakeProcess {
 struct NoRepositories;
 
 impl Git for NoRepositories {
+    fn common_dir(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test asks for no common directory")
+    }
+
+    fn add_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
+        unreachable!("the test adds no worktree")
+    }
+
     fn root(&self, _path: &str) -> Result<Option<String>, String> {
         Ok(None)
     }
@@ -100,6 +108,7 @@ impl Machine {
             env,
             defaults: defaults.to_string(),
             defaults_path: "defaults.json".to_string(),
+            routing: crate::SHIPPED_ROUTING.to_string(),
         };
         Machine { sandbox, runtime, process }
     }

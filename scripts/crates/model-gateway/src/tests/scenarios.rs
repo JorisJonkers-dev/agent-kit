@@ -176,6 +176,11 @@ impl Clock for FixedClock {
     fn now_ms(&self) -> i64 {
         self.0
     }
+
+    /// Frozen at 0, as the node runner's clock fake freezes `performance.now`.
+    fn monotonic_ms(&self) -> f64 {
+        0.0
+    }
 }
 
 pub fn fixtures() -> PathBuf {
@@ -386,6 +391,7 @@ impl Replay {
             env,
             defaults: crate::SHIPPED_DEFAULTS.to_string(),
             defaults_path: "defaults.json".to_string(),
+            routing: crate::SHIPPED_ROUTING.to_string(),
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);
@@ -428,30 +434,19 @@ pub fn scenario_names() -> Vec<String> {
     names
 }
 
-/// The scenarios of commands the library does not answer yet: `run`'s goldens (read-only delegations through fake clients) are
-/// in place before the port is, so they are replayed only when named (`SCENARIO=run-vibe`) or asked for (`SCENARIO=run-`
-/// replays every one that starts so, `PENDING=1` replays all of them). Delete this list when the port lands.
-const PENDING_PREFIXES: [&str; 1] = ["run-"];
-
-/// Whether the default replay leaves this scenario out.
-fn is_pending(name: &str) -> bool {
-    PENDING_PREFIXES.iter().any(|prefix| name.starts_with(prefix))
-}
-
-/// Whether `SCENARIO` (an exact name, or a prefix ending in `-`) and `PENDING` ask for this scenario.
-fn is_wanted(name: &str, only: Option<&str>, pending: bool) -> bool {
+/// Whether `SCENARIO` (an exact name, or a prefix ending in `-`) asks for this scenario; without it every scenario is replayed.
+fn is_wanted(name: &str, only: Option<&str>) -> bool {
     match only {
         Some(only) => only == name || (only.ends_with('-') && name.starts_with(only)),
-        None => pending || !is_pending(name),
+        None => true,
     }
 }
 
 #[test]
 fn which_scenarios_are_replayed() {
-    assert!(is_pending("run-vibe") && !is_pending("cli-input") && !is_pending("worktrees-clean-all"));
-    assert!(is_wanted("cli-input", None, false) && !is_wanted("run-vibe", None, false) && is_wanted("run-vibe", None, true));
-    assert!(is_wanted("run-vibe", Some("run-vibe"), false) && !is_wanted("run-agy", Some("run-vibe"), false));
-    assert!(is_wanted("run-agy", Some("run-"), false) && !is_wanted("cli-input", Some("run-"), false));
+    assert!(is_wanted("cli-input", None) && is_wanted("run-vibe", None));
+    assert!(is_wanted("run-vibe", Some("run-vibe")) && !is_wanted("run-agy", Some("run-vibe")));
+    assert!(is_wanted("run-agy", Some("run-")) && !is_wanted("cli-input", Some("run-")));
 }
 
 #[test]
@@ -482,9 +477,8 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
     assert!(names.len() >= 14, "the fixture scenarios are missing: {names:?}");
     // Every mismatch is collected, so one run shows all of them; SCENARIO=<name> replays one scenario.
     let only = std::env::var("SCENARIO").ok();
-    let pending = std::env::var("PENDING").is_ok_and(|value| value == "1");
     let mut mismatches: Vec<String> = Vec::new();
-    for name in names.iter().filter(|name| is_wanted(name, only.as_deref(), pending)) {
+    for name in names.iter().filter(|name| is_wanted(name, only.as_deref())) {
         let replay = Replay::new(name);
         let golden = read_json(&replay.dir.join("expected.json"));
         let steps = list(&replay.scenario, "steps");

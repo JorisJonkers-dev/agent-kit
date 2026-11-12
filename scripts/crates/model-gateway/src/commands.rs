@@ -1,6 +1,6 @@
 //! The commands the Rust gateway carries: `models`, `usage`, `grant write`,
 //! `grant reserve`, `grant list`, `worktrees clean` and the three workflow
-//! commands. `run` and `batch` answer `not-ported`.
+//! commands, and the read-only `run`. A writing `run` and `batch` answer `not-ported`.
 
 use crate::availability;
 use crate::caps;
@@ -48,6 +48,7 @@ pub fn run(command: Command, name: &str, input: &Object, runtime: &Runtime) -> R
         Command::GrantList => grant_list(input, runtime),
         Command::GrantReserve => crate::reserve::reserve(input, runtime),
         Command::WorktreesClean => crate::worktrees::clean(input, runtime),
+        Command::Run => crate::run_command::RunCommand { runtime }.run(&Value::Obj(input.clone())),
         Command::WorkflowStart => workflow_start(input, runtime),
         Command::WorkflowEnd => workflow_end(input, runtime),
         Command::WorkflowList => workflow_list(runtime),
@@ -283,7 +284,7 @@ fn grant_report(runtime: &Runtime, grant: &grants::Grant) -> Value {
 }
 
 /// Six lowercase hex digits (three random bytes) that keep two grants of one second apart.
-fn random_suffix() -> String {
+pub fn random_suffix() -> String {
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
     format!("{:06x}", RandomState::new().build_hasher().finish() & 0x00ff_ffff)

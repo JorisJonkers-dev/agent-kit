@@ -85,6 +85,18 @@ impl LedgerStore<'_> {
         })
     }
 
+    /// Appends one run's line under the lock.
+    pub fn append_run(&self, record: &Value) -> Result<(), GatewayError> {
+        let path = locations::ledger_path(&self.runtime.env)?;
+        self.runtime.files.mkdir_all(dirname(&path)).map_err(GatewayError::from_fs)?;
+        let lock = FileLock::new("ledger", self.runtime.lock);
+        let files = self.runtime.files.as_ref();
+        let clock = self.runtime.clock.as_ref();
+        lock.run(&format!("{path}.lock"), files, clock, || {
+            files.append(&path, &format!("{}\n", json::compact(record))).map_err(GatewayError::from_fs)
+        })
+    }
+
     /// Every record the ledger holds, oldest first. A ledger that is not there
     /// yet holds none; a line a writer left half-written is skipped, so one
     /// crashed run never hides the rest of the history.

@@ -1,0 +1,596 @@
+//! The `run` command: one read-only task handed to one client model, and what
+//! came of it. Everything that can refuse the run happens before anything is
+//! launched: the nesting guard, the data policy for the repository, and the
+//! read-only proof of the client model. A run that is launched always leaves a
+//! run directory and a ledger line, whether it succeeded or not.
+//!
+//! A writing run (a worktree, the staged files, the check) is not ported: it
+//! answers `not-ported` at the first point that is safe, after every refusal the
+//! node runner makes first and before anything is reserved, written or launched.
+
+use crate::cap_guard::{run_cost_class, CapGuard, CapSource, Reservation, ReserveArgs};
+use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};
+use crate::config::{ClientConfig, CostClass, GatewayConfig, ModelEntry};
+use crate::config_parse::load_config;
+use crate::error::GatewayError;
+use crate::escalation_run::{AttemptError, AttemptOptions, AttemptedRun, Delegation, EscalatedRun};
+use crate::extras::RunExtras;
+use crate::grant_guard::GrantGuard;
+use crate::json::{self, Object, Value};
+use crate::launchers::{LaunchPaths, LaunchRequest, DELEGATION_MARK};
+use crate::ledger_file::LedgerStore;
+use crate::locations;
+use crate::models::family_of_model_id;
+use crate::outputs::ClientOutput;
+use crate::policy::{decide_policy, resolve_scope, DataScope, ModelPermission, PolicySubject};
+use crate::ports::{ProcessResult, Runtime};
+use crate::proof::read_proof_files;
+use crate::run::{
+    input_json, named_reset, price_run, read_only_proof, read_run_input, require_allowed_provider, run_failure_reason, run_id, summary_of, wrapped_prompt,
+    ClientReport, LaunchExit, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens, FORBIDDEN_PROVIDERS, NO_TOKENS, PROVIDER_CLIENTS,
+};
+use crate::state_file::Workflows;
+use crate::text::join;
+use crate::timestamps::to_iso;
+use crate::usage::{plan_windows, warnings_of};
+use crate::workflows;
+use std::collections::BTreeMap;
+
+/// What the writing run answers: the port stops short of the worktree, the staging and the check.
+const WRITE_NOT_PORTED: &str = "write-mode run is not ported to the Rust gateway yet; use the node runner";
+
+/// What one delegation came to: a short result, with the full output left in its run directory.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RunResult {
+    pub ok: bool,
+    pub run_id: String,
+    pub workflow: String,
+    pub client: String,
+    pub model: String,
+    pub family: String,
+    pub mode: RunMode,
+    pub tokens: RunTokens,
+    pub cost_usd: f64,
+    /// The file the delegate's full output was written to.
+    pub output_path: String,
+    /// The delegate's own summary, cut at `summary_max_chars`.
+    pub summary: String,
+    pub reason: Option<String>,
+    /// When the client model's own answer said it is usable again.
+    pub unavailable_until: Option<String>,
+    /// This run's place in its delegation when it is a retry or a climb (2 and up).
+    pub attempt: Option<usize>,
+    /// The run id of the delegation's first attempt, on every later one.
+    pub attempt_of: Option<String>,
+    /// Set when the run's throwaway worktree could not be removed.
+    pub cleanup_warning: Option<String>,
+    /// One line per plan window of this client at or above the warning ratio.
+    pub warnings: Vec<String>,
+}
+
+impl RunResult {
+    /// The result as the node runner prints it: its members in the order it spreads them.
+    pub fn to_json(&self) -> Value {
+        Value::Obj(self.to_object())
+    }
+
+    fn to_object(&self) -> Object {
+        let mut members = vec![
+            ("client", Value::str(&self.client)),
+            ("cost_usd", Value::Num(self.cost_usd)),
+            ("family", Value::str(&self.family)),
+            ("mode", Value::str(self.mode.as_str())),
+            ("model", Value::str(&self.model)),
+            ("output_path", Value::str(&self.output_path)),
+            ("run_id", Value::str(&self.run_id)),
+            ("status", Value::str(if self.ok { "ok" } else { "failed" })),
+            ("summary", Value::str(&self.summary)),
+            ("tokens", tokens_json(self.tokens)),
+            ("workflow", Value::str(&self.workflow)),
+        ];
+        let optional = [
+            ("reason", self.reason.as_deref().map(Value::str)),
+            ("unavailable_until", self.unavailable_until.as_deref().map(Value::str)),
+            ("attempt", self.attempt.map(|attempt| Value::Num(attempt as f64))),
+            ("attempt_of", self.attempt_of.as_deref().map(Value::str)),
+            ("cleanup_warning", self.cleanup_warning.as_deref().map(Value::str)),
+            ("warnings", (!self.warnings.is_empty()).then(|| Value::Arr(self.warnings.iter().map(|line| Value::str(line)).collect()))),
+        ];
+        members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
+        let mut object = Object::new();
+        for (key, value) in members {
+            object.set(key, value);
+        }
+        object
+    }
+}
+
+impl AttemptedRun for RunResult {
+    fn is_ok(&self) -> bool {
+        self.ok
+    }
+    fn run_id(&self) -> &str {
+        &self.run_id
+    }
+    fn client(&self) -> &str {
+        &self.client
+    }
+    fn model(&self) -> &str {
+        &self.model
+    }
+    fn family(&self) -> Option<&str> {
+        Some(&self.family)
+    }
+    fn summary(&self) -> Option<&str> {
+        Some(&self.summary)
+    }
+    fn set_summary(&mut self, summary: String) {
+        self.summary = summary;
+    }
+    fn reason(&self) -> Option<&str> {
+        self.reason.as_deref()
+    }
+    fn output_path(&self) -> &str {
+        &self.output_path
+    }
+    fn check_output_path(&self) -> Option<&str> {
+        None
+    }
+}
+
+/// The tokens as the result and the ledger write them: `cached`, `input`, `output`.
+fn tokens_json(tokens: RunTokens) -> Value {
+    json::object(vec![("cached", Value::Num(tokens.cached)), ("input", Value::Num(tokens.input)), ("output", Value::Num(tokens.output))])
+}
+
+/// Where a client model stands for one delegation: the facts a run settles before it launches anything.
+struct Placed {
+    repository: Option<String>,
+    client: ClientConfig,
+    config: GatewayConfig,
+    entry: Option<ModelEntry>,
+    family: String,
+    root: Option<String>,
+}
+
+/// Where a run works, and how it leaves: in the repository itself when the client model's read-only proof
+/// passed, else in a throwaway directory that `release` deletes.
+struct Workplace {
+    dir: String,
+    /// The repository a throwaway worktree was added to; `None` for a plain directory.
+    worktree_of: Option<String>,
+    throwaway: bool,
+}
+
+/// Everything one launched run needs beyond its input, settled before anything starts.
+struct Delegated<'a> {
+    started_at: i64,
+    started_ms: f64,
+    binary: &'a str,
+    config: &'a GatewayConfig,
+    entry: Option<&'a ModelEntry>,
+    family: &'a str,
+    id: &'a str,
+    input: &'a RunInput,
+    run_dir: &'a str,
+    work_dir: &'a str,
+}
+
+pub struct RunCommand<'a> {
+    pub runtime: &'a Runtime,
+}
+
+impl RunCommand<'_> {
+    /// Reads the input and runs the delegation: a run, retried, climbed and swapped as the escalation decides.
+    pub fn run(&self, raw: &Value) -> Result<Value, GatewayError> {
+        let input = read_run_input(raw)?;
+        let delegation = (EscalatedRun { runtime: self.runtime }).run(&input, &mut |attempt, options| self.run_once(attempt, options))?;
+        Ok(match delegation {
+            Delegation::Run(escalated) => {
+                let mut result = escalated.run.to_object();
+                for (key, value) in escalated.report.members() {
+                    result.set(key, value);
+                }
+                Value::Obj(result)
+            }
+            Delegation::Unavailable(unavailable) => unavailable.to_json(),
+        })
+    }
+
+    /// One attempt: a single run of one client model, which the escalation wraps.
+    fn run_once(&self, given: &RunInput, options: &AttemptOptions) -> Result<RunResult, AttemptError> {
+        self.refuse_nested()?;
+        let placed = self.place(given)?;
+        if given.mode == RunMode::Write {
+            return Err(GatewayError::new("not-ported", WRITE_NOT_PORTED).into());
+        }
+        let Placed { repository, client, config, entry, family, root } = placed;
+        let cost_class = run_cost_class(&client, given);
+        if let Some(start_check) = options.start_check {
+            if let Some(blocked) = start_check(given)? {
+                return Err(AttemptError::CannotStart(blocked));
+            }
+        }
+        let throwaway = self.needs_throwaway(given, entry.as_ref())?;
+        let caps = CapGuard { runtime: self.runtime };
+        let estimate = caps.estimate(given, entry.as_ref(), &config)?;
+        self.require_workflow_open(&given.workflow)?;
+        let cap = self.cap_source(cost_class, given)?;
+        let started_at = self.runtime.clock.now_ms();
+        let started_ms = self.runtime.clock.monotonic_ms();
+        let id = run_id(started_at, &crate::commands::random_suffix());
+        let run_dir = self.run_dir(root.as_deref(), &id)?;
+        let reservation = caps.reserve(&ReserveArgs {
+            cap: &cap,
+            config: &config,
+            cost_class,
+            estimate: estimate.as_ref(),
+            input: given,
+            now_ms: self.runtime.clock.now_ms(),
+            run_dir: &run_dir,
+            run_id: &id,
+        })?;
+        self.join_workflow(&given.workflow, reservation.as_ref())?;
+        let workplace = self.workplace(root.as_deref(), throwaway)?;
+        let input = held_to(given, reservation.as_ref());
+        let delegated = self.delegate(&Delegated {
+            started_at,
+            started_ms,
+            binary: &client.binary,
+            config: &config,
+            entry: entry.as_ref(),
+            family: &family,
+            id: &id,
+            input: &input,
+            run_dir: &run_dir,
+            work_dir: &workplace.dir,
+        });
+        let warning = self.release(&workplace);
+        let mut result = delegated?;
+        if let Some(link) = &options.link {
+            result.attempt = Some(link.attempt);
+            result.attempt_of = link.attempt_of.clone();
+        }
+        result.cleanup_warning = warning;
+        (LedgerStore { runtime: self.runtime }).append_run(&self.ledger_record(&result, repository.as_deref(), started_ms, cost_class))?;
+        caps.settle(reservation.as_ref(), result.cost_usd, self.runtime.clock.now_ms())?;
+        let ledger = (LedgerStore { runtime: self.runtime }).read()?;
+        let windows = plan_windows(
+            &input.client,
+            client.plan_limits.as_deref().unwrap_or(&[]),
+            &crate::caps::run_records(&ledger),
+            self.runtime.clock.now_ms(),
+            config.settings.plan_warning_ratio,
+        );
+        result.warnings = warnings_of(&input.client, &windows);
+        let text = format!("{}\n", json::pretty(&result.to_json()));
+        self.runtime.files.write_text(&join(&[&run_dir, "result.json"]), &text).map_err(GatewayError::from_fs)?;
+        Ok(result)
+    }
+
+    /// A delegate may not delegate on: the mark is in its environment, so this call came from inside one.
+    fn refuse_nested(&self) -> Result<(), GatewayError> {
+        if self.runtime.env.contains_key(DELEGATION_MARK) {
+            return Err(GatewayError::new("nested-delegation", format!("a delegate may not delegate on: {DELEGATION_MARK} is set in this environment")));
+        }
+        Ok(())
+    }
+
+    /// Where a client model stands for one delegation, or the refusal that says why it cannot run: the client
+    /// and its provider, the model the catalogue places, the repository it works in and the data policy for it.
+    fn place(&self, input: &RunInput) -> Result<Placed, GatewayError> {
+        let config = load_config(self.runtime)?;
+        let Some(client) = config.clients.get(&input.client).cloned() else {
+            return Err(GatewayError::new("unknown-model", format!("the gateway knows no client {}", input.client)));
+        };
+        if input.client == "opencode" {
+            require_allowed_provider(&input.model, client.providers.as_deref())?;
+        }
+        require_provider(input, &client)?;
+        let entry = catalogue_entry(&config, &input.client, &input.model)?;
+        let Some(family) = entry.as_ref().map(|entry| entry.family.clone()).or_else(|| family_of_model_id(&input.model).map(str::to_string)) else {
+            return Err(GatewayError::new(
+                "unknown-model",
+                format!(
+                    "{}:{} is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override",
+                    input.client, input.model
+                ),
+            ));
+        };
+        let root = match &input.repo {
+            Some(repo) => Some(self.repository_root(repo)?),
+            None => None,
+        };
+        let repository = self.permission(input, &config, &family)?;
+        Ok(Placed { repository, client, config, entry, family, root })
+    }
+
+    /// The data policy's permission for this client model, or a refusal naming the rule. A run with a repository
+    /// reads it, so it carries code whatever the caller marks; an inline run carries only what the caller declares.
+    /// The result is the repository the ledger keys the run by.
+    fn permission(&self, input: &RunInput, config: &GatewayConfig, family: &str) -> Result<Option<String>, GatewayError> {
+        let scope = resolve_scope(self.runtime, input.repo.as_deref())?;
+        let subject = PolicySubject { client: input.client.clone(), model: input.model.clone(), family: family.to_string() };
+        let decision = decide_policy(config, &scope, std::slice::from_ref(&subject));
+        let permission: Option<&ModelPermission> = decision.permissions.first().filter(|permission| permission.permitted);
+        let Some(permission) = permission else {
+            return Err(GatewayError::new("policy-refused", format!("{}:{} is not permitted: {}", input.client, input.model, decision.reason)));
+        };
+        let carries = input.carries.map_or((false, false), |carries| (carries.code, carries.history));
+        let carries_code = if input.repo.is_none() { carries.0 } else { true };
+        if carries_code && !permission.may_send.code {
+            return Err(GatewayError::new("policy-refused", format!("{}:{} may not carry code: {}", input.client, input.model, decision.reason)));
+        }
+        if carries.1 && !permission.may_send.history {
+            return Err(GatewayError::new("policy-refused", format!("{}:{} may not carry history: {}", input.client, input.model, decision.reason)));
+        }
+        Ok(match scope {
+            DataScope::Repository { key, .. } => Some(key),
+            _ => None,
+        })
+    }
+
+    /// Whether the run must work in a throwaway directory: a client model goes in place only when its read-only
+    /// proof passed on this machine, whatever the client.
+    fn needs_throwaway(&self, input: &RunInput, entry: Option<&ModelEntry>) -> Result<bool, GatewayError> {
+        let files = read_proof_files(self.runtime)?;
+        let names: Vec<&str> = entry.and_then(|entry| entry.names.as_ref()).map_or(Vec::new(), |names| names.iter().map(String::as_str).collect());
+        Ok(!matches!(read_only_proof(&files, &input.model, &names, &input.client), ReadOnlyProof::Proven { .. }))
+    }
+
+    /// The repository's top level, which is where the delegate works. A path git cannot read, or one in no
+    /// repository at all, is an error: a run that names a repository never falls back to an inline one.
+    fn repository_root(&self, repo: &str) -> Result<String, GatewayError> {
+        let root = self.runtime.git.root(repo).and_then(|root| root.ok_or_else(|| "not a git repository".to_string()));
+        root.map_err(|message| GatewayError::new("repository-unreadable", format!("{repo}: {message}")))
+    }
+
+    /// Where the run keeps its prompt, its output and its result: in the repository's common directory when it
+    /// has one, so a worktree's run is found with the repository's other runs, and in this machine's state
+    /// directory otherwise.
+    fn run_dir(&self, root: Option<&str>, id: &str) -> Result<String, GatewayError> {
+        let Some(root) = root else {
+            return Ok(join(&[&locations::runs_dir(&self.runtime.env)?, id]));
+        };
+        let common = self.runtime.git.common_dir(root).map_err(|message| GatewayError::new("repository-unreadable", format!("{root}: {message}")))?;
+        Ok(join(&[&common, "model-gateway", "runs", id]))
+    }
+
+    /// What the run's estimate is held against: the grant that covers a metered-employer run, which it is
+    /// refused without, or the metered-personal caps.
+    fn cap_source(&self, cost_class: CostClass, input: &RunInput) -> Result<CapSource, GatewayError> {
+        if cost_class != CostClass::MeteredEmployer {
+            return Ok(CapSource::MeteredPersonal);
+        }
+        Ok(CapSource::Grant((GrantGuard { runtime: self.runtime }).require(&input.workflow, &input.client, self.runtime.clock.now_ms())?))
+    }
+
+    /// Whether the run may join its workflow: one that ended is refused, and nothing is started.
+    fn require_workflow_open(&self, name: &str) -> Result<(), GatewayError> {
+        workflows::require_open(&(Workflows { runtime: self.runtime }).read()?, name, self.runtime.clock.now_ms()).map(|_| ())
+    }
+
+    /// A run names its workflow, and the gateway keeps that workflow's life: one named for the first time starts
+    /// now. It runs once the estimate is reserved, so a run that cannot start its workflow releases the
+    /// reservation rather than holding it against the caps.
+    fn join_workflow(&self, name: &str, reservation: Option<&Reservation>) -> Result<(), GatewayError> {
+        let now = self.runtime.clock.now_ms();
+        let joined = (Workflows { runtime: self.runtime }).update(|records| workflows::start(records, name, now));
+        if let Err(error) = joined {
+            (CapGuard { runtime: self.runtime }).release(reservation, now)?;
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    /// The directory the client works in. A run with a passing proof works in the repository itself, or in a
+    /// fresh empty directory when it has none (which stays). A throwaway run works in a worktree of the
+    /// repository's HEAD, or in a fresh empty directory when it has none, and `release` deletes it.
+    fn workplace(&self, root: Option<&str>, throwaway: bool) -> Result<Workplace, GatewayError> {
+        let temp = temp_root(&self.runtime.env);
+        if !throwaway {
+            let dir = match root {
+                Some(root) => root.to_string(),
+                None => self.runtime.files.temp_dir(&temp, "model-gateway-run-").map_err(GatewayError::from_fs)?,
+            };
+            return Ok(Workplace { dir, worktree_of: None, throwaway: false });
+        }
+        let dir = self.runtime.files.temp_dir(&temp, "model-gateway-worktree-").map_err(GatewayError::from_fs)?;
+        let Some(root) = root else {
+            return Ok(Workplace { dir, worktree_of: None, throwaway: true });
+        };
+        if let Err(message) = self.runtime.git.add_worktree(root, &dir) {
+            self.runtime.files.remove(&dir).map_err(GatewayError::from_fs)?;
+            return Err(GatewayError::new("worktree-failed", format!("{root}: cannot add a throwaway worktree: {message}")));
+        }
+        Ok(Workplace { dir, worktree_of: Some(root.to_string()), throwaway: true })
+    }
+
+    /// Deletes the run's throwaway directory. A cleanup that fails never fails the run: it is reported as a
+    /// warning the result carries, and a run that failed keeps its own error.
+    fn release(&self, workplace: &Workplace) -> Option<String> {
+        let released = match (&workplace.worktree_of, workplace.throwaway) {
+            (Some(root), _) => self.runtime.git.remove_worktree(root, &workplace.dir),
+            (None, true) => self.runtime.files.remove(&workplace.dir).map_err(|error| error.message),
+            (None, false) => Ok(()),
+        };
+        released.err().map(|message| format!("cannot remove the throwaway worktree {}: {message}", workplace.dir))
+    }
+
+    /// One launched run, up to the point where its result is known: its prompt on disk, the launch and the
+    /// client's full output.
+    fn delegate(&self, run: &Delegated) -> Result<RunResult, GatewayError> {
+        let input = run.input;
+        let files = self.runtime.files.as_ref();
+        let paths = LaunchPaths {
+            export_dir: join(&[run.run_dir, "vibe"]),
+            prompt_path: join(&[run.run_dir, "prompt.md"]),
+            run_dir: Some(run.run_dir.to_string()),
+            work_dir: run.work_dir.to_string(),
+            git_writable: None,
+        };
+        let prompt = wrapped_prompt(&input.prompt, run.config.settings.summary_max_chars, input.mode, None);
+        files.write_text(&paths.prompt_path, &prompt).map_err(GatewayError::from_fs)?;
+        let input_text = format!("{}\n", json::pretty(&input_json(input)));
+        files.write_text(&join(&[run.run_dir, "input.json"]), &input_text).map_err(GatewayError::from_fs)?;
+        let (result, output, failure) = self.launch(run.binary, input, &paths, &prompt);
+        let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: result.stderr.clone() };
+        let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
+        let reason = failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report)));
+        let refused = matches!(reason.as_deref(), Some("rate-limited" | "model-unavailable"));
+        let unavailable_until = if refused {
+            let elapsed = self.runtime.clock.monotonic_ms() - run.started_ms;
+            named_reset(&exit, output.error.as_ref(), run.started_at + elapsed as i64).map(to_iso)
+        } else {
+            None
+        };
+        let cost = price_run(output.charged, output.tokens, run.entry.and_then(|entry| entry.prices.as_ref()));
+        let output_path = join(&[run.run_dir, "output.json"]);
+        files.write_text(&output_path, &result.stdout).map_err(GatewayError::from_fs)?;
+        if !result.stderr.is_empty() {
+            files.write_text(&join(&[run.run_dir, "stderr.txt"]), &result.stderr).map_err(GatewayError::from_fs)?;
+        }
+        let summary = output.answer.as_deref().map_or_else(String::new, |answer| summary_of(answer, run.config.settings.summary_max_chars));
+        Ok(RunResult {
+            ok: reason.is_none(),
+            run_id: run.id.to_string(),
+            workflow: input.workflow.clone(),
+            client: input.client.clone(),
+            model: input.model.clone(),
+            family: run.family.to_string(),
+            mode: input.mode,
+            tokens: output.tokens,
+            cost_usd: cost,
+            output_path,
+            summary,
+            reason,
+            unavailable_until,
+            attempt: None,
+            attempt_of: None,
+            cleanup_warning: None,
+            warnings: Vec::new(),
+        })
+    }
+
+    /// The client, non-interactively, through the gateway's launch path, with the mark that stops a delegate
+    /// delegating on. A launch that cannot start at all is a failed run, not an error: the caller still gets a
+    /// result and a ledger line. The failure is the reason the run carries.
+    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str) -> (ProcessResult, ClientOutput, Option<String>) {
+        let launched = RunClient::parse(&input.client).ok_or_else(|| ClientRunError::Spawn(format!("{} is not a client a run can launch", input.client))).and_then(|client| {
+            (ClientRun { process: self.runtime.process.as_ref(), files: self.runtime.files.as_ref(), env: &self.runtime.env }).launch(&ClientRunRequest {
+                launch: LaunchRequest {
+                    model: input.model.clone(),
+                    time_limit_s: input.time_limit_s,
+                    max_price_usd: input.max_price_usd,
+                    mode: Some(input.mode),
+                    provider: input.provider.clone(),
+                },
+                binary: binary.to_string(),
+                client,
+                prompt: prompt.to_string(),
+                paths: paths.clone(),
+                extras: RunExtras { env: Some(BTreeMap::from([(DELEGATION_MARK.to_string(), "1".to_string())])), ..RunExtras::default() },
+            })
+        });
+        match launched {
+            Ok(outcome) => (outcome.result, outcome.output, None),
+            Err(error) => {
+                let (ClientRunError::Gateway(GatewayError { message, .. }) | ClientRunError::Spawn(message)) = error;
+                let output = ClientOutput { answer: None, tokens: NO_TOKENS, charged: None, failure: None, error: None };
+                (ProcessResult { stdout: String::new(), stderr: message, exit_code: 1, timed_out: false }, output, Some("launch-failed".to_string()))
+            }
+        }
+    }
+
+    /// The run's one ledger line: what it was, what it cost and how it ended.
+    fn ledger_record(&self, result: &RunResult, repository: Option<&str>, started_ms: f64, cost_class: CostClass) -> Value {
+        let mut members = vec![
+            ("at", Value::Str(to_iso(self.runtime.clock.now_ms()))),
+            ("client", Value::str(&result.client)),
+            ("cost_class", Value::str(cost_class.as_str())),
+            ("cost_usd", Value::Num(result.cost_usd)),
+            ("duration_s", Value::Num((self.runtime.clock.monotonic_ms() - started_ms + 0.5).floor() / 1000.0)),
+            ("family", Value::str(&result.family)),
+            ("mode", Value::str(result.mode.as_str())),
+            ("model", Value::str(&result.model)),
+            ("outcome", Value::str(if result.ok { "ok" } else { "failed" })),
+            ("repository", repository.map_or(Value::Null, Value::str)),
+            ("run_id", Value::str(&result.run_id)),
+            ("tokens", tokens_json(result.tokens)),
+            ("workflow", Value::str(&result.workflow)),
+        ];
+        let optional = [
+            ("reason", result.reason.as_deref().map(Value::str)),
+            ("unavailable_until", result.unavailable_until.as_deref().map(Value::str)),
+            ("attempt", result.attempt.map(|attempt| Value::Num(attempt as f64))),
+            ("attempt_of", result.attempt_of.as_deref().map(Value::str)),
+        ];
+        members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
+        json::object(members)
+    }
+}
+
+/// The input a reserved run is launched with: its own, held to the estimate it reserved and to the time its
+/// grant leaves. A run that reserved nothing runs as it was sent.
+fn held_to(input: &RunInput, reservation: Option<&Reservation>) -> RunInput {
+    let Some(reservation) = reservation else {
+        return input.clone();
+    };
+    let mut held = input.clone();
+    if held.max_price_usd.is_none() {
+        held.tail.push("max_price_usd");
+    }
+    held.max_price_usd = Some(reservation.estimate.usd);
+    held.time_limit_s = input.time_limit_s.min(reservation.time_limit_s);
+    held
+}
+
+/// The directory temporary directories go in: `TMPDIR`, else `TMP`, else `TEMP`, else `/tmp`, as Node's `os.tmpdir()`.
+fn temp_root(env: &std::collections::HashMap<String, String>) -> String {
+    for name in ["TMPDIR", "TMP", "TEMP"] {
+        if let Some(dir) = env.get(name).filter(|dir| !dir.is_empty()) {
+            let trimmed = dir.trim_end_matches('/');
+            return if trimmed.is_empty() { "/".to_string() } else { trimmed.to_string() };
+        }
+    }
+    "/tmp".to_string()
+}
+
+/// The providers a machine lets a client run on, as an error names them.
+fn allowed(client: &ClientConfig) -> String {
+    match client.providers.as_deref() {
+        None | Some([]) => "no provider".to_string(),
+        Some(providers) => providers.join(", "),
+    }
+}
+
+/// The provider a run may use. A client that runs on a provider the caller names must name one this machine
+/// lists for it, and no configuration can turn on a provider the owner forbade.
+fn require_provider(input: &RunInput, client: &ClientConfig) -> Result<(), GatewayError> {
+    let named = PROVIDER_CLIENTS.contains(&input.client.as_str());
+    let Some(provider) = &input.provider else {
+        if !named {
+            return Ok(());
+        }
+        return Err(GatewayError::new("provider-not-allowed", format!("a {} run must name its provider: this machine allows {}", input.client, allowed(client))));
+    };
+    let forbidden = FORBIDDEN_PROVIDERS.iter().find(|forbidden| *forbidden == provider || input.model.starts_with(&format!("{forbidden}/")));
+    if forbidden.is_some() {
+        return Err(GatewayError::new("provider-not-allowed", format!("{} is not allowed: the owner forbade OpenRouter", forbidden.unwrap_or(&""))));
+    }
+    if !client.providers.as_deref().unwrap_or_default().contains(provider) {
+        return Err(GatewayError::new(
+            "provider-not-allowed",
+            format!("{} may not run on {provider}: this machine allows {}", input.client, allowed(client)),
+        ));
+    }
+    Ok(())
+}
+
+/// The catalogue entry for a client model, or `None` when the catalogue does not know it; a disabled model is refused.
+fn catalogue_entry(config: &GatewayConfig, client: &str, model: &str) -> Result<Option<ModelEntry>, GatewayError> {
+    if config.disabled.contains(&format!("{client}:{model}")) {
+        return Err(GatewayError::new("unknown-model", format!("{client}:{model} is disabled in this machine's configuration")));
+    }
+    Ok(config.models.iter().find(|candidate| candidate.client == client && candidate.model == model).cloned())
+}

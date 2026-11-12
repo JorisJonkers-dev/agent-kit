@@ -62,6 +62,7 @@ fn reads_the_input_a_caller_sends_with_the_default_time_limit() {
             family_binding: None,
             headless: None,
             max_attempts: None,
+            tail: Vec::new(),
         }
     );
 }

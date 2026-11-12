@@ -1,5 +1,5 @@
 use crate::ports::{FileStamp, Files, FsError};
-use crate::text::{resolve};
+use crate::text::{join, resolve};
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
 use std::io::Read;
@@ -49,6 +49,20 @@ fn temporary_name(path: &str) -> String {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let random = RandomState::new().build_hasher().finish() ^ COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("{path}.{:012x}.tmp", random & 0xffff_ffff_ffff)
+}
+
+/// The six letters or digits `mkdtemp` ends a name with.
+fn random_letters() -> String {
+    const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let mut random = RandomState::new().build_hasher().finish() ^ COUNTER.fetch_add(1, Ordering::Relaxed);
+    (0..6)
+        .map(|_| {
+            let letter = ALPHABET[(random % ALPHABET.len() as u64) as usize];
+            random /= ALPHABET.len() as u64;
+            char::from(letter)
+        })
+        .collect()
 }
 
 impl Files for SystemFiles {
@@ -145,6 +159,33 @@ impl Files for SystemFiles {
             let _ = std::fs::remove_file(&temporary);
         }
         result
+    }
+
+    /// `mkdir -p` of the file's directory, then the file itself, in place: what `writeFile` does.
+    fn write_text(&self, path: &str, content: &str) -> Result<(), FsError> {
+        let target = resolve(&self.cwd, path);
+        let directory = crate::text::dirname(&target).to_string();
+        std::fs::create_dir_all(&directory).map_err(|error| fail(&error, "mkdir", Some(&directory)))?;
+        std::fs::write(&target, content).map_err(|error| fail(&error, "open", Some(path)))
+    }
+
+    /// `mkdtemp`: the directory is made at once, so two callers never get the same one (a name taken is an error, which
+    /// six random characters make as unlikely as `mkdtemp`'s own retry makes it).
+    fn temp_dir(&self, parent: &str, prefix: &str) -> Result<String, FsError> {
+        let base = join(&[&resolve(&self.cwd, parent), prefix]);
+        let candidate = format!("{base}{}", random_letters());
+        std::fs::DirBuilder::new().create(&candidate).map(|()| candidate).map_err(|error| fail(&error, "mkdtemp", Some(&format!("{base}XXXXXX"))))
+    }
+
+    fn remove(&self, path: &str) -> Result<(), FsError> {
+        let target = resolve(&self.cwd, path);
+        let removed = match std::fs::symlink_metadata(&target) {
+            Ok(kind) if kind.is_dir() => std::fs::remove_dir_all(&target),
+            Ok(_) => std::fs::remove_file(&target),
+            Err(error) if error.raw_os_error() == Some(2) => Ok(()),
+            Err(error) => Err(error),
+        };
+        removed.map_err(|error| fail(&error, "rm", Some(path)))
     }
 }
 

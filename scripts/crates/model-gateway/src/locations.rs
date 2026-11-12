@@ -62,6 +62,22 @@ pub fn ledger_path(env: &HashMap<String, String>) -> Result<String, GatewayError
     Ok(join(&[&state_dir(env)?, "ledger.jsonl"]))
 }
 
+/// The gateway's run directories for runs outside a repository: one directory per run under the state directory.
+pub fn runs_dir(env: &HashMap<String, String>) -> Result<String, GatewayError> {
+    Ok(join(&[&state_dir(env)?, "runs"]))
+}
+
+/// This machine's routing override, applied client by client over the routing critique ships. It is resolved
+/// the way critique resolves it, so the gateway reads the routing critique really runs.
+pub fn routing_override_path(env: &HashMap<String, String>) -> Result<String, GatewayError> {
+    Ok(join(&[require_home(env)?, ".config", "agent-kit", "critique-routing.json"]))
+}
+
+/// Setup's recorded results, where critique's setup writes them: one result per check id.
+pub fn setup_results_path(env: &HashMap<String, String>) -> Result<String, GatewayError> {
+    Ok(join(&[require_home(env)?, ".local", "share", "agent-kit", "critique", "machine-setup.json"]))
+}
+
 /// `env.require('HOME')`: the same error the state directory gives.
 fn require_home(env: &HashMap<String, String>) -> Result<&str, GatewayError> {
     match env.get("HOME") {

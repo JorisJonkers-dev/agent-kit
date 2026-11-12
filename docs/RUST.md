@@ -436,8 +436,14 @@ commands do first, grants with the refuse-inside-a-repository rule and their
 lock, a start reserved against a grant's `max_starts` in one locked ledger update
 (`grant reserve`; `tests/concurrency.rs` runs the real binary with parallel processes and
 checks that exactly the grant's starts pass), and the kept-worktrees file with `git worktree
-remove` and `git branch -D` (`worktrees clean`). Not ported yet: `run` and `batch`; each reads
-its input like the node runner and then fails with code `not-ported` (exit 1).
+remove` and `git branch -D` (`worktrees clean`), and the read-only `run` for every client (vibe, agy, claude,
+opencode, hermes, codex): launchers, the retry, climb and swap, cost estimation and cap or grant reservation,
+the read-only proof (critique's `routing.json` is embedded like `defaults.json`), throwaway worktrees, the
+run directory, `result.json` and the ledger line. Not ported yet: write-mode `run` and `batch`. A writing run
+reads and validates its input like the node runner (and is refused the same way for an unknown client or model,
+a policy refusal or a repository it cannot read) and then fails with code `not-ported` before anything is
+reserved, written or launched; `batch` fails with `not-ported` (exit 1) at once. The engine guard and slots
+are not part of `run` and are not ported.
 
 Known differences from the node runner: a zone-less date-time in a state file
 reads as UTC, not local time (the goldens run with `TZ=UTC`); `Date.parse`'s
@@ -453,6 +459,8 @@ is the same JSON but the file's change time is read as seconds times 1000 plus n
 million, so a cache written by the other runner may count as a miss and be probed again, the shipped
 defaults are embedded in the binary instead of read from a file beside it, and a grant's random id
 suffix comes from the standard library's hasher rather than from `randomBytes`; a client named like an object property (`constructor`) is an unknown client, where the node runner trips over the property; a kept worktree with no `path` (a hand-edited kept-worktrees file) is a failed entry with its own reason, where the node runner passes `undefined` to git and cannot delete it by hand, and a JSON `null` entry in that file is treated like any entry with no path; the OS error words of a worktree directory that cannot be deleted by hand differ.
+
+Also different in `run`: the tools a client's `extras.env` adds are ordered by name (`BTreeMap`) rather than by insertion (only an in-process caller can send them); a surrogate pair in a client's output is cut by characters, not UTF-16 units, where the two differ; a `named_reset` past the last moment a JavaScript `Date` holds gives none, as the node runner gives an invalid date; an error that is not one of the gateway's own (a file that cannot be written) has the code `unexpected`; the process adapter calls `kill` through an `extern "C"` declaration (the only `unsafe`), since std cannot send SIGTERM; and the monotonic clock is `Instant`-based, frozen at 0 in the goldens as the node clock fake freezes `performance.now`.
 
 ```bash
 node scripts/crates/model-gateway/tests/gen-scenarios.mjs        # the scenario inputs (gen-scenarios-clients.mjs: models, usage, grants; -reserve and -worktrees: grant reserve, worktrees clean; -run: read-only `run` through fake clients)
@@ -471,8 +479,8 @@ working directory, the environment that matters, stdin) and print canned output;
 repositories with the host's git (`"git"`), snapshot more directories (`"roots"`), and points
 `TMPDIR` into the sandbox. The random parts of run ids and temporary directories are numbered per
 step by first appearance (`@RAND1@`, `@TMP1@`, in file names too), and the node runner's clock and
-monotonic reading are fixed (a run's duration is 0). They are replayed only when named
-(`SCENARIO=run-vibe`, or `SCENARIO=run-` for all, or `PENDING=1`) until the port of `run` lands.
+monotonic reading are fixed (a run's duration is 0). They are replayed with every other
+scenario (`SCENARIO=run-vibe`, or `SCENARIO=run-` for all of them, replays only those).
 
 ## Measuring line coverage
 

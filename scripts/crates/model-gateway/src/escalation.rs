@@ -337,6 +337,8 @@ pub fn attempt_input(input: &RunInput, candidate: &Candidate, prompt: &str) -> R
         model: candidate.model.clone(),
         prompt: prompt.to_string(),
         provider: candidate.provider.clone(),
+        // The node runner drops `provider` and puts the candidate's back last.
+        tail: if candidate.provider.is_some() { vec!["provider"] } else { Vec::new() },
         ..input.clone()
     }
 }
