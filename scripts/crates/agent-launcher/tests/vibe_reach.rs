@@ -404,6 +404,9 @@ fn vibe_reach_refused_levels_say_why_and_start_nothing() {
                 !stdout.contains("reach="),
                 "nothing starts for {agent} {level}: {stdout}"
             );
+            assert_eq!(out.status.code(), Some(1), "a refusal exits 1: {out:?}");
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            assert!(stderr.contains("nothing started"), "refusal message: {stderr}");
             let _ = fs::remove_dir_all(&f.base);
         }
     }
