@@ -135,8 +135,7 @@ workstation_secrets:
     export: false
   # This host's own OpenRouter key: one key per machine, made on openrouter.ai
   # and named for the host, so a lost machine's key is revoked alone. It lives
-  # only in this machine's secret store; nothing shares it between hosts. Hermes
-  # reads it as OPENROUTER_API_KEY. The check is OpenRouter's own key endpoint.
+  # only in this machine's secret store; nothing shares it between hosts. The check is OpenRouter's own key endpoint.
   - env: OPENROUTER_API_KEY
     paste: "this host's own OpenRouter key: openrouter.ai/settings/keys, a new key named for this host"
     check: "https://openrouter.ai/api/v1/key"
