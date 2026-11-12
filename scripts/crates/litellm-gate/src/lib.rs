@@ -16,8 +16,12 @@ use std::process::{Command, Stdio};
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 
-/// The header the key travels in unless `--header` says otherwise.
-const DEFAULT_HEADER: &str = "x-litellm-api-key";
+/// The header the key travels in when an edge token holds `Authorization` (the proxy
+/// always accepts it, and it wins over `Authorization`).
+const LEGACY_HEADER: &str = "x-litellm-api-key";
+
+/// The standard header: with no edge token the key is `Authorization: Bearer <key>`.
+const STANDARD_HEADER: &str = "Authorization";
 
 /// The fixed curl arguments; everything else, secrets included, goes on stdin.
 const CURL_ARGS: [&str; 5] = ["--silent", "--show-error", "--max-time", "30", "--config"];
@@ -60,7 +64,7 @@ struct Options {
     url: String,
     key_env: String,
     model: String,
-    header: String,
+    header: Option<String>,
     edge_token_env: Option<String>,
 }
 
@@ -94,11 +98,9 @@ fn parse(args: Vec<OsString>) -> Result<Options, String> {
         let value = args.next().ok_or(format!("{flag} needs a value"))?;
         *slot = Some(value.map_err(|_| "non-UTF-8 argument")?);
     }
-    let header = header.unwrap_or_else(|| DEFAULT_HEADER.to_string());
-    if header.is_empty()
-        || !header
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    if header
+        .as_deref()
+        .is_some_and(|h| h.is_empty() || !h.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
     {
         return Err("--header must be letters, digits and `-`".into());
     }
@@ -178,6 +180,8 @@ fn config_quote(value: &str) -> String {
 
 /// Builds the curl config written to curl's stdin. It carries the URL, the
 /// key header and the optional edge bearer, so none of them is in an argv.
+/// When the key header is `Authorization` the key is the bearer and there is
+/// no edge token (the one header cannot carry both).
 pub fn curl_config(
     base_url: &str,
     header: &str,
@@ -187,8 +191,15 @@ pub fn curl_config(
 ) -> String {
     let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
     let mut config = format!("url = {}\nrequest = \"POST\"\n", config_quote(&url));
-    config += &format!("header = {}\n", config_quote(&format!("{header}: {key}")));
-    if let Some(token) = edge_token {
+    if header.eq_ignore_ascii_case(STANDARD_HEADER) {
+        config += &format!(
+            "header = {}\n",
+            config_quote(&format!("{STANDARD_HEADER}: Bearer {key}"))
+        );
+    } else {
+        config += &format!("header = {}\n", config_quote(&format!("{header}: {key}")));
+    }
+    if let Some(token) = edge_token.filter(|_| !header.eq_ignore_ascii_case(STANDARD_HEADER)) {
         let bearer = format!("Authorization: Bearer {token}");
         config += &format!("header = {}\n", config_quote(&bearer));
     }
@@ -270,13 +281,17 @@ where
         Some(var) => Some(read_secret(env, var)?),
         None => None,
     };
-    let config = curl_config(
-        &options.url,
-        &options.header,
-        &key,
-        edge.as_deref(),
-        &options.model,
-    );
+    // An edge token holds Authorization, so the key rides in the legacy header; without one the
+    // key is a standard bearer. An explicit --header wins.
+    let header = options.header.clone().unwrap_or_else(|| {
+        if edge.is_some() {
+            LEGACY_HEADER
+        } else {
+            STANDARD_HEADER
+        }
+        .to_string()
+    });
+    let config = curl_config(&options.url, &header, &key, edge.as_deref(), &options.model);
     Ok(verdict_of(fetch_with(program, &config)))
 }
 

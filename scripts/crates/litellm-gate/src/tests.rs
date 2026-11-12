@@ -89,8 +89,9 @@ fn below_cap_exits_zero_and_sends_the_key_only_in_the_header() {
     assert_eq!(run_with(check_args(&url, &[]), env), 0);
     let request = server.join().unwrap();
     assert!(request.starts_with("POST /v1/chat/completions HTTP/1.1"));
-    assert!(request.contains(&format!("x-litellm-api-key: {KEY}")));
-    assert!(!request.contains("Authorization"));
+    // No edge token: the key is a standard bearer, and nothing else carries it.
+    assert!(request.contains(&format!("Authorization: Bearer {KEY}")));
+    assert!(!request.to_ascii_lowercase().contains("x-litellm-api-key"));
     assert!(request.contains(r#""model":"gpt-4o""#));
     assert!(request.contains(r#""max_tokens":1"#));
 }
@@ -290,6 +291,29 @@ fn edge_token_and_custom_header_are_sent() {
     assert!(request.contains(&format!("x-custom-key: {}", KEY.to_ascii_lowercase())));
     assert!(request.contains("authorization: bearer edge.tok-1"));
     assert!(!request.contains("x-litellm-api-key"));
+}
+
+#[test]
+fn an_edge_token_keeps_the_key_in_the_legacy_header() {
+    let (url, server) = stub(200, "{}");
+    let a = check_args(&url, &["--edge-token-env", "EDGE_TOKEN"]);
+    assert_eq!(run_with(a, env), 0);
+    let request = server.join().unwrap().to_ascii_lowercase();
+    assert!(request.contains(&format!("x-litellm-api-key: {}", KEY.to_ascii_lowercase())));
+    assert!(request.contains("authorization: bearer edge.tok-1"));
+}
+
+#[test]
+fn an_explicit_authorization_header_never_carries_the_edge_token_too() {
+    let config = curl_config(
+        "https://l.example/v1",
+        "authorization",
+        KEY,
+        Some("edge-sentinel"),
+        "m",
+    );
+    assert!(config.contains(&format!("header = \"Authorization: Bearer {KEY}\"")));
+    assert!(!config.contains("edge-sentinel"));
 }
 
 #[test]
