@@ -191,13 +191,15 @@ export class GrantWriteCommand implements ModelGatewayCommand<unknown, GrantWrit
 
 /**
  * Reserves one Codex node start against a Gold Band run's grant, before the
- * node starts: a Gold Band grant's `cap_usd` counts node starts, one per
- * reservation, so the reservation is what lets the node start at all.
+ * node starts: a Gold Band grant's `max_starts` counts node starts, one per
+ * reservation, so the reservation is what lets the node start at all. A grant
+ * without `max_starts` is refused `no-max-starts`; `cap_usd` is dollars and is
+ * never read as a start count.
  *
  * The decision and the reservation line are one locked ledger update that also
  * settles the reservations whose runs died, so two parallel nodes cannot both
  * pass on the grant's last start. The reservation holds for about a minute and
- * then settles at its full estimate, so a start is never given back. The
+ * then settles; a settled start still counts, so a start is never given back. The
  * workflow need not have a record: a Gold Band run is not necessarily a
  * workflow this machine started, and one that ended lapses its grant.
  */

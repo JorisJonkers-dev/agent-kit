@@ -721,7 +721,9 @@ node model-gateway.mjs grant list  --json '{}'
 ```
 
 `grant write` takes `workflow`, `client` (a metered-employer client, `codex`
-today), `cap_usd`, `question` and `answer`, and prints
+today), `cap_usd`, `question` and `answer`, and optionally `max_starts` (a whole
+number above 0: the Codex node starts a Gold Band run may take, also given as
+`--max-starts N`; `grant list` shows it), and prints
 `{"status":"ok","grant":{...}}` with what the grant has left. It refuses an
 empty `question` or `answer`, a `cap_usd` that is not above 0, a client that is
 not metered-employer (`invalid-input`, naming its cost class), a client the
