@@ -2329,16 +2329,16 @@ function parseGrant(raw, index) {
     client: requireString3(raw.client, `${where}.client`),
     expires_at: requireTimestamp2(raw.expires_at, `${where}.expires_at`),
     id: requireString3(raw.id, `${where}.id`),
+    ...raw.max_starts === void 0 ? {} : { max_starts: requireStarts(raw.max_starts, `${where}.max_starts`) },
     question: requireString3(raw.question, `${where}.question`),
     workflow: requireString3(raw.workflow, `${where}.workflow`),
     written_at: requireTimestamp2(raw.written_at, `${where}.written_at`)
   };
-  const withStarts = raw.max_starts === void 0 ? grant : { ...grant, max_starts: requireStarts(raw.max_starts, `${where}.max_starts`) };
-  if (raw.ended_at === void 0) return withStarts;
-  return { ...withStarts, ended_at: requireTimestamp2(raw.ended_at, `${where}.ended_at`) };
+  if (raw.ended_at === void 0) return grant;
+  return { ...grant, ended_at: requireTimestamp2(raw.ended_at, `${where}.ended_at`) };
 }
 function requireStarts(value, where) {
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) throw invalid3(`${where} must be a whole number above 0`);
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) throw invalid3(`${where} must be a whole number above 0`);
   return value;
 }
 function requireString3(value, where) {

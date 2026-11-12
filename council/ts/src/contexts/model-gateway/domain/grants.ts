@@ -106,18 +106,18 @@ function parseGrant(raw: unknown, index: number): Grant {
     client: requireString(raw.client, `${where}.client`),
     expires_at: requireTimestamp(raw.expires_at, `${where}.expires_at`),
     id: requireString(raw.id, `${where}.id`),
+    ...(raw.max_starts === undefined ? {} : { max_starts: requireStarts(raw.max_starts, `${where}.max_starts`) }),
     question: requireString(raw.question, `${where}.question`),
     workflow: requireString(raw.workflow, `${where}.workflow`),
     written_at: requireTimestamp(raw.written_at, `${where}.written_at`),
   }
-  const withStarts = raw.max_starts === undefined ? grant : { ...grant, max_starts: requireStarts(raw.max_starts, `${where}.max_starts`) }
-  if (raw.ended_at === undefined) return withStarts
-  return { ...withStarts, ended_at: requireTimestamp(raw.ended_at, `${where}.ended_at`) }
+  if (raw.ended_at === undefined) return grant
+  return { ...grant, ended_at: requireTimestamp(raw.ended_at, `${where}.ended_at`) }
 }
 
 /** A count of node starts: a whole number above 0. */
 export function requireStarts(value: unknown, where: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) throw invalid(`${where} must be a whole number above 0`)
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) throw invalid(`${where} must be a whole number above 0`)
   return value
 }
 

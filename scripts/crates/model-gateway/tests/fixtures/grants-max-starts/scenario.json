@@ -1,0 +1,504 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-1\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"max_starts\":3}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/vibe-calls\"\necho \"warning: could not reach the telemetry host\" >&2\necho \"Error: unknown model 'model-gateway-probe'. Available: deepseek-v4-1-flash-1017, glm-5-3, mistral-small-latest, zai-glm-5-3-flash, brand-new-id.\" >&2\nexit 1\n",
+        "bin/agy": "#!/bin/sh\nprintf 'Fetching available models...\\n'\nprintf 'gemini-3.8-flash-high\\tGemini 3.8 Flash High\\n'\nprintf 'gemini-3.8-flash-low\\tGemini Low\\n'\nprintf 'gemini-9-ultra\\tNew one\\n'\nprintf 'claude-sonnet-x\\tOther family\\n'\nprintf 'a line without a tab\\n'\nprintf '\\tno id\\n'\n",
+        "bin/opencode": "#!/bin/sh\ncase \"$1\" in\n  models)\n    printf 'opencode-go/glm-5.3\\nopencode-go/glm-5.3-flash\\nopencode-go/kimi-k3.1-pro\\nopencode/gpt-5-nano\\n  anthropic/claude-sonnet-4.6  \\nopencode-go/brand-new\\nopencode-go/glm-5.3\\nnoslash\\n/leading\\ntrailing/\\n\\n' ;;\n  auth) printf 'opencode-go  api key\\n' ;;\nesac\n",
+        "bin/hermes": "#!/bin/sh\ncase \"$1\" in\n  config) echo '{\"default\":\"anthropic/claude-sonnet-4.6\",\"provider\":\"openrouter\"}' ;;\n  auth) echo 'openrouter  api key' ;;\nesac\n",
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in\n  login) echo 'Logged in using ChatGPT' ;;\nesac\n",
+        "bin/claude": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin/vibe",
+        "bin/agy",
+        "bin/opencode",
+        "bin/hermes",
+        "bin/codex",
+        "bin/claude"
+      ],
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "4",
+        "--json",
+        "{\"workflow\":\"ms-2\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-3\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}",
+        "--max-starts",
+        "2"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "7",
+        "--json",
+        "{\"workflow\":\"ms-4\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"max_starts\":1}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-5\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"max_starts\":0}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"max_starts\":-1}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"max_starts\":1.5}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"max_starts\":\"2\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"max_starts\":null}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"max_starts\":null}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "many",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "0",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "-3",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "1.5",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "99999999999999999999",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}",
+        "--max-starts"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "1",
+        "--max-starts",
+        "2",
+        "--json",
+        "{\"workflow\":\"ms-bad\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "2"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "2",
+        "--input",
+        "missing.json"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--max-starts",
+        "2",
+        "--input",
+        "in.json"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "work/in.json": "{\"workflow\":\"ms-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\"}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "list",
+        "--max-starts",
+        "2",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":0}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1.5}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":\"2\"}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":null}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "list",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"w\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":3,\"ended_at\":\"2026-11-03T12:30:00Z\"},{\"id\":\"g2\",\"workflow\":\"w2\",\"client\":\"codex\",\"cap_usd\":1,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\",\"max_starts\":1}]}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "grant",
+        "write",
+        "--json",
+        "{\"workflow\":\"ms-after-file\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"max_starts\":2}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

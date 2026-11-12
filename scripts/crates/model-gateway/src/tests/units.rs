@@ -337,7 +337,8 @@ fn the_command_line_runs_against_the_real_system() {
 #[test]
 fn the_commands_the_gateway_does_not_carry_answer_not_ported() {
     let runtime = crate::default_runtime();
-    let cases: [(&str, &[&str]); 3] = [
+    let cases: [(&str, &[&str]); 4] = [
+        ("grant reserve", &["grant", "reserve", "--json", "{}"]),
         ("run", &["run", "--json", "{}"]),
         ("batch", &["batch", "--json", "{}"]),
         ("worktrees clean", &["worktrees", "clean", "--json", "{}"]),

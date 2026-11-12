@@ -432,7 +432,7 @@ function readGrantInput(raw: unknown): GrantWriteInput {
     throw new ModelGatewayError('invalid-input', 'cap_usd must be a number above 0')
   }
   const starts = raw.max_starts
-  if (starts !== undefined && (typeof starts !== 'number' || !Number.isInteger(starts) || starts <= 0)) {
+  if (starts !== undefined && (typeof starts !== 'number' || !Number.isSafeInteger(starts) || starts <= 0)) {
     throw new ModelGatewayError('invalid-input', 'max_starts must be a whole number above 0')
   }
   return {

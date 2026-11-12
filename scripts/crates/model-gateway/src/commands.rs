@@ -1,6 +1,6 @@
 //! The commands the Rust gateway carries: `models`, `usage`, `grant write`,
-//! `grant list` and the three workflow commands. `run`, `batch` and
-//! `worktrees clean` answer `not-ported`.
+//! `grant list` and the three workflow commands. `run`, `batch`, `grant reserve`
+//! and `worktrees clean` answer `not-ported`.
 
 use crate::caps;
 use crate::config::GatewayConfig;
@@ -27,6 +27,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum Command {
     Batch,
     GrantList,
+    GrantReserve,
     GrantWrite,
     Models,
     Run,
@@ -185,6 +186,10 @@ fn grant_write(input: &Object, runtime: &Runtime) -> Result<Value, GatewayError>
         Some(Value::Num(cap)) if cap.is_finite() && *cap > 0.0 => *cap,
         _ => return Err(GatewayError::invalid_input("cap_usd must be a number above 0")),
     };
+    let max_starts = match input.get("max_starts") {
+        None => None,
+        Some(value) => Some(grants::start_count(value).ok_or_else(|| GatewayError::invalid_input("max_starts must be a whole number above 0"))?),
+    };
     let answer = require_text(input.get("answer"), "answer")?;
     let client_name = require_text(input.get("client"), "client")?;
     let question = require_text(input.get("question"), "question")?;
@@ -208,6 +213,7 @@ fn grant_write(input: &Object, runtime: &Runtime) -> Result<Value, GatewayError>
         workflow: &workflow,
         client: &client_name,
         cap_usd,
+        max_starts,
         question: &question,
         answer: &answer,
         written_at: now,
