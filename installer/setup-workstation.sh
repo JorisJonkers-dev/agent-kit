@@ -4253,6 +4253,17 @@ fi
 # surface is retired: its command and its pointers are removed, if setup wrote them.
 # -----------------------------------------------------------------
 install_kit_command model-gateway
+model_gateway_rust_setup() {
+  local rc=0 mode=()
+  if [ "${CLOUD}" = 1 ]; then
+    log "model gateway (rust): not built in a cloud session"
+    return 0
+  fi
+  [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
+  bash "${KIT_ROOT}/scripts/install-model-gateway-rust.sh" ${mode[@]+"${mode[@]}"} || rc=$?
+  [ "${rc}" = 0 ] || warn "model gateway (rust): not installed (exit ${rc}); the node runner stays"
+}
+model_gateway_rust_setup
 gateway_pointer "${CLAUDE_HOME}/CLAUDE.md"
 gateway_pointer "${CODEX_HOME}/AGENTS.md"
 if [ "${CLOUD}" != 1 ]; then

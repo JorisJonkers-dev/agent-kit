@@ -45,6 +45,7 @@ KIT_FILES = (
     "scripts/crates/gold-band-registry/src/lib.rs",
     "installer/antigravity-mcp-proxy",
     "installer/model-gateway",
+    "scripts/install-model-gateway-rust.sh",
     "scripts/instruction-block.py",
     "scripts/package-proxy-merge.py",
     "scripts/gold-band/build-linux.sh",

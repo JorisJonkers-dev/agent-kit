@@ -437,9 +437,9 @@ node runner's behaviour changes on purpose.
 `model-gateway` is the Rust port of the model gateway
 (`skills/workstation/model-gateway/model-gateway.mjs`, built from
 `council/ts/src/model-gateway-cli/` and `council/ts/src/contexts/model-gateway/`),
-ported command by command behind the same command line and JSON contract. The
-node runner stays installed; swapping the binary in is a later step (ticket #500
-stays open until the port is whole).
+ported command by command behind the same command line and JSON contract. Every
+command is ported; the `model-gateway` command on PATH runs this binary when it is
+installed and the node runner otherwise (see "Swapping the binary in", below).
 
 The gateway's own tests are vitest tests over in-memory ports, so they cannot be
 pointed at a binary. Parity is proved the way the build tracker's is: goldens
@@ -472,7 +472,7 @@ reported with every problem and holding nothing, each delegation run through the
 independent delegations in parallel at most `max_parallel_per_client` per client (a `std::thread::scope` whose workers report over a channel, with a
 mutex-and-condvar slot table, and a slot of the client each attempt really runs on), a delegation that fails for
 good skipping only what depends on it, and the reservations of delegations that never ran given back with reason
-`not-run`. Not ported yet: the binary swap. The engine guard is not part of `run` or `batch` and is not ported.
+`not-run`. The binary swap is done (below). The engine guard is not part of `run` or `batch` and is not ported.
 
 Known differences from the node runner: a zone-less date-time in a state file
 reads as UTC, not local time (the goldens run with `TZ=UTC`); `Date.parse`'s
@@ -510,6 +510,33 @@ repositories with the host's git (`"git"`), snapshot more directories (`"roots"`
 step by first appearance (`@RAND1@`, `@TMP1@`, in file names too), and the node runner's clock and
 monotonic reading are fixed (a run's duration is 0). They are replayed with every other
 scenario (`SCENARIO=run-vibe`, or `SCENARIO=run-` for all of them, replays only those).
+
+### Swapping the binary in
+
+`installer/model-gateway` (the `model-gateway` command setup puts on PATH) runs, in
+this order: the Rust binary at `~/.local/share/agent-kit/model-gateway/model-gateway`
+(`AGENT_KIT_MODEL_GATEWAY_BIN` names another), unless the node runner is asked for;
+else the node bundle in the Claude Code home, as before. Setup runs
+`scripts/install-model-gateway-rust.sh`, which builds the crate from this workspace
+(`cargo build --release --locked -p model-gateway`, std only, so nothing in the lockfile
+has an age to question), checks that the new binary answers `--help`, and moves it into
+place atomically. A machine with no cargo, no workspace (a bundle install) or no clone
+skips the step and keeps running the node runner; a failed build or a binary that does
+not start leaves whatever was installed untouched, so a caller never sees a half
+installed gateway and nothing changes for it until the binary exists.
+
+Rollback to the node runner needs no setup run and no rebuild:
+
+```bash
+AGENT_KIT_MODEL_GATEWAY=node model-gateway usage --json '{}'   # one call, or export it for a shell
+touch ~/.config/agent-kit/model-gateway-node                   # every call, and setup stops installing the binary
+rm ~/.config/agent-kit/model-gateway-node                      # back to the Rust binary
+```
+
+The command does not probe the binary before running it: one that is installed but broken (a truncated file) fails its calls until the rollback above is used. Deleting `~/.local/share/agent-kit/model-gateway/model-gateway` has the same effect
+until the next setup run. Both runners read and write the same state files (ledger,
+workflows, grants, kept worktrees) in the same format, so switching either way in
+the middle of a workflow loses nothing; the node runner is not removed.
 
 ## Measuring line coverage
 

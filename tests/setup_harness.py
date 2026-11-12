@@ -64,6 +64,10 @@ def setup_run(
         config.write_text(json.dumps(seed, indent=2) + "\n")
     if prepare_home is not None:
         prepare_home(home)
+    # A setup test builds no Rust gateway: the pin file skips that step and keeps the node runner.
+    pin = home / ".config" / "agent-kit" / "model-gateway-node"
+    pin.parent.mkdir(parents=True, exist_ok=True)
+    pin.write_text("")
     calls = root / "calls.log"
     for name in ("uv", "npm", "node", "npx", "curl", "git", "claude", "codex", "vibe", "gh", "jq", "docker"):
         stub(bin_dir, name, f'echo "{name} $*" >> "{calls}"')

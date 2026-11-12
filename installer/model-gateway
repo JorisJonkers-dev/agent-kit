@@ -3,8 +3,21 @@
 #
 # model-gateway <subcommand> --json '<object>' | --input <file.json>
 #
-# The model gateway's command on PATH. It runs the gateway bundle setup copies
-# into each agent home (skills/workstation/model-gateway); every copy is the
-# same file, so the Claude Code home's is used.
+# The model gateway's command on PATH. It runs the Rust gateway setup built
+# (scripts/install-model-gateway-rust.sh) when that binary is installed, and
+# otherwise the node bundle setup copies into each agent home
+# (skills/workstation/model-gateway); every copy of the bundle is the same
+# file, so the Claude Code home's is used. The two take the same commands and
+# print the same JSON, so a caller cannot tell which one answered.
+#
+# Rollback to the node runner, without touching setup:
+#   AGENT_KIT_MODEL_GATEWAY=node model-gateway ...     one call or one shell
+#   touch ~/.config/agent-kit/model-gateway-node       every call, until removed
+# AGENT_KIT_MODEL_GATEWAY_BIN names another Rust binary to use.
 set -euo pipefail
+rust="${AGENT_KIT_MODEL_GATEWAY_BIN:-${XDG_DATA_HOME:-${HOME}/.local/share}/agent-kit/model-gateway/model-gateway}"
+pin="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/model-gateway-node"
+if [ "${AGENT_KIT_MODEL_GATEWAY:-rust}" != node ] && [ ! -e "${pin}" ] && [ -f "${rust}" ] && [ -x "${rust}" ]; then
+  exec "${rust}" "$@"
+fi
 exec node "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills/model-gateway/model-gateway.mjs" "$@"
