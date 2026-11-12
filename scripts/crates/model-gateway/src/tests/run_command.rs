@@ -231,6 +231,10 @@ fn the_real_files_write_text_make_temporary_directories_and_remove_what_is_there
     assert_eq!(dir.code, "ENOENT");
     files.mkdir_all("tmpparent").expect("mkdir");
     let made = files.temp_dir("tmpparent", "model-gateway-run-").expect("a directory");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(&made).expect("made").permissions().mode() & 0o777, 0o700);
+    }
     let name = made.rsplit('/').next().expect("a name");
     assert!(name.starts_with("model-gateway-run-") && name.len() == "model-gateway-run-".len() + 6 && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'));
     assert!(std::path::Path::new(&made).is_dir());

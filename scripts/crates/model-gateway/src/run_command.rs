@@ -1,12 +1,18 @@
 //! The `run` command: one read-only task handed to one client model, and what
 //! came of it. Everything that can refuse the run happens before anything is
 //! launched: the nesting guard, the data policy for the repository, and the
-//! read-only proof of the client model. A run that is launched always leaves a
-//! run directory and a ledger line, whether it succeeded or not.
+//! read-only proof of the client model. A run whose client was launched leaves a
+//! run directory and a ledger line, whether the client succeeded or not; a
+//! failure of the gateway's own file writes after the launch propagates, as in
+//! the node runner.
 //!
 //! A writing run (a worktree, the staged files, the check) is not ported: it
-//! answers `not-ported` at the first point that is safe, after every refusal the
-//! node runner makes first and before anything is reserved, written or launched.
+//! answers `not-ported` right after the client model is placed (input validation,
+//! client, provider, policy and repository refusals come first, as in the node
+//! runner) and before the estimate, the workflow, the grant, any reservation,
+//! write or launch: the node runner's later refusals (`no-estimate`,
+//! `workflow-ended`, `no-grant`) are therefore reported as `not-ported` for a
+//! writing run.
 
 use crate::cap_guard::{run_cost_class, CapGuard, CapSource, Reservation, ReserveArgs};
 use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};

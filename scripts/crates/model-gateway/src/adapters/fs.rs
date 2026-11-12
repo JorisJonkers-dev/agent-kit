@@ -174,7 +174,7 @@ impl Files for SystemFiles {
     fn temp_dir(&self, parent: &str, prefix: &str) -> Result<String, FsError> {
         let base = join(&[&resolve(&self.cwd, parent), prefix]);
         let candidate = format!("{base}{}", random_letters());
-        std::fs::DirBuilder::new().create(&candidate).map(|()| candidate).map_err(|error| fail(&error, "mkdtemp", Some(&format!("{base}XXXXXX"))))
+        { use std::os::unix::fs::DirBuilderExt; std::fs::DirBuilder::new().mode(0o700).create(&candidate) }.map(|()| candidate).map_err(|error| fail(&error, "mkdtemp", Some(&format!("{base}XXXXXX"))))
     }
 
     fn remove(&self, path: &str) -> Result<(), FsError> {
