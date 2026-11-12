@@ -2761,6 +2761,34 @@ gold_band_work_converge() {
 }
 gold_band_work_converge
 
+# The work Mac: the personal instance may only be started where the launcher
+# can apply its operating-system read limit on the employer roots the overlay
+# declares (ADR-0013). The check is the launcher's own, so setup and a launch
+# agree. No overlay: not the work Mac, nothing to check. A failure fails the
+# run with the reason; the launcher also refuses each launch it cannot limit.
+gold_band_read_limit() {
+  local out rc=0 overlay_file line launcher
+  if [ "$(uname -s)" != Darwin ] || [ "${CLOUD}" = 1 ]; then
+    return 0
+  fi
+  overlay_file="${AGENT_KIT_OVERLAY:-${HOME}/.config/agent-kit/overlay.yaml}"
+  if [ ! -f "${overlay_file}" ]; then
+    log "gold band read limit: no overlay, not the work Mac"
+    return 0
+  fi
+  launcher="${AGENT_LAUNCHER_BIN:-$(command -v agent-launcher || true)}"
+  if [ -z "${launcher}" ]; then
+    fail "gold band read limit: agent-launcher is not installed, so the launcher cannot be asked; do not start the personal instance on this machine"
+    return 0
+  fi
+  out=$("${launcher}" read-limit-check 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" != 0 ]; then
+    fail "gold band read limit: the personal instance must not be started on this machine (see above)"
+  fi
+}
+gold_band_read_limit
+
 # Renders the registry's declared roles from the critique skill's own role and
 # lens files into the instance's context/profiles directory (templating off),
 # removes a retired or undeclared one unless the keep file names it, and leaves

@@ -33,6 +33,10 @@
 //! * `agents.N`, held to the same agent rules as the registry's;
 //! * `mcp_servers.<name>.{command|url, args.N, env.NAME}` and
 //!   `settings.<path>`, which only the work instance may take;
+//! * `employer_roots.N`: the absolute
+//!   (or `~/`) directories of the employer's clones on this machine, which
+//!   the launcher keeps the personal instance from reading (ADR-0013), in the
+//!   work or the personal instance's declaration;
 //! * any other field (hosts, banks, the repository rule) is refused: the
 //!   overlay adds, it never relaxes a rule.
 //!
@@ -240,6 +244,16 @@ fn overlay_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
             "mcp_servers" | "settings" if !work => out.push(format!(
                 "{place}: the overlay may add {head} to the work instance {WORK} only"
             )),
+            "employer_roots" if decimal(rest) => {
+                if !(value.starts_with('/') || value.starts_with("~/"))
+                    || value.split('/').any(|part| part == "..")
+                {
+                    out.push(format!(
+                        "{place}: employer root {} must be an absolute path (or start with ~/) with no .. part",
+                        shown(value)
+                    ));
+                }
+            }
             "mcp_servers" if work => mcp_field(place, path, rest, &mut servers, out),
             "settings" if work => {
                 if rest.is_empty() || rest.split('.').any(|s| !setting_segment(s)) {

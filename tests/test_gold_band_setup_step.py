@@ -8,8 +8,11 @@ test_gold_band_converge.py.
 
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
+
+import pytest
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -150,3 +153,70 @@ def test_a_running_instance_stops_setup_before_other_write_groups(tmp_path: Path
     assert "Gold Band is running: setup stopped" in run.stdout + run.stderr
     assert run.returncode != 0
     assert "Setup summary" not in run.stdout + run.stderr
+
+
+def _overlay(home: Path) -> None:
+    path = home / ".config" / "agent-kit" / "overlay.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text("instances:\n  gold-band:\n    employer_roots: [~/employer]\n")
+
+
+def _launcher(tmp_path: Path, body: str) -> dict[str, str]:
+    binary = tmp_path / "agent-launcher-stub"
+    binary.write_text(f"#!/bin/sh\n{body}\n")
+    binary.chmod(0o755)
+    return {"AGENT_LAUNCHER_BIN": str(binary)}
+
+
+def test_the_read_limit_is_checked_on_the_work_mac(tmp_path: Path) -> None:
+    env = _launcher(tmp_path, 'echo "args: $*"; echo "read limit: ok, 1 employer root(s)"')
+    run = setup_run(tmp_path / "run", "Darwin", prepare_home=_overlay, extra_env=env)
+    assert "args: read-limit-check" in run.stdout
+    assert "read limit: ok, 1 employer root(s)" in run.stdout
+    assert "gold band read limit" not in run.stderr
+
+
+def test_setup_refuses_the_personal_instance_when_the_read_limit_cannot_be_applied(tmp_path: Path) -> None:
+    env = _launcher(tmp_path, 'echo "agent-launcher: sandbox-exec is not available" >&2; exit 1')
+    run = setup_run(tmp_path / "run", "Darwin", prepare_home=_overlay, extra_env=env)
+    out = run.stdout + run.stderr
+    assert "sandbox-exec is not available" in out
+    assert "gold band read limit: the personal instance must not be started on this machine" in out
+    assert run.returncode != 0
+
+
+def test_setup_refuses_when_the_launcher_cannot_be_asked(tmp_path: Path) -> None:
+    if shutil.which("agent-launcher", path="/usr/bin:/bin"):
+        pytest.skip("agent-launcher is on the harness PATH here")
+    run = setup_run(tmp_path, "Darwin", prepare_home=_overlay)
+    assert "agent-launcher is not installed, so the launcher cannot be asked" in run.stdout + run.stderr
+    assert run.returncode != 0
+
+
+def test_a_mac_without_an_overlay_needs_no_read_limit(tmp_path: Path) -> None:
+    env = _launcher(tmp_path, "exit 1")
+    run = setup_run(tmp_path / "run", "Darwin", extra_env=env)
+    assert "gold band read limit: no overlay, not the work Mac" in run.stdout
+    assert "gold band read limit:" not in run.stderr
+
+
+def test_linux_has_no_employer_clones_and_no_read_limit_check(tmp_path: Path) -> None:
+    env = _launcher(tmp_path, 'echo "ran" ; exit 1')
+    run = setup_run(tmp_path / "run", "Linux", prepare_home=_overlay, extra_env=env)
+    assert "gold band read limit" not in run.stdout + run.stderr
+
+
+def test_a_cloud_session_skips_the_read_limit_check(tmp_path: Path) -> None:
+    env = _launcher(tmp_path, "exit 1")
+    run = setup_run(tmp_path / "run", "Darwin", prepare_home=_overlay, extra_env=env, args=("--cloud",))
+    assert "gold band read limit" not in run.stdout + run.stderr
+
+
+def test_setup_asks_the_launcher_on_the_path_when_no_binary_is_named(tmp_path: Path) -> None:
+    refusal = "agent-launcher: the read limit cannot be applied"
+    stubs = {"agent-launcher": f'echo "agent-launcher $*" >> "$0.calls"; echo "{refusal}" >&2; exit 1'}
+    run = setup_run(tmp_path, "Darwin", prepare_home=_overlay, stubs=stubs)
+    out = run.stdout + run.stderr
+    assert "the read limit cannot be applied" in out
+    assert "the personal instance must not be started on this machine" in out
+    assert run.returncode != 0

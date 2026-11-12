@@ -17,6 +17,11 @@
 //! - each granted directory itself is denied (its own rename or removal) while
 //!   its contents stay writable, so a granted directory cannot be moved away
 //!   and replaced;
+//! - the employer roots are denied for `file-read*` and `file-write*`, last of
+//!   all (the read limit of the personal instance, ADR-0013): a read, a
+//!   listing or a stat under them fails, and so does moving a file out, at
+//!   every reach level, `full` included, where the write rules are left out
+//!   and only this denial (and the link denial) remains;
 //! - `file-link` is denied: a hard link to a protected file made inside a
 //!   grant would be writable by its new name, since the profile checks paths
 //!   and not inodes.
@@ -101,11 +106,11 @@ fn filters(profile: &mut Profile, prefix: &str, filter: &str, paths: &[PathBuf])
 
 /// A rule, or nothing when it names no path: an `allow` or `deny` without a
 /// filter would match every path.
-fn rule(verb: &str, filters: &str) -> String {
+fn rule(verb: &str, operation: &str, filters: &str) -> String {
     if filters.is_empty() {
         String::new()
     } else {
-        format!("({verb} file-write*\n{filters})\n")
+        format!("({verb} {operation}\n{filters})\n")
     }
 }
 
@@ -148,11 +153,25 @@ fn profile(policy: &Policy) -> Result<Profile, String> {
     let mut deny = filters(&mut profile, "X", "subpath", &denied);
     deny += &filters(&mut profile, "G", "literal", &guarded);
     deny += &filters(&mut profile, "R", "literal", &dirs);
-    profile.text = format!(
-        "(version 1)\n(allow default)\n(deny file-write*)\n{}{}(deny file-link)\n",
-        rule("allow", &allow),
-        rule("deny", &deny)
-    );
+    let roots: Vec<PathBuf> = policy
+        .read_denied
+        .iter()
+        .map(|p| canonical_or_planned(p))
+        .collect::<Result<_, _>>()?;
+    // Writes are denied there too, so a file cannot be moved out of a root and
+    // read under its new name; links are denied for the same reason.
+    let read_rule = rule("deny", "file-read* file-write*", &filters(&mut profile, "E", "subpath", &roots));
+    let write_rules = if policy.writes_unlimited {
+        String::new()
+    } else {
+        format!(
+            "(deny file-write*)\n{}{}(deny file-link)\n",
+            rule("allow", "file-write*", &allow),
+            rule("deny", "file-write*", &deny)
+        )
+    };
+    let link = if policy.writes_unlimited && !roots.is_empty() { "(deny file-link)\n" } else { "" };
+    profile.text = format!("(version 1)\n(allow default)\n{write_rules}{read_rule}{link}");
     Ok(profile)
 }
 

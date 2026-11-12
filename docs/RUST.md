@@ -278,8 +278,8 @@ stays inside the same Landlock limit. A directory granted from
 configuration may not lie inside a `.git` directory. Also, `write` is refused in a primary checkout (its `.git`
 directory holds hooks and config beside everything else) and in a repository
 whose config enables `extensions.worktreeConfig` or includes another file (a `config.worktree` in the worktree's own
-git directory could set `core.hooksPath`). Reads and the network are never
-limited. The launcher refuses to start the agent, exit 1, when Landlock is
+git directory could set `core.hooksPath`). The network is never limited, and
+reads are limited only by the read limit below. The launcher refuses to start the agent, exit 1, when Landlock is
 missing, disabled, or older than ABI 3 (Linux 6.2); it never runs an agent
 without its limit. The tests run without root and need a kernel with Landlock
 ABI 3.
@@ -354,6 +354,28 @@ For an id that names a `skill_set`, `run` also exports `AGENT_KIT_SKILL_SET`
 with that name and `AGENT_KIT_SKILLS_DIR` with the directory setup builds for
 it, `<GOLD_BAND_HOME or $HOME>/.gold-band/skill-sets/<id>`; an id without one
 exports neither.
+
+
+**The read limit (ADR-0013, #666).** On the work Mac every launch of a
+personal-instance agent (any agent but `claude-work` and `codex`) also denies
+`file-read*` and `file-write*` under the employer roots, at every reach level,
+`full` included, where the profile holds only this denial and the `file-link`
+denial (a hard link would otherwise read a root's file by a new name). The
+roots are `instances.gold-band.employer_roots` in the overlay
+(`~/.config/agent-kit/overlay.yaml`, or the file `AGENT_KIT_OVERLAY` names;
+the personal account's own overlay may use `instances.gold-band-personal`),
+absolute or `~/` paths; no path is built in. A read, a listing, a stat, a link
+or a move out of a root fails with `EPERM`; the agent's repository, the
+toolchain and its state directories stay readable. The launch is refused (exit
+1, nothing started) when the overlay names the work instance without roots,
+when it cannot be read, when the run's own worktree or a granted directory lies
+inside a root, and when the backend cannot apply the limit. Landlock cannot
+deny a read, so on Linux, which holds no employer clones, a declared root is
+refused. `agent-launcher read-limit-check` exits 0 when no read limit is needed
+(the overlay names no work instance) or `sandbox-exec` can apply it, and 1 with
+the reason otherwise; setup runs it on the work Mac and fails the run when it does not pass.
+`tests/personal_read_limit.rs` proves the refusal on the `Rust Tests (macos)`
+job.
 
 ## build-tracker
 

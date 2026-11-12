@@ -52,8 +52,8 @@ On the work Mac, the personal instance always runs under a second macOS user
 account. That account has its own data directory, keychain, keep file and
 overlay. Setup runs once in each account. This is the default, not a
 fallback. Unix permissions then also keep personal agents from reading the
-employer clones in the work account (#396), which the OS write limit
-(ADR-0013) does not prevent.
+employer clones in the work account (#396). The launcher adds an operating-system
+read limit for the employer roots the overlay declares (ADR-0013, #666).
 
 The Linux workstation holds only the personal instance, so no machine runs
 two instances in one account, and no data-directory split has to be proven.

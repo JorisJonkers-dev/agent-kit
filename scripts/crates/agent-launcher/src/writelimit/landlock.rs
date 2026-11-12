@@ -126,6 +126,12 @@ pub struct Landlock;
 
 impl WriteLimit for Landlock {
     fn prepare(&self, policy: &Policy) -> Result<Armed, String> {
+        // Landlock only grants: it cannot carve a directory out of the reads
+        // the agent already has. The Linux workstation holds no employer
+        // clones (ADR-0011), so asking it to keep one unreadable is refused.
+        if !policy.read_denied.is_empty() {
+            return Err("Landlock cannot deny reads under the employer roots; the read limit is held on the work Mac (sandbox-exec) only".into());
+        }
         abi_from(Sys::version())?;
         build(policy, HANDLED)
     }

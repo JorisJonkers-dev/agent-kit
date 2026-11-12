@@ -31,11 +31,50 @@ directory for its run. Beyond that:
 Keeping `.git/hooks` and `.git/config` out of `write` stops an agent from
 switching off the commit and push hooks that guard every repository.
 
-## What the layer does not limit
+## What the layer does not limit (and the one read it does)
 
-Neither backend limits reads. An agent can read any file its account can
-read. On the work machine, the account boundary keeps personal agents out of
-employer clones instead (ADR-0011, #396).
+The limit is a write limit. It does not limit reads, except one: the personal
+instance on the work Mac. There the account boundary (ADR-0011, #396) is the
+first defence and the launcher adds a second, an operating-system **read**
+limit (#666).
+
+- **What.** Every launch of a personal-instance agent (any agent but
+  `claude-work` and `codex`) on the work Mac starts under a `sandbox-exec`
+  profile that denies `file-read*` and `file-write*` under each employer root:
+  a read, a listing, a stat, a hard link or a move out of the root fails with
+  the operating system's error, from a shell command or a read tool alike. It
+  applies at every reach level, `full` included (where the profile holds only
+  this denial). The agent's own repository, the toolchain and its state
+  directories stay readable. A run whose own directory (worktree, temporary or
+  granted directory) lies inside an employer root is refused.
+- **Where the roots come from.** One declared place, the work overlay
+  (`~/.config/agent-kit/overlay.yaml`): `instances.gold-band.employer_roots`,
+  absolute or `~/` paths (`~/Projects/nedap` is the owner's value, not built
+  into the launcher). The personal account's own overlay (each account has
+  one, ADR-0011) may list them under `instances.gold-band-personal`; both
+  are read. A machine with no overlay, or one that names no work instance and
+  lists no roots, is not the work Mac and gets no read limit. An overlay that
+  names the work instance without roots, or that cannot be read or parsed,
+  refuses the launch instead of reading as "no roots".
+- **Refusal.** When the backend cannot apply the read limit, the launcher
+  refuses to start the agent, and setup runs `agent-launcher read-limit-check`
+  and fails the setup run, saying why and that the personal instance must not be started there.
+- **Linux.** The workstation holds no employer clones (ADR-0011) and needs no
+  read limit. Landlock only grants access and cannot carve a read out of what
+  the agent already has, so a declared root there is refused, not ignored.
+- **Proof.** `tests/personal_read_limit.rs` runs on the `Rust Tests (macos)` CI job.
+
+The work instance is not limited. Neither backend limits the network
+either.
+
+What the read limit does not stop: a Seatbelt profile checks the process it is
+on, so an agent that asks another process to read for it (`launchctl submit`,
+`osascript`, `open`, a cron or `at` job, `ssh localhost`) is not covered, and a
+hard link that already existed (a `git clone --local` made before the limit)
+keeps its contents readable under its other name. The second macOS user is the
+defence against those. `file-link` is denied for a launch with employer roots,
+at `full` too, so tools that hard-link (`pnpm install`, `git clone --local`)
+fail there.
 
 Neither backend limits the network, because every agent needs the network to
 reach its model. Web limits stay tool-configuration and MCP-list limits only.
