@@ -1,0 +1,214 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"mode\":\"write\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"prompt\":\"No base.\",\"repo\":\"@SANDBOX@/repo\",\"check\":\"true\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/claude": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/claude.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/claude.n\" ] && read n < \"$D/claude.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/claude.n\"\npick() { if [ -f \"$C/claude.$1.$n\" ]; then echo \"$C/claude.$1.$n\"; else echo \"$C/claude.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/claude.txt\"\ncat > \"$D/claude.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "repo/README.md": "demo\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"anthropic\"],\"code\":true,\"history\":false}}}"
+      },
+      "exec": [
+        "bin/claude"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv",
+        "sh",
+        "touch"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "-b",
+          "main",
+          "@SANDBOX@/repo"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "remote",
+          "add",
+          "origin",
+          "https://github.com/JorisJonkers-dev/demo.git"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "commit",
+          "-q",
+          "-m",
+          "init"
+        ]
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"mode\":\"write\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"prompt\":\"No check.\",\"repo\":\"@SANDBOX@/repo\",\"base\":\"main\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:01:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"mode\":\"write\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"prompt\":\"A base git cannot find.\",\"repo\":\"@SANDBOX@/repo\",\"base\":\"nope\",\"check\":\"true\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:02:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"mode\":\"write\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"prompt\":\"Not a repository.\",\"repo\":\"@SANDBOX@/work\",\"base\":\"main\",\"check\":\"true\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-03T12:03:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"mode\":\"write\",\"client\":\"codex\",\"model\":\"gpt-5.5\",\"prompt\":\"No grant.\",\"repo\":\"@SANDBOX@/repo\",\"base\":\"main\",\"check\":\"true\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/codex": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/codex.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/codex.n\" ] && read n < \"$D/codex.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/codex.n\"\npick() { if [ -f \"$C/codex.$1.$n\" ]; then echo \"$C/codex.$1.$n\"; else echo \"$C/codex.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/codex.txt\"\ncat > \"$D/codex.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"anthropic\",\"openai\"],\"code\":true,\"history\":false}}}"
+      },
+      "exec": [
+        "bin/codex"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv",
+        "sh",
+        "touch"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "now": "2026-11-03T12:04:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"mode\":\"write\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"prompt\":\"A family the entry does not allow.\",\"repo\":\"@SANDBOX@/repo\",\"base\":\"main\",\"check\":\"true\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}"
+      },
+      "now": "2026-11-03T12:05:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"mode\":\"write\",\"client\":\"claude\",\"model\":\"claude-haiku-5-5\",\"prompt\":\"Nested.\",\"repo\":\"@SANDBOX@/repo\",\"base\":\"main\",\"check\":\"true\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "AGENT_KIT_DELEGATION": "1"
+      },
+      "now": "2026-11-03T12:06:00Z",
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

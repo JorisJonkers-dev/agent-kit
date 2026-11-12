@@ -658,3 +658,171 @@ fn git_never_deletes_by_hand_the_main_worktree_or_a_locked_one() {
     assert!(error.contains("locked"), "{error}");
     assert!(locked.exists());
 }
+
+/// The canonical text of a path, as git names it.
+fn canonical(path: &Path) -> String {
+    text(&std::fs::canonicalize(path).expect("canonical path"))
+}
+
+#[test]
+fn git_names_the_git_directory_of_a_repository_and_of_a_worktree_of_it() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+    let root = canonical(&repo);
+
+    assert_eq!(repositories.git_dir(&text(&repo)), Ok(format!("{root}/.git")));
+
+    let worktree = sandbox.path.join("tree");
+    git(&repo, &["worktree", "add", "-q", "-b", "gateway/one", &text(&worktree), "HEAD"]);
+    let git_dir = repositories.git_dir(&text(&worktree)).expect("the worktree's own git directory");
+    assert!(git_dir.starts_with(&format!("{root}/.git/worktrees/")), "{git_dir}");
+    assert_ne!(git_dir, root);
+}
+
+#[test]
+fn git_creates_a_worktree_on_a_branch_of_its_own_off_the_base_it_is_given() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+    let worktree = sandbox.path.join("gateway");
+
+    assert_eq!(repositories.create_worktree(&text(&repo), &text(&worktree), "gateway/one", "main"), Ok(()));
+    assert!(worktree.join(".git").exists());
+    let branch = std::process::Command::new("git").arg("-C").arg(&worktree).args(["rev-parse", "--abbrev-ref", "HEAD"]).output().expect("git");
+    assert_eq!(String::from_utf8_lossy(&branch.stdout).trim(), "gateway/one");
+
+    // A base git does not know is refused in git's own words.
+    let error = repositories.create_worktree(&text(&repo), &text(&sandbox.path.join("other")), "gateway/two", "no-such-ref").expect_err("no such base");
+    assert!(error.contains("no-such-ref"), "{error}");
+}
+
+#[test]
+fn git_stages_everything_and_lists_what_it_staged_against_a_base() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+    std::fs::write(repo.join("a.txt"), "one").expect("a file");
+    std::fs::create_dir_all(repo.join("b")).expect("a folder");
+    std::fs::write(repo.join("b/c.txt"), "two").expect("a file");
+
+    assert_eq!(repositories.stage_all(&text(&repo)), Ok(()));
+    let mut against_base = repositories.staged_files(&text(&repo), Some("main")).expect("listed");
+    against_base.sort();
+    assert_eq!(against_base, vec!["a.txt".to_string(), "b/c.txt".to_string()]);
+    // Without a base it lists what is staged against HEAD, which is the same change here.
+    let mut against_head = repositories.staged_files(&text(&repo), None).expect("listed");
+    against_head.sort();
+    assert_eq!(against_head, vec!["a.txt".to_string(), "b/c.txt".to_string()]);
+
+    let error = repositories.staged_files(&text(&repo), Some("no-such-ref")).expect_err("no such base");
+    assert!(error.contains("no-such-ref"), "{error}");
+}
+
+#[test]
+fn git_lists_the_worktrees_it_knows_and_skips_the_ones_whose_directory_is_gone() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+    let root = canonical(&repo);
+    assert_eq!(repositories.list_worktrees(&text(&repo)), Ok(vec![root.clone()]));
+
+    let kept = sandbox.path.join("kept");
+    git(&repo, &["worktree", "add", "-q", "-b", "gateway/one", &text(&kept), "HEAD"]);
+    let gone = sandbox.path.join("gone");
+    git(&repo, &["worktree", "add", "-q", "-b", "gateway/two", &text(&gone), "HEAD"]);
+    std::fs::remove_dir_all(&gone).expect("the worktree's directory goes");
+
+    assert_eq!(repositories.list_worktrees(&text(&repo)), Ok(vec![root, canonical(&kept)]));
+}
+
+#[test]
+fn git_reads_the_status_of_a_worktree_as_git_prints_it() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+
+    assert_eq!(repositories.status(&text(&repo)), Ok(String::new()));
+    std::fs::write(repo.join("new.txt"), "x").expect("a file");
+    assert_eq!(repositories.status(&text(&repo)), Ok("?? new.txt\n".to_string()));
+}
+
+#[test]
+fn git_reads_only_the_worktree_blocks_it_understands() {
+    let sandbox = Sandbox::new();
+    let bin = sandbox.path.join("bin");
+    std::fs::create_dir_all(&bin).expect("bin folder");
+    let _guard = serialised();
+    script(
+        &bin,
+        "git",
+        "#!/bin/sh\n\
+         printf '%s\\n' 'prunable' 'worktree /one' 'HEAD abc' 'prunable gitdir file points to non-existent location' 'worktree /two' 'HEAD def' 'worktree /three' 'prunable'\n",
+    );
+    let repositories = SystemGit { env: env_with_path(&text(&bin)), timeout_ms: TIMEOUT_MS };
+
+    // A block before any worktree line is nothing, and a prunable block is skipped.
+    assert_eq!(repositories.list_worktrees(&sandbox.text()), Ok(vec!["/two".to_string()]));
+}
+
+#[test]
+fn git_reads_the_staged_names_it_is_given_and_drops_the_empty_ones() {
+    let sandbox = Sandbox::new();
+    let bin = sandbox.path.join("bin");
+    std::fs::create_dir_all(&bin).expect("bin folder");
+    let _guard = serialised();
+    script(&bin, "git", "#!/bin/sh\nprintf 'a.txt\\0\\0b/c.txt\\0'\n");
+    let repositories = SystemGit { env: env_with_path(&text(&bin)), timeout_ms: TIMEOUT_MS };
+
+    assert_eq!(repositories.staged_files(&sandbox.text(), Some("main")), Ok(vec!["a.txt".to_string(), "b/c.txt".to_string()]));
+}
+
+#[test]
+fn git_refuses_a_git_directory_it_cannot_name() {
+    let sandbox = Sandbox::new();
+    let bin = sandbox.path.join("bin");
+    std::fs::create_dir_all(&bin).expect("bin folder");
+    let _guard = serialised();
+    script(&bin, "git", "#!/bin/sh\nexit 0\n");
+    let repositories = SystemGit { env: env_with_path(&text(&bin)), timeout_ms: TIMEOUT_MS };
+
+    assert_eq!(repositories.git_dir(&sandbox.text()), Err("git exited 0".to_string()));
+}
+
+#[test]
+fn git_repeats_its_own_words_for_the_worktree_and_staging_commands() {
+    let sandbox = Sandbox::new();
+    let bin = sandbox.path.join("bin");
+    std::fs::create_dir_all(&bin).expect("bin folder");
+    let _guard = serialised();
+    script(&bin, "git", "#!/bin/sh\necho 'fatal: boom' >&2\nexit 2\n");
+    let repositories = SystemGit { env: env_with_path(&text(&bin)), timeout_ms: TIMEOUT_MS };
+    let path = sandbox.text();
+
+    assert_eq!(repositories.git_dir(&path), Err("fatal: boom".to_string()));
+    assert_eq!(repositories.create_worktree(&path, "w", "b", "main"), Err("fatal: boom".to_string()));
+    assert_eq!(repositories.stage_all(&path), Err("fatal: boom".to_string()));
+    assert_eq!(repositories.staged_files(&path, None), Err("fatal: boom".to_string()));
+    assert_eq!(repositories.list_worktrees(&path), Err("fatal: boom".to_string()));
+    assert_eq!(repositories.status(&path), Err("fatal: boom".to_string()));
+}
+
+#[test]
+fn git_worktree_and_staging_commands_say_when_git_cannot_run() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repositories = SystemGit { env: env_with_path(&sandbox.text()), timeout_ms: TIMEOUT_MS };
+    let path = sandbox.text();
+
+    assert_eq!(repositories.git_dir(&path), Err("cannot run git: spawn git ENOENT".to_string()));
+    assert_eq!(repositories.create_worktree(&path, "w", "b", "main"), Err("cannot run git: spawn git ENOENT".to_string()));
+    assert_eq!(repositories.stage_all(&path), Err("cannot run git: spawn git ENOENT".to_string()));
+    assert_eq!(repositories.staged_files(&path, Some("main")), Err("cannot run git: spawn git ENOENT".to_string()));
+    assert_eq!(repositories.list_worktrees(&path), Err("cannot run git: spawn git ENOENT".to_string()));
+    assert_eq!(repositories.status(&path), Err("cannot run git: spawn git ENOENT".to_string()));
+}

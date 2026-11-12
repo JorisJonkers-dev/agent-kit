@@ -1,6 +1,6 @@
 //! The commands the Rust gateway carries: `models`, `usage`, `grant write`,
 //! `grant reserve`, `grant list`, `worktrees clean` and the three workflow
-//! commands, and the read-only `run`. A writing `run` and `batch` answer `not-ported`.
+//! commands, and `run`, read-only and writing. `batch` answers `not-ported`.
 
 use crate::availability;
 use crate::caps;

@@ -1,18 +1,12 @@
-//! The `run` command: one read-only task handed to one client model, and what
-//! came of it. Everything that can refuse the run happens before anything is
-//! launched: the nesting guard, the data policy for the repository, and the
-//! read-only proof of the client model. A run whose client was launched leaves a
-//! run directory and a ledger line, whether the client succeeded or not; a
-//! failure of the gateway's own file writes after the launch propagates, as in
-//! the node runner.
+//! The `run` command: one task handed to one client model, and what came of it. Everything that can refuse
+//! the run happens before anything is launched: the nesting guard, the data policy for the repository, and the
+//! read-only proof of the client model. A run whose client was launched leaves a run directory and a ledger
+//! line, whether the client succeeded or not; a failure of the gateway's own file writes after the launch
+//! propagates, as in the node runner.
 //!
-//! A writing run (a worktree, the staged files, the check) is not ported: it
-//! answers `not-ported` right after the client model is placed (input validation,
-//! client, provider, policy and repository refusals come first, as in the node
-//! runner) and before the estimate, the workflow, the grant, any reservation,
-//! write or launch: the node runner's later refusals (`no-estimate`,
-//! `workflow-ended`, `no-grant`) are therefore reported as `not-ported` for a
-//! writing run.
+//! A writing run works in a worktree of its own, on a branch of its own, entered in the kept list; it watches
+//! the repository's other checkouts, stages what its delegate left, and runs the caller's check in the
+//! worktree. What that adds to the result is in `write_run`.
 
 use crate::cap_guard::{run_cost_class, CapGuard, CapSource, Reservation, ReserveArgs};
 use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};
@@ -40,10 +34,8 @@ use crate::text::join;
 use crate::timestamps::to_iso;
 use crate::usage::{plan_windows, warnings_of};
 use crate::workflows;
+use crate::write_run::{writing, FinishedWrite, WatchedWorktree, WriteReport};
 use std::collections::BTreeMap;
-
-/// What the writing run answers: the port stops short of the worktree, the staging and the check.
-const WRITE_NOT_PORTED: &str = "write-mode run is not ported to the Rust gateway yet; use the node runner";
 
 /// What one delegation came to: a short result, with the full output left in its run directory.
 #[derive(Clone, Debug, PartialEq)]
@@ -64,6 +56,8 @@ pub struct RunResult {
     pub reason: Option<String>,
     /// When the client model's own answer said it is usable again.
     pub unavailable_until: Option<String>,
+    /// The worktree a writing run worked in, the branch it is on, its staged files and its check.
+    pub write: Option<WriteReport>,
     /// This run's place in its delegation when it is a retry or a climb (2 and up).
     pub attempt: Option<usize>,
     /// The run id of the delegation's first attempt, on every later one.
@@ -97,6 +91,13 @@ impl RunResult {
         let optional = [
             ("reason", self.reason.as_deref().map(Value::str)),
             ("unavailable_until", self.unavailable_until.as_deref().map(Value::str)),
+        ];
+        members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
+        // A writing run's report sits where the node runner spreads it: after the reason, before the escalation's own members.
+        if let Some(write) = &self.write {
+            members.extend(write.members());
+        }
+        let optional = [
             ("attempt", self.attempt.map(|attempt| Value::Num(attempt as f64))),
             ("attempt_of", self.attempt_of.as_deref().map(Value::str)),
             ("cleanup_warning", self.cleanup_warning.as_deref().map(Value::str)),
@@ -140,7 +141,7 @@ impl AttemptedRun for RunResult {
         &self.output_path
     }
     fn check_output_path(&self) -> Option<&str> {
-        None
+        self.write.as_ref().and_then(|write| write.check.as_ref()).map(|check| check.output_path.as_str())
     }
 }
 
@@ -160,26 +161,37 @@ struct Placed {
 }
 
 /// Where a run works, and how it leaves: in the repository itself when the client model's read-only proof
-/// passed, else in a throwaway directory that `release` deletes.
-struct Workplace {
-    dir: String,
+/// passed, else in a throwaway directory that `release` deletes. A writing run works in a worktree of its own,
+/// which it never releases: the kept list is what removes it.
+pub(crate) struct Workplace {
+    pub(crate) dir: String,
     /// The repository a throwaway worktree was added to; `None` for a plain directory.
-    worktree_of: Option<String>,
-    throwaway: bool,
+    pub(crate) worktree_of: Option<String>,
+    pub(crate) throwaway: bool,
+    /// The branch a writing run's worktree is on.
+    pub(crate) branch: Option<String>,
 }
 
 /// Everything one launched run needs beyond its input, settled before anything starts.
-struct Delegated<'a> {
-    started_at: i64,
-    started_ms: f64,
-    binary: &'a str,
-    config: &'a GatewayConfig,
-    entry: Option<&'a ModelEntry>,
-    family: &'a str,
-    id: &'a str,
-    input: &'a RunInput,
-    run_dir: &'a str,
-    work_dir: &'a str,
+pub(crate) struct Delegated<'a> {
+    pub(crate) started_at: i64,
+    pub(crate) started_ms: f64,
+    pub(crate) binary: &'a str,
+    pub(crate) config: &'a GatewayConfig,
+    pub(crate) entry: Option<&'a ModelEntry>,
+    pub(crate) family: &'a str,
+    pub(crate) id: &'a str,
+    pub(crate) input: &'a RunInput,
+    pub(crate) run_dir: &'a str,
+    pub(crate) work_dir: &'a str,
+    /// The repository root the run works in, when it names a repository.
+    pub(crate) repo: Option<&'a str>,
+    /// The branch a writing run's worktree is on.
+    pub(crate) branch: Option<&'a str>,
+    /// The worktrees of the repository a writing run watches, with what they held before the delegate ran.
+    pub(crate) watched: Vec<WatchedWorktree>,
+    /// When the run's grant or workflow lapses; the check may not outlive it.
+    pub(crate) ends_at_ms: Option<i64>,
 }
 
 pub struct RunCommand<'a> {
@@ -207,17 +219,25 @@ impl RunCommand<'_> {
     fn run_once(&self, given: &RunInput, options: &AttemptOptions) -> Result<RunResult, AttemptError> {
         self.refuse_nested()?;
         let placed = self.place(given)?;
-        if given.mode == RunMode::Write {
-            return Err(GatewayError::new("not-ported", WRITE_NOT_PORTED).into());
-        }
         let Placed { repository, client, config, entry, family, root } = placed;
         let cost_class = run_cost_class(&client, given);
+        // The other checkouts of the repository, watched from before anything is taken: the listing itself
+        // refuses the run when it cannot be read, so a refusal leaves no reservation to settle, no workflow
+        // joined, and no worktree kept behind it.
+        let watched = match writing(given) {
+            Some(write) => self.watch_others(root.as_deref().unwrap_or(write.repo))?,
+            None => Vec::new(),
+        };
         if let Some(start_check) = options.start_check {
             if let Some(blocked) = start_check(given)? {
                 return Err(AttemptError::CannotStart(blocked));
             }
         }
-        let throwaway = self.needs_throwaway(given, entry.as_ref())?;
+        // A writing run never works in a throwaway directory: its worktree is the caller's to take.
+        let throwaway = match writing(given) {
+            Some(_) => false,
+            None => self.needs_throwaway(given, entry.as_ref())?,
+        };
         let caps = CapGuard { runtime: self.runtime };
         let estimate = caps.estimate(given, entry.as_ref(), &config)?;
         self.require_workflow_open(&given.workflow)?;
@@ -237,7 +257,10 @@ impl RunCommand<'_> {
             run_id: &id,
         })?;
         self.join_workflow(&given.workflow, reservation.as_ref())?;
-        let workplace = self.workplace(root.as_deref(), throwaway)?;
+        let workplace = match writing(given) {
+            Some(write) => self.write_workplace(&write, root.as_deref().unwrap_or(write.repo), &id, started_at)?,
+            None => self.workplace(root.as_deref(), throwaway)?,
+        };
         let input = held_to(given, reservation.as_ref());
         let delegated = self.delegate(&Delegated {
             started_at,
@@ -250,6 +273,10 @@ impl RunCommand<'_> {
             input: &input,
             run_dir: &run_dir,
             work_dir: &workplace.dir,
+            repo: root.as_deref(),
+            branch: workplace.branch.as_deref(),
+            watched,
+            ends_at_ms: reservation.as_ref().and_then(|reservation| reservation.ends_at_ms),
         });
         let warning = self.release(&workplace);
         let mut result = delegated?;
@@ -358,8 +385,12 @@ impl RunCommand<'_> {
         let Some(root) = root else {
             return Ok(join(&[&locations::runs_dir(&self.runtime.env)?, id]));
         };
-        let common = self.runtime.git.common_dir(root).map_err(|message| GatewayError::new("repository-unreadable", format!("{root}: {message}")))?;
-        Ok(join(&[&common, "model-gateway", "runs", id]))
+        Ok(join(&[&self.common_dir(root)?, "model-gateway", "runs", id]))
+    }
+
+    /// The repository's common directory, which every gateway directory of the repository sits in.
+    pub(crate) fn common_dir(&self, root: &str) -> Result<String, GatewayError> {
+        self.runtime.git.common_dir(root).map_err(|message| GatewayError::new("repository-unreadable", format!("{root}: {message}")))
     }
 
     /// What the run's estimate is held against: the grant that covers a metered-employer run, which it is
@@ -399,17 +430,17 @@ impl RunCommand<'_> {
                 Some(root) => root.to_string(),
                 None => self.runtime.files.temp_dir(&temp, "model-gateway-run-").map_err(GatewayError::from_fs)?,
             };
-            return Ok(Workplace { dir, worktree_of: None, throwaway: false });
+            return Ok(Workplace { dir, worktree_of: None, throwaway: false, branch: None });
         }
         let dir = self.runtime.files.temp_dir(&temp, "model-gateway-worktree-").map_err(GatewayError::from_fs)?;
         let Some(root) = root else {
-            return Ok(Workplace { dir, worktree_of: None, throwaway: true });
+            return Ok(Workplace { dir, worktree_of: None, throwaway: true, branch: None });
         };
         if let Err(message) = self.runtime.git.add_worktree(root, &dir) {
             self.runtime.files.remove(&dir).map_err(GatewayError::from_fs)?;
             return Err(GatewayError::new("worktree-failed", format!("{root}: cannot add a throwaway worktree: {message}")));
         }
-        Ok(Workplace { dir, worktree_of: Some(root.to_string()), throwaway: true })
+        Ok(Workplace { dir, worktree_of: Some(root.to_string()), throwaway: true, branch: None })
     }
 
     /// Deletes the run's throwaway directory. A cleanup that fails never fails the run: it is reported as a
@@ -428,22 +459,31 @@ impl RunCommand<'_> {
     fn delegate(&self, run: &Delegated) -> Result<RunResult, GatewayError> {
         let input = run.input;
         let files = self.runtime.files.as_ref();
+        let codex = self.codex_worker(run);
         let paths = LaunchPaths {
             export_dir: join(&[run.run_dir, "vibe"]),
             prompt_path: join(&[run.run_dir, "prompt.md"]),
             run_dir: Some(run.run_dir.to_string()),
             work_dir: run.work_dir.to_string(),
-            git_writable: None,
+            git_writable: codex.git_writable,
         };
-        let prompt = wrapped_prompt(&input.prompt, run.config.settings.summary_max_chars, input.mode, None);
+        let prompt = wrapped_prompt(&input.prompt, run.config.settings.summary_max_chars, input.mode, codex.worker.as_ref());
         files.write_text(&paths.prompt_path, &prompt).map_err(GatewayError::from_fs)?;
         let input_text = format!("{}\n", json::pretty(&input_json(input)));
         files.write_text(&join(&[run.run_dir, "input.json"]), &input_text).map_err(GatewayError::from_fs)?;
         let (result, output, failure) = self.launch(run.binary, input, &paths, &prompt);
         let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: result.stderr.clone() };
         let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
-        let reason = failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report)));
-        let refused = matches!(reason.as_deref(), Some("rate-limited" | "model-unavailable"));
+        let delegate_reason = failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report)));
+        let finished: Option<FinishedWrite> = match writing(input) {
+            Some(write) => Some(self.finish_write(run, &write, delegate_reason.as_deref())),
+            None => None,
+        };
+        let reason = match &finished {
+            Some(finished) => finished.reason.clone(),
+            None => delegate_reason.clone(),
+        };
+        let refused = matches!(delegate_reason.as_deref(), Some("rate-limited" | "model-unavailable"));
         let unavailable_until = if refused {
             let elapsed = self.runtime.clock.monotonic_ms() - run.started_ms;
             named_reset(&exit, output.error.as_ref(), run.started_at + elapsed as i64).map(to_iso)
@@ -471,6 +511,7 @@ impl RunCommand<'_> {
             summary,
             reason,
             unavailable_until,
+            write: finished.map(|finished| finished.report),
             attempt: None,
             attempt_of: None,
             cleanup_warning: None,

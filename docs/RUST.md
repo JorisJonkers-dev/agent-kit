@@ -458,14 +458,16 @@ commands do first, grants with the refuse-inside-a-repository rule and their
 lock, a start reserved against a grant's `max_starts` in one locked ledger update
 (`grant reserve`; `tests/concurrency.rs` runs the real binary with parallel processes and
 checks that exactly the grant's starts pass), and the kept-worktrees file with `git worktree
-remove` and `git branch -D` (`worktrees clean`), and the read-only `run` for every client (vibe, agy, claude,
+remove` and `git branch -D` (`worktrees clean`), and `run` for every client (vibe, agy, claude,
 opencode, hermes, codex): launchers, the retry, climb and swap, cost estimation and cap or grant reservation,
 the read-only proof (critique's `routing.json` is embedded like `defaults.json`), throwaway worktrees, the
-run directory, `result.json` and the ledger line. Not ported yet: write-mode `run` and `batch`. A writing run
-reads and validates its input like the node runner (and is refused the same way for an unknown client or model,
-a policy refusal or a repository it cannot read) and then fails with code `not-ported` before anything is
-reserved, written or launched; `batch` fails with `not-ported` (exit 1) at once. The engine guard and slots
-are not part of `run` and are not ported.
+run directory, `result.json` and the ledger line. A writing run is ported too: its worktree under the
+repository's common directory on a branch of its own, entered in the kept list, the other checkouts of the
+repository watched and held to the state the delegate found them in, the Codex git-writable directories and
+the repository's brief, the staging and listing of the delegate's work, and the caller's check run with
+`sh -c` in the worktree, held to the run's time limit and to what its grant leaves. Not ported yet: `batch`,
+which fails with `not-ported` (exit 1) at once, and the binary swap. The engine guard and slots are not part
+of `run` and are not ported.
 
 Known differences from the node runner: a zone-less date-time in a state file
 reads as UTC, not local time (the goldens run with `TZ=UTC`); `Date.parse`'s

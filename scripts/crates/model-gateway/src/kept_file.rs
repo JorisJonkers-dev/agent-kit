@@ -24,6 +24,20 @@ pub struct KeptStore<'a> {
 }
 
 impl KeptStore<'_> {
+    /// Appends one worktree to the kept list, under the lock, as the node runner's `add` does.
+    pub fn add(&self, worktree: &Value) -> Result<(), GatewayError> {
+        let added = worktree.clone();
+        self.update(
+            &|kept| {
+                let mut next = kept.to_vec();
+                next.push(added.clone());
+                next
+            },
+            true,
+        )
+        .map(|_| ())
+    }
+
     /// Every kept worktree, read under the lock: the file is not written.
     pub fn list(&self) -> Result<Vec<Value>, GatewayError> {
         self.update(&|kept| kept.to_vec(), false)

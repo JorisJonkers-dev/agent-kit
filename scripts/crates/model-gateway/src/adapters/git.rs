@@ -1,4 +1,5 @@
-//! git, asked for a path's repository root and its remotes. It starts nothing else.
+//! git, asked for a path's repository root and its remotes, and for the worktrees of it: the ones a writing
+//! run watches, the one it works in, and what that worktree has staged. It starts nothing else.
 
 use crate::ports::{Git, GitRemote};
 use std::collections::HashMap;
@@ -148,6 +149,85 @@ impl Git for SystemGit {
             Err(words(&answer))
         }
     }
+
+    fn git_dir(&self, path: &str) -> Result<String, String> {
+        let answer = self.run(path, &["rev-parse", "--path-format=absolute", "--git-dir"])?;
+        let git_dir = answer.stdout.trim();
+        if answer.exit_code != 0 || git_dir.is_empty() {
+            return Err(words(&answer));
+        }
+        Ok(git_dir.to_string())
+    }
+
+    fn create_worktree(&self, repo: &str, path: &str, branch: &str, base: &str) -> Result<(), String> {
+        let answer = self.run_for(repo, &["worktree", "add", "-b", branch, path, base], WORKTREE_TIMEOUT_MS)?;
+        if answer.exit_code == 0 {
+            Ok(())
+        } else {
+            Err(words(&answer))
+        }
+    }
+
+    fn stage_all(&self, path: &str) -> Result<(), String> {
+        let answer = self.run_for(path, &["add", "-A"], WORKTREE_TIMEOUT_MS)?;
+        if answer.exit_code == 0 {
+            Ok(())
+        } else {
+            Err(words(&answer))
+        }
+    }
+
+    fn staged_files(&self, path: &str, base: Option<&str>) -> Result<Vec<String>, String> {
+        let mut args = vec!["diff", "--cached", "--name-only", "-z"];
+        if let Some(base) = base {
+            args.extend(["--end-of-options", base, "--"]);
+        }
+        let answer = self.run(path, &args)?;
+        if answer.exit_code != 0 {
+            return Err(words(&answer));
+        }
+        Ok(answer.stdout.split('\0').filter(|name| !name.is_empty()).map(str::to_string).collect())
+    }
+
+    fn list_worktrees(&self, repo: &str) -> Result<Vec<String>, String> {
+        let answer = self.run(repo, &["worktree", "list", "--porcelain"])?;
+        if answer.exit_code != 0 {
+            return Err(words(&answer));
+        }
+        Ok(worktree_blocks(&answer.stdout))
+    }
+
+    fn status(&self, path: &str) -> Result<String, String> {
+        let answer = self.run(path, &["status", "--porcelain"])?;
+        if answer.exit_code != 0 {
+            return Err(words(&answer));
+        }
+        Ok(answer.stdout)
+    }
+}
+
+/// The worktrees a porcelain listing names, without the ones git marks `prunable`: a block is opened by its
+/// `worktree <path>` line, and a worktree whose directory is gone is skipped rather than handed on to be
+/// watched, where its status could not be read.
+fn worktree_blocks(listing: &str) -> Vec<String> {
+    let mut listed: Vec<(String, bool)> = Vec::new();
+    let mut current: Option<(String, bool)> = None;
+    for line in listing.split('\n') {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            if let Some(block) = current.take() {
+                listed.push(block);
+            }
+            current = Some((path.trim().to_string(), false));
+        } else if line == "prunable" || line.starts_with("prunable ") {
+            if let Some((path, _)) = current.take() {
+                current = Some((path, true));
+            }
+        }
+    }
+    if let Some(block) = current {
+        listed.push(block);
+    }
+    listed.into_iter().filter(|(_, prunable)| !prunable).map(|(path, _)| path).collect()
 }
 
 /// `rm -rf`: a path that is not there is already gone.

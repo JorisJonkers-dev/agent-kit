@@ -41,6 +41,30 @@ impl Git for FakeGit {
     fn add_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
         self.add.clone()
     }
+
+    fn git_dir(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test asks for no git directory")
+    }
+
+    fn create_worktree(&self, _repo: &str, _path: &str, _branch: &str, _base: &str) -> Result<(), String> {
+        unreachable!("the test creates no worktree")
+    }
+
+    fn stage_all(&self, _path: &str) -> Result<(), String> {
+        unreachable!("the test stages nothing")
+    }
+
+    fn staged_files(&self, _path: &str, _base: Option<&str>) -> Result<Vec<String>, String> {
+        unreachable!("the test lists nothing")
+    }
+
+    fn list_worktrees(&self, _repo: &str) -> Result<Vec<String>, String> {
+        unreachable!("the test watches no worktree")
+    }
+
+    fn status(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test reads no status")
+    }
 }
 
 fn git(common: Result<String, String>, add: Result<(), String>, remove: Result<(), String>) -> Box<FakeGit> {
@@ -80,21 +104,6 @@ fn repo_run(extra: &str) -> String {
 
 fn text<'a>(value: &'a Value, key: &str) -> &'a str {
     value.as_object().and_then(|object| object.get(key)).and_then(Value::as_str).unwrap_or_default()
-}
-
-#[test]
-fn a_writing_run_answers_not_ported_after_the_refusals_the_node_runner_makes_first() {
-    let mut machine = with_tmp(machine());
-    machine.runtime.git = git(Ok("/repo/.git".into()), Ok(()), Ok(()));
-    let write = r#"{"workflow":"w","client":"claude","mode":"write","model":"claude-sonnet-5-5","prompt":"p","repo":"/repo","base":"main","check":"true","escalate":false}"#;
-    let error = run(&machine, write).expect_err("not ported");
-    assert_eq!((error.code.as_str(), error.message.as_str()), ("not-ported", "write-mode run is not ported to the Rust gateway yet; use the node runner"));
-    // Nothing was reserved, written or started.
-    assert!(machine.ledger().is_empty());
-    assert!(!std::path::Path::new(&format!("{}/state", machine.sandbox.text())).join("agent-kit/model-gateway/workflows.json").exists());
-    // A refusal that comes first still comes first: a model the catalogue does not know.
-    let unknown = write.replace("claude-sonnet-5-5", "no-such-model");
-    assert_eq!(run(&machine, &unknown).expect_err("refused").code, "unknown-model");
 }
 
 #[test]
@@ -190,6 +199,7 @@ fn a_run_result_says_what_the_escalation_asks_and_prints_every_optional_member_i
         summary: "s".into(),
         reason: Some("exit-1".into()),
         unavailable_until: Some("2026-11-04T10:00:00.000Z".into()),
+        write: None,
         attempt: Some(2),
         attempt_of: Some("r0".into()),
         cleanup_warning: Some("w".into()),

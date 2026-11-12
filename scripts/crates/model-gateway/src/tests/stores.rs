@@ -221,6 +221,30 @@ impl Git for StubGit {
     fn delete_branch(&self, _repo: &str, _branch: &str) -> Result<(), String> {
         Ok(())
     }
+
+    fn git_dir(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test asks for no git directory")
+    }
+
+    fn create_worktree(&self, _repo: &str, _path: &str, _branch: &str, _base: &str) -> Result<(), String> {
+        unreachable!("the test creates no worktree")
+    }
+
+    fn stage_all(&self, _path: &str) -> Result<(), String> {
+        unreachable!("the test stages nothing")
+    }
+
+    fn staged_files(&self, _path: &str, _base: Option<&str>) -> Result<Vec<String>, String> {
+        unreachable!("the test lists nothing")
+    }
+
+    fn list_worktrees(&self, _repo: &str) -> Result<Vec<String>, String> {
+        unreachable!("the test watches no worktree")
+    }
+
+    fn status(&self, _path: &str) -> Result<String, String> {
+        unreachable!("the test reads no status")
+    }
 }
 
 /// A clock that moves on at every reading, so a wait that never ends runs out at once.
