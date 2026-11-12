@@ -120,7 +120,12 @@ class Machine:
 
     def gateway_call(self, *args: str) -> dict[str, Any]:
         done = subprocess.run(
-            [str(self.gateway), *args], capture_output=True, text=True, env=self.env, timeout=TIMEOUT_SECONDS, check=False
+            [str(self.gateway), *args],
+            capture_output=True,
+            text=True,
+            env=self.env,
+            timeout=TIMEOUT_SECONDS,
+            check=False,
         )
         assert done.returncode == 0, f"model-gateway {' '.join(args)} failed: {done.stdout}{done.stderr}"
         result: dict[str, Any] = json.loads(done.stdout)
