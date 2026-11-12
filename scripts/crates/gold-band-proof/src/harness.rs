@@ -19,9 +19,12 @@ use crate::stub::{Role, NEEDS_HUMAN, OPEN_QUESTIONS};
 pub struct WorkflowInfo {
     /// The workflow id (`workflow.id` in the authoring wrapper, else `id`).
     pub id: String,
-    /// Every agent id the workflow names: node `provider`s and `modelBindings` `agentId`s.
+    /// Every agent id the workflow names: node `provider`s, the agents of an
+    /// `ai-dynamic` node's `agentStrategy`, and `modelBindings` `agentId`s.
     pub agent_ids: BTreeSet<String>,
-    /// For each agent id, the model ids bound to it (node `model` of the nodes it runs, and `modelId`s of its bindings).
+    /// For each agent id, the model ids bound to it (node `model` of the nodes
+    /// it runs, the models of an `ai-dynamic` strategy, and `modelId`s of its
+    /// bindings).
     pub models: BTreeMap<String, BTreeSet<String>>,
     /// Every profile id a node names.
     pub profiles: BTreeSet<String>,
@@ -42,7 +45,9 @@ pub struct WorkflowInfo {
 pub struct GraphNode {
     /// The node id.
     pub id: String,
-    /// The agent id the node runs, when it names one.
+    /// The agent id the node runs, when it names one: an `ai-dynamic` node's
+    /// bootstrap provider, else its strategy's provider, else its own
+    /// `provider`.
     pub provider: Option<String>,
     /// Whether the node is a manual check, which pauses the run when reached.
     pub manual_check: bool,
@@ -66,6 +71,8 @@ pub struct Walk {
     pub exit: i32,
     /// The first node that failed, when one did.
     pub failed: Option<String>,
+    /// Every node that failed, in order; `failed` is the first of them.
+    pub failures: Vec<String>,
     /// Every node the walk reached, in order.
     pub visited: Vec<String>,
 }
@@ -76,7 +83,7 @@ pub struct ScenarioSpec {
     /// The scenario name, such as `clean`.
     pub name: String,
     /// The stub verdict: `clean` (or empty), `needs-human`, `open-questions`,
-    /// `fail` or `gate-fail=<name>`.
+    /// `actionable=<n>`, `fail` or `gate-fail=<name>`.
     pub verdict: String,
     /// The exit code `gold-band run` must return.
     pub expected_exit: i32,
@@ -126,6 +133,9 @@ const END: &str = "$end";
 /// How many nodes one walk may reach before it is treated as a cycle.
 const MAX_STEPS: usize = 1000;
 
+/// The prefix of the verdict that names how many findings are actionable.
+const ACTIONABLE_PREFIX: &str = "actionable=";
+
 /// The name of the pruned workflow a segment scenario runs.
 pub const SEGMENT_FILE: &str = "segment.json";
 
@@ -153,23 +163,23 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
     let mut has_manual_check = false;
     let mut answers = BTreeSet::new();
     let mut questions = BTreeSet::new();
+    let mut dynamic: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut nodes = Vec::new();
     if let Some(Value::Array(entries)) = definition.get("nodes") {
         for node in entries {
             let Some(object) = node.as_object() else {
                 continue;
             };
+            let strategy = dynamic_strategy(object);
+            let provider = node_provider(object, strategy);
             if let Some(node_id) = object.get("id").and_then(Value::as_str) {
                 nodes.push(GraphNode {
                     id: node_id.to_string(),
-                    provider: object
-                        .get("provider")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
+                    provider: provider.clone(),
                     manual_check: object.get("manual_check").and_then(Value::as_bool) == Some(true),
                 });
             }
-            if let Some(provider) = object.get("provider").and_then(Value::as_str) {
+            if let Some(provider) = provider.as_deref() {
                 agent_ids.insert(provider.to_string());
                 let bound = models.entry(provider.to_string()).or_default();
                 bound.extend(
@@ -184,6 +194,9 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
                 if answers_with_ok(object) {
                     answers.insert(provider.to_string());
                 }
+            }
+            if let Some(strategy) = strategy {
+                read_strategy(strategy, &mut agent_ids, &mut models, &mut dynamic);
             }
             if let Some(profile) = object.get("profile").and_then(Value::as_str) {
                 profiles.insert(profile.to_string());
@@ -236,7 +249,12 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
     }
     let roles = agent_ids
         .iter()
-        .map(|agent_id| (agent_id.clone(), role_for(agent_id, &answers, &questions)))
+        .map(|agent_id| {
+            (
+                agent_id.clone(),
+                role_for(agent_id, &answers, &questions, &dynamic),
+            )
+        })
         .collect();
     Ok(WorkflowInfo {
         id,
@@ -268,10 +286,116 @@ fn asks_questions(node: &Map<String, Value>) -> bool {
     }
 }
 
-/// The role an agent id plays: a `gate-` or `copy-` prefix names a shim, else
-/// the schema of the nodes it runs decides between open questions, an answer
-/// and findings.
-fn role_for(agent_id: &str, answers: &BTreeSet<String>, questions: &BTreeSet<String>) -> Role {
+/// The `agentStrategy` of an `ai-dynamic` node, when it has one.
+fn dynamic_strategy(node: &Map<String, Value>) -> Option<&Map<String, Value>> {
+    if node.get("type").and_then(Value::as_str) != Some("ai-dynamic") {
+        return None;
+    }
+    node.get("agentStrategy").and_then(Value::as_object)
+}
+
+/// The agent id a node runs: an `ai-dynamic` node runs its bootstrap provider,
+/// else its strategy's provider, else the node's own provider.
+fn node_provider(
+    node: &Map<String, Value>,
+    strategy: Option<&Map<String, Value>>,
+) -> Option<String> {
+    if let Some(strategy) = strategy {
+        for key in ["bootstrapProvider", "provider"] {
+            if let Some(provider) = strategy.get(key).and_then(Value::as_str) {
+                return Some(provider.to_string());
+            }
+        }
+    }
+    node.get("provider")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+/// Reads an `ai-dynamic` node's strategy: every agent id it names, the models
+/// bound to them, and the workers each of those ids fans out to.
+fn read_strategy(
+    strategy: &Map<String, Value>,
+    agent_ids: &mut BTreeSet<String>,
+    models: &mut BTreeMap<String, BTreeSet<String>>,
+    dynamic: &mut BTreeMap<String, Vec<String>>,
+) {
+    let fixed = strategy.get("provider").and_then(Value::as_str);
+    let bootstrap = strategy.get("bootstrapProvider").and_then(Value::as_str);
+    for agent_id in [fixed, bootstrap].into_iter().flatten() {
+        agent_ids.insert(agent_id.to_string());
+    }
+    // The agent that owns the strategy's own models: the fixed provider, else
+    // the bootstrap provider.
+    if let Some(owner) = fixed.or(bootstrap) {
+        let bound = models.entry(owner.to_string()).or_default();
+        for key in ["model", "bootstrapModel", "acceptanceModel"] {
+            bound.extend(
+                strategy
+                    .get(key)
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            );
+        }
+    }
+    let mut workers: Vec<String> = Vec::new();
+    if let Some(agents) = strategy.get("availableAgents").and_then(Value::as_array) {
+        for agent in agents {
+            let Some(agent) = agent.as_object() else {
+                continue;
+            };
+            let Some(provider) = agent.get("provider").and_then(Value::as_str) else {
+                continue;
+            };
+            agent_ids.insert(provider.to_string());
+            models.entry(provider.to_string()).or_default().extend(
+                agent
+                    .get("model")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            );
+            if !workers.iter().any(|worker| worker == provider) {
+                workers.push(provider.to_string());
+            }
+        }
+    }
+    // With no list to fan out to, the node runs its own provider and the
+    // bootstrap provider that plans the fan-out.
+    if workers.is_empty() {
+        for worker in [fixed, bootstrap].into_iter().flatten() {
+            if !workers.iter().any(|known| known == worker) {
+                workers.push(worker.to_string());
+            }
+        }
+    }
+    for agent_id in [fixed, bootstrap].into_iter().flatten() {
+        add_workers(dynamic, agent_id, &workers);
+    }
+    for worker in &workers {
+        add_workers(dynamic, worker, &workers);
+    }
+}
+
+/// Adds `workers` to the workers of `agent_id`, keeping first-seen order.
+fn add_workers(dynamic: &mut BTreeMap<String, Vec<String>>, agent_id: &str, workers: &[String]) {
+    let known = dynamic.entry(agent_id.to_string()).or_default();
+    for worker in workers {
+        if !known.contains(worker) {
+            known.push(worker.clone());
+        }
+    }
+}
+
+/// The role an agent id plays: a `gate-`, `copy-` or `verdict-` prefix names a
+/// shim or a critic round, an id that serves an `ai-dynamic` node fans out to
+/// that node's workers, else the schema of the nodes it runs decides between
+/// open questions, an answer and findings.
+fn role_for(
+    agent_id: &str,
+    answers: &BTreeSet<String>,
+    questions: &BTreeSet<String>,
+    dynamic: &BTreeMap<String, Vec<String>>,
+) -> Role {
     if let Some(name) = agent_id
         .strip_prefix("gate-")
         .filter(|name| !name.is_empty())
@@ -284,6 +408,12 @@ fn role_for(agent_id: &str, answers: &BTreeSet<String>, questions: &BTreeSet<Str
     {
         return Role::Copy(name.to_string());
     }
+    if let Some(round) = verdict_round(agent_id) {
+        return Role::Verdict(round);
+    }
+    if let Some(workers) = dynamic.get(agent_id) {
+        return Role::Dynamic(workers.clone());
+    }
     if questions.contains(agent_id) {
         return Role::Questions;
     }
@@ -294,12 +424,18 @@ fn role_for(agent_id: &str, answers: &BTreeSet<String>, questions: &BTreeSet<Str
     }
 }
 
+/// The critic round an agent id `verdict-<n>` names, when it names one.
+fn verdict_round(agent_id: &str) -> Option<u32> {
+    agent_id.strip_prefix("verdict-")?.parse::<u32>().ok()
+}
+
 /// Walks the workflow graph from `entry` under `verdict` and predicts what
 /// `gold-band run` does: a manual check pauses the run (exit 2), a node with no
 /// edge for its outcome ends it, and `$end` ends it too.
 pub fn walk(info: &WorkflowInfo, entry: &str, verdict: &str) -> Walk {
     let mut visited = Vec::new();
     let mut failed: Option<String> = None;
+    let mut failures: Vec<String> = Vec::new();
     let mut current = entry.to_string();
     let mut steps = 0usize;
     loop {
@@ -308,6 +444,7 @@ pub fn walk(info: &WorkflowInfo, entry: &str, verdict: &str) -> Walk {
             return Walk {
                 exit: 1,
                 failed,
+                failures,
                 visited,
             };
         }
@@ -315,6 +452,7 @@ pub fn walk(info: &WorkflowInfo, entry: &str, verdict: &str) -> Walk {
             return Walk {
                 exit: 1,
                 failed,
+                failures,
                 visited,
             };
         };
@@ -323,6 +461,7 @@ pub fn walk(info: &WorkflowInfo, entry: &str, verdict: &str) -> Walk {
             return Walk {
                 exit: 2,
                 failed,
+                failures,
                 visited,
             };
         }
@@ -330,6 +469,7 @@ pub fn walk(info: &WorkflowInfo, entry: &str, verdict: &str) -> Walk {
             if failed.is_none() {
                 failed = Some(node.id.clone());
             }
+            failures.push(node.id.clone());
             "failure"
         } else {
             "success"
@@ -343,6 +483,7 @@ pub fn walk(info: &WorkflowInfo, entry: &str, verdict: &str) -> Walk {
             return Walk {
                 exit,
                 failed,
+                failures,
                 visited,
             };
         };
@@ -350,6 +491,7 @@ pub fn walk(info: &WorkflowInfo, entry: &str, verdict: &str) -> Walk {
             return Walk {
                 exit,
                 failed,
+                failures,
                 visited,
             };
         }
@@ -382,7 +524,16 @@ fn node_fails(info: &WorkflowInfo, node: &GraphNode, verdict: &str) -> bool {
         Role::Findings => verdict == NEEDS_HUMAN && routes_failure(info, node),
         Role::Questions => verdict == OPEN_QUESTIONS && routes_failure(info, node),
         Role::Answer => false,
+        // A dynamic node plans its own fan-out and finishes every internal node.
+        Role::Dynamic(_) => false,
+        // Round N fails when the verdict names at least N actionable findings.
+        Role::Verdict(round) => actionable(verdict).is_some_and(|count| round <= count),
     }
+}
+
+/// The number of actionable findings a verdict names, when it names one.
+fn actionable(verdict: &str) -> Option<u32> {
+    verdict.strip_prefix(ACTIONABLE_PREFIX)?.parse::<u32>().ok()
 }
 
 /// Whether the node has an edge for its failure.
@@ -403,9 +554,10 @@ struct Segment {
 }
 
 /// The scenarios every workflow gets, segment by segment: `clean` always, then
-/// `needs-human`, `open-questions` and one `gate-fail-<name>` per gate, each
-/// kept only when walking the segment under that verdict fails a node. The
-/// expected exit code of each comes from the walk.
+/// `needs-human`, `open-questions`, one `actionable-<n>` per critic round and
+/// one `gate-fail-<name>` per gate, each kept only when walking the segment
+/// under that verdict fails a node. The expected exit code of each comes from
+/// the walk.
 pub fn default_scenarios(info: &WorkflowInfo) -> Vec<ScenarioSpec> {
     let mut scenarios = Vec::new();
     let mut proved = BTreeSet::new();
@@ -446,8 +598,9 @@ fn segments(info: &WorkflowInfo) -> Vec<Segment> {
 }
 
 /// The scenarios one segment gets, in order: `clean`, then the candidate
-/// verdicts that fail a node of the segment, except a node `proved` already
-/// holds a failing scenario for (`proved` collects the nodes as it goes).
+/// verdicts that fail a node of the segment, except a failure list `proved`
+/// already holds a failing scenario for (`proved` collects the failure lists as
+/// it goes).
 fn segment_scenarios(
     info: &WorkflowInfo,
     segment: &Segment,
@@ -463,11 +616,11 @@ fn segment_scenarios(
     }];
     for verdict in candidate_verdicts(info) {
         let walked = walk(info, &entry, &verdict);
-        // A failure of a node an earlier segment already proved is not run again.
-        let Some(failed) = walked.failed.clone() else {
+        // A failure of the nodes an earlier segment already proved is not run again.
+        if walked.failures.is_empty() {
             continue;
-        };
-        if !proved.insert(failed) {
+        }
+        if !proved.insert(walked.failures.join(",")) {
             continue;
         }
         scenarios.push(ScenarioSpec {
@@ -481,13 +634,29 @@ fn segment_scenarios(
 }
 
 /// The verdicts a segment is proved under besides `clean`: `needs-human`,
-/// `open-questions`, then one failing gate per gate name, sorted.
+/// `open-questions`, one `actionable=<n>` per critic round up to the highest
+/// the workflow names, then one failing gate per gate name, sorted.
 fn candidate_verdicts(info: &WorkflowInfo) -> Vec<String> {
     let mut verdicts = vec![NEEDS_HUMAN.to_string(), OPEN_QUESTIONS.to_string()];
+    for round in 1..=max_verdict_round(info) {
+        verdicts.push(format!("{}{}", ACTIONABLE_PREFIX, round));
+    }
     for name in gate_names(info) {
         verdicts.push(format!("gate-fail={}", name));
     }
     verdicts
+}
+
+/// The highest critic round the workflow's verdict nodes name, 0 when none.
+fn max_verdict_round(info: &WorkflowInfo) -> u32 {
+    info.roles
+        .values()
+        .filter_map(|role| match role {
+            Role::Verdict(round) => Some(*round),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 /// The scenario name a verdict gets: `gate-fail=NAME` becomes `gate-fail-NAME`.
@@ -510,8 +679,8 @@ fn gate_names(info: &WorkflowInfo) -> Vec<String> {
 }
 
 /// Parses `NAME:VERDICT:EXIT` (verdict one of `clean`, `needs-human`,
-/// `open-questions`, `fail` or `gate-fail=NAME`; exit an integer). The scenario
-/// runs the whole workflow, never a segment.
+/// `open-questions`, `actionable=<n>`, `fail` or `gate-fail=NAME`; exit an
+/// integer). The scenario runs the whole workflow, never a segment.
 pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
     let parts: Vec<&str> = text.split(':').collect();
     if parts.len() != 3 {
@@ -533,7 +702,7 @@ pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
     let verdict = parts[1];
     if !is_known_verdict(verdict) {
         return Err(format!(
-            "the scenario `{}` has the unknown verdict `{}` (use clean, needs-human, open-questions, fail or gate-fail=NAME)",
+            "the scenario `{}` has the unknown verdict `{}` (use clean, needs-human, open-questions, actionable=N, fail or gate-fail=NAME)",
             name, verdict
         ));
     }
@@ -553,9 +722,13 @@ pub fn parse_scenario(text: &str) -> Result<ScenarioSpec, String> {
 }
 
 /// Whether a verdict is one the stub understands: `clean`, `needs-human`,
-/// `open-questions`, `fail`, or `gate-fail=` and a non-empty gate name.
+/// `open-questions`, `fail`, `actionable=` and a count, or `gate-fail=` and a
+/// non-empty gate name.
 fn is_known_verdict(verdict: &str) -> bool {
     if matches!(verdict, "clean" | NEEDS_HUMAN | OPEN_QUESTIONS | "fail") {
+        return true;
+    }
+    if actionable(verdict).is_some() {
         return true;
     }
     match verdict.strip_prefix("gate-fail=") {

@@ -1,15 +1,15 @@
 //! Tests for the stub ACP agent, driven through its public API.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde_json::{json, Value};
 
 use crate::stub::{
     fenced_findings, fenced_questions, findings_document, model_option, questions_document, serve,
-    serve_with_role, Role, Stub, FAIL, MODELS_ENV, NEEDS_HUMAN, OPEN_QUESTIONS, REPORT_DIR_ENV,
-    ROLE_ENV, VERDICT_ENV,
+    serve_with_role, verdict_document, Role, Stub, ACTIONABLE_PREFIX, FAIL, MODELS_ENV,
+    NEEDS_HUMAN, OPEN_QUESTIONS, REPORT_DIR_ENV, ROLE_ENV, VERDICT_ENV,
 };
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -43,15 +43,25 @@ fn one(stub: &mut Stub, request: &Value, verdict: &str, models: &str) -> Value {
 
 /// The answer text one prompt streams, asserting the turn ends after it.
 fn prompt_text(stub: &mut Stub, verdict: &str) -> String {
-    let frames = stub.handle(
-        &request(
-            2,
-            "session/prompt",
-            json!({ "sessionId": "stub-session-1" }),
-        ),
+    prompt_params(stub, verdict, json!({ "sessionId": "stub-session-1" }))
+}
+
+/// The answer text one prompt carrying `prompt` streams.
+fn prompt_answer(stub: &mut Stub, verdict: &str, prompt: &str) -> String {
+    prompt_params(
+        stub,
         verdict,
-        "",
-    );
+        json!({
+            "sessionId": "stub-session-1",
+            "prompt": [{ "type": "text", "text": prompt }],
+        }),
+    )
+}
+
+/// The answer text one prompt with `params` streams, asserting the turn ends
+/// after it.
+fn prompt_params(stub: &mut Stub, verdict: &str, params: Value) -> String {
+    let frames = stub.handle(&request(2, "session/prompt", params), verdict, "");
     assert_eq!(
         frames.len(),
         2,
@@ -62,6 +72,26 @@ fn prompt_text(stub: &mut Stub, verdict: &str) -> String {
         .as_str()
         .expect("the update carries text")
         .to_string()
+}
+
+/// An AI-DYNAMIC prompt: the runtime context block an internal node's prompt
+/// carries, with the labels the stub reads.
+fn dynamic_prompt(
+    root: &Path,
+    node: &str,
+    node_rel: &str,
+    attempt: &str,
+    attachments: &str,
+) -> String {
+    format!(
+        "Serve the internal node.\n\nruntime context:\n\
+         - 内部节点：{node}\n\
+         - Dynamic 根目录：{root}\n\
+         - 内部节点（相对 Dynamic 根目录）：{node_rel}\n\
+         - 当前 attempt（相对内部节点）：{attempt}\n\
+         - attachments（相对当前 attempt）：{attachments}\n",
+        root = root.display()
+    )
 }
 
 /// The JSON document inside one fenced json block.
@@ -96,6 +126,14 @@ fn role_parse_reads_every_spelling() {
     assert_eq!(Role::parse("copy:lint"), Role::Copy("lint".to_string()));
     assert_eq!(Role::parse("gate:"), Role::Findings);
     assert_eq!(Role::parse("copy:"), Role::Findings);
+    assert_eq!(
+        Role::parse("dynamic:vibe,claude"),
+        Role::Dynamic(vec!["vibe".to_string(), "claude".to_string()])
+    );
+    assert_eq!(Role::parse("dynamic:"), Role::Dynamic(Vec::new()));
+    assert_eq!(Role::parse("verdict:2"), Role::Verdict(2));
+    assert_eq!(Role::parse("verdict:x"), Role::Findings);
+    assert_eq!(Role::parse("verdict:"), Role::Findings);
     assert_eq!(Role::parse("nonsense"), Role::Findings);
 }
 
@@ -106,12 +144,20 @@ fn role_text_round_trips_through_parse() {
     assert_eq!(Role::Questions.as_text(), "questions");
     assert_eq!(Role::Gate("build".to_string()).as_text(), "gate:build");
     assert_eq!(Role::Copy("lint".to_string()).as_text(), "copy:lint");
+    assert_eq!(
+        Role::Dynamic(vec!["vibe".to_string(), "claude".to_string()]).as_text(),
+        "dynamic:vibe,claude"
+    );
+    assert_eq!(Role::Verdict(2).as_text(), "verdict:2");
     for role in [
         Role::Findings,
         Role::Answer,
         Role::Questions,
         Role::Gate("build".to_string()),
         Role::Copy("lint".to_string()),
+        Role::Dynamic(vec!["vibe".to_string(), "claude".to_string()]),
+        Role::Dynamic(Vec::new()),
+        Role::Verdict(2),
     ] {
         assert_eq!(Role::parse(&role.as_text()), role);
     }
@@ -666,6 +712,8 @@ fn the_fail_verdict_fails_every_role() {
         Role::Questions,
         Role::Gate("build".to_string()),
         Role::Copy("build".to_string()),
+        Role::Dynamic(vec!["vibe".to_string()]),
+        Role::Verdict(1),
     ] {
         let mut stub = Stub::with_role(role.clone(), report_dir.clone());
         let frames = stub.handle(&request(2, "session/prompt", json!({})), " fail ", "");
@@ -692,4 +740,238 @@ fn serve_with_role_answers_as_the_role_it_was_given() {
         .as_str()
         .unwrap();
     assert_eq!(fenced_body(answer), json!({ "ok": true }));
+}
+
+#[test]
+fn verdict_document_counts_the_rounds_the_verdict_names() {
+    assert_eq!(ACTIONABLE_PREFIX, "actionable=");
+    assert_eq!(
+        verdict_document(1, "actionable=2"),
+        json!({ "actionable": 1 })
+    );
+    assert_eq!(
+        verdict_document(2, " actionable=2 "),
+        json!({ "actionable": 1 })
+    );
+    assert_eq!(
+        verdict_document(3, "actionable=2"),
+        json!({ "actionable": 0 })
+    );
+    assert_eq!(verdict_document(1, "clean"), json!({ "actionable": 0 }));
+    assert_eq!(
+        verdict_document(1, "actionable=x"),
+        json!({ "actionable": 0 })
+    );
+    assert_eq!(
+        verdict_document(0, "actionable=0"),
+        json!({ "actionable": 1 })
+    );
+}
+
+#[test]
+fn the_verdict_role_answers_the_rounds_document() {
+    let mut first = Stub::with_role(Role::Verdict(1), String::new());
+    assert_eq!(
+        fenced_body(&prompt_text(&mut first, "actionable=2")),
+        json!({ "actionable": 1 })
+    );
+    let mut second = Stub::with_role(Role::Verdict(2), String::new());
+    assert_eq!(
+        fenced_body(&prompt_text(&mut second, "actionable=2")),
+        json!({ "actionable": 1 })
+    );
+    let mut third = Stub::with_role(Role::Verdict(3), String::new());
+    assert_eq!(
+        fenced_body(&prompt_text(&mut third, "actionable=2")),
+        json!({ "actionable": 0 })
+    );
+    assert_eq!(
+        fenced_body(&prompt_text(&mut third, "clean")),
+        json!({ "actionable": 0 })
+    );
+    assert_eq!(
+        fenced_body(&prompt_text(&mut third, "actionable=x")),
+        json!({ "actionable": 0 })
+    );
+}
+
+#[test]
+fn the_dynamic_role_writes_the_bootstrap_handoff_and_answers_the_fanout() {
+    let dir = temp_dir("dynamic-bootstrap");
+    let root = dir.join("dynamic");
+    let mut stub = Stub::with_role(
+        Role::Dynamic(vec!["vibe".to_string(), "claude".to_string()]),
+        String::new(),
+    );
+    let prompt = dynamic_prompt(
+        &root,
+        "bootstrap",
+        "nodes/bootstrap",
+        "attempt-1",
+        "attachments",
+    );
+    let answer = fenced_body(&prompt_answer(&mut stub, "", &prompt));
+    assert_eq!(answer["version"], "0.1");
+    assert_eq!(answer["kind"], "dynamic-node-completion");
+    assert_eq!(answer["status"], "success");
+    assert_eq!(answer["summaryPath"], "handoff/summary.md");
+    let next = &answer["next"];
+    assert_eq!(next["type"], "fanout");
+    assert_eq!(next["groupId"], "critics");
+    assert_eq!(next["nodes"].as_array().map(Vec::len), Some(2));
+    assert_eq!(next["nodes"][0]["id"], "critic-1");
+    assert_eq!(next["nodes"][0]["kind"], "worker");
+    assert_eq!(next["nodes"][0]["title"], "Critic 1");
+    assert_eq!(next["nodes"][0]["taskPath"], "handoff/critic-1.md");
+    assert_eq!(next["nodes"][0]["provider"], "vibe");
+    assert_eq!(next["nodes"][0]["dependsOn"], json!(["bootstrap"]));
+    assert_eq!(next["nodes"][1]["id"], "critic-2");
+    assert_eq!(next["nodes"][1]["provider"], "claude");
+    assert_eq!(
+        next["merge"],
+        json!({ "title": "Merge critics", "taskPath": "handoff/merge.md" })
+    );
+    assert_eq!(
+        next["acceptance"],
+        json!({ "title": "Accept critics", "taskPath": "handoff/acceptance.md" })
+    );
+    let handoff = root.join("nodes/bootstrap/attempt-1/attachments/handoff");
+    for name in [
+        "summary.md",
+        "critic-1.md",
+        "critic-2.md",
+        "merge.md",
+        "acceptance.md",
+    ] {
+        let text = fs::read_to_string(handoff.join(name))
+            .unwrap_or_else(|error| panic!("{name} was not written: {error}"));
+        assert!(!text.trim().is_empty(), "{name} is empty");
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_dynamic_role_answers_the_end_completion_for_another_node() {
+    let dir = temp_dir("dynamic-critic");
+    let root = dir.join("dynamic");
+    let mut stub = Stub::with_role(Role::Dynamic(vec!["vibe".to_string()]), String::new());
+    let prompt = dynamic_prompt(
+        &root,
+        "critic-1",
+        "nodes/critic-1",
+        "attempt-2",
+        "attachments",
+    );
+    let answer = fenced_body(&prompt_answer(&mut stub, "", &prompt));
+    assert_eq!(answer["version"], "0.1");
+    assert_eq!(answer["kind"], "dynamic-node-completion");
+    assert_eq!(answer["status"], "success");
+    assert_eq!(answer["summaryPath"], "handoff/summary.md");
+    assert_eq!(answer["next"], json!({ "type": "end" }));
+    let handoff = root.join("nodes/critic-1/attempt-2/attachments/handoff");
+    assert!(handoff.join("summary.md").is_file());
+    assert!(!handoff.join("critic-1.md").exists());
+    assert!(!handoff.join("merge.md").exists());
+    assert!(!handoff.join("acceptance.md").exists());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_dynamic_role_answers_ok_without_the_runtime_context() {
+    let dir = temp_dir("dynamic-plain");
+    let root = dir.join("dynamic");
+    let mut stub = Stub::with_role(Role::Dynamic(vec!["vibe".to_string()]), String::new());
+    assert_eq!(
+        fenced_body(&prompt_answer(&mut stub, "", "just a plain prompt")),
+        json!({ "ok": true })
+    );
+    let partial = format!("内部节点：bootstrap\nDynamic 根目录：{}\n", root.display());
+    assert_eq!(
+        fenced_body(&prompt_answer(&mut stub, "", &partial)),
+        json!({ "ok": true })
+    );
+    assert!(!root.exists(), "a prompt without the labels writes nothing");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_dynamic_role_falls_back_to_ok_when_the_handoff_cannot_be_written() {
+    let dir = temp_dir("dynamic-blocked");
+    fs::write(dir.join("blocker"), "not a directory").expect("blocker written");
+    let mut stub = Stub::with_role(Role::Dynamic(vec!["vibe".to_string()]), String::new());
+    let prompt = dynamic_prompt(&dir, "bootstrap", "blocker", "attempt-1", "attachments");
+    assert_eq!(
+        fenced_body(&prompt_answer(&mut stub, "", &prompt)),
+        json!({ "ok": true })
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_prompt_text_joins_every_entry_that_carries_text() {
+    let dir = temp_dir("dynamic-split");
+    let root = dir.join("dynamic");
+    let mut stub = Stub::with_role(Role::Dynamic(vec!["vibe".to_string()]), String::new());
+    let prompt = dynamic_prompt(
+        &root,
+        "bootstrap",
+        "nodes/bootstrap",
+        "attempt-1",
+        "attachments",
+    );
+    let split = prompt.find("Dynamic 根目录：").expect("the root label");
+    let (head, tail) = prompt.split_at(split);
+    let frames = stub.handle(
+        &request(
+            2,
+            "session/prompt",
+            json!({
+                "sessionId": "stub-session-1",
+                "prompt": [
+                    { "type": "text", "text": head },
+                    { "type": "image", "data": "ignored" },
+                    { "type": "text", "text": tail },
+                ],
+            }),
+        ),
+        "",
+        "",
+    );
+    let text = frames[0]["params"]["update"]["content"]["text"]
+        .as_str()
+        .expect("the update carries text");
+    assert_eq!(fenced_body(text)["next"]["type"], "fanout");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_dynamic_role_repeats_its_completion_for_a_repair_prompt_in_the_same_session() {
+    let dir = temp_dir("dynamic-repair");
+    let root = dir.join("dynamic");
+    let mut stub = Stub::with_role(Role::Dynamic(vec!["vibe".to_string()]), String::new());
+    let bootstrap = dynamic_prompt(
+        &root,
+        "bootstrap",
+        "nodes/bootstrap",
+        "attempt-1",
+        "attachments",
+    );
+    let first = prompt_answer(&mut stub, "", &bootstrap);
+    // A repair prompt has no runtime context: the completion comes back.
+    assert_eq!(prompt_answer(&mut stub, "", "fix the proposal"), first);
+    // Another session has no completion to repeat, so it answers plainly.
+    let frames = stub.handle(
+        &request(
+            3,
+            "session/prompt",
+            json!({ "sessionId": "other-session", "prompt": [{ "type": "text", "text": "fix" }] }),
+        ),
+        "",
+        "",
+    );
+    let text = frames[0]["params"]["update"]["content"]["text"]
+        .as_str()
+        .expect("the update carries text");
+    assert_eq!(fenced_body(text), json!({ "ok": true }));
+    let _ = fs::remove_dir_all(&dir);
 }

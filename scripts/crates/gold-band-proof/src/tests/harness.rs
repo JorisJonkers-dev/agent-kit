@@ -245,32 +245,41 @@ fn workflow_b() -> WorkflowInfo {
 fn inspect_gives_every_agent_of_workflow_b_its_role() {
     let info = workflow_b();
     assert_eq!(info.id, "workflow-b");
+    // Every gate shim: the main path, the findings check of each critic round
+    // and the four gates again after each repair.
+    let mut gates: Vec<String> = ["build", "test", "lint", "coverage"]
+        .iter()
+        .map(|gate| gate.to_string())
+        .collect();
+    for round in 1..=3 {
+        gates.push(format!("findings-{}", round));
+    }
+    for repair in 1..=2 {
+        for gate in ["build", "test", "lint", "coverage"] {
+            gates.push(format!("{}-r{}", gate, repair));
+        }
+    }
+    let mut expected: Vec<(String, Role)> = Vec::new();
+    for gate in &gates {
+        expected.push((format!("gate-{}", gate), Role::Gate(gate.clone())));
+        expected.push((format!("copy-{}", gate), Role::Copy(gate.clone())));
+    }
+    for round in 1..=3 {
+        expected.push((format!("verdict-{}", round), Role::Verdict(round)));
+    }
+    // The two critics' agents also serve the plain nodes (the test author, the
+    // escalation judge and the manual check), which they answer as an answer.
+    let critics = vec!["vibe".to_string(), "claude".to_string()];
+    expected.push(("claude".to_string(), Role::Dynamic(critics.clone())));
+    expected.push(("vibe".to_string(), Role::Dynamic(critics)));
+    expected.push(("vibe-study".to_string(), Role::Answer));
+    expected.sort_by(|left, right| left.0.cmp(&right.0));
     let roles: Vec<(String, Role)> = info
         .roles
         .iter()
         .map(|(agent_id, role)| (agent_id.clone(), role.clone()))
         .collect();
-    assert_eq!(
-        roles,
-        vec![
-            ("copy-build".to_string(), Role::Copy("build".to_string())),
-            (
-                "copy-coverage".to_string(),
-                Role::Copy("coverage".to_string())
-            ),
-            ("copy-lint".to_string(), Role::Copy("lint".to_string())),
-            ("copy-test".to_string(), Role::Copy("test".to_string())),
-            ("gate-build".to_string(), Role::Gate("build".to_string())),
-            (
-                "gate-coverage".to_string(),
-                Role::Gate("coverage".to_string())
-            ),
-            ("gate-lint".to_string(), Role::Gate("lint".to_string())),
-            ("gate-test".to_string(), Role::Gate("test".to_string())),
-            ("vibe".to_string(), Role::Answer),
-            ("vibe-study".to_string(), Role::Answer),
-        ]
-    );
+    assert_eq!(roles, expected);
     assert_eq!(info.roles.len(), info.agent_ids.len());
 }
 
@@ -438,6 +447,7 @@ fn walk_follows_success_edges_to_the_end() {
         Walk {
             exit: 0,
             failed: None,
+            failures: Vec::new(),
             visited: vec!["a".to_string(), "b".to_string()],
         }
     );
@@ -462,6 +472,7 @@ fn walk_routes_a_failure_to_a_manual_check_and_exits_2() {
         Walk {
             exit: 2,
             failed: Some("verdicts".to_string()),
+            failures: vec!["verdicts".to_string()],
             visited: vec!["verdicts".to_string(), "check".to_string()],
         }
     );
@@ -486,6 +497,7 @@ fn walk_exits_1_when_a_failure_has_no_failure_edge() {
         Walk {
             exit: 1,
             failed: Some("gate".to_string()),
+            failures: vec!["gate".to_string()],
             visited: vec!["gate".to_string()],
         }
     );
@@ -499,6 +511,7 @@ fn walk_exits_0_when_a_success_has_no_success_edge() {
         Walk {
             exit: 0,
             failed: None,
+            failures: Vec::new(),
             visited: vec!["a".to_string()],
         }
     );
@@ -528,6 +541,7 @@ fn walk_fails_a_questions_node_under_open_questions() {
         Walk {
             exit: 1,
             failed: Some("grill".to_string()),
+            failures: vec!["grill".to_string()],
             visited: vec!["grill".to_string()],
         }
     );
@@ -556,6 +570,7 @@ fn walk_exits_1_when_the_entry_is_not_a_node() {
         Walk {
             exit: 1,
             failed: None,
+            failures: Vec::new(),
             visited: Vec::new(),
         }
     );
@@ -597,6 +612,7 @@ fn walk_keeps_the_first_failed_node_and_every_visited_node() {
         Walk {
             exit: 1,
             failed: Some("first".to_string()),
+            failures: vec!["first".to_string(), "second".to_string()],
             visited: vec!["first".to_string(), "second".to_string()],
         }
     );
@@ -654,17 +670,62 @@ fn default_scenarios_make_no_segment_after_a_manual_check_without_a_success_edge
 }
 
 #[test]
-fn default_scenarios_add_a_failing_gate_for_every_gate_shim() {
+fn default_scenarios_add_a_failing_gate_for_every_gate_the_clean_path_reaches() {
+    let names: Vec<String> = default_scenarios(&workflow_b())
+        .into_iter()
+        .map(|scenario| scenario.name)
+        .collect();
     assert_eq!(
-        default_scenarios(&workflow_b()),
+        names,
         vec![
-            spec("clean", "clean", 0),
-            spec("gate-fail-build", "gate-fail=build", 1),
-            spec("gate-fail-coverage", "gate-fail=coverage", 1),
-            spec("gate-fail-lint", "gate-fail=lint", 1),
-            spec("gate-fail-test", "gate-fail=test", 1),
+            "clean",
+            "actionable-1",
+            "actionable-2",
+            "actionable-3",
+            "gate-fail-build",
+            "gate-fail-coverage",
+            "gate-fail-findings-1",
+            "gate-fail-lint",
+            "gate-fail-test",
         ]
     );
+}
+
+#[test]
+fn default_scenarios_prove_each_repair_and_the_escalation_of_workflow_b() {
+    let scenarios = default_scenarios(&workflow_b());
+    let exit = |name: &str| {
+        scenarios
+            .iter()
+            .find(|scenario| scenario.name == name)
+            .map(|scenario| scenario.expected_exit)
+    };
+    // A repair that clears the findings ends the run; the second failed repair
+    // reaches the escalation node and its manual check, which pauses the run.
+    assert_eq!(exit("clean"), Some(0));
+    assert_eq!(exit("actionable-1"), Some(0));
+    assert_eq!(exit("actionable-2"), Some(0));
+    assert_eq!(exit("actionable-3"), Some(2));
+    assert_eq!(exit("gate-fail-findings-1"), Some(1));
+}
+
+#[test]
+fn walk_of_workflow_b_reaches_the_escalation_only_after_two_repairs() {
+    let info = workflow_b();
+    let walked = walk(&info, &info.entry, "actionable=3");
+    assert_eq!(walked.exit, 2);
+    assert_eq!(walked.failures, vec!["verdict-1", "verdict-2", "verdict-3"]);
+    let tail: Vec<&str> = walked
+        .visited
+        .iter()
+        .rev()
+        .take(2)
+        .map(String::as_str)
+        .collect();
+    assert_eq!(tail, vec!["escalation-check", "workflow-b-escalation"]);
+    assert!(walked.visited.contains(&"repair-1".to_string()));
+    assert!(walked.visited.contains(&"repair-2".to_string()));
+    assert!(!walked.visited.contains(&"repair-3".to_string()));
 }
 
 #[test]
@@ -1799,6 +1860,311 @@ fn scenario_workflow_names_a_directory_it_cannot_create() {
         error.contains("cannot create the scenario directory"),
         "{error}"
     );
+}
+
+/// An `ai-dynamic` node with a dynamic strategy that fans out to two agents.
+const DYNAMIC_WORKFLOW: &str = r#"{"id":"dynamic","nodes":[
+    {"id":"critics-1","type":"ai-dynamic","agentStrategy":{
+        "mode":"dynamic","bootstrapProvider":"vibe","bootstrapModel":"glm-5-3",
+        "acceptanceModel":"glm-5-3",
+        "availableAgents":[{"provider":"vibe","model":"glm-5-3"},{"provider":"claude","model":"sonnet"}],
+        "routingPrompt":"route"
+    },"control":{"max_rounds":3}}
+]}"#;
+
+#[test]
+fn inspect_reads_a_dynamic_strategy() {
+    let info = inspect(DYNAMIC_WORKFLOW).expect("inspected");
+    assert_eq!(
+        info.agent_ids.iter().cloned().collect::<Vec<_>>(),
+        vec!["claude".to_string(), "vibe".to_string()]
+    );
+    assert_eq!(
+        info.models["vibe"].iter().cloned().collect::<Vec<_>>(),
+        vec!["glm-5-3".to_string()]
+    );
+    assert_eq!(
+        info.models["claude"].iter().cloned().collect::<Vec<_>>(),
+        vec!["sonnet".to_string()]
+    );
+    let workers = vec!["vibe".to_string(), "claude".to_string()];
+    assert_eq!(info.roles["vibe"], Role::Dynamic(workers.clone()));
+    assert_eq!(info.roles["claude"], Role::Dynamic(workers));
+    assert_eq!(info.nodes, vec![node("critics-1", Some("vibe"), false)]);
+}
+
+#[test]
+fn inspect_reads_a_fixed_strategy() {
+    let text = r#"{"id":"fixed","nodes":[
+        {"id":"critics-1","type":"ai-dynamic","agentStrategy":{"mode":"fixed","provider":"claude","model":"sonnet"}}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(
+        info.agent_ids.iter().cloned().collect::<Vec<_>>(),
+        vec!["claude".to_string()]
+    );
+    assert_eq!(
+        info.models["claude"].iter().cloned().collect::<Vec<_>>(),
+        vec!["sonnet".to_string()]
+    );
+    assert_eq!(
+        info.roles["claude"],
+        Role::Dynamic(vec!["claude".to_string()])
+    );
+    assert_eq!(info.nodes, vec![node("critics-1", Some("claude"), false)]);
+}
+
+#[test]
+fn inspect_fans_a_strategy_without_a_list_out_to_its_bootstrap_provider() {
+    let text = r#"{"id":"bootstrap","nodes":[
+        {"id":"critics-1","type":"ai-dynamic","agentStrategy":{"mode":"dynamic","bootstrapProvider":"vibe",
+            "bootstrapModel":"glm-5-3","availableAgents":[5,{"model":"m"}]}}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(info.roles["vibe"], Role::Dynamic(vec!["vibe".to_string()]));
+    assert_eq!(
+        info.models["vibe"].iter().cloned().collect::<Vec<_>>(),
+        vec!["glm-5-3".to_string()]
+    );
+    assert_eq!(info.nodes, vec![node("critics-1", Some("vibe"), false)]);
+}
+
+#[test]
+fn inspect_does_not_repeat_a_worker_that_is_also_the_bootstrap_provider() {
+    let text = r#"{"id":"same","nodes":[
+        {"id":"critics-1","type":"ai-dynamic","agentStrategy":{"mode":"fixed","provider":"vibe",
+            "bootstrapProvider":"vibe","model":"m1"}}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(info.roles["vibe"], Role::Dynamic(vec!["vibe".to_string()]));
+    assert_eq!(
+        info.models["vibe"].iter().cloned().collect::<Vec<_>>(),
+        vec!["m1".to_string()]
+    );
+}
+
+#[test]
+fn inspect_keeps_a_prefix_role_over_a_dynamic_membership() {
+    let text = r#"{"id":"prefix","nodes":[
+        {"id":"critics-1","type":"ai-dynamic","agentStrategy":{"mode":"dynamic","bootstrapProvider":"vibe",
+            "availableAgents":[{"provider":"gate-build"},{"provider":"copy-lint"},{"provider":"verdict-2"}]}},
+        {"id":"g","provider":"gate-build"},
+        {"id":"c","provider":"copy-lint"},
+        {"id":"v","provider":"verdict-2"}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(info.roles["gate-build"], Role::Gate("build".to_string()));
+    assert_eq!(info.roles["copy-lint"], Role::Copy("lint".to_string()));
+    assert_eq!(info.roles["verdict-2"], Role::Verdict(2));
+    assert_eq!(
+        info.roles["vibe"],
+        Role::Dynamic(vec![
+            "gate-build".to_string(),
+            "copy-lint".to_string(),
+            "verdict-2".to_string()
+        ])
+    );
+}
+
+#[test]
+fn inspect_reads_a_verdict_round_from_the_agent_id() {
+    let text = r#"{"id":"rounds","nodes":[
+        {"provider":"verdict-1"},
+        {"provider":"verdict-12"},
+        {"provider":"verdict-x"},
+        {"provider":"verdict-"}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(info.roles["verdict-1"], Role::Verdict(1));
+    assert_eq!(info.roles["verdict-12"], Role::Verdict(12));
+    assert_eq!(info.roles["verdict-x"], Role::Findings);
+    assert_eq!(info.roles["verdict-"], Role::Findings);
+}
+
+#[test]
+fn inspect_unions_the_workers_two_dynamic_nodes_list_for_one_id() {
+    let text = r#"{"id":"union","nodes":[
+        {"id":"a","type":"ai-dynamic","agentStrategy":{"mode":"dynamic","bootstrapProvider":"vibe",
+            "availableAgents":[{"provider":"claude"},{"provider":"agy"}]}},
+        {"id":"b","type":"ai-dynamic","agentStrategy":{"mode":"dynamic","bootstrapProvider":"vibe",
+            "availableAgents":[{"provider":"agy"},{"provider":"grok"}]}}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    let workers = vec!["claude".to_string(), "agy".to_string(), "grok".to_string()];
+    assert_eq!(info.roles["vibe"], Role::Dynamic(workers.clone()));
+    assert_eq!(info.roles["agy"], Role::Dynamic(workers));
+}
+
+#[test]
+fn inspect_falls_back_to_the_node_provider_without_a_strategy() {
+    let text = r#"{"id":"fallback","nodes":[
+        {"id":"a","type":"ai-dynamic","provider":"vibe"},
+        {"id":"b","type":"ai-dynamic","agentStrategy":{"mode":"dynamic"}},
+        {"id":"c","type":"ai-dynamic","agentStrategy":5}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(
+        info.nodes,
+        vec![
+            node("a", Some("vibe"), false),
+            node("b", None, false),
+            node("c", None, false),
+        ]
+    );
+    assert_eq!(info.roles["vibe"], Role::Findings);
+}
+
+/// The graph the verdict tests walk: round 1 fails into a repair node, round 2
+/// fails into a manual check.
+fn verdict_graph() -> WorkflowInfo {
+    graph(
+        vec![
+            node("verdict-1", Some("verdict-1"), false),
+            node("repair", Some("vibe"), false),
+            node("verdict-2", Some("verdict-2"), false),
+            node("check", None, true),
+        ],
+        vec![
+            edge("verdict-1", "verdict-2", "success"),
+            edge("verdict-1", "repair", "failure"),
+            edge("repair", "verdict-2", "success"),
+            edge("verdict-2", "$end", "success"),
+            edge("verdict-2", "check", "failure"),
+            edge("check", "$end", "success"),
+        ],
+        &[
+            ("verdict-1", Role::Verdict(1)),
+            ("verdict-2", Role::Verdict(2)),
+            ("vibe", Role::Answer),
+        ],
+    )
+}
+
+#[test]
+fn walk_fails_a_verdict_round_up_to_the_actionable_count() {
+    let info = verdict_graph();
+    assert_eq!(
+        walk(&info, "verdict-1", "actionable=1"),
+        Walk {
+            exit: 0,
+            failed: Some("verdict-1".to_string()),
+            failures: vec!["verdict-1".to_string()],
+            visited: vec![
+                "verdict-1".to_string(),
+                "repair".to_string(),
+                "verdict-2".to_string()
+            ],
+        }
+    );
+    // Round 2 fails too, and its failure reaches the manual check.
+    for verdict in ["actionable=2", "actionable=3"] {
+        assert_eq!(
+            walk(&info, "verdict-1", verdict),
+            Walk {
+                exit: 2,
+                failed: Some("verdict-1".to_string()),
+                failures: vec!["verdict-1".to_string(), "verdict-2".to_string()],
+                visited: vec![
+                    "verdict-1".to_string(),
+                    "repair".to_string(),
+                    "verdict-2".to_string(),
+                    "check".to_string()
+                ],
+            },
+            "{}",
+            verdict
+        );
+    }
+    // A verdict that names no count fails no round.
+    assert_eq!(
+        walk(&info, "verdict-1", "clean").failures,
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn walk_never_fails_a_dynamic_node() {
+    let info = graph(
+        vec![node("critics", Some("vibe"), false)],
+        vec![
+            edge("critics", "$end", "success"),
+            edge("critics", "$end", "failure"),
+        ],
+        &[("vibe", Role::Dynamic(vec!["vibe".to_string()]))],
+    );
+    for verdict in [
+        "clean",
+        "needs-human",
+        "open-questions",
+        "actionable=3",
+        "fail",
+    ] {
+        assert_eq!(walk(&info, "critics", verdict).exit, 0, "{}", verdict);
+    }
+}
+
+/// The graph the actionable scenario test walks: three critic rounds, each
+/// failing into its own repair node.
+fn rounds_graph() -> WorkflowInfo {
+    graph(
+        vec![
+            node("verdict-1", Some("verdict-1"), false),
+            node("repair-1", Some("vibe"), false),
+            node("verdict-2", Some("verdict-2"), false),
+            node("repair-2", Some("vibe"), false),
+            node("verdict-3", Some("verdict-3"), false),
+            node("repair-3", Some("vibe"), false),
+        ],
+        vec![
+            edge("verdict-1", "verdict-2", "success"),
+            edge("verdict-1", "repair-1", "failure"),
+            edge("repair-1", "verdict-2", "success"),
+            edge("verdict-2", "verdict-3", "success"),
+            edge("verdict-2", "repair-2", "failure"),
+            edge("repair-2", "verdict-3", "success"),
+            edge("verdict-3", "$end", "success"),
+            edge("verdict-3", "repair-3", "failure"),
+            edge("repair-3", "$end", "success"),
+        ],
+        &[
+            ("verdict-1", Role::Verdict(1)),
+            ("verdict-2", Role::Verdict(2)),
+            ("verdict-3", Role::Verdict(3)),
+            ("vibe", Role::Answer),
+        ],
+    )
+}
+
+#[test]
+fn default_scenarios_prove_every_actionable_count() {
+    assert_eq!(
+        default_scenarios(&rounds_graph()),
+        vec![
+            spec("clean", "clean", 0),
+            spec("actionable-1", "actionable=1", 0),
+            spec("actionable-2", "actionable=2", 0),
+            spec("actionable-3", "actionable=3", 0),
+        ]
+    );
+}
+
+#[test]
+fn parse_scenario_reads_an_actionable_count() {
+    assert_eq!(
+        parse_scenario("actionable-2:actionable=2:1").expect("parsed"),
+        spec("actionable-2", "actionable=2", 1)
+    );
+}
+
+#[test]
+fn parse_scenario_rejects_an_actionable_count_that_is_not_a_number() {
+    let message = parse_scenario("a:actionable=x:1").expect_err("rejected");
+    assert!(
+        message.contains("unknown verdict `actionable=x`"),
+        "{}",
+        message
+    );
+    assert!(message.contains("actionable=N"), "{}", message);
 }
 
 #[test]
