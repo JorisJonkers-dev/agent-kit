@@ -132,7 +132,7 @@ class Machine:
         return result
 
     def grant(self, starts: int) -> None:
-        """The owner's grant for this run: its cap counts Codex node starts."""
+        """The owner's grant for this run: max_starts counts Codex node starts, cap_usd stays dollars."""
         self.gateway_call("workflow", "start", "--json", json.dumps({"name": RUN_NAME}))
         self.gateway_call(
             "grant",
@@ -142,7 +142,8 @@ class Machine:
                 {
                     "workflow": RUN_NAME,
                     "client": "codex",
-                    "cap_usd": starts,
+                    "cap_usd": 5,
+                    "max_starts": starts,
                     "question": "may the proof run spend Codex node starts?",
                     "answer": f"yes, {starts} of them",
                 }
@@ -214,6 +215,29 @@ def test_a_live_grant_lets_the_node_reserve_one_start(machine: Machine) -> None:
     assert set(report) >= REPORT_KEYS and report["exit_code"] == 0 and "failed_check" not in report
     reserved = machine.reservations()
     assert len(reserved) == 1 and reserved[0]["workflow"] == RUN_NAME and reserved[0]["client"] == "codex"
+
+
+def test_a_grant_for_dollars_allows_no_starts_and_cap_usd_is_never_a_start_count(machine: Machine) -> None:
+    machine.gateway_call("workflow", "start", "--json", json.dumps({"name": RUN_NAME}))
+    machine.gateway_call(
+        "grant",
+        "write",
+        "--json",
+        json.dumps(
+            {
+                "workflow": RUN_NAME,
+                "client": "codex",
+                "cap_usd": 50,
+                "question": "may the proof spend dollars?",
+                "answer": "yes, fifty",
+            }
+        ),
+    )
+    done = machine.check("codex-1")
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert _report(machine.reports / "codex-1")["failed_check"] == "grant-reserve"
+    assert "max_starts" in done.stderr
+    assert machine.reservations() == []
 
 
 def test_a_run_with_no_grant_is_refused(machine: Machine) -> None:

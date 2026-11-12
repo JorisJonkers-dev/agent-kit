@@ -247,7 +247,8 @@ prefixed `gold-band-run-start:`:
   gateway's grants record (`model-gateway-grants.json`): client `codex`, that
   workflow, not ended, and not past `expires_at`. The refusal names the nodes
   and prints the `model-gateway grant write --json` call to ask the owner with.
-  The cap counts Codex node starts in the per-node grant check, not here.
+  The grant's `max_starts` counts Codex node starts in the per-node grant
+  check, not here.
 
 Exit codes: `0` every check passed, `1` refused, `2` bad usage or unreadable
 input (a missing file, malformed JSON, a directory that is not a repository).
@@ -272,12 +273,15 @@ gold-band-run-start grant-check --repo DIR --workflow-name NAME --run-id ID \
 It names the run's gateway workflow `<workflow name>@<host/owner/repo>@<run
 id>` (the `@` is allowed in a gateway workflow name for this) and calls the
 TypeScript gateway, `model-gateway grant reserve`, which holds one Codex node
-start against that run's grant. A Gold Band grant's `cap_usd` counts node
-starts, one per start, because the gateway never sees Gold Band spend. The
+start against that run's grant. A Gold Band grant counts node starts in its own
+field, `max_starts` (`grant write --max-starts N`, or `"max_starts"` in the
+object), because the gateway never sees Gold Band spend; `cap_usd` stays dollars
+and is never read as a start count, and a grant without `max_starts` makes the
+reservation fail with `no-max-starts` (spec #392 story 17). The
 reservation is decided and written inside the gateway's ledger lock, so two
 parallel Codex nodes cannot both take the grant's last start; a reservation
-holds for about a minute and then settles as a spent start, so none is given
-back (a wrapper that reserves and then crashes before it reports still used a
+holds for about a minute and then settles, and a settled start still counts, so
+none is given back (a wrapper that reserves and then crashes before it reports still used a
 start). The gateway keys a start by workflow, node and attempt, so a node whose
 agent runs the wrapper twice still holds one. The grant is read just before the
 ledger lock is taken, so a grant that lapses in those few milliseconds is caught
@@ -287,10 +291,10 @@ Only the gateway's own `status: ok` passes (exit 0, the report
 `<report-dir>/grant-check.json`, the grant and the starts left printed). The
 node fails otherwise, which a workflow routes by a failure edge to a manual
 check, so a run never goes on to Codex past its grant: exit 1 with
-`failed_check` `grant-lapsed` (no grant, or it lapsed by time, workflow end or
-spent cap), `grant-no-start-left` (a live grant with every start held or
-spent) or `grant-reserve` (any other gateway answer, a gateway that cannot be
-started or prints no JSON); `repository-rule` when the repository has no remote
+`failed_check` `grant-lapsed` (no grant, or it lapsed by time or workflow
+end), `grant-no-start-left` (a live grant with every `max_starts` start taken)
+or `grant-reserve` (any other gateway answer, such as `no-max-starts` for a
+grant written for dollars, a gateway that cannot be started or prints no JSON); `repository-rule` when the repository has no remote
 to name the run by. The gateway is `--gateway`, else `GOLD_BAND_MODEL_GATEWAY`,
 else `model-gateway` on `PATH`. `tests/test_gold_band_grant_check.py` proves it
 against the real gateway bundle in a throw-away configuration: a grant that

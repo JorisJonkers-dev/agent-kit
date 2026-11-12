@@ -30,6 +30,12 @@ export interface Grant {
   /** The metered-employer client the owner allowed, `codex` today. */
   readonly client: string
   readonly cap_usd: number
+  /**
+   * How many Codex node starts a Gold Band run may take under this grant; absent
+   * for a grant written for dollars. `grant reserve` counts against this field
+   * only and never against `cap_usd`.
+   */
+  readonly max_starts?: number
   /** The question the owner was asked. */
   readonly question: string
   /** What the owner answered. */
@@ -104,8 +110,15 @@ function parseGrant(raw: unknown, index: number): Grant {
     workflow: requireString(raw.workflow, `${where}.workflow`),
     written_at: requireTimestamp(raw.written_at, `${where}.written_at`),
   }
-  if (raw.ended_at === undefined) return grant
-  return { ...grant, ended_at: requireTimestamp(raw.ended_at, `${where}.ended_at`) }
+  const withStarts = raw.max_starts === undefined ? grant : { ...grant, max_starts: requireStarts(raw.max_starts, `${where}.max_starts`) }
+  if (raw.ended_at === undefined) return withStarts
+  return { ...withStarts, ended_at: requireTimestamp(raw.ended_at, `${where}.ended_at`) }
+}
+
+/** A count of node starts: a whole number above 0. */
+export function requireStarts(value: unknown, where: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) throw invalid(`${where} must be a whole number above 0`)
+  return value
 }
 
 function requireString(value: unknown, where: string): string {
@@ -161,6 +174,7 @@ export function newGrant(args: {
   readonly workflow: string
   readonly client: string
   readonly cap_usd: number
+  readonly max_starts?: number
   readonly question: string
   readonly answer: string
   readonly written_at: Date
@@ -172,6 +186,7 @@ export function newGrant(args: {
     client: args.client,
     expires_at: expiryOf(args.written_at, args.workflowRecord),
     id: args.id,
+    ...(args.max_starts === undefined ? {} : { max_starts: args.max_starts }),
     question: args.question,
     workflow: args.workflow,
     written_at: args.written_at.toISOString(),

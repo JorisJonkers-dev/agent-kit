@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 
-import { fits, reservationRecord, settleExpired, usd } from '../domain/caps.js'
+import { reservationRecord, settleExpired, usd } from '../domain/caps.js'
 import { isObject, ModelGatewayError } from '../domain/config.js'
 import {
   grantId,
@@ -12,7 +12,6 @@ import {
   newGrant,
   noGrantMessage,
   type Grant,
-  type GrantRoom,
   type GrantView,
   type LapsedGrant,
 } from '../domain/grants.js'
@@ -30,6 +29,8 @@ export interface GrantWriteInput {
   readonly workflow: string
   readonly client: string
   readonly cap_usd: number
+  /** Codex node starts a Gold Band run may take under the grant; omitted for a dollar grant. */
+  readonly max_starts?: number
   readonly question: string
   readonly answer: string
 }
@@ -58,7 +59,7 @@ export interface GrantReserveInput {
   readonly attempt: number
 }
 
-/** One Codex node start held against a grant, and what the grant has left in node starts. */
+/** One Codex node start held against a grant's `max_starts`, and what the grant has left. */
 export interface NodeStartReservation {
   readonly run_id: string
   readonly workflow: string
@@ -70,13 +71,11 @@ export interface NodeStartReservation {
   /** The grant the start is held against. */
   readonly grant: string
   readonly reserved_at: string
-  /** The grant's cap, in node starts. */
-  readonly cap: number
-  /** The starts the grant has spent, this one not among them yet. */
-  readonly spent: number
-  /** The starts the grant holds, this one included. */
-  readonly reserved: number
-  /** The starts the grant has left, this one taken. */
+  /** The grant's `max_starts`. */
+  readonly max_starts: number
+  /** The starts taken under the grant since it was written, this one included. */
+  readonly started: number
+  /** The starts the grant has left. */
   readonly remaining: number
 }
 
@@ -86,9 +85,11 @@ export interface GrantReserveResult {
   readonly reservation: NodeStartReservation
 }
 
-/** What one Codex node start holds against a Gold Band grant: one unit of its cap, for the minute it holds. */
-const NODE_START_ESTIMATE_USD = 1
+/** A node start costs no dollars: it is counted against `max_starts`, never against `cap_usd`. */
+const NODE_START_ESTIMATE_USD = 0
 const NODE_START_TIME_LIMIT_S = 1
+/** The `model` a node start's ledger line carries, which is how starts are counted. */
+const NODE_START_MODEL = 'node-start'
 
 /**
  * Writes the grant the owner gave: the agent asks first, then records the
@@ -229,7 +230,7 @@ export class GrantReserveCommand implements ModelGatewayCommand<unknown, GrantRe
       client: input.client,
       cost_class: 'metered-employer',
       estimate_usd: NODE_START_ESTIMATE_USD,
-      model: 'node-start',
+      model: NODE_START_MODEL,
       reserved_at: now,
       // A start has no run directory of its own, and a path that holds no result is one no settle reads a cost from.
       run_dir: join(stateDir(this.deps.env), 'node-starts', runId),
@@ -242,20 +243,28 @@ export class GrantReserveCommand implements ModelGatewayCommand<unknown, GrantRe
       const all = [...entries, ...settled]
       // A node that asks again for its own attempt (an agent may run its wrapper twice) already holds its start, held or settled: nothing more is taken.
       const repeated = all.some((entry) => (isReservation(entry) || isSettled(entry)) && entry.run_id === runId)
-      const grant = startGrant(grants, input, all, record, now, repeated)
-      const room = grantRoom(all, grant)
-      if (repeated) {
-        return { append: settled, result: startResult(grant, input, runId, reservation.reserved_at, room, true) }
-      }
-      const start = { limit_usd: grant.cap_usd, reserved_usd: room.reserved_usd, spent_usd: room.spent_usd }
-      if (!fits(start, NODE_START_ESTIMATE_USD)) {
+      const grant = startGrant(grants, input, record, now)
+      const maxStarts = grant.max_starts
+      if (maxStarts === undefined) {
         throw new ModelGatewayError(
-          'cap-exceeded',
-          `grant ${grant.id} allows ${String(grant.cap_usd)} Codex node starts for workflow ${input.workflow}: ${String(room.spent_usd)} started, ${String(room.reserved_usd)} reserved, no start left for node ${input.node}`,
+          'no-max-starts',
+          `grant ${grant.id} for workflow ${input.workflow} has no max_starts, so it allows no Codex node starts: ask the owner for a grant written with max_starts`,
         )
       }
-      const held = grantRoom([...all, reservation], grant)
-      return { append: [...settled, reservation], result: startResult(grant, input, runId, reservation.reserved_at, held, false) }
+      const started = startsTaken(all, grant)
+      if (repeated) {
+        return { append: settled, result: startResult(grant, input, runId, reservation.reserved_at, maxStarts, started, true) }
+      }
+      if (started >= maxStarts) {
+        throw new ModelGatewayError(
+          'cap-exceeded',
+          `grant ${grant.id} allows ${String(maxStarts)} Codex node starts for workflow ${input.workflow}: ${String(started)} taken, no start left for node ${input.node}`,
+        )
+      }
+      return {
+        append: [...settled, reservation],
+        result: startResult(grant, input, runId, reservation.reserved_at, maxStarts, started + 1, false),
+      }
     })
   }
 }
@@ -266,26 +275,39 @@ function startResult(
   input: GrantReserveInput,
   runId: string,
   reservedAt: string,
-  room: GrantRoom,
+  maxStarts: number,
+  started: number,
   repeated: boolean,
 ): GrantReserveResult {
   return {
     reservation: {
       attempt: input.attempt,
-      cap: grant.cap_usd,
       client: input.client,
       grant: grant.id,
+      max_starts: maxStarts,
       node: input.node,
-      remaining: room.remaining_usd,
+      remaining: maxStarts - started,
       repeated,
-      reserved: room.reserved_usd,
       reserved_at: reservedAt,
       run_id: runId,
-      spent: room.spent_usd,
+      started,
       workflow: input.workflow,
     },
     status: 'ok',
   }
+}
+
+/** The node starts the ledger holds for a grant's workflow and client since the grant was written, held or settled. */
+function startsTaken(entries: readonly LedgerEntry[], grant: Grant): number {
+  const since = Date.parse(grant.written_at)
+  return entries.filter(
+    (entry) =>
+      isReservation(entry) &&
+      entry.model === NODE_START_MODEL &&
+      entry.client === grant.client &&
+      entry.workflow === grant.workflow &&
+      Date.parse(entry.reserved_at) >= since,
+  ).length
 }
 
 /** The id of the one start a workflow's node and attempt may hold: the same node asking again finds its own reservation. */
@@ -295,31 +317,22 @@ function startId(input: GrantReserveInput): string {
 }
 
 /**
- * The grant a node start is held against: the newest live grant for the
- * workflow and client, or a `no-grant` refusal naming the newest grant and why
+ * The grant a node start is held against: the newest grant for the
+ * workflow and client, when it has not lapsed, or a `no-grant` refusal naming the newest grant and why
  * it lapsed, or the `grant write` call that would add one.
  */
-function startGrant(
-  grants: readonly Grant[],
-  input: GrantReserveInput,
-  entries: readonly LedgerEntry[],
-  record: WorkflowRecord | undefined,
-  now: Date,
-  repeated: boolean,
-): Grant {
+function startGrant(grants: readonly Grant[], input: GrantReserveInput, record: WorkflowRecord | undefined, now: Date): Grant {
   const newest = newestGrant(grants, input.workflow, input.client)
   if (newest === undefined) throw new ModelGatewayError('no-grant', noGrantMessage(input.workflow, input.client))
-  const lapse = grantLapse(newest, grantRoom(entries, newest), record, now)
-  // A node that already holds its start is not refused because that start (or the one before it) spent the cap.
-  if (lapse === undefined || (repeated && lapse === 'cap-spent')) return newest
-  const live = liveGrant(grants, input.workflow, input.client, entries, record, now)
-  if (live === undefined) {
+  // Spent dollars (`cap-spent`) say nothing about starts: only the grant's end, its 24 hours and its workflow's end lapse it here.
+  const lapse = grantLapse(newest, { grant: newest, remaining_usd: 0, reserved_usd: 0, spent_usd: 0 }, record, now)
+  if (lapse !== undefined) {
     throw new ModelGatewayError(
       'no-grant',
       `grant ${newest.id} for workflow ${input.workflow} has lapsed (${lapse}): ask the owner for a new grant`,
     )
   }
-  return live
+  return newest
 }
 
 /** The grant the owner wrote last for a workflow and client, live or not; undefined when there is none. */
@@ -416,10 +429,15 @@ function readGrantInput(raw: unknown): GrantWriteInput {
   if (typeof cap !== 'number' || !Number.isFinite(cap) || cap <= 0) {
     throw new ModelGatewayError('invalid-input', 'cap_usd must be a number above 0')
   }
+  const starts = raw.max_starts
+  if (starts !== undefined && (typeof starts !== 'number' || !Number.isInteger(starts) || starts <= 0)) {
+    throw new ModelGatewayError('invalid-input', 'max_starts must be a whole number above 0')
+  }
   return {
     answer: requireText(raw.answer, 'answer'),
     cap_usd: cap,
     client: requireText(raw.client, 'client'),
+    ...(starts === undefined ? {} : { max_starts: starts }),
     question: requireText(raw.question, 'question'),
     workflow: requireWorkflowName(raw.workflow, 'a grant must name its workflow'),
   }

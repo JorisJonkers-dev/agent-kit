@@ -753,18 +753,20 @@ because of that warning — the grant stands.
 
 `grant reserve` is the Gold Band work instance's per-node grant check. A Gold
 Band run counts as one workflow, named `<gold band workflow>@<repository>@<run
-id>`, and its grant's `cap_usd` counts Codex node starts (one unit per start),
-because the gateway never sees Gold Band spend. Before every Codex node,
+id>`, and its grant's `max_starts` counts Codex node starts (one per start),
+because the gateway never sees Gold Band spend. `grant write` takes it as
+`"max_starts"` or `--max-starts N`; `cap_usd` stays dollars and is never read as
+a start count. Before every Codex node,
 `grant reserve --json '{"workflow":"<name>","client":"codex","node":"<node id>","attempt":1}'`
 holds one start (a node and attempt that ask again hold the one start,
 `"repeated": true`) against the grant and prints `{"status":"ok","reservation":{...}}`
-with `cap`, `spent`, `reserved` and `remaining` in starts. The decision and the
+with `max_starts`, `started` (this one included) and `remaining`. The decision and the
 reservation line are one locked ledger update, so two parallel nodes cannot both
-take the last start. A reservation holds for about a minute and then settles at
-its full estimate: a start is never given back. It refuses `cap-exceeded` when
-no start is left, and `no-grant` when no grant covers the workflow or the newest
-one lapsed (its message names the grant and why: `workflow-ended`, `expired` or
-`cap-spent`). The workflow need not have a record. The shim that calls it is
+take the last start. A reservation holds for about a minute and then settles; a settled start still
+counts, so a start is never given back. It refuses `cap-exceeded` when no start
+is left, `no-max-starts` when the grant has no `max_starts`, and `no-grant` when no grant covers the workflow or the newest
+one lapsed (its message names the grant and why: `workflow-ended` or
+`expired`). The workflow need not have a record. The shim that calls it is
 `gold-band-run-start grant-check`.
 
 `grant list` prints `{"status":"ok","grants":[...],"lapsed":[...]}`. Each live

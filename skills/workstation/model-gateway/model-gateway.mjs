@@ -1570,8 +1570,13 @@ function parseGrant(raw, index) {
     workflow: requireString3(raw.workflow, `${where}.workflow`),
     written_at: requireTimestamp2(raw.written_at, `${where}.written_at`)
   };
-  if (raw.ended_at === void 0) return grant;
-  return { ...grant, ended_at: requireTimestamp2(raw.ended_at, `${where}.ended_at`) };
+  const withStarts = raw.max_starts === void 0 ? grant : { ...grant, max_starts: requireStarts(raw.max_starts, `${where}.max_starts`) };
+  if (raw.ended_at === void 0) return withStarts;
+  return { ...withStarts, ended_at: requireTimestamp2(raw.ended_at, `${where}.ended_at`) };
+}
+function requireStarts(value, where) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) throw invalid3(`${where} must be a whole number above 0`);
+  return value;
 }
 function requireString3(value, where) {
   if (typeof value !== "string" || value === "") throw invalid3(`${where} must be a non-empty string`);
@@ -1605,6 +1610,7 @@ function newGrant(args) {
     client: args.client,
     expires_at: expiryOf2(args.written_at, args.workflowRecord),
     id: args.id,
+    ...args.max_starts === void 0 ? {} : { max_starts: args.max_starts },
     question: args.question,
     workflow: args.workflow,
     written_at: args.written_at.toISOString()
@@ -2981,8 +2987,9 @@ function round2(value, places) {
 // src/contexts/model-gateway/application/grants.ts
 import { createHash, randomBytes as randomBytes2 } from "node:crypto";
 import { join as join5 } from "node:path";
-var NODE_START_ESTIMATE_USD = 1;
+var NODE_START_ESTIMATE_USD = 0;
 var NODE_START_TIME_LIMIT_S = 1;
+var NODE_START_MODEL = "node-start";
 var GrantWriteCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -3095,7 +3102,7 @@ var GrantReserveCommand = class {
       client: input.client,
       cost_class: "metered-employer",
       estimate_usd: NODE_START_ESTIMATE_USD,
-      model: "node-start",
+      model: NODE_START_MODEL,
       reserved_at: now,
       // A start has no run directory of its own, and a path that holds no result is one no settle reads a cost from.
       run_dir: join5(stateDir(this.deps.env), "node-starts", runId2),
@@ -3107,59 +3114,70 @@ var GrantReserveCommand = class {
       const settled = settleExpired(entries, now, costs);
       const all = [...entries, ...settled];
       const repeated = all.some((entry) => (isReservation(entry) || isSettled(entry)) && entry.run_id === runId2);
-      const grant = startGrant(grants, input, all, record, now, repeated);
-      const room2 = grantRoom(all, grant);
-      if (repeated) {
-        return { append: settled, result: startResult(grant, input, runId2, reservation.reserved_at, room2, true) };
-      }
-      const start = { limit_usd: grant.cap_usd, reserved_usd: room2.reserved_usd, spent_usd: room2.spent_usd };
-      if (!fits(start, NODE_START_ESTIMATE_USD)) {
+      const grant = startGrant(grants, input, record, now);
+      const maxStarts = grant.max_starts;
+      if (maxStarts === void 0) {
         throw new ModelGatewayError(
-          "cap-exceeded",
-          `grant ${grant.id} allows ${String(grant.cap_usd)} Codex node starts for workflow ${input.workflow}: ${String(room2.spent_usd)} started, ${String(room2.reserved_usd)} reserved, no start left for node ${input.node}`
+          "no-max-starts",
+          `grant ${grant.id} for workflow ${input.workflow} has no max_starts, so it allows no Codex node starts: ask the owner for a grant written with max_starts`
         );
       }
-      const held = grantRoom([...all, reservation], grant);
-      return { append: [...settled, reservation], result: startResult(grant, input, runId2, reservation.reserved_at, held, false) };
+      const started = startsTaken(all, grant);
+      if (repeated) {
+        return { append: settled, result: startResult(grant, input, runId2, reservation.reserved_at, maxStarts, started, true) };
+      }
+      if (started >= maxStarts) {
+        throw new ModelGatewayError(
+          "cap-exceeded",
+          `grant ${grant.id} allows ${String(maxStarts)} Codex node starts for workflow ${input.workflow}: ${String(started)} taken, no start left for node ${input.node}`
+        );
+      }
+      return {
+        append: [...settled, reservation],
+        result: startResult(grant, input, runId2, reservation.reserved_at, maxStarts, started + 1, false)
+      };
     });
   }
 };
-function startResult(grant, input, runId2, reservedAt, room2, repeated) {
+function startResult(grant, input, runId2, reservedAt, maxStarts, started, repeated) {
   return {
     reservation: {
       attempt: input.attempt,
-      cap: grant.cap_usd,
       client: input.client,
       grant: grant.id,
+      max_starts: maxStarts,
       node: input.node,
-      remaining: room2.remaining_usd,
+      remaining: maxStarts - started,
       repeated,
-      reserved: room2.reserved_usd,
       reserved_at: reservedAt,
       run_id: runId2,
-      spent: room2.spent_usd,
+      started,
       workflow: input.workflow
     },
     status: "ok"
   };
 }
+function startsTaken(entries, grant) {
+  const since = Date.parse(grant.written_at);
+  return entries.filter(
+    (entry) => isReservation(entry) && entry.model === NODE_START_MODEL && entry.client === grant.client && entry.workflow === grant.workflow && Date.parse(entry.reserved_at) >= since
+  ).length;
+}
 function startId(input) {
   const key = JSON.stringify([input.workflow, input.client, input.node, input.attempt]);
   return `start-${createHash("sha256").update(key).digest("hex").slice(0, 16)}`;
 }
-function startGrant(grants, input, entries, record, now, repeated) {
+function startGrant(grants, input, record, now) {
   const newest = newestGrant(grants, input.workflow, input.client);
   if (newest === void 0) throw new ModelGatewayError("no-grant", noGrantMessage(input.workflow, input.client));
-  const lapse = grantLapse(newest, grantRoom(entries, newest), record, now);
-  if (lapse === void 0 || repeated && lapse === "cap-spent") return newest;
-  const live = liveGrant(grants, input.workflow, input.client, entries, record, now);
-  if (live === void 0) {
+  const lapse = grantLapse(newest, { grant: newest, remaining_usd: 0, reserved_usd: 0, spent_usd: 0 }, record, now);
+  if (lapse !== void 0) {
     throw new ModelGatewayError(
       "no-grant",
       `grant ${newest.id} for workflow ${input.workflow} has lapsed (${lapse}): ask the owner for a new grant`
     );
   }
-  return live;
+  return newest;
 }
 function newestGrant(grants, workflow, client) {
   let newest;
@@ -3232,10 +3250,15 @@ function readGrantInput(raw) {
   if (typeof cap !== "number" || !Number.isFinite(cap) || cap <= 0) {
     throw new ModelGatewayError("invalid-input", "cap_usd must be a number above 0");
   }
+  const starts = raw.max_starts;
+  if (starts !== void 0 && (typeof starts !== "number" || !Number.isInteger(starts) || starts <= 0)) {
+    throw new ModelGatewayError("invalid-input", "max_starts must be a whole number above 0");
+  }
   return {
     answer: requireText(raw.answer, "answer"),
     cap_usd: cap,
     client: requireText(raw.client, "client"),
+    ...starts === void 0 ? {} : { max_starts: starts },
     question: requireText(raw.question, "question"),
     workflow: requireWorkflowName(raw.workflow, "a grant must name its workflow")
   };
@@ -5342,7 +5365,7 @@ var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/t
                                   "prompt": "review a's finding", "repo": "/path/to/repo"}]}'
        model-gateway grant write --json '{"workflow": "spec-293", "client": "codex",
                                  "cap_usd": 5, "question": "may I spend $5 of nedap money?",
-                                 "answer": "yes, up to five"}'
+                                 "answer": "yes, up to five"}' [--max-starts N]
        model-gateway grant reserve --json '{"workflow": "spec-293", "client": "codex",
                                  "node": "codex-1"}'
        model-gateway grant list --json '{}'
@@ -5481,17 +5504,19 @@ hours counts as ended, and a run may not join one that ended.
 
 grant reserve holds one Codex node start against a workflow's grant, before the
 node starts: a Gold Band run names its workflow, its repository and its run id,
-and its grant's "cap_usd" counts node starts, one per reservation, so the
-reservation is what lets the node start. It takes "workflow", "client" (a
+and its grant's "max_starts" (grant write --max-starts N, or "max_starts" in
+its object) counts node starts, one per reservation, so the reservation is what
+lets the node start. The dollar "cap_usd" is never read as a start count. It takes "workflow", "client" (a
 metered-employer one), "node" and "attempt" (default 1; a node and attempt that
 ask again hold the one start), and prints the reservation with the grant's
-cap, what it has spent and reserved and what it has left, all in node starts.
+"max_starts", the starts taken so far (this one included) and the starts left.
 The decision and the reservation line are one locked ledger update, so two
 parallel nodes cannot both pass on the grant's last start; the reservation
-holds for about a minute and then settles at its full estimate, so a start is
-never given back. It refuses with "no-grant" when no grant covers the workflow
-and client, or when the newest one lapsed (naming the grant and why), and with
-"cap-exceeded" when no start is left. The workflow need not have a record: a
+holds for about a minute and then settles, and a settled start still counts, so
+a start is never given back. It refuses with "no-grant" when no grant covers
+the workflow and client, or when the newest one lapsed (naming the grant and
+why), with "no-max-starts" when the grant has no "max_starts" (a grant for
+dollars allows no starts), and with "cap-exceeded" when no start is left. The workflow need not have a record: a
 Gold Band run is not necessarily a workflow this machine started.
 
 An error prints "status": "error" with its "code" and exits 1.
@@ -5517,12 +5542,17 @@ async function runModelGatewayCli(argv, runtime) {
   if (named === void 0) {
     return failure("unknown-command", `unknown subcommand ${unknownSubcommand(argv)}; the gateway has ${COMMAND_NAMES}`);
   }
-  const { args, method, name } = named;
-  const input = parseArguments(args);
-  if (input === void 0) return failure("invalid-input", `${name} takes one of --json '<object>' or --input <file>`, name);
+  const { method, name } = named;
+  const split = name === "grant write" ? withoutMaxStarts(named.args) : { args: named.args };
+  const input = split === void 0 ? void 0 : parseArguments(split.args);
+  if (input === void 0) {
+    const extra = name === "grant write" ? ", and may take --max-starts <whole number>" : "";
+    return failure("invalid-input", `${name} takes one of --json '<object>' or --input <file>${extra}`, name);
+  }
   try {
     const text = "json" in input ? input.json : await readInput(runtime, input.input);
-    const result2 = await runtime.commands[method].run(parseInput(text));
+    const parsed = parseInput(text);
+    const result2 = await runtime.commands[method].run(split?.maxStarts === void 0 ? parsed : { ...parsed, max_starts: split.maxStarts });
     return { exitCode: 0, stderr: "", stdout: `${JSON.stringify(result2, null, 2)}
 ` };
   } catch (error) {
@@ -5544,6 +5574,14 @@ function unknownSubcommand(argv) {
   if (first === void 0) return "(none)";
   const grouped = Object.keys(COMMANDS).some((name) => name.startsWith(`${first} `));
   return grouped ? `"${`${first} ${second ?? ""}`.trim()}"` : `"${first}"`;
+}
+function withoutMaxStarts(args) {
+  const at = args.indexOf("--max-starts");
+  if (at === -1) return { args };
+  const value = args[at + 1];
+  const rest = [...args.slice(0, at), ...args.slice(at + 2)];
+  if (value === void 0 || rest.includes("--max-starts")) return void 0;
+  return { args: rest, maxStarts: /^\d+$/.test(value) ? Number(value) : value };
 }
 function parseArguments(args) {
   const [flag, value, ...rest] = args;
