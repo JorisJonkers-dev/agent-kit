@@ -1,0 +1,13 @@
+[package]
+name = "ticket-publish"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Publishes drafted tickets as issues in the tracker the repository's own setup file names."
+
+# Registry dependencies are pinned exactly, each at a version at least seven
+# days old (docs/RUST.md); crate-age checks every transitive version.
+[dependencies]
+serde_json = "=1.0.154"
+serde_yaml = "=0.9.34"
+ticket-export = { path = "../ticket-export" }

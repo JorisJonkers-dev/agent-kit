@@ -7,8 +7,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use serde_json::{json, Value};
 
 use crate::stub::{
-    fenced_findings, findings_document, model_option, serve, serve_with_role, Role, Stub, FAIL,
-    MODELS_ENV, NEEDS_HUMAN, REPORT_DIR_ENV, ROLE_ENV, VERDICT_ENV,
+    fenced_findings, fenced_questions, findings_document, model_option, questions_document, serve,
+    serve_with_role, Role, Stub, FAIL, MODELS_ENV, NEEDS_HUMAN, OPEN_QUESTIONS, REPORT_DIR_ENV,
+    ROLE_ENV, VERDICT_ENV,
 };
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -80,6 +81,7 @@ fn the_environment_names_are_the_ones_gold_band_sets() {
     assert_eq!(ROLE_ENV, "STUB_ACP_ROLE");
     assert_eq!(REPORT_DIR_ENV, "STUB_ACP_REPORT_DIR");
     assert_eq!(NEEDS_HUMAN, "needs-human");
+    assert_eq!(OPEN_QUESTIONS, "open-questions");
     assert_eq!(FAIL, "fail");
 }
 
@@ -88,6 +90,8 @@ fn role_parse_reads_every_spelling() {
     assert_eq!(Role::parse(""), Role::Findings);
     assert_eq!(Role::parse("findings"), Role::Findings);
     assert_eq!(Role::parse(" answer "), Role::Answer);
+    assert_eq!(Role::parse("questions"), Role::Questions);
+    assert_eq!(Role::parse(" questions "), Role::Questions);
     assert_eq!(Role::parse("gate:build"), Role::Gate("build".to_string()));
     assert_eq!(Role::parse("copy:lint"), Role::Copy("lint".to_string()));
     assert_eq!(Role::parse("gate:"), Role::Findings);
@@ -99,11 +103,13 @@ fn role_parse_reads_every_spelling() {
 fn role_text_round_trips_through_parse() {
     assert_eq!(Role::Findings.as_text(), "findings");
     assert_eq!(Role::Answer.as_text(), "answer");
+    assert_eq!(Role::Questions.as_text(), "questions");
     assert_eq!(Role::Gate("build".to_string()).as_text(), "gate:build");
     assert_eq!(Role::Copy("lint".to_string()).as_text(), "copy:lint");
     for role in [
         Role::Findings,
         Role::Answer,
+        Role::Questions,
         Role::Gate("build".to_string()),
         Role::Copy("lint".to_string()),
     ] {
@@ -449,6 +455,40 @@ fn fenced_findings_wraps_the_pretty_document() {
 }
 
 #[test]
+fn open_questions_document_carries_the_marker_question() {
+    let document = questions_document(" open-questions ");
+    let question = &document["open_questions"][0];
+    assert_eq!(question["id"], "stub-question-1");
+    assert!(question["question"]
+        .as_str()
+        .unwrap()
+        .contains("manual check"));
+}
+
+#[test]
+fn questions_document_is_empty_for_another_verdict() {
+    assert_eq!(
+        questions_document(""),
+        json!({ "ok": true, "open_questions": [] })
+    );
+    assert_eq!(
+        questions_document(NEEDS_HUMAN),
+        json!({ "ok": true, "open_questions": [] })
+    );
+    assert_eq!(questions_document("anything else"), questions_document(""));
+}
+
+#[test]
+fn fenced_questions_wraps_the_pretty_document() {
+    let fenced = fenced_questions(OPEN_QUESTIONS);
+    let body = serde_json::to_string_pretty(&questions_document(OPEN_QUESTIONS)).unwrap();
+    assert_eq!(fenced, format!("```json\n{body}\n```"));
+    assert!(fenced.starts_with("```json\n{\n  \"ok\": true,"));
+    assert!(fenced.ends_with("\n```"));
+    assert!(fenced_questions("clean").contains("\"open_questions\": []"));
+}
+
+#[test]
 fn model_option_is_empty_without_models() {
     assert!(model_option("", None).is_empty());
     assert!(model_option(" , ,", None).is_empty());
@@ -501,6 +541,19 @@ fn the_answer_role_answers_ok() {
     assert_eq!(
         fenced_body(&prompt_text(&mut stub, "")),
         json!({ "ok": true })
+    );
+}
+
+#[test]
+fn the_questions_role_answers_the_open_questions_document() {
+    let mut stub = Stub::with_role(Role::Questions, String::new());
+    assert_eq!(
+        fenced_body(&prompt_text(&mut stub, OPEN_QUESTIONS)),
+        questions_document(OPEN_QUESTIONS)
+    );
+    assert_eq!(
+        fenced_body(&prompt_text(&mut stub, "clean")),
+        json!({ "ok": true, "open_questions": [] })
     );
 }
 
@@ -610,6 +663,7 @@ fn the_fail_verdict_fails_every_role() {
     let report_dir = dir.to_string_lossy().into_owned();
     for role in [
         Role::Answer,
+        Role::Questions,
         Role::Gate("build".to_string()),
         Role::Copy("build".to_string()),
     ] {

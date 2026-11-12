@@ -1,0 +1,18 @@
+version: 1
+tracker:
+  kind: github
+  repo: acme/kit
+labels:
+- "type: feature"
+- needs-triage
+- needs-info
+- ready-for-agent
+- ready-for-human
+- wontfix
+triage_labels:
+  needs-triage: needs-triage
+  needs-info: needs-info
+  ready-for-agent: ready-for-agent
+  ready-for-human: ready-for-human
+  wontfix: wontfix
+flaky_jobs: []

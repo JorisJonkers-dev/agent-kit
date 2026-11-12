@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Nineteen members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Twenty members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -34,6 +34,8 @@ on the Linux workstation.
   `crates/litellm-gate` is the node-side check that a LiteLLM per-key budget is
   not exhausted: one probe request through curl with the key on stdin, exit 1
   when the budget is spent or the proxy cannot be asked.
+  `crates/ticket-publish` is the publisher Workflow C's publish gate runs (below); it takes serde_json
+  and serde_yaml, each pinned exactly, and the workspace's own ticket-export.
   `crates/ticket-export` is the issue export wrapper (below); it takes serde_json
   and serde_yaml, each pinned exactly.
   `crates/transcript-mix` is the transcript tool-mix analyser (below), std-only
@@ -138,6 +140,28 @@ A missing issue, a closed blocker, an unreadable tracker or a missing setup file
 exits 1 with a message and writes no file. GitHub is reached only through a
 GET-only trait (the real one runs `gh api -X GET` under a timeout); the tests
 read recorded API answers from `crates/ticket-export/tests/fixtures`.
+
+## ticket-publish
+
+`ticket-publish` publishes the tickets Workflow C drafted, to the tracker the
+repository's own setup file names, and only that tracker.
+
+```bash
+cargo run --manifest-path scripts/Cargo.toml -p ticket-publish -- check <REPO_DIR>
+cargo run --manifest-path scripts/Cargo.toml -p ticket-publish -- publish <REPO_DIR> <TICKETS_FILE>
+```
+
+`check` exits 0 when `<REPO_DIR>/docs/agents/setup.yaml` is valid enough to
+publish to (version 1, a GitHub tracker, a non-empty label vocabulary) and 3
+otherwise; it sends nothing. `publish` reads `<TICKETS_FILE>`, JSON of the form
+`{"tickets":[{"title","body","labels"}]}`, validates it against the setup file
+first (every label must be in the file's `labels`) and refuses with exit 3,
+creating nothing, when the setup file or any ticket is invalid. It then creates
+one issue per ticket, in order, with `gh issue create` under a timeout, and
+prints each URL as it is created; a failure part way stops there with exit 1.
+Workflow C runs it through the gate shim, and only after the publication manual
+check (docs/GOLD-BAND.md). Tests fake the tracker behind a trait and run the
+real process seam against a fake `gh` script.
 
 ## transcript-mix
 

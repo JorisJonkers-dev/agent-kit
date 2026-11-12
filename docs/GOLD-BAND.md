@@ -388,6 +388,55 @@ exits 4. The gate agent ids are pinned to their commands, and the run
 arguments they need, by the later wiring tickets: the node goals name the
 command only.
 
+## Workflow C in the personal instance
+
+`installer/gold-band/workflows/workflow-c.json` is Workflow C, grill to tickets
+(spec #392, stories 93 and 104; issue #459), for the personal instance. It
+pauses on a manual check wherever the owner has to settle something:
+
+1. `gate-workflow-c-start` (the run-start shim, as in the critique templates)
+   and `gate-workflow-c-setup` (the gate shim around `ticket-publish check`)
+   run before any model node. A repository without a valid
+   `docs/agents/setup.yaml` ends the run in failure here.
+2. Up to three grill rounds, unrolled (`grill-round-1` to `grill-round-3`).
+   A round answers with its `open_questions`; an empty list goes on to the
+   spec, any other answer pauses on that round's `grill-check-<n>` manual
+   check, and the owner's answers feed the next round. After round three the
+   check hands over to the spec regardless.
+3. `spec-draft`, then the spec review (`/review-spec`), then `tickets-draft`
+   and the ticket review (`/review-tickets`). The review nodes are the
+   `critique-spec` and `critique-tickets` templates' own, unchanged (the
+   runner stays the executor, behind the gate shim), including the
+   `<stage>-needs-human` manual check for a finding the orchestrator cannot
+   settle. The tickets are drafted as `tickets.json`; no node holds a tracker
+   credential.
+4. `publication-check`, a manual check on every run. Only after the owner
+   passes it does `gate-workflow-c-publish` run `ticket-publish publish`
+   through the gate shim, which creates the tickets in the tracker the
+   repository's setup file names and refuses a label the file does not list.
+   The publish gate has no other incoming edge (a test asserts it), and the
+   publisher refuses a repository without the setup file again by itself.
+   Publishing is not idempotent: it does not look for issues that already
+   exist, so after a publish that stopped part way, check the tracker before
+   running it again.
+
+The spec and ticket drafts are written by a different family (Vibe, Mistral)
+from the orchestrator that rules on their review (Vibe-study, DeepSeek) and
+from the critics the runner picks. No node writes memory and none binds Codex
+or Opus; the grill rounds use Vibe GLM. The work-instance variant is a
+separate ticket.
+
+A headless run cannot continue past a manual check (`gold-band continue`
+refuses a run that waits for user input), so the proof proves each stretch of
+the workflow on its own: see "Segments" in [gold-band-proof.md](gold-band-proof.md).
+The proof pauses (exit 2) at a round with an open question
+(`open-questions`), at each needs-human check (`needs-human`, once for the spec
+review and once, in the `after-spec-needs-human` segment, for the ticket review)
+and at the publication check (`clean`); the publish gate and its failure are
+proved in the `after-publication-check` segment. What the proof does not check:
+that `ticket-publish` creates real issues (its tests fake `gh`), and that a
+real model asks sensible questions.
+
 ## The generated roles
 
 Gold Band reads a role as a **profile**: a Markdown file with YAML front
