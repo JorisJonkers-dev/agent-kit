@@ -943,7 +943,7 @@ def _gold_band_overlay_settings(
     document: dict[str, Any], settings: Any, notes: list[str]
 ) -> dict[str, Any]:
     """``document`` with each overlay setting set at its dotted path; a copy."""
-    result = json.loads(json.dumps(document))
+    result: dict[str, Any] = json.loads(json.dumps(document))
     for path, value in _flat_settings("", settings) if settings else []:
         head, *rest = path.split(".")
         if head in GOLD_BAND_OVERLAY_RESERVED:
@@ -975,7 +975,7 @@ def _gold_band_overlay_servers(
     document: dict[str, Any], servers: Any, notes: list[str]
 ) -> dict[str, Any]:
     """``document`` with each overlay MCP server upserted by id into ``contextServers``; a copy."""
-    result = json.loads(json.dumps(document))
+    result: dict[str, Any] = json.loads(json.dumps(document))
     current = result.get("contextServers")
     if current is None:
         current = []
