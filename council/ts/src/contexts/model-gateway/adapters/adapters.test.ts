@@ -1009,12 +1009,13 @@ describe('NodeModelGatewayGrants', () => {
     const config = join(root, 'config')
     const grants = new NodeModelGatewayGrants(new FakeEnv({ HOME: root, XDG_CONFIG_HOME: config }), new NodeModelGatewayGit())
     const written = grant()
-
-    await expect(grants.update((held) => ({ grant: written, grants: [...held, written] }))).rejects.toThrow(
-      new RegExp(
-        `${join(config, 'agent-kit', 'model-gateway-grants.json')} is inside the git repository ${await realpath(root)}: a grant lives in the machine configuration, never in a repository`,
-      ),
+    // Resolved before the call starts: awaiting inside the expect() arguments would leave the
+    // already-rejecting promise without a handler, which vitest reports as an unhandled rejection.
+    const expected = new RegExp(
+      `${join(config, 'agent-kit', 'model-gateway-grants.json')} is inside the git repository ${await realpath(root)}: a grant lives in the machine configuration, never in a repository`,
     )
+
+    await expect(grants.update((held) => ({ grant: written, grants: [...held, written] }))).rejects.toThrow(expected)
     await expect(readFile(join(config, 'agent-kit', 'model-gateway-grants.json'), 'utf8')).rejects.toThrow()
   })
 
@@ -1064,7 +1065,9 @@ describe('NodeModelGatewayGrants', () => {
     await git(root, 'init', '-q')
     const grants = new NodeModelGatewayGrants(new FakeEnv({ HOME: root }), new NodeModelGatewayGit())
 
-    await expect(grants.read()).rejects.toThrow(new RegExp(`is inside the git repository ${await realpath(root)}`))
+    const expected = new RegExp(`is inside the git repository ${await realpath(root)}`)
+
+    await expect(grants.read()).rejects.toThrow(expected)
   })
 
   it('names the file when it is not JSON', async () => {
