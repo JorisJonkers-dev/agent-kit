@@ -87,7 +87,7 @@ mod proof {
         let server = env!("CARGO_BIN_EXE_code-nav");
         let host = agent_launcher::this_os();
         let text = format!(
-            "agents:\n  code-nav:\n    command: [{server}]\n    levels:\n      read: {{support: {{linux: verified, mac: verified}}}}\n  sh:\n    command: [/bin/sh]\n    levels:\n      read: {{support: {{linux: verified, mac: verified}}}}\nids:\n  code-nav-read:\n    agent: code-nav\n    reach: read\n    hosts: [{host}]\n  sh-read:\n    agent: sh\n    reach: read\n    hosts: [{host}]\n"
+            "agents:\n  code-nav:\n    command: [\"{server}\"]\n    levels:\n      read: {{support: {{linux: verified, mac: verified}}}}\n  sh:\n    command: [/bin/sh]\n    levels:\n      read: {{support: {{linux: verified, mac: verified}}}}\nids:\n  code-nav-read:\n    agent: code-nav\n    reach: read\n    hosts: [{host}]\n  sh-read:\n    agent: sh\n    reach: read\n    hosts: [{host}]\n"
         );
         let file = base.join("meta/reach.yaml");
         fs::write(&file, text).unwrap();
@@ -128,6 +128,7 @@ mod proof {
         let (base, ws) = fixture();
         let repo = ws.join("repo");
         let record = record(&base);
+        let _ = fs::remove_file(std::env::current_dir().unwrap().join("code-nav-reach-probe"));
         let before = snapshot(&base);
 
         let root_arg = ws.clone().into_os_string();
@@ -211,7 +212,9 @@ mod proof {
             let said = String::from_utf8_lossy(&out.stdout).to_string();
             assert!(!out.status.success(), "a write to {} must fail at read reach", probe.display());
             assert!(said.contains("Permission denied") || said.contains("Operation not permitted"), "the operating system refused it: {said}");
-            assert!(!probe.exists(), "{} was created", probe.display());
+            let created = probe.exists();
+            let _ = fs::remove_file(probe);
+            assert!(!created, "{} was created", probe.display());
         }
         assert_eq!(snapshot(&base), before, "the control wrote nothing either");
         let _ = fs::remove_dir_all(&base);
