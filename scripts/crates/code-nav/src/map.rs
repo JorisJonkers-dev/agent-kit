@@ -17,7 +17,7 @@
 //! over [`MAX_FILE_BYTES`], anything that is not UTF-8 text, and stops after
 //! [`MAX_FILES`] files so a huge root cannot stall a call.
 
-use crate::boundary::is_secret;
+use crate::boundary::{is_secret, is_withheld};
 use crate::outline;
 use crate::search::{MAX_FILE_BYTES, SKIPPED_DIRS};
 use std::collections::HashMap;
@@ -130,7 +130,7 @@ fn path_order(a: &Path, b: &Path) -> std::cmp::Ordering {
 }
 
 /// The text of a file, or `None` when it cannot be read as UTF-8 text.
-fn read_text(path: &Path) -> Option<String> {
+pub(crate) fn read_text(path: &Path) -> Option<String> {
     fs::read_to_string(path).ok().filter(|text| !text.contains('\0'))
 }
 
@@ -145,7 +145,7 @@ fn has_no_nul_head(path: &Path) -> bool {
 }
 
 /// Collect the admissible regular files under `path` into `files`, up to `max_files`.
-fn visit(path: &Path, max_files: usize, files: &mut Vec<PathBuf>) {
+pub(crate) fn visit(path: &Path, max_files: usize, files: &mut Vec<PathBuf>) {
     if files.len() >= max_files {
         return;
     }
@@ -159,7 +159,7 @@ fn visit(path: &Path, max_files: usize, files: &mut Vec<PathBuf>) {
         children.sort();
         for child in children {
             let name = child.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-            if SKIPPED_DIRS.contains(&name.as_str()) || is_secret(Path::new(&name)) {
+            if SKIPPED_DIRS.contains(&name.as_str()) || is_secret(Path::new(&name)) || is_withheld(Path::new(&name)) {
                 continue;
             }
             visit(&child, max_files, files);

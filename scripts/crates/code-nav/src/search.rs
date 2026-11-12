@@ -16,7 +16,7 @@
 //! The walk skips symlinks, secret files, VCS and build directories, files
 //! over [`MAX_FILE_BYTES`] and anything that is not UTF-8 text.
 
-use crate::boundary::is_secret;
+use crate::boundary::{is_secret, is_withheld};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -89,7 +89,7 @@ fn visit(path: &Path, needle: &str, limit: usize, hits: &mut Vec<Hit>, total: &m
         children.sort();
         for child in children {
             let name = child.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-            if SKIPPED_DIRS.contains(&name.as_str()) || is_secret(Path::new(&name)) {
+            if SKIPPED_DIRS.contains(&name.as_str()) || is_secret(Path::new(&name)) || is_withheld(Path::new(&name)) {
                 continue;
             }
             visit(&child, needle, limit, hits, total);
