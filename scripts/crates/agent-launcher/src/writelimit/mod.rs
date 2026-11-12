@@ -302,7 +302,14 @@ fn worktree_dirs(worktree: &Path, other_configs: &[PathBuf]) -> Result<Layout, S
     // is refused above, but cheap to keep shut) and the alternates list.
     denied.push(admin.join("config.worktree"));
     denied.push(common.join("objects/info/alternates"));
-    let guarded = vec![dot_git, admin.join("commondir"), admin.join("gitdir")];
+    // `objects/info` holds the alternates file; the directory is kept from
+    // being removed and replaced (by a symlink, say) on a backend that can.
+    let guarded = vec![
+        dot_git,
+        admin.join("commondir"),
+        admin.join("gitdir"),
+        common.join("objects/info"),
+    ];
     Ok(Layout {
         dirs,
         guarded,

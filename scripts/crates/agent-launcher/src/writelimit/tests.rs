@@ -877,7 +877,8 @@ fn write_guards_the_files_that_locate_the_git_directory() {
         vec![
             t.worktree.join(".git"),
             t.admin.join("commondir"),
-            t.admin.join("gitdir")
+            t.admin.join("gitdir"),
+            t.common.join("objects/info")
         ]
     );
 }

@@ -282,7 +282,7 @@ locate the git directory (`.git`, `commondir`, `gitdir`) cannot be written,
 replaced or renamed at all; the shared `hooks`, the shared `config` and every
 effective `core.hooksPath` are denied; each granted directory itself cannot be
 renamed or removed (its contents stay writable), so a granted directory cannot be
-moved away and replaced; and `file-link` is denied, since a hard link to a hook
+moved away and replaced; and `file-link` is denied (so `git clone --local` and hard-link based tools fail under `write`), since a hard link to a hook
 made inside the worktree would otherwise be writable by its new name (the
 profile checks paths, not inodes). A symlink may be made, but a write through
 it is checked against where it leads. The layout check, the overlap check and the
@@ -297,8 +297,11 @@ own options. The profile also denies the worktree's `config.worktree` and the
 shared `objects/info/alternates`. Not covered, on either OS: the limit is a write
 limit, not a containment boundary against a hostile agent. Anything the agent can
 ask a process outside the sandbox to do (a launchd job, an Apple event, a
-`systemd --user` unit) is outside it, and files in the worktree that the
-owner's own tools run (`.envrc`, a `Makefile`, an editor task) are writable. CI runs this crate's
+`systemd --user` unit) is outside it, and git state files inside the
+granted git directory (`rebase-merge/git-rebase-todo` with an `exec` line), a
+repository nested in the worktree, a `core.hooksPath` set through a global
+git config's `include` (only the repository config's includes are refused),
+and files in the worktree that the owner's own tools run (`.envrc`, a `Makefile`, an editor task) are writable. CI runs this crate's
 tests on a macOS runner (the `Rust Tests (macos)` job), where the enforcement
 tests start a stub agent under the real `sandbox-exec`.
 

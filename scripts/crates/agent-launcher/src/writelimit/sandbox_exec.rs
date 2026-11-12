@@ -129,11 +129,16 @@ fn profile(policy: &Policy) -> Result<Profile, String> {
             }
         }
     }
-    let denied = policy
-        .denied
-        .iter()
-        .map(|p| canonical_or_planned(p))
-        .collect::<Result<Vec<_>, _>>()?;
+    // Each denied path is kept both as what it resolves to and by its own
+    // name, so a link at the name cannot be removed and replaced.
+    let mut denied = Vec::new();
+    for path in &policy.denied {
+        for form in [canonical_or_planned(path)?, entry(path)] {
+            if !denied.contains(&form) {
+                denied.push(form);
+            }
+        }
+    }
     let mut profile = Profile {
         text: String::new(),
         params: Vec::new(),

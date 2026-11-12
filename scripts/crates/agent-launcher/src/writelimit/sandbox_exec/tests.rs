@@ -101,6 +101,21 @@ fn a_guarded_link_is_protected_by_name_and_by_target() {
 }
 
 #[test]
+fn a_denied_link_is_kept_by_name_and_by_target() {
+    let root = scratch("denied-link");
+    fs::write(root.join("real"), "").unwrap();
+    symlink(root.join("real"), root.join("alternates")).unwrap();
+    let p = profile(&Policy {
+        denied: vec![root.join("alternates"), root.join("real")],
+        ..Policy::default()
+    })
+    .unwrap();
+    let denied: Vec<_> = p.params.iter().filter(|(n, _)| n.starts_with('X')).collect();
+    assert_eq!(denied.len(), 2, "{denied:?}");
+    assert!(denied.iter().any(|(_, v)| *v == root.join("alternates")));
+}
+
+#[test]
 fn a_path_that_cannot_be_resolved_is_refused() {
     let root = scratch("unresolvable");
     fs::write(root.join("file"), "").unwrap();
