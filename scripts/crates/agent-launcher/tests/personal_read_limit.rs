@@ -124,6 +124,7 @@ fn launcher(f: &Fixture, args: &[&str]) -> Command {
         .env("XDG_CONFIG_HOME", f.base.join("home/.config"))
         .env("TMPDIR", f.base.join("tmp"))
         .env("AGENT_KIT_STATE_DIRS", &f.state)
+        .env("AGENT_KIT_GATE_DIR", f.base.join("gate"))
         .env_remove("AGENT_KIT_OVERLAY")
         .env_remove("GIT_DIR");
     command
