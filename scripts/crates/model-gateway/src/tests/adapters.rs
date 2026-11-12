@@ -44,7 +44,7 @@ fn text(path: &Path) -> String {
 
 /// Runs the real git in `directory`, the way the adapter does.
 fn git(directory: &Path, args: &[&str]) {
-    let output = std::process::Command::new("git").arg("-C").arg(directory).args(args).output().expect("run git");
+    let output = std::process::Command::new("git").arg("-C").arg(directory).args(args).env("GIT_CONFIG_GLOBAL", "/dev/null").env("GIT_CONFIG_SYSTEM", "/dev/null").output().expect("run git");
     assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
 }
 
@@ -569,7 +569,7 @@ fn repository_with_a_commit(sandbox: &Sandbox) -> PathBuf {
     let repo = sandbox.path.join("repo");
     std::fs::create_dir_all(&repo).expect("repository folder");
     git(&repo, &["init", "-q", "-b", "main"]);
-    git(&repo, &["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "first"]);
+    git(&repo, &["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "first"]);
     repo
 }
 

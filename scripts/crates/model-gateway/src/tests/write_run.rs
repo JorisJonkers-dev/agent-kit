@@ -550,7 +550,8 @@ fn a_kept_list_that_cannot_take_the_worktree_removes_it_and_its_branch_and_propa
     let removed = calls.iter().find(|call| call.starts_with("remove /repo ")).expect("the worktree is removed");
     let branch = calls.iter().find(|call| call.starts_with("branch /repo gateway/")).expect("the branch is removed");
     assert!(removed.contains("/model-gateway/worktrees/"), "{removed}");
-    assert!(branch.contains("/model-gateway/worktrees/") || branch.starts_with("branch /repo gateway/"), "{branch}");
+    let run_id = removed.rsplit('/').next().expect("the run id");
+    assert_eq!(branch, &format!("branch /repo gateway/{run_id}"));
     assert!(write.process.commands().is_empty());
 }
 
