@@ -4097,10 +4097,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('ANTIGRAVITY_HOME="${HOME}/.gemini/config"')
     w("# The CLI reads skills from its own folder as well as the global one.")
     w('ANTIGRAVITY_CLI_HOME="${HOME}/.gemini/antigravity-cli"')
-    w("# 0 where Antigravity is not a supported surface: setup then skips it whole,")
-    w("# rather than leaving half of it behind in ~/.gemini.")
-    w("ANTIGRAVITY_READY=0")
-    w('[ "$(uname -s)" = Darwin ] && ANTIGRAVITY_READY=1')
+    w("# Antigravity has an official build on macOS and Linux, so the surface is")
+    w("# configured on both; a cloud run still skips it through the CLOUD guards.")
+    w("ANTIGRAVITY_READY=1")
     w("# OpenCode 2's global config: opencode.json, AGENTS.md and skills/.")
     w('OPENCODE_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"')
     w("# 0 on a cloud run: OpenCode is a workstation surface only.")
@@ -4452,25 +4451,53 @@ def render_setup_script(data: dict[str, Any]) -> str:
             update = f"run_sh {_q(str(cli.get('update') or install_cmd))}"
             label = str(binary)
             failed = f"{binary} still not on PATH after install; open a new shell and re-run"
-        b(f"if {present}; then")
-        b(f"  {update}")
-        if version_command:
-            b(f'  ok "{binary} $({version_command} 2>/dev/null | head -1)"')
+        def emit(out_: list[str], present: str, install: str, update: str, label: str, failed: str) -> None:
+            out_.append(f"if {present}; then")
+            out_.append(f"  {update}")
+            if version_command:
+                out_.append(f'  ok "{binary} $({version_command} 2>/dev/null | head -1)"')
+            else:
+                out_.append(f'  ok "{label} present"')
+            out_.append("else")
+            out_.append(f"  {install}")
+            out_.append('  if [ "${CHECK_ONLY}" = 1 ]; then')
+            out_.append(f'    log "{label} would be installed"')
+            out_.append(f"  elif {present}; then")
+            out_.append(f'    ok "{label} installed"')
+            # Track newly installed binaries
+            for bin_name in provides:
+                out_.append(f'    new_binaries+=("{bin_name}")')
+            out_.append("  else")
+            out_.append(f'    fail "{failed}"')
+            out_.append("  fi")
+            out_.append("fi")
+
+        if cask and cli.get("linux_install"):
+            # Homebrew owns the cask on macOS; on Linux the vendor's installer owns
+            # the binary, so presence is `command -v` again.
+            mac: list[str] = []
+            emit(mac, present, install, update, label, failed)
+            linux_cmd = str(cli["linux_install"])
+            lin: list[str] = []
+            emit(
+                lin,
+                f"command -v {binary} >/dev/null 2>&1",
+                f"run_sh {_q(linux_cmd)}",
+                f"run_sh {_q(linux_cmd)}",
+                str(binary),
+                f"{binary} still not on PATH after install; open a new shell and re-run",
+            )
+            block.extend(
+                [
+                    'if [ "$(uname -s)" = Darwin ]; then',
+                    *[f"  {line}" if line else line for line in mac],
+                    "else",
+                    *[f"  {line}" if line else line for line in lin],
+                    "fi",
+                ],
+            )
         else:
-            b(f'  ok "{label} present"')
-        b("else")
-        b(f"  {install}")
-        b('  if [ "${CHECK_ONLY}" = 1 ]; then')
-        b(f'    log "{label} would be installed"')
-        b(f"  elif {present}; then")
-        b(f'    ok "{label} installed"')
-        # Track newly installed binaries
-        for bin_name in provides:
-            b(f'    new_binaries+=("{bin_name}")')
-        b("  else")
-        b(f'    fail "{failed}"')
-        b("  fi")
-        b("fi")
+            emit(block, present, install, update, label, failed)
         if binary and binary in nix_listed:
             # NixOS gets this binary from Nix, so setup neither installs nor
             # updates it there: it says so, and names a copy outside the store
@@ -4494,11 +4521,17 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b("fi")
         if cli.get("macos_only"):
             # The cask is macOS-only; elsewhere the block is skipped with a notice.
+            note = cli.get("linux_note")
+            skipped = (
+                f'  log "{name}: {note}"'
+                if note
+                else f'  warn "{name}: macOS only; skipped on $(uname -s)"'
+            )
             block = [
                 'if [ "$(uname -s)" = Darwin ]; then',
                 *[f"  {line}" if line else line for line in block],
                 "else",
-                f'  warn "{name}: macOS only; skipped on $(uname -s)"',
+                skipped,
                 "fi",
             ]
         out.extend(_cloud_guard(block, cli, ""))

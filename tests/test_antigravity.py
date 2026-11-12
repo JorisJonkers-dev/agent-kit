@@ -1,4 +1,4 @@
-"""Antigravity: installed and configured from the registry, on macOS only.
+"""Antigravity: installed and configured from the registry, on macOS and Linux.
 
 The setup assertions run the rendered script against a stubbed PATH, so they
 check the tree a run leaves behind rather than the script's text. The proxy's
@@ -23,10 +23,7 @@ import render_registry  # noqa: E402
 from setup_harness import Run, setup_run, stub  # noqa: E402
 
 SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account"
-SKIPPED = (
-    "antigravity-cli: macOS only; skipped on Linux",
-    "antigravity: macOS only; skipped on Linux",
-)
+AGY_INSTALLER = "curl -fsSL https://antigravity.google/cli/install.sh | bash"
 
 
 def _registry() -> dict:
@@ -89,18 +86,30 @@ def test_setup_installs_both_casks_on_macos(macos_run: Run) -> None:
     assert "antigravity installed" in macos_run.stdout
 
 
-def test_setup_skips_the_whole_surface_on_linux(linux_run: Run) -> None:
-    """Two notices and nothing else: no cask, no proxy, no ~/.gemini."""
-    lines = [line for line in (linux_run.stdout + linux_run.stderr).splitlines() if "antigravity" in line.lower()]
-    assert lines, "the skip is silent"
-    for line in lines:
-        assert line.endswith(SKIPPED), line
-    for message in SKIPPED:
-        assert f"warn  {message}" in linux_run.stderr
-    # Other entries may use Homebrew on Linux (OpenCode does); no cask is touched.
-    assert not [call for call in linux_run.calls if call.startswith("brew") and "--cask" in call]
-    assert not (linux_run.home / ".gemini").exists()
-    assert not (linux_run.home / ".local" / "bin" / "antigravity-mcp-proxy").exists()
+def test_setup_installs_agy_with_the_vendor_installer_on_linux(linux_run: Run) -> None:
+    """No cask and no "macOS only" skip: the CLI comes from the official Linux installer."""
+    output = linux_run.stdout + linux_run.stderr
+    assert "macOS only" not in output
+    assert not [call for call in linux_run.calls if "--cask" in call and "antigravity" in call]
+    assert "antigravity: the desktop app is not installed on Linux; agy carries the configuration" in output
+
+
+def test_setup_writes_the_antigravity_surface_on_linux(linux_run: Run) -> None:
+    config = linux_run.home / ".gemini" / "config"
+    assert (linux_run.home / ".local" / "bin" / "antigravity-mcp-proxy").is_file()
+    assert (config / "AGENTS.md").is_file()
+    merged = json.loads((config / "mcp_config.json").read_text())["mcpServers"]
+    assert merged == json.loads(render_registry.render_antigravity_mcp(_registry()))["mcpServers"]
+    for skill in _antigravity_skills():
+        assert (config / "skills" / skill / "SKILL.md").is_file(), skill
+        assert (linux_run.home / ".gemini" / "antigravity-cli" / "skills" / skill / "SKILL.md").is_file(), skill
+
+
+def test_the_linux_step_uses_the_vendors_installer_and_the_mac_step_the_cask() -> None:
+    script = _script()
+    assert AGY_INSTALLER in script
+    assert "run brew install --cask antigravity-cli" in script
+    assert "antigravity-cli: macOS only" not in script
 
 
 # ---------------------------------------------------------------------------

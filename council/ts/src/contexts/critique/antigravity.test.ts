@@ -303,18 +303,12 @@ describe('Antigravity readiness', () => {
     expect(h.agy.commands).toEqual([])
   })
 
-  it('counts agy as unavailable off macOS without asking agy', async () => {
+  it('lists the Gemini critic as ready on Linux when agy is signed in', async () => {
     const { h, run } = await prepared({ platform: 'linux' }, ['google', 'zhipu'])
 
-    expect(run.critics.map((critic) => critic.client)).toEqual(['vibe-glm'])
-    expect(run.dropped).toContainEqual(
-      expect.objectContaining({
-        client: 'agy-gemini-flash-high',
-        detail: 'antigravity: macOS only; not set up on linux',
-        reason: 'unavailable',
-      }),
-    )
-    expect(h.agy.commands).toEqual([])
+    expect(run.critics.map((critic) => critic.client)).toContain('agy-gemini-flash-high')
+    expect(run.dropped).not.toContainEqual(expect.objectContaining({ client: 'agy-gemini-flash-high' }))
+    expect(h.agy.commands.map((command) => command.args)).toContainEqual(['models'])
   })
 
   it('drops an unavailable Gemini critic and says so when the allowlist permits no fallback', async () => {

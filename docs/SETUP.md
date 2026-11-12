@@ -638,14 +638,26 @@ for the personal profile instead.
 
 Google Antigravity is another agent surface beside Claude Code, Codex and
 Vibe: a desktop agent manager and a CLI, `agy`, that share one configuration.
-Setup installs both from Homebrew casks (`antigravity-cli`, `antigravity`) and
-writes that configuration the way it does for the others.
+Setup installs the CLI on both operating systems and writes that configuration
+the way it does for the others.
 
-Both casks are macOS only. On Linux setup warns
-`antigravity-cli: macOS only; skipped on Linux` and skips the whole surface —
-no MCP merge, no instructions file, no skills, no proxy — rather than leaving
-half of it behind in `~/.gemini`. In `--cloud` mode it logs
-`not set up in cloud mode` instead, because a cloud host is Linux.
+**Does Antigravity have an official Linux build?** Yes, for the CLI. Google's
+getting-started page (<https://antigravity.google/docs/getting-started?tab=cli>,
+checked 2026-11-12) lists one automated installer for macOS and Linux,
+`curl -fsSL https://antigravity.google/cli/install.sh | bash`, which puts `agy`
+at `~/.local/bin/agy`; the same page gives glibc requirements for the Linux
+desktop app. So there is no "macOS only" skip on Linux.
+
+**Who installs it.** Setup, not nix-config: `agy` is not a Nix package this
+estate pins, so on NixOS too setup runs the vendor installer when `agy` is not
+on `PATH`, and runs it again as the update, the way it does for the Claude Code
+installer. On macOS it is the `antigravity-cli` Homebrew cask. The desktop app
+(`antigravity` cask) is installed on macOS only; on Linux setup logs that it is
+not installed and `agy` carries the whole configuration. In `--cloud` mode it
+logs `not set up in cloud mode`, because a cloud host is Linux and unattended.
+
+The critique runner treats the Google critic as ready on Linux exactly as on
+macOS: `agy` on `PATH` and signed in (`agy models` lists the routed model).
 
 ### Signing in is yours to do
 

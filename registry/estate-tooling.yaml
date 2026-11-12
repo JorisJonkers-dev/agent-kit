@@ -690,7 +690,9 @@ clis:
       Google Antigravity CLI (`agy`). Gets the workstation MCP fleet minus
       Private Memory, the agent-kit instructions pointer and the kit's skills.
     surfaces: [workstation]
-    macos_only: true
+    # Linux has an official build (https://antigravity.google/docs/getting-started?tab=cli):
+    # the vendor's installer puts `agy` in ~/.local/bin. Setup owns it, not Nix.
+    linux_install: "curl -fsSL https://antigravity.google/cli/install.sh | bash"
     # A cloud host is Linux and has no Homebrew; the cask is a workstation thing.
     cloud: false
     version_command: "agy --version"
@@ -703,6 +705,8 @@ clis:
       each of the two global skills folders.
     surfaces: [workstation]
     macos_only: true
+    # `agy` carries the whole configuration; the desktop app is not needed.
+    linux_note: "the desktop app is not installed on Linux; agy carries the configuration"
     cloud: false
 
   - name: opencode

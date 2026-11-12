@@ -1564,10 +1564,9 @@ VIBE_PRIVATE_HOME="${HOME}/.vibe-private"
 ANTIGRAVITY_HOME="${HOME}/.gemini/config"
 # The CLI reads skills from its own folder as well as the global one.
 ANTIGRAVITY_CLI_HOME="${HOME}/.gemini/antigravity-cli"
-# 0 where Antigravity is not a supported surface: setup then skips it whole,
-# rather than leaving half of it behind in ~/.gemini.
-ANTIGRAVITY_READY=0
-[ "$(uname -s)" = Darwin ] && ANTIGRAVITY_READY=1
+# Antigravity has an official build on macOS and Linux, so the surface is
+# configured on both; a cloud run still skips it through the CLOUD guards.
+ANTIGRAVITY_READY=1
 # OpenCode 2's global config: opencode.json, AGENTS.md and skills/.
 OPENCODE_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
 # 0 on a cloud run: OpenCode is a workstation surface only.
@@ -2528,7 +2527,20 @@ else
       fi
     fi
   else
-    warn "antigravity-cli: macOS only; skipped on $(uname -s)"
+    if command -v agy >/dev/null 2>&1; then
+      run_sh 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
+      ok "agy $(agy --version 2>/dev/null | head -1)"
+    else
+      run_sh 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
+      if [ "${CHECK_ONLY}" = 1 ]; then
+        log "agy would be installed"
+      elif command -v agy >/dev/null 2>&1; then
+        ok "agy installed"
+        new_binaries+=("agy")
+      else
+        fail "agy still not on PATH after install; open a new shell and re-run"
+      fi
+    fi
   fi
 fi
 
@@ -2554,7 +2566,7 @@ else
       fi
     fi
   else
-    warn "antigravity: macOS only; skipped on $(uname -s)"
+    log "antigravity: the desktop app is not installed on Linux; agy carries the configuration"
   fi
 fi
 

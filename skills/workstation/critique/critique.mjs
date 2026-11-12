@@ -6,7 +6,7 @@ import { dirname as dirname11 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/critique-cli/index.ts
-import { join as join43 } from "node:path";
+import { join as join42 } from "node:path";
 
 // src/adapters/clock/index.ts
 import { performance } from "node:perf_hooks";
@@ -855,14 +855,14 @@ function formatRanges(ranges) {
   return ranges.map((range) => `${String(range.first)}-${String(range.last)}`).join(", ");
 }
 function missingRanges(candidate, held) {
-  const missing2 = [];
+  const missing = [];
   let next = 1;
   for (const range of held) {
-    if (range.first > next) missing2.push({ first: next, last: range.first - 1 });
+    if (range.first > next) missing.push({ first: next, last: range.first - 1 });
     next = range.last + 1;
   }
-  if (next <= candidate.lineCount) missing2.push({ first: next, last: candidate.lineCount });
-  return missing2;
+  if (next <= candidate.lineCount) missing.push({ first: next, last: candidate.lineCount });
+  return missing;
 }
 function sentStatus(candidate, held) {
   if (held.length === 0) return "the cap dropped it";
@@ -1921,19 +1921,19 @@ function oneShotAnswer(stdout) {
   const answer2 = stdout.trim();
   return answer2 === "" ? void 0 : answer2;
 }
-function hermesUsage(report2) {
+function hermesUsage(report) {
   const count2 = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-  const priced = isObject(report2) ? report2.estimated_cost_usd : void 0;
+  const priced = isObject(report) ? report.estimated_cost_usd : void 0;
   const cost = typeof priced === "number" && Number.isFinite(priced) && priced >= 0 ? priced : void 0;
-  const failed = isObject(report2) && report2.failed === true;
-  if (!isObject(report2)) return { cost, failed, tokens: NO_TOKENS };
+  const failed = isObject(report) && report.failed === true;
+  if (!isObject(report)) return { cost, failed, tokens: NO_TOKENS };
   return {
     cost,
     failed,
     tokens: {
-      cached: count2(report2.cache_read_tokens),
-      input: count2(report2.input_tokens),
-      output: count2(report2.output_tokens)
+      cached: count2(report.cache_read_tokens),
+      input: count2(report.input_tokens),
+      output: count2(report.output_tokens)
     }
   };
 }
@@ -2329,17 +2329,12 @@ function parseGrant(raw, index) {
     client: requireString3(raw.client, `${where}.client`),
     expires_at: requireTimestamp2(raw.expires_at, `${where}.expires_at`),
     id: requireString3(raw.id, `${where}.id`),
-    ...raw.max_starts === void 0 ? {} : { max_starts: requireStarts(raw.max_starts, `${where}.max_starts`) },
     question: requireString3(raw.question, `${where}.question`),
     workflow: requireString3(raw.workflow, `${where}.workflow`),
     written_at: requireTimestamp2(raw.written_at, `${where}.written_at`)
   };
   if (raw.ended_at === void 0) return grant;
   return { ...grant, ended_at: requireTimestamp2(raw.ended_at, `${where}.ended_at`) };
-}
-function requireStarts(value, where) {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) throw invalid3(`${where} must be a whole number above 0`);
-  return value;
 }
 function requireString3(value, where) {
   if (typeof value !== "string" || value === "") throw invalid3(`${where} must be a non-empty string`);
@@ -2576,8 +2571,7 @@ var CapGuard = class {
    * What each live reservation's run directory says the run cost, by run id: a
    * run that left a result is finished, whatever its expiry says. It is read
    * before the ledger's lock is taken, so the lock is held for the decision
-   * alone; a reservation that settles meanwhile is skipped there. A command
-   * that decides inside the ledger's lock settles with it, as `reserve` does.
+   * alone; a reservation that settles meanwhile is skipped there.
    */
   async finishedCosts() {
     const costs = /* @__PURE__ */ new Map();
@@ -2798,12 +2792,12 @@ function claudeOutput(stdout) {
   };
 }
 function hermesOutput(stdout, usage) {
-  const report2 = hermesUsage(usage);
+  const report = hermesUsage(usage);
   return {
     answer: oneShotAnswer(stdout),
-    charged: report2.cost,
-    failure: report2.failed ? "failed" : void 0,
-    tokens: report2.tokens
+    charged: report.cost,
+    failure: report.failed ? "failed" : void 0,
+    tokens: report.tokens
   };
 }
 function codexOutput(stdout) {
@@ -4808,7 +4802,7 @@ function checkTickets(spec, tickets) {
 }
 function storyCoverage(stories, reports) {
   if (stories.length === 0) return { reason: "the spec has no numbered user stories", status: "not-checkable" };
-  const cited = new Set(reports.flatMap((report2) => report2.stories));
+  const cited = new Set(reports.flatMap((report) => report.stories));
   if (cited.size === 0) return { reason: "no ticket cites a user story", status: "not-checkable" };
   return { status: "checked", stories, uncited: stories.filter((story) => !cited.has(story)) };
 }
@@ -5170,13 +5164,6 @@ function familyReason(family, request) {
   if (family === request.orchestratorFamily) return "orchestrator-family";
   return void 0;
 }
-function workGrantClient(routing, stage) {
-  for (const slot of stageRouting(routing, { stage }).work) {
-    const client = routing.clients[slot.client];
-    if (client?.kind === "codex") return client.gateway?.client ?? client.kind;
-  }
-  return "codex";
-}
 function workReason(client, request) {
   if (client.family === request.orchestratorFamily) return { reason: "orchestrator-family" };
   if (client.kind === "codex" && !request.grant.live) return { detail: request.grant.detail, reason: "no-grant" };
@@ -5277,7 +5264,6 @@ function parseManifest(text) {
     orchestrator_family: file.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
     packet_dir: file.string("packet_dir"),
     ...file.has("code") ? { code: readCodeSource(file.object("code")) } : {},
-    ...file.has("work") ? { work: file.object("work").has("grant_workflow") ? { grant_workflow: file.object("work").string("grant_workflow") } : {} } : {},
     ...file.has("plan_warnings") ? { plan_warnings: file.strings("plan_warnings") } : {},
     packet_files: file.list("packet_files", (packetFile) => ({
       kind: packetFile.oneOf("kind", PACKET_FILE_KINDS),
@@ -6357,15 +6343,15 @@ function driftAndStale(records, facts) {
   const drifted = [];
   const stale = [];
   for (const record of records) {
-    const missing2 = record.paths.filter((path) => !facts.pathExists(path));
+    const missing = record.paths.filter((path) => !facts.pathExists(path));
     drifted.push(
-      ...missing2.map((named) => ({ named, reason: "missing-path", record: record.path })),
+      ...missing.map((named) => ({ named, reason: "missing-path", record: record.path })),
       ...record.symbols.filter((named) => !facts.symbolExists(named)).map((named) => ({ named, reason: "missing-symbol", record: record.path }))
     );
     const decided = decisionDate(record.text);
     if (decided === void 0) continue;
     const logDir = record.path.includes("/") ? record.path.slice(0, record.path.lastIndexOf("/") + 1) : "";
-    for (const path of record.paths.filter((named) => !missing2.includes(named) && !(logDir !== "" && named.startsWith(logDir)))) {
+    for (const path of record.paths.filter((named) => !missing.includes(named) && !(logDir !== "" && named.startsWith(logDir)))) {
       const change = facts.lastChange(path);
       if (change !== void 0 && change.date.slice(0, 10) > decided)
         stale.push({ decision_date: decided, last_change: change.date, last_commit: change.commit, path, record: record.path });
@@ -6787,8 +6773,8 @@ function checkPlan(text, size, adrs) {
     const criteria = countOf(step.fields.get("Done when"), /;/);
     if (criteria > size.max_criteria) fail("too-many-criteria", `step ${step.id} has ${String(criteria)} done-when criteria; the limit is ${String(size.max_criteria)}`);
     if (kinds.includes("expand") && !(stepKinds.has("migrate") && stepKinds.has("contract"))) {
-      const missing2 = ["migrate", "contract"].filter((kind) => !stepKinds.has(kind));
-      fail("expand-incomplete", `step ${step.id} expands, but the plan has no ${missing2.join(" or ")} step`);
+      const missing = ["migrate", "contract"].filter((kind) => !stepKinds.has(kind));
+      fail("expand-incomplete", `step ${step.id} expands, but the plan has no ${missing.join(" or ")} step`);
     }
   }
   for (const cycle of cyclesOf(edges)) {
@@ -6867,9 +6853,9 @@ function planTarget(location, stepIds) {
   const step = stepIds.find((id) => new RegExp(`(?<![\\w#/])${id}(?!\\w)`, "i").test(location));
   return { ...rule === void 0 ? {} : { rule }, ...step === void 0 ? {} : { step } };
 }
-function planStepIds(report2) {
+function planStepIds(report) {
   try {
-    const parsed3 = JSON.parse(report2);
+    const parsed3 = JSON.parse(report);
     const steps = typeof parsed3 === "object" && parsed3 !== null ? parsed3.steps : void 0;
     return Array.isArray(steps) ? steps.flatMap((step) => typeof step?.id === "string" ? [step.id] : []) : [];
   } catch {
@@ -7269,9 +7255,9 @@ var ColdReadCommand = class {
     const promptPath = join17(dir, "prompt.md");
     await this.deps.files.writeText(promptPath, await this.prompt(packetPath));
     const started = this.deps.clock.monotonicMs();
-    let report2;
+    let report;
     try {
-      report2 = await this.deps.clients.vibe.ask(
+      report = await this.deps.clients.vibe.ask(
         { max_price_usd: coldRead.max_price_usd, outputDir: dir, promptPath, time_limit_s: coldRead.time_limit_s, workDir: packetDir },
         coldRead.client_config
       );
@@ -7279,29 +7265,29 @@ var ColdReadCommand = class {
       return unavailableFile(path, `the launch failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     const durationMs = this.deps.clock.monotonicMs() - started;
-    const answers = report2.answer.status === "answered" ? parseColdReadReply(report2.answer.text) : void 0;
-    await this.deps.files.writeText(join17(dir, "stdout.json"), report2.stdout);
-    await this.deps.files.writeText(join17(dir, "stderr.txt"), report2.stderr);
+    const answers = report.answer.status === "answered" ? parseColdReadReply(report.answer.text) : void 0;
+    await this.deps.files.writeText(join17(dir, "stdout.json"), report.stdout);
+    await this.deps.files.writeText(join17(dir, "stderr.txt"), report.stderr);
     const ledgerWarning = await this.budget.logInvocation(
       manifest,
       {
-        charged_usd: report2.chargedUsd,
+        charged_usd: report.chargedUsd,
         client: coldRead.client,
-        cost_usd: report2.answer.cost_usd,
+        cost_usd: report.answer.cost_usd,
         critic_id: `cold-read-${String(n)}`,
         duration_ms: durationMs,
-        exit_code: report2.exitCode,
+        exit_code: report.exitCode,
         family: coldRead.client_config.family,
         model: coldRead.client_config.model,
         role: "cold-reader",
         status: answers === void 0 ? "failed" : "ok",
-        vibe_cost_usd: report2.vibeCostUsd
+        vibe_cost_usd: report.vibeCostUsd
       },
       coldRead.client_config,
       specReference(manifest)
     );
     if (ledgerWarning !== void 0) ledgerWarnings.push(ledgerWarning);
-    if (report2.answer.status === "failed") return unavailableFile(path, `${report2.answer.failure}: ${report2.answer.detail}`);
+    if (report.answer.status === "failed") return unavailableFile(path, `${report.answer.failure}: ${report.answer.detail}`);
     return answers === void 0 ? unavailableFile(path, "the cold reader gave no readable answer") : answeredFile(path, answers);
   }
   /**
@@ -7771,8 +7757,8 @@ function checkEvidence(finding, stage, packet2, role) {
   const found = evidenceFound(finding, packet2);
   if (typeof found === "number") return fabricated(`evidence ${String(found + 1)} quotes text that is not in the packet`);
   if (isCodeStage(stage) || packet2.tree) {
-    const missing2 = missingLine(finding, packet2);
-    if (missing2 !== void 0) return fabricated(missing2);
+    const missing = missingLine(finding, packet2);
+    if (missing !== void 0) return fabricated(missing);
   }
   const rule = evidenceRule(stage, role);
   if (rule === "recovery") return recoveryVerdict(finding, found, packet2);
@@ -8130,7 +8116,7 @@ async function runCritic(deps, launch) {
   const { prompt_path: promptPath } = promptFields(prompt, criticDir);
   await deps.files.writeText(promptPath, prompt.text);
   const started = deps.clock.monotonicMs();
-  const report2 = await reviewWith(deps.clients, {
+  const report = await reviewWith(deps.clients, {
     criticDir,
     critic,
     packetDir,
@@ -8141,25 +8127,25 @@ async function runCritic(deps, launch) {
     if (toolset.kind === "vibe-search") await deps.search?.stop(packetDir);
   });
   const durationMs = deps.clock.monotonicMs() - started;
-  const searchFailure2 = choice.searchFailure ?? report2.searchFailure;
+  const searchFailure2 = choice.searchFailure ?? report.searchFailure;
   const violations = await armed.check();
-  await deps.files.writeText(stdoutPath, report2.stdout);
-  await deps.files.writeText(join18(criticDir, "stderr.txt"), report2.stderr);
-  const { outcome } = report2;
+  await deps.files.writeText(stdoutPath, report.stdout);
+  await deps.files.writeText(join18(criticDir, "stderr.txt"), report.stderr);
+  const { outcome } = report;
   const findings = outcome.status === "ok" && violations.length === 0 ? outcome.findings : [];
   const run = {
     ...criticIdentity(critic),
     ...promptFields(prompt, criticDir),
     ...launch.retry,
-    charged_usd: report2.chargedUsd,
+    charged_usd: report.chargedUsd,
     cost_usd: outcome.cost_usd,
     duration_ms: durationMs,
-    exit_code: report2.exitCode,
-    export_path: report2.exportPath,
+    exit_code: report.exitCode,
+    export_path: report.exportPath,
     finding_count: findings.length,
     stdout_path: stdoutPath,
-    ...report2.vibeCostUsd === void 0 ? {} : { vibe_cost_usd: report2.vibeCostUsd },
-    ...report2.tokens === void 0 ? {} : { tokens: report2.tokens },
+    ...report.vibeCostUsd === void 0 ? {} : { vibe_cost_usd: report.vibeCostUsd },
+    ...report.tokens === void 0 ? {} : { tokens: report.tokens },
     tools: toolNames(toolset),
     ...searchFailure2 === void 0 ? {} : { search_failure: searchFailure2 },
     ...criticStatus(outcome, violations)
@@ -8534,10 +8520,6 @@ var FanOutCommand = class {
   async run(raw) {
     const runDir = readInput(raw, "fan-out", (fields) => fields.string("run_dir"));
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
-    const stray = manifest.work === void 0 ? manifest.critics.find((critic) => isWorkClient(critic.client_config)) : void 0;
-    if (stray !== void 0) {
-      throw new CritiqueError("invalid-run", `critic ${stray.critic_id} runs on the work client ${stray.client}, which only a nedap repository's run may use`);
-    }
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest);
     const packet2 = indexPacket(await readFrozenPacket(this.deps, manifest), manifest.ticket_check?.ticket_ids);
     const budget = new FlowBudget(this.deps);
@@ -9228,7 +9210,7 @@ var GateCommand = class {
    */
   async activeFlow(repository) {
     const dir = join23(repository.commonDir, "critique", "flows");
-    let unreadable2;
+    let unreadable;
     for (const name of await this.deps.files.listFiles(dir)) {
       if (!name.endsWith(".json")) continue;
       const path = join23(dir, name);
@@ -9239,10 +9221,10 @@ var GateCommand = class {
         });
         if (state.repository === repository.key && ACTIVE_PHASES.includes(state.phase)) return true;
       } catch (error) {
-        unreadable2 ??= error;
+        unreadable ??= error;
       }
     }
-    if (unreadable2 !== void 0) throw unreadable2;
+    if (unreadable !== void 0) throw unreadable;
     return false;
   }
   async commitGate(repository, widened) {
@@ -10467,8 +10449,7 @@ var PrepareCommand = class {
       } : { labels: artifact.labels, text: contents.files.map((file) => file.text).join("\n\n"), tickets: ticketCheck.tickets.length },
       input.depth
     );
-    const grant = repository.work ? await this.workGrant(input, workGrantClient(routing, stage)) : void 0;
-    const roster = grant !== void 0 ? await this.workRoster(routing, { grant, orchestratorFamily, stage }) : await this.openRoster(routing, { adr: contents.holdsAdr === true, allowedFamilies: entry2.families, depth, orchestratorFamily, stage });
+    const roster = repository.work ? await this.workRoster(routing, { grant: await this.workGrant(input), orchestratorFamily, stage }) : await this.openRoster(routing, { adr: contents.holdsAdr === true, allowedFamilies: entry2.families, depth, orchestratorFamily, stage });
     const planWarnings = roster.critics.some((critic) => critic.client_config.kind === "vibe") ? (await this.deps.plan.read("vibe")).warnings : [];
     const runId2 = await this.freshRunId(repository, stage);
     const runDir = join30(repository.commonDir, "critique", runId2);
@@ -10499,7 +10480,6 @@ var PrepareCommand = class {
       ...planWarnings.length === 0 ? {} : { plan_warnings: planWarnings },
       repo_root: repository.root,
       repository: repository.key,
-      ...grant === void 0 ? {} : { work: grant.live ? { grant_workflow: grant.workflow } : {} },
       ...roundFields,
       run_dir: runDir,
       run_id: runId2,
@@ -10619,20 +10599,20 @@ var PrepareCommand = class {
     ]);
     return resolveWorkRoster(routing, request, new Map(await Promise.all(checks)));
   }
-  /** Whether a live grant covers the run's workflow for the stage's Codex client (named by routing), or what is missing. */
-  async workGrant(input, client) {
+  /** Whether a live grant covers the run's workflow for Codex, or what is missing. */
+  async workGrant(input) {
     const workflow = input.workflow ?? input.flow;
     if (workflow === void 0) {
       return { detail: "name the model-gateway workflow with workflow so a grant for it can be found", live: false };
     }
-    const covered = await this.deps.grants.covers(workflow, client).then(
+    const covered = await this.deps.grants.covers(workflow, "codex").then(
       (live) => ({ live }),
       (error) => ({ error: error instanceof Error ? error.message : String(error), live: false })
     );
-    if (covered.live) return { live: true, workflow };
-    if ("error" in covered) return { detail: `the grants could not be read, so ${client} is left out: ${covered.error}`, live: false };
+    if (covered.live) return { live: true };
+    if ("error" in covered) return { detail: `the grants could not be read, so Codex is left out: ${covered.error}`, live: false };
     return {
-      detail: `no live grant covers workflow ${workflow} for ${client}: ask the owner, then write one with model-gateway grant write`,
+      detail: `no live grant covers workflow ${workflow} for codex: ask the owner, then write one with model-gateway grant write`,
       live: false
     };
   }
@@ -10752,11 +10732,11 @@ var REFUTE_REASONS = [
   ...HINT_CODES,
   ...CHECK_HINT_CODES
 ];
-function refuterCandidates(routing, stage, work = false) {
+function refuterCandidates(routing, stage) {
   const routes = stageRouting(routing, { stage });
   const candidates = [];
-  for (const slot of work ? routes.work : [...routes.base, ...routes.deep]) {
-    for (const client of work ? [slot.client] : [slot.client, ...routing.fallbacks[slot.client] ?? []]) {
+  for (const slot of [...routes.base, ...routes.deep]) {
+    for (const client of [slot.client, ...routing.fallbacks[slot.client] ?? []]) {
       const config = routing.clients[client];
       if (config === void 0) throw new CritiqueError("invalid-routing", `routing stage ${stage} names unknown client ${client}`);
       if (!candidates.some((candidate) => candidate.client === client)) candidates.push({ client, client_config: config, slot });
@@ -11504,7 +11484,7 @@ var RefuteCommand = class {
       schema: await asset(FINDING_SCHEMA)
     };
     const prompt = (toolset) => assemblePrompt(sources, listedFiles(manifest), manifest.stage, manifest.code?.slices, toolset);
-    const candidates = refuterCandidates(await new RoutingSource(this.deps).load(), manifest.stage, manifest.work !== void 0);
+    const candidates = refuterCandidates(await new RoutingSource(this.deps).load(), manifest.stage);
     const round3 = {
       blocked: await this.blocked(manifest, candidates),
       budget: new FlowBudget(this.deps),
@@ -11554,27 +11534,13 @@ var RefuteCommand = class {
     );
     const reasons = await Promise.all(
       eligible.map(async ({ client, client_config: config }) => {
-        const limit = config.kind === "vibe" ? plan : config.kind === "agy" ? quota : void 0;
+        const limit = config.kind === "vibe" ? plan : quota;
         if (limit !== void 0) return [client, limit];
-        const ungranted = config.kind === "codex" ? await this.ungranted(manifest, config) : void 0;
-        if (ungranted !== void 0) return [client, ungranted];
         const ready = await clientReadiness(this.deps.clients, config);
         return [client, ready.ready ? void 0 : ready.detail];
       })
     );
     return new Map(reasons.flatMap(([client, reason]) => reason === void 0 ? [] : [[client, reason]]));
-  }
-  /**
-   * Why Codex may not refute on a `nedap` repository: the grant that let it
-   * critique must still be live, since a grant lapses and a refute round may
-   * come later. Absent while it is.
-   */
-  async ungranted(manifest, config) {
-    const workflow = manifest.work?.grant_workflow;
-    const client = config.gateway?.client ?? config.kind;
-    if (workflow === void 0) return `no live grant covered the run's workflow for ${client} when it was prepared`;
-    const live = await this.deps.grants.covers(workflow, client).catch(() => false);
-    return live ? void 0 : `no live grant covers workflow ${workflow} for ${client}: ask the owner, then write one with model-gateway grant write`;
   }
 };
 
@@ -11846,17 +11812,17 @@ var InstalledHooks = class {
       return [`${agent.hooksFile} does not parse`];
     }
     const wired = wiredHooks(file);
-    const missing2 = [];
+    const missing = [];
     const scriptless = [];
     const running = [];
     for (const { name } of CRITIQUE_HOOKS) {
       const hook = wired.get(name);
-      if (hook === void 0) missing2.push(name);
+      if (hook === void 0) missing.push(name);
       else if (!await this.deps.files.exists(hook.script)) scriptless.push(name);
       else running.push(hook);
     }
     const problems = [
-      clause(missing2, "is not installed", "are not installed"),
+      clause(missing, "is not installed", "are not installed"),
       clause(scriptless, "names a script that does not exist", "name scripts that do not exist")
     ];
     if (agent.trustFile !== void 0) {
@@ -12148,7 +12114,7 @@ var SetupCommand = class {
       role: "setup-check",
       time_limit_s: PROBE_TIME_LIMIT_S
     };
-    const report2 = await reviewWith(this.deps.clients, {
+    const report = await reviewWith(this.deps.clients, {
       critic,
       criticDir,
       packetDir,
@@ -12156,12 +12122,12 @@ var SetupCommand = class {
       schemaPath: join35(this.deps.assetsRoot, "schemas", "finding.schema.json"),
       toolset: { kind: "vibe-search", limits, search: session.tools, server: search.server(packetDir, limits) }
     }).finally(() => search.stop(packetDir));
-    await this.logInvocation(client, config, report2.outcome.status, report2.chargedUsd);
-    const charged = ` (charged $${report2.chargedUsd.toFixed(4)})`;
-    if (report2.outcome.status === "failed") return { detail: `${report2.outcome.failure}: ${report2.outcome.detail}${charged}`, result: "fail" };
+    await this.logInvocation(client, config, report.outcome.status, report.chargedUsd);
+    const charged = ` (charged $${report.chargedUsd.toFixed(4)})`;
+    if (report.outcome.status === "failed") return { detail: `${report.outcome.failure}: ${report.outcome.detail}${charged}`, result: "fail" };
     const after = await this.deps.files.listTree(packetDir);
     const untouched = after.length === 1 && after[0] === "note.md" && await this.deps.files.readText(join35(packetDir, "note.md")) === PROBE_NOTE;
-    const problems = [...gatewayProblems(report2.toolCalls ?? []), ...untouched ? [] : ["the critic changed its packet"]];
+    const problems = [...gatewayProblems(report.toolCalls ?? []), ...untouched ? [] : ["the critic changed its packet"]];
     return problems.length === 0 ? {
       detail: `search cannot reach past the packet, and through run_typescript ${GATEWAY_PROOF.refused.join(", ")} came back tool_denied while ${GATEWAY_PROOF.searched} completed${charged}; ${WRITE_PROOF_PENDING}`,
       result: "pass"
@@ -12205,16 +12171,16 @@ var SetupCommand = class {
       role: "setup-check",
       time_limit_s: PROBE_TIME_LIMIT_S
     };
-    const report2 = await reviewWith(this.deps.clients, {
+    const report = await reviewWith(this.deps.clients, {
       critic,
       criticDir,
       packetDir,
       promptPath,
       schemaPath: join35(this.deps.assetsRoot, "schemas", "finding.schema.json")
     });
-    await this.logInvocation(client, config, report2.outcome.status, report2.chargedUsd);
-    const charged = config.kind === "vibe" ? ` (charged $${report2.chargedUsd.toFixed(4)})` : "";
-    return report2.outcome.status === "ok" ? { detail: `${client} answered the trivial prompt${charged}`, result: "pass" } : { detail: `${report2.outcome.failure}: ${report2.outcome.detail}${charged}`, result: "fail" };
+    await this.logInvocation(client, config, report.outcome.status, report.chargedUsd);
+    const charged = config.kind === "vibe" ? ` (charged $${report.chargedUsd.toFixed(4)})` : "";
+    return report.outcome.status === "ok" ? { detail: `${client} answered the trivial prompt${charged}`, result: "pass" } : { detail: `${report.outcome.failure}: ${report.outcome.detail}${charged}`, result: "fail" };
   }
   /**
    * An invocation line, as fan-out writes one per launch, so a setup check
@@ -12779,31 +12745,31 @@ var TriageCommand = class {
 - \`${DIFF_PATH2}\`: the change under review, as a diff against its base
 `
     );
-    const report2 = await this.deps.clients.vibe.ask(
+    const report = await this.deps.clients.vibe.ask(
       { max_price_usd: triage.model.max_price_usd, outputDir: request.runDir, promptPath, time_limit_s: triage.model.time_limit_s, workDir },
       config
     );
-    await this.deps.files.writeText(join36(request.runDir, "stdout.json"), report2.stdout);
-    await this.deps.files.writeText(join36(request.runDir, "stderr.txt"), report2.stderr);
+    await this.deps.files.writeText(join36(request.runDir, "stdout.json"), report.stdout);
+    await this.deps.files.writeText(join36(request.runDir, "stderr.txt"), report.stderr);
     const call = { client: triage.model.client, family: config.family, model: config.model };
     const ledgerWarning = await this.budget.logInvocation(
       { flow: request.flow, repository: repository.key, round: 1, run_id: request.runId, stage: "ticket-review" },
       {
         ...call,
-        charged_usd: report2.chargedUsd,
-        cost_usd: report2.answer.cost_usd,
+        charged_usd: report.chargedUsd,
+        cost_usd: report.answer.cost_usd,
         critic_id: "triage",
-        exit_code: report2.exitCode,
-        status: report2.answer.status === "answered" ? "ok" : "failed",
-        vibe_cost_usd: report2.vibeCostUsd
+        exit_code: report.exitCode,
+        status: report.answer.status === "answered" ? "ok" : "failed",
+        vibe_cost_usd: report.vibeCostUsd
       },
       config,
       request.spec
     );
     return {
-      ...answered(report2),
+      ...answered(report),
       ...ledgerWarning === void 0 ? {} : { ledger_warning: ledgerWarning },
-      model: modelCall(call, report2),
+      model: modelCall(call, report),
       promptHash: sha256(promptAsset)
     };
   }
@@ -12816,8 +12782,8 @@ var TriageCommand = class {
     return candidate;
   }
 };
-function answered(report2) {
-  const { answer: answer2 } = report2;
+function answered(report) {
+  const { answer: answer2 } = report;
   if (answer2.status === "failed") {
     return { decision: "risky", signal: { detail: `${answer2.failure}: ${answer2.detail}`, kind: "model-unavailable", reason: "failed" } };
   }
@@ -12830,12 +12796,12 @@ function answered(report2) {
   }
   return { decision: word === "yes" ? "risky" : "low-risk", signal: { answer: word, kind: "model" } };
 }
-function modelCall(call, report2) {
-  const word = report2.answer.status === "answered" ? readTriageAnswer(report2.answer.text) : void 0;
+function modelCall(call, report) {
+  const word = report.answer.status === "answered" ? readTriageAnswer(report.answer.text) : void 0;
   return {
-    charged_usd: report2.chargedUsd,
+    charged_usd: report.chargedUsd,
     client: call.client,
-    cost_usd: report2.answer.cost_usd,
+    cost_usd: report.answer.cost_usd,
     model: call.model,
     ...word === void 0 ? {} : { answer: word }
   };
@@ -12931,17 +12897,15 @@ var MODELS_PROGRESS = "Fetching available models...";
 var OUTER_TIMEOUT_GRACE_S2 = 60;
 var READ_ONLY_TOOLS = /* @__PURE__ */ new Set(["read_file", "view_file", "list_dir", "grep_search", "find_by_name", "finish"]);
 var AgyCriticClient = class {
-  constructor(process2, files, env, platform) {
+  constructor(process2, files, env) {
     this.process = process2;
     this.files = files;
     this.env = env;
-    this.platform = platform;
     this.gateway = new ClientRun({ env, files, process: process2 });
   }
   process;
   files;
   env;
-  platform;
   gateway;
   /** agy has no per-critic file, so being signed in is all a critic needs. */
   async signIn(config) {
@@ -12951,13 +12915,12 @@ var AgyCriticClient = class {
     return cliVersion(this.process, config.binary);
   }
   /**
-   * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
+   * Setup's own check: `agy` (installed on macOS and Linux alike) must be on
    * `PATH`, and `agy models` must list the routed model. Listing the models
    * needs a signed-in account but calls no model, so it spends no quota and
    * answers even while the quota is spent.
    */
   async readiness(config) {
-    if (this.platform !== "darwin") return { detail: `antigravity: macOS only; not set up on ${this.platform}`, ready: false };
     if (!await this.onPath(config.binary)) return { detail: `antigravity: ${config.binary} is not on PATH`, ready: false };
     const listed = await this.process.exec({ args: ["models"], command: config.binary, timeoutMs: MODELS_TIMEOUT_MS }).catch((error) => error instanceof Error ? error.message : String(error));
     return modelsReadiness(listed, config);
@@ -13394,160 +13357,6 @@ function finalAssistantText(stdout) {
   return content?.map((part) => typeof part?.text === "string" ? part.text : "").join("");
 }
 
-// src/contexts/critique/adapters/work/index.ts
-import { isAbsolute as isAbsolute8, join as join40 } from "node:path";
-var STATUS_TIMEOUT_MS = 2e4;
-function missing(client, binary) {
-  return { detail: `${client}: ${binary} is not on PATH`, ready: false };
-}
-async function onPath(files, env, binary) {
-  if (isAbsolute8(binary)) return files.exists(binary);
-  for (const dir of (env.get("PATH") ?? "").split(":").filter((entry2) => entry2.length > 0)) {
-    if (await files.exists(join40(dir, binary))) return true;
-  }
-  return false;
-}
-async function runStatus(process2, binary, args, env) {
-  return process2.exec({ args, command: binary, ...env === void 0 ? {} : { env }, timeoutMs: STATUS_TIMEOUT_MS }).catch((error) => error instanceof Error ? error.message : String(error));
-}
-function firstLine4(result) {
-  return `${result.stdout}
-${result.stderr}`.split("\n").map((line2) => line2.trim()).find((line2) => line2.length > 0);
-}
-function unreadable(result) {
-  if (typeof result === "string") return result;
-  if (result.timedOut === true) return `no answer within ${String(STATUS_TIMEOUT_MS / 1e3)}s`;
-  return firstLine4(result) ?? `exit ${String(result.exitCode)}`;
-}
-function limitOf(launch) {
-  return launch.critic.time_limit_s;
-}
-function classify(client, launch, run) {
-  const { output, result } = run;
-  const cost = output.charged ?? null;
-  const failed = (failure3, detail) => ({ cost_usd: cost, detail, failure: failure3, status: "failed" });
-  if (result.timedOut === true) return failed("timeout", `${client} did not return within ${String(limitOf(launch))}s, so the outer timer killed it`);
-  if (result.exitCode !== 0) {
-    const said = firstLine4(result);
-    return failed(`exit-${String(result.exitCode)}`, `${client} exited ${String(result.exitCode)}${said === void 0 ? "" : `: ${said}`}`);
-  }
-  if (result.stdout.trim().length === 0) return failed("empty-output", `${client} exited 0 with empty stdout`);
-  if (output.failure !== void 0) {
-    return failed("infrastructure-failure", `${client} reported a failed run${output.error === void 0 ? "" : `: ${output.error.text}`}`);
-  }
-  if (output.answer === void 0) return failed("unparseable-output", `stdout is not ${client}'s output with a final message`);
-  const parsed3 = parseFindings(output.answer);
-  if (!parsed3.ok) return failed(parsed3.failure, parsed3.detail);
-  return {
-    cost_usd: cost,
-    findings: parsed3.findings,
-    status: "ok",
-    ...parsed3.no_findings_reason === void 0 ? {} : { no_findings_reason: parsed3.no_findings_reason }
-  };
-}
-async function report(files, client, launch, run) {
-  const exportPath = join40(launch.criticDir, "result.json");
-  const { output, result } = run;
-  await files.writeText(
-    exportPath,
-    `${JSON.stringify({ answer: output.answer ?? null, charged_usd: output.charged ?? null, tokens: output.tokens }, null, 2)}
-`
-  );
-  return {
-    ...result,
-    chargedUsd: 0,
-    exportPath,
-    outcome: classify(client, launch, run),
-    tokens: output.tokens
-  };
-}
-var CodexCriticClient = class {
-  constructor(process2, files, env) {
-    this.process = process2;
-    this.files = files;
-    this.env = env;
-    this.gateway = new ClientRun({ env, files, process: process2 });
-  }
-  process;
-  files;
-  env;
-  gateway;
-  /** Readiness is the CLI being installed and signed in: a Codex critic needs no file of its own. */
-  async readiness(config) {
-    return this.signIn(config);
-  }
-  async signIn(config) {
-    if (!await onPath(this.files, this.env, config.binary)) return missing("codex", config.binary);
-    const status = await this.status(config);
-    return status.signedIn ? { ready: true } : { detail: status.reason, ready: false };
-  }
-  async version(config) {
-    return cliVersion(this.process, config.binary);
-  }
-  async review(launch, config) {
-    const run = await this.gateway.launch({
-      binary: config.binary,
-      client: "codex",
-      extras: {},
-      mode: "read-only",
-      model: config.gateway?.model ?? config.model,
-      paths: { exportDir: join40(launch.criticDir, "export"), promptPath: launch.promptPath, workDir: launch.packetDir },
-      prompt: await this.files.readText(launch.promptPath),
-      time_limit_s: limitOf(launch)
-    });
-    return report(this.files, "codex", launch, run);
-  }
-  async status(config) {
-    const result = await runStatus(this.process, config.binary, ["login", "status"]);
-    if (typeof result !== "string" && result.timedOut !== true && result.exitCode === 0) return { signedIn: true };
-    return { reason: `codex: not signed in; run codex login with the work account, then re-run setup (${unreadable(result)})`, signedIn: false };
-  }
-};
-var ClaudeCriticClient = class {
-  constructor(process2, files, env) {
-    this.process = process2;
-    this.files = files;
-    this.env = env;
-    this.gateway = new ClientRun({ env, files, process: process2 });
-  }
-  process;
-  files;
-  env;
-  gateway;
-  async readiness(config) {
-    return this.signIn(config);
-  }
-  async signIn(config) {
-    if (!await onPath(this.files, this.env, config.binary)) return missing("claude", config.binary);
-    const result = await runStatus(this.process, config.binary, ["auth", "status"], this.profile());
-    if (typeof result !== "string" && result.timedOut !== true && result.exitCode === 0) return { ready: true };
-    return {
-      detail: `claude: not signed in to the work profile; run claude and sign in with the work account, then re-run setup (${unreadable(result)})`,
-      ready: false
-    };
-  }
-  async version(config) {
-    return cliVersion(this.process, config.binary);
-  }
-  async review(launch, config) {
-    const run = await this.gateway.launch({
-      binary: config.binary,
-      client: "claude",
-      extras: { env: this.profile() },
-      mode: "read-only",
-      model: config.gateway?.model ?? config.model,
-      paths: { exportDir: join40(launch.criticDir, "export"), promptPath: launch.promptPath, workDir: launch.packetDir },
-      prompt: await this.files.readText(launch.promptPath),
-      time_limit_s: limitOf(launch)
-    });
-    return report(this.files, "claude", launch, run);
-  }
-  /** The work profile's directory, set explicitly so an ambient `CLAUDE_CONFIG_DIR` cannot pick another. */
-  profile() {
-    return { CLAUDE_CONFIG_DIR: join40(this.env.require("HOME"), ".claude") };
-  }
-};
-
 // src/contexts/critique/adapters/grants/index.ts
 var GatewayGrants = class {
   constructor(env, clock) {
@@ -13662,7 +13471,7 @@ function answerText(reply) {
 
 // src/contexts/critique/adapters/code-nav/client.ts
 import { realpath as realpath2 } from "node:fs/promises";
-import { isAbsolute as isAbsolute9, join as join41, relative as relative5 } from "node:path";
+import { isAbsolute as isAbsolute8, join as join40, relative as relative5 } from "node:path";
 var MAP_TIMEOUT_MS = 3e4;
 var MAP_LIMIT = 200;
 var REQUESTS = [
@@ -13742,7 +13551,7 @@ function mapOf(text, root) {
   return { files, symbols };
 }
 function inside(root, path) {
-  const repository = relative5(root, isAbsolute9(path) ? path : join41(root, path));
+  const repository = relative5(root, isAbsolute8(path) ? path : join40(root, path));
   return repository === "" || repository === ".." || repository.startsWith("../") || repository.startsWith("..\\") ? void 0 : repository.split("\\").join("/");
 }
 
@@ -13751,7 +13560,7 @@ import { createInterface } from "node:readline";
 
 // src/contexts/critique/adapters/search/engine.ts
 import { lstat, readdir as readdir2, readFile as readFile6, realpath as realpath3 } from "node:fs/promises";
-import { isAbsolute as isAbsolute10, join as join42, relative as relative6, sep } from "node:path";
+import { isAbsolute as isAbsolute9, join as join41, relative as relative6, sep } from "node:path";
 var OUTSIDE = "Nothing: that path is outside the packet, or is not in it.";
 var PacketSearchEngine = class _PacketSearchEngine {
   constructor(root, limits, tools) {
@@ -13766,7 +13575,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
   static async open(root, limits) {
     const real = await realpath3(root);
     if (!(await lstat(real)).isDirectory()) throw new Error(`${root} is not a directory`);
-    const map = await lstat(join42(real, REPO_MAP_PATH)).catch(() => void 0);
+    const map = await lstat(join41(real, REPO_MAP_PATH)).catch(() => void 0);
     return new _PacketSearchEngine(real, limits, offeredSearchTools(map?.isFile() === true));
   }
   async call(tool, args) {
@@ -13789,7 +13598,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
     const hits = [];
     for (const path of await this.files(start)) {
       if (glob !== void 0 && !matchesGlob(path, glob)) continue;
-      const lines = (await readFile6(join42(this.root, path), "utf8")).split("\n");
+      const lines = (await readFile6(join41(this.root, path), "utf8")).split("\n");
       lines.forEach((line2, index) => {
         if (pattern.test(line2)) hits.push(`${path}:${String(index + 1)}: ${clipLine(line2)}`);
       });
@@ -13802,7 +13611,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
     return cappedAnswer(paths, this.limits, "paths", "No paths match.");
   }
   async symbol(args) {
-    const map = await readFile6(join42(this.root, REPO_MAP_PATH), "utf8");
+    const map = await readFile6(join41(this.root, REPO_MAP_PATH), "utf8");
     return cappedAnswer(symbolMatches(map, requiredString(args, "name")), this.limits, "matches", "No symbol of that name.");
   }
   /**
@@ -13810,8 +13619,8 @@ var PacketSearchEngine = class _PacketSearchEngine {
    * absolute, climbs out, passes through a symlink or does not exist.
    */
   async inside(path) {
-    if (isAbsolute10(path)) return void 0;
-    const target = join42(this.root, path);
+    if (isAbsolute9(path)) return void 0;
+    const target = join41(this.root, path);
     if (!within2(this.root, target)) return void 0;
     const real = await realpath3(target).catch(() => void 0);
     if (real !== target) return void 0;
@@ -13823,7 +13632,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
     if (stat3.isFile()) return [relative6(this.root, dir)];
     const found = [];
     for (const entry2 of await readdir2(dir, { withFileTypes: true })) {
-      const path = join42(dir, entry2.name);
+      const path = join41(dir, entry2.name);
       if (entry2.isDirectory()) found.push(...await this.files(path));
       else if (entry2.isFile()) found.push(relative6(this.root, path));
     }
@@ -13832,7 +13641,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
 };
 function within2(root, path) {
   const rel = relative6(root, path);
-  return rel === "" || rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute10(rel);
+  return rel === "" || rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute9(rel);
 }
 function requiredString(args, key2) {
   const value = args[key2];
@@ -14470,10 +14279,7 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
     commands: createCritiqueCommands({
       assetsRoot,
       clients: {
-        agy: new AgyCriticClient(processPort, files, env, platform),
-        // Only a nedap repository's work roster names these two.
-        claude: new ClaudeCriticClient(processPort, files, env),
-        codex: new CodexCriticClient(processPort, files, env),
+        agy: new AgyCriticClient(processPort, files, env),
         vibe: new VibeCriticClient(processPort, files, env, platform)
       },
       clock,
@@ -14487,11 +14293,11 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
       // Codex critics of a nedap repository run under the gateway's grants.
       grants: new GatewayGrants(env, clock),
       ledger: new NodeModelGatewayLedger(env),
-      plan: new GatewayPlanLimit(env, clock, join43(assetsRoot, "..", "model-gateway", "defaults.json")),
+      plan: new GatewayPlanLimit(env, clock, join42(assetsRoot, "..", "model-gateway", "defaults.json")),
       // The tree sample is ordered by code-nav's repository map when code-nav is installed.
       repoMap: new CodeNavRepoMap(processPort),
       // Vibe starts the search server as `node critique.mjs search-server ...`.
-      search: new ProcessSearchClient(processPort, { args: [join43(assetsRoot, "critique.mjs")], command: process.execPath })
+      search: new ProcessSearchClient(processPort, { args: [join42(assetsRoot, "critique.mjs")], command: process.execPath })
     }),
     readFile: (path) => files.readText(path),
     readStdin: readStdin2
