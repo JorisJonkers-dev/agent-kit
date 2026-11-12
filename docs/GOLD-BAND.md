@@ -641,9 +641,9 @@ nothing else. What differs from the personal file:
   `tickets-verdicts`) run on `codex`, so the author is not the family that
   rules on the review. Shim nodes keep their `gate-`, `copy-` agents.
 * Each Codex node is reached only through its grant-check node
-  (`grant-spec-verdicts`, `grant-tickets-verdicts`, the `gold-band-run-start
+  (`grant-check-spec-verdicts`, `grant-check-tickets-verdicts`, the `gold-band-run-start
   grant-check` shim, see "The grant-check node"). A refused grant takes the
-  failure edge to a manual check (`spec-grant-check`, `tickets-grant-check`)
+  failure edge to a manual check (`grant-refused`, shared by both)
   that has no way on: the owner asks for a new grant and starts the run again.
   The run-start gate also needs a live grant for the run before any node.
 * The critique steps are the stage templates' nodes; their prepare and fan-out

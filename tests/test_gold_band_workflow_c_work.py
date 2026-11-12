@@ -33,7 +33,7 @@ MANIFEST = KIT_ROOT / "scripts" / "Cargo.toml"
 
 WORK_AGENTS = {"claude-work", "codex"}
 CODEX_NODES = ["spec-verdicts", "tickets-verdicts"]
-GRANT_PAUSES = ["spec-grant-check", "tickets-grant-check"]
+GRANT_PAUSES = ["grant-refused"]
 MANUAL_CHECKS = [
     "grill-check-1",
     "grill-check-2",
@@ -68,7 +68,7 @@ def personal() -> dict[str, Any]:
 
 
 def _is_shim(node_id: str) -> bool:
-    return node_id.startswith(("gate-", "copy-", "grant-"))
+    return node_id.startswith(("gate-", "copy-", "grant-check-"))
 
 
 def _reachable(edges: list[tuple[str, str, str]], entry: str, without: set[str]) -> set[str]:
@@ -87,7 +87,7 @@ def test_the_personal_workflow_c_is_untouched_by_the_work_variant(personal: dict
     assert personal["workflow"]["id"] == "workflow-c"
     text = PERSONAL.read_text().lower()
     assert "claude-work" not in text
-    assert "grant-" not in text
+    assert "grant-check" not in text
 
 
 def test_the_variant_is_workflow_c_for_the_work_instance(template: dict[str, Any]) -> None:
@@ -111,11 +111,11 @@ def test_the_edges_are_the_personal_ones_with_a_grant_check_before_each_codex_no
     edges: list[tuple[str, str, str]], personal: dict[str, Any]
 ) -> None:
     theirs = {(e["from"], e["to"], e["on"]) for e in personal["workflow"]["edges"]}
-    redirected = {(f, f"grant-{t}" if t in CODEX_NODES else t, on) for f, t, on in theirs}
+    redirected = {(f, f"grant-check-{t}" if t in CODEX_NODES else t, on) for f, t, on in theirs}
     extra = set(edges) - redirected
     assert redirected <= set(edges)
-    assert extra == {(f"grant-{name}", name, "success") for name in CODEX_NODES} | {
-        (f"grant-{name}", f"{name.split('-')[0]}-grant-check", "failure") for name in CODEX_NODES
+    assert extra == {(f"grant-check-{name}", name, "success") for name in CODEX_NODES} | {
+        (f"grant-check-{name}", "grant-refused", "failure") for name in CODEX_NODES
     }
 
 
@@ -153,7 +153,7 @@ def test_the_codex_nodes_are_exactly_the_orchestrators(nodes: dict[str, dict[str
 def test_each_codex_node_is_reachable_only_through_its_grant_check(
     nodes: dict[str, dict[str, Any]], edges: list[tuple[str, str, str]], draft: str
 ) -> None:
-    grant = f"grant-{draft}"
+    grant = f"grant-check-{draft}"
     assert [frm for frm, to, _ in edges if to == draft] == [grant]
     assert nodes[grant]["success_condition"] == {"path": "$.exit_code", "equals": 0}
     assert "grant-check wrapper" in nodes[grant]["goal"]
@@ -164,8 +164,8 @@ def test_each_codex_node_is_reachable_only_through_its_grant_check(
 def test_a_refused_grant_pauses_the_run_on_a_manual_check_that_goes_nowhere(
     nodes: dict[str, dict[str, Any]], edges: list[tuple[str, str, str]], draft: str
 ) -> None:
-    pause = f"{draft.split('-')[0]}-grant-check"
-    assert (f"grant-{draft}", pause, "failure") in edges
+    pause = "grant-refused"
+    assert (f"grant-check-{draft}", pause, "failure") in edges
     assert nodes[pause]["manual_check"] is True
     assert [e for e in edges if e[0] == pause] == []
 

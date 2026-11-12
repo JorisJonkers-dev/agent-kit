@@ -287,15 +287,15 @@
       },
       {
         "type": "worker",
-        "id": "grant-spec-verdicts",
-        "executionSlotId": "slot-grant-spec-verdicts",
+        "id": "grant-check-spec-verdicts",
+        "executionSlotId": "slot-grant-check-spec-verdicts",
         "provider": "grant-spec-verdicts",
         "model": "stub-model",
         "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the node spec-verdicts of Workflow C for the work instance, which holds one Codex node start against the run's grant, and answer with its exit status as one fenced json block and nothing else.",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node spec-verdicts (--node spec-verdicts) of Workflow C for the work instance, which holds one Codex node start against the run's grant, and answer with its exit status as one fenced json block and nothing else.",
         "output": {
           "kind": "json",
-          "artifact": "grant-spec-verdicts-status",
+          "artifact": "grant-check-spec-verdicts-status",
           "schema": {
             "exit_code": 0
           }
@@ -304,16 +304,6 @@
           "path": "$.exit_code",
           "equals": 0
         }
-      },
-      {
-        "type": "worker",
-        "id": "spec-grant-check",
-        "executionSlotId": "slot-spec-grant-check",
-        "provider": "claude-work",
-        "model": "sonnet",
-        "profile": "pf-builtin-dev",
-        "goal": "The grant for the Codex node spec-verdicts of Workflow C is not live or has no start left: state to the owner, in one short paragraph, which check refused and what the report says. Do not write any file and do not ask for a grant yourself; the owner asks for a new grant and starts the run again.",
-        "manual_check": true
       },
       {
         "type": "worker",
@@ -558,15 +548,15 @@
       },
       {
         "type": "worker",
-        "id": "grant-tickets-verdicts",
-        "executionSlotId": "slot-grant-tickets-verdicts",
+        "id": "grant-check-tickets-verdicts",
+        "executionSlotId": "slot-grant-check-tickets-verdicts",
         "provider": "grant-tickets-verdicts",
         "model": "stub-model",
         "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the node tickets-verdicts of Workflow C for the work instance, which holds one Codex node start against the run's grant, and answer with its exit status as one fenced json block and nothing else.",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node tickets-verdicts (--node tickets-verdicts) of Workflow C for the work instance, which holds one Codex node start against the run's grant, and answer with its exit status as one fenced json block and nothing else.",
         "output": {
           "kind": "json",
-          "artifact": "grant-tickets-verdicts-status",
+          "artifact": "grant-check-tickets-verdicts-status",
           "schema": {
             "exit_code": 0
           }
@@ -575,16 +565,6 @@
           "path": "$.exit_code",
           "equals": 0
         }
-      },
-      {
-        "type": "worker",
-        "id": "tickets-grant-check",
-        "executionSlotId": "slot-tickets-grant-check",
-        "provider": "claude-work",
-        "model": "sonnet",
-        "profile": "pf-builtin-dev",
-        "goal": "The grant for the Codex node tickets-verdicts of Workflow C is not live or has no start left: state to the owner, in one short paragraph, which check refused and what the report says. Do not write any file and do not ask for a grant yourself; the owner asks for a new grant and starts the run again.",
-        "manual_check": true
       },
       {
         "type": "worker",
@@ -775,6 +755,16 @@
           "path": "$.exit_code",
           "equals": 0
         }
+      },
+      {
+        "type": "worker",
+        "id": "grant-refused",
+        "executionSlotId": "slot-grant-refused",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "A grant-check node refused: the run has no live grant for Codex, or its Codex node starts are used up. The owner reads the grant-check report and either writes a grant (model-gateway grant write) and starts the run again, or stops the run. Do not write any file and do not ask for a grant yourself.",
+        "manual_check": true
       }
     ],
     "edges": [
@@ -860,7 +850,7 @@
       },
       {
         "from": "copy-critique-spec-fan-out",
-        "to": "grant-spec-verdicts",
+        "to": "grant-check-spec-verdicts",
         "on": "success"
       },
       {
@@ -920,7 +910,7 @@
       },
       {
         "from": "copy-critique-tickets-fan-out",
-        "to": "grant-tickets-verdicts",
+        "to": "grant-check-tickets-verdicts",
         "on": "success"
       },
       {
@@ -974,23 +964,23 @@
         "on": "success"
       },
       {
-        "from": "grant-spec-verdicts",
+        "from": "grant-check-spec-verdicts",
         "to": "spec-verdicts",
         "on": "success"
       },
       {
-        "from": "grant-spec-verdicts",
-        "to": "spec-grant-check",
+        "from": "grant-check-spec-verdicts",
+        "to": "grant-refused",
         "on": "failure"
       },
       {
-        "from": "grant-tickets-verdicts",
+        "from": "grant-check-tickets-verdicts",
         "to": "tickets-verdicts",
         "on": "success"
       },
       {
-        "from": "grant-tickets-verdicts",
-        "to": "tickets-grant-check",
+        "from": "grant-check-tickets-verdicts",
+        "to": "grant-refused",
         "on": "failure"
       }
     ]
@@ -1068,14 +1058,9 @@
         "modelId": "stub-model"
       },
       {
-        "executionSlotId": "slot-grant-spec-verdicts",
+        "executionSlotId": "slot-grant-check-spec-verdicts",
         "agentId": "grant-spec-verdicts",
         "modelId": "stub-model"
-      },
-      {
-        "executionSlotId": "slot-spec-grant-check",
-        "agentId": "claude-work",
-        "modelId": "sonnet"
       },
       {
         "executionSlotId": "slot-spec-verdicts",
@@ -1133,14 +1118,9 @@
         "modelId": "stub-model"
       },
       {
-        "executionSlotId": "slot-grant-tickets-verdicts",
+        "executionSlotId": "slot-grant-check-tickets-verdicts",
         "agentId": "grant-tickets-verdicts",
         "modelId": "stub-model"
-      },
-      {
-        "executionSlotId": "slot-tickets-grant-check",
-        "agentId": "claude-work",
-        "modelId": "sonnet"
       },
       {
         "executionSlotId": "slot-tickets-verdicts",
@@ -1186,6 +1166,11 @@
         "executionSlotId": "slot-copy-workflow-c-publish",
         "agentId": "copy-workflow-c-publish",
         "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grant-refused",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
       }
     ]
   }
