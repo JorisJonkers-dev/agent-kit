@@ -207,6 +207,12 @@ gold_band:
   `local_skills`, a skill source without `SKILL.md` and a set name that is not a
   Gold Band id are all refused before anything is written.
 
+The shipped registry declares one set, `estate`: the four estate skills
+(`estate-bootstrap`, `estate-project-intent`, `estate-delivery-status`,
+`estate-rollback`). `opencode`, `vibe` and `vibe-study`, the personal
+instance's declared agents, name it, so each gets those four skills in its own
+directory and an id that does not name it gets none.
+
 ## The run-start shim
 
 Every Gold Band workflow opens with a cheap, read-only node that runs one
@@ -462,6 +468,55 @@ cycle every edge runs at most once, so the cap is never exceeded and the run can
 end on the control limit before it reaches the escalation. The CI wait is added by a
 later ticket.
 
+## Workflow B in the work instance
+
+`installer/gold-band/workflows/workflow-b-work.json` (spec #392, stories 80 and
+81; issue #462) is Workflow B bound to the work instance's two agents only,
+`claude-work` (Anthropic) and `codex` (OpenAI), beside the personal
+`workflow-b.json`, which is unchanged. It has the same gates, critics rounds,
+two unrolled repairs and escalation. The bindings differ, and each round's critics
+become one worker (below); the writer and the reviewer are always of different
+families. With two families, the test author and the critics share one (Claude): the
+critic reviews the writer's change, tests included, and the writer is never of that family:
+
+* **Claude** writes the failing tests (`test-author`), is the one critic of each
+  round (`critics-N`, one `claude-work` worker rather than an `ai-dynamic` fan-out,
+  which Gold Band refuses below two nodes) and judges the escalation (`workflow-b-escalation`, `opus`, and the
+  `escalation-check` manual check).
+* **Codex** (`gpt-5.5`) is the writer and the two repairs, so the critics are
+  never of the writer's family and the test author is never of its family.
+* **A grant-check node precedes every Codex node.** `grant-check-writer`,
+  `grant-check-repair-1` and `grant-check-repair-2` each run the pinned
+  `gold-band-run-start grant-check` wrapper for the node they guard (`--node
+  <name>`), and the guarded node has no other way in. A refused check (no grant,
+  a lapsed one, or every `max_starts` start taken) takes the node's failure edge
+  to the `grant-refused` manual check, so the run pauses (exit 2) before Codex
+  starts. A run reserves at most three Codex starts, so a grant needs
+  `max_starts` of 3.
+
+The gate, copier, verdict and grant-check nodes bind stub agent ids (`gate-*`,
+`copy-*`, `verdict-*`, `grant-*`) as in the personal template; the live wiring
+that gives them real agents is the live wiring ticket's. A real run on a `nedap`
+repository still needs the run-start shim and a live grant for the run
+(`workflow-b-work@<host/owner/repo>@<run id>`).
+
+The proof is two layers. `gold-band-proof prove` runs the whole template
+against the stub agents: the clean run, both repairs, the escalation pause, a
+failing gate (build, tests, lint, coverage and the finding check) and `grant-lapse-writer` (the grant-check node fails
+and the run pauses at `grant-refused`). `tests/test_gold_band_workflow_b_work.py`
+runs each Codex node's stretch of the real template with the real wrapper and
+the real gateway bundle over a fake grants file in a throw-away configuration
+outside any repository: with no grant the run pauses before Codex and no start is
+reserved; with a live grant Codex runs after one reservation; with no start left
+the next Codex node is refused. The workflow lint runs over a `*-work.json`
+template as the work instance (`gold-band`), which may bind Codex.
+
+**Reach levels.** Workflows bind agent ids by `provider`, and
+`registry/reach-levels.yaml` holds no id yet (`ids: {}`), so this template needs
+no reach cell. The support record has no `codex` agent either: Codex's reach
+levels are unverified and are the Codex reach ticket's, so a work node that must
+run at a held reach level (not just by the work instance's own limits) waits for it.
+
 ## The critique stage templates
 
 `installer/gold-band/workflows/critique-<stage>.json` wraps each critique
@@ -567,8 +622,8 @@ pauses on a manual check wherever the owner has to settle something:
 The spec and ticket drafts are written by a different family (Vibe, Mistral)
 from the orchestrator that rules on their review (Vibe-study, DeepSeek) and
 from the critics the runner picks. No node writes memory and none binds Codex
-or Opus; the grill rounds use Vibe GLM. The work-instance variant is a
-separate ticket.
+or Opus; the grill rounds use Vibe GLM. The work-instance variant is
+`workflow-c-work.json` (next section); this file is not changed by it.
 
 A headless run cannot continue past a manual check (`gold-band continue`
 refuses a run that waits for user input), so the proof proves each stretch of
@@ -580,6 +635,39 @@ and at the publication check (`clean`); the publish gate and its failure are
 proved in the `after-publication-check` segment. What the proof does not check:
 that `ticket-publish` creates real issues (its tests fake `gh`), and that a
 real model asks sensible questions.
+
+## Workflow C in the work instance
+
+`installer/gold-band/workflows/workflow-c-work.json` (issue #463) is the same
+graph bound to the work instance's two agents, `claude-work` and `codex`, and
+nothing else. What differs from the personal file:
+
+* The grill rounds, the drafts, the needs-human checks and the publication
+  check run on `claude-work`; the two review orchestrators (`spec-verdicts`,
+  `tickets-verdicts`) run on `codex`, so the author is not the family that
+  rules on the review. Shim nodes keep their `gate-`, `copy-` agents.
+* Each Codex node is reached only through its grant-check node
+  (`grant-check-spec-verdicts`, `grant-check-tickets-verdicts`, the `gold-band-run-start
+  grant-check` shim, see "The grant-check node"). A refused grant takes the
+  failure edge to a manual check (`grant-refused`, shared by both)
+  that has no way on: the owner asks for a new grant and starts the run again.
+  The run-start gate also needs a live grant for the run before any node.
+* The critique steps are the stage templates' nodes; their prepare and fan-out
+  gate goals say that a `nedap` repository routes to the work-only critic
+  roster (Codex under the grant and the work Claude agent, never the
+  orchestrator's own family). The routing itself is the critique runner's; the
+  launchers for those critics are ticket #558, so until it lands the runner
+  reports the work critics as unavailable and the review does not pass.
+* Publication still pauses on `publication-check` for the owner, and only
+  after it does the publish gate create GitHub issues, through the pinned
+  `ticket-publish` wrapper, in the repository the work repository's own
+  `docs/agents/setup.yaml` names.
+
+Its tests (`tests/test_gold_band_workflow_c_work.py`) use a fixture setup file
+(`tests/fixtures/gold-band/work-repo`) naming a placeholder repository and a
+fake `gh`; no real repository is named and no issue is created. The headless
+proof adds `grant-lapse-spec-verdicts` and `grant-lapse-tickets-verdicts`, each
+pausing (exit 2) at its grant manual check.
 
 ## Wave 4: the human-gate workflows
 
