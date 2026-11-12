@@ -6,7 +6,6 @@
 # fails leaves the installed binary (or the node runner) as it was.
 #
 #   --check                    report what would happen; build nothing.
-#   AGENT_KIT_MODEL_GATEWAY_DIR  where the binary goes (default as above).
 #   KIT_ROOT                   the kit (default: this script's parent).
 #
 # Exit status: 0 installed, already current, or skipped (no cargo, no workspace,
@@ -16,11 +15,16 @@ set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 KIT=${KIT_ROOT:-$(dirname "$HERE")}
-DEST_DIR=${AGENT_KIT_MODEL_GATEWAY_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/agent-kit/model-gateway}
+# Where the command on PATH looks (installer/model-gateway reads the same place).
+DEST_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/agent-kit/model-gateway
 PIN=${XDG_CONFIG_HOME:-$HOME/.config}/agent-kit/model-gateway-node
 MANIFEST=$KIT/scripts/Cargo.toml
 CHECK=0
-[ "${1:-}" = "--check" ] && CHECK=1
+case "${1:-}" in
+  "") ;;
+  --check) CHECK=1 ;;
+  *) echo "usage: install-model-gateway-rust.sh [--check]" >&2; exit 2 ;;
+esac
 
 say() { printf 'model-gateway (rust): %s\n' "$*"; }
 
@@ -30,6 +34,8 @@ if ! command -v cargo >/dev/null 2>&1; then say "skipped, cargo is not on PATH; 
 if [ "$CHECK" = 1 ]; then say "would build and install $DEST_DIR/model-gateway"; exit 0; fi
 
 target=${CARGO_TARGET_DIR:-$KIT/scripts/target}
+# From the kit, so its .cargo/config.toml (the crate gate) applies whatever the caller's directory.
+cd "$KIT"
 if ! cargo build --release --locked -p model-gateway --manifest-path "$MANIFEST" >&2; then
   say "the build failed; the installed gateway is unchanged"
   exit 1
@@ -42,8 +48,9 @@ if [ -x "$DEST_DIR/model-gateway" ] && cmp -s "$built" "$DEST_DIR/model-gateway"
   say "already current: $DEST_DIR/model-gateway"
   exit 0
 fi
-mkdir -p "$DEST_DIR"
-tmp=$(mktemp "$DEST_DIR/.model-gateway.XXXXXX")
+mkdir -p "$DEST_DIR" || { say "could not create $DEST_DIR"; exit 1; }
+tmp=$(mktemp "$DEST_DIR/.model-gateway.XXXXXX") || { say "could not install $DEST_DIR/model-gateway"; exit 1; }
+trap 'rm -f "$tmp"' EXIT
 cp "$built" "$tmp" && chmod 0755 "$tmp" && mv -f "$tmp" "$DEST_DIR/model-gateway" \
   || { rm -f "$tmp"; say "could not install $DEST_DIR/model-gateway"; exit 1; }
 say "installed $DEST_DIR/model-gateway"

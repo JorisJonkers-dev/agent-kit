@@ -17,7 +17,7 @@
 set -euo pipefail
 rust="${AGENT_KIT_MODEL_GATEWAY_BIN:-${XDG_DATA_HOME:-${HOME}/.local/share}/agent-kit/model-gateway/model-gateway}"
 pin="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/model-gateway-node"
-if [ "${AGENT_KIT_MODEL_GATEWAY:-rust}" != node ] && [ ! -e "${pin}" ] && [ -x "${rust}" ]; then
+if [ "${AGENT_KIT_MODEL_GATEWAY:-rust}" != node ] && [ ! -e "${pin}" ] && [ -f "${rust}" ] && [ -x "${rust}" ]; then
   exec "${rust}" "$@"
 fi
 exec node "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills/model-gateway/model-gateway.mjs" "$@"

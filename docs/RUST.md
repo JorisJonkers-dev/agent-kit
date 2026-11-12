@@ -533,7 +533,7 @@ touch ~/.config/agent-kit/model-gateway-node                   # every call, and
 rm ~/.config/agent-kit/model-gateway-node                      # back to the Rust binary
 ```
 
-Deleting `~/.local/share/agent-kit/model-gateway/model-gateway` has the same effect
+The command does not probe the binary before running it: one that is installed but broken (a truncated file) fails its calls until the rollback above is used. Deleting `~/.local/share/agent-kit/model-gateway/model-gateway` has the same effect
 until the next setup run. Both runners read and write the same state files (ledger,
 workflows, grants, kept worktrees) in the same format, so switching either way in
 the middle of a workflow loses nothing; the node runner is not removed.

@@ -70,6 +70,15 @@ def setup_run(
     stub(bin_dir, "uname", f"echo {platform}")
     stub(bin_dir, "security", f'echo "security $*" >> "{calls}"')
     stub(bin_dir, "agy", 'echo "agy 1.0.0"')
+    # The Rust gateway's build: no real cargo run, a stub binary into the run's own target directory.
+    stub(
+        bin_dir,
+        "cargo",
+        f'echo "cargo $*" >> "{calls}"\n'
+        f'mkdir -p "$CARGO_TARGET_DIR/release"\n'
+        f"printf '#!/usr/bin/env bash\\nexit 0\\n' > \"$CARGO_TARGET_DIR/release/model-gateway\"\n"
+        f'chmod 755 "$CARGO_TARGET_DIR/release/model-gateway"',
+    )
     # Homebrew answers `list --cask` for what `install --cask` recorded, so a
     # fresh machine takes the install branch and a second run the upgrade one.
     stub(
@@ -95,6 +104,7 @@ def setup_run(
             "HOME": str(home),
             "PATH": f"{bin_dir}:/usr/bin:/bin",
             "AK_NIXOS_MARKER": str(root / "not-nixos"),
+            "CARGO_TARGET_DIR": str(root / "cargo-target"),
             **(extra_env or {}),
         },
     )

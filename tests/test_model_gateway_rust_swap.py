@@ -129,7 +129,7 @@ class Kit:
                 f"> {self.root}/scripts/target/release/model-gateway\n"
                 f"chmod 755 {self.root}/scripts/target/release/model-gateway\n"
             )
-        _program(self.bin / "cargo", f"{build}exit {code}")
+        _program(self.bin / "cargo", f'echo "$@" > {self.root}/cargo-args\n{build}exit {code}')
 
     def run(self, *args: str, path: bool = True, **env: str) -> subprocess.CompletedProcess[str]:
         full = {
@@ -150,6 +150,10 @@ def test_the_installer_builds_and_installs_the_binary(kit: Kit) -> None:
     result = kit.run()
     assert result.returncode == 0, result.stderr
     assert f"installed {kit.dest}" in result.stdout
+    args = (kit.root / "cargo-args").read_text().split()
+    assert args[:2] == ["build", "--release"] and "--locked" in args
+    assert args[args.index("-p") + 1] == "model-gateway"
+    assert args[args.index("--manifest-path") + 1] == f"{kit.root}/scripts/Cargo.toml"
     assert os.access(kit.dest, os.X_OK)
     assert kit.run().stdout.count("already current") == 1
 
@@ -176,11 +180,23 @@ def test_a_build_that_leaves_no_binary_is_a_failure(kit: Kit) -> None:
     assert kit.run().returncode == 1
 
 
-def test_a_failed_install_is_reported_and_leaves_no_partial_file(kit: Kit) -> None:
+def test_an_install_that_cannot_land_is_reported(kit: Kit) -> None:
     kit.dest.parent.parent.mkdir(parents=True)
     kit.dest.parent.write_text("a file where the directory should be")
     result = kit.run()
     assert result.returncode == 1
+    assert "could not create" in result.stdout
+
+
+def test_a_directory_where_the_binary_should_be_is_not_executed(home: Path) -> None:
+    (home / ".local" / "share" / "agent-kit" / "model-gateway" / "model-gateway").mkdir(parents=True)
+    assert _gateway(home, "usage").stdout.startswith("node ")
+
+
+def test_an_unknown_argument_builds_nothing(kit: Kit) -> None:
+    result = kit.run("--chekc")
+    assert result.returncode == 2
+    assert not (kit.root / "cargo-args").exists()
 
 
 def test_without_cargo_a_workspace_or_with_the_pin_the_step_is_skipped(kit: Kit, home: Path) -> None:
