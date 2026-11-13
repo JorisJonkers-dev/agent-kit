@@ -34,4 +34,5 @@ members = [
     "crates/ticket-publish",
     "crates/model-gateway",
     "crates/critique",
+    "crates/memory-bank",
 ]

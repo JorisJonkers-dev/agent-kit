@@ -284,6 +284,37 @@ repository where it is not ignored yet, `on` also adds it to `.git/info/exclude`
 hooks once the folder is trusted, and the plugin then goes inert there: no
 shared-bank recall at all. For one session only: `HINDSIGHT_DISABLED=true claude`.
 
+### The Nedap bank and the bank resolver
+
+Employer facts live in their own Hindsight bank, `nedap` (ADR-0012), never in
+Shared Memory (`default`) and never in Private Memory. A session's bank is
+chosen by its repository's remote owner, by the `memory-bank` command
+(`scripts/crates/memory-bank`), which reads the owner the way the model
+gateway and the critique runner do: a repository with any `nedap`-owned remote,
+on any host or alias, is the Nedap bank; every other repository, and a
+directory with no remote, is Shared Memory.
+
+```sh
+cargo run -q --manifest-path scripts/Cargo.toml -p memory-bank -- resolve [PATH]   # {"bank":"nedap","bank_id":"nedap"} or {"bank":"shared","bank_id":"default"}
+```
+
+The resolver knows two banks and cannot name Private Memory, which only
+`vibe-private` reaches, behind the passphrase. If git cannot read the remotes,
+it exits 1 with no bank: an unreadable remote never falls back to Shared
+Memory. A session holds the one bank its repository resolves to, so a `nedap`
+session recalls and retains in the Nedap bank only and a personal session never
+reaches it (the crate's tests prove both against an in-process server). No
+Gold Band agent id reaches Private Memory: `memory-private` is
+`enabled_for: [vibe-private]` alone, and the registry check refuses a Gold Band
+instance that names the `private` bank or the server.
+
+The employer-specific endpoint and token for the Nedap bank are not in this
+public registry. They go in the work machine's overlay
+(`~/.config/agent-kit/overlay.yaml`, `instances.gold-band.mcp_servers`), like
+every other employer entry. The deployed memory server must serve the `nedap`
+bank on its own host and token service before that entry works; that is a
+live step listed on agent-kit#440.
+
 ### Vibe launchers and Private Memory
 
 Personal notes go to Private Memory, a separate Hindsight bank (`private`),

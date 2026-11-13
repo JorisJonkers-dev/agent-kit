@@ -236,3 +236,27 @@ def test_memory_private_refuses_to_open_a_claude_or_codex_session_even_with_the_
     assert result.returncode == 2
     assert "ran" not in result.stdout
     assert "usage: memory-private on|off|status [DIR]" in result.stderr
+
+
+def test_no_gold_band_instance_agent_id_reaches_private_memory() -> None:
+    """B5-01: only vibe-private has Private Memory, and no Gold Band instance names it."""
+    data = _data()
+    server = _server(data)
+    instances = data["gold_band_instances"]
+    gold_band_agents = {agent for instance in instances.values() for agent in instance["agents"]}
+    assert gold_band_agents, "the registry declares no Gold Band agent ids"
+    assert not gold_band_agents & set(server["enabled_for"])
+    assert server["enabled_for"] == ["vibe-private"]
+    assert "instances" not in server and "agent_ids" not in server and "reach" not in server
+    for name, instance in instances.items():
+        assert "private" not in instance["banks"], name
+    for other in data["mcp_servers"]:
+        if other["name"] != NAME:
+            assert "hindsight-private" not in str(other.get("url_workstation", "")), other["name"]
+
+
+def test_validation_refuses_to_bind_private_memory_to_a_gold_band_instance() -> None:
+    data = copy.deepcopy(_data())
+    _server(data)["instances"] = ["gold-band-personal"]
+    with pytest.raises(render_registry.RegistryError):
+        render_registry.validate(data)

@@ -1,0 +1,12 @@
+[package]
+name = "memory-bank"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The memory bank resolver: chooses a session's Hindsight bank by its repository's remote owner (ADR-0012)."
+
+# The remote owner rule is the model gateway's own (git_remote::identify_repository),
+# reused through the workspace's model-gateway crate (a path inside this
+# workspace), so nothing in the lockfile has an age to question (docs/RUST.md).
+[dependencies]
+model-gateway = { path = "../model-gateway" }

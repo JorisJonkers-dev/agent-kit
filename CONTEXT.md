@@ -467,6 +467,13 @@ work instance and direct-lane sessions on `nedap` repositories. Shared Memory
 and Private Memory never hold employer facts.
 _Avoid_: work memory, work bank
 
+**Bank resolver**:
+The rule that chooses a session's memory bank by its repository's remote owner:
+a `nedap`-owned remote goes to the Nedap bank, everything else to Shared
+Memory. It never yields Private Memory, and it fails rather than guess when the
+remotes cannot be read. The `memory-bank` crate holds it.
+_Avoid_: bank router, bank selector
+
 ## Per-repository setup
 
 **Setup file**:
