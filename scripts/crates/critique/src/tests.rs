@@ -19,6 +19,7 @@ mod routing;
 mod scan_corpus;
 mod scans;
 mod scenarios;
+mod shell_corpus;
 mod stats;
 mod stats_corpus;
 mod tickets_corpus;

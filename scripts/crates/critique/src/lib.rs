@@ -54,6 +54,7 @@ pub mod roster;
 pub mod routing;
 pub mod routing_source;
 pub mod runtime;
+pub mod shell_command;
 pub mod source_scan;
 pub mod stage;
 pub mod stage_table;
