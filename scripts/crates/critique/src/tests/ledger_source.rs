@@ -139,6 +139,7 @@ fn runtime_in(env: HashMap<String, String>, files: MemoryFiles, now_ms: i64) -> 
         env,
         assets_root: "/assets".to_string(),
         stdin: Box::new(String::new),
+        search: None,
     }
 }
 

@@ -84,3 +84,28 @@ fn a_command_not_ported_yet_runs_the_node_runner() {
     assert_eq!(output.status.code(), Some(0));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The real binary serves the reach proof against a real packet with real symlinks out of it, and the proof finds no way out.
+#[test]
+fn the_real_search_server_passes_the_reach_proof() {
+    use critique::packet_search::{default_search_limits, reach_problems, reach_proof_calls};
+    use critique::search_client::{prove_search_reach, session, SearchCommand, SearchSession};
+    let dir = std::env::temp_dir().join(format!("critique-binary-reach-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut runtime = critique::runtime::default_runtime();
+    let own = SearchCommand { command: env!("CARGO_BIN_EXE_critique").to_string(), args: Vec::new() };
+    runtime.search = Some(own.clone());
+    let root = dir.to_string_lossy().into_owned();
+    assert_eq!(prove_search_reach(&runtime, &root, &default_search_limits()), Ok(None));
+    // The same session by hand: the packet's own file is found, and every way out answers nothing.
+    let packet = format!("{root}/packet");
+    let SearchSession::Started { tools, answers } = session(&runtime, &own, &packet, &default_search_limits(), &reach_proof_calls(&format!("{root}/outside"))) else {
+        panic!("the real server starts");
+    };
+    // Without a REPO-MAP in the packet the server offers no symbol search.
+    assert_eq!(tools, [critique::packet_search::SearchToolName::Grep, critique::packet_search::SearchToolName::List]);
+    assert!(answers[0].contains("inside.md"), "{answers:?}");
+    assert_eq!(reach_problems(&answers), Vec::<String>::new());
+    assert!(answers[1..].iter().all(|answer| !answer.contains("OUTSIDE-THE-PACKET")));
+    let _ = std::fs::remove_dir_all(&dir);
+}

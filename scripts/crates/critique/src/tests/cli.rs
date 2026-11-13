@@ -131,6 +131,7 @@ pub fn runtime(stdin: &str) -> Runtime {
         env: HashMap::new(),
         assets_root: "/assets".to_string(),
         stdin: Box::new(move || stdin.clone()),
+        search: None,
     }
 }
 

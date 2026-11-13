@@ -110,7 +110,7 @@ pub fn agy_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &AgyCrit
         classify_agy_run(result.exit_code, &result.stdout, &stream, &result.stderr)
     };
     // Antigravity is quota, not money: it counts against the daily cap, never the Vibe cap.
-    Ok(CriticReport { exit_code: result.exit_code, stdout: result.stdout, stderr: result.stderr, export_path, outcome, charged_usd: 0.0, vibe_cost_usd: None, tokens: None })
+    Ok(CriticReport { exit_code: result.exit_code, stdout: result.stdout, stderr: result.stderr, export_path, outcome, charged_usd: 0.0, vibe_cost_usd: None, tokens: None, search_failure: None, tool_calls: Vec::new() })
 }
 
 /// What agy's event stream held.

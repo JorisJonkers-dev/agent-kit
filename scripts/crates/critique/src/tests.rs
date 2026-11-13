@@ -39,6 +39,7 @@ mod scenarios;
 mod session_start;
 mod shell_corpus;
 mod search_corpus;
+mod search_wiring;
 mod search_server;
 mod stats;
 mod swap;

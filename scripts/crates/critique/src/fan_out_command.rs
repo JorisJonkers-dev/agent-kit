@@ -10,7 +10,7 @@ use crate::assets::read_asset;
 use crate::budget_command::quota_reached;
 use crate::checks::{check_named, check_runnable, declared_checks, with_declared_severity, DeclaredCheck};
 use crate::critic::CriticRun;
-use crate::critic_run::{read_frozen_packet, run_critic, Launch, FINDING_SCHEMA};
+use crate::critic_run::{read_frozen_packet, run_critic, CriticTools, Launch, FINDING_SCHEMA};
 use crate::decode::{read_input, read_json_file};
 use crate::error::{CritiqueError, ShapeError};
 use crate::evidence::{check_evidence, index_packet, skipped_checks, PacketIndex};
@@ -44,6 +44,7 @@ struct Attempt {
 struct Wave<'a> {
     manifest: &'a RunManifest,
     tripwire: ReadOnlyTripwire,
+    tools: CriticTools,
 }
 
 fn read(raw: &Value) -> Result<String, ShapeError> {
@@ -64,7 +65,8 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     }
     let tripwire = ReadOnlyTripwire::load(runtime, &manifest)?;
     let packet = index_packet(&read_frozen_packet(runtime, &manifest)?, manifest.ticket_check.as_ref().map_or(&[][..], |check| &check.ticket_ids));
-    let wave = Wave { manifest: &manifest, tripwire };
+    let tools = CriticTools::new(manifest.limits.search.clone(), join(&[&run_dir, "search-proof"]));
+    let wave = Wave { manifest: &manifest, tripwire, tools };
     let mut outcomes = Vec::new();
     for critic in &manifest.critics {
         outcomes.push(attempt(runtime, &wave, critic, None)?);
@@ -224,7 +226,7 @@ fn attempt(runtime: &Runtime, wave: &Wave<'_>, critic: &RosterCritic, retry_of: 
         let slices = match &manifest.code { Some(code) => code.slices.as_deref().unwrap_or(&[]), None => &[] };
         assemble_prompt(&sources, &listed_files(manifest), &manifest.stage, slices, toolset)
     };
-    let launched = run_critic(runtime, &Launch { tripwire: &wave.tripwire, critic, critic_dir: &critic_dir, prompt: &prompt, retry_of })?;
+    let launched = run_critic(runtime, &Launch { tripwire: &wave.tripwire, critic, critic_dir: &critic_dir, prompt: &prompt, retry_of, tools: &wave.tools })?;
     let context = InvocationContext {
         flow: manifest.flow.clone(),
         repository: manifest.repository.clone(),

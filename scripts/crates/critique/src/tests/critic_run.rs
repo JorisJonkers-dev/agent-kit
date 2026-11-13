@@ -4,7 +4,8 @@ use super::manifest::manifest_text;
 use super::scenarios::Sandbox;
 use super::tripwire::{write, Status};
 use super::vibe_client::{agy_config, claude_config, codex_config, vibe_config};
-use crate::critic_run::{choose_tools, read_frozen_packet, run_critic, Launch, ToolChoice};
+use crate::critic_run::{read_frozen_packet, run_critic, CriticTools, Launch, ToolChoice};
+use crate::packet_search::default_search_limits;
 use crate::critic_tools::{CriticToolset, READ_ONLY_TOOLSET};
 use crate::flow_budget::PromptHashes;
 use crate::manifest::{parse_manifest, RunManifest};
@@ -49,14 +50,14 @@ fn agy_answer(structured: &str) -> String {
     format!(r#"{{"event":"result","result":{{"response":"x","structured_output":{structured}}}}}"#)
 }
 
-struct Run {
-    sandbox: Sandbox,
-    runtime: Runtime,
-    manifest: RunManifest,
+pub struct Run {
+    pub sandbox: Sandbox,
+    pub runtime: Runtime,
+    pub manifest: RunManifest,
 }
 
 /// A run in a sandbox: a packet of two files, a repository beside it, and a runtime whose clients are `process`.
-fn run_in(process: Box<dyn Process>, status: Vec<crate::git::PorcelainEntry>, env: &[(&str, &str)]) -> Run {
+pub fn run_in(process: Box<dyn Process>, status: Vec<crate::git::PorcelainEntry>, env: &[(&str, &str)]) -> Run {
     let sandbox = Sandbox::new();
     let root = sandbox.text();
     write(&format!("{root}/run/packet/a.md"), "A");
@@ -111,10 +112,14 @@ fn writing(stdout: &str, exit_code: i32, plants: Vec<(String, String)>) -> Box<W
     Box::new(Writing { result: ProcessResult { stdout: stdout.to_string(), stderr: "warn".to_string(), exit_code, timed_out: false }, plants, seen: Mutex::new(Vec::new()) })
 }
 
+pub fn tools_of(run: &Run) -> CriticTools {
+    CriticTools::new(default_search_limits(), format!("{}/run/search-proof", run.sandbox.text()))
+}
+
 fn launch_one(run: &Run, critic: &RosterCritic, retry_of: Option<&str>) -> crate::critic_run::CriticLaunchResult {
     let tripwire = ReadOnlyTripwire::load(&run.runtime, &run.manifest).expect("a tripwire");
     let dir = format!("{}/run/critics/c1", run.sandbox.text());
-    run_critic(&run.runtime, &Launch { tripwire: &tripwire, critic, critic_dir: &dir, prompt: &prompt, retry_of: retry_of.map(str::to_string) })
+    run_critic(&run.runtime, &Launch { tripwire: &tripwire, critic, critic_dir: &dir, prompt: &prompt, retry_of: retry_of.map(str::to_string), tools: &tools_of(run) })
         .unwrap_or_else(|error| panic!("{}", error.message))
 }
 
@@ -188,23 +193,23 @@ fn an_agy_critic_searches_only_once_setup_proved_it_read_only() {
     let home = format!("{}/home", run.sandbox.text());
     let unproven = |choice: ToolChoice| (choice.toolset == CriticToolset::Agy { search: false }) && choice.search_failure.is_some();
     // No results file, a failing result and another client's pass prove nothing.
-    assert!(unproven(choose_tools(&run.runtime, &routed).expect("a choice")));
+    assert!(unproven(tools_of(&run).choose(&run.runtime, &routed, "/packet").expect("a choice")));
     let results = |checks: &str| format!(r#"{{"version":1,"checks":{checks}}}"#);
     let entry = |result: &str| format!(r#"{{"checked_at":"t","detail":"d","inputs":{{}},"result":"{result}"}}"#);
     let path = format!("{home}/.local/share/agent-kit/critique/machine-setup.json");
     write(&path, &results(&format!(r#"{{"read-only:agy-main":{},"read-only:other":{}}}"#, entry("fail"), entry("pass"))));
-    assert!(unproven(choose_tools(&run.runtime, &routed).expect("a choice")));
+    assert!(unproven(tools_of(&run).choose(&run.runtime, &routed, "/packet").expect("a choice")));
     write(&path, &results(&format!(r#"{{"read-only:agy-main":{}}}"#, entry("pass"))));
-    assert_eq!(choose_tools(&run.runtime, &routed), Ok(ToolChoice { toolset: CriticToolset::Agy { search: true }, search_failure: None }));
+    assert_eq!(tools_of(&run).choose(&run.runtime, &routed, "/packet"), Ok(ToolChoice { toolset: CriticToolset::Agy { search: true }, search_failure: None }));
     write(&path, "not json");
-    assert!(choose_tools(&run.runtime, &routed).is_err());
+    assert!(tools_of(&run).choose(&run.runtime, &routed, "/packet").is_err());
     // Every other critic reads alone, and says nothing about it.
     for config in [CriticClient::Vibe(vibe_config()), CriticClient::Codex(codex_config()), CriticClient::Claude(claude_config())] {
-        assert_eq!(choose_tools(&run.runtime, &critic(config)), Ok(ToolChoice { toolset: READ_ONLY_TOOLSET, search_failure: None }));
+        assert_eq!(tools_of(&run).choose(&run.runtime, &critic(config), "/packet"), Ok(ToolChoice { toolset: READ_ONLY_TOOLSET, search_failure: None }));
     }
     let mut homeless = run_in(writing("", 0, vec![]), vec![], &[]);
     homeless.runtime.env.remove("HOME");
-    assert!(choose_tools(&homeless.runtime, &routed).is_err());
+    assert!(tools_of(&homeless).choose(&homeless.runtime, &routed, "/packet").is_err());
 }
 
 #[test]
@@ -224,11 +229,11 @@ fn a_critic_that_cannot_start_or_be_watched_is_the_runs_error() {
     let tripwire = ReadOnlyTripwire::load(&run.runtime, &run.manifest).expect("a tripwire");
     let dir = format!("{}/run/critics/c1", run.sandbox.text());
     let routed = critic(CriticClient::Agy(agy_config()));
-    let launch = Launch { tripwire: &tripwire, critic: &routed, critic_dir: &dir, prompt: &prompt, retry_of: None };
+    let launch = Launch { tripwire: &tripwire, critic: &routed, critic_dir: &dir, prompt: &prompt, retry_of: None, tools: &tools_of(&run) };
     assert_eq!(run_critic(&run.runtime, &launch).err().map(|error| error.message), Some("git is gone".to_string()));
     // A client that cannot run is the error its launch gave.
     let refusing = run_in(Box::new(super::vibe_client::FakeProcess::refusing("spawn agy EACCES")), vec![], &[]);
     let tripwire = ReadOnlyTripwire::load(&refusing.runtime, &refusing.manifest).expect("a tripwire");
-    let launch = Launch { tripwire: &tripwire, critic: &routed, critic_dir: &dir, prompt: &prompt, retry_of: None };
+    let launch = Launch { tripwire: &tripwire, critic: &routed, critic_dir: &dir, prompt: &prompt, retry_of: None, tools: &tools_of(&refusing) };
     assert_eq!(run_critic(&refusing.runtime, &launch).err().map(|error| error.message), Some("spawn agy EACCES".to_string()));
 }

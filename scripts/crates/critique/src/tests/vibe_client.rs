@@ -585,6 +585,7 @@ pub fn runtime_with(files: impl Fn() -> Box<dyn Files>, process: impl Fn() -> Bo
         gh: Box::new(crate::gh::SystemGh { env: HashMap::new() }),
         gateway,
         stdin: Box::new(String::new),
+        search: None,
     }
 }
 
