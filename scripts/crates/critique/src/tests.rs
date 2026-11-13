@@ -13,5 +13,7 @@ mod reviews;
 mod roster;
 mod routing;
 mod scenarios;
+mod stats;
+mod stats_corpus;
 mod units;
 mod vibe_client;

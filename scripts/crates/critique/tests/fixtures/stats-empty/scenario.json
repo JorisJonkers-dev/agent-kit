@@ -1,0 +1,22 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "",
+        "state/agent-kit/model-gateway/ledger.jsonl": "\n\n   \n"
+      }
+    }
+  ]
+}

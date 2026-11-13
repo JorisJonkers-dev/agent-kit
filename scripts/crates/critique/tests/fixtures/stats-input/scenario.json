@@ -1,0 +1,126 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "nope"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "[]"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "null"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"repo\":\"a\",\"repository\":\"b\"}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"since\":\"2026-11-1\"}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"since\":\"2026-02-30\"}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"until\":\"2026-13-01\"}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"since\":5}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"since\":\"2026-11-05\",\"until\":\"2026-11-01\"}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"since\":\"2024-02-29\",\"until\":\"2024-02-29\"}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"repository\":7}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"repo\":\"\"}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/gone\"}"
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/nedap\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/nedap"
+        ],
+        [
+          "-C",
+          "repos/nedap",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/secret.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "stats",
+        "--json",
+        "{}",
+        "--strict"
+      ]
+    }
+  ]
+}

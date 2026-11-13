@@ -47,6 +47,8 @@ pub mod routing_source;
 pub mod runtime;
 pub mod stage;
 pub mod stage_table;
+pub mod stats;
+pub mod stats_command;
 pub mod tickets;
 pub mod triage;
 pub mod vibe_client;

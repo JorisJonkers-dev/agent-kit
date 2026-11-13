@@ -1,0 +1,31 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"cells\": [],\n  \"removal_candidates\": [],\n  \"suggestions\": [],\n  \"filter\": {},\n  \"ledger_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl\",\n  \"report\": \"# Critique stats\\n\\nLedger: @SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl. Repository: all. Dates: all.\\nOne row per critic client and prompt. A row with fewer than 20 adjudicated findings gets no suggestion.\\n\\nNo critic runs in the ledger match.\\n\\n## Removal candidates\\n\\nnone\\n\\n## Suggestions\\n\\nnone\\n\",\n  \"status\": \"reported\",\n  \"thresholds\": {\n    \"min_adjudicated_findings\": 20,\n    \"removal_features\": 3\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"cells\": [],\n  \"removal_candidates\": [],\n  \"suggestions\": [],\n  \"filter\": {},\n  \"ledger_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl\",\n  \"report\": \"# Critique stats\\n\\nLedger: @SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl. Repository: all. Dates: all.\\nOne row per critic client and prompt. A row with fewer than 20 adjudicated findings gets no suggestion.\\n\\nNo critic runs in the ledger match.\\n\\n## Removal candidates\\n\\nnone\\n\\n## Suggestions\\n\\nnone\\n\",\n  \"status\": \"reported\",\n  \"thresholds\": {\n    \"min_adjudicated_findings\": 20,\n    \"removal_features\": 3\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "\n\n   \n",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "",
+        "work/": null
+      }
+    }
+  ]
+}
