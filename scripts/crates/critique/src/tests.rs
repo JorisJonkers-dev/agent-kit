@@ -3,6 +3,7 @@
 mod adrs;
 mod assets_plan;
 mod cli;
+mod code_corpus;
 mod cold_read;
 mod collate;
 mod critic_tools;

@@ -11,6 +11,15 @@ use crate::recovery::line_count;
 pub struct LineRange {
     pub first: usize,
     pub last: usize,
+    /// For a range that is a context slice the node runner offered as it was, and that merging has not rebuilt: which
+    /// slice. The node runner's range then still carries the slice's own fields, which its manifest writes out.
+    pub origin: Option<usize>,
+}
+
+impl LineRange {
+    pub fn new(first: usize, last: usize) -> LineRange {
+        LineRange { first, last, origin: None }
+    }
 }
 
 /// A file that may go into the tree.
@@ -77,7 +86,7 @@ pub fn windows_of(index: usize, candidate: &Candidate, size: usize) -> Vec<Piece
     (0..count)
         .map(|i| Piece {
             candidate: index,
-            ranges: vec![LineRange { first: i * size + 1, last: (i * size + 1).max(candidate.line_count.min((i + 1) * size)) }],
+            ranges: vec![LineRange::new(i * size + 1, (i * size + 1).max(candidate.line_count.min((i + 1) * size)))],
             window: true,
             note: None,
         })
@@ -137,7 +146,7 @@ pub fn merge_ranges(ranges: &[LineRange]) -> Vec<LineRange> {
     let mut merged: Vec<LineRange> = Vec::new();
     for range in sorted {
         match merged.last_mut() {
-            Some(last) if range.first <= last.last + 1 => last.last = last.last.max(range.last),
+            Some(last) if range.first <= last.last + 1 => *last = LineRange::new(last.first, last.last.max(range.last)),
             _ => merged.push(range),
         }
     }
@@ -168,7 +177,7 @@ pub fn held_text(candidate: &Candidate, held: &[LineRange]) -> String {
     let mut next = 1;
     for range in held {
         if range.first > next {
-            out.push(gap_marker(&LineRange { first: next, last: range.first - 1 }));
+            out.push(gap_marker(&LineRange::new(next, range.first - 1)));
             out.extend(vec![String::new(); range.first - next - 1]);
         }
         let from = (range.first - 1).min(lines.len());
@@ -204,12 +213,12 @@ pub fn missing_ranges(candidate: &Candidate, held: &[LineRange]) -> Vec<LineRang
     let mut next = 1;
     for range in held {
         if range.first > next {
-            missing.push(LineRange { first: next, last: range.first - 1 });
+            missing.push(LineRange::new(next, range.first - 1));
         }
         next = range.last + 1;
     }
     if next <= candidate.line_count {
-        missing.push(LineRange { first: next, last: candidate.line_count });
+        missing.push(LineRange::new(next, candidate.line_count));
     }
     missing
 }
