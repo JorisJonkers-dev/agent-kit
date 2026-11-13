@@ -55,10 +55,24 @@ const sources = () => {
   }
 }
 const FLOWS = ['github.com/o/r#100', 'draft:my-draft', 'draft:Ünï Cödé', '---', 'draft:' + 'x'.repeat(80), 'A/B c_d.e', '']
-const MUTATE = [(t) => t, (t) => t.replace('"phase": "', '"phase": "x'), (t) => t.replace('"version": 1', '"version": 2'), (t) => t.slice(0, 40), (t) => t.replace('"decisions":', '"decision":'), (t) => t.replace('"severity": "', '"severity": "z')]
+const MUTATE = [(t) => t, (t) => t.replace('"phase": "', '"phase": "x'), (t) => t.replace('"version": 1', '"version": 2'), (t) => t.slice(0, 40), (t) => t.replace('"decisions":', '"decision":'), (t) => t.replace('"severity": "', '"severity": "z'), (t) => t.replace('"review_run_ids": [', '"review_run_ids": [5, ')]
 const cases = []
 for (let i = 0; i < Number(N); i += 1) {
   const input = sources()
+  if (i % 7 === 0) {
+    // Everything landed, the feature reviewed, and a gate for the current head.
+    input.spec = 'github.com/o/r#100'
+    input.flow = input.spec
+    input.events = input.events.filter((event) => event.event !== 'no-critique')
+    input.tickets = input.tickets.length === 0 ? [{ blockedBy: [], id: '#1', open: false, reference: 'github.com/o/r#1', title: 'T' }] : input.tickets.map((ticket) => ({ ...ticket, open: false }))
+    input.runs = [{ recorded: true, round: 1, run_id: 'z-spec', stage: 'spec', ticket_check: null }, { recorded: true, round: 1, run_id: 'z-tickets', stage: 'tickets', ticket_check: 'passed' }, { recorded: true, round: 2, run_id: 'z-fr', stage: 'feature-review', ticket_check: null }]
+    input.findings = input.findings.filter((finding) => finding.verdict !== 'needs-human')
+    input.gates = [{ gate: 'pass', head_commit: input.head_commit, line: 'GATE: PASS', run_id: 'g' }]
+  }
+  if (i % 11 === 0) {
+    input.runs.push({ recorded: true, round: 1, run_id: 'zz-spec', stage: 'spec', ticket_check: null })
+    for (const id of ['C1', 'C2', 'C3', 'C4']) input.findings.push({ answered: false, finding_id: id, run_id: 'zz-spec', severity: 'critical', stage: 'spec', verdict: 'accepted' })
+  }
   const state = flowState(input)
   const text = pick(...MUTATE)(JSON.stringify(state, null, 2))
   let parsed

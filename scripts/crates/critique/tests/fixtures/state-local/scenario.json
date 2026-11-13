@@ -1,0 +1,99 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/l1/docs/agents/issue-tracker.md": "# Issue tracker: Local Markdown\n",
+        "repos/l1/.scratch/feat/spec.md": "# Spec\n",
+        "repos/l1/.scratch/feat/issues/01-a.md": "# A\n\nStatus: done\n",
+        "repos/l1/.scratch/feat/issues/02-b.md": "# B\n\nBlocked by: 01\n",
+        "repos/l1/.scratch/refactor-x/plan.md": "# Plan\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/l1"
+        ],
+        [
+          "-C",
+          "repos/l1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/l1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/l1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "state",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/l1\",\"draft\":\"refactor-x\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "state",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/l1\",\"draft\":\"refactor-x\",\"record\":{\"grilled\":true}}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "state",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/l1\",\"draft\":\"nothing-here\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "state",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/l1\",\"spec\":\".scratch/feat/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "state",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/l1\",\"spec\":\".scratch/feat/spec.md\",\"draft\":\"refactor-x\",\"record\":{\"landed\":[\"02\"]}}"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

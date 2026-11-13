@@ -1,0 +1,78 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"next\": {\n    \"command\": \"/grill-with-docs\",\n    \"kind\": \"command\",\n    \"reason\": \"Every flow starts by grilling the idea against the domain docs; type /flow again when the grilling is done.\",\n    \"skill\": \"/grill-with-docs\"\n  },\n  \"source\": \"rebuilt\",\n  \"state\": {\n    \"draft\": null,\n    \"flow\": \"draft:refactor-x\",\n    \"gate\": {\n      \"head_commit\": null,\n      \"line\": null,\n      \"run_id\": null,\n      \"status\": \"none\"\n    },\n    \"grilled\": false,\n    \"head_commit\": \"236c212c64d115447faeb66dc0e8558171aa6df4\",\n    \"no_critique\": false,\n    \"open_questions\": [],\n    \"phase\": \"planning\",\n    \"plan_path\": \"@SANDBOX@/repos/l1/.scratch/refactor-x/refactoring-plan.md\",\n    \"refactor\": false,\n    \"repository\": \"github.com/jorisjonkers-dev/example\",\n    \"spec\": null,\n    \"stages\": {\n      \"decisions\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"plan\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"feature-review\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"spec\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"tickets\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      }\n    },\n    \"tickets\": [],\n    \"updated_at\": \"2026-11-03T12:00:00.000Z\",\n    \"version\": 1,\n    \"vibe_spend_usd\": 0\n  },\n  \"state_path\": \"@SANDBOX@/repos/l1/.git/critique/flows/draft-refactor-x-887806e42da5.json\",\n  \"status\": \"read\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"next\": {\n    \"kind\": \"stage\",\n    \"reason\": \"The grilling is done: have critics from other model families look for decisions it left open before the spec is written.\",\n    \"stage\": \"decisions\"\n  },\n  \"source\": \"refreshed\",\n  \"state\": {\n    \"draft\": null,\n    \"flow\": \"draft:refactor-x\",\n    \"gate\": {\n      \"head_commit\": null,\n      \"line\": null,\n      \"run_id\": null,\n      \"status\": \"none\"\n    },\n    \"grilled\": true,\n    \"head_commit\": \"236c212c64d115447faeb66dc0e8558171aa6df4\",\n    \"no_critique\": false,\n    \"open_questions\": [],\n    \"phase\": \"planning\",\n    \"plan_path\": \"@SANDBOX@/repos/l1/.scratch/refactor-x/refactoring-plan.md\",\n    \"refactor\": false,\n    \"repository\": \"github.com/jorisjonkers-dev/example\",\n    \"spec\": null,\n    \"stages\": {\n      \"decisions\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"plan\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"feature-review\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"spec\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"tickets\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      }\n    },\n    \"tickets\": [],\n    \"updated_at\": \"2026-11-03T12:00:00.000Z\",\n    \"version\": 1,\n    \"vibe_spend_usd\": 0\n  },\n  \"state_path\": \"@SANDBOX@/repos/l1/.git/critique/flows/draft-refactor-x-887806e42da5.json\",\n  \"status\": \"read\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"flow\",\"flow\":\"draft:refactor-x\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"event\":\"grilled\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"next\": {\n    \"command\": \"/grill-with-docs\",\n    \"kind\": \"command\",\n    \"reason\": \"Every flow starts by grilling the idea against the domain docs; type /flow again when the grilling is done.\",\n    \"skill\": \"/grill-with-docs\"\n  },\n  \"source\": \"rebuilt\",\n  \"state\": {\n    \"draft\": null,\n    \"flow\": \"draft:nothing-here\",\n    \"gate\": {\n      \"head_commit\": null,\n      \"line\": null,\n      \"run_id\": null,\n      \"status\": \"none\"\n    },\n    \"grilled\": false,\n    \"head_commit\": \"236c212c64d115447faeb66dc0e8558171aa6df4\",\n    \"no_critique\": false,\n    \"open_questions\": [],\n    \"phase\": \"planning\",\n    \"plan_path\": \"@SANDBOX@/repos/l1/.scratch/nothing-here/refactoring-plan.md\",\n    \"refactor\": false,\n    \"repository\": \"github.com/jorisjonkers-dev/example\",\n    \"spec\": null,\n    \"stages\": {\n      \"decisions\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"plan\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"feature-review\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"spec\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"tickets\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      }\n    },\n    \"tickets\": [],\n    \"updated_at\": \"2026-11-03T12:00:00.000Z\",\n    \"version\": 1,\n    \"vibe_spend_usd\": 0\n  },\n  \"state_path\": \"@SANDBOX@/repos/l1/.git/critique/flows/draft-nothing-here-43b8a031bf73.json\",\n  \"status\": \"read\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"flow\",\"flow\":\"draft:refactor-x\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"event\":\"grilled\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"next\": {\n    \"kind\": \"stage\",\n    \"reason\": \"The spec is written: have critics from other model families red-team it before it is cut into tickets.\",\n    \"stage\": \"spec\"\n  },\n  \"source\": \"rebuilt\",\n  \"state\": {\n    \"draft\": null,\n    \"flow\": \".scratch/feat/spec.md\",\n    \"gate\": {\n      \"head_commit\": null,\n      \"line\": null,\n      \"run_id\": null,\n      \"status\": \"none\"\n    },\n    \"grilled\": true,\n    \"head_commit\": \"236c212c64d115447faeb66dc0e8558171aa6df4\",\n    \"no_critique\": false,\n    \"open_questions\": [],\n    \"phase\": \"planning\",\n    \"plan_path\": null,\n    \"refactor\": false,\n    \"repository\": \"github.com/jorisjonkers-dev/example\",\n    \"spec\": \".scratch/feat/spec.md\",\n    \"stages\": {\n      \"decisions\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"plan\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"feature-review\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"spec\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"tickets\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      }\n    },\n    \"tickets\": [\n      {\n        \"blocked_by\": [],\n        \"id\": \"01\",\n        \"landed\": true,\n        \"reference\": \".scratch/feat/issues/01-a.md\",\n        \"review\": \"not-reviewed\",\n        \"review_run_ids\": [],\n        \"title\": \"A\"\n      },\n      {\n        \"blocked_by\": [\n          \"01\"\n        ],\n        \"id\": \"02\",\n        \"landed\": false,\n        \"reference\": \".scratch/feat/issues/02-b.md\",\n        \"review\": \"not-reviewed\",\n        \"review_run_ids\": [],\n        \"title\": \"B\"\n      }\n    ],\n    \"updated_at\": \"2026-11-03T12:00:00.000Z\",\n    \"version\": 1,\n    \"vibe_spend_usd\": 0\n  },\n  \"state_path\": \"@SANDBOX@/repos/l1/.git/critique/flows/scratch-feat-spec-md-b91f7868be10.json\",\n  \"status\": \"read\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"flow\",\"flow\":\"draft:refactor-x\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"event\":\"grilled\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"next\": {\n    \"kind\": \"stage\",\n    \"reason\": \"The spec is written: have critics from other model families red-team it before it is cut into tickets.\",\n    \"stage\": \"spec\"\n  },\n  \"source\": \"refreshed\",\n  \"state\": {\n    \"draft\": \"refactor-x\",\n    \"flow\": \".scratch/feat/spec.md\",\n    \"gate\": {\n      \"head_commit\": null,\n      \"line\": null,\n      \"run_id\": null,\n      \"status\": \"none\"\n    },\n    \"grilled\": true,\n    \"head_commit\": \"236c212c64d115447faeb66dc0e8558171aa6df4\",\n    \"no_critique\": false,\n    \"open_questions\": [],\n    \"phase\": \"planning\",\n    \"plan_path\": \"@SANDBOX@/repos/l1/.scratch/refactor-x/refactoring-plan.md\",\n    \"refactor\": false,\n    \"repository\": \"github.com/jorisjonkers-dev/example\",\n    \"spec\": \".scratch/feat/spec.md\",\n    \"stages\": {\n      \"decisions\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"plan\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"feature-review\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"spec\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      },\n      \"tickets\": {\n        \"latest_run_id\": null,\n        \"run_ids\": [],\n        \"status\": \"not-run\"\n      }\n    },\n    \"tickets\": [\n      {\n        \"blocked_by\": [],\n        \"id\": \"01\",\n        \"landed\": true,\n        \"reference\": \".scratch/feat/issues/01-a.md\",\n        \"review\": \"not-reviewed\",\n        \"review_run_ids\": [],\n        \"title\": \"A\"\n      },\n      {\n        \"blocked_by\": [\n          \"01\"\n        ],\n        \"id\": \"02\",\n        \"landed\": true,\n        \"reference\": \".scratch/feat/issues/02-b.md\",\n        \"review\": \"not-reviewed\",\n        \"review_run_ids\": [],\n        \"title\": \"B\"\n      }\n    ],\n    \"updated_at\": \"2026-11-03T12:00:00.000Z\",\n    \"version\": 1,\n    \"vibe_spend_usd\": 0\n  },\n  \"state_path\": \"@SANDBOX@/repos/l1/.git/critique/flows/scratch-feat-spec-md-b91f7868be10.json\",\n  \"status\": \"read\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"flow\",\"flow\":\"draft:refactor-x\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"event\":\"grilled\"}\n{\"type\":\"flow\",\"flow\":\".scratch/feat/spec.md\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"draft\":\"refactor-x\",\"event\":\"draft\"}\n{\"type\":\"flow\",\"flow\":\".scratch/feat/spec.md\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"event\":\"landed\",\"ticket\":\".scratch/feat/issues/02-b.md\"}\n",
+        "work/": null
+      }
+    }
+  ]
+}
