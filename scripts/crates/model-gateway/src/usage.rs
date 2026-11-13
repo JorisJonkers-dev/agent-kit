@@ -575,7 +575,7 @@ fn availability_json(availability: &Availability) -> Value {
     ])
 }
 
-fn plan_window_json(window: &PlanWindowUsage) -> Value {
+pub fn plan_window_json(window: &PlanWindowUsage) -> Value {
     match window {
         PlanWindowUsage::Usd { window, limit_usd, spent_usd, ratio, state } => json::object(vec![
             ("limit_usd", Value::Num(*limit_usd)),
