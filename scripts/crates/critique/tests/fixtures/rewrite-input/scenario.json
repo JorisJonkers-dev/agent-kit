@@ -201,6 +201,27 @@
       "argv": [
         "check-rewrite",
         "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[],\"rewritten\":[{\"path\":\"docs\",\"decision_sentences\":[]},{\"path\":\"missing.md\",\"decision_sentences\":[]}]}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[],\"rewritten\":[{\"path\":\"docs/adr/0001-db.md\",\"decision_sentences\":[]}],\"split\":{\"original\":\"docs\",\"files\":[]}}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[],\"rewritten\":[{\"path\":\"docs/adr/0001-db.md\",\"decision_sentences\":[]}],\"split\":{\"original\":\"missing.md\",\"files\":[]}}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
         "{\"repo\":\"@SANDBOX@/repos/none\",\"original_sentences\":[],\"rewritten\":[]}"
       ],
       "git": [

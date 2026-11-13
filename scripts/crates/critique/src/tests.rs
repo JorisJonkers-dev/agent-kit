@@ -6,6 +6,7 @@ mod cli;
 mod cold_read;
 mod critic_tools;
 mod flow_budget;
+mod ledger_source;
 mod manifest;
 mod roster;
 mod routing;

@@ -97,6 +97,24 @@ impl<'a> Fields<'a> {
         if self.has(key) { self.string(key).map(Some) } else { Ok(None) }
     }
 
+    /// A non-empty string, or `null`.
+    pub fn nullable_string(&self, key: &str) -> Result<Option<String>, ShapeError> {
+        if matches!(self.object.get(key), Some(Value::Null)) {
+            Ok(None)
+        } else {
+            self.string(key).map(Some)
+        }
+    }
+
+    /// A finite number, or `null`.
+    pub fn nullable_number(&self, key: &str) -> Result<Option<f64>, ShapeError> {
+        if matches!(self.object.get(key), Some(Value::Null)) {
+            Ok(None)
+        } else {
+            self.number(key).map(Some)
+        }
+    }
+
     /// A finite number.
     pub fn number(&self, key: &str) -> Result<f64, ShapeError> {
         let number = match self.object.get(key) {
@@ -181,6 +199,11 @@ impl<'a> Fields<'a> {
     /// An object whose every value is a list of strings, in the order JavaScript enumerates them.
     pub fn string_lists(&self, key: &str) -> Result<Vec<(String, Vec<String>)>, ShapeError> {
         self.each(key, |map, name| map.strings(name))
+    }
+
+    /// An object whose every value is a non-empty string, in the order JavaScript enumerates them.
+    pub fn string_map(&self, key: &str) -> Result<Vec<(String, String)>, ShapeError> {
+        self.each(key, |map, name| map.string(name))
     }
 
     /// An object whose every value is a number.

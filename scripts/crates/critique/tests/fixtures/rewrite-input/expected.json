@@ -217,6 +217,33 @@
       }
     },
     {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: missing.md does not exist in the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: missing.md does not exist in the repository\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: missing.md does not exist in the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: missing.md does not exist in the repository\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
       "exit": 0,
       "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
       "stderr": "",
