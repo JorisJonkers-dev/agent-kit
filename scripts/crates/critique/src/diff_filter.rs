@@ -248,7 +248,9 @@ fn unquote(text: &str) -> String {
             }
         }
     }
-    String::from_utf8_lossy(&bytes).into_owned()
+    // `new TextDecoder().decode` drops a leading byte order mark.
+    let bytes = bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&bytes);
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
 /// One UTF-16 unit as `TextEncoder` writes it: a lone surrogate becomes U+FFFD.

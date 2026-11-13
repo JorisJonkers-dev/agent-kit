@@ -177,6 +177,24 @@ scenarios['triage-staged'] = [
   triage({ repo: R('s4'), ticket: '#7', base: 'HEAD' }),
 ]
 
+// The paths a diff can name: a rename and a partial rename (read as a removal and an addition), a binary file,
+// non-ASCII and C-quoted names (a tab, a quote, a backslash), and a removed lock file.
+const PATHS_BASE = {
+  'src/auth/old.ts': 'export const a = 1\nexport const b = 2\n', 'src/keep.ts': 'one\ntwo\nthree\nfour\n',
+  'package-lock.json': '{"lockfileVersion": 3}\n', 'img.bin': '\u0000\u0001\u0002binary\n', 'ünï/é.sql': 'select 1;\n',
+}
+const PATHS_HEAD = {
+  'src/auth/old.ts': null, 'src/auth/new.ts': 'export const a = 1\nexport const b = 2\n',
+  'src/keep.ts': null, 'src/kept.ts': 'one\ntwo\nthree\nfive\n',
+  'package-lock.json': null, 'img.bin': '\u0000\u0003\u0004binary2\n', 'ünï/é.sql': 'select 2;\n',
+  'a\tb.sql': 'drop table x;\n', 'say "hi".md': 'hi\n', 'back\\slash.txt': 'x\n',
+}
+scenarios['triage-paths'] = [
+  ...setup({ p1: { base: PATHS_BASE, head: PATHS_HEAD } }),
+  triage({ repo: R('p1'), ticket: '#7', base: 'HEAD~1' }, { ...tools({ gh: GH, vibe: { '/p1/.git/critique/20261103T120000Z-triage': says('no') }, files: allow() }), env: DATES, roots: roots('p1') }),
+  triage({ repo: R('p1'), ticket: '#8', base: 'HEAD~1' }, { env: DATES, roots: roots('p1') }),
+]
+
 // A step's routing override lasts only for the step: the sandbox keeps files, so every other triage step removes it first.
 const fresh = (step) => (step.argv[0] === 'triage' && step.write?.[OVERRIDE] === undefined ? { ...step, remove: [...(step.remove ?? []), OVERRIDE] } : step)
 for (const [name, steps] of Object.entries(scenarios)) {
