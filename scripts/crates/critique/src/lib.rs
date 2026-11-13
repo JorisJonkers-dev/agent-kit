@@ -4,34 +4,42 @@
 
 pub mod adr_drift;
 pub mod adr_log;
+pub mod assets;
 pub mod allow;
 pub mod allowlist;
 pub mod check_adrs;
 pub mod check_plan;
 pub mod check_rewrite;
 pub mod cli;
+pub mod clients;
+pub mod critic_tools;
 pub mod decision_docs;
 pub mod depth;
 pub mod dirs;
 pub mod error;
 pub mod family;
 pub mod fields;
+pub mod flow_budget;
 pub mod gate;
 pub mod git;
 pub mod limits;
 pub mod locations;
+pub mod manifest;
 pub mod merge_patch;
 pub mod packet_search;
+pub mod plan;
 pub mod pricing;
 pub mod refactoring_plan;
 pub mod repository;
 pub mod repository_packet;
+pub mod roster;
 pub mod routing;
 pub mod routing_source;
 pub mod runtime;
 pub mod stage;
 pub mod tickets;
 pub mod triage;
+pub mod vibe_client;
 
 pub use runtime::{default_runtime, Runtime};
 

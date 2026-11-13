@@ -138,6 +138,40 @@ impl<'a> Fields<'a> {
             .collect()
     }
 
+    /// A list whose every item is a finite number.
+    pub fn numbers(&self, key: &str) -> Result<Vec<f64>, ShapeError> {
+        self.items(key)?
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                let number = match item {
+                    Value::Num(number) if number.is_finite() => Some(*number),
+                    _ => None,
+                };
+                ensure(number, &format!("{}[{index}]", self.at(key)), "a number")
+            })
+            .collect()
+    }
+
+    /// A list whose every item is a list of strings; a wrong item names the item's own path.
+    pub fn string_list_list(&self, key: &str) -> Result<Vec<Vec<String>>, ShapeError> {
+        self.items(key)?
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                let path = format!("{}[{index}]", self.at(key));
+                let list = match item {
+                    Value::Arr(values) => Some(values),
+                    _ => None,
+                };
+                ensure(list, &path, "a list of strings")?
+                    .iter()
+                    .map(|value| ensure(value.as_str(), &path, "a list of strings").map(str::to_string))
+                    .collect()
+            })
+            .collect()
+    }
+
     /// A list whose items are each read as an object with `read`, under the item's path.
     pub fn list<T>(&self, key: &str, mut read: impl FnMut(&Fields<'a>) -> Result<T, ShapeError>) -> Result<Vec<T>, ShapeError> {
         let path = self.at(key);

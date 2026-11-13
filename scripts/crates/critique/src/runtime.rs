@@ -16,6 +16,8 @@ pub struct Runtime {
     /// The folder the runner's shipped files (routing.json, prompts) sit in; the embedded copies are what is read, this is the path messages name.
     pub assets_root: String,
     pub git: Box<dyn Git>,
+    /// What the model gateway's own code runs through: its ledger, its plan limits and the client programs a critic launches (same clock, files and environment as above).
+    pub gateway: model_gateway::ports::Runtime,
     /// What a command reads when it is given neither `--input` nor `--json`.
     pub stdin: Box<dyn Fn() -> String + Send + Sync>,
 }
@@ -26,6 +28,7 @@ pub fn default_runtime() -> Runtime {
     let env: HashMap<String, String> =
         std::env::vars_os().map(|(key, value)| (key.to_string_lossy().into_owned(), value.to_string_lossy().into_owned())).collect();
     Runtime {
+        gateway: model_gateway::default_runtime(),
         clock: Box::new(SystemClock),
         files: Box::new(SystemFiles { cwd }),
         dirs: Box::new(SystemDirs),
