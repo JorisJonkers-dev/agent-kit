@@ -20,7 +20,7 @@ writeFileSync(join(scratch, 'runner.mjs'), `${source.slice(0, source.indexOf(ent
 const { StatsCommand } = await import(join(scratch, 'runner.mjs'))
 rmSync(scratch, { recursive: true })
 const routing = readFileSync(join(shipped, 'routing.json'), 'utf8')
-const CLIENTS = ['vibe-mistral-large', 'vibe-mistral-large', 'agy-gemini-flash-high', 'vibe-deepseek-flash', 'vibe-glm', 'ghost', 'ghost', 'claude-work']
+const CLIENTS = ['vibe-mistral-large', 'vibe-mistral-large', 'agy-gemini-flash-high', 'vibe-deepseek-flash', 'vibe-glm', 'ghost', 'ghost', 'claude-work', 'Vibe-Big', 'vibe_2', 'codex-5', 'agy-Z', 'vibe-10', 'vibe-9']
 let s = Number(SEED)
 const rnd = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296)
 const pick = (...x) => x[Math.floor(rnd() * x.length)]
@@ -28,8 +28,9 @@ const STAGES = ['decisions', 'spec', 'tickets', 'ticket-review', 'feature-review
 const KEY = 'github.com/jorisjonkers-dev/example'
 const day = () => pick('2026-10-30', '2026-11-01', '2026-11-02', '2026-11-03', '2026-11-03')
 const at = () => `${day()}T${pick('00:00:00.000', '09:15:00.000', '12:30:00.000', '23:59:59.999')}Z`
-const G = (good, bad) => (rnd() < 0.985 ? good : bad)
-const runs = Array.from({ length: Math.floor(rnd() * 26) }, (_, i) => ({
+const G = (good, bad) => (rnd() < 0.997 ? good : bad)
+let runs = []
+const makeRuns = () => Array.from({ length: Math.floor(rnd() * 26) }, (_, i) => ({
   type: 'run', recorded_at: at(), repository: pick(KEY, KEY, 'github.com/Other/Repo'), run_id: `r${1 + (i % 7)}`, stage: rnd() < 0.7 ? pick('spec', 'spec', 'tickets', 'adr-review') : pick(...STAGES),
   ...(rnd() < 0.7 ? { spec: pick('s1', 's2', 's3', 's4') } : {}), client: pick(...CLIENTS), cost_usd: pick(null, 0.1, 0.2, 0.3, 0.125, 0),
   critic_id: pick('c1', 'c2', 'c3'), failure: pick(null, null, 'timeout', 'print-timeout', 'stopped-early', 'exit-124', 'other'), finding_count: pick(0, 1, 2),
@@ -38,6 +39,14 @@ const runs = Array.from({ length: Math.floor(rnd() * 26) }, (_, i) => ({
 }))
 const critics = (id) => [...new Set(runs.filter((r) => r.run_id === id).map((r) => r.critic_id))]
 const raisers = (run) => { const all = critics(run.run_id); return rnd() < 0.6 ? [run.critic_id] : all.filter(() => rnd() < 0.6) }
+const kindOf = (client) => (client.toLowerCase().startsWith('agy') ? 'agy' : client.startsWith('codex') ? 'codex' : client.startsWith('claude') ? 'claude' : 'vibe')
+// A run as the gateway's ledger holds it (domain/gateway-ledger.ts): every run field, under the gateway's names.
+const gatewayLine = (r) => ({
+  type: 'invocation', at: r.recorded_at, recorded_at: r.recorded_at, client: 'vibe', critic_client: r.client, model: 'gm', critic_model: r.model, family: 'mistral', mode: 'read-only',
+  workflow: r.run_id, repository: r.repository, run_id: r.run_id, cost_usd: r.cost_usd ?? 0, critic_cost_usd: r.cost_usd, duration_s: 1, outcome: r.status === 'ok' ? 'ok' : 'failed',
+  critic_id: r.critic_id, stage: r.stage, round: 1, kind: kindOf(r.client), charged_usd: r.cost_usd ?? 0, status: r.status, exit_code: 0, finding_count: r.finding_count,
+  role: r.role, lenses: r.lenses, lens_hashes: r.lens_hashes, prompt_hashes: r.prompt_hashes, ...(r.failure ? { failure: r.failure } : {}), ...(r.spec ? { spec: r.spec } : {}),
+})
 const findings = () => {
   if (runs.length === 0) return []
   return Array.from({ length: Math.floor(rnd() * 70) }, (_, i) => {
@@ -58,13 +67,20 @@ const filter = () => ({
 const lines = (objects) => objects.map((o) => JSON.stringify(o)).join('\n') + pick('', '\n')
 const out = []
 for (let i = 0; i < Number(N); ) {
+  runs = makeRuns()
   const input = filter()
   if (rnd() < 0.04) Object.assign(input, pick({ since: '2026-02-30' }, { until: 'x' }, { since: '2026-12-01', until: '2026-01-01' }, { repo: '/h/repo', repository: 'x' }, { since: '2024-02-29' }, { until: '0000-02-29' }, { since: '1900-02-29' }, { since: 5 }))
-  const own = rnd() < 0.1 ? null : lines([...runs, ...findings()])
+  // Each run goes to critique's own ledger, the gateway's, or both (counted once); the gateway also holds a spend-only
+  // line and a line it cannot read.
+  const where = runs.map(() => pick('own', 'own', 'gateway', 'both'))
+  const ownRuns = runs.filter((_, i) => where[i] !== 'gateway')
+  const gatewayRuns = runs.filter((_, i) => where[i] !== 'own')
+  const own = rnd() < 0.1 ? null : lines([...ownRuns, ...findings()])
+  const gateway = rnd() < 0.15 ? null : lines([...gatewayRuns.map(gatewayLine), ...(rnd() < 0.3 ? [{ ...gatewayLine(runs[0] ?? { recorded_at: at(), run_id: 'r1', repository: KEY, stage: 'spec', critic_id: 'c1', client: 'vibe-glm', model: 'm', status: 'ok', finding_count: 0, role: 'r', lenses: [], lens_hashes: {}, cost_usd: 0.1 }), prompt_hashes: undefined }, '{"type":"invocation"'] : [])])
   const override = pick(null, { stats: { min_adjudicated_findings: 1, removal_features: 1 } }, { stats: { min_adjudicated_findings: 2, removal_features: 2 } }, { stats: { min_adjudicated_findings: 3, removal_features: 1 } }, { stats: null })
-  const record = { input, own, override: override === null ? null : JSON.stringify(override), remotes: pick([['origin', 'git@github.com:JorisJonkers-dev/example.git']], [['origin', 'git@github.com:JorisJonkers-dev/example.git']], []) }
+  const record = { input, own, gateway, override: override === null ? null : JSON.stringify(override), remotes: pick([['origin', 'git@github.com:JorisJonkers-dev/example.git']], [['origin', 'git@github.com:JorisJonkers-dev/example.git']], []) }
   const files = new Map([
-    ['/h/.local/share/agent-kit/critique/ledger.jsonl', record.own], ['/assets/routing.json', routing], ['/h/.config/agent-kit/critique-routing.json', record.override],
+    ['/h/.local/share/agent-kit/critique/ledger.jsonl', record.own], ['/h/state/agent-kit/model-gateway/ledger.jsonl', record.gateway], ['/assets/routing.json', routing], ['/h/.config/agent-kit/critique-routing.json', record.override],
   ])
   const m = { HOME: '/h', XDG_STATE_HOME: '/h/state' }
   const deps = {

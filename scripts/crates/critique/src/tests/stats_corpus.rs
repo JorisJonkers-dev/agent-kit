@@ -90,6 +90,9 @@ fn replay(index: usize, case: &Value) {
     if let Some(own) = case.get("own").and_then(Value::as_str) {
         put(&home.join(".local/share/agent-kit/critique/ledger.jsonl"), own);
     }
+    if let Some(gateway) = case.get("gateway").and_then(Value::as_str) {
+        put(&home.join("state/agent-kit/model-gateway/ledger.jsonl"), gateway);
+    }
     if let Some(over) = case.get("override").and_then(Value::as_str) {
         put(&home.join(".config/agent-kit/critique-routing.json"), over);
     }
