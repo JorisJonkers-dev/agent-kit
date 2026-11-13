@@ -26,6 +26,7 @@ pub mod error;
 pub mod facts;
 pub mod family;
 pub mod fields;
+pub mod findings;
 pub mod flow_budget;
 pub mod gate;
 pub mod gateway_ledger;
@@ -64,6 +65,7 @@ pub mod tracker_resolver;
 pub mod triage;
 pub mod triage_command;
 pub mod triage_index;
+pub mod verdicts;
 pub mod vibe_client;
 
 pub use runtime::{default_runtime, Runtime};

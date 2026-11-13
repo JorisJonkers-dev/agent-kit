@@ -560,6 +560,10 @@ takes no registry dependency: it reuses the ordered JSON, the ports and the adap
   until their commands arrive), the read-only toolset text (`critic_tools.rs`), the plan limit read through the
   gateway's code (`plan.rs`) and the shipped files read from `assets_root` (`assets.rs`). `Runtime.gateway` is the gateway's
   own runtime, which the ledger, the plan limit and the client launches go through.
+  The findings a critic reports and the verdicts the orchestrator gives them (`findings.rs`, `verdicts.rs`: the reply's
+  last fenced block read against the output contract, a verdict's reader, and the stage rules for what a verdict may
+  say, a severity override, the candidate questions and the second-round count) are replayed over a generated corpus
+  (`tests/gen-verdicts-corpus.mjs` writes `tests/fixtures/verdicts.json` from the node runner's own functions).
 * **Goldens.** `tests/gen-scenarios.mjs` writes the scenario inputs and
   `tests/regenerate-fixtures.mjs` runs the node runner over each with fake programs in a
   temporary sandbox (fixed clock, fixed `HOME`, git repositories made in the sandbox) and

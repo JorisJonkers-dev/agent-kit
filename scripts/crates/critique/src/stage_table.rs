@@ -44,3 +44,23 @@ pub fn removal_rule(stage: &str) -> RemovalRule {
         RemovalRule::Features
     }
 }
+
+/// How many recovered candidates one run asks the owner about; the rest are deferred in the report.
+pub const RECOVERY_QUESTION_CAP: usize = 10;
+
+/// Whether more than three accepted critical findings of the stage call for a second round. The decisions stage never
+/// does, nor do the stages whose accepted findings revise no artifact.
+pub fn second_round(stage: &str) -> bool {
+    !matches!(stage, "architecture-review" | "decision-recovery" | "decisions")
+}
+
+/// For a stage whose findings are candidates for the owner to confirm: the most candidates asked at once.
+pub fn candidate_questions(stage: &str) -> Option<usize> {
+    matches!(stage, "architecture-review" | "decision-recovery").then_some(RECOVERY_QUESTION_CAP)
+}
+
+/// Whether the stage's recovered candidates sit among findings that may be accepted: only a finding of category
+/// `undocumented-decision` is a candidate then.
+pub fn mixed_candidates(stage: &str) -> bool {
+    stage == "architecture-review"
+}

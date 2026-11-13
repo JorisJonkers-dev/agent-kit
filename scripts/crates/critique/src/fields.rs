@@ -92,6 +92,15 @@ impl<'a> Fields<'a> {
             .collect()
     }
 
+    /// Any string, the empty one included, when the key is there.
+    pub fn optional_text(&self, key: &str) -> Result<Option<String>, ShapeError> {
+        if !self.has(key) {
+            return Ok(None);
+        }
+        let text = self.object.get(key).and_then(Value::as_str);
+        ensure(text, &self.at(key), "a string").map(|text| Some(text.to_string()))
+    }
+
     /// A non-empty string when the key is there.
     pub fn optional_string(&self, key: &str) -> Result<Option<String>, ShapeError> {
         if self.has(key) { self.string(key).map(Some) } else { Ok(None) }

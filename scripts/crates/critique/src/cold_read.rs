@@ -35,7 +35,7 @@ pub type ColdReadAnswers = [String; 3];
 const OPEN: &str = "```json";
 
 /// The text of the last fenced `json` block of a reply, found as ``/```json[ \t]*\r?\n([\s\S]*?)\r?\n?```/g`` finds it.
-fn last_fenced_json(text: &str) -> Option<&str> {
+pub(crate) fn last_fenced_json(text: &str) -> Option<&str> {
     let bytes = text.as_bytes();
     let mut from = 0;
     let mut last = None;
