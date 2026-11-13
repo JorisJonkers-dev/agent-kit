@@ -19,6 +19,7 @@ mod readers_corpus;
 mod reviews;
 mod roster;
 mod routing;
+mod samples_corpus;
 mod scan_corpus;
 mod scans;
 mod scenarios;
