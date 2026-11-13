@@ -148,6 +148,9 @@ impl Git for ModelGit {
     fn current_branch(&self, _cwd: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
+    fn porcelain_status(&self, _cwd: &str) -> Result<Vec<crate::git::PorcelainEntry>, String> {
+        Err("unused".to_string())
+    }
     fn commit_log(&self, _cwd: &str, revision: &str, paths: &[String], limit: usize) -> Result<Vec<HistoryEntry>, String> {
         let mut entries = self.history.clone();
         entries.push(HistoryEntry { commit: "args".to_string(), date: revision.to_string(), subject: format!("{}|{limit}", paths.join(",")), body: String::new(), files: Vec::new() });
