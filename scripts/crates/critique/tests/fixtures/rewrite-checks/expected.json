@@ -1,0 +1,103 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"failures\": [],\n  \"status\": \"passed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"failures\": [\n    {\n      \"check\": \"sentence-preserved\",\n      \"found_in\": [],\n      \"problem\": \"missing\",\n      \"sentence\": \"We use Postgres.\"\n    }\n  ],\n  \"status\": \"failed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"failures\": [\n    {\n      \"check\": \"sentence-preserved\",\n      \"found_in\": [\n        \"docs/adr/0001-db.md\",\n        \"docs/adr/0004-twice.md\"\n      ],\n      \"problem\": \"duplicated\",\n      \"sentence\": \"We use Postgres.\"\n    },\n    {\n      \"check\": \"sentence-preserved\",\n      \"found_in\": [],\n      \"problem\": \"missing\",\n      \"sentence\": \"Events are append-only.\"\n    },\n    {\n      \"check\": \"no-new-decision-sentence\",\n      \"file\": \"docs/adr/0001-db.md\",\n      \"sentence\": \"New one.\"\n    },\n    {\n      \"check\": \"no-new-decision-sentence\",\n      \"file\": \"docs/adr/0004-twice.md\",\n      \"sentence\": \"Another.\"\n    }\n  ],\n  \"status\": \"failed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"failures\": [\n    {\n      \"check\": \"sentence-preserved\",\n      \"found_in\": [\n        \"docs/adr/0004-twice.md\"\n      ],\n      \"problem\": \"duplicated\",\n      \"sentence\": \"We use Postgres.\"\n    }\n  ],\n  \"status\": \"failed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"failures\": [\n    {\n      \"check\": \"sentence-preserved\",\n      \"found_in\": [\n        \"docs/adr/0001-db.md\",\n        \"docs/adr/0004-twice.md\"\n      ],\n      \"problem\": \"duplicated\",\n      \"sentence\": \"We use Postgres.\"\n    }\n  ],\n  \"status\": \"failed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"failures\": [\n    {\n      \"check\": \"sentence-preserved\",\n      \"found_in\": [\n        \"docs/adr/0005-overlap.md\"\n      ],\n      \"problem\": \"duplicated\",\n      \"sentence\": \"aa\"\n    }\n  ],\n  \"status\": \"failed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"failures\": [],\n  \"status\": \"passed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"failures\": [],\n  \"status\": \"passed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"failures\": [],\n  \"status\": \"passed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"failures\": [],\n  \"status\": \"passed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"failures\": [\n    {\n      \"check\": \"sentence-preserved\",\n      \"found_in\": [],\n      \"problem\": \"missing\",\n      \"sentence\": \"nope\"\n    }\n  ],\n  \"status\": \"failed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

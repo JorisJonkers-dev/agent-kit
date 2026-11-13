@@ -549,7 +549,7 @@ takes no registry dependency: it reuses the ordered JSON, the ports and the adap
 `crates/model-gateway` (a path inside this workspace).
 
 * **Ported so far:** the command line (usage, `--input`/`--json`/standard input, error
-  and exit codes, `--strict`), `allow`, `check-adrs` and `check-plan` (the deterministic checkers; check-plan reads the routing the node runner reads, the shipped `routing.json` embedded in the binary with this machine's override merged over it and the whole result validated; its refactoring-plan format is a hand-written port; the regular expressions of the
+  and exit codes, `--strict`), `allow`, `check-adrs`, `check-plan` and `check-rewrite` (the deterministic checkers; check-plan reads the routing the node runner reads, the shipped `routing.json` embedded in the binary with this machine's override merged over it and the whole result validated; its refactoring-plan format is a hand-written port; the regular expressions of the
   node runner are hand-written scanners here, since the crate takes no registry dependency). Every other command, and a valid `hook`, answers
   `{"code":"not-ported",...}` and exits 1; they arrive in later slices. `search-server` is
   not ported and prints the usage. Known differences: JSON syntax-error context is windowed in
@@ -562,6 +562,7 @@ takes no registry dependency: it reuses the ordered JSON, the ports and the adap
 
 ```bash
 node scripts/crates/critique/tests/gen-scenarios.mjs
+node scripts/crates/critique/tests/gen-scenarios-rewrite.mjs   # check-rewrite's scenarios
 node scripts/crates/critique/tests/gen-scenarios-plan.mjs   # check-plan's scenarios (plans, routing overrides)
 node scripts/crates/critique/tests/regenerate-fixtures.mjs   # the goldens, from the node runner; the folder the runner sits in reads as /assets
 cargo test --manifest-path scripts/Cargo.toml -p critique    # SCENARIO=<name> replays one scenario

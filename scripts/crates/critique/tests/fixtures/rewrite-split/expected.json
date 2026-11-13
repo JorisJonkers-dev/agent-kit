@@ -1,0 +1,67 @@
+{
+  "steps": [
+    {
+      "exit": 3,
+      "stdout": "{\n  \"failures\": [\n    {\n      \"check\": \"split-superseded\",\n      \"original\": \"docs/adr/0006-split.md\",\n      \"unmarked\": [\n        \"docs/adr/0009-nine.md\"\n      ]\n    }\n  ],\n  \"status\": \"failed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"failures\": [\n    {\n      \"check\": \"split-superseded\",\n      \"original\": \"docs/adr/0006-split.md\",\n      \"unmarked\": [\n        \"docs/adr/0010-ten.md\",\n        \"docs/adr/nothing.md\"\n      ]\n    }\n  ],\n  \"status\": \"failed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"failures\": [],\n  \"status\": \"passed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"failures\": [\n    {\n      \"check\": \"split-superseded\",\n      \"original\": \"docs/adr/0003-new.md\",\n      \"unmarked\": [\n        \"docs/adr/0002-events.md\"\n      ]\n    }\n  ],\n  \"status\": \"failed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"failures\": [],\n  \"status\": \"passed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: docs/adr/missing.md does not exist in the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: docs/adr/missing.md does not exist in the repository\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../escape.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: ../escape.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}
