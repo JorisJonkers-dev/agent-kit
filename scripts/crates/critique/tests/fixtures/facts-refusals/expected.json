@@ -1,0 +1,76 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"the repository has no commit to read facts at\",\n  \"reason\": \"no-commit\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"the repository has no commit to read facts at\",\n  \"reason\": \"no-commit\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"remote origin belongs to the nedap organisation; nothing is sent to any critic\",\n  \"reason\": \"nedap\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 4,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 4,
+      "stdout": "{\n  \"message\": \"the repository has no commit to read facts at\",\n  \"reason\": \"no-commit\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

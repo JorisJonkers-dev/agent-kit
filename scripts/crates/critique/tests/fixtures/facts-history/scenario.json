@@ -1,0 +1,207 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[\"src/a.ts\",\"src/b.ts\"],\"modules\":[]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/fx/src/a.ts": "import { b } from './b.js'\nimport x from 'pkg'\nexport * from \"./c\"\nconst d = require('./d')\nimport('./c')\n// import y from './nope'\n/* import z from './c'\n*/\nexport { q } from '../outside'\n",
+        "repos/fx/src/b.ts": "import { a } from './a'\nimport './e'\n",
+        "repos/fx/src/c.ts": "import d from './d.js'\n",
+        "repos/fx/src/d.ts": "import c from './c.js'\nimport './a'\n",
+        "repos/fx/src/e.ts": "export const e = 1\n",
+        "repos/fx/src/dir/index.ts": "export {}\n",
+        "repos/fx/src/user.ts": "import dir from './dir'\nimport {} from './missing'\n",
+        "repos/fx/pkg/__init__.py": "",
+        "repos/fx/pkg/m.py": "from . import n\nfrom .n import f, g as h\nfrom ..top import z\nimport pkg.n, os\nimport pkg\n# import nope\n",
+        "repos/fx/pkg/n.py": "import pkg.m\n",
+        "repos/fx/top.py": "x = 1\n",
+        "repos/fx/src/main/kotlin/a/B.kt": "import a.C\nimport a.D\nimport kotlin.io.println\n",
+        "repos/fx/src/main/kotlin/a/C.kt": "import a.B\n",
+        "repos/fx/src/main/kotlin/a/D.kt": "",
+        "repos/fx/src/other/kotlin/a/D.kt": "",
+        "repos/fx/cmd/main.go": "package main\n\nimport \"fmt\"\nimport (\n\t\"os\"\n\tio \"io\"\n)\n\nvar s = \"not/an/import\"\n",
+        "repos/fx/src/lib.rs": "mod a;\npub mod b;\nuse crate::a;\nmod missing;\n",
+        "repos/fx/src/a.rs": "mod c;\nuse std::io;\n",
+        "repos/fx/src/a/c.rs": "use super::*;\n",
+        "repos/fx/src/b/mod.rs": "mod lib;\n",
+        "repos/fx/README.md": "# readme\n",
+        "repos/fx/weird name/é.ts": "import x from '../src/e.js'\n",
+        "repos/fx/src/f*.ts": "import './e'\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/fx"
+        ],
+        [
+          "-C",
+          "repos/fx",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/fx",
+          "add",
+          "-A"
+        ],
+        [
+          "GIT_COMMITTER_DATE=2026-01-01T10:00:00Z",
+          "-C",
+          "repos/fx",
+          "commit",
+          "-q",
+          "-m",
+          "one"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[\"src/a.ts\",\"src/b.ts\"],\"modules\":[\"src/a.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/fx/src/a.ts": "import { b } from './b.js'\nimport x from 'pkg'\nexport * from \"./c\"\nconst d = require('./d')\nimport('./c')\n// import y from './nope'\n/* import z from './c'\n*/\nexport { q } from '../outside'\nexport const second = 2\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/fx",
+          "add",
+          "-A"
+        ],
+        [
+          "GIT_COMMITTER_DATE=2026-02-03T04:05:06+0200",
+          "-C",
+          "repos/fx",
+          "commit",
+          "-q",
+          "-m",
+          "two"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[\"src/b.ts\",\"src/a.ts\",\"src/a.ts\",\"nothing.ts\",\"src\",\"src/*.ts\",\"src/f*.ts\"],\"modules\":[]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/fx/src/b.ts": "import { a } from './a'\nimport './e'\n\n",
+        "repos/fx/src/a.ts": "import { b } from './b.js'\nimport x from 'pkg'\nexport * from \"./c\"\nconst d = require('./d')\nimport('./c')\n// import y from './nope'\n/* import z from './c'\n*/\nexport { q } from '../outside'\nexport const third = 3\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/fx",
+          "add",
+          "-A"
+        ],
+        [
+          "GIT_COMMITTER_DATE=2026-03-04T05:06:07-0530",
+          "-C",
+          "repos/fx",
+          "commit",
+          "-q",
+          "-m",
+          "three"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[\"src/a.ts\"],\"modules\":[]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/fx/src/b.ts": "changed\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/fx",
+          "rm",
+          "-q",
+          "--cached",
+          "src/e.ts"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[\"../outside\",\"/etc/hostname\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[\"src/a.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[],\"modules\":[]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[\"é.ts\",\"weird name/é.ts\",\"😀\",\"z\",\"a\",\"￿\",\"𐀀\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

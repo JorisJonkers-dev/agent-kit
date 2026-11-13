@@ -1,0 +1,166 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected end of JSON input\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: the input is not JSON: SyntaxError: Unexpected end of JSON input\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: files must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: files must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: files[0] must be a string\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: files[0] must be a string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: files must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: files must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: modules must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: modules must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: modules[0] must be a string\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: modules[0] must be a string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"facts input: modules must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: facts input: modules must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

@@ -15,6 +15,10 @@ pub trait Git: Send + Sync {
     fn resolve_commit(&self, cwd: &str, revision: &str) -> Result<String, String>;
     /// The last commit that changed the path and its committer date (ISO 8601); `None` when no commit touched it.
     fn last_change(&self, cwd: &str, path: &str) -> Result<Option<LastChange>, String>;
+    /// Every commit reachable from `revision` that changed the path, newest first: its id and committer date only, never an author or a message.
+    fn file_commits(&self, cwd: &str, revision: &str, path: &str) -> Result<Vec<LastChange>, String>;
+    /// One file's contents at a commit.
+    fn file_at(&self, cwd: &str, commit: &str, path: &str) -> Result<String, String>;
     /// The regular files of a commit's tree, without symbolic links and submodules, as paths from the repository root.
     fn tree_files(&self, cwd: &str, commit: &str) -> Result<Vec<String>, String>;
     /// The files the working tree holds that git neither tracks nor ignores.
@@ -113,6 +117,23 @@ impl Git for SystemGit {
         let commit = fields.next().unwrap_or_default();
         let date = fields.next().unwrap_or_default();
         Ok((!commit.is_empty()).then(|| LastChange { commit: commit.to_string(), date: date.to_string() }))
+    }
+
+    fn file_commits(&self, cwd: &str, revision: &str, path: &str) -> Result<Vec<LastChange>, String> {
+        let listing = self.run(cwd, &["--literal-pathspecs", "log", "--format=%H%x00%cI", "--end-of-options", revision, "--", path], &[0])?;
+        Ok(listing
+            .split('\n')
+            .map(js_trim)
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                let mut fields = line.split('\0');
+                LastChange { commit: fields.next().unwrap_or_default().to_string(), date: fields.next().unwrap_or_default().to_string() }
+            })
+            .collect())
+    }
+
+    fn file_at(&self, cwd: &str, commit: &str, path: &str) -> Result<String, String> {
+        self.run(cwd, &["cat-file", "blob", &format!("{commit}:{path}")], &[0])
     }
 
     fn tree_files(&self, cwd: &str, commit: &str) -> Result<Vec<String>, String> {

@@ -49,6 +49,14 @@ impl Git for Scripted {
         Err("unused".to_string())
     }
 
+    fn file_commits(&self, _cwd: &str, _revision: &str, _path: &str) -> Result<Vec<crate::git::LastChange>, String> {
+        Err("unused".to_string())
+    }
+
+    fn file_at(&self, _cwd: &str, _commit: &str, _path: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
     fn tree_files(&self, _cwd: &str, _commit: &str) -> Result<Vec<String>, String> {
         Err("unused".to_string())
     }
