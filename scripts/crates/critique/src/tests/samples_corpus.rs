@@ -69,7 +69,7 @@ fn ranges_value(ranges: &[LineRange]) -> Value {
 }
 
 fn ranges(value: &Value, key: &str) -> Vec<LineRange> {
-    list(value, key).iter().map(|range| LineRange { first: count(range, "first"), last: count(range, "last") }).collect()
+    list(value, key).iter().map(|range| LineRange::new(count(range, "first"), count(range, "last"))).collect()
 }
 
 fn tier(name: &str) -> &'static str {
