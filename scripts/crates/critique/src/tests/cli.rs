@@ -97,6 +97,10 @@ impl Git for NoGit {
     fn current_branch(&self, _cwd: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
+
+    fn porcelain_status(&self, _cwd: &str) -> Result<Vec<crate::git::PorcelainEntry>, String> {
+        Err("unused".to_string())
+    }
 }
 
 struct Frozen;

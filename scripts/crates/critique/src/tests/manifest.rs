@@ -33,7 +33,7 @@ const BASE: [(&str, &str); 19] = [
 ];
 
 /// A manifest's JSON text: the base fields, with `overrides` replacing or adding one.
-fn manifest_text(overrides: &[(&str, &str)]) -> String {
+pub fn manifest_text(overrides: &[(&str, &str)]) -> String {
     let mut fields: Vec<(String, String)> = BASE.iter().map(|(key, value)| (key.to_string(), value.to_string())).collect();
     for (key, value) in overrides {
         let mut found = false;
