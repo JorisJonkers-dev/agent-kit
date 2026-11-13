@@ -47,14 +47,22 @@ question per model and layer, at most 15 turns a run.
   `CLAUDE.md`.
 - Two runs of one question cannot rank layers. Read the figures as the proof
   that the runner, the layers and the table work end to end, not as a result.
+- The layer treatment is not verified. The runs do not record how many
+  code-nav calls succeeded, and the answer of zai-glm-5-3-flash L4 run 1 says
+  the code-nav commands were blocked by the approval callback so it answered
+  from file reads and greps. Some L2 to L4 runs may therefore have run without
+  the layer. Do not read the layer rows as the effect of the layer.
+- The confinement to agent-kit is by instruction in the prompt; the shell is not
+  sandboxed.
 
 ## Results
 
 Cost: both models are in the subsidised class and Vibe reported 0.00 USD for
 every run. Total tokens for the 20 runs: 2,935,745 (input and output; about 2.1 million of the input were cache reads).
 
-Per question and per family are the same here, since each family holds one
-question. Each cell is `correct/runs, median tokens (input+output), median tool
+Per question and per family are the same here, since only one question ran, so
+the freshness family is represented by FR-02 alone (its other question, FR-01 on
+auth-api, was not run). Each cell is `correct/runs, median tokens (input+output), median tool
 calls, mean gold-file recall`.
 
 | Layer | mistral-small-latest | zai-glm-5-3-flash |
@@ -97,17 +105,20 @@ Per run:
   not kept in the repository).
 - Runs that gave no answer count as wrong. Three of mistral-small-latest's did
   not answer within the 15-turn limit (L0 run 2, L4 runs 1 and 2: 15 calls, an
-  empty answer); zai-glm-5-3-flash L3 run 1 gave a one-character answer after
-  9 calls. zai-glm-5-3-flash L3 run 2 made 165 tool calls under the same
+  empty answer); zai-glm-5-3-flash L3 run 1 gave a blank answer after 9 calls. zai-glm-5-3-flash L3 run 2 made 165 tool calls under the same
   15-turn limit (Vibe can issue many calls in one turn), the outlier in the
   table. On mistral-small-latest the
   L4 runs used more tokens than L0 (median 242,599 against 154,234) and did
   not answer more questions right.
 - Input tokens are dominated by re-sent context: about 73 percent of input
-  tokens were cache reads, and a run's token count follows its turn count.
+  tokens were cache reads, and the token count tracks the number of turns more than the layer.
   Vibe's fixed tool and context preamble is in every run.
-- "Correct" is the runner's grade on the answer text alone (`must_contain` and
-  `must_not_contain`); gold recall counts the gold files named in the answer or
+- "Correct" is the runner's grade on the answer text alone, a literal substring
+  check for `family_binding": false` (and none of the stale text), so an answer
+  worded "`family_binding` set to `false`" is graded wrong; four runs fit that,
+  so the 1/2 cells test wording as much as knowledge. Gold recall counts the
+  gold files named in the answer or in any command the agent ran, and not only
+  files read; gold recall counts the gold files named in the answer or
   opened, so the two can disagree (zai-glm-5-3-flash L1 run 2 is correct with
   recall 0.00).
 - No layer is shown to help or to hurt. The spread inside a cell (one run
