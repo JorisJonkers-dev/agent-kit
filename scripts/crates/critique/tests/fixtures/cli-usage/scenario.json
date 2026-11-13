@@ -1,0 +1,129 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ]
+    },
+    {
+      "argv": [
+        "-h"
+      ]
+    },
+    {
+      "argv": []
+    },
+    {
+      "argv": [
+        "bogus"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "bogus"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--input"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{}",
+        "extra"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--bogus",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "Allow",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "constructor",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "toString"
+      ]
+    },
+    {
+      "argv": [
+        "__proto__"
+      ]
+    },
+    {
+      "argv": [
+        "hook"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "bogus"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-commit-gate",
+        "extra"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "constructor"
+      ]
+    },
+    {
+      "argv": [
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "bogus",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{}",
+        "--strict",
+        "x"
+      ]
+    }
+  ]
+}

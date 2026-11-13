@@ -1,0 +1,97 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "work/r1"
+        ],
+        [
+          "-C",
+          "work/r1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\",\"zhipu\"],\"code\":true}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"mistral\"]}"
+      ],
+      "now": "2026-11-03T13:00:00.250Z"
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"mistral\"],\"history\":true}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[],\"code\":false,\"history\":false}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"google\",\"anthropic\",\"openai\",\"google\"]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r2\",\"families\":[\"zhipu\"],\"code\":true,\"history\":true}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "work/r2"
+        ],
+        [
+          "-C",
+          "work/r2",
+          "remote",
+          "add",
+          "origin",
+          "https://github.com/JorisJonkers-dev/second.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r2\",\"families\":[\"zhipu\"],\"extra\":\"ignored\"}"
+      ]
+    }
+  ]
+}

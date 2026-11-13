@@ -1,0 +1,300 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected end of JSON input\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected end of JSON input\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected end of JSON input\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected end of JSON input\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Expected ':' after property name in JSON at position 5 (line 1 column 6)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Expected ':' after property name in JSON at position 5 (line 1 column 6)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected token 'o', \\\"nope\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected token 'o', \"nope\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected non-whitespace character after JSON at position 8 (line 1 column 9)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected non-whitespace character after JSON at position 8 (line 1 column 9)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected number in JSON at position 6 (line 1 column 7)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected number in JSON at position 6 (line 1 column 7)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: No number after minus sign in JSON at position 6 (line 1 column 7)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: No number after minus sign in JSON at position 6 (line 1 column 7)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unterminated fractional number in JSON at position 7 (line 1 column 8)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unterminated fractional number in JSON at position 7 (line 1 column 8)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Exponent part is missing a number in JSON at position 7 (line 1 column 8)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Exponent part is missing a number in JSON at position 7 (line 1 column 8)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Bad escaped character in JSON at position 7 (line 1 column 8)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Bad escaped character in JSON at position 7 (line 1 column 8)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Bad control character in string literal in JSON at position 10 (line 1 column 11)\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Bad control character in string literal in JSON at position 10 (line 1 column 11)\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected token ']', \\\"{\\\"a\\\":[1,2,]}\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected token ']', \"{\"a\":[1,2,]}\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected token '}', \\\"{\\\"a\\\":tru}\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected token '}', \"{\"a\":tru}\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected end of JSON input\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected end of JSON input\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected token 'o', \\\"not json\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"ENOENT: no such file or directory, open 'missing.json'\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: ENOENT: no such file or directory, open 'missing.json'\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected token 'o', \\\"not json\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: the input is not JSON: SyntaxError: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/in.json": "not json"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/in.json": "{}"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/in.json": "{}",
+        "work/in2.json": "[1]"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/in.json": "{}",
+        "work/in2.json": "[1]"
+      }
+    },
+    {
+      "exit": 2,
+      "stdout": "",
+      "stderr": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/in.json": "{}",
+        "work/in2.json": "[1]"
+      }
+    }
+  ]
+}

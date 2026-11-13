@@ -1,0 +1,106 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "work/r1"
+        ],
+        [
+          "-C",
+          "work/r1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ],
+      "env": {
+        "XDG_CONFIG_HOME": "@SANDBOX@/xdg"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\"]}"
+      ],
+      "env": {
+        "XDG_CONFIG_HOME": "relative/dir"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\"]}"
+      ],
+      "env": {
+        "XDG_CONFIG_HOME": ""
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\"]}"
+      ],
+      "env": {
+        "XDG_CONFIG_HOME": null
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\"]}"
+      ],
+      "env": {
+        "HOME": null
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\"]}"
+      ],
+      "env": {
+        "HOME": null,
+        "XDG_CONFIG_HOME": "@SANDBOX@/xdg2"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\"]}"
+      ],
+      "env": {
+        "XDG_CONFIG_HOME": "@SANDBOX@/blocker"
+      },
+      "write": {
+        "blocker": "x"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\"]}"
+      ],
+      "path": [
+        "nowhere"
+      ]
+    }
+  ]
+}

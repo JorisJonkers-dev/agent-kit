@@ -1,0 +1,12 @@
+[package]
+name = "critique"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The critique runner: one JSON object in, one JSON object out, ported from the node runner command by command."
+
+# The ordered JSON, the ports and the adapters the model gateway already ports
+# are reused through the workspace's own model-gateway crate (a path inside this
+# workspace), so nothing in the lockfile has an age to question (docs/RUST.md).
+[dependencies]
+model-gateway = { path = "../model-gateway" }

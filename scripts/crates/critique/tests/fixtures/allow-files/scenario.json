@@ -1,0 +1,248 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "work/r1"
+        ],
+        [
+          "-C",
+          "work/r1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "not json"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": ""
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "[]"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "null"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":2,\"repositories\":{}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":[]}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"a\":5}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"a\":{}}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"a\":{\"families\":[\"bogus\"],\"updated_at\":\"x\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"a\":{\"families\":[],\"updated_at\":\"\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"a\":{\"families\":[],\"updated_at\":\"x\",\"code\":\"y\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"a\":{\"families\":[],\"updated_at\":\"x\",\"history\":2}}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"a\":{\"families\":[\"zhipu\"],\"updated_at\":\"x\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/before\":{\"families\":[\"zhipu\"],\"code\":true,\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"},\"github.com/jorisjonkers-dev/example\":{\"families\":[\"zhipu\"],\"code\":true,\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"},\"github.com/jorisjonkers-dev/after\":{\"families\":[\"zhipu\"],\"code\":true,\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"extra\":true}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"],\"code\":false}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"zhipu\"],\"code\":true,\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\",\"unknown\":1}}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"zhipu\"],\"updated_at\":\"x\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"7\":{\"families\":[],\"updated_at\":\"x\"},\"b\":{\"families\":[],\"updated_at\":\"x\"},\"3\":{\"families\":[],\"updated_at\":\"y\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1.0,\"repositories\":{}}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "mkdir": [
+        "home/.config/agent-kit/critique-allowlist.json"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-allowlist.json"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"deepseek\"]}"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-allowlist.json"
+      ],
+      "mkdir": [
+        "home/.config/agent-kit/critique-allowlist.json"
+      ]
+    }
+  ]
+}
