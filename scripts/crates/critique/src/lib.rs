@@ -2,9 +2,14 @@
 //! object in, one JSON object out. The unit tests replay the golden scenarios the
 //! node runner produced (tests/fixtures) byte for byte.
 
+pub mod adr_drift;
+pub mod adr_log;
 pub mod allow;
 pub mod allowlist;
+pub mod check_adrs;
 pub mod cli;
+pub mod decision_docs;
+pub mod dirs;
 pub mod error;
 pub mod fields;
 pub mod git;

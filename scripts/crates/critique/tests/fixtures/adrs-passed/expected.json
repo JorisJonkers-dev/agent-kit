@@ -1,0 +1,31 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"cites_superseded\": [],\n  \"numbering\": {\n    \"duplicates\": [],\n    \"gaps\": [],\n    \"unnumbered\": []\n  },\n  \"records\": [\n    {\n      \"in_force\": true,\n      \"number\": 1,\n      \"path\": \"docs/adr/0001-first.md\",\n      \"status\": \"accepted\",\n      \"title\": \"1. Decision 1\"\n    },\n    {\n      \"in_force\": true,\n      \"number\": 2,\n      \"path\": \"docs/adr/0002-second.md\",\n      \"status\": \"accepted\",\n      \"title\": \"2. Decision 2\"\n    },\n    {\n      \"in_force\": true,\n      \"number\": 3,\n      \"path\": \"docs/adr/0003-third.md\",\n      \"status\": \"accepted\",\n      \"title\": \"Third\"\n    }\n  ],\n  \"superseded\": [],\n  \"unknown_statuses\": [],\n  \"unresolved_links\": [],\n  \"drifted\": [],\n  \"stale\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"cites_superseded\": [],\n  \"numbering\": {\n    \"duplicates\": [],\n    \"gaps\": [],\n    \"unnumbered\": []\n  },\n  \"records\": [\n    {\n      \"in_force\": true,\n      \"number\": 1,\n      \"path\": \"docs/adr/0001-first.md\",\n      \"status\": \"accepted\",\n      \"title\": \"1. Decision 1\"\n    },\n    {\n      \"in_force\": true,\n      \"number\": 2,\n      \"path\": \"docs/adr/0002-second.md\",\n      \"status\": \"accepted\",\n      \"title\": \"2. Decision 2\"\n    },\n    {\n      \"in_force\": true,\n      \"number\": 3,\n      \"path\": \"docs/adr/0003-third.md\",\n      \"status\": \"accepted\",\n      \"title\": \"Third\"\n    }\n  ],\n  \"superseded\": [],\n  \"unknown_statuses\": [],\n  \"unresolved_links\": [],\n  \"drifted\": [],\n  \"stale\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"cites_superseded\": [],\n  \"numbering\": {\n    \"duplicates\": [],\n    \"gaps\": [],\n    \"unnumbered\": []\n  },\n  \"records\": [\n    {\n      \"in_force\": true,\n      \"number\": 1,\n      \"path\": \"docs/adr/0001-first.md\",\n      \"status\": \"accepted\",\n      \"title\": \"1. Decision 1\"\n    },\n    {\n      \"in_force\": true,\n      \"number\": 2,\n      \"path\": \"docs/adr/0002-second.md\",\n      \"status\": \"accepted\",\n      \"title\": \"2. Decision 2\"\n    },\n    {\n      \"in_force\": true,\n      \"number\": 3,\n      \"path\": \"docs/adr/0003-third.md\",\n      \"status\": \"accepted\",\n      \"title\": \"Third\"\n    }\n  ],\n  \"superseded\": [],\n  \"unknown_statuses\": [],\n  \"unresolved_links\": [],\n  \"drifted\": [],\n  \"stale\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

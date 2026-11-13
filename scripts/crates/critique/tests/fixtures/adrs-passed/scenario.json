@@ -1,0 +1,65 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/ok\"}"
+      ],
+      "write": {
+        "repos/ok/docs/adr/0001-first.md": "# 1. Decision 1\n\nStatus: Accepted\n\nUses `src/app.ts` and [the second](0002-second.md).\n",
+        "repos/ok/docs/adr/0002-second.md": "# 2. Decision 2\n\nStatus: Accepted\n\nFollows ADR-0001. See [readme](../../README.md#intro).\n",
+        "repos/ok/docs/adr/0003-third.md": "---\nstatus: accepted\ndate: 2026-12-01\n---\n# Third\n\nNames `src/app.ts#fooBar`.\n",
+        "repos/ok/src/app.ts": "export function fooBar() {}\n",
+        "repos/ok/README.md": "# Intro\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/ok"
+        ],
+        [
+          "-C",
+          "repos/ok",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/ok",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/ok",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/ok/docs\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/ok\"}"
+      ],
+      "write": {
+        "repos/ok/docs/adr/zzz.txt": "not a record"
+      }
+    }
+  ]
+}

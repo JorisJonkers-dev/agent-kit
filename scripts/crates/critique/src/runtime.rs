@@ -1,5 +1,6 @@
 //! Everything a command needs from its surroundings; tests replace any of it.
 
+use crate::dirs::{Dirs, SystemDirs};
 use crate::git::{Git, SystemGit};
 use model_gateway::adapters::clock::SystemClock;
 use model_gateway::adapters::fs::SystemFiles;
@@ -10,6 +11,7 @@ use std::io::Read;
 pub struct Runtime {
     pub clock: Box<dyn Clock>,
     pub files: Box<dyn Files>,
+    pub dirs: Box<dyn Dirs>,
     pub env: HashMap<String, String>,
     pub git: Box<dyn Git>,
     /// What a command reads when it is given neither `--input` nor `--json`.
@@ -24,6 +26,7 @@ pub fn default_runtime() -> Runtime {
     Runtime {
         clock: Box::new(SystemClock),
         files: Box::new(SystemFiles { cwd }),
+        dirs: Box::new(SystemDirs),
         git: Box::new(SystemGit { env: env.clone() }),
         env,
         stdin: Box::new(|| {

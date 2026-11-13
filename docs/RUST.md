@@ -549,7 +549,8 @@ takes no registry dependency: it reuses the ordered JSON, the ports and the adap
 `crates/model-gateway` (a path inside this workspace).
 
 * **Ported so far:** the command line (usage, `--input`/`--json`/standard input, error
-  and exit codes, `--strict`) and `allow`. Every other command, and a valid `hook`, answers
+  and exit codes, `--strict`), `allow` and `check-adrs` (the decision-log checker; the regular expressions of the
+  node runner are hand-written scanners here, since the crate takes no registry dependency). Every other command, and a valid `hook`, answers
   `{"code":"not-ported",...}` and exits 1; they arrive in later slices. `search-server` is
   not ported and prints the usage. Known differences: JSON syntax-error context is windowed in
   characters, not UTF-16 units, a lone surrogate in a string reads as U+FFFD, JSON nested hundreds of thousands deep overflows the stack instead of reading as the wrong shape, an empty or relative `HOME` is read as an absolute path, and an `--input` path is normalised lexically (a trailing `/` or `..` through a symlink).

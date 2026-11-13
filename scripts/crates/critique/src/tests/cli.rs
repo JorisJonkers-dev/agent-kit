@@ -21,6 +21,22 @@ impl Git for NoGit {
     fn root(&self, _cwd: &str) -> Result<String, String> {
         Err("no git here".to_string())
     }
+
+    fn resolve_commit(&self, _cwd: &str, _revision: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn last_change(&self, _cwd: &str, _path: &str) -> Result<Option<crate::git::LastChange>, String> {
+        Err("unused".to_string())
+    }
+
+    fn tree_files(&self, _cwd: &str, _commit: &str) -> Result<Vec<String>, String> {
+        Err("unused".to_string())
+    }
+
+    fn untracked_paths(&self, _cwd: &str) -> Result<Vec<String>, String> {
+        Err("unused".to_string())
+    }
 }
 
 struct Frozen;
@@ -40,6 +56,7 @@ pub fn runtime(stdin: &str) -> Runtime {
     Runtime {
         clock: Box::new(Frozen),
         files: Box::new(model_gateway::adapters::fs::SystemFiles { cwd: "/".to_string() }),
+        dirs: Box::new(crate::dirs::SystemDirs),
         git: Box::new(NoGit),
         env: HashMap::new(),
         stdin: Box::new(move || stdin.clone()),

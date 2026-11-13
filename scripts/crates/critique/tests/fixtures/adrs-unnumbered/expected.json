@@ -1,0 +1,13 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"cites_superseded\": [],\n  \"numbering\": {\n    \"duplicates\": [],\n    \"gaps\": [],\n    \"unnumbered\": [\n      \"docs/adr/README.md\"\n    ]\n  },\n  \"records\": [\n    {\n      \"in_force\": true,\n      \"number\": null,\n      \"path\": \"docs/adr/README.md\",\n      \"status\": null,\n      \"title\": \"Index\"\n    }\n  ],\n  \"superseded\": [],\n  \"unknown_statuses\": [],\n  \"unresolved_links\": [],\n  \"drifted\": [],\n  \"stale\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}
