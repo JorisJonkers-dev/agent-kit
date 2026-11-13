@@ -5,6 +5,8 @@ mod assets_plan;
 mod cli;
 mod cold_read;
 mod collate;
+mod critic_clients;
+mod critic_run;
 mod critic_tools;
 mod diff_filter;
 mod evidence_corpus;
