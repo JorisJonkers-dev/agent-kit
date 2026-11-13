@@ -148,6 +148,8 @@ fn canonical(value: &Value) -> Value {
     }
 }
 
+/// Compares structure only: keys are sorted and both sides re-serialised. Byte order and number text are proved by
+/// the reviews-* scenario goldens, which compare stdout, stderr, exit code and files byte for byte.
 fn replay(index: usize, case: &Value) {
     let case = case.as_object().expect("case object");
     let (home, runtime) = machine(case);

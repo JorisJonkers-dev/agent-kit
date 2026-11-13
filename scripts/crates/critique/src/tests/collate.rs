@@ -32,10 +32,37 @@ fn collate_corpus() {
     }
 }
 
+const PAIRS: &str = include_str!("../../tests/fixtures/collate-pairs.txt");
+
+/// Every ordered pair of one-character ASCII strings, with and without `numeric`, against node's answers
+/// (`tests/gen-collate-pairs.mjs`): the whole primary and tertiary order of ASCII, not a random sample of it.
 #[test]
-fn text_beyond_ascii_sorts_after_ascii_by_code_point() {
-    assert_eq!(locale_compare("z", "é", false), Ordering::Less);
-    assert_eq!(locale_compare("é", "ü", false), Ordering::Less);
+fn every_ascii_pair_collates_as_node_does() {
+    let lines: Vec<&str> = PAIRS.lines().collect();
+    assert_eq!(lines.len(), 2);
+    for (line, numeric) in lines.iter().zip([false, true]) {
+        let signs: Vec<char> = line.chars().collect();
+        assert_eq!(signs.len(), 128 * 128);
+        for a in 0..128u8 {
+            for b in 0..128u8 {
+                let expected = match signs[usize::from(a) * 128 + usize::from(b)] {
+                    '-' => Ordering::Less,
+                    '+' => Ordering::Greater,
+                    _ => Ordering::Equal,
+                };
+                let (a, b) = ((a as char).to_string(), (b as char).to_string());
+                assert_eq!(locale_compare(&a, &b, numeric), expected, "{a:?} against {b:?}, numeric {numeric}");
+            }
+        }
+    }
+}
+
+/// Beyond ASCII the port does not follow ICU, and this records how it differs: ICU sorts an accented letter with
+/// its base letter (node: `'z'.localeCompare('é')` is 1), where the port sorts every character beyond ASCII after
+/// all of ASCII, by code point. Run ids, client names, timestamps and file names the ledger holds are ASCII.
+#[test]
+fn text_beyond_ascii_differs_from_icu_by_sorting_after_ascii() {
+    assert_eq!(locale_compare("z", "é", false), Ordering::Less, "ICU says Greater; the port says Less");
     assert_eq!(locale_compare("é", "é", false), Ordering::Equal);
 }
 

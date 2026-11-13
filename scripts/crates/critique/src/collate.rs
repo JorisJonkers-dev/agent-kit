@@ -3,10 +3,13 @@
 //!
 //! Strings compare in two passes, as ICU does. The first, the primary one, goes over the characters in the order the
 //! collation ranks them: white space, punctuation and symbols, digits, then letters with no regard to case. Control
-//! characters are ignored. Only when the primary pass finds the strings equal does the second, the tertiary one,
-//! decide, and a lower-case letter sorts before its upper-case twin. With `numeric` a run of digits is one element
-//! worth its number. A character beyond ASCII sorts after every ASCII character, by code point: ICU ranks those by
-//! script and accent, which no ledger text needs.
+//! characters other than tab, line feed, vertical tab, form feed and carriage return are ignored. Only when the
+//! primary pass finds the strings equal does the second, the tertiary one, decide, and a lower-case letter sorts
+//! before its upper-case twin. With `numeric` a run of digits is one element worth its number.
+//!
+//! Beyond ASCII the port differs from ICU: it sorts every such character after all of ASCII, by code point, where
+//! ICU sorts an accented letter with its base letter (`'z'.localeCompare('é')` is 1 in node). The ledger's run ids,
+//! client names, timestamps and file names are ASCII; docs/RUST.md records the difference.
 
 use std::cmp::Ordering;
 

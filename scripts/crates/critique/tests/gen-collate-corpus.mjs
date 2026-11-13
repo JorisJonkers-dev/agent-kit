@@ -25,4 +25,15 @@ for (let i = 0; i < Number(N); i += 1) {
   const numeric = rnd() < 0.5
   cases.push([a, b, numeric, sign(a.localeCompare(b, 'en', numeric ? { numeric: true } : undefined))])
 }
+// A fixed block the random draw rarely reaches: digit runs with leading zeros against each other and against
+// letters, and each letter against its case twin at the start, middle and end of a word.
+const add = (a, b) => {
+  for (const numeric of [false, true]) cases.push([a, b, numeric, sign(a.localeCompare(b, 'en', numeric ? { numeric: true } : undefined))])
+}
+const runs = ['0', '00', '007', '7', '07', '70', '10', '9', '0010', '100', '000']
+for (const a of runs) for (const b of [...runs, 'a', 'A', '-', '']) { add(`r${a}`, `r${b}`); add(`${a}x`, `${b}x`) }
+for (const letter of 'abcdefghijklmnopqrstuvwxyz') {
+  const up = letter.toUpperCase()
+  add(letter, up); add(`${letter}a`, `${up}a`); add(`a${letter}a`, `a${up}a`); add(`aa${letter}`, `aa${up}`); add(`${letter}b`, `${up}a`)
+}
 writeFileSync(OUT, `${JSON.stringify(cases)}\n`)

@@ -553,7 +553,7 @@ takes no registry dependency: it reuses the ordered JSON, the ports and the adap
   node runner are hand-written scanners here, since the crate takes no registry dependency). Every other command, and a valid `hook`, answers
   `{"code":"not-ported",...}` and exits 1; they arrive in later slices. `search-server` is
   not ported and prints the usage. Known differences: JSON syntax-error context is windowed in
-  characters, not UTF-16 units, a lone surrogate in a string reads as U+FFFD, JSON nested hundreds of thousands deep overflows the stack instead of reading as the wrong shape, an empty or relative `HOME` is read as an absolute path, and an `--input` path is normalised lexically (a trailing `/` or `..` through a symlink).
+  characters, not UTF-16 units, a lone surrogate in a string reads as U+FFFD, JSON nested hundreds of thousands deep overflows the stack instead of reading as the wrong shape, an empty or relative `HOME` is read as an absolute path, and an `--input` path is normalised lexically (a trailing `/` or `..` through a symlink). Sorting that follows `localeCompare(…, 'en')` (`collate.rs`, used by `reviews`) matches node for all ASCII, every one-character pair checked; text beyond ASCII sorts after all of ASCII by code point, where ICU sorts an accented letter with its base letter.
 * **Infrastructure for the model commands** (no command uses it yet; unit-tested, not golden-tested): the run manifest
   (`manifest.rs`, `roster.rs`), the flow budget's invocation line and the gateway ledger record (`flow_budget.rs`),
   the Vibe client's `ask`, sign-in and readiness (`vibe_client.rs`, `clients.rs`: agy, codex and claude read as not wired
