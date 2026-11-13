@@ -582,6 +582,7 @@ fn runtime_with(files: impl Fn() -> Box<dyn Files>, process: impl Fn() -> Box<dy
         env,
         assets_root: String::new(),
         git: Box::new(SystemGit { env: HashMap::new() }),
+        gh: Box::new(crate::gh::SystemGh { env: HashMap::new() }),
         gateway,
         stdin: Box::new(String::new),
     }

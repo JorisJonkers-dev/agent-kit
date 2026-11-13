@@ -1,0 +1,265 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/t1/src/a.ts": "export const a = 1\n",
+        "repos/t1/docs/readme.md": "# readme\n",
+        "repos/t1/old/x.ts": "// do not edit\nexport const x = 1\n",
+        "repos/t1/keep.txt": "k\n",
+        "repos/t2/src/a.ts": "export const a = 1\n",
+        "repos/t2/docs/readme.md": "# readme\n",
+        "repos/t2/old/x.ts": "// do not edit\nexport const x = 1\n",
+        "repos/t2/keep.txt": "k\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/t1"
+        ],
+        [
+          "-C",
+          "repos/t1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/t1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/t1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/t2"
+        ],
+        [
+          "-C",
+          "repos/t2",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/t2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/t2",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/t1/docs/readme.md": "# readme\n\nmore\nlines\nhere\n",
+        "repos/t2/docs/readme.md": "# readme\n\nmore\nlines\nhere\n",
+        "repos/t2/src/auth/login.ts": "export const login = 1\n",
+        "repos/t2/package-lock.json": "{\n\"a\":1\n}\n",
+        "repos/t2/gen/out.ts": "// @generated\nexport const g = 1\n",
+        "repos/t2/sp ace/f.sql": "select 1;\n",
+        "repos/t2/src/a.ts": "export const a = 2\n"
+      },
+      "remove": [
+        "repos/t2/old/x.ts"
+      ],
+      "git": [
+        [
+          "-C",
+          "repos/t1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/t1",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/t2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/t2",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/t2\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\ncase \"$1 $2 $3\" in\n\"issue view 7\")\nprintf '%s' '{\"number\":7,\"title\":\"T7\",\"body\":\"body 7\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/7\",\"labels\":[]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 8\")\nprintf '%s' '{\"number\":8,\"title\":\"T8\",\"body\":\"body 8\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/8\",\"labels\":[{\"name\":\"Risk:High\"},{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 9\")\nprintf '%s' '{\"number\":9,\"title\":\"T9\",\"body\":\"body 9\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/9\",\"labels\":[{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 10\")\nprintf '%s' '{\"number\":10,\"title\":\"T10\",\"body\":\"body 10\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/10\",\"labels\":[{\"name\":\"feature\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\necho \"gh: unexpected: $*\" >&2\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "roots": [
+        "repos/t1/.git/critique",
+        "repos/t2/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/t2\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/t2/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/t2\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/t2/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/t1\",\"ticket\":\"#8\",\"base\":\"HEAD~1\",\"spec\":\"#10\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/t1/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/t1\",\"ticket\":\"#8\",\"base\":\"HEAD~1\",\"spec\":\"#10\",\"flow\":\"my-flow\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/t1/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/t1\",\"ticket\":\"#9\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"changed_lines_threshold\":2}}\n"
+      },
+      "roots": [
+        "repos/t1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/t2\",\"ticket\":\"#8\",\"base\":\"HEAD~1\",\"head\":\"HEAD\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"changed_lines_threshold\":2,\"labels\":[\"risk:high\",\"bug\"]}}\n"
+      },
+      "roots": [
+        "repos/t2/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/t1\",\"ticket\":\"#9\",\"base\":\"HEAD~1\",\"head\":\"HEAD\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"changed_lines_threshold\":4,\"risk_paths\":[]}}\n"
+      },
+      "roots": [
+        "repos/t1/.git/critique"
+      ]
+    }
+  ]
+}

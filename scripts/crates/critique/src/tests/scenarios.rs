@@ -274,6 +274,7 @@ impl Replay {
             files: Box::new(SystemFiles { cwd: sandbox.join("work").to_string_lossy().into_owned() }),
             dirs: Box::new(crate::dirs::SystemDirs),
             git: Box::new(SystemGit { env: env.clone() }),
+            gh: Box::new(crate::gh::SystemGh { env: env.clone() }),
             env,
             assets_root: self.assets_root(),
             stdin: Box::new(move || stdin.clone()),

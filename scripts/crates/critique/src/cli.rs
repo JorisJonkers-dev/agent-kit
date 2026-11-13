@@ -1,6 +1,6 @@
 //! The runner's command line: one command, one JSON object in, one JSON object out.
 
-use crate::{allow, check_adrs, check_plan, check_rewrite, cold_read, facts, reviews, stats_command};
+use crate::{allow, check_adrs, check_plan, check_rewrite, cold_read, facts, reviews, stats_command, triage_command};
 use crate::error::CritiqueError;
 use crate::runtime::Runtime;
 use model_gateway::json::{self, Object, Value};
@@ -43,7 +43,7 @@ pub const COMMANDS: [(&str, Option<Command>); 19] = [
     ("setup", None),
     ("state", None),
     ("stats", Some(stats_command::run)),
-    ("triage", None),
+    ("triage", Some(triage_command::run)),
 ];
 
 /// The hooks ADR-0002 allows.

@@ -135,6 +135,7 @@ fn runtime_in(env: HashMap<String, String>, files: MemoryFiles, now_ms: i64) -> 
         files: Box::new(files),
         dirs: Box::new(crate::dirs::SystemDirs),
         git: Box::new(crate::git::SystemGit { env: env.clone() }),
+        gh: Box::new(crate::gh::SystemGh { env: env.clone() }),
         env,
         assets_root: "/assets".to_string(),
         stdin: Box::new(String::new),
