@@ -394,7 +394,7 @@ def test_critique_adrs_runs_adr_record_again_on_every_rewritten_adr() -> None:
 def test_critique_adrs_runs_the_cold_read_after_check_rewrite_passes() -> None:
     text = _critique_adrs()
     assert "When check-rewrite passes, the cold read is the independent check on the rewrite" in text
-    assert "node <critique dir>/critique.mjs cold-read --input <file.json>" in text
+    assert "sh <critique dir>/critique cold-read --input <file.json>" in text
     assert (
         "Its input is `run_dir` (this run's directory) and `files` (the rewritten ADRs, "
         "as repository paths)."
@@ -467,7 +467,7 @@ def test_flow_reaches_the_review_stages_through_a_separate_entry_that_never_call
     entry = flow[flow.index("## /flow reviews"):]
     end = entry.find("\n## ", 1)
     entry = " ".join((entry if end < 0 else entry[:end]).split())
-    assert "critique.mjs reviews" in entry
+    assert "critique reviews" in entry
     assert "never due" in entry
     for field in ("stage", "run_id", "verdicts", "spent_usd"):
         assert f"`{field}`" in entry, field

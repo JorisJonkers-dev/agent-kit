@@ -14,11 +14,11 @@ only the owner can start: for those you name the exact command to type, and
 the owner types it.
 
 The runner computes the **flow state** and the next step. It is
-`critique.mjs` in the `critique` skill directory installed beside this one
-(`../critique/critique.mjs` from the folder this file is in):
+the `critique` launcher in the `critique` skill directory installed beside this one
+(`../critique/critique` from the folder this file is in):
 
 ```sh
-node <critique dir>/critique.mjs state --json '<object>'
+sh <critique dir>/critique state --json '<object>'
 ```
 
 A result with `"status": "refused"` carries a one-line `message`: give the
@@ -233,7 +233,7 @@ results per machine, so a later `/flow setup` re-runs only what changed or
 failed. Every check runs through the runner's `setup` command:
 
 ```sh
-node <critique dir>/critique.mjs setup --json '<object>'
+sh <critique dir>/critique setup --json '<object>'
 ```
 
 | Input | What it does |
@@ -316,7 +316,7 @@ By `repository.status`:
 - `not-opted-in`: three separate offers, each with its own yes, no or skip:
   1. **Families**: which model families this repository may send documents
      to. Propose `routed_families`; the owner may name fewer. On yes, run
-     the runner's `allow` command (`critique.mjs allow --json '<object>'`)
+     the runner's `allow` command (`critique allow --json '<object>'`)
      with `{"repo": ..., "families": [...]}`.
   2. **Code**, only once families are allowed: whether the code stages
      (ticket review and feature review) may send this repository's code to
@@ -384,7 +384,7 @@ Find the feature (step 1 of `/flow`), then run the runner's `budget`
 command with `repo` and `spec`, or `repo` and `draft`:
 
 ```sh
-node <critique dir>/critique.mjs budget --json '{"repo": "<repository root>", "spec": "<spec>"}'
+sh <critique dir>/critique budget --json '{"repo": "<repository root>", "spec": "<spec>"}'
 ```
 
 Done when it returned `"status": "read"`, or you stopped on a refusal or
@@ -444,7 +444,7 @@ Run the runner's `reviews` command with the repository root
 for more or fewer than the last 10:
 
 ```sh
-node <critique dir>/critique.mjs reviews --json '{"repo": "<repository root>"}'
+sh <critique dir>/critique reviews --json '{"repo": "<repository root>"}'
 ```
 
 A refusal carries a one-line `message`: give it as it stands and stop.

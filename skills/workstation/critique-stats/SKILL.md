@@ -11,11 +11,11 @@ metadata line per critic run and per finding, written by every critique's
 record step) and computes every figure. Your job is to run it, show its
 report, and turn each suggestion into a decision the owner can make.
 
-The runner is `critique.mjs` in the `critique` skill directory installed
-beside this one (`../critique/critique.mjs` from the folder this file is in):
+The runner is the `critique` launcher in the `critique` skill directory installed
+beside this one (`../critique/critique` from the folder this file is in):
 
 ```sh
-node <critique dir>/critique.mjs stats --json '<object>'
+sh <critique dir>/critique stats --json '<object>'
 ```
 
 A result with `"status": "refused"` carries a one-line `message`: give the

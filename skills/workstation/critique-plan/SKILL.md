@@ -13,12 +13,12 @@ anchors. You rule on each finding, and every finding that would change the
 target goes to the owner as a question. Nothing changes until the owner
 answers.
 
-The runner does the deterministic work. It is `critique.mjs` in the `critique`
-skill directory installed beside this one (`../critique/critique.mjs` from the
+The runner does the deterministic work. It is the `critique` launcher in the `critique`
+skill directory installed beside this one (`../critique/critique` from the
 folder this file is in). Each command takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <state|check-plan|prepare|fan-out|refute|record|allow> --input <file.json>
+sh <critique dir>/critique <state|check-plan|prepare|fan-out|refute|record|allow> --input <file.json>
 ```
 
 A result with `"status": "refused"` carries a one-line `message`: give the

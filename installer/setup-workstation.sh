@@ -8623,6 +8623,19 @@ git_no_agent_attribution
 purge_leaked_runner_workspace_trust /workspace
 log "critique hooks"
 critique_hooks install
+# The critique runner's Rust build: the skill's launcher prefers it once it is
+# installed, and runs critique.mjs until then, so a failed build changes nothing.
+critique_rust_setup() {
+  local rc=0 mode=()
+  if [ "${CLOUD}" = 1 ]; then
+    log "critique runner (rust): not built in a cloud session"
+    return 0
+  fi
+  [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
+  bash "${KIT_ROOT}/scripts/install-critique-rust.sh" ${mode[@]+"${mode[@]}"} || rc=$?
+  [ "${rc}" = 0 ] || warn "critique runner (rust): not installed (exit ${rc}); the node runner stays"
+}
+critique_rust_setup
 
 if [ "${CLOUD}" = 1 ]; then
   cloud_finish

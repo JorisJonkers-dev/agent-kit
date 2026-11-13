@@ -1,0 +1,25 @@
+#!/bin/sh
+# The critique runner's launcher: `sh <this directory>/critique <command> ...`.
+#
+# It runs the Rust runner setup built (scripts/install-critique-rust.sh) when that
+# binary is installed, with this directory as its assets, and otherwise the node
+# runner beside it, critique.mjs. The two take the same commands and print the same
+# JSON; a command the Rust runner does not port yet it hands to critique.mjs itself.
+#
+# Rollback to the node runner, without touching setup:
+#   AGENT_KIT_CRITIQUE=node sh .../critique ...        one call or one shell
+#   touch ~/.config/agent-kit/critique-node            every call, until removed
+# AGENT_KIT_CRITIQUE_BIN names another Rust binary to use.
+case $0 in
+  */*) here=${0%/*} ;;
+  *) here=. ;;
+esac
+here=$(cd "$here" && pwd) || exit 1
+rust=${AGENT_KIT_CRITIQUE_BIN:-${XDG_DATA_HOME:-$HOME/.local/share}/agent-kit/critique/critique}
+pin=${XDG_CONFIG_HOME:-$HOME/.config}/agent-kit/critique-node
+if [ "${AGENT_KIT_CRITIQUE:-rust}" != node ] && [ ! -e "$pin" ] && [ -f "$rust" ] && [ -x "$rust" ]; then
+  AGENT_KIT_CRITIQUE_ASSETS=$here
+  export AGENT_KIT_CRITIQUE_ASSETS
+  exec "$rust" "$@"
+fi
+exec node "$here/critique.mjs" "$@"

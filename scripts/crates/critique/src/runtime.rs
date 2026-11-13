@@ -25,6 +25,16 @@ pub struct Runtime {
     pub stdin: Box<dyn Fn() -> String + Send + Sync>,
 }
 
+/// Where the shipped assets (prompts, roles, lenses, schemas, `routing.json` and the node runner) are:
+/// `AGENT_KIT_CRITIQUE_ASSETS` when it names a directory, as the skill's launcher sets it to the skill directory, else
+/// the directory the binary is in.
+pub fn assets_root(env: &HashMap<String, String>, exe: Option<std::path::PathBuf>) -> String {
+    match env.get("AGENT_KIT_CRITIQUE_ASSETS").filter(|dir| !dir.is_empty()) {
+        Some(dir) => dir.clone(),
+        None => exe.as_deref().and_then(std::path::Path::parent).map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_default(),
+    }
+}
+
 /// The real runtime: the system's clock and files, the environment, the working directory and standard input.
 pub fn default_runtime() -> Runtime {
     let cwd = std::env::current_dir().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_default();
@@ -37,7 +47,7 @@ pub fn default_runtime() -> Runtime {
         dirs: Box::new(SystemDirs),
         git: Box::new(SystemGit { env: env.clone() }),
         gh: Box::new(SystemGh { env: env.clone() }),
-        assets_root: std::env::current_exe().ok().and_then(|exe| exe.parent().map(|dir| dir.to_string_lossy().into_owned())).unwrap_or_default(),
+        assets_root: assets_root(&env, std::env::current_exe().ok()),
         env,
         stdin: Box::new(|| {
             let mut bytes = Vec::new();

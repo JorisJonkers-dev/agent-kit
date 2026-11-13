@@ -25,8 +25,8 @@ SKILLS = KIT_ROOT / "skills" / "workstation"
 
 #: Each single-command template, with the command its gate wraps and the skill that runs it directly.
 SINGLE = {
-    "critique-stats": ("`critique stats --strict`", "critique-stats", "critique.mjs stats"),
-    "flow": ("`critique state --strict`", "flow", "critique.mjs state"),
+    "critique-stats": ("`critique stats --strict`", "critique-stats", "critique stats"),
+    "flow": ("`critique state --strict`", "flow", "critique state"),
     "build-tracker": ("`build-tracker refresh`", "flow", "build-tracker.mjs refresh"),  # refreshed by /flow, step 3,
 }
 FORBIDDEN_FAMILIES = ["codex", "opus"]
@@ -61,7 +61,7 @@ def test_the_gate_wraps_the_command_the_direct_lane_runs(name: str) -> None:
     gate = next(node for node in _load(name)["workflow"]["nodes"] if node["id"] == f"gate-{name}")
     assert command in gate["goal"]
     assert "gold-band-gate" in gate["goal"]
-    # The direct lane's own invocation, runner and subcommand together: `node <dir>/critique.mjs stats`.
+    # The direct lane's own invocation, runner and subcommand together: `sh <dir>/critique stats`.
     assert f"/{direct} " in (SKILLS / skill / "SKILL.md").read_text(encoding="utf-8")
 
 

@@ -12,12 +12,12 @@ questions nobody asked. You rule on each one, and every gap you accept goes
 to the owner as a grilling question. A decision doc changes only through the
 owner's answer.
 
-The runner does the deterministic work. It is `critique.mjs` in the `critique`
-skill directory installed beside this one (`../critique/critique.mjs` from the
+The runner does the deterministic work. It is the `critique` launcher in the `critique`
+skill directory installed beside this one (`../critique/critique` from the
 folder this file is in). Each command takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <prepare|fan-out|refute|record|allow> --input <file.json>
+sh <critique dir>/critique <prepare|fan-out|refute|record|allow> --input <file.json>
 ```
 
 A result with `"status": "refused"` carries a one-line `message`: give the

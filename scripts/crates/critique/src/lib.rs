@@ -125,6 +125,16 @@ pub use runtime::{default_runtime, Runtime};
 
 use std::io::Write;
 
+/// The node runner's command line for a command this runner does not port yet: the bundle beside the shipped assets
+/// and the same arguments, so a caller of the Rust runner reaches every command while the port is partial. `None` for
+/// a command this runner answers itself, and when the bundle is not there.
+pub fn node_handoff(argv: &[String], runtime: &Runtime) -> Option<Vec<String>> {
+    let name = argv.first()?;
+    let unported = cli::COMMANDS.iter().any(|(command, port)| command == name && port.is_none());
+    let bundle = format!("{}/critique.mjs", runtime.assets_root);
+    (unported && runtime.files.exists(&bundle).unwrap_or(false)).then(|| std::iter::once(bundle).chain(argv.iter().cloned()).collect())
+}
+
 /// Runs the command line in `runtime` and writes its output; the exit code.
 pub fn run_with(args: impl Iterator<Item = String>, runtime: &Runtime, stdin: &mut dyn std::io::BufRead, stdout: &mut dyn Write, stderr: &mut dyn Write) -> i32 {
     let argv: Vec<String> = args.collect();

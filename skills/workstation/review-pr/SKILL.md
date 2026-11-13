@@ -14,13 +14,13 @@ who rules on their findings. Per-ticket reviews already ran; this stage hunts
 the defects that live between tickets.
 
 The runner does the deterministic work, the gate included. It is
-`critique.mjs` in the `critique` skill directory installed beside this one
-(`../critique/critique.mjs` from the folder this file is in). Each command
+the `critique` launcher in the `critique` skill directory installed beside this one
+(`../critique/critique` from the folder this file is in). Each command
 takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <prepare|fan-out|refute|record|allow> --json '<object>'
-node <critique dir>/critique.mjs <command> --input <file.json>
+sh <critique dir>/critique <prepare|fan-out|refute|record|allow> --json '<object>'
+sh <critique dir>/critique <command> --input <file.json>
 ```
 
 A result with `"status": "refused"` carries a one-line `message`: give the

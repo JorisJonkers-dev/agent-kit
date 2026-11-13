@@ -399,17 +399,20 @@ council:
 # critique.mjs: update its sha256 here in the same commit.
 critique:
   files:
+    - path: skills/workstation/critique/critique
+      sha256: 89392df82a38cbecdf5e1dcca6e8084dfcadb8580921383431d89261681b470a
+      mode: "0755"
     - path: skills/workstation/critique/critique.mjs
       sha256: fe592fe9f47bb026a5a4c9a5b41a1722933ffdf1579fff5928d06194923ae857
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
-      sha256: 4bcf6d9cefbef0eb638d5dac328c84a22f120e7799cd834f677daaa48fcef65c
+      sha256: 6527a08a703b293c5714951106b8dfd0f55734a0b6d63fa9d7c088c1876f36dc
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-pr-gate.sh
-      sha256: c188adc6e001d623cf8c17a3958d469ef3b1616c61ce653bb0294c8a1ccb8f28
+      sha256: 383318be3105335db149b778f92cbceabc79a55d47494b7a814f340bb0a452f1
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-session-start.sh
-      sha256: 65becf61d98d40d27a34a997fecfbe4b84263009a62125fdc1939ed61714e907
+      sha256: ae01df6bc976b5ee278b6eb87997ffbbcbc7783e7da578684294eb5c5d85dbb2
       mode: "0755"
     - path: skills/workstation/critique/lenses/adr-record.md
       sha256: d38b23a901e190fc6efcf43c95e04741c7c521b6250e066d94cef6bd269d3dd9
