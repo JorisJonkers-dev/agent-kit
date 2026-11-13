@@ -1,0 +1,130 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#9 through gh: gh issue view exited 9: gh: unexpected: issue view 9 --repo github.com/jorisjonkers-dev/example --json number,title,body,url,labels\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#9 through gh: gh issue view exited 9: gh: unexpected: issue view 9 --repo github.com/jorisjonkers-dev/example --json number,title,body,url,labels\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#9 through gh: gh issue view exited 9: gh: unexpected: issue view 9 --repo github.com/jorisjonkers-dev/example --json number,title,body,url,labels\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read the tickets of github.com/jorisjonkers-dev/example#5 through gh: gh api exited 9: gh: unexpected: api --hostname github.com --paginate --slurp repos/jorisjonkers-dev/example/issues/5/sub_issues?per_page=100\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#7 through gh: gh issue view exited 9: gh: unexpected: issue view 7 --repo github.com/jorisjonkers-dev/example --json number,title,body,url,labels\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"found no refactoring plan at @SANDBOX@/repos/h1/.git/critique/plans/one/refactoring-plan.md; draft refactoring-plan.md there first, or name the plan file with plan\",\n  \"reason\": \"no-plan\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"docs/agents/issue-tracker.md names GitLab; the critique reads specs from GitHub issues or local markdown only\",\n  \"reason\": \"unsupported-tracker\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"gitlab.com/someone/project\":{\"code\":true,\"families\":[\"mistral\"],\"history\":true,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"docs/agents/issue-tracker.md names GitLab; the critique reads specs from GitHub issues or local markdown only\",\n  \"reason\": \"unsupported-tracker\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"gitlab.com/someone/project\":{\"code\":true,\"families\":[\"mistral\"],\"history\":true,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"recovery\",\n    \"tracker\": \"none\"\n  },\n  \"repository\": {\n    \"cap_bytes\": 91648,\n    \"dropped_files\": 0,\n    \"head_commit\": \"1fb2174b85fcccfdbc14f584bd3f2ed022bc32c7\",\n    \"packet_bytes\": 1766,\n    \"tree_files\": 0\n  },\n  \"critics\": [],\n  \"depth\": \"base\",\n  \"depth_choice\": {\n    \"chosen_by\": \"signals\",\n    \"measures\": {\n      \"context_maps\": {\n        \"threshold\": 0,\n        \"value\": 0\n      },\n      \"source_lines\": {\n        \"threshold\": 20000,\n        \"value\": 0\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-deepseek-flash\",\n      \"family\": \"deepseek\",\n      \"reason\": \"family-not-allowed\"\n    },\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    }\n  ],\n  \"history\": true,\n  \"manifest_path\": \"@SANDBOX@/repos/h2/.git/critique/20261103T120000Z-decision-recovery/manifest.json\",\n  \"packet_dir\": \"@SANDBOX@/repos/h2/.git/critique/20261103T120000Z-decision-recovery/packet\",\n  \"packet_files\": [\n    \"tree/MANIFEST.tsv\",\n    \"facts/INDEX.md\",\n    \"history/log.txt\"\n  ],\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/h2/.git/critique/20261103T120000Z-decision-recovery\",\n  \"run_id\": \"20261103T120000Z-decision-recovery\",\n  \"status\": \"ready\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"gitlab.com/someone/project\":{\"code\":true,\"families\":[\"mistral\"],\"history\":true,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    }
+  ]
+}

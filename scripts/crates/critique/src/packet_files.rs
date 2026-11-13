@@ -1,8 +1,8 @@
 //! What a packet reader hands back: the files it froze, before their hashes are taken. The node runner's
 //! `UnfrozenFile` of `application/code-packet.ts`.
 
-use crate::manifest::{LineRange, PacketWindow};
-use crate::tree_sample::{LineRange as SampledRange, SampledWindow};
+use crate::context_slices::ContextSlice;
+use crate::tree_sample::{LineRange, SampledWindow};
 use model_gateway::json::Value;
 
 /// The packet folder of the tree at the commit under review.
@@ -16,7 +16,7 @@ pub struct UnfrozenFile {
     pub source: String,
     pub text: String,
     /// Only for a tree file the packet cap cut short.
-    pub window: Option<PacketWindow>,
+    pub window: Option<FrozenWindow>,
 }
 
 impl UnfrozenFile {
@@ -64,11 +64,29 @@ pub struct RepositoryPacket {
     pub stored_data_steps: Option<usize>,
 }
 
-fn frozen_range(range: &SampledRange) -> LineRange {
-    LineRange { first: range.first as f64, last: range.last as f64 }
+/// A run of lines a tree file holds, as the manifest writes it. A range that is a context slice the sample took as it
+/// was keeps the slice's own fields after the two numbers, in the node runner's key order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FrozenRange {
+    pub first: usize,
+    pub last: usize,
+    pub extra: Vec<(&'static str, String)>,
 }
 
-/// The window a sampled tree file records, as the manifest holds it.
-pub fn frozen_window(window: &SampledWindow) -> PacketWindow {
-    PacketWindow { last: window.last as f64, lines: window.lines as f64, ranges: window.ranges.as_ref().map(|ranges| ranges.iter().map(frozen_range).collect()) }
+/// The lines of a file a packet sends, and how many the file has.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FrozenWindow {
+    pub last: usize,
+    pub lines: usize,
+    /// Only when the file holds other lines than 1 to `last`.
+    pub ranges: Option<Vec<FrozenRange>>,
+}
+
+fn frozen_range(range: &LineRange, slices: &[ContextSlice]) -> FrozenRange {
+    FrozenRange { first: range.first, last: range.last, extra: range.origin.map(|at| slices[at].extra_fields()).unwrap_or_default() }
+}
+
+/// The window a sampled tree file records, as the manifest holds it; `slices` are the context slices the sample took.
+pub fn frozen_window(window: &SampledWindow, slices: &[ContextSlice]) -> FrozenWindow {
+    FrozenWindow { last: window.last, lines: window.lines, ranges: window.ranges.as_ref().map(|ranges| ranges.iter().map(|range| frozen_range(range, slices)).collect()) }
 }

@@ -1,0 +1,245 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/c1/docs/agents/issue-tracker.md": "# Issue tracker: Local Markdown\n\nTickets live in .scratch.\n",
+        "repos/c1/src/main.rs": "// file 0\npub fn f0_0() { f0_1() }\npub fn f0_1() { f0_2() }\npub fn f0_2() { f0_3() }\npub fn f0_3() { f0_4() }\npub fn f0_4() { f0_5() }\npub fn f0_5() { f0_6() }\n",
+        "repos/c1/src/lib.rs": "// file 1\npub fn f1_0() { f1_1() }\npub fn f1_1() { f1_2() }\npub fn f1_2() { f1_3() }\npub fn f1_3() { f1_4() }\npub fn f1_4() { f1_5() }\npub fn f1_5() { f1_6() }\npub fn f1_6() { f1_7() }\npub fn f1_7() { f1_8() }\npub fn f1_8() { f1_9() }\n",
+        "repos/c1/src/util/mod.rs": "// file 2\npub fn f2_0() { f2_1() }\npub fn f2_1() { f2_2() }\npub fn f2_2() { f2_3() }\npub fn f2_3() { f2_4() }\npub fn f2_4() { f2_5() }\npub fn f2_5() { f2_6() }\npub fn f2_6() { f2_7() }\npub fn f2_7() { f2_8() }\npub fn f2_8() { f2_9() }\npub fn f2_9() { f2_10() }\npub fn f2_10() { f2_11() }\npub fn f2_11() { f2_12() }\n",
+        "repos/c1/src/deep/er/leaf.ts": "// file 3\npub fn f3_0() { f3_1() }\npub fn f3_1() { f3_2() }\npub fn f3_2() { f3_3() }\npub fn f3_3() { f3_4() }\npub fn f3_4() { f3_5() }\npub fn f3_5() { f3_6() }\npub fn f3_6() { f3_7() }\npub fn f3_7() { f3_8() }\npub fn f3_8() { f3_9() }\npub fn f3_9() { f3_10() }\npub fn f3_10() { f3_11() }\npub fn f3_11() { f3_12() }\npub fn f3_12() { f3_13() }\npub fn f3_13() { f3_14() }\npub fn f3_14() { f3_15() }\n",
+        "repos/c1/web/index.ts": "// file 4\npub fn f4_0() { f4_1() }\npub fn f4_1() { f4_2() }\npub fn f4_2() { f4_3() }\npub fn f4_3() { f4_4() }\npub fn f4_4() { f4_5() }\npub fn f4_5() { f4_6() }\npub fn f4_6() { f4_7() }\npub fn f4_7() { f4_8() }\npub fn f4_8() { f4_9() }\npub fn f4_9() { f4_10() }\npub fn f4_10() { f4_11() }\npub fn f4_11() { f4_12() }\npub fn f4_12() { f4_13() }\npub fn f4_13() { f4_14() }\npub fn f4_14() { f4_15() }\npub fn f4_15() { f4_16() }\npub fn f4_16() { f4_17() }\npub fn f4_17() { f4_18() }\n",
+        "repos/c1/web/page.tsx": "import { f4_1 } from './index'\n// file 5\npub fn f5_0() { f5_1() }\npub fn f5_1() { f5_2() }\npub fn f5_2() { f5_3() }\npub fn f5_3() { f5_4() }\npub fn f5_4() { f5_5() }\npub fn f5_5() { f5_6() }\npub fn f5_6() { f5_7() }\npub fn f5_7() { f5_8() }\npub fn f5_8() { f5_9() }\npub fn f5_9() { f5_10() }\npub fn f5_10() { f5_11() }\npub fn f5_11() { f5_12() }\npub fn f5_12() { f5_13() }\npub fn f5_13() { f5_14() }\npub fn f5_14() { f5_15() }\npub fn f5_15() { f5_16() }\npub fn f5_16() { f5_17() }\npub fn f5_17() { f5_18() }\npub fn f5_18() { f5_19() }\npub fn f5_19() { f5_20() }\npub fn f5_20() { f5_21() }\n",
+        "repos/c1/web/more.ts": "import { f4_2 } from './index'\nexport const more = f4_2\n",
+        "repos/c1/.scratch/feat/spec.md": "# Feature\n\nChange `src/main.rs` and `web/index.ts`.\n",
+        "repos/c1/.scratch/feat/issues/01-one.md": "# 01: One\n\n- [ ] a\n",
+        "repos/c1/package-lock.json": "{\n\"a\":1\n}\n",
+        "repos/c1/docs/notes.md": "# notes\n"
+      },
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/c1"
+        ],
+        [
+          "-C",
+          "repos/c1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/c1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/c1",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/c1/src/main.rs": "// file 0\npub fn f0_0() { f0_1() }\npub fn f0_1() { f0_2() }\npub fn f0_2() { f0_3() }\npub fn f0_3() { f0_4() }\npub fn f0_4() { f0_5() }\npub fn f0_5() { f0_6() }\npub fn added() { f0_1() }\n",
+        "repos/c1/src/lib.rs": "// file 1\npub fn f1_0() { f1_1() }\npub fn f1_1() { f1_2b() }\npub fn f1_2() { f1_3() }\npub fn f1_3() { f1_4() }\npub fn f1_4() { f1_5() }\npub fn f1_5() { f1_6() }\npub fn f1_6() { f1_7() }\npub fn f1_7() { f1_8() }\npub fn f1_8() { f1_9() }\n",
+        "repos/c1/web/index.ts": "// file 4\npub fn f4_0() { f4_1() }\npub fn f4_1() { f4_2() }\npub fn f4_2() { f4_3() }\npub fn f4_3() { f4_4() }\npub fn f4_4() { f4_5() }\npub fn f4_5() { f4_6() }\npub fn f4_6() { f4_7() }\npub fn f4_7() { f4_8() }\npub fn f4_8() { f4_9() }\npub fn f4_9() { f4_10() }\npub fn f4_10() { f4_11() }\npub fn f4_11() { f4_12() }\npub fn f4_12() { f4_13() }\npub fn f4_13() { f4_14() }\npub fn f4_14() { f4_15() }\npub fn f4_15() { f4_16() }\npub fn f4_16() { f4_17() }\npub fn f4_17() { f4_18() }\nexport const extra = f4_1\n",
+        "repos/c1/package-lock.json": "{\n\"a\":2\n}\n",
+        "repos/c1/docs/notes.md": "# notes\n\nmore\n",
+        "repos/c1/src/new.rs": "pub fn fresh() {}\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/c1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/c1",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"ticket-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/c1\",\"spec\":\".scratch/feat/spec.md\",\"ticket\":\".scratch/feat/issues/01-one.md\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "repos/c1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"feature-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/c1\",\"spec\":\".scratch/feat/spec.md\",\"base\":\"HEAD~1\",\"head\":\"HEAD\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/code-nav": "#!/bin/sh\nprintf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"capabilities\":{}}}'\nprintf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"files:\\n@SANDBOX@/repos/c1/src/main.rs (9 refs, 1 symbols)\\n@SANDBOX@/repos/c1/src/lib.rs (8 refs, 1 symbols)\\n@SANDBOX@/repos/c1/web/index.ts (7 refs, 1 symbols)\\n@SANDBOX@/repos/c1/gone.rs (6 refs, 1 symbols)\\nsymbols:\\n@SANDBOX@/repos/c1/src/main.rs:1 function main (9 refs)\\n@SANDBOX@/repos/c1/src/lib.rs:1 function main (8 refs)\\n@SANDBOX@/repos/c1/web/index.ts:1 function main (7 refs)\\n@SANDBOX@/repos/c1/gone.rs:1 function main (6 refs)\"}]}}'\n"
+      },
+      "exec": [
+        "bin/code-nav"
+      ],
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "roots": [
+        "repos/c1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"feature-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/c1\",\"spec\":\".scratch/feat/spec.md\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"packet\":{\"cap_bytes\":5700,\"window_lines\":4,\"facts_cap_bytes\":1000}}\n"
+      },
+      "roots": [
+        "repos/c1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"feature-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/c1\",\"spec\":\".scratch/feat/spec.md\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"packet\":{\"cap_bytes\":3000,\"window_lines\":4,\"facts_cap_bytes\":1000}}\n"
+      },
+      "roots": [
+        "repos/c1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"ticket-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/c1\",\"spec\":\".scratch/feat/spec.md\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"feature-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/c1\",\"spec\":\".scratch/feat/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"feature-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/c1\",\"spec\":\".scratch/feat/spec.md\",\"base\":\"nowhere\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"ticket-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/c1\",\"spec\":\".scratch/feat/spec.md\",\"ticket\":\".scratch/feat/issues/01-one.md\",\"base\":\"HEAD~1\",\"depth\":\"deep\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"risk_paths\":[\"docs/**\"]},\"stages\":{\"ticket-review\":{\"depth_signals\":{\"thresholds\":{\"changed_lines\":1,\"risk_path_hits\":0}}}}}\n"
+      },
+      "roots": [
+        "repos/c1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/c1/src/staged.rs": "pub fn staged() {}\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/c1",
+          "add",
+          "src/staged.rs"
+        ]
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"ticket-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/c1\",\"spec\":\".scratch/feat/spec.md\",\"ticket\":\".scratch/feat/issues/01-one.md\",\"base\":\"HEAD\",\"staged\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "GIT_AUTHOR_DATE": "2026-11-03T12:00:00Z",
+        "GIT_COMMITTER_DATE": "2026-11-03T12:00:00Z"
+      },
+      "roots": [
+        "repos/c1/.git/critique"
+      ]
+    }
+  ]
+}

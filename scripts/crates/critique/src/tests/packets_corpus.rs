@@ -233,9 +233,9 @@ fn limits(value: &Value) -> PacketLimits {
 fn file_value(file: &UnfrozenFile) -> Value {
     let mut pairs = vec![("kind", Value::str(file.kind)), ("path", Value::str(&file.path)), ("source", Value::str(&file.source)), ("text", Value::str(&file.text))];
     if let Some(window) = &file.window {
-        let mut held = vec![("last", Value::Num(window.last)), ("lines", Value::Num(window.lines))];
+        let mut held = vec![("last", Value::count(window.last)), ("lines", Value::count(window.lines))];
         if let Some(ranges) = &window.ranges {
-            let ranges = ranges.iter().map(|range| json::object(vec![("first", Value::Num(range.first)), ("last", Value::Num(range.last))]));
+            let ranges = ranges.iter().map(|range| json::object(vec![("first", Value::count(range.first)), ("last", Value::count(range.last))]));
             held.push(("ranges", Value::Arr(ranges.collect())));
         }
         pairs.push(("window", json::object(held)));

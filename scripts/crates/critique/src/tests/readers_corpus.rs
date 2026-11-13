@@ -326,11 +326,13 @@ fn a_tree_git_cannot_read_is_an_unexpected_failure() {
 
 #[test]
 fn a_window_that_holds_ranges_is_frozen_with_them() {
+    use crate::context_slices::ContextSlice;
     use crate::packet_files::frozen_window;
     use crate::tree_sample::{LineRange, SampledWindow};
-    let prefix = frozen_window(&SampledWindow { last: 40, lines: 90, ranges: None });
-    assert_eq!((prefix.last, prefix.lines, prefix.ranges), (40.0, 90.0, None));
-    let sliced = frozen_window(&SampledWindow { last: 20, lines: 90, ranges: Some(vec![LineRange::new(3, 5), LineRange::new(9, 20)]) });
-    let held: Vec<(f64, f64)> = sliced.ranges.expect("ranges").iter().map(|range| (range.first, range.last)).collect();
-    assert_eq!(held, vec![(3.0, 5.0), (9.0, 20.0)]);
+    let prefix = frozen_window(&SampledWindow { last: 40, lines: 90, ranges: None }, &[]);
+    assert_eq!((prefix.last, prefix.lines, prefix.ranges), (40, 90, None));
+    let slice = ContextSlice { path: "a.ts".to_string(), first: 9, last: 20, reason: "caller", symbol: Some("f".to_string()), of: Some("g".to_string()) };
+    let sliced = frozen_window(&SampledWindow { last: 20, lines: 90, ranges: Some(vec![LineRange::new(3, 5), LineRange { first: 9, last: 20, origin: Some(0) }]) }, &[slice]);
+    let held: Vec<(usize, usize, usize)> = sliced.ranges.expect("ranges").iter().map(|range| (range.first, range.last, range.extra.len())).collect();
+    assert_eq!(held, vec![(3, 5, 0), (9, 20, 4)]);
 }
