@@ -1,0 +1,273 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "runs/e1/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/e1/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/e1\",\"run_id\":\"e1\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/e1/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"omission\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ],\n      \"declared_severity\": \"major\"\n    },\n    {\n      \"id\": \"f2\",\n      \"critic_finding_id\": \"c1-f2\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"omission\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f2.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ],\n      \"pre_verdict\": {\n        \"verdict\": \"hint\",\n        \"reason_code\": \"no-evidence\",\n        \"reason\": \"x\"\n      }\n    },\n    {\n      \"id\": \"f3\",\n      \"critic_finding_id\": \"c1-f3\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"omission\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f3.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ],\n      \"pre_verdict\": {\n        \"verdict\": \"rejected\",\n        \"reason_code\": \"single-site\",\n        \"reason\": \"y\"\n      }\n    },\n    {\n      \"id\": \"f4\",\n      \"critic_finding_id\": \"c1-f4\",\n      \"raised_by\": [\n        \"c1\",\n        \"ghost\"\n      ],\n      \"severity\": \"minor\",\n      \"category\": \"omission\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f4.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/e1/findings.json\",\n  \"run_id\": \"e1\",\n  \"stage\": \"spec\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/bad-manifest/manifest.json": "{not json",
+        "runs/bad-findings/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/bad-findings/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/bad-findings\",\"run_id\":\"bad-findings\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/bad-findings/findings.json": "{\"critics\": 5}",
+        "runs/no-findings/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/no-findings/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/no-findings\",\"run_id\":\"no-findings\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/bad-refute/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/bad-refute/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/bad-refute\",\"run_id\":\"bad-refute\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/bad-refute/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"omission\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/bad-refute/findings.json\",\n  \"run_id\": \"bad-refute\",\n  \"stage\": \"spec\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/bad-refute/refute.json": "{\"counts\":{},\"refute_path\":\"@SANDBOX@/runs/bad-refute/refute.json\",\"results\":[{\"finding_id\":\"ghost\",\"outcome\":\"stands\"}],\"run_id\":\"bad-refute\",\"stage\":\"spec\",\"status\":\"checked\"}\n",
+        "runs/bad-refute-shape/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/bad-refute-shape/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/bad-refute-shape\",\"run_id\":\"bad-refute-shape\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/bad-refute-shape/findings.json": "{\"critics\":[{\"charged_usd\":0.01,\"client\":\"vibe-small\",\"cost_usd\":0.0123,\"critic_id\":\"c1\",\"duration_ms\":1200,\"exit_code\":0,\"family\":\"mistral\",\"finding_count\":1,\"lens_hashes\":{\"lens-a\":\"a1b2c3d4\"},\"lenses\":[\"lens-a\"],\"model\":\"mistral-small\",\"prompt_hashes\":{\"contract\":\"c0ffee01\",\"preamble\":\"c0ffee02\",\"role\":\"c0ffee03\",\"schema\":\"c0ffee04\"},\"prompt_path\":\"/p/c1.md\",\"role\":\"spec-reviewer\",\"status\":\"ok\"}],\"degraded\":false,\"findings\":[{\"id\":\"f1\",\"critic_finding_id\":\"c1-f1\",\"raised_by\":[\"c1\"],\"severity\":\"major\",\"category\":\"omission\",\"location\":\"spec#L10\",\"claim\":\"The spec says nothing about f1.\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"a quote\",\"file\":\"artifact/spec.md\"}]}],\"findings_path\":\"@SANDBOX@/runs/bad-refute-shape/findings.json\",\"run_id\":\"bad-refute-shape\",\"stage\":\"spec\",\"status\":\"reviewed\"}",
+        "runs/bad-refute-shape/refute.json": "{\"results\": [{\"finding_id\": \"f1\", \"outcome\": \"maybe\"}]}"
+      }
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "[]"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\"}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":\"x\"}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"maybe\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"rejected\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"Not A Slug\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/missing\",\"verdicts\":[]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/bad-manifest\",\"verdicts\":[]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/no-findings\",\"verdicts\":[]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/bad-findings\",\"verdicts\":[]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"},{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"nope\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\",\"answered\":true}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"needs-human\",\"follow_up\":\"#3\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\",\"severity\":\"major\",\"severity_reason\":\"same\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\",\"severity\":\"minor\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\",\"severity\":\"minor\",\"severity_reason\":\"x\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\",\"severity_reason\":\"orphan\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"},{\"finding_id\":\"f2\",\"verdict\":\"needs-human\"},{\"finding_id\":\"f3\",\"verdict\":\"rejected\",\"reason\":\"r\"},{\"finding_id\":\"f4\",\"verdict\":\"hint\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"},{\"finding_id\":\"f3\",\"verdict\":\"accepted\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"},{\"finding_id\":\"f3\",\"verdict\":\"rejected\",\"reason\":\"r\"},{\"finding_id\":\"f4\",\"verdict\":\"hint\"},{\"finding_id\":\"f2\",\"verdict\":\"hint\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/e1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"},{\"finding_id\":\"f4\",\"verdict\":\"hint\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/bad-refute\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/bad-refute-shape\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}

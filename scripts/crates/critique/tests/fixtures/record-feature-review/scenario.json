@@ -1,0 +1,302 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/r1/README.md": "# example\n",
+        "runs/g1/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g1/packet\",\"packet_files\":[{\"kind\":\"ticket\",\"path\":\"tickets/issue-2.md\",\"source\":\"github.com/jorisjonkers-dev/example#2\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-3.md\",\"source\":\"github.com/jorisjonkers-dev/example#3\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-4.md\",\"source\":\"github.com/jorisjonkers-dev/example#4\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/g1\",\"run_id\":\"g1\",\"stage\":\"feature-review\",\"version\":1,\"code\":{\"base\":\"main\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbg1\"}}\n",
+        "runs/g1/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"critical\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    },\n    {\n      \"id\": \"f2\",\n      \"critic_finding_id\": \"c1-f2\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"integration\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f2.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/g1/findings.json\",\n  \"run_id\": \"g1\",\n  \"stage\": \"feature-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/g2/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g2/packet\",\"packet_files\":[{\"kind\":\"ticket\",\"path\":\"tickets/issue-2.md\",\"source\":\"github.com/jorisjonkers-dev/example#2\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-3.md\",\"source\":\"github.com/jorisjonkers-dev/example#3\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-4.md\",\"source\":\"github.com/jorisjonkers-dev/example#4\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/g2\",\"run_id\":\"g2\",\"stage\":\"feature-review\",\"version\":1,\"code\":{\"base\":\"main\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbg2\"}}\n",
+        "runs/g2/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"minor\",\n      \"category\": \"drift\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/g2/findings.json\",\n  \"run_id\": \"g2\",\n  \"stage\": \"feature-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/g3/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g3/packet\",\"packet_files\":[{\"kind\":\"ticket\",\"path\":\"tickets/issue-2.md\",\"source\":\"github.com/jorisjonkers-dev/example#2\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-3.md\",\"source\":\"github.com/jorisjonkers-dev/example#3\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-4.md\",\"source\":\"github.com/jorisjonkers-dev/example#4\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/g3\",\"run_id\":\"g3\",\"stage\":\"feature-review\",\"version\":1,\"code\":{\"base\":\"main\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbg3\"}}\n",
+        "runs/g3/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/g3/findings.json\",\n  \"run_id\": \"g3\",\n  \"stage\": \"feature-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/g4/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g4/packet\",\"packet_files\":[{\"kind\":\"ticket\",\"path\":\"tickets/issue-2.md\",\"source\":\"github.com/jorisjonkers-dev/example#2\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-3.md\",\"source\":\"github.com/jorisjonkers-dev/example#3\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-4.md\",\"source\":\"github.com/jorisjonkers-dev/example#4\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/g4\",\"run_id\":\"g4\",\"stage\":\"feature-review\",\"version\":1,\"code\":{\"base\":\"main\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbg4\"}}\n",
+        "runs/g4/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"critical\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    },\n    {\n      \"id\": \"f2\",\n      \"critic_finding_id\": \"c1-f2\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"integration\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f2.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/g4/findings.json\",\n  \"run_id\": \"g4\",\n  \"stage\": \"feature-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/g8/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g8/packet\",\"packet_files\":[{\"kind\":\"ticket\",\"path\":\"tickets/issue-2.md\",\"source\":\"github.com/jorisjonkers-dev/example#2\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-3.md\",\"source\":\"github.com/jorisjonkers-dev/example#3\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-4.md\",\"source\":\"github.com/jorisjonkers-dev/example#4\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/g8\",\"run_id\":\"g8\",\"stage\":\"feature-review\",\"version\":1,\"code\":{\"base\":\"main\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbg8\"}}\n",
+        "runs/g8/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"critical\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/g8/findings.json\",\n  \"run_id\": \"g8\",\n  \"stage\": \"feature-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/g5/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#9\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g5/packet\",\"packet_files\":[{\"kind\":\"ticket\",\"path\":\"tickets/issue-2.md\",\"source\":\"github.com/jorisjonkers-dev/example#2\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-3.md\",\"source\":\"github.com/jorisjonkers-dev/example#3\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-4.md\",\"source\":\"github.com/jorisjonkers-dev/example#4\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/g5\",\"run_id\":\"g5\",\"stage\":\"feature-review\",\"version\":1,\"code\":{\"base\":\"main\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbg5\"}}\n",
+        "runs/g5/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"critical\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    },\n    {\n      \"id\": \"f2\",\n      \"critic_finding_id\": \"c1-f2\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"integration\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f2.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/g5/findings.json\",\n  \"run_id\": \"g5\",\n  \"stage\": \"feature-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/g6/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g6/packet\",\"packet_files\":[{\"kind\":\"ticket\",\"path\":\"tickets/issue-2.md\",\"source\":\"github.com/jorisjonkers-dev/example#2\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-3.md\",\"source\":\"github.com/jorisjonkers-dev/example#3\",\"sha256\":\"x\"},{\"kind\":\"ticket\",\"path\":\"tickets/issue-4.md\",\"source\":\"github.com/jorisjonkers-dev/example#4\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/gitlab\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/g6\",\"run_id\":\"g6\",\"stage\":\"feature-review\",\"version\":1,\"code\":{\"base\":\"main\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbg6\"}}\n",
+        "runs/g6/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"critical\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    },\n    {\n      \"id\": \"f2\",\n      \"critic_finding_id\": \"c1-f2\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"integration\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f2.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/g6/findings.json\",\n  \"run_id\": \"g6\",\n  \"stage\": \"feature-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/g7/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g7/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/g7\",\"run_id\":\"g7\",\"stage\":\"feature-review\",\"version\":1}\n",
+        "runs/g7/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [],\n  \"findings_path\": \"@SANDBOX@/runs/g7/findings.json\",\n  \"run_id\": \"g7\",\n  \"stage\": \"feature-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "repos/gitlab/docs/agents/issue-tracker.md": "# Issue tracker: GitLab\n",
+        "repos/gitlab/a.md": "a\n"
+      }
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#2\"},{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"cross-ticket-trace\",\"trace_tickets\":[\"tickets/issue-2.md\",\"tickets/issue-3.md\"],\"follow_up\":\"github.com/jorisjonkers-dev/example#4\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n*/issues/1/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":2,\"title\":\"Ticket 2\",\"body\":\"body 2\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\",\"labels\":[],\"state\":\"open\"},{\"number\":3,\"title\":\"Ticket 3\",\"body\":\"body 3\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\",\"labels\":[],\"state\":\"open\"},{\"number\":4,\"title\":\"Ticket 4\",\"body\":\"body 4\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/4\",\"labels\":[],\"state\":\"closed\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/2/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/3/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/4/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/9/sub_issues?per_page=100)\nprintf '%s' ''\nprintf '%s' 'HTTP 404: Not Found' >&2\nexit 1\n;;\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g2\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"rejected\",\"reason\":\"minor\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n*/issues/1/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":2,\"title\":\"Ticket 2\",\"body\":\"body 2\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\",\"labels\":[],\"state\":\"open\"},{\"number\":3,\"title\":\"Ticket 3\",\"body\":\"body 3\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\",\"labels\":[],\"state\":\"open\"},{\"number\":4,\"title\":\"Ticket 4\",\"body\":\"body 4\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/4\",\"labels\":[],\"state\":\"closed\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/2/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/3/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/4/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/9/sub_issues?per_page=100)\nprintf '%s' ''\nprintf '%s' 'HTTP 404: Not Found' >&2\nexit 1\n;;\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g8\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#2\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n*/issues/1/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":2,\"title\":\"Ticket 2\",\"body\":\"body 2\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\",\"labels\":[],\"state\":\"open\"},{\"number\":3,\"title\":\"Ticket 3\",\"body\":\"body 3\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\",\"labels\":[],\"state\":\"open\"},{\"number\":4,\"title\":\"Ticket 4\",\"body\":\"body 4\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/4\",\"labels\":[],\"state\":\"closed\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/2/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/3/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/4/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/9/sub_issues?per_page=100)\nprintf '%s' ''\nprintf '%s' 'HTTP 404: Not Found' >&2\nexit 1\n;;\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g3\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"3\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n*/issues/1/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":2,\"title\":\"Ticket 2\",\"body\":\"body 2\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\",\"labels\":[],\"state\":\"closed\"},{\"number\":3,\"title\":\"Ticket 3\",\"body\":\"body 3\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\",\"labels\":[],\"state\":\"closed\"},{\"number\":4,\"title\":\"Ticket 4\",\"body\":\"body 4\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/4\",\"labels\":[],\"state\":\"closed\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/2/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/3/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/4/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/9/sub_issues?per_page=100)\nprintf '%s' ''\nprintf '%s' 'HTTP 404: Not Found' >&2\nexit 1\n;;\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g4\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#77\"},{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#3\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n*/issues/1/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":2,\"title\":\"Ticket 2\",\"body\":\"body 2\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\",\"labels\":[],\"state\":\"closed\"},{\"number\":3,\"title\":\"Ticket 3\",\"body\":\"body 3\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\",\"labels\":[],\"state\":\"closed\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/2/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/3/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/9/sub_issues?per_page=100)\nprintf '%s' ''\nprintf '%s' 'HTTP 404: Not Found' >&2\nexit 1\n;;\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g5\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#2\"},{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#3\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n*/issues/1/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":2,\"title\":\"Ticket 2\",\"body\":\"body 2\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\",\"labels\":[],\"state\":\"closed\"},{\"number\":3,\"title\":\"Ticket 3\",\"body\":\"body 3\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\",\"labels\":[],\"state\":\"closed\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/2/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/3/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/9/sub_issues?per_page=100)\nprintf '%s' ''\nprintf '%s' 'HTTP 404: Not Found' >&2\nexit 1\n;;\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g6\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#2\"},{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#3\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n*/issues/1/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":2,\"title\":\"Ticket 2\",\"body\":\"body 2\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\",\"labels\":[],\"state\":\"closed\"},{\"number\":3,\"title\":\"Ticket 3\",\"body\":\"body 3\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\",\"labels\":[],\"state\":\"closed\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/2/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/3/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/9/sub_issues?per_page=100)\nprintf '%s' ''\nprintf '%s' 'HTTP 404: Not Found' >&2\nexit 1\n;;\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g7\",\"verdicts\":[]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g4\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g4\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\",\"follow_up\":\"#2\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g4\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#2\",\"trace_tickets\":[\"tickets/issue-2.md\"]}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g4\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"cross-ticket-trace\",\"trace_tickets\":[\"tickets/issue-2.md\"],\"follow_up\":\"#2\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g4\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"cross-ticket-trace\",\"trace_tickets\":[\"tickets/issue-2.md\",\"tickets/nope.md\"],\"follow_up\":\"#2\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g4\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g4\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"rejected\",\"reason\":\"x\",\"follow_up\":\"#2\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "runs/gates.jsonl": "not json\n"
+      }
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/g4\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#2\"},{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"follow_up\":\"#3\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n*/issues/1/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":2,\"title\":\"Ticket 2\",\"body\":\"body 2\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\",\"labels\":[],\"state\":\"closed\"},{\"number\":3,\"title\":\"Ticket 3\",\"body\":\"body 3\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\",\"labels\":[],\"state\":\"closed\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/2/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/3/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/9/sub_issues?per_page=100)\nprintf '%s' ''\nprintf '%s' 'HTTP 404: Not Found' >&2\nexit 1\n;;\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    }
+  ]
+}

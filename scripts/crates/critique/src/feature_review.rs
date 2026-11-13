@@ -4,7 +4,7 @@
 use crate::error::ShapeError;
 use crate::fields::Fields;
 use crate::findings::SEVERITIES;
-use model_gateway::json;
+use model_gateway::json::{self, Value};
 
 /// One accepted feature finding and the follow-up ticket it became.
 #[derive(Clone, Debug, PartialEq)]
@@ -87,4 +87,82 @@ fn read_gate_record(file: &Fields<'_>) -> Result<GateRecord, ShapeError> {
     file.literal_str("stage", "feature-review")?;
     file.literal("version", 1.0)?;
     Ok(GateRecord { run_id, recorded_at, repository, spec, base_commit, head_commit, gate, critical_open, line, follow_ups, open_critical })
+}
+
+/// The report's first line: `GATE: PASS`, or `GATE: FAIL (<n> critical)`.
+pub fn gate_line(critical_open: usize) -> String {
+    if critical_open == 0 { "GATE: PASS".to_string() } else { format!("GATE: FAIL ({critical_open} critical)") }
+}
+
+/// The critical follow-ups that hold the gate: this run's, then every earlier run's for the same spec, each counted once
+/// by ticket and only while its ticket is open.
+pub fn open_critical_follow_ups(run_id: &str, current: &[FollowUp], earlier: &[GateRecord], is_open: impl Fn(&str) -> bool) -> Vec<OpenCriticalFollowUp> {
+    let critical = current
+        .iter()
+        .map(|follow_up| (follow_up, run_id))
+        .chain(earlier.iter().flat_map(|record| record.follow_ups.iter().map(|follow_up| (follow_up, record.run_id.as_str()))))
+        .filter(|(follow_up, _)| follow_up.severity == "critical");
+    let mut seen: Vec<&str> = Vec::new();
+    let mut open = Vec::new();
+    for (follow_up, from) in critical {
+        if seen.contains(&follow_up.reference.as_str()) {
+            continue;
+        }
+        seen.push(&follow_up.reference);
+        if is_open(&follow_up.reference) {
+            open.push(OpenCriticalFollowUp {
+                finding_id: follow_up.finding_id.clone(),
+                reference: follow_up.reference.clone(),
+                run_id: from.to_string(),
+                ticket: follow_up.ticket.clone(),
+            });
+        }
+    }
+    open
+}
+
+impl GateRecord {
+    /// The record as `gate.json` and the gate index hold it: `JSON.stringify` order.
+    pub fn to_json(&self) -> Value {
+        let follow_ups = self
+            .follow_ups
+            .iter()
+            .map(|follow_up| {
+                json::object(vec![
+                    ("finding_id", Value::str(&follow_up.finding_id)),
+                    ("open", Value::Bool(follow_up.open)),
+                    ("reference", Value::str(&follow_up.reference)),
+                    ("severity", Value::str(&follow_up.severity)),
+                    ("ticket", Value::str(&follow_up.ticket)),
+                ])
+            })
+            .collect();
+        let open = self
+            .open_critical
+            .iter()
+            .map(|follow_up| {
+                json::object(vec![
+                    ("finding_id", Value::str(&follow_up.finding_id)),
+                    ("reference", Value::str(&follow_up.reference)),
+                    ("run_id", Value::str(&follow_up.run_id)),
+                    ("ticket", Value::str(&follow_up.ticket)),
+                ])
+            })
+            .collect();
+        json::object(vec![
+            ("base_commit", Value::str(&self.base_commit)),
+            ("critical_open", Value::Num(self.critical_open)),
+            ("follow_ups", Value::Arr(follow_ups)),
+            ("gate", Value::str(&self.gate)),
+            ("head_commit", Value::str(&self.head_commit)),
+            ("line", Value::str(&self.line)),
+            ("open_critical", Value::Arr(open)),
+            ("recorded_at", Value::str(&self.recorded_at)),
+            ("repository", Value::str(&self.repository)),
+            ("run_id", Value::str(&self.run_id)),
+            ("spec", Value::str(&self.spec)),
+            ("stage", Value::str("feature-review")),
+            ("version", Value::Num(1.0)),
+        ])
+    }
 }

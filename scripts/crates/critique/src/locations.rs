@@ -52,3 +52,13 @@ pub fn cold_read_path(run_dir: &str) -> String {
 pub fn report_path(run_dir: &str) -> String {
     crate::paths::join(&[run_dir, "report.md"])
 }
+
+/// `findings.json`, which fan-out writes into the run and record reads back.
+pub fn findings_path(run_dir: &str) -> String {
+    crate::paths::join(&[run_dir, "findings.json"])
+}
+
+/// `refute.json`, which refute writes beside the run and record reads.
+pub fn refute_path(run_dir: &str) -> String {
+    crate::paths::join(&[run_dir, "refute.json"])
+}
