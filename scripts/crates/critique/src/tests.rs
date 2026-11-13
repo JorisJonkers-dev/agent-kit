@@ -16,6 +16,7 @@ mod ledger_source;
 mod manifest;
 mod record_corpus;
 mod record_units;
+mod packets_corpus;
 mod readers_corpus;
 mod reviews;
 mod roster;

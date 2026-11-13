@@ -213,6 +213,10 @@ impl Git for Scripted {
         Err("unused".to_string())
     }
 
+    fn commit_log(&self, _cwd: &str, _revision: &str, _paths: &[String], _limit: usize) -> Result<Vec<crate::recovery::HistoryEntry>, String> {
+        Err("unused".to_string())
+    }
+
     fn commit_tree(&self, _cwd: &str, _tree: &str, _parent: &str, _message: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
@@ -340,4 +344,46 @@ fn a_check_id_is_a_lower_case_slug() {
     assert!(!is_check_id(Some("No-Rollback")));
     assert!(!is_check_id(Some("a--b")));
     assert!(!is_check_id(None));
+}
+
+#[test]
+fn a_commit_log_is_read_as_records_of_a_commit_its_message_and_its_files() {
+    let listing = "\u{1e}c1\u{0}2026-11-01T10:00:00+00:00\u{0}fix #1\u{0} body \u{0}a.ts\u{0} b.ts \u{0}\u{0}\u{1e}\n\u{1e}c2\u{0}2026-11-02T10:00:00+00:00\u{0}plain\u{0}\u{0}c.ts\u{0}\u{0}";
+    let entries = crate::git::parse_commit_log(listing);
+    assert_eq!(entries.len(), 2);
+    assert_eq!((entries[0].commit.as_str(), entries[0].subject.as_str(), entries[0].body.as_str()), ("c1", "fix #1", "body"));
+    assert_eq!(entries[0].files, vec!["a.ts".to_string(), "b.ts".to_string()]);
+    assert_eq!((entries[1].commit.as_str(), entries[1].body.as_str(), entries[1].files.clone()), ("c2", "", vec!["c.ts".to_string()]));
+    assert!(crate::git::parse_commit_log("  \u{1e} \n").is_empty());
+}
+
+#[test]
+fn the_history_of_a_path_is_what_git_logs_for_it() {
+    let sandbox = Sandbox::new();
+    let dir = sandbox.text();
+    let run = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"])
+            .args(args)
+            .current_dir(&dir)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .output()
+            .expect("git runs");
+        assert!(output.status.success(), "{args:?}: {}", String::from_utf8_lossy(&output.stderr));
+    };
+    run(&["init", "-q"]);
+    std::fs::write(sandbox.path.join("a.ts"), "1").expect("write");
+    std::fs::write(sandbox.path.join("b.ts"), "1").expect("write");
+    run(&["add", "."]);
+    run(&["commit", "-q", "-m", "first #7", "-m", "the body"]);
+    std::fs::write(sandbox.path.join("a.ts"), "2").expect("write");
+    run(&["commit", "-q", "-am", "second"]);
+    let git = SystemGit { env: std::env::vars().collect() };
+    assert_eq!(git.commit_log(&dir, "HEAD", &[], 5).unwrap(), Vec::new());
+    let log = git.commit_log(&dir, "HEAD", &["a.ts".to_string()], 5).unwrap();
+    assert_eq!(log.iter().map(|entry| entry.subject.as_str()).collect::<Vec<_>>(), vec!["second", "first #7"]);
+    assert_eq!(log[1].body, "the body");
+    assert_eq!(log[1].files, vec!["a.ts".to_string()]);
+    assert_eq!(git.commit_log(&dir, "HEAD", &["a.ts".to_string(), "b.ts".to_string()], 1).unwrap().len(), 1);
+    assert!(git.commit_log(&dir, "no-such-revision", &["a.ts".to_string()], 5).is_err());
 }

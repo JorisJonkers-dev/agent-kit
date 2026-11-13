@@ -34,14 +34,19 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     if !runtime.files.exists(&path).unwrap_or(false) {
         return Err(CritiqueError::new("invalid-input", format!("check-plan input: {path} does not exist")));
     }
-    let text = runtime.files.read_text(&path).map_err(CritiqueError::from_fs)?;
+    Ok(report(&check_file(runtime, &path, root.as_deref())?))
+}
+
+/// The check of one plan file that exists, with the decision log of `root` when a repository is given.
+pub fn check_file(runtime: &Runtime, path: &str, root: Option<&str>) -> Result<PlanCheck, CritiqueError> {
+    let text = runtime.files.read_text(path).map_err(CritiqueError::from_fs)?;
     let routing = load_routing(runtime)?;
     let size = &stage_routing(&routing, "tickets")?.ticket_size;
-    let adrs = match &root {
+    let adrs = match root {
         None => None,
         Some(root) => Some(decision_log(runtime, root)?),
     };
-    Ok(report(&check_plan(&text, size, adrs.as_ref())))
+    Ok(check_plan(&text, size, adrs.as_ref()))
 }
 
 /// The numbers the decision log holds, and those of its records that are superseded.
@@ -64,7 +69,7 @@ fn strings(items: &[String]) -> Value {
 }
 
 /// The check as the runner prints it: `{status, ...check}`.
-fn report(check: &PlanCheck) -> Value {
+pub fn report(check: &PlanCheck) -> Value {
     let mut result = Object::new();
     result.set("status", Value::str(plan_check_status(check)));
     let errors = check
