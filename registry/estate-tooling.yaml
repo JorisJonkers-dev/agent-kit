@@ -212,7 +212,8 @@ litellm:
       budget_duration: 30d
       data_scope: any
       models: ["canonical"]
-    # Free `:free` ids only (litellm#20 rule 6); the cap is a safety net.
+    # OpenRouter deploys free `:free` ids only (litellm#20 rule 6), but the key holds `canonical`
+    # like the rest (litellm#19), so it can reach paid deployments of a canonical model; the cap bounds that.
     - agent: openrouter
       key_env: LITELLM_OPENROUTER_KEY
       budget_eur: 5

@@ -40,8 +40,8 @@ capped on the deployments, in the litellm repository.
 ### The public key: public, non-sensitive work only
 
 `public` is the only key with the `google-free-public` access group, and the Google free-tier
-deployments are in that group alone, so every other key routes a Gemini model as if no Google
-key existed (the tests prove the keys' side in `tests/test_registry_render.py`: only `public` lists the group; the group on the deployments is the litellm repository's, and the render refuses
+deployments are in that group alone, so every other key reaches a Gemini model only through its paid
+deployments (the tests prove the keys' side in `tests/test_registry_render.py`: only `public` lists the group; the group on the deployments is the litellm repository's, and the render refuses
 `google-free-public` on any route not marked `data_scope: public`, or a second public route).
 
 **Google may use free-tier prompts to improve its products, so the `public` key is for

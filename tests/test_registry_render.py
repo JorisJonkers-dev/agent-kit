@@ -1213,7 +1213,7 @@ def test_every_capped_agent_key_resets_its_budget_every_30_days() -> None:
     for route in routes:
         request = next(line for line in script.splitlines() if f'"key_alias":"{route["agent"]}"' in line)
         body = json.loads(request.removeprefix("make_key '").removesuffix("'"))
-        assert body.get("budget_duration") == route["budget_duration"] or route["budget_eur"] is None
+        assert body.get("budget_duration") == route["budget_duration"]
         assert ("max_budget" in body) == (route["budget_eur"] is not None)
 
 
