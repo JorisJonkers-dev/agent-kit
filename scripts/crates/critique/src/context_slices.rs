@@ -22,6 +22,26 @@ pub struct ContextSlice {
     pub of: Option<String>,
 }
 
+impl ContextSlice {
+    /// The fields the node runner's slice object holds beyond `first` and `last`, in its own key order, which the
+    /// range a slice makes keeps when the sample takes it as it is.
+    pub fn extra_fields(&self) -> Vec<(&'static str, String)> {
+        let mut fields = Vec::new();
+        let (symbol, of) = (self.symbol.clone(), self.of.clone());
+        if self.reason == "changed" {
+            fields.extend(symbol.map(|symbol| ("symbol", symbol)));
+            fields.push(("path", self.path.clone()));
+            fields.push(("reason", self.reason.to_string()));
+        } else {
+            fields.extend(of.map(|of| ("of", of)));
+            fields.push(("path", self.path.clone()));
+            fields.push(("reason", self.reason.to_string()));
+            fields.extend(symbol.map(|symbol| ("symbol", symbol)));
+        }
+        fields
+    }
+}
+
 /// A file the change touched that is still in the tree, with its text before the change (none for an added file).
 pub struct ChangedFile {
     pub path: String,
