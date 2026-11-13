@@ -174,6 +174,21 @@
       "argv": [
         "allow",
         "--input",
+        ""
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--input",
+        "",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--input",
         "missing.json"
       ]
     },

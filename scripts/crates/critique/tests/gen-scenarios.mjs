@@ -27,6 +27,7 @@ scenarios['cli-input'] = [
   cmd('allow', '{"a":"\\x"}'), cmd('allow', '{"a":"line\nbreak"}'), cmd('allow', '{"a":[1,2,]}'), cmd('allow', '{"a":tru}'),
   cmd('allow', '[1]'), cmd('allow', 'null'), cmd('allow', '"text"'), cmd('allow', '5'), cmd('allow', 'true'), cmd('allow', '[]'),
   step(['allow']), step(['allow'], { stdin: '{"families":5}' }), step(['allow'], { stdin: '[1]' }), step(['allow'], { stdin: 'not json' }),
+  step(['allow', '--input', '']), step(['allow', '--input', '', '--strict']),
   step(['allow', '--input', 'missing.json']),
   step(['allow', '--input', '@SANDBOX@/work'], { mkdir: ['work'] }),
   step(['allow', '--input', 'in.json'], { write: { 'work/in.json': 'not json' } }),

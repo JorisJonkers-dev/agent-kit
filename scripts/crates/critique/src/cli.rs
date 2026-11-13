@@ -117,6 +117,8 @@ pub fn exit_code(result: &Value, strict: bool) -> i32 {
 fn read_input(flag: Option<&str>, value: Option<&str>, runtime: &Runtime) -> Result<String, CritiqueError> {
     match (flag, value) {
         (Some("--json"), Some(text)) => Ok(text.to_string()),
+        // Node opens an empty path and fails; resolving it against the working directory would find the directory.
+        (Some("--input"), Some("")) => Err(CritiqueError::unexpected("ENOENT: no such file or directory, open ''")),
         (Some("--input"), Some(path)) => runtime.files.read_text(path).map_err(CritiqueError::from_fs),
         _ => Ok((runtime.stdin)()),
     }

@@ -46,7 +46,8 @@ pub fn resolve(runtime: &Runtime, cwd: &str) -> Result<Resolution, CritiqueError
 /// This machine's family allowlist; a missing file is an empty one.
 pub fn read_allowlist(runtime: &Runtime) -> Result<Allowlist, CritiqueError> {
     let path = allowlist_path(&runtime.env)?;
-    if !runtime.files.exists(&path).map_err(CritiqueError::from_fs)? {
+    // Node treats any failure to look as "not there"; the write that follows then says what is wrong.
+    if !runtime.files.exists(&path).unwrap_or(false) {
         return Ok(Allowlist::default());
     }
     let text = runtime.files.read_text(&path).map_err(CritiqueError::from_fs)?;

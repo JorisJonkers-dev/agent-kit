@@ -549,8 +549,10 @@ takes no registry dependency: it reuses the ordered JSON, the ports and the adap
 `crates/model-gateway` (a path inside this workspace).
 
 * **Ported so far:** the command line (usage, `--input`/`--json`/standard input, error
-  and exit codes, `--strict`) and `allow`. Every other command, and `hook`, answers
-  `{"code":"not-ported",...}` and exits 1; they arrive in later slices.
+  and exit codes, `--strict`) and `allow`. Every other command, and a valid `hook`, answers
+  `{"code":"not-ported",...}` and exits 1; they arrive in later slices. `search-server` is
+  not ported and prints the usage. Known differences: JSON syntax-error context is windowed in
+  characters, not UTF-16 units, and a lone surrogate in a string reads as U+FFFD.
 * **Goldens.** `tests/gen-scenarios.mjs` writes the scenario inputs and
   `tests/regenerate-fixtures.mjs` runs the node runner over each with fake programs in a
   temporary sandbox (fixed clock, fixed `HOME`, git repositories made in the sandbox) and
