@@ -1,0 +1,180 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/d1/GLOSSARY.md": "# Glossary\n\n**Widget**: a thing.\n",
+        "repos/d1/docs/adr/0001-first.md": "# Decision\n\nStatus: accepted\n\nWe use `src/main.rs` and the `Widget` type.\n",
+        "repos/d1/docs/adr/0002-second.md": "# Decision\n\nStatus: proposed\n\nWe use `src/main.rs` and the `Widget` type.\n\nSee [first](0001-first.md).\n",
+        "repos/d1/docs/adr/0003-third.md": "# Decision\n\nStatus: superseded by 0001\n\nWe use `src/main.rs` and the `Widget` type.\n",
+        "repos/d1/README.md": "# example\n\nSee `src/lib.rs`.\n",
+        "repos/d1/package.json": "{\"name\":\"x\"}\n",
+        "repos/d1/.dependency-cruiser.js": "module.exports = {}\n",
+        "repos/d1/docs/agents/domain.md": "# Domain\n\nDocs: `GLOSSARY.md` and `docs/adr`.\n",
+        "repos/d2/a.md": "a\n"
+      },
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/d1"
+        ],
+        [
+          "-C",
+          "repos/d1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/d1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/d1",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/d2"
+        ],
+        [
+          "-C",
+          "repos/d2",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/d2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/d2",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [],
+      "git": []
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"decisions\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/d1\",\"feature\":\"Add the thing\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "repos/d1/.git/critique",
+        "repos/d2/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"decisions\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/d1\",\"feature\":\"Add the thing\",\"decision_summary\":\"We chose X.\\n- because Y\\n\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/d1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"decisions\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/d1\",\"feature\":\"Add the thing\",\"references\":[\"GLOSSARY.md\"],\"depth\":\"deep\",\"flow\":\"draft:one\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/d1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"decisions\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/d1\",\"feature\":\"a\\nb\\nc\\nd\\ne\\nf\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"decisions\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/d1\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"decisions\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/d1\",\"feature\":\"f\",\"references\":[\"../x.md\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"decisions\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/d2\",\"feature\":\"f\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "repos/d2/.git/critique"
+      ]
+    }
+  ]
+}

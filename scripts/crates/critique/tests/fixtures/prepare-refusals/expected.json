@@ -1,0 +1,236 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine; record one with allow\",\n  \"reason\": \"not-opted-in\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"github.com/jorisjonkers-dev/example allows documents but not code; record the code permission with allow and \\\"code\\\": true\",\n  \"reason\": \"code-not-allowed\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":false,\"families\":[\"mistral\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"spec needs spec: the spec, named the way its tracker names it\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: spec needs spec: the spec, named the way its tracker names it\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"missing.md is not a file in the repository; this repository tracks specs as local markdown, so name one by its path\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: missing.md is not a file in the repository; this repository tracks specs as local markdown, so name one by its path\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../outside.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: ../outside.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"adr-review is a review stage: each run is a flow of its own, so it takes no flow\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: adr-review is a review stage: each run is a flow of its own, so it takes no flow\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"prepare input: stage must be one of decisions, spec, tickets, ticket-review, feature-review, adr-review, decision-recovery, architecture-review, plan\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: prepare input: stage must be one of decisions, spec, tickets, ticket-review, feature-review, adr-review, decision-recovery, architecture-review, plan\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"prepare input: orchestrator_family must be one of anthropic, openai, mistral, zhipu, deepseek, google\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: prepare input: orchestrator_family must be one of anthropic, openai, mistral, zhipu, deepseek, google\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"prepare input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: prepare input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"prepare input: depth must be one of base, deep\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: prepare input: depth must be one of base, deep\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"prepare input: comments must be true or false\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: prepare input: comments must be true or false\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"only ticket-review takes staged; spec reviews commits\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: only ticket-review takes staged; spec reviews commits\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"staged reviews the index: leave out head\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: staged reviews the index: leave out head\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"prepare input: staged must be true or false\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: prepare input: staged must be true or false\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"docs/spec.md\",\n    \"tracker\": \"local-markdown\"\n  },\n  \"critics\": [],\n  \"depth\": \"base\",\n  \"depth_choice\": {\n    \"chosen_by\": \"signals\",\n    \"measures\": {\n      \"user_stories\": {\n        \"threshold\": 30,\n        \"value\": 0\n      },\n      \"words\": {\n        \"threshold\": 5000,\n        \"value\": 2\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"reason\": \"family-not-allowed\"\n    }\n  ],\n  \"history\": false,\n  \"manifest_path\": \"@SANDBOX@/repos/p4/.git/critique/20261103T120000Z-spec/manifest.json\",\n  \"packet_dir\": \"@SANDBOX@/repos/p4/.git/critique/20261103T120000Z-spec/packet\",\n  \"packet_files\": [\n    \"artifact/spec.md\"\n  ],\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/p4/.git/critique/20261103T120000Z-spec\",\n  \"run_id\": \"20261103T120000Z-spec\",\n  \"status\": \"ready\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"gitlab.com/someone/project\":{\"code\":false,\"families\":[\"mistral\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"prepare input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: prepare input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"gitlab.com/someone/project\":{\"code\":false,\"families\":[\"mistral\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine; record one with allow\",\n  \"reason\": \"not-opted-in\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"gitlab.com/someone/project\":{\"code\":false,\"families\":[\"mistral\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{",
+        "work/": null
+      }
+    }
+  ]
+}

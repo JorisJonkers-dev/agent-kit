@@ -1,0 +1,209 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/h1/src/main.rs": "// file 0\npub fn f0_0() { f0_1() }\npub fn f0_1() { f0_2() }\npub fn f0_2() { f0_3() }\npub fn f0_3() { f0_4() }\npub fn f0_4() { f0_5() }\npub fn f0_5() { f0_6() }\n",
+        "repos/h1/src/lib.rs": "// file 1\npub fn f1_0() { f1_1() }\npub fn f1_1() { f1_2() }\npub fn f1_2() { f1_3() }\npub fn f1_3() { f1_4() }\npub fn f1_4() { f1_5() }\npub fn f1_5() { f1_6() }\npub fn f1_6() { f1_7() }\npub fn f1_7() { f1_8() }\npub fn f1_8() { f1_9() }\n",
+        "repos/h1/src/util/mod.rs": "// file 2\npub fn f2_0() { f2_1() }\npub fn f2_1() { f2_2() }\npub fn f2_2() { f2_3() }\npub fn f2_3() { f2_4() }\npub fn f2_4() { f2_5() }\npub fn f2_5() { f2_6() }\npub fn f2_6() { f2_7() }\npub fn f2_7() { f2_8() }\npub fn f2_8() { f2_9() }\npub fn f2_9() { f2_10() }\npub fn f2_10() { f2_11() }\npub fn f2_11() { f2_12() }\n",
+        "repos/h1/src/deep/er/leaf.ts": "// file 3\npub fn f3_0() { f3_1() }\npub fn f3_1() { f3_2() }\npub fn f3_2() { f3_3() }\npub fn f3_3() { f3_4() }\npub fn f3_4() { f3_5() }\npub fn f3_5() { f3_6() }\npub fn f3_6() { f3_7() }\npub fn f3_7() { f3_8() }\npub fn f3_8() { f3_9() }\npub fn f3_9() { f3_10() }\npub fn f3_10() { f3_11() }\npub fn f3_11() { f3_12() }\npub fn f3_12() { f3_13() }\npub fn f3_13() { f3_14() }\npub fn f3_14() { f3_15() }\n",
+        "repos/h1/web/index.ts": "// file 4\npub fn f4_0() { f4_1() }\npub fn f4_1() { f4_2() }\npub fn f4_2() { f4_3() }\npub fn f4_3() { f4_4() }\npub fn f4_4() { f4_5() }\npub fn f4_5() { f4_6() }\npub fn f4_6() { f4_7() }\npub fn f4_7() { f4_8() }\npub fn f4_8() { f4_9() }\npub fn f4_9() { f4_10() }\npub fn f4_10() { f4_11() }\npub fn f4_11() { f4_12() }\npub fn f4_12() { f4_13() }\npub fn f4_13() { f4_14() }\npub fn f4_14() { f4_15() }\npub fn f4_15() { f4_16() }\npub fn f4_16() { f4_17() }\npub fn f4_17() { f4_18() }\n",
+        "repos/h1/web/page.tsx": "import { f4_1 } from './index'\n// file 5\npub fn f5_0() { f5_1() }\npub fn f5_1() { f5_2() }\npub fn f5_2() { f5_3() }\npub fn f5_3() { f5_4() }\npub fn f5_4() { f5_5() }\npub fn f5_5() { f5_6() }\npub fn f5_6() { f5_7() }\npub fn f5_7() { f5_8() }\npub fn f5_8() { f5_9() }\npub fn f5_9() { f5_10() }\npub fn f5_10() { f5_11() }\npub fn f5_11() { f5_12() }\npub fn f5_12() { f5_13() }\npub fn f5_13() { f5_14() }\npub fn f5_14() { f5_15() }\npub fn f5_15() { f5_16() }\npub fn f5_16() { f5_17() }\npub fn f5_17() { f5_18() }\npub fn f5_18() { f5_19() }\npub fn f5_19() { f5_20() }\npub fn f5_20() { f5_21() }\n",
+        "repos/h1/web/more.ts": "import { f4_2 } from './index'\nexport const more = f4_2\n",
+        "repos/h1/docs/a.md": "a\n",
+        "repos/h2/docs/agents/issue-tracker.md": "# Issue tracker: GitLab\n",
+        "repos/h2/docs/a.md": "a\n"
+      },
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/h1"
+        ],
+        [
+          "-C",
+          "repos/h1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/h1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/h1",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/h2"
+        ],
+        [
+          "-C",
+          "repos/h2",
+          "remote",
+          "add",
+          "origin",
+          "https://gitlab.com/someone/project.git"
+        ],
+        [
+          "-C",
+          "repos/h2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/h2",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/h1/src/main.rs": "// file 0\npub fn f0_0() { f0_1() }\npub fn f0_1() { f0_2() }\npub fn f0_2() { f0_3() }\npub fn f0_3() { f0_4() }\npub fn f0_4() { f0_5() }\npub fn f0_5() { f0_6() }\n// more\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/h1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/h1",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/h1\",\"spec\":\"#9\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "bin/gh": "#!/bin/sh\ncase \"$1 $2 $3\" in\n\"issue view 5\")\nprintf '%s' '{\"number\":5,\"title\":\"Issue 5\",\"body\":\"the spec\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/5\",\"labels\":[{\"name\":\"type: bug\"}]}'\nexit 0\n;;\n\"issue view 6\")\nprintf '%s' '{\"number\":6,\"title\":\"Issue 6\",\"body\":\"a ticket\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/6\",\"labels\":[{\"name\":\"type: bug\"}]}'\nexit 0\n;;\n*)\necho \"gh: unexpected: $*\" >&2\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/gh"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"tickets\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/h1\",\"spec\":\"#9\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"feature-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/h1\",\"spec\":\"#9\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"feature-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/h1\",\"spec\":\"#5\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"ticket-review\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/h1\",\"spec\":\"#5\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"plan\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/h1\",\"flow\":\"draft:one\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"plan\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/h2\",\"flow\":\"draft:one\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"gitlab.com/someone/project\":{\"code\":true,\"families\":[\"mistral\"],\"history\":true,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/h2\",\"spec\":\"docs/a.md\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"decision-recovery\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/h2\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

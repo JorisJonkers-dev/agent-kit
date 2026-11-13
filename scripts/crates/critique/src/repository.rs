@@ -1,7 +1,7 @@
 //! Decides whether a repository may send content to critics, and reads this
 //! machine's family allowlist.
 
-use crate::allowlist::{parse_allowlist, Allowlist};
+use crate::allowlist::{parse_allowlist, Allowlist, Entry};
 use crate::error::CritiqueError;
 use crate::locations::allowlist_path;
 use crate::runtime::Runtime;
@@ -52,4 +52,32 @@ pub fn read_allowlist(runtime: &Runtime) -> Result<Allowlist, CritiqueError> {
     }
     let text = runtime.files.read_text(&path).map_err(CritiqueError::from_fs)?;
     parse_allowlist(&text).map_err(|error| error.into_error("invalid-allowlist", &path))
+}
+
+/// What resolving a repository for a roster came to: the repository, and whether it is a `nedap` one that has the
+/// work-only roster, or the refusal its remotes earn.
+pub enum RosterResolution {
+    Resolved(Resolved, bool),
+    Refused(Value),
+}
+
+/// Like `resolve`, but a `nedap` repository resolves, flagged as work, to the work-only roster rather than being
+/// refused; only prepare asks. It is keyed by its own location, so its tracker reads.
+pub fn resolve_for_roster(runtime: &Runtime, cwd: &str) -> Result<RosterResolution, CritiqueError> {
+    let remotes = runtime.git.remotes(cwd).map_err(CritiqueError::unexpected)?;
+    let (key, work) = match identify_repository(&remotes) {
+        RepositoryIdentity::DeniedOwner { location, .. } => (format!("{}/{}/{}", location.host, location.owner, location.repo), true),
+        RepositoryIdentity::NoRemote => {
+            return Ok(RosterResolution::Refused(refusal("no-remote", "the repository has no remote, so it counts as not opted in")));
+        }
+        RepositoryIdentity::Identified { key, .. } => (key, false),
+    };
+    let common_dir = runtime.git.common_dir(cwd).map_err(CritiqueError::unexpected)?;
+    let root = runtime.git.root(cwd).map_err(CritiqueError::unexpected)?;
+    Ok(RosterResolution::Resolved(Resolved { root, common_dir, key }, work))
+}
+
+/// What a `nedap` repository's entry is, whatever its allowlist says: the work families, with code and history.
+pub fn work_entry() -> Entry {
+    Entry { code: true, families: vec!["anthropic".to_string(), "openai".to_string()], history: true, updated_at: String::new() }
 }

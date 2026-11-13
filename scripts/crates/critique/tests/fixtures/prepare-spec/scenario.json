@@ -1,0 +1,230 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/s1/docs/agents/issue-tracker.md": "# Issue tracker: Local Markdown\n\nTickets live in .scratch.\n",
+        "repos/s1/GLOSSARY.md": "# Glossary\n\n**Widget**: a thing.\n",
+        "repos/s1/docs/adr/0001-first.md": "# Decision\n\nStatus: accepted\n\nWe use `src/main.rs` and the `Widget` type.\n",
+        "repos/s1/docs/adr/0002-second.md": "# Decision\n\nStatus: proposed\n\nWe use `src/main.rs` and the `Widget` type.\n\nSee [first](0001-first.md).\n",
+        "repos/s1/docs/adr/0003-third.md": "# Decision\n\nStatus: superseded by 0001\n\nWe use `src/main.rs` and the `Widget` type.\n",
+        "repos/s1/README.md": "# example\n\nSee `src/lib.rs`.\n",
+        "repos/s1/package.json": "{\"name\":\"x\"}\n",
+        "repos/s1/.dependency-cruiser.js": "module.exports = {}\n",
+        "repos/s1/docs/spec.md": "# Spec\n\n## User Stories\n\n1. one\n2. two\n3. three\n\nA migration of the schema.\n",
+        "repos/s1/docs/other.md": "# Other\n"
+      },
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s1"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [],
+      "git": []
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "repos/s1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"depth\":\"deep\",\"references\":[\"GLOSSARY.md\",\"docs/adr/0001-first.md\"]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/s1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"flow\":\"my-flow\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"depth_signals\":{\"risk_terms\":[\"migration\"],\"thresholds\":{\"words\":3}}}}}\n"
+      },
+      "roots": [
+        "repos/s1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"references\":[\"docs/missing.md\"]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"mistral\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "repos/s1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"previous_run_dir\":\"@SANDBOX@/repos/s1/.git/critique/20261103T120000Z-spec\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"previous_run_dir\":\"@SANDBOX@/repos/s1/.git/critique/20261103T120000Z-spec\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/s1/.git/critique/20261103T120000Z-spec/report.md": "# report\n"
+      }
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"previous_run_dir\":\"@SANDBOX@/repos/s1/.git/critique/20261103T120000Z-spec-2\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/s1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"previous_run_dir\":\"@SANDBOX@/repos/s1/.git/critique/20261103T120000Z-spec-3\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"previous_run_dir\":\"@SANDBOX@/repos/s1/.git/critique/nowhere\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"tickets\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"previous_run_dir\":\"@SANDBOX@/repos/s1/.git/critique/20261103T120000Z-spec\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/spec.md\",\"previous_run_dir\":\"@SANDBOX@/repos/s1/.git/critique/20261103T120000Z-spec-5\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/s1/.git/critique/20261103T120000Z-spec-5/report.md": "# report\n"
+      }
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/s1\",\"spec\":\"docs/other.md\",\"previous_run_dir\":\"@SANDBOX@/repos/s1/.git/critique/20261103T120000Z-spec\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

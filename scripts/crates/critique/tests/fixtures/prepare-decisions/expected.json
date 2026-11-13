@@ -1,0 +1,170 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"decision-docs\",\n    \"tracker\": \"none\"\n  },\n  \"critics\": [],\n  \"depth\": \"base\",\n  \"depth_choice\": {\n    \"chosen_by\": \"signals\",\n    \"measures\": {\n      \"decisions\": {\n        \"threshold\": 40,\n        \"value\": 1\n      },\n      \"words\": {\n        \"threshold\": 4000,\n        \"value\": 16\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"detail\": \"antigravity: agy is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"vibe-deepseek-flash\",\n      \"family\": \"deepseek\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    }\n  ],\n  \"history\": false,\n  \"manifest_path\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions/manifest.json\",\n  \"packet_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions/packet\",\n  \"packet_files\": [\n    \"feature/feature.md\",\n    \"artifact/GLOSSARY.md\",\n    \"artifact/docs/adr/0001-first.md\"\n  ],\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions\",\n  \"run_id\": \"20261103T120000Z-decisions\",\n  \"status\": \"ready\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null,
+        "repos/d1/.git/critique/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/manifest.json": "{\n  \"allowed_families\": [\n    \"mistral\",\n    \"zhipu\",\n    \"deepseek\",\n    \"google\"\n  ],\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"decision-docs\",\n    \"tracker\": \"none\"\n  },\n  \"created_at\": \"2026-11-03T12:00:00.000Z\",\n  \"critics\": [],\n  \"depth\": \"base\",\n  \"distinct_families\": true,\n  \"depth_choice\": {\n    \"chosen_by\": \"signals\",\n    \"measures\": {\n      \"decisions\": {\n        \"threshold\": 40,\n        \"value\": 1\n      },\n      \"words\": {\n        \"threshold\": 4000,\n        \"value\": 16\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"detail\": \"antigravity: agy is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"vibe-deepseek-flash\",\n      \"family\": \"deepseek\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    }\n  ],\n  \"flow\": \"20261103T120000Z-decisions\",\n  \"limits\": {\n    \"antigravity_quota\": {\n      \"daily_cap\": 20,\n      \"reserve_threshold\": 10,\n      \"reserved_stages\": [\n        \"spec\",\n        \"feature-review\"\n      ]\n    },\n    \"search\": {\n      \"max_bytes\": 8192,\n      \"max_matches\": 50\n    }\n  },\n  \"orchestrator_family\": \"anthropic\",\n  \"packet_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions/packet\",\n  \"packet_files\": [\n    {\n      \"kind\": \"feature\",\n      \"path\": \"feature/feature.md\",\n      \"source\": \"feature-statement\",\n      \"sha256\": \"b5e60a9aba2504a93cf2756b395080f183d3c73e0ff5b895cd4e8aac0a5f9952\"\n    },\n    {\n      \"kind\": \"artifact\",\n      \"path\": \"artifact/GLOSSARY.md\",\n      \"source\": \"GLOSSARY.md\",\n      \"sha256\": \"02cc9841a6c9d4ced49f9af5493bf9a86ccd77e1abef61d660e7bb2206d0bede\"\n    },\n    {\n      \"kind\": \"artifact\",\n      \"path\": \"artifact/docs/adr/0001-first.md\",\n      \"source\": \"docs/adr/0001-first.md\",\n      \"sha256\": \"71447ec4f2e062d40726b8313fcdf17ff1341fdedcf81d0ec67cf1e8c3dabb7c\"\n    }\n  ],\n  \"repo_root\": \"@SANDBOX@/repos/d1\",\n  \"repository\": \"github.com/jorisjonkers-dev/example\",\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions\",\n  \"run_id\": \"20261103T120000Z-decisions\",\n  \"stage\": \"decisions\",\n  \"version\": 1\n}\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/GLOSSARY.md": "# Glossary\n\n**Widget**: a thing.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/docs/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/docs/adr/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/docs/adr/0001-first.md": "# Decision\n\nStatus: accepted\n\nWe use `src/main.rs` and the `Widget` type.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/feature/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/feature/feature.md": "# Feature\n\nAdd the thing\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"decision-summary\",\n    \"tracker\": \"none\"\n  },\n  \"critics\": [],\n  \"depth\": \"base\",\n  \"depth_choice\": {\n    \"chosen_by\": \"signals\",\n    \"measures\": {\n      \"decisions\": {\n        \"threshold\": 40,\n        \"value\": 1\n      },\n      \"words\": {\n        \"threshold\": 4000,\n        \"value\": 6\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"detail\": \"antigravity: agy is not on PATH\",\n      \"reason\": \"unavailable\"\n    }\n  ],\n  \"history\": false,\n  \"manifest_path\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-2/manifest.json\",\n  \"packet_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-2/packet\",\n  \"packet_files\": [\n    \"feature/feature.md\",\n    \"artifact/decision-summary.md\",\n    \"references/GLOSSARY.md\",\n    \"references/docs/adr/0001-first.md\"\n  ],\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-2\",\n  \"run_id\": \"20261103T120000Z-decisions-2\",\n  \"status\": \"ready\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null,
+        "repos/d1/.git/critique/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/manifest.json": "{\n  \"allowed_families\": [\n    \"mistral\",\n    \"zhipu\",\n    \"deepseek\",\n    \"google\"\n  ],\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"decision-docs\",\n    \"tracker\": \"none\"\n  },\n  \"created_at\": \"2026-11-03T12:00:00.000Z\",\n  \"critics\": [],\n  \"depth\": \"base\",\n  \"distinct_families\": true,\n  \"depth_choice\": {\n    \"chosen_by\": \"signals\",\n    \"measures\": {\n      \"decisions\": {\n        \"threshold\": 40,\n        \"value\": 1\n      },\n      \"words\": {\n        \"threshold\": 4000,\n        \"value\": 16\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"detail\": \"antigravity: agy is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"vibe-deepseek-flash\",\n      \"family\": \"deepseek\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    }\n  ],\n  \"flow\": \"20261103T120000Z-decisions\",\n  \"limits\": {\n    \"antigravity_quota\": {\n      \"daily_cap\": 20,\n      \"reserve_threshold\": 10,\n      \"reserved_stages\": [\n        \"spec\",\n        \"feature-review\"\n      ]\n    },\n    \"search\": {\n      \"max_bytes\": 8192,\n      \"max_matches\": 50\n    }\n  },\n  \"orchestrator_family\": \"anthropic\",\n  \"packet_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions/packet\",\n  \"packet_files\": [\n    {\n      \"kind\": \"feature\",\n      \"path\": \"feature/feature.md\",\n      \"source\": \"feature-statement\",\n      \"sha256\": \"b5e60a9aba2504a93cf2756b395080f183d3c73e0ff5b895cd4e8aac0a5f9952\"\n    },\n    {\n      \"kind\": \"artifact\",\n      \"path\": \"artifact/GLOSSARY.md\",\n      \"source\": \"GLOSSARY.md\",\n      \"sha256\": \"02cc9841a6c9d4ced49f9af5493bf9a86ccd77e1abef61d660e7bb2206d0bede\"\n    },\n    {\n      \"kind\": \"artifact\",\n      \"path\": \"artifact/docs/adr/0001-first.md\",\n      \"source\": \"docs/adr/0001-first.md\",\n      \"sha256\": \"71447ec4f2e062d40726b8313fcdf17ff1341fdedcf81d0ec67cf1e8c3dabb7c\"\n    }\n  ],\n  \"repo_root\": \"@SANDBOX@/repos/d1\",\n  \"repository\": \"github.com/jorisjonkers-dev/example\",\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions\",\n  \"run_id\": \"20261103T120000Z-decisions\",\n  \"stage\": \"decisions\",\n  \"version\": 1\n}\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/GLOSSARY.md": "# Glossary\n\n**Widget**: a thing.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/docs/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/docs/adr/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/docs/adr/0001-first.md": "# Decision\n\nStatus: accepted\n\nWe use `src/main.rs` and the `Widget` type.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/feature/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/feature/feature.md": "# Feature\n\nAdd the thing\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/manifest.json": "{\n  \"allowed_families\": [\n    \"mistral\",\n    \"zhipu\",\n    \"deepseek\",\n    \"google\"\n  ],\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"decision-summary\",\n    \"tracker\": \"none\"\n  },\n  \"created_at\": \"2026-11-03T12:00:00.000Z\",\n  \"critics\": [],\n  \"depth\": \"base\",\n  \"distinct_families\": true,\n  \"depth_choice\": {\n    \"chosen_by\": \"signals\",\n    \"measures\": {\n      \"decisions\": {\n        \"threshold\": 40,\n        \"value\": 1\n      },\n      \"words\": {\n        \"threshold\": 4000,\n        \"value\": 6\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"detail\": \"antigravity: agy is not on PATH\",\n      \"reason\": \"unavailable\"\n    }\n  ],\n  \"flow\": \"20261103T120000Z-decisions-2\",\n  \"limits\": {\n    \"antigravity_quota\": {\n      \"daily_cap\": 20,\n      \"reserve_threshold\": 10,\n      \"reserved_stages\": [\n        \"spec\",\n        \"feature-review\"\n      ]\n    },\n    \"search\": {\n      \"max_bytes\": 8192,\n      \"max_matches\": 50\n    }\n  },\n  \"orchestrator_family\": \"openai\",\n  \"packet_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-2/packet\",\n  \"packet_files\": [\n    {\n      \"kind\": \"feature\",\n      \"path\": \"feature/feature.md\",\n      \"source\": \"feature-statement\",\n      \"sha256\": \"b5e60a9aba2504a93cf2756b395080f183d3c73e0ff5b895cd4e8aac0a5f9952\"\n    },\n    {\n      \"kind\": \"artifact\",\n      \"path\": \"artifact/decision-summary.md\",\n      \"source\": \"decision-summary\",\n      \"sha256\": \"d98903b57964c1e01ae89618d04f8d55ed02e677575a9b823973c512c022719b\"\n    },\n    {\n      \"kind\": \"reference\",\n      \"path\": \"references/GLOSSARY.md\",\n      \"source\": \"GLOSSARY.md\",\n      \"sha256\": \"02cc9841a6c9d4ced49f9af5493bf9a86ccd77e1abef61d660e7bb2206d0bede\"\n    },\n    {\n      \"kind\": \"reference\",\n      \"path\": \"references/docs/adr/0001-first.md\",\n      \"source\": \"docs/adr/0001-first.md\",\n      \"sha256\": \"71447ec4f2e062d40726b8313fcdf17ff1341fdedcf81d0ec67cf1e8c3dabb7c\"\n    }\n  ],\n  \"repo_root\": \"@SANDBOX@/repos/d1\",\n  \"repository\": \"github.com/jorisjonkers-dev/example\",\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-2\",\n  \"run_id\": \"20261103T120000Z-decisions-2\",\n  \"stage\": \"decisions\",\n  \"version\": 1\n}\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/artifact/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/artifact/decision-summary.md": "We chose X.\n- because Y\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/feature/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/feature/feature.md": "# Feature\n\nAdd the thing\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/GLOSSARY.md": "# Glossary\n\n**Widget**: a thing.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/docs/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/docs/adr/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/docs/adr/0001-first.md": "# Decision\n\nStatus: accepted\n\nWe use `src/main.rs` and the `Widget` type.\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"decision-docs\",\n    \"tracker\": \"none\"\n  },\n  \"critics\": [],\n  \"depth\": \"deep\",\n  \"depth_choice\": {\n    \"chosen_by\": \"argument\",\n    \"measures\": {\n      \"decisions\": {\n        \"threshold\": 40,\n        \"value\": 1\n      },\n      \"words\": {\n        \"threshold\": 4000,\n        \"value\": 5\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"detail\": \"antigravity: agy is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"vibe-glm\",\n      \"family\": \"zhipu\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\",\n      \"deep\": true\n    }\n  ],\n  \"history\": false,\n  \"manifest_path\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-3/manifest.json\",\n  \"packet_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-3/packet\",\n  \"packet_files\": [\n    \"feature/feature.md\",\n    \"artifact/GLOSSARY.md\"\n  ],\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-3\",\n  \"run_id\": \"20261103T120000Z-decisions-3\",\n  \"status\": \"ready\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null,
+        "repos/d1/.git/critique/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/manifest.json": "{\n  \"allowed_families\": [\n    \"mistral\",\n    \"zhipu\",\n    \"deepseek\",\n    \"google\"\n  ],\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"decision-docs\",\n    \"tracker\": \"none\"\n  },\n  \"created_at\": \"2026-11-03T12:00:00.000Z\",\n  \"critics\": [],\n  \"depth\": \"base\",\n  \"distinct_families\": true,\n  \"depth_choice\": {\n    \"chosen_by\": \"signals\",\n    \"measures\": {\n      \"decisions\": {\n        \"threshold\": 40,\n        \"value\": 1\n      },\n      \"words\": {\n        \"threshold\": 4000,\n        \"value\": 16\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"detail\": \"antigravity: agy is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"vibe-deepseek-flash\",\n      \"family\": \"deepseek\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    }\n  ],\n  \"flow\": \"20261103T120000Z-decisions\",\n  \"limits\": {\n    \"antigravity_quota\": {\n      \"daily_cap\": 20,\n      \"reserve_threshold\": 10,\n      \"reserved_stages\": [\n        \"spec\",\n        \"feature-review\"\n      ]\n    },\n    \"search\": {\n      \"max_bytes\": 8192,\n      \"max_matches\": 50\n    }\n  },\n  \"orchestrator_family\": \"anthropic\",\n  \"packet_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions/packet\",\n  \"packet_files\": [\n    {\n      \"kind\": \"feature\",\n      \"path\": \"feature/feature.md\",\n      \"source\": \"feature-statement\",\n      \"sha256\": \"b5e60a9aba2504a93cf2756b395080f183d3c73e0ff5b895cd4e8aac0a5f9952\"\n    },\n    {\n      \"kind\": \"artifact\",\n      \"path\": \"artifact/GLOSSARY.md\",\n      \"source\": \"GLOSSARY.md\",\n      \"sha256\": \"02cc9841a6c9d4ced49f9af5493bf9a86ccd77e1abef61d660e7bb2206d0bede\"\n    },\n    {\n      \"kind\": \"artifact\",\n      \"path\": \"artifact/docs/adr/0001-first.md\",\n      \"source\": \"docs/adr/0001-first.md\",\n      \"sha256\": \"71447ec4f2e062d40726b8313fcdf17ff1341fdedcf81d0ec67cf1e8c3dabb7c\"\n    }\n  ],\n  \"repo_root\": \"@SANDBOX@/repos/d1\",\n  \"repository\": \"github.com/jorisjonkers-dev/example\",\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions\",\n  \"run_id\": \"20261103T120000Z-decisions\",\n  \"stage\": \"decisions\",\n  \"version\": 1\n}\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/GLOSSARY.md": "# Glossary\n\n**Widget**: a thing.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/docs/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/docs/adr/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/artifact/docs/adr/0001-first.md": "# Decision\n\nStatus: accepted\n\nWe use `src/main.rs` and the `Widget` type.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/feature/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions/packet/feature/feature.md": "# Feature\n\nAdd the thing\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/manifest.json": "{\n  \"allowed_families\": [\n    \"mistral\",\n    \"zhipu\",\n    \"deepseek\",\n    \"google\"\n  ],\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"decision-summary\",\n    \"tracker\": \"none\"\n  },\n  \"created_at\": \"2026-11-03T12:00:00.000Z\",\n  \"critics\": [],\n  \"depth\": \"base\",\n  \"distinct_families\": true,\n  \"depth_choice\": {\n    \"chosen_by\": \"signals\",\n    \"measures\": {\n      \"decisions\": {\n        \"threshold\": 40,\n        \"value\": 1\n      },\n      \"words\": {\n        \"threshold\": 4000,\n        \"value\": 6\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"detail\": \"antigravity: agy is not on PATH\",\n      \"reason\": \"unavailable\"\n    }\n  ],\n  \"flow\": \"20261103T120000Z-decisions-2\",\n  \"limits\": {\n    \"antigravity_quota\": {\n      \"daily_cap\": 20,\n      \"reserve_threshold\": 10,\n      \"reserved_stages\": [\n        \"spec\",\n        \"feature-review\"\n      ]\n    },\n    \"search\": {\n      \"max_bytes\": 8192,\n      \"max_matches\": 50\n    }\n  },\n  \"orchestrator_family\": \"openai\",\n  \"packet_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-2/packet\",\n  \"packet_files\": [\n    {\n      \"kind\": \"feature\",\n      \"path\": \"feature/feature.md\",\n      \"source\": \"feature-statement\",\n      \"sha256\": \"b5e60a9aba2504a93cf2756b395080f183d3c73e0ff5b895cd4e8aac0a5f9952\"\n    },\n    {\n      \"kind\": \"artifact\",\n      \"path\": \"artifact/decision-summary.md\",\n      \"source\": \"decision-summary\",\n      \"sha256\": \"d98903b57964c1e01ae89618d04f8d55ed02e677575a9b823973c512c022719b\"\n    },\n    {\n      \"kind\": \"reference\",\n      \"path\": \"references/GLOSSARY.md\",\n      \"source\": \"GLOSSARY.md\",\n      \"sha256\": \"02cc9841a6c9d4ced49f9af5493bf9a86ccd77e1abef61d660e7bb2206d0bede\"\n    },\n    {\n      \"kind\": \"reference\",\n      \"path\": \"references/docs/adr/0001-first.md\",\n      \"source\": \"docs/adr/0001-first.md\",\n      \"sha256\": \"71447ec4f2e062d40726b8313fcdf17ff1341fdedcf81d0ec67cf1e8c3dabb7c\"\n    }\n  ],\n  \"repo_root\": \"@SANDBOX@/repos/d1\",\n  \"repository\": \"github.com/jorisjonkers-dev/example\",\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-2\",\n  \"run_id\": \"20261103T120000Z-decisions-2\",\n  \"stage\": \"decisions\",\n  \"version\": 1\n}\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/artifact/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/artifact/decision-summary.md": "We chose X.\n- because Y\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/feature/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/feature/feature.md": "# Feature\n\nAdd the thing\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/GLOSSARY.md": "# Glossary\n\n**Widget**: a thing.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/docs/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/docs/adr/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-2/packet/references/docs/adr/0001-first.md": "# Decision\n\nStatus: accepted\n\nWe use `src/main.rs` and the `Widget` type.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-3/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-3/manifest.json": "{\n  \"allowed_families\": [\n    \"mistral\",\n    \"zhipu\",\n    \"deepseek\",\n    \"google\"\n  ],\n  \"artifact\": {\n    \"labels\": [],\n    \"reference\": \"decision-docs\",\n    \"tracker\": \"none\"\n  },\n  \"created_at\": \"2026-11-03T12:00:00.000Z\",\n  \"critics\": [],\n  \"depth\": \"deep\",\n  \"distinct_families\": true,\n  \"depth_choice\": {\n    \"chosen_by\": \"argument\",\n    \"measures\": {\n      \"decisions\": {\n        \"threshold\": 40,\n        \"value\": 1\n      },\n      \"words\": {\n        \"threshold\": 4000,\n        \"value\": 5\n      }\n    },\n    \"signals\": []\n  },\n  \"dropped\": [\n    {\n      \"client\": \"vibe-mistral-large\",\n      \"family\": \"mistral\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"agy-gemini-flash-high\",\n      \"family\": \"google\",\n      \"detail\": \"antigravity: agy is not on PATH\",\n      \"reason\": \"unavailable\"\n    },\n    {\n      \"client\": \"vibe-glm\",\n      \"family\": \"zhipu\",\n      \"detail\": \"vibe: vibe is not on PATH\",\n      \"reason\": \"unavailable\",\n      \"deep\": true\n    }\n  ],\n  \"flow\": \"draft:one\",\n  \"limits\": {\n    \"antigravity_quota\": {\n      \"daily_cap\": 20,\n      \"reserve_threshold\": 10,\n      \"reserved_stages\": [\n        \"spec\",\n        \"feature-review\"\n      ]\n    },\n    \"search\": {\n      \"max_bytes\": 8192,\n      \"max_matches\": 50\n    }\n  },\n  \"orchestrator_family\": \"anthropic\",\n  \"packet_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-3/packet\",\n  \"packet_files\": [\n    {\n      \"kind\": \"feature\",\n      \"path\": \"feature/feature.md\",\n      \"source\": \"feature-statement\",\n      \"sha256\": \"b5e60a9aba2504a93cf2756b395080f183d3c73e0ff5b895cd4e8aac0a5f9952\"\n    },\n    {\n      \"kind\": \"artifact\",\n      \"path\": \"artifact/GLOSSARY.md\",\n      \"source\": \"GLOSSARY.md\",\n      \"sha256\": \"02cc9841a6c9d4ced49f9af5493bf9a86ccd77e1abef61d660e7bb2206d0bede\"\n    }\n  ],\n  \"repo_root\": \"@SANDBOX@/repos/d1\",\n  \"repository\": \"github.com/jorisjonkers-dev/example\",\n  \"round\": 1,\n  \"run_dir\": \"@SANDBOX@/repos/d1/.git/critique/20261103T120000Z-decisions-3\",\n  \"run_id\": \"20261103T120000Z-decisions-3\",\n  \"stage\": \"decisions\",\n  \"version\": 1\n}\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-3/packet/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-3/packet/artifact/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-3/packet/artifact/GLOSSARY.md": "# Glossary\n\n**Widget**: a thing.\n",
+        "repos/d1/.git/critique/20261103T120000Z-decisions-3/packet/feature/": null,
+        "repos/d1/.git/critique/20261103T120000Z-decisions-3/packet/feature/feature.md": "# Feature\n\nAdd the thing\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"feature must be at most 5 lines; it has 6\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: feature must be at most 5 lines; it has 6\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"decisions needs feature: a short statement of the feature the decisions are for\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: decisions needs feature: a short statement of the feature the decisions are for\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../x.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique prepare: ../x.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"found no decision docs (docs/agents/domain.md, GLOSSARY.md, CONTEXT.md or docs/adr/); after /grill-me, pass the decisions as decision_summary\",\n  \"reason\": \"no-decision-docs\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    }
+  ]
+}

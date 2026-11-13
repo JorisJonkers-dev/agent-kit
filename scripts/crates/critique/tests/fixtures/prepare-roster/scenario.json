@@ -1,0 +1,164 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/k1/docs/agents/issue-tracker.md": "# Issue tracker: Local Markdown\n\nTickets live in .scratch.\n",
+        "repos/k1/docs/spec.md": "# Spec\n\n## User Stories\n\n1. one\n"
+      },
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/k1"
+        ],
+        [
+          "-C",
+          "repos/k1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/k1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/k1",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [],
+      "git": []
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\",\"depth\":\"deep\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "bin/agy": "#!/bin/sh\nprintf 'Fetching available models...\\ngemini-3.8-flash-high\\tGemini\\n'\n",
+        "bin/vibe": "#!/bin/sh\nexit 0\n",
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\nZAI_API_KEY=sk-z\n",
+        "home/.vibe/agents/critic-mistral-large.toml": "# agent\n",
+        "home/.vibe/agents/critic-glm.toml": "# agent\n",
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n"
+      },
+      "exec": [
+        "bin/agy",
+        "bin/vibe"
+      ],
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c0\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c1\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c2\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c3\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c4\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c5\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c6\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c7\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c8\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c9\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c10\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c11\"}\n"
+      },
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c0\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c1\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c2\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c3\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c4\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c5\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c6\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c7\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c8\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c9\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c10\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c11\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c12\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c13\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c14\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c15\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c16\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c17\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c18\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c19\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c20\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c21\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c22\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c23\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c24\"}\n"
+      },
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"decisions\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"feature\":\"a feature\",\"decision_summary\":\"We chose X.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c0\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c1\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c2\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c3\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c4\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c5\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c6\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c7\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c8\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c9\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c10\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"workflow\":\"f\",\"round\":1,\"stage\":\"spec\",\"kind\":\"agy\",\"charged_usd\":0,\"critic_id\":\"c11\"}\n"
+      },
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"day\",\"limit_usd\":0.00033}]}}}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T09:00:00.000Z\",\"client\":\"vibe\",\"model\":\"m\",\"cost_usd\":0.0003,\"outcome\":\"ok\",\"run_id\":\"r1\",\"workflow\":\"w\"}\n"
+      },
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"day\",\"limit_usd\":0.0002}]}}}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T09:00:00.000Z\",\"client\":\"vibe\",\"model\":\"m\",\"cost_usd\":0.0003,\"outcome\":\"ok\",\"run_id\":\"r1\",\"workflow\":\"w\"}\n"
+      },
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    }
+  ]
+}

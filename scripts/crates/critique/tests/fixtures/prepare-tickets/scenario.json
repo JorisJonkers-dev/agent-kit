@@ -1,0 +1,101 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/t1/docs/agents/issue-tracker.md": "# Issue tracker: Local Markdown\n\nTickets live in .scratch.\n",
+        "repos/t1/.scratch/feat/spec.md": "# Feature\n\n## User stories\n\n1. one\n2. two\n",
+        "repos/t1/.scratch/feat/issues/01-schema.md": "# 01: Schema\n\nBlocked by: None\n\n## Acceptance criteria\n\n- [ ] a\n- [x] b\n\nUser story 1\n",
+        "repos/t1/.scratch/feat/issues/02-api.md": "# 02 - API\n\n**Blocked by:** 01\n\n- [ ] c\n\nuser story 2\n",
+        "repos/t1/.scratch/none/spec.md": "# None\n"
+      },
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/t1"
+        ],
+        [
+          "-C",
+          "repos/t1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/t1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/t1",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [],
+      "git": []
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"tickets\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/t1\",\"spec\":\".scratch/feat/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "repos/t1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"tickets\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/t1\",\"spec\":\".scratch/none/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"tickets\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/t1\",\"spec\":\".scratch/feat/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"tickets\":{\"depth_signals\":{\"thresholds\":{\"tickets\":1}},\"ticket_size\":{\"max_criteria\":1,\"max_modules\":2}}}}\n"
+      },
+      "roots": [
+        "repos/t1/.git/critique"
+      ]
+    }
+  ]
+}

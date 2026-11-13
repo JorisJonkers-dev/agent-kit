@@ -1,0 +1,127 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/w1/docs/agents/issue-tracker.md": "# Issue tracker: Local Markdown\n\nTickets live in .scratch.\n",
+        "repos/w1/docs/spec.md": "# Spec\n"
+      },
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/w1"
+        ],
+        [
+          "-C",
+          "repos/w1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/secret.git"
+        ],
+        [
+          "-C",
+          "repos/w1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/w1",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [],
+      "git": []
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/w1\",\"spec\":\"docs/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/w1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/w1\",\"spec\":\"docs/spec.md\",\"workflow\":\"wf-1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/w1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"mistral\",\"repo\":\"@SANDBOX@/repos/w1\",\"spec\":\"docs/spec.md\",\"flow\":\"wf-2\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/w1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/w1\",\"spec\":\"docs/spec.md\",\"workflow\":\"wf-live\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"wf-live\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T10:00:00.000Z\",\"expires_at\":\"2026-11-04T10:00:00.000Z\"}]}\n"
+      },
+      "roots": [
+        "repos/w1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"anthropic\",\"repo\":\"@SANDBOX@/repos/w1\",\"spec\":\"docs/spec.md\",\"workflow\":\"wf-live\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway-grants.json": "{"
+      },
+      "roots": [
+        "repos/w1/.git/critique"
+      ]
+    }
+  ]
+}

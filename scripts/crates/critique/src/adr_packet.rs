@@ -157,7 +157,7 @@ pub fn sample_tree(
     files.push(UnfrozenFile::new("fact", FACTS_INDEX_PATH, &commit, &sample.index));
     for file in &sample.tree {
         let mut frozen = UnfrozenFile::new("tree", &join(&[TREE_DIR, &file.path]), &file.path, &file.text);
-        frozen.window = file.window.as_ref().map(frozen_window);
+        frozen.window = file.window.as_ref().map(|window| frozen_window(window, &[]));
         files.push(frozen);
     }
     let repository = PreparedRepository {

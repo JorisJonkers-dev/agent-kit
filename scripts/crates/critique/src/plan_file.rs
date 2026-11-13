@@ -51,3 +51,11 @@ fn inside(base: &str, path: &str) -> bool {
 pub fn draft_of(flow: Option<&str>) -> Option<&str> {
     flow.and_then(|flow| flow.strip_prefix("draft:"))
 }
+
+/// `path.relative(from, to)` for two absolute paths.
+pub fn relative(from: &str, to: &str) -> String {
+    let (from, to) = (resolve(from, "."), resolve(to, "."));
+    let (a, b): (Vec<&str>, Vec<&str>) = (from.split('/').filter(|part| !part.is_empty()).collect(), to.split('/').filter(|part| !part.is_empty()).collect());
+    let shared = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
+    std::iter::repeat_n("..", a.len() - shared).chain(b[shared..].iter().copied()).collect::<Vec<_>>().join("/")
+}
