@@ -58,15 +58,21 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     for file in &input.rewritten {
         places.push(inside_repository(&root, &file.path)?);
     }
-    let mut texts = Vec::new();
+    // Every look at whether a file is there settles before any read does, so a missing file is reported before a
+    // file that cannot be read, whatever their order.
     for (file, place) in input.rewritten.iter().zip(&places) {
-        texts.push(read(runtime, &root, &file.path, place)?);
+        exists(runtime, &root, &file.path, place)?;
+    }
+    let mut texts = Vec::new();
+    for place in &places {
+        texts.push(runtime.files.read_text(&join(&[&root, place])).map_err(CritiqueError::from_fs)?);
     }
     let split = match &input.split {
         None => None,
         Some(split) => {
             let place = inside_repository(&root, &split.original)?;
-            Some((split, read(runtime, &root, &split.original, &place)?))
+            exists(runtime, &root, &split.original, &place)?;
+            Some((split, runtime.files.read_text(&join(&[&root, &place])).map_err(CritiqueError::from_fs)?))
         }
     };
     let mut failures = Vec::new();
@@ -112,11 +118,10 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     Ok(Value::Obj(result))
 }
 
-/// A rewritten file as it sits in the working tree; one missing there is input the command cannot check.
-fn read(runtime: &Runtime, root: &str, path: &str, place: &str) -> Result<String, CritiqueError> {
-    let full = join(&[root, place]);
-    if !runtime.files.exists(&full).unwrap_or(false) {
+/// A rewritten file must be there in the working tree; one missing is input the command cannot check.
+fn exists(runtime: &Runtime, root: &str, path: &str, place: &str) -> Result<(), CritiqueError> {
+    if !runtime.files.exists(&join(&[root, place])).unwrap_or(false) {
         return Err(CritiqueError::new("invalid-input", format!("check-rewrite input: {path} does not exist in the repository")));
     }
-    runtime.files.read_text(&full).map_err(CritiqueError::from_fs)
+    Ok(())
 }

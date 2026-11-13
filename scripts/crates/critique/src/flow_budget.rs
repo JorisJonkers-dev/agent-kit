@@ -3,7 +3,9 @@
 //! gateway's ledger as one record of the run, so the gateway counts a critic run
 //! the way it counts a delegation.
 
+use crate::budget::{agy_invocations_on, spend_by_flow, FlowSpend, LoggedInvocation};
 use crate::error::CritiqueError;
+use crate::ledger_source::LedgerSource;
 use crate::runtime::Runtime;
 use model_gateway::json::{compact, Object, Value};
 use model_gateway::ledger_file::LedgerStore;
@@ -67,6 +69,21 @@ impl<'a> FlowBudget<'a> {
             Ok(()) => Ok(None),
             Err(error) => Ok(Some(error.message)),
         }
+    }
+
+    /// What the Vibe critics were charged under each of a feature's flow keys.
+    pub fn vibe_spend_by_flow(&self, repository: &str, flows: &[String]) -> Result<Vec<FlowSpend>, CritiqueError> {
+        Ok(spend_by_flow(&self.lines()?, repository, flows))
+    }
+
+    /// agy launches on this machine today.
+    pub fn agy_invocations_today(&self) -> Result<usize, CritiqueError> {
+        Ok(agy_invocations_on(&self.lines()?, self.runtime.clock.now_ms()))
+    }
+
+    /// Every launch both ledgers hold, which is what the spend and the agy count are read from.
+    fn lines(&self) -> Result<Vec<LoggedInvocation>, CritiqueError> {
+        Ok(LedgerSource::new(self.runtime).read()?.invocations)
     }
 }
 
