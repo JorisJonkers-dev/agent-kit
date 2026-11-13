@@ -73,6 +73,30 @@ impl Git for NoGit {
     fn commit_tree(&self, _cwd: &str, _tree: &str, _parent: &str, _message: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
+
+    fn commits_between(&self, _cwd: &str, _base: &str, _head: &str) -> Result<Vec<crate::git::CommitLink>, String> {
+        Err("unused".to_string())
+    }
+
+    fn tree_entries(&self, _cwd: &str, _revision: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn merge_tree(&self, _cwd: &str, _ours: &str, _theirs: &str) -> Result<crate::git::MergeTree, String> {
+        Err("unused".to_string())
+    }
+
+    fn diff_against_head(&self, _cwd: &str, _staged: bool) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn paths_against_head(&self, _cwd: &str, _staged: bool) -> Result<Vec<String>, String> {
+        Err("unused".to_string())
+    }
+
+    fn current_branch(&self, _cwd: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
 }
 
 struct Frozen;
@@ -118,10 +142,7 @@ fn a_command_not_ported_yet_says_so() {
 }
 
 #[test]
-fn a_hook_not_ported_yet_says_so_and_never_exits_2() {
-    let result = run_cli(&argv(&["hook", "critique-commit-gate"]), &runtime(""));
-    assert_eq!(result.exit_code, 1);
-    assert!(result.stderr.starts_with("critique hook: hook critique-commit-gate is not ported"), "{}", result.stderr);
+fn a_hook_it_cannot_name_prints_the_usage_and_never_exits_2() {
     for bad in [&["hook"][..], &["hook", "bogus"], &["hook", "critique-pr-gate", "x"], &["hook", "constructor"]] {
         let result = run_cli(&argv(bad), &runtime(""));
         assert_eq!((result.exit_code, result.stdout.as_str(), result.stderr.as_str()), (1, "", USAGE), "{bad:?}");

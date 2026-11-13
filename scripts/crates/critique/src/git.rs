@@ -37,6 +37,71 @@ pub trait Git: Send + Sync {
     fn write_index_tree(&self, cwd: &str) -> Result<String, String>;
     /// Writes a commit object holding `tree` with `parent` as its parent and returns its id; no ref moves.
     fn commit_tree(&self, cwd: &str, tree: &str, parent: &str, message: &str) -> Result<String, String>;
+    /// The commits `head` has that `base` does not, newest first, each with its tree and parents.
+    fn commits_between(&self, cwd: &str, base: &str, head: &str) -> Result<Vec<CommitLink>, String>;
+    /// A tree's entries in the form `ls-files --stage -z` prints the index: `<mode> <object> 0\t<path>\0`.
+    fn tree_entries(&self, cwd: &str, revision: &str) -> Result<String, String>;
+    /// The tree a merge of `theirs` into `ours` would record, and whether it holds conflicts. Writes objects, moves no ref.
+    fn merge_tree(&self, cwd: &str, ours: &str, theirs: &str) -> Result<MergeTree, String>;
+    /// The diff of the index (`staged`) or the working tree against HEAD.
+    fn diff_against_head(&self, cwd: &str, staged: bool) -> Result<String, String>;
+    /// The paths that differ between the index (`staged`) or the working tree and HEAD.
+    fn paths_against_head(&self, cwd: &str, staged: bool) -> Result<Vec<String>, String>;
+    /// The checked-out branch; empty on a detached HEAD.
+    fn current_branch(&self, cwd: &str) -> Result<String, String>;
+}
+
+/// One commit a merge brings in: its id, its tree and its parents.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommitLink {
+    pub commit: String,
+    pub tree: String,
+    pub parents: Vec<String>,
+}
+
+/// What `git merge-tree --write-tree` gave: the merged tree, and whether it holds conflict markers.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MergeTree {
+    pub tree: String,
+    pub conflicts: bool,
+}
+
+/// `rev-list --format=%H %T %P` lines: one commit link per line that holds something.
+pub fn commit_links(listing: &str) -> Vec<CommitLink> {
+    listing
+        .split('\n')
+        .map(js_trim)
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let mut words = line.split(' ');
+            let commit = words.next().unwrap_or_default().to_string();
+            let tree = words.next().unwrap_or_default().to_string();
+            CommitLink { commit, parents: words.map(str::to_string).collect(), tree }
+        })
+        .collect()
+}
+
+/// `ls-tree -r -z` entries, `<mode> <type> <object>\t<path>`, as `ls-files --stage -z` prints index entries.
+pub fn stage_entries(listing: &str) -> String {
+    listing.split('\0').filter_map(stage_entry).collect()
+}
+
+fn stage_entry(entry: &str) -> Option<String> {
+    let (header, path) = entry.split_once('\t')?;
+    let fields: Vec<&str> = header.split(' ').collect();
+    let [mode, kind, object] = fields[..] else { return None };
+    let word = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
+    let digits = !mode.is_empty() && mode.bytes().all(|b| b.is_ascii_digit());
+    (digits && word(kind) && word(object) && !path.is_empty()).then(|| format!("{mode} {object} 0\t{path}\0"))
+}
+
+/// What `diff` compares the given side of the change with: `--cached HEAD --` for the index, `HEAD --` for the work tree.
+fn against_head(staged: bool) -> &'static [&'static str] {
+    if staged {
+        &["--cached", "HEAD", "--"]
+    } else {
+        &["HEAD", "--"]
+    }
 }
 
 /// The last commit that changed one path.
@@ -66,6 +131,11 @@ pub struct SystemGit {
 impl SystemGit {
     /// Runs git in `cwd`; an exit code outside `accepted` fails with the words the node adapter's `GitCommandError` has.
     fn run(&self, cwd: &str, args: &[&str], accepted: &[i32]) -> Result<String, String> {
+        self.run_coded(cwd, args, accepted).map(|(_, stdout)| stdout)
+    }
+
+    /// `run`, with the exit code it ended on.
+    fn run_coded(&self, cwd: &str, args: &[&str], accepted: &[i32]) -> Result<(i32, String), String> {
         let output = Command::new("git")
             .args(args)
             .current_dir(cwd)
@@ -77,7 +147,7 @@ impl SystemGit {
         let code = output.status.code().unwrap_or(-1);
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         if accepted.contains(&code) {
-            return Ok(stdout);
+            return Ok((code, stdout));
         }
         Err(failure_words(args, cwd, code, &stdout, &String::from_utf8_lossy(&output.stderr)))
     }
@@ -190,5 +260,37 @@ impl Git for SystemGit {
         let mut args: Vec<&str> = identity.to_vec();
         args.extend(["commit-tree", "--no-gpg-sign", "-p", parent, "-m", message, tree]);
         self.run(cwd, &args, &[0]).map(|out| js_trim(&out).to_string())
+    }
+
+    fn commits_between(&self, cwd: &str, base: &str, head: &str) -> Result<Vec<CommitLink>, String> {
+        let not_base = format!("^{base}");
+        self.run(cwd, &["rev-list", "--no-commit-header", "--format=%H %T %P", "--end-of-options", head, &not_base], &[0]).map(|out| commit_links(&out))
+    }
+
+    fn tree_entries(&self, cwd: &str, revision: &str) -> Result<String, String> {
+        self.run(cwd, &["ls-tree", "-r", "-z", "--full-tree", revision], &[0]).map(|out| stage_entries(&out))
+    }
+
+    fn merge_tree(&self, cwd: &str, ours: &str, theirs: &str) -> Result<MergeTree, String> {
+        // Exit 1 is a merge with conflicts, its tree holding the conflict markers.
+        let args = ["-c", "merge.conflictStyle=merge", "merge-tree", "--write-tree", "--no-messages", "--name-only", "--end-of-options", ours, theirs];
+        let (code, out) = self.run_coded(cwd, &args, &[0, 1])?;
+        Ok(MergeTree { conflicts: code == 1, tree: js_trim(out.split('\n').next().unwrap_or_default()).to_string() })
+    }
+
+    fn diff_against_head(&self, cwd: &str, staged: bool) -> Result<String, String> {
+        let mut args = vec!["--no-optional-locks", "-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color"];
+        args.extend(against_head(staged));
+        self.run(cwd, &args, &[0])
+    }
+
+    fn paths_against_head(&self, cwd: &str, staged: bool) -> Result<Vec<String>, String> {
+        let mut args = vec!["--no-optional-locks", "diff", "--name-only", "-z", "--no-renames"];
+        args.extend(against_head(staged));
+        self.run(cwd, &args, &[0]).map(|out| nul_paths(&out))
+    }
+
+    fn current_branch(&self, cwd: &str) -> Result<String, String> {
+        self.run(cwd, &["branch", "--show-current"], &[0]).map(|out| js_trim(&out).to_string())
     }
 }

@@ -1,0 +1,635 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"merge-vouched\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"merge-vouched\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and 089e54388956, a commit it brings in, has no passing /review-implementation run. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and 089e54388956, a commit it brings in, has no passing /review-implementation run. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"merge-stops\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": null,\n  \"line\": null,\n  \"reason\": \"not-gated\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"low-risk\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\n  \"failure\": \"error\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\n  \"failure\": \"unreadable-state\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"low-risk\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"merge-vouched\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"not-gated\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\n  \"failure\": \"error\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\n  \"failure\": \"error\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Merge blocked: this command moves HEAD before it merges, so the gate cannot tell what the merge brings in. Run the merge in a command of its own.\"\n    }\n  },\n  \"line\": \"Merge blocked: this command moves HEAD before it merges, so the gate cannot tell what the merge brings in. Run the merge in a command of its own.\",\n  \"reason\": \"head-unknown\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and bb1085bace51, a commit it brings in, has no passing /review-implementation run. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and bb1085bace51, a commit it brings in, has no passing /review-implementation run. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"merge-vouched\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and 089e54388956, a commit it brings in, has no passing /review-implementation run. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and 089e54388956, a commit it brings in, has no passing /review-implementation run. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\n  \"failure\": \"error\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"gate\":{\"merge_commits\":0}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and it brings in 2 commits, more than the 1 the gate checks one by one. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and it brings in 2 commits, more than the 1 the gate checks one by one. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"gate\":{\"merge_commits\":1}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and 089e54388956, a commit it brings in, has no passing /review-implementation run. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Merge blocked: merging risky is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and 089e54388956, a commit it brings in, has no passing /review-implementation run. Stage the merge with git merge --no-commit risky, run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path, and 1 more risk signal) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"merge-vouched\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"merge-vouched\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: this merge's own changes beyond the reviewed commits it brings in are risky (src/new.sql is a risk path) and no passing /review-implementation run matches the staged merge. Run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: this merge's own changes beyond the reviewed commits it brings in are risky (src/new.sql is a risk path) and no passing /review-implementation run matches the staged merge. Run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path, and 2 more risk signals) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\"}}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"low-risk\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git merge-base --end-of-options 95c0bc6a4ae610970eef0e39c9511df4b360c852 3d207d8d9006d7a5f2e77ec494bac602ae0485d5 failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"@SANDBOX@/repos/m1/.git/critique/triages.jsonl line 1: labels must be a list\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options @{upstream}^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options origin/main^{commit} failed in @SANDBOX@/repos/m1: exit code 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/m1\",\"detail\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: gate.merge_commits must be a whole number of at least 1\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    }
+  ]
+}

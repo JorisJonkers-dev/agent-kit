@@ -1,0 +1,472 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/c1/src/a.ts": "export const a = 1\n",
+        "repos/c1/README.md": "# readme\n",
+        "repos/c1/.git/critique/flows/feat.json": "{\"repository\":\"github.com/jorisjonkers-dev/example\",\"phase\":\"implementation\"}\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/c1",
+          "init",
+          "-q",
+          "--template=",
+          "."
+        ],
+        [
+          "-C",
+          "repos/c1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/c1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/c1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/c1/README.md": "# readme\n\nmore\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/c1",
+          "add",
+          "README.md"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/c1/.git/critique/triages.jsonl": "{\"labels\":[\"Risk:High\"],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"t1\",\"staged_diff\":\"s\",\"staged_on\":\"5e6a97d3a99ec64cbf0400900fefbf18e39d81e0\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"version\":1}\n{\"labels\":[],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"t1\",\"staged_diff\":\"s\",\"staged_on\":\"other\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/c1/.git/critique/triages.jsonl": "",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"3ea68add79c8c999f8ceb23829a5a3279150ed70629a67eab3b48b2db3e18ff0\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/c1/src/auth/login.ts": "export const login = 1\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/c1",
+          "add",
+          "src/auth/login.ts"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit --dry-run -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"fail\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[\"F1\"],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"fail\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[\"F1\",\"F3\"],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[{\"critic_id\":\"c1\",\"reason\":\"timeout\"},{\"critic_id\":\"c2\",\"reason\":\"exit 1\"}],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"degraded\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":true,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"degraded\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"fail\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[\"F1\"],\"version\":1}\n{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/o/r\",\"review\":\"fail\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"x\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/o/r\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n{\"version\":1\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"maybe\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":null}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"changed_lines_threshold\":0}}\n",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "",
+        "repos/c1/.git/critique/triages.jsonl": "{\"labels\":[\"risk:high\"],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"t1\",\"staged_diff\":\"s\",\"staged_on\":\"5e6a97d3a99ec64cbf0400900fefbf18e39d81e0\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"changed_lines_threshold\":0,\"risk_paths\":[]}}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ],
+      "write": {
+        "repos/c1/.git/critique/triages.jsonl": "",
+        "repos/c1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":\"5308c30ca76f8358df73506d7c0c85e2cad40275b004d0d0fbc390d246c7266c\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/c1/src/a.ts": "export const a = 2\n"
+      },
+      "remove": [],
+      "git": []
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -am x\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x src/a.ts\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git add -A && git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git stash && git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/c1/new.sql": "select 1;\n"
+      }
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-commit-gate"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -am x\"}}",
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-commit-gate"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}",
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-commit-gate"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -am x\"},\"gate\":\"pr\"}",
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-commit-gate"
+      ],
+      "stdin": "garbage",
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-pr-gate"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -am x\"}}",
+      "shims": [
+        "git"
+      ]
+    }
+  ]
+}

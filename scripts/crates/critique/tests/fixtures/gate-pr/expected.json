@@ -1,0 +1,350 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"feature-branch\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"feature-branch\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Push to main blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\"\n    }\n  },\n  \"line\": \"Push to main blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\",\n  \"reason\": \"no-feature-review\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Push to main blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\"\n    }\n  },\n  \"line\": \"Push to main blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\",\n  \"reason\": \"no-feature-review\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Push to every branch blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\"\n    }\n  },\n  \"line\": \"Push to every branch blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\",\n  \"reason\": \"no-feature-review\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": null,\n  \"line\": null,\n  \"reason\": \"not-gated\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": null,\n  \"line\": null,\n  \"reason\": \"not-gated\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"PR blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then open the PR.\"\n    }\n  },\n  \"line\": \"PR blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then open the PR.\",\n  \"reason\": \"no-feature-review\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Push to main blocked: this command moves HEAD before it pushes, so no /review-pr gate can hold for what it sends. Run that part in a command of its own after /review-pr.\"\n    }\n  },\n  \"line\": \"Push to main blocked: this command moves HEAD before it pushes, so no /review-pr gate can hold for what it sends. Run that part in a command of its own after /review-pr.\",\n  \"reason\": \"head-unknown\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"PR blocked: this command moves HEAD before it opens the PR, so no /review-pr gate can hold for what it sends. Run that part in a command of its own after /review-pr.\"\n    }\n  },\n  \"line\": \"PR blocked: this command moves HEAD before it opens the PR, so no /review-pr gate can hold for what it sends. Run that part in a command of its own after /review-pr.\",\n  \"reason\": \"head-unknown\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"gate-pass\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"gate-pass\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Push to main blocked: /review-pr says GATE: FAIL (2 critical open) for 4f0494fa03b0. Fix and close the critical follow-ups, run /review-pr on the new head, then push.\"\n    }\n  },\n  \"line\": \"Push to main blocked: /review-pr says GATE: FAIL (2 critical open) for 4f0494fa03b0. Fix and close the critical follow-ups, run /review-pr on the new head, then push.\",\n  \"reason\": \"gate-fail\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Push to main blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\"\n    }\n  },\n  \"line\": \"Push to main blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\",\n  \"reason\": \"no-feature-review\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"gate-pass\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\n  \"failure\": \"error\",\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\n  \"failure\": \"unreadable-state\",\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"feature-branch\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"gate\":{\"feature_branches\":[\"main\"]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Push to main blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\"\n    }\n  },\n  \"line\": \"Push to main blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\",\n  \"reason\": \"no-feature-review\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Push to every branch blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\"\n    }\n  },\n  \"line\": \"Push to every branch blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\",\n  \"reason\": \"no-feature-review\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Push to every branch blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\"\n    }\n  },\n  \"line\": \"Push to every branch blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\",\n  \"reason\": \"no-feature-review\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Push to main blocked: no /review-pr run has recorded a gate for 4f0494fa03b0. Run /review-pr, then push.\"}}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    }
+  ]
+}
