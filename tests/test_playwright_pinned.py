@@ -297,7 +297,9 @@ def test_setup_installs_the_pinned_binary_before_any_client_config_names_it() ->
     writes = {
         "claude": script.index("claude_each_profile claude mcp add --scope user playwright"),
         "codex": script.index("codex mcp add playwright"),
-        "vibe": script.index('"${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml"'),
+        "vibe": script.index(
+            '"${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml"'
+        ),
         # The private home is merged by a function; its call site is what runs.
         "vibe-private": script.index("\n      [ \"${CLOUD}\" = 1 ] || _vibe_private_home"),
     }
