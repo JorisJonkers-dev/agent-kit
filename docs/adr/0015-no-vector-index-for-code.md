@@ -1,6 +1,6 @@
 # No vector index for code
 
-Agents in this estate find code with the code-nav server (`search`, `outline`,
+Agents in this estate are given the code-nav server (`search`, `outline`,
 `expand`, `map`, `symbols`, `related_repos`) over the live working tree, with
 each repository's `AGENTS.md` for orientation. We do not build a vector
 (embedding) index of code, and we do not add any index before a measurement
@@ -18,7 +18,8 @@ Why not an index of vectors:
   one from a provider (a new spend line, and the code leaves the machine, which
   the repository rule for the work instance forbids) or one run locally on the
   workstation GPU, which the Mac and the runner image do not have. ADR-0006
-  rejected an embedding index for critics for the same reasons.
+  rejected an embedding index for critics on the provider or local model and
+  reproducibility grounds.
 - **Results that cannot be replayed.** A symbol, a path and a reference are
   exact. Nearest-neighbour results depend on the model version and the chunking,
   so a question set run twice does not give the same files, and the frozen
@@ -50,13 +51,14 @@ holds:
    lookup. That is the evidence a vector index needs, and it reopens this
    decision.
 3. **Reference misses do not point at an index.** Misses in the refs family
-   (who calls, who uses) trigger B7-12 (#527), the language-server bridge. They
+   (who calls, who uses; the owner sets the threshold when the full set is run)
+   trigger B7-12 (#527), the language-server bridge. They
    are not a reason for a vector index: references are exact, and an
    embedding finds them worse than a language server does.
 4. **The cost of looking dominates.** Tokens spent exploring (the transcript
    analyser, B7-01) stay above the budget the owner sets even at the best layer by that measurement
-   with the concept miss rate under 15 percent. That is a context problem to
-   try with the map and outline first.
+   with the concept miss rate under 15 percent. That reopens this decision only after
+   the map and outline have been tried, since those are the cheaper fix.
 5. **The constraints move.** A local embedding model runs on every host the
    server is installed on, or the repository rule lets code reach a provider's
    embedding endpoint, and a held-out question set shows the index winning on
