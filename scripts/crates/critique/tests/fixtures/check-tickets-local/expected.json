@@ -1,0 +1,76 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"spec\": {\n    \"reference\": \".scratch/feat/spec.md\",\n    \"tracker\": \"local-markdown\"\n  },\n  \"coverage\": {\n    \"status\": \"checked\",\n    \"stories\": [\n      1,\n      2,\n      3\n    ],\n    \"uncited\": []\n  },\n  \"cycles\": [\n    [\n      \"02\",\n      \"03\"\n    ]\n  ],\n  \"dangling_blockers\": [\n    {\n      \"blocker\": \"Missing ticket\",\n      \"ticket\": \"03\"\n    }\n  ],\n  \"tickets\": [\n    {\n      \"blocked_by\": [],\n      \"criteria\": 2,\n      \"id\": \"01\",\n      \"reference\": \".scratch/feat/issues/01-schema.md\",\n      \"stories\": [\n        1\n      ],\n      \"title\": \"Schema\"\n    },\n    {\n      \"blocked_by\": [\n        \"01\",\n        \"03\"\n      ],\n      \"criteria\": 1,\n      \"id\": \"02\",\n      \"reference\": \".scratch/feat/issues/02-api.md\",\n      \"stories\": [\n        2,\n        3\n      ],\n      \"title\": \"API\"\n    },\n    {\n      \"blocked_by\": [\n        \"02\",\n        \"01\",\n        \"Missing ticket\"\n      ],\n      \"criteria\": 0,\n      \"id\": \"03\",\n      \"reference\": \".scratch/feat/issues/03-ui.md\",\n      \"stories\": [],\n      \"title\": \"UI\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"spec\": {\n    \"reference\": \".scratch/feat/spec.md\",\n    \"tracker\": \"local-markdown\"\n  },\n  \"coverage\": {\n    \"status\": \"checked\",\n    \"stories\": [\n      1,\n      2,\n      3\n    ],\n    \"uncited\": []\n  },\n  \"cycles\": [\n    [\n      \"02\",\n      \"03\"\n    ]\n  ],\n  \"dangling_blockers\": [\n    {\n      \"blocker\": \"Missing ticket\",\n      \"ticket\": \"03\"\n    }\n  ],\n  \"tickets\": [\n    {\n      \"blocked_by\": [],\n      \"criteria\": 2,\n      \"id\": \"01\",\n      \"reference\": \".scratch/feat/issues/01-schema.md\",\n      \"stories\": [\n        1\n      ],\n      \"title\": \"Schema\"\n    },\n    {\n      \"blocked_by\": [\n        \"01\",\n        \"03\"\n      ],\n      \"criteria\": 1,\n      \"id\": \"02\",\n      \"reference\": \".scratch/feat/issues/02-api.md\",\n      \"stories\": [\n        2,\n        3\n      ],\n      \"title\": \"API\"\n    },\n    {\n      \"blocked_by\": [\n        \"02\",\n        \"01\",\n        \"Missing ticket\"\n      ],\n      \"criteria\": 0,\n      \"id\": \"03\",\n      \"reference\": \".scratch/feat/issues/03-ui.md\",\n      \"stories\": [],\n      \"title\": \"UI\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"spec\": {\n    \"reference\": \"spec.md\",\n    \"tracker\": \"local-markdown\"\n  },\n  \"coverage\": {\n    \"reason\": \"the spec has no numbered user stories\",\n    \"status\": \"not-checkable\"\n  },\n  \"cycles\": [\n    [\n      \"1\"\n    ]\n  ],\n  \"dangling_blockers\": [],\n  \"tickets\": [\n    {\n      \"blocked_by\": [\n        \"1\"\n      ],\n      \"criteria\": 0,\n      \"id\": \"1\",\n      \"reference\": \"issues/1-a.md\",\n      \"stories\": [],\n      \"title\": \"A\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"spec\": {\n    \"reference\": \"other/spec.md\",\n    \"tracker\": \"local-markdown\"\n  },\n  \"coverage\": {\n    \"reason\": \"the spec has no numbered user stories\",\n    \"status\": \"not-checkable\"\n  },\n  \"cycles\": [],\n  \"dangling_blockers\": [],\n  \"tickets\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"missing.md is not a file in the repository; this repository tracks specs as local markdown, so name one by its path\",\"status\":\"error\"}\n",
+      "stderr": "critique check-tickets: missing.md is not a file in the repository; this repository tracks specs as local markdown, so name one by its path\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../outside.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique check-tickets: ../outside.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"spec\": {\n    \"reference\": \"x.md\",\n    \"tracker\": \"local-markdown\"\n  },\n  \"coverage\": {\n    \"reason\": \"the spec has no numbered user stories\",\n    \"status\": \"not-checkable\"\n  },\n  \"cycles\": [],\n  \"dangling_blockers\": [],\n  \"tickets\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

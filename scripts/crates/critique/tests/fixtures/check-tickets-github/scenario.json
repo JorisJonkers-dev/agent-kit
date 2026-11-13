@@ -1,0 +1,122 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/g1/README.md": "# example\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/g1"
+        ],
+        [
+          "-C",
+          "repos/g1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/g1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/g1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/g1\",\"spec\":\"#1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n*/issues/1/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":2,\"title\":\"Ticket 2\",\"body\":\"## Acceptance criteria\\n\\n- [ ] one\\n- [x] two\\n\\nCovers user story 1.\\n\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\",\"labels\":[{\"name\":\"x\"}],\"state\":\"open\"},{\"number\":3,\"title\":\"Ticket 3\",\"body\":\"Covers user stories 2 and 4.\\n\\n- [ ] only\\n\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\",\"labels\":[{\"name\":\"x\"}],\"state\":\"open\"}],[{\"number\":4,\"title\":\"Ticket 4\",\"body\":\"Nothing cited.\\n\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/4\",\"labels\":[{\"name\":\"x\"}],\"state\":\"closed\"},{\"number\":5,\"title\":5,\"body\":\"\",\"html_url\":\"\",\"labels\":[{\"name\":\"x\"}],\"state\":\"open\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/2/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[{\"number\":3,\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/3\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/3/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[{\"number\":2,\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/2\"},{\"number\":4,\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/4\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/4/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[{\"number\":11,\"html_url\":\"https://github.com/other/repo/issues/11\"},{\"number\":12,\"html_url\":\"\"}],[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/5/dependencies/blocked_by?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/6/sub_issues?per_page=100)\nprintf '%s' '[[]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/7/sub_issues?per_page=100)\nprintf '%s' ''\nprintf '%s' '\n  HTTP 404: Not Found\n' >&2\nexit 1\n;;\n*/issues/8/sub_issues?per_page=100)\nprintf '%s' '[[{\"number\":10,\"title\":\"Ticket 10\",\"body\":\"\",\"html_url\":\"https://github.com/jorisjonkers-dev/example/issues/10\",\"labels\":[{\"name\":\"x\"}],\"state\":\"open\"}]]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/issues/10/dependencies/blocked_by?per_page=100)\nprintf '%s' '{\"message\":\"no\"}'\nprintf '%s' '' >&2\nexit 0\n;;\nesac\nelif [ \"$1 $2\" = \"issue view\" ]; then\ncase \"$3\" in\n1)\nprintf '%s' '{\"number\":1,\"title\":\"Spec 1\",\"body\":\"## User Stories\\n\\n1. As a user\\n2. As an admin\\n3) As a guest\\n\\n## Next\\n\\n4. not a story\\n\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/1\",\"labels\":[]}'\nprintf '%s' '' >&2\nexit 0\n;;\n6)\nprintf '%s' '{\"number\":6,\"title\":\"Spec 6\",\"body\":\"no stories here\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/6\",\"labels\":[]}'\nprintf '%s' '' >&2\nexit 0\n;;\n7)\nprintf '%s' '{\"number\":7,\"title\":\"Spec 7\",\"body\":\"## User Stories\\n\\n1. As a user\\n2. As an admin\\n3) As a guest\\n\\n## Next\\n\\n4. not a story\\n\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/7\",\"labels\":[]}'\nprintf '%s' '' >&2\nexit 0\n;;\n8)\nprintf '%s' '{\"number\":8,\"title\":\"Spec 8\",\"body\":\"## User Stories\\n\\n1. As a user\\n2. As an admin\\n3) As a guest\\n\\n## Next\\n\\n4. not a story\\n\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/8\",\"labels\":[]}'\nprintf '%s' '' >&2\nexit 0\n;;\n9)\nprintf '%s' ''\nprintf '%s' 'GraphQL: Could not resolve to an issue\nmore' >&2\nexit 1\n;;\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/g1\",\"spec\":\"https://github.com/jorisjonkers-dev/example/issues/1\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/g1\",\"spec\":\"JorisJonkers-dev/example#1\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/g1\",\"spec\":\"6\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/g1\",\"spec\":\"#9\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/g1\",\"spec\":\"#7\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/g1\",\"spec\":\"#8\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

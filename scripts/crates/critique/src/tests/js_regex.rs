@@ -80,9 +80,69 @@ fn a_pattern_that_cannot_be_read_is_an_error() {
         (r"[a", "a class is not closed"),
         (r"a\", "a pattern ends with a backslash"),
         (r"*a", "nothing to repeat"),
-        (r"(?=a)", "(?= is not supported"),
+        (r"(?<!a)b", "(?< is not supported"),
+        (r"\d\q", "\\q is not supported"),
+        (r"\1", "\\1 is not supported"),
+        (r"[\b]", "\\b in a class is not supported"),
+        (r"^*", "nothing to repeat"),
+        (r"\b{2}", "nothing to repeat"),
         (r"(?", "a pattern ends with a backslash"),
     ] {
         assert_eq!(Regex::new(pattern, false).expect_err("an error"), message, "{pattern}");
     }
+    assert_eq!(Regex::with_flags("a", "y").expect_err("an error"), "the flag y is not supported");
+}
+
+/// The first match of `pattern` with `flags` in `text`, with its groups.
+fn first(pattern: &str, flags: &str, text: &str) -> Option<(String, Vec<Option<String>>)> {
+    let regex = Regex::with_flags(pattern, flags).expect("pattern");
+    let chars: Vec<char> = text.chars().collect();
+    regex.find_at(&chars, 0).map(|hit| {
+        let whole = chars[hit.start..hit.end].iter().collect();
+        let groups = (1..=regex.group_count()).map(|index| hit.group(&chars, index)).collect();
+        (whole, groups)
+    })
+}
+
+#[test]
+fn dot_digits_and_control_escapes_match_as_javascript_does() {
+    assert_eq!(first(r"a.c", "", "a\nc abc"), Some(("abc".to_string(), vec![])));
+    assert_eq!(first(r"a.c", "", "a\u{2028}c"), None);
+    assert_eq!(first(r"\d+", "", "x١2٣45"), Some(("2".to_string(), vec![])));
+    assert_eq!(first(r"[\d\-]+", "", "x-12-y"), Some(("-12-".to_string(), vec![])));
+    assert_eq!(first(r"\t\r\n", "", "a\t\r\nb"), Some(("\t\r\n".to_string(), vec![])));
+}
+
+#[test]
+fn braces_repeat_a_counted_number_of_times_or_read_as_a_literal_brace() {
+    assert_eq!(first(r"^#{1,3} ", "", "#### x"), None);
+    assert_eq!(first(r"#{1,3} ", "", "#### x"), Some(("### ".to_string(), vec![])));
+    assert_eq!(first(r"a{2}", "", "aaa"), Some(("aa".to_string(), vec![])));
+    assert_eq!(first(r"a{2,}", "", "aaaa"), Some(("aaaa".to_string(), vec![])));
+    assert_eq!(first(r"a{2,}?", "", "aaaa"), Some(("aa".to_string(), vec![])));
+    assert_eq!(first(r"a{,2}", "", "a{,2}"), Some(("a{,2}".to_string(), vec![])));
+    assert_eq!(first(r"a{2", "", "a{2"), Some(("a{2".to_string(), vec![])));
+    assert_eq!(first(r"a{2,x}", "", "a{2,x}"), Some(("a{2,x}".to_string(), vec![])));
+    assert_eq!(first(r"(?:ab){2}", "", "ababab"), Some(("abab".to_string(), vec![])));
+    assert_eq!(first(r"a{99999999999999999999}", "", "a"), None);
+}
+
+#[test]
+fn a_lookahead_takes_no_text_and_a_failed_one_keeps_no_capture() {
+    assert_eq!(first(r"^#?(\d+)(?=$|[\s\-:.(])", "", "12-schema"), Some(("12".to_string(), vec![Some("12".to_string())])));
+    assert_eq!(first(r"^#?(\d+)(?=$|[\s\-:.(])", "", "12x"), None);
+    assert_eq!(first(r"(?=(a))a", "", "a"), Some(("a".to_string(), vec![Some("a".to_string())])));
+    assert_eq!(first(r"(?:(?!(b)c)(a|b))+", "", "ab"), Some(("ab".to_string(), vec![None, Some("b".to_string())])));
+    assert_eq!(first(r"(?=a)*b", "", "b"), Some(("b".to_string(), vec![])));
+}
+
+#[test]
+fn ignore_case_folds_ascii_letters_only() {
+    assert_eq!(first(r"blocked by", "i", "BLOCKED By"), Some(("BLOCKED By".to_string(), vec![])));
+    assert_eq!(first(r"[a-c]+", "i", "xAbC"), Some(("AbC".to_string(), vec![])));
+    assert_eq!(first(r"[^a]", "i", "Ab"), Some(("b".to_string(), vec![])));
+    assert_eq!(first(r"s", "i", "\u{17f}"), None);
+    assert_eq!(first(r"k", "i", "\u{212a}"), None);
+    assert_eq!(first(r"stor(?:y|ies)", "", "STORY"), None);
+    assert_eq!(first(r"^x$", "gm", "a\nx\nb"), Some(("x".to_string(), vec![])));
 }

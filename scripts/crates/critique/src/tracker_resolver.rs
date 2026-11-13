@@ -4,6 +4,7 @@
 
 use crate::error::CritiqueError;
 use crate::gh::{GhIssue, IssueLocator, IssueRequest};
+use crate::tickets::{local_ticket_open, local_tickets, LocalTicketFile, Ticket};
 use crate::paths::{inside_repository, join};
 use crate::repository::{refusal, Resolved};
 use crate::runtime::Runtime;
@@ -69,6 +70,93 @@ impl Tracker<'_> {
             Tracker::LocalMarkdown(repository) => local_artifact(runtime, repository, reference).map(ArtifactRead::Read),
         }
     }
+
+    /// The tickets of the spec a reference names, in tracker order (GitHub's sub-issue order, or by file name); or the
+    /// refusal the tracker gives when they cannot be read.
+    pub fn tickets(&self, runtime: &Runtime, spec: &str) -> Result<TicketsRead, CritiqueError> {
+        match self {
+            Tracker::Github(repository) => github_tickets(runtime, repository, spec),
+            Tracker::LocalMarkdown(repository) => local_tickets_of(runtime, repository, spec).map(TicketsRead::Read),
+        }
+    }
+}
+
+/// A ticket as its tracker holds it, read once so a packet can freeze it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TrackedTicket {
+    pub ticket: Ticket,
+    /// Its file name under a packet folder.
+    pub name: String,
+    /// False once the ticket is closed: a closed issue, or a local ticket whose status says it is done.
+    pub open: bool,
+}
+
+/// What reading a spec's tickets came to: the tickets, or the refusal the tracker gives when they cannot be read.
+pub enum TicketsRead {
+    Read(Vec<TrackedTicket>),
+    Refused(Value),
+}
+
+/// The spec issue's sub-issues, each with its native blocked-by links.
+fn github_tickets(runtime: &Runtime, repository: &Resolved, spec: &str) -> Result<TicketsRead, CritiqueError> {
+    let issue = spec_issue(repository, spec)?;
+    let read = || -> Result<Vec<TrackedTicket>, String> {
+        let issues = runtime.gh.sub_issues(&locator(repository, &issue))?;
+        issues.iter().map(|read| github_ticket(runtime, repository, &issue, read)).collect()
+    };
+    Ok(match read() {
+        Ok(tickets) => TicketsRead::Read(tickets),
+        Err(error) => TicketsRead::Refused(refusal(
+            "tracker-unreachable",
+            &format!("cannot read the tickets of {} through gh: {}", issue_reference(&issue), first_line(&error)),
+        )),
+    })
+}
+
+/// One sub-issue of `spec` with what blocks it.
+fn github_ticket(runtime: &Runtime, repository: &Resolved, spec: &IssueReference, read: &GhIssue) -> Result<TrackedTicket, String> {
+    let ticket = issue_at(repository, &read.url, read.number, &spec.repository);
+    let blockers = runtime.gh.blocked_by(&locator(repository, &ticket))?;
+    let blocked_by = blockers.iter().map(|blocker| ticket_id(repository, &issue_at(repository, &blocker.url, blocker.number, &ticket.repository))).collect();
+    let text = render_issue(&IssueText { body: read.body.clone(), comments: Vec::new(), title: read.title.clone() });
+    Ok(TrackedTicket {
+        name: format!("issue-{}.md", number_text(ticket.number)),
+        open: read.state.as_deref() != Some("closed"),
+        ticket: Ticket { blocked_by, id: ticket_id(repository, &ticket), reference: issue_reference(&ticket), text, title: read.title.clone() },
+    })
+}
+
+/// The issue a URL from gh names; one with no readable URL is taken to be in `repository`.
+fn issue_at(resolved: &Resolved, url: &str, number: f64, repository: &str) -> IssueReference {
+    parse_issue_reference(url, &resolved.key).unwrap_or_else(|| IssueReference { number, repository: repository.to_string() })
+}
+
+fn locator(repository: &Resolved, issue: &IssueReference) -> IssueLocator {
+    IssueLocator { cwd: repository.root.clone(), number: issue.number, repo: issue.repository.clone() }
+}
+
+/// `#<number>` for an issue of this repository, its full reference for any other.
+fn ticket_id(repository: &Resolved, issue: &IssueReference) -> String {
+    if issue.repository == repository.key {
+        format!("#{}", number_text(issue.number))
+    } else {
+        issue_reference(issue)
+    }
+}
+
+/// The `.md` files in the `issues/` folder beside the spec, as Pocock's `/to-tickets` writes them.
+fn local_tickets_of(runtime: &Runtime, repository: &Resolved, spec: &str) -> Result<Vec<TrackedTicket>, CritiqueError> {
+    let path = inside_repository(&repository.root, spec)?;
+    let folder = join(&[path.rsplit_once('/').map_or(".", |(dir, _)| dir), "issues"]);
+    let mut files = Vec::new();
+    for name in runtime.dirs.list_files(&join(&[&repository.root, &folder])).into_iter().filter(|name| name.ends_with(".md")) {
+        let text = runtime.files.read_text(&join(&[&repository.root, &folder, &name])).map_err(CritiqueError::from_fs)?;
+        files.push(LocalTicketFile { reference: join(&[&folder, &name]), text });
+    }
+    Ok(local_tickets(&files)
+        .into_iter()
+        .map(|ticket| TrackedTicket { name: basename(&ticket.reference).to_string(), open: local_ticket_open(&ticket.text), ticket })
+        .collect())
 }
 
 fn github_artifact(runtime: &Runtime, repository: &Resolved, reference: &str, comments: bool) -> Result<ArtifactRead, CritiqueError> {

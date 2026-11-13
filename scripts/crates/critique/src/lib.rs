@@ -11,6 +11,7 @@ pub mod budget;
 pub mod check_adrs;
 pub mod check_plan;
 pub mod check_rewrite;
+pub mod check_tickets;
 pub mod code_change;
 pub mod code_facts;
 pub mod cold_read;
