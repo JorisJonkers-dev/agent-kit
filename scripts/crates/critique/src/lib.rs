@@ -98,6 +98,7 @@ pub mod routing_source;
 pub mod run_ledger;
 pub mod runtime;
 pub mod shell_command;
+pub mod search_server;
 pub mod source_scan;
 pub mod stage;
 pub mod stage_table;
@@ -125,8 +126,12 @@ pub use runtime::{default_runtime, Runtime};
 use std::io::Write;
 
 /// Runs the command line in `runtime` and writes its output; the exit code.
-pub fn run_with(args: impl Iterator<Item = String>, runtime: &Runtime, stdout: &mut dyn Write, stderr: &mut dyn Write) -> i32 {
+pub fn run_with(args: impl Iterator<Item = String>, runtime: &Runtime, stdin: &mut dyn std::io::BufRead, stdout: &mut dyn Write, stderr: &mut dyn Write) -> i32 {
     let argv: Vec<String> = args.collect();
+    // The search server answers a line at a time while its client waits, so it reads standard input as a stream.
+    if argv.first().map(String::as_str) == Some("search-server") {
+        return search_server::serve(&argv[1..], stdin, stdout, stderr);
+    }
     let result = cli::run_cli(&argv, runtime);
     let _ = stderr.write_all(result.stderr.as_bytes());
     let _ = stdout.write_all(result.stdout.as_bytes());

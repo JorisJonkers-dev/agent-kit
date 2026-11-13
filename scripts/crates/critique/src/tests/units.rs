@@ -315,10 +315,10 @@ fn the_real_runtime_is_built_from_the_environment() {
 #[test]
 fn the_output_goes_to_the_two_streams_and_the_exit_code_comes_back() {
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let code = crate::run_with(["bogus".to_string()].into_iter(), &runtime(""), &mut out, &mut err);
+    let code = crate::run_with(["bogus".to_string()].into_iter(), &runtime(""), &mut std::io::empty(), &mut out, &mut err);
     assert_eq!((code, out.len(), String::from_utf8_lossy(&err).starts_with("usage: critique ")), (2, 0, true));
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let code = crate::run_with(["-h".to_string()].into_iter(), &runtime(""), &mut out, &mut err);
+    let code = crate::run_with(["-h".to_string()].into_iter(), &runtime(""), &mut std::io::empty(), &mut out, &mut err);
     assert_eq!((code, err.len(), String::from_utf8_lossy(&out).starts_with("usage: critique ")), (0, 0, true));
 }
 

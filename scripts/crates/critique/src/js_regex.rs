@@ -6,7 +6,8 @@
 //! port that kept their text can be read against the node runner's source.
 //!
 //! Supported: literals, `.`, `\s \w \d \b` and escaped punctuation, classes with ranges and
-//! `\s \w \d`, `^`, `$`, groups `( )` and `(?: )`, the lookaheads `(?= )` and `(?! )`, the negative lookbehind `(?<! )` over one character, alternation,
+//! `\s \w \d`, `^`, `$`, groups `( )` and `(?: )`, the lookaheads `(?= )` and `(?! )`, the negative lookbehind `(?<! )`
+//! over one character, alternation,
 //! `* + ? {n} {n,} {n,m}` with a lazy `?` suffix, the escapes `\n \r \t`, and the `i` flag over ASCII
 //! letters (JavaScript folds no other letter onto an ASCII one). Any other escaped letter is refused,
 //! so a pattern edited to use one fails when it is compiled. Text is matched as characters; an index
@@ -20,6 +21,9 @@ enum Item {
     Space,
     Word,
     Digit,
+    Not(Box<Item>),
+    /// The folded forms of a range's members under `i`, sorted.
+    Folded(Vec<char>),
 }
 
 #[derive(Debug)]
@@ -39,6 +43,7 @@ enum Node {
     Start,
     End,
     Boundary,
+    NotBoundary,
     Seq(Vec<Node>),
     Alt(Vec<Node>),
     Repeat { body: Box<Node>, min: usize, max: Option<usize>, greedy: bool },
@@ -81,26 +86,44 @@ fn is_terminator(c: char) -> bool {
     matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}')
 }
 
-/// The other case of an ASCII letter, which the `i` flag also accepts.
-fn other_case(c: char) -> char {
-    if c.is_ascii_lowercase() {
-        c.to_ascii_uppercase()
-    } else {
-        c.to_ascii_lowercase()
+/// JavaScript's `Canonicalize` for the `i` flag without `u`: the character's upper case when that is one character,
+/// except that nothing beyond ASCII folds onto ASCII. Text is matched by characters here, where JavaScript matches
+/// UTF-16 code units, so a character beyond U+FFFF (two code units there) folds to nothing else.
+fn canonicalize(c: char) -> char {
+    let mut upper = c.to_uppercase();
+    match (upper.next(), upper.next()) {
+        (Some(folded), None) if c <= '\u{ffff}' && (c.is_ascii() || !folded.is_ascii()) => folded,
+        _ => c,
     }
+}
+
+impl Item {
+    fn holds(&self, c: char) -> bool {
+        match self {
+            Item::Range(low, high) => (*low..=*high).contains(&c),
+            Item::Space => is_js_whitespace(c),
+            Item::Word => is_word(c),
+            Item::Digit => c.is_ascii_digit(),
+            Item::Not(item) => !item.holds(c),
+            Item::Folded(folded) => folded.binary_search(&canonicalize(c)).is_ok(),
+        }
+    }
+}
+
+/// The folded forms of every character from `low` to `high`, sorted and without repeats.
+fn folded_range(low: char, high: char) -> Vec<char> {
+    let mut folded: Vec<char> = (low..=high).map(canonicalize).collect();
+    folded.sort_unstable();
+    folded.dedup();
+    folded
 }
 
 impl Set {
     fn contains(&self, c: char, ignore_case: bool) -> bool {
-        let holds = |c: char| {
-            self.items.iter().any(|item| match item {
-                Item::Range(low, high) => (*low..=*high).contains(&c),
-                Item::Space => is_js_whitespace(c),
-                Item::Word => is_word(c),
-                Item::Digit => c.is_ascii_digit(),
-            })
-        };
-        let found = holds(c) || (ignore_case && c.is_ascii_alphabetic() && holds(other_case(c)));
+        let holds = |c: char| self.items.iter().any(|item| item.holds(c));
+        // Under `i` a one-character item matches what folds to the same character; a range was folded when it was read.
+        let single = |c: char| self.items.iter().any(|item| matches!(item, Item::Range(low, high) if low == high && canonicalize(*low) == canonicalize(c)));
+        let found = holds(c) || (ignore_case && single(c));
         found != self.negated
     }
 }
@@ -155,7 +178,7 @@ impl Parser<'_> {
             _ => return Ok(atom),
         };
         // JavaScript lets a lookahead be repeated (Annex B), but not `^`, `$` or `\b`.
-        if matches!(atom, Node::Start | Node::End | Node::Boundary) {
+        if matches!(atom, Node::Start | Node::End | Node::Boundary | Node::NotBoundary) {
             return Err("nothing to repeat".to_string());
         }
         if max.is_some_and(|max| max < min) {
@@ -189,27 +212,44 @@ impl Parser<'_> {
         })
     }
 
-    fn escape(&mut self) -> Result<char, String> {
+    /// What follows a backslash: a character it stands for, or one of the classes and assertions `\\s \\S \\w \\W
+    /// \\d \\D \\b \\B`. Any other letter or digit would mean something this engine does not do, or something
+    /// JavaScript reads differently, so it is refused rather than read as itself.
+    fn escape(&mut self) -> Result<Piece, String> {
         let c = self.peek().ok_or("a pattern ends with a backslash")?;
         self.at += 1;
-        // `\n \r \t` are control characters and `\s \w \d \b` classes; any other letter would mean
-        // something this engine does not do, so it is refused rather than read as the letter.
-        match c {
-            'n' => Ok('\n'),
-            'r' => Ok('\r'),
-            't' => Ok('\t'),
-            's' | 'w' | 'd' | 'b' => Ok(c),
-            letter if letter.is_ascii_alphanumeric() => Err(format!("\\{letter} is not supported")),
-            other => Ok(other),
-        }
+        Ok(match c {
+            'n' => Piece::Literal('\n'),
+            'r' => Piece::Literal('\r'),
+            't' => Piece::Literal('\t'),
+            'f' => Piece::Literal('\u{c}'),
+            'v' => Piece::Literal('\u{b}'),
+            '0' if !self.peek().is_some_and(|next| next.is_ascii_digit()) => Piece::Literal('\0'),
+            'x' => self.hex(2).map_or(Piece::Literal('x'), Piece::Literal),
+            'u' => self.hex(4).map_or(Piece::Literal('u'), Piece::Literal),
+            's' | 'S' | 'w' | 'W' | 'd' | 'D' | 'b' | 'B' => Piece::Class(c),
+            letter if letter.is_ascii_alphanumeric() => return Err(format!("\\{letter} is not supported")),
+            other => Piece::Literal(other),
+        })
+    }
+
+    /// The character `count` hex digits name, taken when all of them follow; otherwise JavaScript reads the letter
+    /// before them as itself. A `\\u` escape that names half a surrogate pair is refused, since text is matched as
+    /// characters here.
+    fn hex(&mut self, count: usize) -> Option<char> {
+        let digits: String = self.chars.get(self.at..self.at + count)?.iter().collect();
+        let value = u32::from_str_radix(&digits, 16).ok().filter(|_| digits.chars().all(|c| c.is_ascii_hexdigit()))?;
+        let c = char::from_u32(value)?;
+        self.at += count;
+        Some(c)
     }
 
     fn atom(&mut self) -> Result<Node, String> {
-        let c = self.escape_or_next()?;
-        match c {
-            ('(', false) => {
+        match self.escape_or_next()? {
+            Piece::Plain('(') => {
                 let node = if self.eat('?') {
-                    let kind = self.escape()?;
+                    let kind = self.peek().ok_or("a group is not closed")?;
+                    self.at += 1;
                     if kind == '<' && !self.eat('!') {
                         return Err("(?< is not supported".to_string());
                     }
@@ -231,30 +271,31 @@ impl Parser<'_> {
                 }
                 Ok(node)
             }
-            ('[', false) => self.set(),
-            ('^', false) => Ok(Node::Start),
-            ('.', false) => Ok(Node::Any),
-            ('$', false) => Ok(Node::End),
-            ('*' | '+' | '?', false) => Err("nothing to repeat".to_string()),
-            (letter, true) => Ok(match letter {
+            Piece::Plain('[') => self.set(),
+            Piece::Plain('^') => Ok(Node::Start),
+            Piece::Plain('.') => Ok(Node::Any),
+            Piece::Plain('$') => Ok(Node::End),
+            Piece::Plain('*' | '+' | '?') => Err("nothing to repeat".to_string()),
+            Piece::Class(letter) => Ok(match letter {
                 's' => Node::Space,
                 'w' => Node::Word,
                 'd' => Node::Digit,
                 'b' => Node::Boundary,
-                other => Node::Char(other),
+                'B' => Node::NotBoundary,
+                other => Node::Set(Set { negated: true, items: vec![class_item(other.to_ascii_lowercase())] }),
             }),
-            (other, false) => Ok(Node::Char(other)),
+            Piece::Plain(other) | Piece::Literal(other) => Ok(Node::Char(other)),
         }
     }
 
-    /// The next character, and whether a backslash escaped it.
-    fn escape_or_next(&mut self) -> Result<(char, bool), String> {
+    /// The next character, read as a backslash escape when it is one.
+    fn escape_or_next(&mut self) -> Result<Piece, String> {
         let c = self.peek().ok_or("a pattern ends too soon")?;
         self.at += 1;
         if c == '\\' {
-            Ok((self.escape()?, true))
+            self.escape()
         } else {
-            Ok((c, false))
+            Ok(Piece::Plain(c))
         }
     }
 
@@ -262,36 +303,55 @@ impl Parser<'_> {
         let negated = self.eat('^');
         let mut items = Vec::new();
         loop {
-            let (c, escaped) = self.escape_or_next().map_err(|_| "a class is not closed".to_string())?;
-            let item = match (c, escaped) {
-                (']', false) => return Ok(Node::Set(Set { negated, items })),
-                ('s', true) => Item::Space,
-                ('w', true) => Item::Word,
-                ('d', true) => Item::Digit,
-                ('b', true) => return Err("\\b in a class is not supported".to_string()),
-                (low, _) => {
-                    let range = self.peek() == Some('-') && self.chars.get(self.at + 1).is_some_and(|next| *next != ']');
-                    if range {
-                        self.at += 1;
-                        let (high, _) = self.escape_or_next()?;
-                        if high < low {
-                            return Err("range out of order in character class".to_string());
-                        }
-                        // JavaScript folds a range's ends before it tests a character, which this engine does not do;
-                        // a range that holds letters of both cases, or more than letters, is refused under `i`.
-                        let letters = |from: char, to: char| (from..=to).any(|c| c.is_ascii_alphabetic());
-                        let one_case = (low.is_ascii_lowercase() && high.is_ascii_lowercase()) || (low.is_ascii_uppercase() && high.is_ascii_uppercase());
-                        if self.ignore_case && letters(low, high) && !one_case {
-                            return Err(format!("the range {low}-{high} is not supported with the i flag"));
-                        }
-                        Item::Range(low, high)
-                    } else {
-                        Item::Range(low, low)
-                    }
+            let piece = self.escape_or_next().map_err(|error| if error == "a pattern ends too soon" { "a class is not closed".to_string() } else { error })?;
+            let low = match piece {
+                Piece::Plain(']') => return Ok(Node::Set(Set { negated, items })),
+                // In a class `\\b` is the backspace.
+                Piece::Class('b') => '\u{8}',
+                Piece::Class('B') => return Err("\\B in a class is not supported".to_string()),
+                Piece::Class(letter) if letter.is_ascii_lowercase() => {
+                    items.push(class_item(letter));
+                    continue;
                 }
+                Piece::Class(letter) => {
+                    items.push(Item::Not(Box::new(class_item(letter.to_ascii_lowercase()))));
+                    continue;
+                }
+                Piece::Plain(c) | Piece::Literal(c) => c,
             };
-            items.push(item);
+            let range = self.peek() == Some('-') && self.chars.get(self.at + 1).is_some_and(|next| *next != ']');
+            if !range {
+                items.push(Item::Range(low, low));
+                continue;
+            }
+            self.at += 1;
+            let high = match self.escape_or_next()? {
+                Piece::Plain(c) | Piece::Literal(c) => c,
+                Piece::Class('b') => '\u{8}',
+                Piece::Class(_) => return Err("a class escape cannot end a range".to_string()),
+            };
+            if high < low {
+                return Err("range out of order in character class".to_string());
+            }
+            // Under `i` JavaScript matches a character whose folded form is the folded form of some member.
+            items.push(if self.ignore_case { Item::Folded(folded_range(low, high)) } else { Item::Range(low, high) });
         }
+    }
+}
+
+/// One piece of a pattern: a character as written, one a backslash escape stands for, or a class escape's letter.
+enum Piece {
+    Plain(char),
+    Literal(char),
+    Class(char),
+}
+
+/// The class item of `\\s`, `\\w` or `\\d`.
+fn class_item(letter: char) -> Item {
+    match letter {
+        's' => Item::Space,
+        'w' => Item::Word,
+        _ => Item::Digit,
     }
 }
 
@@ -299,7 +359,7 @@ impl Parser<'_> {
 fn single_character(body: Node) -> Result<Node, String> {
     match body {
         Node::Seq(mut items) if items.len() == 1 => single_character(items.remove(0)),
-        node @ (Node::Char(_) | Node::Set(_) | Node::Word | Node::Digit | Node::Space) => Ok(node),
+        node @ (Node::Char(_) | Node::Set(_) | Node::Any | Node::Word | Node::Digit | Node::Space) => Ok(node),
         _ => Err("a lookbehind over more than one character is not supported".to_string()),
     }
 }
@@ -318,7 +378,7 @@ impl<'b> Matching<'b> {
     fn single(&self, node: &Node, pos: usize) -> Option<bool> {
         let c = self.text.get(pos).copied();
         match node {
-            Node::Char(expected) => Some(c.is_some_and(|c| c == *expected || (self.ignore_case && c.is_ascii_alphabetic() && other_case(c) == *expected))),
+            Node::Char(expected) => Some(c.is_some_and(|c| c == *expected || (self.ignore_case && canonicalize(c) == canonicalize(*expected)))),
             Node::Set(set) => Some(c.is_some_and(|c| set.contains(c, self.ignore_case))),
             Node::Any => Some(c.is_some_and(|c| !is_terminator(c))),
             Node::Space => Some(c.is_some_and(is_js_whitespace)),
@@ -339,10 +399,10 @@ impl<'b> Matching<'b> {
                 let at_end = pos == self.text.len() || (self.multiline && is_terminator(self.text[pos]));
                 at_end && next(self, pos)
             }
-            Node::Boundary => {
+            Node::Boundary | Node::NotBoundary => {
                 let before = pos > 0 && is_word(self.text[pos - 1]);
                 let after = self.text.get(pos).is_some_and(|c| is_word(*c));
-                before != after && next(self, pos)
+                (before != after) == matches!(node, Node::Boundary) && next(self, pos)
             }
             Node::Seq(items) => self.sequence(items, pos, next),
             Node::Alt(branches) => branches.iter().any(|branch| self.run(branch, pos, next)),
@@ -420,11 +480,6 @@ impl Regex {
         }
         let chars: Vec<char> = pattern.chars().collect();
         let ignore_case = flags.contains('i');
-        // JavaScript folds every letter under `i`; this engine folds ASCII letters only, so a pattern with another
-        // letter is refused rather than matched without folding.
-        if let Some(letter) = chars.iter().find(|c| ignore_case && c.is_alphabetic() && !c.is_ascii()) {
-            return Err(format!("{letter} is not supported with the i flag"));
-        }
         let mut parser = Parser { chars: &chars, at: 0, groups: 0, ignore_case };
         let root = parser.alternation()?;
         if parser.at < chars.len() {
