@@ -1,0 +1,163 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"src/a.ts\",\"src/b.ts\",\"src/c.ts\",\"src/d.ts\",\"src/e.ts\",\"src/dir/index.ts\",\"src/user.ts\",\"pkg/__init__.py\",\"pkg/m.py\",\"pkg/n.py\",\"top.py\",\"src/main/kotlin/a/B.kt\",\"src/main/kotlin/a/C.kt\",\"src/main/kotlin/a/D.kt\",\"src/other/kotlin/a/D.kt\",\"cmd/main.go\",\"src/lib.rs\",\"src/a.rs\",\"src/a/c.rs\",\"src/b/mod.rs\",\"README.md\",\"weird name/é.ts\",\"src/f*.ts\"],\"files\":[\"src/a.ts\",\"README.md\",\"missing.txt\",\"src\",\"src/*.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/fx/src/a.ts": "import { b } from './b.js'\nimport x from 'pkg'\nexport * from \"./c\"\nconst d = require('./d')\nimport('./c')\n// import y from './nope'\n/* import z from './c'\n*/\nexport { q } from '../outside'\n",
+        "repos/fx/src/b.ts": "import { a } from './a'\nimport './e'\n",
+        "repos/fx/src/c.ts": "import d from './d.js'\n",
+        "repos/fx/src/d.ts": "import c from './c.js'\nimport './a'\n",
+        "repos/fx/src/e.ts": "export const e = 1\n",
+        "repos/fx/src/dir/index.ts": "export {}\n",
+        "repos/fx/src/user.ts": "import dir from './dir'\nimport {} from './missing'\n",
+        "repos/fx/pkg/__init__.py": "",
+        "repos/fx/pkg/m.py": "from . import n\nfrom .n import f, g as h\nfrom ..top import z\nimport pkg.n, os\nimport pkg\n# import nope\n",
+        "repos/fx/pkg/n.py": "import pkg.m\n",
+        "repos/fx/top.py": "x = 1\n",
+        "repos/fx/src/main/kotlin/a/B.kt": "import a.C\nimport a.D\nimport kotlin.io.println\n",
+        "repos/fx/src/main/kotlin/a/C.kt": "import a.B\n",
+        "repos/fx/src/main/kotlin/a/D.kt": "",
+        "repos/fx/src/other/kotlin/a/D.kt": "",
+        "repos/fx/cmd/main.go": "package main\n\nimport \"fmt\"\nimport (\n\t\"os\"\n\tio \"io\"\n)\n\nvar s = \"not/an/import\"\n",
+        "repos/fx/src/lib.rs": "mod a;\npub mod b;\nuse crate::a;\nmod missing;\n",
+        "repos/fx/src/a.rs": "mod c;\nuse std::io;\n",
+        "repos/fx/src/a/c.rs": "use super::*;\n",
+        "repos/fx/src/b/mod.rs": "mod lib;\n",
+        "repos/fx/README.md": "# readme\n",
+        "repos/fx/weird name/é.ts": "import x from '../src/e.js'\n",
+        "repos/fx/src/f*.ts": "import './e'\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/fx"
+        ],
+        [
+          "-C",
+          "repos/fx",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/fx",
+          "add",
+          "-A"
+        ],
+        [
+          "GIT_COMMITTER_DATE=2026-01-01T10:00:00Z",
+          "-C",
+          "repos/fx",
+          "commit",
+          "-q",
+          "-m",
+          "one"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"src/a.ts\",\"src/b.ts\",\"src/c.ts\",\"src/d.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"src/a.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"src/e.ts\",\"src/user.ts\",\"src/dir/index.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"pkg/m.py\",\"pkg/n.py\",\"pkg/__init__.py\",\"top.py\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"src/main/kotlin/a/B.kt\",\"src/main/kotlin/a/C.kt\",\"src/main/kotlin/a/D.kt\",\"src/other/kotlin/a/D.kt\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"cmd/main.go\",\"src/lib.rs\",\"src/a.rs\",\"src/a/c.rs\",\"src/b/mod.rs\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"README.md\",\"nothing.ts\",\"nothing\",\"src/nothing.py\",\"weird name/é.ts\",\"src/f*.ts\",\"src/e.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"src/b.ts\",\"src/a.ts\",\"src/b.ts\",\"src/a.ts\"],\"files\":[\"src/b.ts\",\"src/a.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[\"src/𐀀.ts\",\"src/￿.ts\",\"src/a.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

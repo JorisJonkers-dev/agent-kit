@@ -85,8 +85,12 @@ function runScenario(name) {
         rmSync(join(sandbox, 'bin', name), { force: true })
         symlinkSync(hostProgram(name), join(sandbox, 'bin', name))
       }
-      for (const argv of step.git ?? []) {
-        const made = spawnSync('git', [...GIT_IDENTITY, ...argv.map((arg) => arg.split('@SANDBOX@').join(sandbox))], { cwd: sandbox, env: gitEnv(sandbox), encoding: 'utf8' })
+      for (const line of step.git ?? []) {
+        // Leading NAME=value words set that variable for the command (a committer date, say).
+        const assigned = line.findIndex((word) => !/^[A-Z_]+=/.test(word))
+        const extra = Object.fromEntries(line.slice(0, assigned).map((word) => [word.slice(0, word.indexOf('=')), word.slice(word.indexOf('=') + 1)]))
+        const argv = line.slice(assigned)
+        const made = spawnSync('git', [...GIT_IDENTITY, ...argv.map((arg) => arg.split('@SANDBOX@').join(sandbox))], { cwd: sandbox, env: { ...gitEnv(sandbox), ...extra }, encoding: 'utf8' })
         if (made.status !== 0) throw new Error(`${name}: git ${argv.join(' ')}: ${made.stderr}`)
       }
       const env = {

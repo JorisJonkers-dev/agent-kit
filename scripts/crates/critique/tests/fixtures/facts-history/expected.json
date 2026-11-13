@@ -1,0 +1,85 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"commit\": \"ea3469e4ab25a2985fcde0f181ce0e768e52b3a8\",\n  \"history\": [\n    {\n      \"churn\": 1,\n      \"last_commit\": \"ea3469e4ab25a2985fcde0f181ce0e768e52b3a8\",\n      \"last_date\": \"2026-01-01T10:00:00Z\",\n      \"path\": \"src/a.ts\"\n    },\n    {\n      \"churn\": 1,\n      \"last_commit\": \"ea3469e4ab25a2985fcde0f181ce0e768e52b3a8\",\n      \"last_date\": \"2026-01-01T10:00:00Z\",\n      \"path\": \"src/b.ts\"\n    }\n  ],\n  \"status\": \"reported\",\n  \"cycles\": [],\n  \"modules\": [],\n  \"notes\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"commit\": \"530e04089062eba0bfe8ef4f8c50561389cbda19\",\n  \"history\": [\n    {\n      \"churn\": 2,\n      \"last_commit\": \"530e04089062eba0bfe8ef4f8c50561389cbda19\",\n      \"last_date\": \"2026-02-03T04:05:06+02:00\",\n      \"path\": \"src/a.ts\"\n    },\n    {\n      \"churn\": 1,\n      \"last_commit\": \"ea3469e4ab25a2985fcde0f181ce0e768e52b3a8\",\n      \"last_date\": \"2026-01-01T10:00:00Z\",\n      \"path\": \"src/b.ts\"\n    }\n  ],\n  \"status\": \"reported\",\n  \"cycles\": [],\n  \"modules\": [\n    {\n      \"fan_in\": 0,\n      \"fan_out\": 0,\n      \"imports\": [\n        {\n          \"resolved\": \"src/b.ts\",\n          \"specifier\": \"./b.js\"\n        },\n        {\n          \"resolved\": null,\n          \"specifier\": \"pkg\"\n        },\n        {\n          \"resolved\": \"src/c.ts\",\n          \"specifier\": \"./c\"\n        },\n        {\n          \"resolved\": \"src/d.ts\",\n          \"specifier\": \"./d\"\n        },\n        {\n          \"resolved\": null,\n          \"specifier\": \"../outside\"\n        }\n      ],\n      \"instability\": null,\n      \"language\": \"typescript\",\n      \"path\": \"src/a.ts\"\n    }\n  ],\n  \"notes\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n  \"history\": [\n    {\n      \"churn\": 0,\n      \"last_commit\": null,\n      \"last_date\": null,\n      \"path\": \"nothing.ts\"\n    },\n    {\n      \"churn\": 3,\n      \"last_commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n      \"last_date\": \"2026-03-04T05:06:07-05:30\",\n      \"path\": \"src\"\n    },\n    {\n      \"churn\": 0,\n      \"last_commit\": null,\n      \"last_date\": null,\n      \"path\": \"src/*.ts\"\n    },\n    {\n      \"churn\": 3,\n      \"last_commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n      \"last_date\": \"2026-03-04T05:06:07-05:30\",\n      \"path\": \"src/a.ts\"\n    },\n    {\n      \"churn\": 2,\n      \"last_commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n      \"last_date\": \"2026-03-04T05:06:07-05:30\",\n      \"path\": \"src/b.ts\"\n    },\n    {\n      \"churn\": 1,\n      \"last_commit\": \"ea3469e4ab25a2985fcde0f181ce0e768e52b3a8\",\n      \"last_date\": \"2026-01-01T10:00:00Z\",\n      \"path\": \"src/f*.ts\"\n    }\n  ],\n  \"status\": \"reported\",\n  \"cycles\": [],\n  \"modules\": [],\n  \"notes\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n  \"history\": [\n    {\n      \"churn\": 3,\n      \"last_commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n      \"last_date\": \"2026-03-04T05:06:07-05:30\",\n      \"path\": \"src/a.ts\"\n    }\n  ],\n  \"status\": \"reported\",\n  \"cycles\": [],\n  \"modules\": [],\n  \"notes\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"git --literal-pathspecs log --format=%H%x00%cI --end-of-options ba8909a4010ae98b1133241007c1ff2839122a9f -- ../outside failed in @SANDBOX@/repos/fx: fatal: ../outside: '../outside' is outside repository at '@SANDBOX@/repos/fx'\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: git --literal-pathspecs log --format=%H%x00%cI --end-of-options ba8909a4010ae98b1133241007c1ff2839122a9f -- ../outside failed in @SANDBOX@/repos/fx: fatal: ../outside: '../outside' is outside repository at '@SANDBOX@/repos/fx'\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n  \"history\": [\n    {\n      \"churn\": 3,\n      \"last_commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n      \"last_date\": \"2026-03-04T05:06:07-05:30\",\n      \"path\": \"src/a.ts\"\n    }\n  ],\n  \"status\": \"reported\",\n  \"cycles\": [],\n  \"modules\": [],\n  \"notes\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n  \"history\": [],\n  \"status\": \"reported\",\n  \"cycles\": [],\n  \"modules\": [],\n  \"notes\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n  \"history\": [],\n  \"status\": \"reported\",\n  \"cycles\": [],\n  \"modules\": [],\n  \"notes\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"commit\": \"ba8909a4010ae98b1133241007c1ff2839122a9f\",\n  \"history\": [\n    {\n      \"churn\": 0,\n      \"last_commit\": null,\n      \"last_date\": null,\n      \"path\": \"a\"\n    },\n    {\n      \"churn\": 1,\n      \"last_commit\": \"ea3469e4ab25a2985fcde0f181ce0e768e52b3a8\",\n      \"last_date\": \"2026-01-01T10:00:00Z\",\n      \"path\": \"weird name/é.ts\"\n    },\n    {\n      \"churn\": 0,\n      \"last_commit\": null,\n      \"last_date\": null,\n      \"path\": \"z\"\n    },\n    {\n      \"churn\": 0,\n      \"last_commit\": null,\n      \"last_date\": null,\n      \"path\": \"é.ts\"\n    },\n    {\n      \"churn\": 0,\n      \"last_commit\": null,\n      \"last_date\": null,\n      \"path\": \"𐀀\"\n    },\n    {\n      \"churn\": 0,\n      \"last_commit\": null,\n      \"last_date\": null,\n      \"path\": \"😀\"\n    },\n    {\n      \"churn\": 0,\n      \"last_commit\": null,\n      \"last_date\": null,\n      \"path\": \"￿\"\n    }\n  ],\n  \"status\": \"reported\",\n  \"cycles\": [],\n  \"modules\": [],\n  \"notes\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fresh\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/fresh"
+        ],
+        [
+          "-C",
+          "repos/fresh",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fresh\",\"files\":[\"a\"],\"modules\":[\"b\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/none"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/nedap\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/nedap"
+        ],
+        [
+          "-C",
+          "repos/nedap",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/secret.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/gone\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\"}",
+        "--strict"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fresh\"}",
+        "--strict"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\"}"
+      ],
+      "path": [],
+      "remove": []
+    }
+  ]
+}

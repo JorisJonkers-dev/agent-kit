@@ -1,0 +1,187 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "[]"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "null"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "5"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"  \"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":5}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":null}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":\"x\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[5]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":null}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":\"x\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":[null]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"modules\":{}}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[\"\"],\"modules\":[]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[],\"modules\":[\"\"]}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/fx\",\"files\":[],\"modules\":[],\"extra\":1}"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}
