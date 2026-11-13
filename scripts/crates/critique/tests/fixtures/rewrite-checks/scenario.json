@@ -1,0 +1,111 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"We use Postgres.\",\"Events are append-only.\"],\"rewritten\":[{\"path\":\"docs/adr/0001-db.md\",\"decision_sentences\":[\"We use Postgres.\"]},{\"path\":\"docs/adr/0002-events.md\",\"decision_sentences\":[\"Events are append-only.\"]}]}"
+      ],
+      "write": {
+        "repos/rw/docs/adr/0001-db.md": "# 1. DB\n\nWe use Postgres.\n",
+        "repos/rw/docs/adr/0002-events.md": "# 2. Events\n\nEvents are append-only.\n\nSuperseded by [0003](0003-new.md).\n",
+        "repos/rw/docs/adr/0003-new.md": "# 3. New\n\nReplaces ADR-0002.\n",
+        "repos/rw/docs/adr/0004-twice.md": "# 4. Twice\n\nWe use Postgres. We use Postgres.\n",
+        "repos/rw/docs/adr/0005-overlap.md": "# 5. Overlap\n\naaaa\n",
+        "repos/rw/docs/adr/0006-split.md": "# 6. Split\n\nStatus: Superseded\n\nSuperseded by ADR-0007, [eight](0008-eight.md#x) and replaced by `0009`.\n\n```\nSuperseded by [ten](0010-ten.md)\n```\n",
+        "repos/rw/docs/adr/0007-seven.md": "# 7. Seven\n",
+        "repos/rw/docs/adr/0008-eight.md": "# 8. Eight\n",
+        "repos/rw/docs/adr/0009-nine.md": "# 9. Nine\n",
+        "repos/rw/docs/adr/0010-ten.md": "# 10. Ten\n",
+        "repos/rw/docs/adr/..dots.md": "# Dots\n\nEvents are append-only.\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/rw"
+        ],
+        [
+          "-C",
+          "repos/rw",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"We use Postgres.\"],\"rewritten\":[{\"path\":\"docs/adr/0002-events.md\",\"decision_sentences\":[]}]}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"We use Postgres.\",\"Events are append-only.\"],\"rewritten\":[{\"path\":\"docs/adr/0001-db.md\",\"decision_sentences\":[\"We use Postgres.\",\"New one.\"]},{\"path\":\"docs/adr/0004-twice.md\",\"decision_sentences\":[\"Another.\",\"We use Postgres.\"]}]}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"We use Postgres.\"],\"rewritten\":[{\"path\":\"docs/adr/0004-twice.md\",\"decision_sentences\":[\"We use Postgres.\"]}]}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"We use Postgres.\"],\"rewritten\":[{\"path\":\"docs/adr/0001-db.md\",\"decision_sentences\":[\"We use Postgres.\"]},{\"path\":\"docs/adr/0004-twice.md\",\"decision_sentences\":[\"We use Postgres.\"]}]}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"aa\"],\"rewritten\":[{\"path\":\"docs/adr/0005-overlap.md\",\"decision_sentences\":[]}]}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[],\"rewritten\":[]}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"We use Postgres.\"],\"rewritten\":[{\"path\":\"@SANDBOX@/repos/rw/docs/adr/0001-db.md\",\"decision_sentences\":[\"We use Postgres.\"]},{\"path\":\"./docs/../docs/adr/0002-events.md\",\"decision_sentences\":[]}]}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"Events are append-only.\"],\"rewritten\":[{\"path\":\"docs/adr/..dots.md\",\"decision_sentences\":[\"Events are append-only.\"]}]}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"We use Postgres.\"],\"rewritten\":[{\"path\":\"docs/adr/0001-db.md\",\"decision_sentences\":[\"We use Postgres.\"]}],\"ignored\":1}"
+      ]
+    },
+    {
+      "argv": [
+        "check-rewrite",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rw\",\"original_sentences\":[\"nope\"],\"rewritten\":[]}",
+        "--strict"
+      ]
+    }
+  ]
+}

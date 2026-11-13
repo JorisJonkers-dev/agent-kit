@@ -8,6 +8,7 @@ pub mod allow;
 pub mod allowlist;
 pub mod check_adrs;
 pub mod check_plan;
+pub mod check_rewrite;
 pub mod cli;
 pub mod decision_docs;
 pub mod depth;

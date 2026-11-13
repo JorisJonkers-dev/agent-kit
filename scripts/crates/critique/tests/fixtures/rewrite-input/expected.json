@@ -1,0 +1,256 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: original_sentences must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: original_sentences must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: original_sentences must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: original_sentences must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: original_sentences must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: original_sentences must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: original_sentences[0] must be a string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: original_sentences[0] must be a string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: rewritten must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: rewritten must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: rewritten[0] must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: rewritten[0] must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: rewritten[0].decision_sentences must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: rewritten[0].decision_sentences must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: rewritten[0].path must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: rewritten[0].path must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: split must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: split must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: split.original must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: split.original must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: split.files must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: split.files must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: split must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: split must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: a decision sentence is empty\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: a decision sentence is empty\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: a decision sentence is empty\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: a decision sentence is empty\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../escape.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: ../escape.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"/etc/passwd is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: /etc/passwd is outside the repository\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../escape.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: ../escape.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-rewrite input: missing.md does not exist in the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: check-rewrite input: missing.md does not exist in the repository\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"remote origin belongs to the nedap organisation; nothing is sent to any critic\",\n  \"reason\": \"nedap\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique check-rewrite: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 4,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

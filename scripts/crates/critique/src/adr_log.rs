@@ -278,6 +278,21 @@ fn numbering(records: &[AdrEntry]) -> Numbering {
     }
 }
 
+/// Whether one record marks itself superseded by another: it names the other in a clause saying it was superseded or
+/// replaced, by link or ADR number.
+pub fn marked_superseded_by(record: &AdrSource, target: &str) -> bool {
+    references(record).iter().any(|reference| reference.replaced && names_record(reference, target))
+}
+
+/// Whether a target a record names is the record at `path`, by repository path or by the number its file name starts with.
+fn names_record(reference: &Reference, path: &str) -> bool {
+    if reference.path.as_deref() == Some(path) {
+        return true;
+    }
+    let name = model_gateway::text::basename(path);
+    matches!((record_number(name), reference.number), (Some(number), Some(named)) if number == named)
+}
+
 /// Every target a record names outside fenced blocks, in text order.
 fn references(source: &AdrSource) -> Vec<Reference> {
     without_fences(&source.text).split('\n').flat_map(|line| line_references(&source.path, line)).collect()
