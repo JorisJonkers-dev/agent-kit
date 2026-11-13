@@ -76,6 +76,8 @@ fn hosts_and_banks_are_checked() {
     has(&registry().replace("banks.0\tnedap\n", "banks.0\tnedap\nfield\tbanks.1\tshared\n"), "bank shared is not allowed");
     has(&registry().replace("banks.0\tshared\n", "banks.0\tnedap\n"), "bank nedap is not allowed (this instance reaches the shared bank only)");
     has(&registry().replace("banks.0\tshared\n", "banks.0\tprivate\n"), "bank private is not allowed");
+    has(&registry().replace("banks.0\tnedap\n", "banks.0\tprivate\n"), "bank private is not allowed");
+    has(&registry().replace("banks.0\tnedap\n", "banks.0\tnedap\nfield\tbanks.1\tprivate\n"), "bank private is not allowed");
 }
 
 #[test]
