@@ -498,8 +498,9 @@ fn repository_path(record: &str, target: &str) -> Option<String> {
     (path != ".." && !path.starts_with("../")).then_some(path)
 }
 
-/// `path.posix.normalize` for a relative path: `.` and `..` resolved, `//` collapsed, a trailing slash kept.
+/// `path.posix.normalize`: `.` and `..` resolved, `//` collapsed, a trailing slash kept; an absolute path stays absolute and cannot climb above its root.
 fn normalize(path: &str) -> String {
+    let absolute = path.starts_with('/');
     let trailing = path.ends_with('/');
     let mut parts: Vec<&str> = Vec::new();
     for segment in path.split('/') {
@@ -507,7 +508,9 @@ fn normalize(path: &str) -> String {
             "" | "." => {}
             ".." => {
                 if matches!(parts.last(), Some(&"..") | None) {
-                    parts.push("..");
+                    if !absolute {
+                        parts.push("..");
+                    }
                 } else {
                     parts.pop();
                 }
@@ -516,11 +519,14 @@ fn normalize(path: &str) -> String {
         }
     }
     let joined = parts.join("/");
-    match (joined.is_empty(), trailing) {
-        (true, true) => "./".to_string(),
-        (true, false) => ".".to_string(),
-        (false, true) => format!("{joined}/"),
-        (false, false) => joined,
+    match (absolute, joined.is_empty(), trailing) {
+        (true, true, _) => "/".to_string(),
+        (true, false, true) => format!("/{joined}/"),
+        (true, false, false) => format!("/{joined}"),
+        (false, true, true) => "./".to_string(),
+        (false, true, false) => ".".to_string(),
+        (false, false, true) => format!("{joined}/"),
+        (false, false, false) => joined,
     }
 }
 

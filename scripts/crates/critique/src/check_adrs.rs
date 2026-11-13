@@ -42,7 +42,7 @@ fn check_log(runtime: &Runtime, root: &str, paths: &[String]) -> Result<Value, C
     }
     let mut found = HashSet::new();
     for path in linked_paths(&sources) {
-        if runtime.files.exists(&join(&[root, &path])).map_err(CritiqueError::from_fs)? {
+        if exists(runtime, root, &path) {
             found.insert(path);
         }
     }
@@ -55,6 +55,17 @@ fn check_log(runtime: &Runtime, root: &str, paths: &[String]) -> Result<Value, C
         None => (Vec::new(), Vec::new()),
     };
     Ok(report(&structure, &drifted, &stale))
+}
+
+/// Whether the repository path exists, as the node runner's `access` asks: any failure to look reads as "not there",
+/// and a path with a trailing slash must be a directory.
+fn exists(runtime: &Runtime, root: &str, path: &str) -> bool {
+    let probe = join(&[root, path]);
+    if path.ends_with('/') {
+        runtime.dirs.is_dir(&probe)
+    } else {
+        runtime.files.exists(&probe).unwrap_or(false)
+    }
 }
 
 /// A tracked file a symbol is searched in: not the decision log itself, and not vendored dependencies.
@@ -96,7 +107,7 @@ fn code_facts(runtime: &Runtime, root: &str, records: &[CodeChecked]) -> Result<
     }
     let mut existing = HashSet::new();
     for name in names {
-        if runtime.files.exists(&join(&[root, name])).map_err(CritiqueError::from_fs)? {
+        if exists(runtime, root, name) {
             existing.insert(name.to_string());
         }
     }

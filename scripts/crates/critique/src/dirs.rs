@@ -1,6 +1,8 @@
 //! What the runner lists in a directory, which the file port the gateway shares does not.
 
 pub trait Dirs: Send + Sync {
+    /// Whether the path is a directory, or a link to one.
+    fn is_dir(&self, path: &str) -> bool;
     /// The names of the plain files directly inside a directory, sorted as JavaScript sorts strings; empty when it cannot be read.
     fn list_files(&self, path: &str) -> Vec<String>;
 }
@@ -9,6 +11,10 @@ pub trait Dirs: Send + Sync {
 pub struct SystemDirs;
 
 impl Dirs for SystemDirs {
+    fn is_dir(&self, path: &str) -> bool {
+        std::fs::metadata(path).is_ok_and(|kind| kind.is_dir())
+    }
+
     fn list_files(&self, path: &str) -> Vec<String> {
         let Ok(entries) = std::fs::read_dir(path) else {
             return Vec::new();

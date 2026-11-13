@@ -1,0 +1,13 @@
+{
+  "steps": [
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"cites_superseded\": [],\n  \"numbering\": {\n    \"duplicates\": [],\n    \"gaps\": [],\n    \"unnumbered\": []\n  },\n  \"records\": [\n    {\n      \"in_force\": true,\n      \"number\": 1,\n      \"path\": \"docs/adr/0001-a.md\",\n      \"status\": null,\n      \"title\": \"A\"\n    },\n    {\n      \"in_force\": true,\n      \"number\": 2,\n      \"path\": \"docs/adr/0002-b.md\",\n      \"status\": null,\n      \"title\": \"\"\n    },\n    {\n      \"in_force\": true,\n      \"number\": 3,\n      \"path\": \"docs/adr/0003-c.md\",\n      \"status\": null,\n      \"title\": \"C\"\n    }\n  ],\n  \"superseded\": [],\n  \"unknown_statuses\": [],\n  \"unresolved_links\": [\n    {\n      \"kind\": \"link\",\n      \"record\": \"docs/adr/0002-b.md\",\n      \"target\": \"/CONTEXT.md/\"\n    },\n    {\n      \"kind\": \"link\",\n      \"record\": \"docs/adr/0002-b.md\",\n      \"target\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md\"\n    },\n    {\n      \"kind\": \"link\",\n      \"record\": \"docs/adr/0003-c.md\",\n      \"target\": \"/../x.md\"\n    },\n    {\n      \"kind\": \"link\",\n      \"record\": \"docs/adr/0003-c.md\",\n      \"target\": \"//../x.md\"\n    }\n  ],\n  \"drifted\": [\n    {\n      \"named\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md\",\n      \"reason\": \"missing-path\",\n      \"record\": \"docs/adr/0002-b.md\"\n    }\n  ],\n  \"stale\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

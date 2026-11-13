@@ -1,0 +1,47 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/p\"}"
+      ],
+      "write": {
+        "repos/p/docs/adr/0001-a.md": "# A\n",
+        "repos/p/docs/adr/0002-b.md": "Supersedes [first](//docs/adr/0001-a.md). Glossary: [terms](/CONTEXT.md/), [ok](/CONTEXT.md), [dir](/docs/) [dir2](/docs//), [long](aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md). Names `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md` and `CONTEXT.md/`.\n",
+        "repos/p/docs/adr/0003-c.md": "# C\n\nSee [root](/) and [up](/../x.md) and [double](//) [d](//docs/) [e](//../x.md).\n",
+        "repos/p/CONTEXT.md": "# Context\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/p"
+        ],
+        [
+          "-C",
+          "repos/p",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/p",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/p",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ]
+    }
+  ]
+}

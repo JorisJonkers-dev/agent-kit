@@ -220,6 +220,15 @@ scenarios['adrs-edges'] = [
   }, { fresh: true })),
 ]
 
+scenarios['adrs-paths'] = [
+  adrs({ repo: R('p') }, files('p', {
+    'docs/adr/0001-a.md': '# A\n',
+    'docs/adr/0002-b.md': `Supersedes [first](//docs/adr/0001-a.md). Glossary: [terms](/CONTEXT.md/), [ok](/CONTEXT.md), [dir](/docs/) [dir2](/docs//), [long](${'a'.repeat(300)}.md). Names \`${'b'.repeat(300)}.md\` and \`CONTEXT.md/\`.\n`,
+    'docs/adr/0003-c.md': '# C\n\nSee [root](/) and [up](/../x.md) and [double](//) [d](//docs/) [e](//../x.md).\n',
+    'CONTEXT.md': '# Context\n',
+  }, { fresh: true })),
+]
+
 scenarios['adrs-unnumbered'] = [
   adrs({ repo: R('u') }, files('u', { 'docs/adr/README.md': '# Index\n' }, { fresh: true })),
 ]
