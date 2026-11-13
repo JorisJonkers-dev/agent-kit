@@ -1,0 +1,230 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-exit\"}"
+      ],
+      "write": {
+        "repos/cr/docs/adr/0001-db.md": "# 1. DB\n\nWe use Postgres.\n",
+        "repos/cr/docs/adr/0002-events.md": "# 2. Events\n\nEvents are append-only. Revisit in 2027.\n",
+        "repos/cr/docs/adr/sub dir/0003-ünï.md": "# 3. Ünï\n\nUnicode names work.\n",
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "runs/r-exit/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-exit/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-exit\",\"run_id\":\"r-exit\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-timeoutish/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-timeoutish/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-timeoutish\",\"run_id\":\"r-timeoutish\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-unsafe/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-unsafe/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-unsafe\",\"run_id\":\"r-unsafe\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-empty/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-empty/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-empty\",\"run_id\":\"r-empty\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-noexport/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-noexport/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-noexport\",\"run_id\":\"r-noexport\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-nojournal/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-nojournal/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-nojournal\",\"run_id\":\"r-nojournal\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-crlf/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-crlf/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-crlf\",\"run_id\":\"r-crlf\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-nonewline/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-nonewline/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-nonewline\",\"run_id\":\"r-nonewline\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-fenceless/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-fenceless/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-fenceless\",\"run_id\":\"r-fenceless\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-badjson/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-badjson/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-badjson\",\"run_id\":\"r-badjson\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-array/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-array/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-array\",\"run_id\":\"r-array\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-unclosed-first/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-unclosed-first/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-unclosed-first\",\"run_id\":\"r-unclosed-first\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-nulls/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-nulls/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-nulls\",\"run_id\":\"r-nulls\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-text-parts/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-text-parts/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-text-parts\",\"run_id\":\"r-text-parts\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/r-no-assistant/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/r-no-assistant/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/r-no-assistant\",\"run_id\":\"r-no-assistant\",\"stage\":\"spec\",\"version\":1}\n",
+        "bin/vibe": "#!/bin/sh\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = --output-dir ]; then out=\"$2\"; fi\n  shift\ndone\nmkdir -p \"$out\"\ncase \"$out\" in\n*/r-exit/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"Here is what I read.\\n```json\\n{\\\"decided\\\":\\\"a\\\"}\\n```\\nDone.\\n\"}]}]'\nprintf '%s' 'boom\n' >&2\nexit 3\n;;\n*/r-timeoutish/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300},\"outcome\":\"time-limit\"}' > \"$out/export.json\"\nprintf '%s' ''\nprintf '%s' '' >&2\nexit 124\n;;\n*/r-unsafe/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":true,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"Here is what I read.\\n```json\\n{\\\"decided\\\":\\\"a\\\"}\\n```\\nDone.\\n\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-empty/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '  \n'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-noexport/cold-read/1/export)\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"Here is what I read.\\n```json\\n{\\\"decided\\\":\\\"a\\\"}\\n```\\nDone.\\n\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-nojournal/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' 'not json'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-crlf/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"Pre\\n```json \\t\\r\\n{\\\"decided\\\":\\\"crlf\\\",\\\"rejected\\\":\\\"r\\\",\\\"revisit\\\":\\\"v\\\"}\\r\\n```\\n\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-nonewline/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"```json\\n{\\\"decided\\\":\\\"tight\\\",\\\"rejected\\\":\\\"r\\\",\\\"revisit\\\":\\\"v\\\"}```\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-fenceless/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"{\\\"decided\\\":\\\"no fence\\\"}\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-badjson/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"```json\\n{decided}\\n```\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-array/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"```json\\n[\\\"decided\\\"]\\n```\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-unclosed-first/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"```json x\\n{\\\"decided\\\":\\\"no\\\"}\\n```\\n```json\\n{\\\"decided\\\":\\\"yes\\\"}\\n```\\n```json\\n{\\\"decided\\\":\\\"open\\\"}\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-nulls/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"Here is what I read.\\n```json\\n{\\\"decided\\\":null}\\n```\\nDone.\\n\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-text-parts/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"```json\\n{\\\"decided\\\":\\\"split \"},{\"image\":1},{\"text\":\"reply\\\"}\\n```\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/r-no-assistant/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-timeoutish\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-unsafe\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-empty\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-noexport\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-nojournal\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-crlf\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-nonewline\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-fenceless\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-badjson\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-array\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-unclosed-first\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-nulls\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-text-parts\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/r-no-assistant\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}

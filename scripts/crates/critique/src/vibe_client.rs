@@ -335,7 +335,7 @@ pub fn vibe_sign_in(runtime: &Runtime, config: &VibeCriticClient) -> Result<Clie
 /// effective config), and returns its final message as plain text.
 pub fn vibe_ask(runtime: &Runtime, question: &ModelQuestion, config: &VibeCriticClient) -> Result<ModelAnswerReport, CritiqueError> {
     let paths = LaunchPaths {
-        export_dir: join(&[&question.output_dir, "export"]),
+        export_dir: crate::paths::join(&[&question.output_dir, "export"]),
         prompt_path: question.prompt_path.clone(),
         run_dir: None,
         work_dir: question.work_dir.clone(),
@@ -400,7 +400,7 @@ fn launch(
 /// would not start.
 fn launch_error(error: ClientRunError) -> CritiqueError {
     match error {
-        ClientRunError::Gateway(error) => CritiqueError::new(&error.code, error.message),
+        ClientRunError::Gateway(error) => CritiqueError::unexpected(error.message),
         ClientRunError::Spawn(message) => CritiqueError::unexpected(message),
     }
 }
@@ -425,7 +425,7 @@ fn vibe_home(runtime: &Runtime) -> Result<String, CritiqueError> {
 /// Whether the home is signed in, asked where Vibe keeps its key.
 fn signed_in(runtime: &Runtime, home: &str) -> Result<bool, CritiqueError> {
     vibe_signed_in(runtime.gateway.process.as_ref(), runtime.gateway.files.as_ref(), home, node_platform())
-        .map_err(|error| CritiqueError::new(&error.code, error.message))
+        .map_err(|error| CritiqueError::unexpected(error.message))
 }
 
 /// Whether the binary is there: an absolute path as it stands, else the first `PATH` folder that holds it.

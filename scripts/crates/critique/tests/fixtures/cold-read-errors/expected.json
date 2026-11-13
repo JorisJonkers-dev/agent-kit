@@ -1,0 +1,366 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: files must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: files must be a list\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: files must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: files must be a list\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: files[0] must be a string\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: files[0] must be a string\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: files names no record\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: files names no record\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/missing/manifest.json does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: @SANDBOX@/runs/missing/manifest.json does not exist\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/e-badjson/manifest.json: Unexpected token 'o', \\\"not json\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: @SANDBOX@/runs/e-badjson/manifest.json: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/e-shape/manifest.json: allowed_families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: @SANDBOX@/runs/e-shape/manifest.json: allowed_families must be a list\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/e-version/manifest.json: version must be 1\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: @SANDBOX@/runs/e-version/manifest.json: version must be 1\n",
+      "files": {
+        "home/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../escape.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: ../escape.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: missing.md does not exist in the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: missing.md does not exist in the repository\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../escape.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: ../escape.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../escape.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: ../escape.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"/etc/passwd is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: /etc/passwd is outside the repository\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"cold-read input: docs/adr/missing.md does not exist in the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: cold-read input: docs/adr/missing.md does not exist in the repository\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"routing has no cold_read, so a rewrite cannot be cold-read\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: routing has no cold_read, so a rewrite cannot be cold-read\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":null}\n",
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-routing.json: Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: @SANDBOX@/home/.config/agent-kit/critique-routing.json: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{",
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: cold_read.client must name a vibe client of clients; nope is not defined\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: cold_read.client must name a vibe client of clients; nope is not defined\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"nope\",\"max_price_usd\":1,\"time_limit_s\":1}}",
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-routing.json: the override must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique cold-read: @SANDBOX@/home/.config/agent-kit/critique-routing.json: the override must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "[]",
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"files\": [\n    {\n      \"missing\": [\n        \"decided\",\n        \"rejected\",\n        \"revisit\"\n      ],\n      \"path\": \"docs/adr/0001-db.md\",\n      \"reason\": \"vibe: vibe is not on PATH\",\n      \"status\": \"unavailable\"\n    }\n  ],\n  \"run_id\": \"e1\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.cache/": null,
+        "home/.vibe/": null,
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/": null,
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "work/": null
+      }
+    }
+  ]
+}

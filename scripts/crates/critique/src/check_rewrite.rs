@@ -10,7 +10,8 @@ use crate::fields::Fields;
 use crate::repository::{resolve, Resolution};
 use crate::runtime::Runtime;
 use model_gateway::json::{Object, Value};
-use model_gateway::text::{join, resolve as resolve_path};
+use crate::paths::inside_repository;
+use model_gateway::text::join;
 
 struct Rewritten {
     path: String,
@@ -109,20 +110,6 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     result.set("failures", Value::Arr(failures));
     result.set("status", Value::str(status));
     Ok(Value::Obj(result))
-}
-
-/// The repository-relative form of `path`; a path outside the repository is an error.
-fn inside_repository(root: &str, path: &str) -> Result<String, CritiqueError> {
-    let absolute = resolve_path(root, path);
-    let relative = if absolute == root {
-        Some("")
-    } else {
-        absolute.strip_prefix(&format!("{}/", root.trim_end_matches('/')))
-    };
-    match relative {
-        Some(relative) if !relative.starts_with("..") => Ok(relative.to_string()),
-        _ => Err(CritiqueError::new("outside-repository", format!("{path} is outside the repository"))),
-    }
 }
 
 /// A rewritten file as it sits in the working tree; one missing there is input the command cannot check.
