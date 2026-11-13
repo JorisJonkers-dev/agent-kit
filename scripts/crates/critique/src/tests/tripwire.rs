@@ -43,6 +43,10 @@ fn a_porcelain_listing_skips_the_source_of_a_rename_or_copy() {
 struct Status(Mutex<Result<Vec<PorcelainEntry>, String>>);
 
 impl Git for Status {
+    fn commit_log(&self, _cwd: &str, _revision: &str, _paths: &[String], _limit: usize) -> Result<Vec<crate::recovery::HistoryEntry>, String> {
+        Err("unused".to_string())
+    }
+
     fn remotes(&self, _cwd: &str) -> Result<Vec<GitRemote>, String> {
         Err("unused".to_string())
     }
