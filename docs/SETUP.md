@@ -544,42 +544,42 @@ the template is expanded, and
 (open) the desktop Code tab. A session without the variable has no github MCP tools; use `gh`
 instead.
 
-Checked live on the Linux workstation (2026-11-12): `GITHUB_PERSONAL_ACCESS_TOKEN`,
-`GITHUB_PAT`, `GH_TOKEN` and `GITHUB_TOKEN` were all unset in the environment
-Claude Code was started from, and the session's MCP status listed
-`plugin:github:github` as failed with exactly the 400 above, so the cause here
-is most likely the missing variable (inferred from the header template; the
-server was not shown connecting with the variable set), not an agent-kit bug (the
-plugin ships the `Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}` header itself and
-setup cannot rewrite it). The owner step: export the variable from a private,
-uncommitted shell profile (`export GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth
-token)"`, or a fine-grained token with repository read and write), then start a
-new Claude Code session. A token with a trailing newline or a `Bearer ` prefix
-of its own is expected, from the header template, to produce the same 400 (not
-tested), so keep the value to the bare token.
-
-## Playwright MCP on a cold cache
-
-The registry pins `@playwright/mcp` (container pin, `post_install` fetches the
-matching Chromium) and Claude and Codex start it as the one `playwright-mcp`
-binary on `PATH`, headless (Vibe's config was not read, see below):
-`playwright-mcp --headless --browser chromium`. It is never run through `npx`,
-so an empty `~/.npm/_npx` cannot change which binary starts.
-
-Checked live on the Linux workstation (2026-11-12) with `~/.npm/_npx` moved
-aside (restored afterwards), `playwright-mcp` resolving to
+Checked live on the Linux workstation (2026-11-14) with `~/.npm` (the npm and
+`npx` cache) and `~/.cache/ms-playwright` (the browser cache) both moved aside
+(restored afterwards). `playwright-mcp` resolves to
 `~/.npm-global/bin/playwright-mcp`, which links to
-`~/.npm-global/lib/node_modules/@playwright/mcp/cli.js`:
+`~/.npm-global/lib/node_modules/@playwright/mcp/cli.js` (`@playwright/mcp`
+0.0.84, the registry pin). Every client's config holds the same entry,
+`playwright-mcp --headless --browser chromium`.
 
-| Agent | Tools listed | Binary the server ran from |
+| Client | How it was listed | Result |
 | --- | --- | --- |
-| Claude | 25 (`mcp__playwright__browser_*`), server `connected` | `playwright-mcp` from `~/.npm-global/bin` per its config; the process snapshot cannot tell its server from other sessions' |
-| Codex | 25 (`browser_*`, through the app-server MCP status call) | the same command; a new `playwright-mcp` process appeared during the Codex run, but its parent was not recorded as Codex |
-| Vibe | 25 (`browser_*`, through its tool search) | not observed: Vibe's process was not seen starting it and its config was not readable from the check |
+| Claude | `claude mcp get playwright` (starts the server, no model call) | `Status: Connected`, command `playwright-mcp` |
+| Codex | `codex mcp get playwright` shows the entry only | the same command; tools listed over stdio below |
+| Vibe | `vibe mcp` has only `add` and `remove`, so no list | the same command in `~/.vibe/config.toml`; tools listed over stdio below |
 
-Codex was not logged in to a model account, so its tools were listed from its
-MCP status call rather than from a model turn. Vibe's resolved path therefore
-remains unverified; #505 stays open for it.
+Codex and Vibe cannot list tools without a model session, so the exact command
+from each client's own config was started and sent JSON-RPC `initialize`,
+`notifications/initialized` and `tools/list` over stdio, with no model called.
+All three ran `node ~/.npm-global/bin/playwright-mcp --headless ...` and listed
+25 tools (`browser_close`, `browser_click`, ... ), with both caches absent. To
+repeat it, on a machine with the three clients configured:
+
+```sh
+mv ~/.npm ~/.npm.aside && mv ~/.cache/ms-playwright ~/.cache/ms-playwright.aside
+claude mcp get playwright          # Status: Connected
+codex mcp get playwright           # command: playwright-mcp
+vibe mcp --help                    # add/remove only; read the entry from ~/.vibe/config.toml
+# then, per client, start its configured command and send initialize + tools/list
+readlink -f "$(command -v playwright-mcp)"   # the one pinned binary
+rm -rf ~/.npm ~/.cache/ms-playwright          # only what the check re-created
+mv ~/.npm.aside ~/.npm && mv ~/.cache/ms-playwright.aside ~/.cache/ms-playwright
+```
+
+`tests/test_playwright_pinned.py` proves the wiring statically: every client
+entry names the bare `playwright-mcp`, and setup installs the pin before it
+writes any client's config. The work Mac has not been checked; run the same
+commands there and record the result here.
 
 ## Package proxy
 
