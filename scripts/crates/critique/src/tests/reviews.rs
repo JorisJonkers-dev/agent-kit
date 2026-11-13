@@ -57,6 +57,34 @@ impl Git for Scripted {
         Err("unused".to_string())
     }
 
+    fn merge_base(&self, _cwd: &str, _a: &str, _b: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn diff_commits(&self, _cwd: &str, _base: &str, _head: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn changed_paths(&self, _cwd: &str, _base: &str, _head: &str) -> Result<Vec<String>, String> {
+        Err("unused".to_string())
+    }
+
+    fn staged_entries(&self, _cwd: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn tree_of(&self, _cwd: &str, _revision: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn write_index_tree(&self, _cwd: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn commit_tree(&self, _cwd: &str, _tree: &str, _parent: &str, _message: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
     fn tree_files(&self, _cwd: &str, _commit: &str) -> Result<Vec<String>, String> {
         Err("unused".to_string())
     }
@@ -134,6 +162,7 @@ fn machine(case: &json::Object) -> (PathBuf, Runtime) {
         git: Box::new(Scripted { remotes, common: common.to_string_lossy().into_owned() }),
         env,
         assets_root: "/assets".to_string(),
+        gh: Box::new(crate::gh::SystemGh { env: HashMap::new() }),
         stdin: Box::new(String::new),
     };
     (home, runtime)
