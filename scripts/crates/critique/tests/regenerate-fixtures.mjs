@@ -40,8 +40,8 @@ function snapshot(sandbox, roots) {
   return files
 }
 
-/** The sandbox's path is @SANDBOX@ in every output. */
-const normalise = (text, sandbox) => text.split(sandbox).join('@SANDBOX@')
+/** The sandbox's path is @SANDBOX@ in every output, and the folder the runner and its shipped files sit in is /assets. */
+const normalise = (text, sandbox) => text.split(sandbox).join('@SANDBOX@').split(dirname(runner)).join('/assets')
 
 /** The first program of that name on the host's PATH. */
 function hostProgram(name) {

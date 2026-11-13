@@ -2,5 +2,6 @@
 
 mod adrs;
 mod cli;
+mod routing;
 mod scenarios;
 mod units;

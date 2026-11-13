@@ -1,0 +1,174 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goals.md\"}"
+      ],
+      "write": {
+        "work/goals.md": "# Plan\n\n## Goal\nBehaviour changes for callers.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: behaviour\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goal-denied.md\"}"
+      ],
+      "write": {
+        "work/goal-denied.md": "# Plan\n\n## Goal\nBehaviour does not change. Nothing alters behaviour here.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: behaviour\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goal-never.md\"}"
+      ],
+      "write": {
+        "work/goal-never.md": "# Plan\n\n## Goal\nThe behaviour will never change.\nBut we change the behaviour of the parser.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: behaviour\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goal-mixed.md\"}"
+      ],
+      "write": {
+        "work/goal-mixed.md": "# Plan\n\n## Goal\nNo change to the log. The behaviour of the cache differs.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: behaviour\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goal-without.md\"}"
+      ],
+      "write": {
+        "work/goal-without.md": "# Plan\n\n## Goal\nWe alter things without a behaviour change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: behaviour\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goal-not.md\"}"
+      ],
+      "write": {
+        "work/goal-not.md": "# Plan\n\n## Goal\nBehaviour is not changed anywhere.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: behaviour\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"untested.md\"}"
+      ],
+      "write": {
+        "work/untested.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: structure\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: none\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S02: Do the thing\n- **Kind**: characterize\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S03: Do the thing\n- **Kind**: structure\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: untested code\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S02\n- **Done when**: the tests pass\n\n### S04: Do the thing\n- **Kind**: structure\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: No tests\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S03\n- **Done when**: the tests pass\n\n### S05: Do the thing\n- **Kind**: structure\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: Nothing covers it\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S09\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"size.md\"}"
+      ],
+      "write": {
+        "work/size.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c, d, e, f\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c; d; e; f; g; h; i\n\n### S02: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: \n  - a\n  - b\n  - c\n  - d\n  - e\n  - f\n  - g\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"size-sub.md\"}"
+      ],
+      "write": {
+        "work/size-sub.md": "## Goal\nx\n## Target\nx\n## Safety net\nx\n## Steps\n### S01: Sub\n- **Kind**: tidy\n- **Technique**: t\n- **Anchor**: ADR-1\n- **Touches**: a, b,, c ; d\n  - e\n  - f\n  - g\n  - h\n  - i\n  - j\n- **Safety net**: s\n- **Main stays green because**: m\n- **Rollback**: r\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: x\n  - 1\n  - 2\n  - 3\n  - 4\n  - 5\n  - 6\n  - 7\n  - 8\n  - 9\n## Not doing\nx\n## Open decisions\nx\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"expand.md\"}"
+      ],
+      "write": {
+        "work/expand.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: expand\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S02: Do the thing\n- **Kind**: migrate\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"expand-ok.md\"}"
+      ],
+      "write": {
+        "work/expand-ok.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: expand\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S02: Do the thing\n- **Kind**: migrate\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S03: Do the thing\n- **Kind**: contract\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"expand-contract.md\"}"
+      ],
+      "write": {
+        "work/expand-contract.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: expand\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S02: Do the thing\n- **Kind**: contract\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"paths.md\"}"
+      ],
+      "write": {
+        "work/paths.md": "# Plan\n\n## Goal\nMove src/parser/index.ts and see https://example.com/a/b/c.ts, plus lib.rs.\n\n## Target\nThe parser in src/parser/mod.ts.\n\n## Safety net\nTests in tests/a/b.rs and a_b-c.sh.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: move docs/guide/intro.md and docs/x.md\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: foo.test.ts and @scope/pkg/index.mjs and .hidden/file.yml\n- **Rollback**: revert `a/b/c`\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: x.json parses; no a.b.c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"paths-prose.md\"}"
+      ],
+      "write": {
+        "work/paths-prose.md": "## Goal\nx\n## Target\nx\n## Safety net\nx\n## Steps\n### S01: Prose\nSee src/a.ts for details.\n- **Kind**: tidy\n- **Technique**: t\n  continued in lib/x.ts\n- **Anchor**: `src/a.ts`\n  - `src/a.ts` also\n- **Touches**: src/a.ts\n- **Safety net**: s\n- **Main stays green because**: m\n- **Rollback**: r\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: x\n## Not doing\nx\n## Open decisions\nx\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"stored.md\"}"
+      ],
+      "write": {
+        "work/stored.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: migrate\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: the users table\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S02: Do the thing\n- **Kind**: contract\n- **Technique**: drop the old column\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S03: Do the thing\n- **Kind**: migrate\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: config\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S04: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: schema\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S05: Do the thing\n- **Kind**: contract\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: \n  - the database\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"many.md\"}"
+      ],
+      "write": {
+        "work/many.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S02: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S01\n- **Done when**: the tests pass\n\n### S03: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S02\n- **Done when**: the tests pass\n\n### S04: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S03\n- **Done when**: the tests pass\n\n### S05: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S04\n- **Done when**: the tests pass\n\n### S06: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S05\n- **Done when**: the tests pass\n\n### S07: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S06\n- **Done when**: the tests pass\n\n### S08: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S07\n- **Done when**: the tests pass\n\n### S09: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S08\n- **Done when**: the tests pass\n\n### S10: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S09\n- **Done when**: the tests pass\n\n### S11: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S10\n- **Done when**: the tests pass\n\n### S12: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S11\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"unicode.md\"}"
+      ],
+      "write": {
+        "work/unicode.md": "# Plan\n\n## Goal\nÄnderung: behaviour changes — ünïcode   line sep.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: behaviour\n- **Technique**: naïve extract — ok\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    }
+  ]
+}

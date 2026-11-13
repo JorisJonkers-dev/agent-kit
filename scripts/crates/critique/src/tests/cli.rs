@@ -59,6 +59,7 @@ pub fn runtime(stdin: &str) -> Runtime {
         dirs: Box::new(crate::dirs::SystemDirs),
         git: Box::new(NoGit),
         env: HashMap::new(),
+        assets_root: "/assets".to_string(),
         stdin: Box::new(move || stdin.clone()),
     }
 }

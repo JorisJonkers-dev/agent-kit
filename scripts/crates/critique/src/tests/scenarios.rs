@@ -244,6 +244,7 @@ impl Replay {
             dirs: Box::new(crate::dirs::SystemDirs),
             git: Box::new(SystemGit { env: env.clone() }),
             env,
+            assets_root: "/assets".to_string(),
             stdin: Box::new(move || stdin.clone()),
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();

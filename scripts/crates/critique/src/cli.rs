@@ -1,6 +1,6 @@
 //! The runner's command line: one command, one JSON object in, one JSON object out.
 
-use crate::{allow, check_adrs};
+use crate::{allow, check_adrs, check_plan};
 use crate::error::CritiqueError;
 use crate::runtime::Runtime;
 use model_gateway::json::{self, Object, Value};
@@ -28,7 +28,7 @@ pub const COMMANDS: [(&str, Option<Command>); 19] = [
     ("allow", Some(allow::run)),
     ("budget", None),
     ("check-adrs", Some(check_adrs::run)),
-    ("check-plan", None),
+    ("check-plan", Some(check_plan::run)),
     ("check-rewrite", None),
     ("check-tickets", None),
     ("cold-read", None),

@@ -1,0 +1,173 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":5}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"x\",\"repo\":\"\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"x\",\"repo\":5}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "[]"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "null"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"x\",\"repo\":null}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"x\",\"repo\":\"@SANDBOX@/repos/none\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/none"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"x\",\"repo\":\"@SANDBOX@/repos/nedap\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/nedap"
+        ],
+        [
+          "-C",
+          "repos/nedap",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/secret.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"x\",\"repo\":\"@SANDBOX@/repos/gone\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"missing.md\",\"repo\":\"@SANDBOX@/repos/bare\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/bare"
+        ],
+        [
+          "-C",
+          "repos/bare",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"missing.md\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"dir\"}"
+      ],
+      "mkdir": [
+        "work/dir"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"extra.md\",\"ignored\":true}"
+      ],
+      "write": {
+        "work/extra.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"p.md\"}"
+      ],
+      "write": {
+        "work/p.md": ""
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"x\",\"repo\":\"@SANDBOX@/repos/none\"}",
+        "--strict"
+      ]
+    }
+  ]
+}

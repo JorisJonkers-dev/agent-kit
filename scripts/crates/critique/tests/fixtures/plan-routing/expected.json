@@ -1,0 +1,272 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"errors\": [\n    {\n      \"message\": \"step S01 touches 3 modules; the limit is 2\",\n      \"rule\": \"too-many-touches\",\n      \"step\": \"S01\"\n    },\n    {\n      \"message\": \"step S01 has 3 done-when criteria; the limit is 2\",\n      \"rule\": \"too-many-criteria\",\n      \"step\": \"S01\"\n    }\n  ],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"tickets\":{\"ticket_size\":{\"max_modules\":2,\"max_criteria\":2}}}}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"tickets\":{\"ticket_size\":{\"max_modules\":3,\"max_criteria\":3}}}}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"tickets\":{\"ticket_size\":null}}}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-routing.json: Unexpected token 'o', \\\"not json\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: @SANDBOX@/home/.config/agent-kit/critique-routing.json: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "not json",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-routing.json: Unexpected end of JSON input\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: @SANDBOX@/home/.config/agent-kit/critique-routing.json: Unexpected end of JSON input\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-routing.json: the override must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: @SANDBOX@/home/.config/agent-kit/critique-routing.json: the override must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "[1]",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-routing.json: the override must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: @SANDBOX@/home/.config/agent-kit/critique-routing.json: the override must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "null",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-routing.json: the override must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: @SANDBOX@/home/.config/agent-kit/critique-routing.json: the override must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "\"x\"",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-routing.json: Unexpected end of JSON input\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: @SANDBOX@/home/.config/agent-kit/critique-routing.json: Unexpected end of JSON input\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: version must be 1\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: version must be 1\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"version\":2}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: version must be 1\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: version must be 1\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"version\":null}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"routing has no stage tickets\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: routing has no stage tickets\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"tickets\":null}}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: stages must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: stages must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":null}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":null}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: stages.tickets.ticket_size.max_modules must be a number\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: stages.tickets.ticket_size.max_modules must be a number\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"tickets\":{\"ticket_size\":{\"max_modules\":\"x\"}}}}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: stages.tickets.ticket_size must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: stages.tickets.ticket_size must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"tickets\":{\"ticket_size\":5}}}",
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json/": null,
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"required environment variable is missing: HOME\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: required environment variable is missing: HOME\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null,
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    }
+  ]
+}
