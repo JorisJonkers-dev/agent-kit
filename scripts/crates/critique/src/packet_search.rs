@@ -20,3 +20,25 @@ pub fn default_search_limits() -> SearchLimits {
 pub fn read_search_limits(fields: &Fields<'_>) -> Result<SearchLimits, ShapeError> {
     Ok(SearchLimits { max_bytes: fields.positive_integer("max_bytes")?, max_matches: fields.positive_integer("max_matches")? })
 }
+
+/// The three tools of the runner's search server.
+pub const SEARCH_TOOLS: [&str; 3] = ["grep", "list", "symbol"];
+
+/// One tool of the runner's search server.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SearchToolName {
+    Grep,
+    List,
+    Symbol,
+}
+
+impl SearchToolName {
+    /// The tool's name, as the server and a critic's prompt write it.
+    pub fn name(self) -> &'static str {
+        match self {
+            SearchToolName::Grep => "grep",
+            SearchToolName::List => "list",
+            SearchToolName::Symbol => "symbol",
+        }
+    }
+}

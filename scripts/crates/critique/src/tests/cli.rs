@@ -54,6 +54,7 @@ impl Clock for Frozen {
 pub fn runtime(stdin: &str) -> Runtime {
     let stdin = stdin.to_string();
     Runtime {
+        gateway: model_gateway::default_runtime(),
         clock: Box::new(Frozen),
         files: Box::new(model_gateway::adapters::fs::SystemFiles { cwd: "/".to_string() }),
         dirs: Box::new(crate::dirs::SystemDirs),

@@ -239,6 +239,17 @@ impl Replay {
         };
         let stdin = self.substitute(text(step, "stdin"));
         let runtime = Runtime {
+            gateway: model_gateway::ports::Runtime {
+                clock: Box::new(FixedClock(now)),
+                files: Box::new(SystemFiles { cwd: sandbox.join("work").to_string_lossy().into_owned() }),
+                lock: model_gateway::ports::LockTimings::default(),
+                process: Box::new(model_gateway::adapters::process::SystemProcess { env: env.clone() }),
+                git: Box::new(model_gateway::adapters::git::SystemGit { env: env.clone(), timeout_ms: model_gateway::adapters::git::TIMEOUT_MS }),
+                env: env.clone(),
+                defaults: model_gateway::SHIPPED_DEFAULTS.to_string(),
+                defaults_path: "defaults.json".to_string(),
+                routing: model_gateway::SHIPPED_ROUTING.to_string(),
+            },
             clock: Box::new(FixedClock(now)),
             files: Box::new(SystemFiles { cwd: sandbox.join("work").to_string_lossy().into_owned() }),
             dirs: Box::new(crate::dirs::SystemDirs),

@@ -554,6 +554,12 @@ takes no registry dependency: it reuses the ordered JSON, the ports and the adap
   `{"code":"not-ported",...}` and exits 1; they arrive in later slices. `search-server` is
   not ported and prints the usage. Known differences: JSON syntax-error context is windowed in
   characters, not UTF-16 units, a lone surrogate in a string reads as U+FFFD, JSON nested hundreds of thousands deep overflows the stack instead of reading as the wrong shape, an empty or relative `HOME` is read as an absolute path, and an `--input` path is normalised lexically (a trailing `/` or `..` through a symlink).
+* **Infrastructure for the model commands** (no command uses it yet; unit-tested, not golden-tested): the run manifest
+  (`manifest.rs`, `roster.rs`), the flow budget's invocation line and the gateway ledger record (`flow_budget.rs`),
+  the Vibe client's `ask`, sign-in and readiness (`vibe_client.rs`, `clients.rs`: agy, codex and claude read as not wired
+  until their commands arrive), the read-only toolset text (`critic_tools.rs`), the plan limit read through the
+  gateway's code (`plan.rs`) and the shipped files read from `assets_root` (`assets.rs`). `Runtime.gateway` is the gateway's
+  own runtime, which the ledger, the plan limit and the client launches go through.
 * **Goldens.** `tests/gen-scenarios.mjs` writes the scenario inputs and
   `tests/regenerate-fixtures.mjs` runs the node runner over each with fake programs in a
   temporary sandbox (fixed clock, fixed `HOME`, git repositories made in the sandbox) and
