@@ -188,7 +188,6 @@
       "stderr": "critique cold-read: ../escape.md is outside the repository\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,
@@ -202,7 +201,6 @@
       "stderr": "critique cold-read: cold-read input: missing.md does not exist in the repository\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,
@@ -216,7 +214,6 @@
       "stderr": "critique cold-read: ../escape.md is outside the repository\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,
@@ -230,7 +227,6 @@
       "stderr": "critique cold-read: ../escape.md is outside the repository\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,
@@ -244,7 +240,6 @@
       "stderr": "critique cold-read: EISDIR: illegal operation on a directory, read\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,
@@ -258,7 +253,6 @@
       "stderr": "critique cold-read: /etc/passwd is outside the repository\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,
@@ -272,7 +266,6 @@
       "stderr": "critique cold-read: cold-read input: docs/adr/missing.md does not exist in the repository\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,
@@ -286,7 +279,6 @@
       "stderr": "critique cold-read: routing has no cold_read, so a rewrite cannot be cold-read\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.config/": null,
         "home/.config/agent-kit/": null,
         "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":null}\n",
@@ -303,7 +295,6 @@
       "stderr": "critique cold-read: @SANDBOX@/home/.config/agent-kit/critique-routing.json: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.config/": null,
         "home/.config/agent-kit/": null,
         "home/.config/agent-kit/critique-routing.json": "{",
@@ -320,7 +311,6 @@
       "stderr": "critique cold-read: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: cold_read.client must name a vibe client of clients; nope is not defined\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.config/": null,
         "home/.config/agent-kit/": null,
         "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"nope\",\"max_price_usd\":1,\"time_limit_s\":1}}",
@@ -337,7 +327,6 @@
       "stderr": "critique cold-read: @SANDBOX@/home/.config/agent-kit/critique-routing.json: the override must be a JSON object\n",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.config/": null,
         "home/.config/agent-kit/": null,
         "home/.config/agent-kit/critique-routing.json": "[]",
@@ -354,7 +343,6 @@
       "stderr": "",
       "files": {
         "home/": null,
-        "home/.cache/": null,
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,

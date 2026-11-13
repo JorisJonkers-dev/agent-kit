@@ -17,13 +17,19 @@
         "runs/e-badjson/manifest.json": "not json",
         "runs/e-shape/manifest.json": "{}\n",
         "runs/e-version/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/e-version/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/e-version\",\"run_id\":\"e-version\",\"stage\":\"spec\",\"version\":2}\n"
-      }
+      },
+      "path": [
+        "bin"
+      ]
     },
     {
       "argv": [
         "cold-read",
         "--json",
         "[]"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -31,6 +37,9 @@
         "cold-read",
         "--json",
         "null"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -38,6 +47,9 @@
         "cold-read",
         "--json",
         "{\"files\":[]}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -45,6 +57,9 @@
         "cold-read",
         "--json",
         "{\"files\":\"x\",\"run_dir\":\"y\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -52,6 +67,9 @@
         "cold-read",
         "--json",
         "{\"files\":[5],\"run_dir\":\"y\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -59,6 +77,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"docs/adr/0001-db.md\"]}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -66,6 +87,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -73,6 +97,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"  \"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -80,6 +107,9 @@
         "cold-read",
         "--json",
         "{\"files\":[],\"run_dir\":\"y\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -87,6 +117,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/missing\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -94,6 +127,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/e-badjson\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -101,6 +137,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/e-shape\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -108,6 +147,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/e-version\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -115,6 +157,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"../escape.md\"],\"run_dir\":\"@SANDBOX@/runs/e1\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -122,6 +167,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"missing.md\"],\"run_dir\":\"@SANDBOX@/runs/e1\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -129,6 +177,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"missing.md\",\"../escape.md\"],\"run_dir\":\"@SANDBOX@/runs/e1\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -136,6 +187,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"../escape.md\",\"missing.md\"],\"run_dir\":\"@SANDBOX@/runs/e1\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -143,6 +197,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"docs\"],\"run_dir\":\"@SANDBOX@/runs/e1\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -150,6 +207,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"/etc/passwd\"],\"run_dir\":\"@SANDBOX@/runs/e1\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -157,6 +217,9 @@
         "cold-read",
         "--json",
         "{\"files\":[\"docs/adr/0001-db.md\",\"docs/adr/missing.md\"],\"run_dir\":\"@SANDBOX@/runs/e1\"}"
+      ],
+      "path": [
+        "bin"
       ]
     },
     {
@@ -167,7 +230,10 @@
       ],
       "write": {
         "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":null}\n"
-      }
+      },
+      "path": [
+        "bin"
+      ]
     },
     {
       "argv": [
@@ -177,7 +243,10 @@
       ],
       "write": {
         "home/.config/agent-kit/critique-routing.json": "{"
-      }
+      },
+      "path": [
+        "bin"
+      ]
     },
     {
       "argv": [
@@ -187,7 +256,10 @@
       ],
       "write": {
         "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"nope\",\"max_price_usd\":1,\"time_limit_s\":1}}"
-      }
+      },
+      "path": [
+        "bin"
+      ]
     },
     {
       "argv": [
@@ -197,7 +269,10 @@
       ],
       "write": {
         "home/.config/agent-kit/critique-routing.json": "[]"
-      }
+      },
+      "path": [
+        "bin"
+      ]
     },
     {
       "argv": [

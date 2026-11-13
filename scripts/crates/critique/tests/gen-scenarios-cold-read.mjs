@@ -142,7 +142,7 @@ scenarios['cold-read-errors'] = [
   coldRead({ files: ok, run_dir: `${SB}/runs/e1` }, { write: { 'home/.config/agent-kit/critique-routing.json': '{"cold_read":{"client":"nope","max_price_usd":1,"time_limit_s":1}}' } }),
   coldRead({ files: ok, run_dir: `${SB}/runs/e1` }, { write: { 'home/.config/agent-kit/critique-routing.json': '[]' } }),
   step(['cold-read', '--json', JSON.stringify({ files: ok, run_dir: `${SB}/runs/e1` }), '--strict'], { remove: ['home/.config'], path: ['bin'] }),
-]
+].map((entry) => ({ ...entry, path: entry.path ?? ['bin'] }))
 
 
 // A plan limit reached by the first run: the second run's reader may not start, and says why.
