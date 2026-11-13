@@ -188,6 +188,38 @@ impl Git for Scripted {
     fn untracked_paths(&self, _cwd: &str) -> Result<Vec<String>, String> {
         Err("unused".to_string())
     }
+
+    fn merge_base(&self, _cwd: &str, _a: &str, _b: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn file_at(&self, _cwd: &str, _commit: &str, _path: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn diff_commits(&self, _cwd: &str, _base: &str, _head: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn changed_paths(&self, _cwd: &str, _base: &str, _head: &str) -> Result<Vec<String>, String> {
+        Err("unused".to_string())
+    }
+
+    fn staged_entries(&self, _cwd: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn tree_of(&self, _cwd: &str, _revision: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn write_index_tree(&self, _cwd: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn commit_tree(&self, _cwd: &str, _tree: &str, _parent: &str, _message: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
 }
 
 fn origin() -> Vec<GitRemote> {

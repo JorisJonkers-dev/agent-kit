@@ -1,0 +1,650 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/src/a.ts": "a\n",
+        "repos/m1/notes.md": "n\n",
+        "repos/m2/src/a.ts": "a\n",
+        "repos/m2/notes.md": "n\n",
+        "repos/m3/src/a.ts": "a\n",
+        "repos/m3/notes.md": "n\n",
+        "repos/m4/src/a.ts": "a\n",
+        "repos/m4/notes.md": "n\n",
+        "repos/m5/src/a.ts": "a\n",
+        "repos/m5/notes.md": "n\n",
+        "repos/m6/src/a.ts": "a\n",
+        "repos/m6/notes.md": "n\n",
+        "repos/m7/src/a.ts": "a\n",
+        "repos/m7/notes.md": "n\n",
+        "repos/m8/src/a.ts": "a\n",
+        "repos/m8/notes.md": "n\n",
+        "repos/m9/src/a.ts": "a\n",
+        "repos/m9/notes.md": "n\n",
+        "repos/m10/src/a.ts": "a\n",
+        "repos/m10/notes.md": "n\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m1"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m2"
+        ],
+        [
+          "-C",
+          "repos/m2",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m2",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m3"
+        ],
+        [
+          "-C",
+          "repos/m3",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m3",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m3",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m4"
+        ],
+        [
+          "-C",
+          "repos/m4",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m4",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m4",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m5"
+        ],
+        [
+          "-C",
+          "repos/m5",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m5",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m5",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m6"
+        ],
+        [
+          "-C",
+          "repos/m6",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m6",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m6",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m7"
+        ],
+        [
+          "-C",
+          "repos/m7",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m7",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m7",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m8"
+        ],
+        [
+          "-C",
+          "repos/m8",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m8",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m8",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m9"
+        ],
+        [
+          "-C",
+          "repos/m9",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m9",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m9",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m10"
+        ],
+        [
+          "-C",
+          "repos/m10",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m10",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m10",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/notes.md": "n\nm\n",
+        "repos/m2/notes.md": "n\nm\n",
+        "repos/m3/notes.md": "n\nm\n",
+        "repos/m4/notes.md": "n\nm\n",
+        "repos/m5/notes.md": "n\nm\n",
+        "repos/m6/notes.md": "n\nm\n",
+        "repos/m7/notes.md": "n\nm\n",
+        "repos/m8/notes.md": "n\nm\n",
+        "repos/m9/notes.md": "n\nm\n",
+        "repos/m10/notes.md": "n\nm\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/m2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m2",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/m3",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m3",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/m4",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m4",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/m5",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m5",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/m6",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m6",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/m7",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m7",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/m8",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m8",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/m9",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m9",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/m10",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m10",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m1\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\ncase \"$1 $2 $3\" in\n\"issue view 7\")\nprintf '%s' '{\"number\":7,\"title\":\"T7\",\"body\":\"body 7\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/7\",\"labels\":[]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 8\")\nprintf '%s' '{\"number\":8,\"title\":\"T8\",\"body\":\"body 8\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/8\",\"labels\":[{\"name\":\"Risk:High\"},{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 9\")\nprintf '%s' '{\"number\":9,\"title\":\"T9\",\"body\":\"body 9\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/9\",\"labels\":[{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 10\")\nprintf '%s' '{\"number\":10,\"title\":\"T10\",\"body\":\"body 10\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/10\",\"labels\":[{\"name\":\"feature\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\necho \"gh: unexpected: $*\" >&2\nexit 9\n;;\nesac\n",
+        "bin/vibe": "#!/bin/sh\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = --output-dir ]; then out=\"$2\"; fi\n  shift\ndone\nmkdir -p \"$out\"\ncase \"$out\" in\n*/m1/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"Yes.\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/m2/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"no\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/m3/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"**No**\\n\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/m4/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"Maybe, I would look at it.\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/m5/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"yes\"}]}]'\nprintf '%s' 'boom\n' >&2\nexit 3\n;;\n*/m6/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '  \n'\nprintf '%s' '' >&2\nexit 0\n;;\n*/m7/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":true,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"no\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/m8/.git/critique/20261103T120000Z-triage/export)\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"no\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/m9/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"  '\\''YES!'\\''  \"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*/m10/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"usage\":{\"input_tokens\":0,\"output_tokens\":0}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"no\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n",
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "exec": [
+        "bin/gh",
+        "bin/vibe"
+      ],
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "roots": [
+        "repos/m1/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m2\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/m2/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m3\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/m3/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m4\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/m4/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m5\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/m5/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m6\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/m6/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m7\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/m7/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m8\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/m8/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m9\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/m9/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m10\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/m10/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    }
+  ]
+}

@@ -23,6 +23,22 @@ pub trait Git: Send + Sync {
     fn tree_files(&self, cwd: &str, commit: &str) -> Result<Vec<String>, String>;
     /// The files the working tree holds that git neither tracks nor ignores.
     fn untracked_paths(&self, cwd: &str) -> Result<Vec<String>, String>;
+    /// The best common ancestor of two commits.
+    fn merge_base(&self, cwd: &str, a: &str, b: &str) -> Result<String, String>;
+    /// One file's contents at a commit.
+    fn file_at(&self, cwd: &str, commit: &str, path: &str) -> Result<String, String>;
+    /// The unified diff from one commit to another, with no external diff driver or text conversion.
+    fn diff_commits(&self, cwd: &str, base: &str, head: &str) -> Result<String, String>;
+    /// Every path the diff from one commit to another adds, changes or deletes, a rename as both of its paths.
+    fn changed_paths(&self, cwd: &str, base: &str, head: &str) -> Result<Vec<String>, String>;
+    /// Every staged entry as `git ls-files --stage -z` prints it; reads the index and writes nothing.
+    fn staged_entries(&self, cwd: &str) -> Result<String, String>;
+    /// The id of the tree a revision's commit holds; an `Err` when the revision names no commit.
+    fn tree_of(&self, cwd: &str, revision: &str) -> Result<String, String>;
+    /// Writes the index's tree objects and returns the top tree's id.
+    fn write_index_tree(&self, cwd: &str) -> Result<String, String>;
+    /// Writes a commit object holding `tree` with `parent` as its parent and returns its id; no ref moves.
+    fn commit_tree(&self, cwd: &str, tree: &str, parent: &str, message: &str) -> Result<String, String>;
 }
 
 /// The last commit that changed one path.
@@ -143,5 +159,42 @@ impl Git for SystemGit {
 
     fn untracked_paths(&self, cwd: &str) -> Result<Vec<String>, String> {
         self.run(cwd, &["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z"], &[0]).map(|out| nul_paths(&out))
+    }
+
+    fn merge_base(&self, cwd: &str, a: &str, b: &str) -> Result<String, String> {
+        self.run(cwd, &["merge-base", "--end-of-options", a, b], &[0]).map(|out| js_trim(&out).to_string())
+    }
+
+    fn file_at(&self, cwd: &str, commit: &str, path: &str) -> Result<String, String> {
+        self.run(cwd, &["cat-file", "blob", &format!("{commit}:{path}")], &[0])
+    }
+
+    fn diff_commits(&self, cwd: &str, base: &str, head: &str) -> Result<String, String> {
+        self.run(cwd, &["-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color", base, head, "--"], &[0])
+    }
+
+    fn changed_paths(&self, cwd: &str, base: &str, head: &str) -> Result<Vec<String>, String> {
+        self.run(cwd, &["diff", "--name-only", "-z", "--no-renames", base, head, "--"], &[0]).map(|out| nul_paths(&out))
+    }
+
+    fn staged_entries(&self, cwd: &str) -> Result<String, String> {
+        self.run(cwd, &["ls-files", "--stage", "-z"], &[0])
+    }
+
+    fn tree_of(&self, cwd: &str, revision: &str) -> Result<String, String> {
+        let named = format!("{revision}^{{tree}}");
+        self.run(cwd, &["rev-parse", "--verify", "--quiet", "--end-of-options", &named], &[0]).map(|out| js_trim(&out).to_string())
+    }
+
+    fn write_index_tree(&self, cwd: &str) -> Result<String, String> {
+        self.run(cwd, &["write-tree"], &[0]).map(|out| js_trim(&out).to_string())
+    }
+
+    fn commit_tree(&self, cwd: &str, tree: &str, parent: &str, message: &str) -> Result<String, String> {
+        // The commit object is a snapshot nobody pushes, so it carries a fixed identity and no signature.
+        let identity = ["-c", "user.name=agent-kit critique", "-c", "user.email=critique@agent-kit.invalid"];
+        let mut args: Vec<&str> = identity.to_vec();
+        args.extend(["commit-tree", "--no-gpg-sign", "-p", parent, "-m", message, tree]);
+        self.run(cwd, &args, &[0]).map(|out| js_trim(&out).to_string())
     }
 }

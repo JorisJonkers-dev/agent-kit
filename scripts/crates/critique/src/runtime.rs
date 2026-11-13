@@ -1,6 +1,7 @@
 //! Everything a command needs from its surroundings; tests replace any of it.
 
 use crate::dirs::{Dirs, SystemDirs};
+use crate::gh::{Gh, SystemGh};
 use crate::git::{Git, SystemGit};
 use model_gateway::adapters::clock::SystemClock;
 use model_gateway::adapters::fs::SystemFiles;
@@ -16,6 +17,8 @@ pub struct Runtime {
     /// The folder the runner's shipped files (routing.json, prompts) sit in; the embedded copies are what is read, this is the path messages name.
     pub assets_root: String,
     pub git: Box<dyn Git>,
+    /// What the runner reads from GitHub.
+    pub gh: Box<dyn Gh>,
     /// What the model gateway's own code runs through: its ledger, its plan limits and the client programs a critic launches (same clock, files and environment as above).
     pub gateway: model_gateway::ports::Runtime,
     /// What a command reads when it is given neither `--input` nor `--json`.
@@ -33,6 +36,7 @@ pub fn default_runtime() -> Runtime {
         files: Box::new(SystemFiles { cwd }),
         dirs: Box::new(SystemDirs),
         git: Box::new(SystemGit { env: env.clone() }),
+        gh: Box::new(SystemGh { env: env.clone() }),
         assets_root: std::env::current_exe().ok().and_then(|exe| exe.parent().map(|dir| dir.to_string_lossy().into_owned())).unwrap_or_default(),
         env,
         stdin: Box::new(|| {

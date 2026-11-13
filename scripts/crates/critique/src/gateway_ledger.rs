@@ -100,3 +100,9 @@ fn read_record(line: &str) -> Result<Option<(Option<LedgerCriticRun>, LoggedInvo
     };
     Ok(Some((Some(run), invocation)))
 }
+
+/// What the owner is told when the gateway's ledger would not take a run: the critics already ran and spent money, so
+/// the stage goes on, and the run is in critique's own ledger only.
+pub fn gateway_ledger_warning(message: &str) -> String {
+    format!("the gateway ledger could not be written: {message}; this run is recorded in critique's own ledger only")
+}

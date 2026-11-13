@@ -1,0 +1,974 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/e1/a.txt": "a\n",
+        "repos/e1/docs/spec.md": "# s\n",
+        "repos/e2/a.txt": "a\n",
+        "repos/e2/docs/spec.md": "# s\n",
+        "repos/e3/a.txt": "a\n",
+        "repos/e3/docs/spec.md": "# s\n",
+        "repos/e4/a.txt": "a\n",
+        "repos/e4/docs/spec.md": "# s\n",
+        "repos/e5/a.txt": "a\n",
+        "repos/e5/docs/spec.md": "# s\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/e1"
+        ],
+        [
+          "-C",
+          "repos/e1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/e1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/e2"
+        ],
+        [
+          "-C",
+          "repos/e2",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/e2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e2",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/e3"
+        ],
+        [
+          "-C",
+          "repos/e3",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/e3",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e3",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/e4"
+        ],
+        [
+          "-C",
+          "repos/e4",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/e4",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e4",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/e5"
+        ],
+        [
+          "-C",
+          "repos/e5",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/e5",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e5",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/e1/a.txt": "a\nb\n",
+        "repos/e2/a.txt": "a\nb\n",
+        "repos/e3/a.txt": "a\nb\n",
+        "repos/e4/a.txt": "a\nb\n",
+        "repos/e5/a.txt": "a\nb\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/e1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e1",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/e2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e2",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/e3",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e3",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/e4",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e4",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/e5",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e5",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\ncase \"$1 $2 $3\" in\n\"issue view 7\")\nprintf '%s' '{\"number\":7,\"title\":\"T7\",\"body\":\"body 7\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/7\",\"labels\":[]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 8\")\nprintf '%s' '{\"number\":8,\"title\":\"T8\",\"body\":\"body 8\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/8\",\"labels\":[{\"name\":\"Risk:High\"},{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 9\")\nprintf '%s' '{\"number\":9,\"title\":\"T9\",\"body\":\"body 9\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/9\",\"labels\":[{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 10\")\nprintf '%s' '{\"number\":10,\"title\":\"T10\",\"body\":\"body 10\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/10\",\"labels\":[{\"name\":\"feature\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\necho \"gh: unexpected: $*\" >&2\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "[]"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "null"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"x\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"base\":\"b\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"base\":\"b\",\"repo\":\"x\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"base\":\"b\",\"repo\":\"x\",\"ticket\":\"t\",\"flow\":5}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"base\":\"b\",\"repo\":\"x\",\"ticket\":\"t\",\"head\":5}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"base\":\"b\",\"repo\":\"x\",\"ticket\":\"t\",\"spec\":\"\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"base\":\"b\",\"repo\":\"x\",\"ticket\":\"t\",\"staged\":\"yes\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"base\":\"b\",\"repo\":\"x\",\"ticket\":\"t\",\"staged\":true,\"head\":\"HEAD\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"base\":\"b\",\"repo\":\"x\",\"staged\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"base\":\"b\",\"repo\":\"x\",\"ticket\":\"t\",\"staged\":false,\"head\":\"HEAD\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/none"
+        ]
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/nedap\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/nedap"
+        ],
+        [
+          "-C",
+          "repos/nedap",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/secret.git"
+        ]
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/missing\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":null}\n"
+      }
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"model\":{\"client\":\"nope\"}}}\n"
+      }
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{"
+      }
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e2\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/e2/docs/agents/issue-tracker.md": "# Issue tracker: GitLab\n"
+      },
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e2\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/e2/docs/agents/issue-tracker.md": "no heading\n"
+      },
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e2\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/e2/docs/agents/issue-tracker.md": "# issue TRACKER:\n\n  GitHub \n"
+      },
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e3\",\"ticket\":\"docs/spec.md\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/e3/docs/agents/issue-tracker.md": "# Issue tracker: Local markdown\n"
+      },
+      "roots": [
+        "repos/e3/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e3\",\"ticket\":\"docs/spec.md\",\"base\":\"HEAD~1\",\"spec\":\"docs/spec.md\",\"flow\":\"f\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/e3/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e3\",\"ticket\":\"docs/missing.md\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e3\",\"ticket\":\"../x.md\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e3\",\"ticket\":\"docs\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e3\",\"ticket\":\"docs/spec.md\",\"base\":\"HEAD~1\",\"spec\":\"nope.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"banana\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"other/repo#5\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"github.com/JorisJonkers-dev/Example#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"https://github.com/jorisjonkers-dev/example/issues/7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#20\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\ncase \"$1 $2 $3\" in\n\"issue view 7\")\nprintf '%s' '{\"number\":7,\"title\":\"T7\",\"body\":\"body 7\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/7\",\"labels\":[]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 8\")\nprintf '%s' '{\"number\":8,\"title\":\"T8\",\"body\":\"body 8\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/8\",\"labels\":[{\"name\":\"Risk:High\"},{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 9\")\nprintf '%s' '{\"number\":9,\"title\":\"T9\",\"body\":\"body 9\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/9\",\"labels\":[{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 10\")\nprintf '%s' '{\"number\":10,\"title\":\"T10\",\"body\":\"body 10\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/10\",\"labels\":[{\"name\":\"feature\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 20\")\nprintf '%s' ''\nprintf '%s' '\n  \nnot found: 20\nsecond line\n' >&2\nexit 1\n;;\n\"issue view 21\")\nprintf '%s' 'not json'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 22\")\nprintf '%s' '{}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 23\")\nprintf '%s' '{\"number\":23,\"title\":\"t\",\"body\":\"b\",\"url\":\"u\",\"labels\":\"x\"}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 24\")\nprintf '%s' '\nstdout words\n'\nprintf '%s' '' >&2\nexit 2\n;;\n\"issue view 25\")\nprintf '%s' ''\nprintf '%s' '' >&2\nexit 4\n;;\n\"issue view 26\")\nprintf '%s' '{\"number\":26,\"title\":\"T26\",\"body\":\"body 26\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/26\",\"labels\":[{\"name\":\"x\"},{\"nope\":1},5,null]}'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\necho \"gh: unexpected: $*\" >&2\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#21\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#22\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#23\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#24\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#25\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#7\",\"base\":\"HEAD~1\",\"spec\":\"#20\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#26\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/e1/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#7\",\"base\":\"nope\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#7\",\"base\":\"HEAD~1\",\"head\":\"nope\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#7\",\"base\":\"--oops\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#7\",\"base\":\"HEAD\",\"head\":\"HEAD\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/e1/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e4\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"risk_paths\":[\"{x\"]}}\n"
+      }
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e4\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"packet\":{\"exclude\":{\"lock\":[\"a{b\"]}}}\n"
+      }
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e5\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"risk_paths\":[\"a.txt\",\"{x\"]}}\n"
+      },
+      "roots": [
+        "repos/e5/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e1\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "bin/gh",
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\",\"ticket\":\"#7\",\"base\":\"HEAD~1\"}",
+        "--strict"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    }
+  ]
+}

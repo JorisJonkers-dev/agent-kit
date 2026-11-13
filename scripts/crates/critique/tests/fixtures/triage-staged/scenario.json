@@ -1,0 +1,355 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/s1/a.txt": "a\n",
+        "repos/s1/src/auth/x.ts": "x\n",
+        "repos/s2/a.txt": "a\n",
+        "repos/s2/src/auth/x.ts": "x\n",
+        "repos/s3/a.txt": "a\n",
+        "repos/s3/src/auth/x.ts": "x\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s1"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s2"
+        ],
+        [
+          "-C",
+          "repos/s2",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/s2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s2",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s3"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/s1/a.txt": "a\nb\n",
+        "repos/s2/a.txt": "a\nb\n",
+        "repos/s3/a.txt": "a\nb\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/s1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/s2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s2",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "commit",
+          "-q",
+          "-m",
+          "head"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/s1/a.txt": "a\nb\nc\n",
+        "repos/s2/src/auth/x.ts": "x\ny\n",
+        "repos/s3/a.txt": "z\n",
+        "repos/s3/untracked.txt": "u\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/s1",
+          "add",
+          "a.txt"
+        ],
+        [
+          "-C",
+          "repos/s2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "add",
+          "a.txt"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s1\",\"ticket\":\"#8\",\"base\":\"HEAD\",\"staged\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\ncase \"$1 $2 $3\" in\n\"issue view 7\")\nprintf '%s' '{\"number\":7,\"title\":\"T7\",\"body\":\"body 7\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/7\",\"labels\":[]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 8\")\nprintf '%s' '{\"number\":8,\"title\":\"T8\",\"body\":\"body 8\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/8\",\"labels\":[{\"name\":\"Risk:High\"},{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 9\")\nprintf '%s' '{\"number\":9,\"title\":\"T9\",\"body\":\"body 9\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/9\",\"labels\":[{\"name\":\"bug\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n\"issue view 10\")\nprintf '%s' '{\"number\":10,\"title\":\"T10\",\"body\":\"body 10\",\"url\":\"https://github.com/jorisjonkers-dev/example/issues/10\",\"labels\":[{\"name\":\"feature\"}]}'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\necho \"gh: unexpected: $*\" >&2\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "env": {
+        "GIT_AUTHOR_DATE": "2026-11-03T12:00:00Z",
+        "GIT_COMMITTER_DATE": "2026-11-03T12:00:00Z"
+      },
+      "roots": [
+        "repos/s1/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s1\",\"ticket\":\"#8\",\"base\":\"HEAD\",\"staged\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "GIT_AUTHOR_DATE": "2026-11-03T12:00:00Z",
+        "GIT_COMMITTER_DATE": "2026-11-03T12:00:00Z"
+      },
+      "roots": [
+        "repos/s1/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s2\",\"ticket\":\"#7\",\"base\":\"HEAD\",\"staged\":true,\"spec\":\"#10\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "GIT_AUTHOR_DATE": "2026-11-03T12:00:00Z",
+        "GIT_COMMITTER_DATE": "2026-11-03T12:00:00Z"
+      },
+      "roots": [
+        "repos/s2/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s3\",\"ticket\":\"#7\",\"base\":\"HEAD\",\"staged\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = --output-dir ]; then out=\"$2\"; fi\n  shift\ndone\nmkdir -p \"$out\"\ncase \"$out\" in\n*/s3/.git/critique/20261103T120000Z-triage/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"no\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n",
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "env": {
+        "GIT_AUTHOR_DATE": "2026-11-03T12:00:00Z",
+        "GIT_COMMITTER_DATE": "2026-11-03T12:00:00Z"
+      },
+      "roots": [
+        "repos/s3/.git/critique"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/s4/a.txt": "a\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s4"
+        ],
+        [
+          "-C",
+          "repos/s4",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/s4",
+          "add",
+          "-A"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s4\",\"ticket\":\"#7\",\"base\":\"HEAD\",\"staged\":true}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "GIT_AUTHOR_DATE": "2026-11-03T12:00:00Z",
+        "GIT_COMMITTER_DATE": "2026-11-03T12:00:00Z"
+      },
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "triage",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s4\",\"ticket\":\"#7\",\"base\":\"HEAD\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    }
+  ]
+}

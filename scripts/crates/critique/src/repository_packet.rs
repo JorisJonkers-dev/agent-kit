@@ -2,6 +2,7 @@
 
 use crate::error::ShapeError;
 use crate::fields::Fields;
+use crate::triage::matches_glob;
 
 /// The repo map's cap for a routing file that states none.
 const DEFAULT_REPO_MAP_CAP_BYTES: f64 = 20_480.0;
@@ -53,4 +54,46 @@ pub fn read_packet_limits(fields: &Fields<'_>) -> Result<PacketLimits, ShapeErro
         repo_map_cap_bytes: if fields.has("repo_map_cap_bytes") { fields.positive_integer("repo_map_cap_bytes")? } else { DEFAULT_REPO_MAP_CAP_BYTES },
         window_lines: fields.positive_integer("window_lines")?,
     })
+}
+
+/// Why a tracked path is never sent: it is vendored, generated, or a lock file, in the order the first match is taken.
+pub const EXCLUSION_KINDS: [&str; 3] = ["vendored", "generated", "lock"];
+
+/// Why a path is never sent: its kind, and the routing glob it matched or `marker` for a generated-file marker.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Exclusion {
+    pub kind: &'static str,
+    pub rule: String,
+}
+
+/// How many leading lines may carry a generated-file marker.
+const MARKER_LINES: usize = 5;
+
+/// Whether a file says in its first lines that a tool generated it (`@generated`, "Do not edit").
+pub fn is_generated(text: &str) -> bool {
+    let head = text.split('\n').take(MARKER_LINES).collect::<Vec<_>>().join("\n").to_ascii_lowercase();
+    head.contains("@generated") || head.contains("do not edit")
+}
+
+/// Why a path, with its text when it is known, is never sent: the first exclusion glob it matches, else a
+/// generated-file marker in its first lines. A glob JavaScript cannot build a pattern from is an `Err` with its message.
+pub fn exclusion_of(path: &str, text: Option<&str>, limits: &PacketLimits) -> Result<Option<Exclusion>, String> {
+    for kind in EXCLUSION_KINDS {
+        let globs = limits.exclude.iter().find(|(name, _)| name == kind).map(|(_, globs)| globs.as_slice()).unwrap_or_default();
+        for glob in globs {
+            if matches_glob(path, glob)? {
+                return Ok(Some(Exclusion { kind, rule: glob.clone() }));
+            }
+        }
+    }
+    Ok(text.filter(|text| is_generated(text)).map(|_| Exclusion { kind: "generated", rule: "marker".to_string() }))
+}
+
+/// What an exclusion says about its file, for a line of the diff or the facts index.
+pub fn exclusion_reason(exclusion: &Exclusion) -> String {
+    if exclusion.rule == "marker" {
+        "a generated file: its first lines say a tool generated it".to_string()
+    } else {
+        format!("a {} file: it matches the routing glob `{}`", exclusion.kind, exclusion.rule)
+    }
 }

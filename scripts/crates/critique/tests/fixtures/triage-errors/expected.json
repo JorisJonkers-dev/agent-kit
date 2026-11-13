@@ -1,0 +1,715 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: base must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: base must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: base must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: base must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: ticket must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: ticket must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: flow must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: flow must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: head must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: head must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: spec must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: spec must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: staged must be true or false\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: staged must be true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"staged reviews the index: leave out head\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: staged reviews the index: leave out head\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: ticket must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: ticket must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"remote origin belongs to the nedap organisation; nothing is sent to any critic\",\n  \"reason\": \"nedap\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"triage input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: triage input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"routing has no triage, so a change cannot be triaged\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: routing has no triage, so a change cannot be triaged\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: triage.model.client must name a vibe client of clients; nope is not defined\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: triage.model.client must name a vibe client of clients; nope is not defined\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"model\":{\"client\":\"nope\"}}}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-routing.json: Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: @SANDBOX@/home/.config/agent-kit/critique-routing.json: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"docs/agents/issue-tracker.md names GitLab; the critique reads specs from GitHub issues or local markdown only\",\n  \"reason\": \"unsupported-tracker\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"docs/agents/issue-tracker.md names no tracker; the critique reads specs from GitHub issues or local markdown only\",\n  \"reason\": \"unsupported-tracker\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"docs/spec.md\",\n  \"run_id\": \"20261103T120000Z-triage\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"docs/spec.md\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null,
+        "repos/e3/.git/critique/": null,
+        "repos/e3/.git/critique/20261103T120000Z-triage/": null,
+        "repos/e3/.git/critique/20261103T120000Z-triage/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"docs/spec.md\",\n  \"run_id\": \"20261103T120000Z-triage\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"docs/spec.md\"\n  }\n}\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"f\",\n  \"run_id\": \"20261103T120000Z-triage-2\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"docs/spec.md\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null,
+        "repos/e3/.git/critique/": null,
+        "repos/e3/.git/critique/20261103T120000Z-triage/": null,
+        "repos/e3/.git/critique/20261103T120000Z-triage/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"docs/spec.md\",\n  \"run_id\": \"20261103T120000Z-triage\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"docs/spec.md\"\n  }\n}\n",
+        "repos/e3/.git/critique/20261103T120000Z-triage-2/": null,
+        "repos/e3/.git/critique/20261103T120000Z-triage-2/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"f\",\n  \"run_id\": \"20261103T120000Z-triage-2\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"docs/spec.md\"\n  }\n}\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"docs/missing.md is not a file in the repository; this repository tracks specs as local markdown, so name one by its path\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: docs/missing.md is not a file in the repository; this repository tracks specs as local markdown, so name one by its path\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"../x.md is outside the repository\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: ../x.md is outside the repository\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"nope.md is not a file in the repository; this repository tracks specs as local markdown, so name one by its path\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: nope.md is not a file in the repository; this repository tracks specs as local markdown, so name one by its path\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"banana is not an issue reference; this repository tracks specs as GitHub issues, so name one as #<number> or by its URL\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: banana is not an issue reference; this repository tracks specs as GitHub issues, so name one as #<number> or by its URL\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"other/repo#5 is an issue of github.com/other/repo, not of github.com/jorisjonkers-dev/example\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: other/repo#5 is an issue of github.com/other/repo, not of github.com/jorisjonkers-dev/example\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage-2\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#20 through gh: gh issue view exited 1: not found: 20\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#21 through gh: gh issue view printed something that is not an issue\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#22 through gh: gh issue view printed something that is not an issue\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#23\",\n  \"run_id\": \"20261103T120000Z-triage-3\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#23\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#24 through gh: gh issue view exited 2: stdout words\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#25 through gh: gh issue view exited 4: exit code 4\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#20 through gh: gh issue view exited 1: not found: 20\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#26\",\n  \"run_id\": \"20261103T120000Z-triage-4\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [\n      \"x\"\n    ],\n    \"reference\": \"github.com/jorisjonkers-dev/example#26\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null,
+        "repos/e1/.git/critique/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n",
+        "repos/e1/.git/critique/20261103T120000Z-triage-2/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage-2/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage-2\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n",
+        "repos/e1/.git/critique/20261103T120000Z-triage-3/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage-3/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#23\",\n  \"run_id\": \"20261103T120000Z-triage-3\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#23\"\n  }\n}\n",
+        "repos/e1/.git/critique/20261103T120000Z-triage-4/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage-4/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#26\",\n  \"run_id\": \"20261103T120000Z-triage-4\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [\n      \"x\"\n    ],\n    \"reference\": \"github.com/jorisjonkers-dev/example#26\"\n  }\n}\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"base nope names no commit: git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/e1: exit code 1\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: base nope names no commit: git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/e1: exit code 1\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"head nope names no commit: git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/e1: exit code 1\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: head nope names no commit: git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/e1: exit code 1\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"base --oops names no commit: git rev-parse --verify --quiet --end-of-options --oops^{commit} failed in @SANDBOX@/repos/e1: exit code 1\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: base --oops names no commit: git rev-parse --verify --quiet --end-of-options --oops^{commit} failed in @SANDBOX@/repos/e1: exit code 1\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"change\": {\n    \"base_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\",\n    \"changed_files\": 0,\n    \"changed_lines\": 0,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage-5\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-5\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":0,\"changed_lines\":0,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null,
+        "repos/e1/.git/critique/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n",
+        "repos/e1/.git/critique/20261103T120000Z-triage-2/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage-2/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage-2\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n",
+        "repos/e1/.git/critique/20261103T120000Z-triage-3/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage-3/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#23\",\n  \"run_id\": \"20261103T120000Z-triage-3\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#23\"\n  }\n}\n",
+        "repos/e1/.git/critique/20261103T120000Z-triage-4/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage-4/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#26\",\n  \"run_id\": \"20261103T120000Z-triage-4\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [\n      \"x\"\n    ],\n    \"reference\": \"github.com/jorisjonkers-dev/example#26\"\n  }\n}\n",
+        "repos/e1/.git/critique/20261103T120000Z-triage-5/": null,
+        "repos/e1/.git/critique/20261103T120000Z-triage-5/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\",\n    \"changed_files\": 0,\n    \"changed_lines\": 0,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage-5\",\n  \"signal\": {\n    \"detail\": \"github.com/jorisjonkers-dev/example has no family allowlist entry on this machine\",\n    \"kind\": \"model-unavailable\",\n    \"reason\": \"not-opted-in\"\n  },\n  \"signals\": [],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: no risk rule fired, and the triage model (vibe-mistral-small) could not answer: github.com/jorisjonkers-dev/example has no family allowlist entry on this machine.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n"
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"Invalid regular expression: /^(?:x$/: Unterminated group\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: Invalid regular expression: /^(?:x$/: Unterminated group\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"risk_paths\":[\"{x\"]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-5\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":0,\"changed_lines\":0,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"Invalid regular expression: /^a(?:b$/: Unterminated group\",\"status\":\"error\"}\n",
+      "stderr": "critique triage: Invalid regular expression: /^a(?:b$/: Unterminated group\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"packet\":{\"exclude\":{\"lock\":[\"a{b\"]}}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-5\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":0,\"changed_lines\":0,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage\",\n  \"signal\": {\n    \"glob\": \"a.txt\",\n    \"kind\": \"risk-path\",\n    \"path\": \"a.txt\"\n  },\n  \"signals\": [\n    {\n      \"glob\": \"a.txt\",\n      \"kind\": \"risk-path\",\n      \"path\": \"a.txt\"\n    }\n  ],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: a.txt matches the risk path a.txt.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"risk_paths\":[\"a.txt\",\"{x\"]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-5\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":0,\"changed_lines\":0,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"glob\":\"a.txt\",\"kind\":\"risk-path\"},\"risk_signals\":[{\"glob\":\"a.txt\",\"kind\":\"risk-path\"}],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null,
+        "repos/e5/.git/critique/": null,
+        "repos/e5/.git/critique/20261103T120000Z-triage/": null,
+        "repos/e5/.git/critique/20261103T120000Z-triage/triage.json": "{\n  \"change\": {\n    \"base_commit\": \"5fa256b37a3aa9e174c5d620b5296300baa4b979\",\n    \"changed_files\": 1,\n    \"changed_lines\": 1,\n    \"changed_lines_threshold\": 300,\n    \"head_commit\": \"7af34cc54a4897db9dad2a7001572982ca69db41\"\n  },\n  \"flow\": \"github.com/jorisjonkers-dev/example#7\",\n  \"run_id\": \"20261103T120000Z-triage\",\n  \"signal\": {\n    \"glob\": \"a.txt\",\n    \"kind\": \"risk-path\",\n    \"path\": \"a.txt\"\n  },\n  \"signals\": [\n    {\n      \"glob\": \"a.txt\",\n      \"kind\": \"risk-path\",\n      \"path\": \"a.txt\"\n    }\n  ],\n  \"status\": \"risky\",\n  \"summary\": \"Triage: risky: a.txt matches the risk path a.txt.\",\n  \"ticket\": {\n    \"labels\": [],\n    \"reference\": \"github.com/jorisjonkers-dev/example#7\"\n  }\n}\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#7 through gh: spawn gh ENOENT\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-5\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":0,\"changed_lines\":0,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"glob\":\"a.txt\",\"kind\":\"risk-path\"},\"risk_signals\":[{\"glob\":\"a.txt\",\"kind\":\"risk-path\"}],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 4,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"docs/spec.md\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"f\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"docs/spec.md\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-2\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#23\",\"run_id\":\"20261103T120000Z-triage-3\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#23\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#26\",\"run_id\":\"20261103T120000Z-triage-4\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#26\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage-5\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"kind\":\"model-unavailable\",\"reason\":\"not-opted-in\"},\"risk_signals\":[],\"changed_files\":0,\"changed_lines\":0,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n{\"type\":\"triage\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"github.com/jorisjonkers-dev/example#7\",\"run_id\":\"20261103T120000Z-triage\",\"stage\":\"ticket-review\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#7\",\"triage_signal\":{\"glob\":\"a.txt\",\"kind\":\"risk-path\"},\"risk_signals\":[{\"glob\":\"a.txt\",\"kind\":\"risk-path\"}],\"changed_files\":1,\"changed_lines\":1,\"changed_lines_threshold\":300,\"client\":null,\"model\":null,\"answer\":null,\"cost_usd\":null,\"charged_usd\":0,\"prompt_hash\":null}\n",
+        "work/": null
+      }
+    }
+  ]
+}
