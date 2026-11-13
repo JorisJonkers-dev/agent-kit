@@ -59,6 +59,7 @@ pub mod stage;
 pub mod stage_table;
 pub mod staged_change;
 pub mod stats;
+pub mod session_start;
 pub mod stats_command;
 pub mod tickets;
 pub mod tracker;

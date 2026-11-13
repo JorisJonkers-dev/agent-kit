@@ -1,0 +1,127 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/s1/a.md": "a\n",
+        "repos/s2/a.md": "a\n",
+        "repos/s3/a.md": "a\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s1"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s2"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s3"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/thing.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-session-start"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/s1\"}",
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-session-start"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/s1\"}",
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-session-start"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/s1\"}",
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"vibe-signed-in\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:vibe-mistral-large\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:vibe-glm\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:vibe-deepseek-flash\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:vibe-mistral-small\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"agy-signed-in\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:agy-gemini-flash-high\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"agy-quota\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"hooks-installed\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"kill-switch\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-session-start"
+      ],
+      "stdin": "garbage",
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-session-start"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/s1\"}",
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"kill-switch\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-session-start",
+        "extra"
+      ],
+      "stdin": "{}"
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-nope"
+      ],
+      "stdin": "{}"
+    }
+  ]
+}

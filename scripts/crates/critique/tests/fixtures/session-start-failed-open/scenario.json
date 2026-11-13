@@ -1,0 +1,218 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/s1/a.md": "a\n",
+        "repos/s2/a.md": "a\n",
+        "repos/s3/a.md": "a\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s1"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s2"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s3"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/thing.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "not json"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":5}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique.json": "{\"disabled\":\"yes\"}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique.json": "{nope"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique.json"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"version\":2,\"checks\":{}}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"x\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"maybe\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"x\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{\"cli_version\":null,\"agent_hash\":\"h\",\"routing_hash\":\"r\",\"files_hash\":5},\"result\":\"pass\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"x\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{\"cli_version\":null,\"agent_hash\":null,\"routing_hash\":\"r\",\"files_hash\":\"f\"},\"result\":\"pass\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/nowhere\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    }
+  ]
+}

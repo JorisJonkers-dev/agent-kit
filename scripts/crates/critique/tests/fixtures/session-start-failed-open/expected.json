@@ -1,0 +1,196 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"the session-start payload must be a JSON object\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"the session-start payload.cwd must be a non-empty string\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"the session-start payload.cwd must be a non-empty string\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"disabled must be true or false\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique.json": "{\"disabled\":\"yes\"}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"disabled must be true or false\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique.json": "{nope",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"disabled must be true or false\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories must be a JSON object\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"disabled must be true or false\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"version must be 1\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"disabled must be true or false\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"version must be 1\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"version\":2,\"checks\":{}}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"checks.x.result must be one of pass, fail, unproven\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"disabled must be true or false\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"version must be 1\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"checks.x.result must be one of pass, fail, unproven\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"x\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"maybe\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"checks.x.inputs.files_hash must be a non-empty string\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"disabled must be true or false\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"version must be 1\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"checks.x.result must be one of pass, fail, unproven\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"checks.x.inputs.files_hash must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"x\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{\"cli_version\":null,\"agent_hash\":\"h\",\"routing_hash\":\"r\",\"files_hash\":5},\"result\":\"pass\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"line\": \"Critique: /flow setup has not checked this machine yet (10 of 10 checks never ran). Run /flow setup.\",\n  \"reason\": \"setup-missing\",\n  \"status\": \"suggest\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"disabled must be true or false\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"version must be 1\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"checks.x.result must be one of pass, fail, unproven\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"checks.x.inputs.files_hash must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"x\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{\"cli_version\":null,\"agent_hash\":null,\"routing_hash\":\"r\",\"files_hash\":\"f\"},\"result\":\"pass\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"spawn git ENOENT\",\n  \"failure\": \"error\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"silent\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":null,\"detail\":\"the session-start payload must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"\",\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the session-start payload.cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"disabled must be true or false\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories must be a JSON object\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"version must be 1\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"checks.x.result must be one of pass, fail, unproven\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"checks.x.inputs.files_hash must be a non-empty string\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/nowhere\",\"detail\":\"spawn git ENOENT\",\"failure\":\"error\",\"gate\":\"session-start\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"x\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{\"cli_version\":null,\"agent_hash\":null,\"routing_hash\":\"r\",\"files_hash\":\"f\"},\"result\":\"pass\"}},\"version\":1}\n",
+        "work/": null
+      }
+    }
+  ]
+}
