@@ -1,0 +1,89 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\",\"docs/adr/0002-events.md\"],\"run_dir\":\"@SANDBOX@/runs/b-family\"}"
+      ],
+      "write": {
+        "repos/cr/docs/adr/0001-db.md": "# 1. DB\n\nWe use Postgres.\n",
+        "repos/cr/docs/adr/0002-events.md": "# 2. Events\n\nEvents are append-only. Revisit in 2027.\n",
+        "repos/cr/docs/adr/sub dir/0003-ünï.md": "# 3. Ünï\n\nUnicode names work.\n",
+        "runs/b-family/manifest.json": "{\"allowed_families\":[\"deepseek\",\"zhipu\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/b-family/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/b-family\",\"run_id\":\"b-family\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/b-nobin/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/b-nobin/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/b-nobin\",\"run_id\":\"b-nobin\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/b-nokey/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/b-nokey/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/b-nokey\",\"run_id\":\"b-nokey\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/b-noagent/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/b-noagent/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/b-noagent\",\"run_id\":\"b-noagent\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/b-emptykey/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/b-emptykey/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/b-emptykey\",\"run_id\":\"b-emptykey\",\"stage\":\"spec\",\"version\":1}\n"
+      },
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/b-nobin\"}"
+      ],
+      "roots": [
+        "runs"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/b-nokey\"}"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/b-noagent\"}"
+      ],
+      "write": {
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n"
+      },
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/b-emptykey\"}"
+      ],
+      "write": {
+        "home/.vibe/.env": "MISTRAL_API_KEY=\n"
+      },
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}

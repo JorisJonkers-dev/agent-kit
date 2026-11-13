@@ -48,5 +48,5 @@ fn invalid(place: &str, message: &str) -> CritiqueError {
 
 /// This machine's routing override, resolved the way the model gateway resolves it.
 fn override_path(runtime: &Runtime) -> Result<String, CritiqueError> {
-    model_gateway::locations::routing_override_path(&runtime.env).map_err(|error| CritiqueError::new(&error.code, error.message))
+    model_gateway::locations::routing_override_path(&runtime.env).map_err(|error| CritiqueError::unexpected(error.message))
 }

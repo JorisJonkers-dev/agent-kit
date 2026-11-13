@@ -5,7 +5,7 @@ use crate::error::CritiqueError;
 use crate::runtime::Runtime;
 use model_gateway::plan::{read_plan_limit, PlanLimitReading};
 
-/// What the gateway says of one client's plan limit.
+/// What the gateway says of one client's plan limit. The gateway's own error is not one of the runner's, so the command line reports it as `unexpected`, with its message.
 pub fn plan_limit(runtime: &Runtime, client: &str) -> Result<PlanLimitReading, CritiqueError> {
-    read_plan_limit(&runtime.gateway, client).map_err(|error| CritiqueError::new(&error.code, error.message))
+    read_plan_limit(&runtime.gateway, client).map_err(|error| CritiqueError::unexpected(error.message))
 }

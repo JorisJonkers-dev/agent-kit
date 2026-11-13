@@ -3,6 +3,7 @@
 mod adrs;
 mod assets_plan;
 mod cli;
+mod cold_read;
 mod critic_tools;
 mod flow_budget;
 mod manifest;

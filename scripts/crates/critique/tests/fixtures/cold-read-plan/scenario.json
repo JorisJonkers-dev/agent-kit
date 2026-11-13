@@ -1,0 +1,68 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/p-1\"}"
+      ],
+      "write": {
+        "repos/cr/docs/adr/0001-db.md": "# 1. DB\n\nWe use Postgres.\n",
+        "repos/cr/docs/adr/0002-events.md": "# 2. Events\n\nEvents are append-only. Revisit in 2027.\n",
+        "repos/cr/docs/adr/sub dir/0003-ünï.md": "# 3. Ünï\n\nUnicode names work.\n",
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "runs/p-1/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/p-1/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/p-1\",\"run_id\":\"p-1\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/p-2/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/p-2/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/p-2\",\"run_id\":\"p-2\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/p-3/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/p-3/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/p-3\",\"run_id\":\"p-3\",\"stage\":\"spec\",\"version\":1}\n",
+        "bin/vibe": "#!/bin/sh\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = --output-dir ]; then out=\"$2\"; fi\n  shift\ndone\nmkdir -p \"$out\"\ncase \"$out\" in\n*/p-1/cold-read/1/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"Here is what I read.\\n```json\\n{\\\"decided\\\":\\\"a\\\"}\\n```\\nDone.\\n\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/p-2\"}"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"day\",\"limit_usd\":0.0002}]}}}\n"
+      },
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "cold-read",
+        "--json",
+        "{\"files\":[\"docs/adr/0001-db.md\"],\"run_dir\":\"@SANDBOX@/runs/p-3\"}"
+      ],
+      "write": {
+        "home/.config/agent-kit/model-gateway.json": "{"
+      },
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}

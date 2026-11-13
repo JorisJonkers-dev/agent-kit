@@ -38,6 +38,12 @@ impl Clock for FixedClock {
     }
 }
 
+/// The folder the node runner and its shipped files (roles, prompts, routing) sit in.
+fn shipped_folder() -> String {
+    let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("..").join("skills").join("workstation").join("critique");
+    std::fs::canonicalize(folder).expect("shipped folder").to_string_lossy().into_owned()
+}
+
 pub fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures")
 }
@@ -171,6 +177,15 @@ impl Replay {
         Replay { dir, scenario, sandbox }
     }
 
+    /// `/assets` for a scenario that reads none of the shipped files; the shipped folder itself for one that does.
+    fn assets_root(&self) -> String {
+        if field(&self.scenario, "assets") == Some(&Value::Bool(true)) {
+            shipped_folder()
+        } else {
+            "/assets".to_string()
+        }
+    }
+
     fn substitute(&self, text: &str) -> String {
         text.replace("@SANDBOX@", &self.sandbox.text())
     }
@@ -255,12 +270,12 @@ impl Replay {
             dirs: Box::new(crate::dirs::SystemDirs),
             git: Box::new(SystemGit { env: env.clone() }),
             env,
-            assets_root: "/assets".to_string(),
+            assets_root: self.assets_root(),
             stdin: Box::new(move || stdin.clone()),
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);
-        let normalise = |text: &str| text.replace(&self.sandbox.text(), "@SANDBOX@");
+        let normalise = |text: &str| text.replace(&self.sandbox.text(), "@SANDBOX@").replace(&shipped_folder(), "/assets");
         let extra: Vec<&str> = list(step, "roots").iter().filter_map(Value::as_str).collect();
         let roots: Vec<&str> = ["state", "home", "work"].into_iter().chain(extra).collect();
         let files = snapshot(&self.sandbox, &roots)

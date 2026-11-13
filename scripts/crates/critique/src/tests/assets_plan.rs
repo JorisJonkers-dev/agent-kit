@@ -25,13 +25,13 @@ fn an_asset_is_read_from_the_assets_folder_and_a_missing_one_is_unexpected() {
 }
 
 #[test]
-fn a_plan_limit_is_read_for_a_client_and_its_failure_keeps_the_gateways_code() {
+fn a_plan_limit_is_read_for_a_client_and_its_failure_is_unexpected() {
     let dir = temp("plan");
     let mut runtime = runtime("");
     runtime.gateway.env.insert("HOME".to_string(), dir.to_string_lossy().into_owned());
     let reading = plan_limit(&runtime, "vibe").map_err(|error| error.message);
     assert_eq!(reading.map(|reading| reading.client), Ok("vibe".to_string()));
     runtime.gateway.env.clear();
-    assert!(plan_limit(&runtime, "vibe").is_err());
+    assert_eq!(plan_limit(&runtime, "vibe").err().map(|error| error.code), Some("unexpected".to_string()));
     let _ = std::fs::remove_dir_all(&dir);
 }
