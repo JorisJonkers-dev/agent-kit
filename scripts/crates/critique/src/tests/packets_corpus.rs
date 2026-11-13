@@ -159,6 +159,10 @@ impl Git for ModelGit {
     fn commit_tree(&self, _cwd: &str, _tree: &str, _parent: &str, _message: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
+
+    fn porcelain_status(&self, _cwd: &str) -> Result<Vec<crate::git::PorcelainEntry>, String> {
+        Err("unused".to_string())
+    }
 }
 
 /// The issues of the model repository, by number.

@@ -85,6 +85,26 @@ impl CriticClient {
             CriticClient::Claude(_) => "claude",
         }
     }
+
+    /// The family of the model the client runs.
+    pub fn family(&self) -> &str {
+        match self {
+            CriticClient::Vibe(client) => &client.family,
+            CriticClient::Agy(client) => &client.family,
+            CriticClient::Codex(client) => &client.family,
+            CriticClient::Claude(client) => &client.family,
+        }
+    }
+
+    /// The model the client runs.
+    pub fn model(&self) -> &str {
+        match self {
+            CriticClient::Vibe(client) => &client.model,
+            CriticClient::Agy(client) => &client.model,
+            CriticClient::Codex(client) => &client.model,
+            CriticClient::Claude(client) => &client.model,
+        }
+    }
 }
 
 /// Whether a client belongs to the work roster, and so to no other.

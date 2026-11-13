@@ -1,7 +1,10 @@
 //! What a client hands back: one question put to a model, the answer it gave, and whether a client can run at all.
 //! The node runner's `application/ports.ts` and `domain/routing.ts`.
 
+use crate::critic_tools::CriticToolset;
 use crate::error::CritiqueError;
+use crate::findings::CriticFinding;
+use crate::roster::RosterCritic;
 use crate::routing::CriticClient;
 use crate::runtime::Runtime;
 
@@ -58,19 +61,62 @@ pub struct ClientReadiness {
     pub detail: Option<String>,
 }
 
-/// Asks the client of `config`'s kind whether it can run. Only Vibe has an adapter so far: Antigravity's, Codex's and
-/// Claude's arrive with the commands that need them, so a machine that wires one of those has no work critic, and
-/// prepare drops it as unavailable.
+/// What a critic client makes of one critic's run: a review, or the reason it counts as none.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CriticOutcome {
+    Ok { findings: Vec<CriticFinding>, no_findings_reason: Option<String>, cost_usd: Option<f64> },
+    Failed { failure: String, detail: String, cost_usd: Option<f64> },
+}
+
+/// Where one critic of a run works.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CriticLaunch<'a> {
+    pub critic: &'a RosterCritic,
+    /// The critic's own copy of the packet: its working directory, and all it may read.
+    pub packet_dir: String,
+    /// The assembled prompt, written outside the packet.
+    pub prompt_path: String,
+    /// The critic's own directory in the run, for whatever its client writes there.
+    pub critic_dir: String,
+    /// The finding schema, for a client that can enforce it.
+    pub schema_path: String,
+    /// The tools the critic has, which its prompt names.
+    pub toolset: CriticToolset,
+}
+
+/// A critic's run as its client saw it: the raw output, and what that output amounts to.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CriticReport {
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
+    /// The file the client read cost and effective config from.
+    pub export_path: String,
+    pub outcome: CriticOutcome,
+    /// What the run counts against the flow's Vibe cap.
+    pub charged_usd: f64,
+    /// What Vibe itself reported, kept beside the cost the runner computed; absent for any other client.
+    pub vibe_cost_usd: Option<Option<f64>>,
+    /// What the run used, as its client reported it; absent when the client reports none.
+    pub tokens: Option<CriticTokens>,
+}
+
+/// Asks the client of `config`'s kind whether it can run.
 pub fn client_readiness(runtime: &Runtime, config: &CriticClient) -> Result<ClientReadiness, CritiqueError> {
     match config {
         CriticClient::Vibe(vibe) => crate::vibe_client::vibe_readiness(runtime, vibe),
-        CriticClient::Agy(_) => Ok(unwired("agy")),
-        CriticClient::Codex(_) => Ok(unwired("codex")),
-        CriticClient::Claude(_) => Ok(unwired("claude")),
+        CriticClient::Agy(agy) => crate::agy_client::agy_readiness(runtime, agy),
+        CriticClient::Codex(codex) => crate::work_client::codex_sign_in(runtime, codex),
+        CriticClient::Claude(claude) => crate::work_client::claude_sign_in(runtime, claude),
     }
 }
 
-/// Why a work critic cannot run on a machine that wires no client for its kind.
-fn unwired(kind: &str) -> ClientReadiness {
-    ClientReadiness { ready: false, detail: Some(format!("no {kind} critic client is wired on this machine")) }
+/// Runs the launch's critic through the client of its kind.
+pub fn review_with(runtime: &Runtime, launch: &CriticLaunch<'_>) -> Result<CriticReport, CritiqueError> {
+    match &launch.critic.client_config {
+        CriticClient::Vibe(vibe) => crate::vibe_client::vibe_review(runtime, launch, vibe),
+        CriticClient::Agy(agy) => crate::agy_client::agy_review(runtime, launch, agy),
+        CriticClient::Codex(codex) => crate::work_client::codex_review(runtime, launch, codex),
+        CriticClient::Claude(claude) => crate::work_client::claude_review(runtime, launch, claude),
+    }
 }

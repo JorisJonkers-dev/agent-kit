@@ -1,11 +1,11 @@
 //! The Vibe client: what one run's exit code, journal and export say, what it counts, and the launch that produces it.
 
-use crate::clients::{client_readiness, ClientReadiness, CriticTokens, ModelAnswer, ModelAnswerReport, ModelQuestion};
+use crate::clients::{ClientReadiness, CriticTokens, ModelAnswer, ModelAnswerReport, ModelQuestion};
 use crate::dirs::SystemDirs;
 use crate::error::CritiqueError;
 use crate::git::SystemGit;
 use crate::pricing::{TokenPrices, TokenUsage};
-use crate::routing::{AgyCriticClient, ClaudeCriticClient, CodexCriticClient, CriticClient, GatewayModel, VibeCriticClient};
+use crate::routing::{AgyCriticClient, ClaudeCriticClient, CodexCriticClient, GatewayModel, VibeCriticClient};
 use crate::runtime::Runtime;
 use crate::vibe_client::{
     answer_of, computed_cost, tokens_of, vibe_ask, vibe_charge, vibe_message, vibe_readiness, vibe_sign_in, ExpectedConfig, VibeMessage,
@@ -412,14 +412,14 @@ fn a_token_cost_prices_the_cached_part_at_the_cached_price() {
 /// A file system of the files a test names, and nothing else; `broken` is a path whose look fails, `ghosts` paths that
 /// are there but cannot be read.
 #[derive(Clone, Default)]
-struct FakeFiles {
+pub struct FakeFiles {
     files: Arc<Mutex<HashMap<String, String>>>,
     broken: Arc<Mutex<Option<String>>>,
     ghosts: Arc<Mutex<Vec<String>>>,
 }
 
 impl FakeFiles {
-    fn put(&self, path: &str, text: &str) {
+    pub fn put(&self, path: &str, text: &str) {
         if let Ok(mut files) = self.files.lock() {
             files.insert(path.to_string(), text.to_string());
         }
@@ -437,7 +437,7 @@ impl FakeFiles {
         }
     }
 
-    fn has(&self, path: &str) -> bool {
+    pub fn has(&self, path: &str) -> bool {
         self.files.lock().map(|files| files.contains_key(path)).unwrap_or(false)
     }
 
@@ -523,22 +523,22 @@ impl Files for FakeFiles {
 
 /// A process that answers every launch with one canned result, or refuses to start, and records what it was given.
 #[derive(Clone)]
-struct FakeProcess {
+pub struct FakeProcess {
     result: ProcessResult,
     spawn_error: Option<String>,
     commands: Arc<Mutex<Vec<ProcessCommand>>>,
 }
 
 impl FakeProcess {
-    fn answering(result: ProcessResult) -> FakeProcess {
+    pub fn answering(result: ProcessResult) -> FakeProcess {
         FakeProcess { result, spawn_error: None, commands: Arc::new(Mutex::new(Vec::new())) }
     }
 
-    fn refusing(message: &str) -> FakeProcess {
+    pub fn refusing(message: &str) -> FakeProcess {
         FakeProcess { result: exit(0), spawn_error: Some(message.to_string()), commands: Arc::new(Mutex::new(Vec::new())) }
     }
 
-    fn commands(&self) -> Vec<ProcessCommand> {
+    pub fn commands(&self) -> Vec<ProcessCommand> {
         self.commands.lock().map(|commands| commands.clone()).unwrap_or_default()
     }
 }
@@ -564,12 +564,12 @@ impl Process for FakeProcess {
 }
 
 /// A finished command that printed `stdout` and exited `code`.
-fn exit(code: i32) -> ProcessResult {
+pub fn exit(code: i32) -> ProcessResult {
     ProcessResult { stdout: String::new(), stderr: String::new(), exit_code: code, timed_out: false }
 }
 
 /// A runtime whose files and process are the test's own, in the runner's hands and the gateway's.
-fn runtime_with(files: impl Fn() -> Box<dyn Files>, process: impl Fn() -> Box<dyn Process>, env: &[(&str, &str)]) -> Runtime {
+pub fn runtime_with(files: impl Fn() -> Box<dyn Files>, process: impl Fn() -> Box<dyn Process>, env: &[(&str, &str)]) -> Runtime {
     let env: HashMap<String, String> = env.iter().map(|(key, value)| ((*key).to_string(), (*value).to_string())).collect();
     let mut gateway = model_gateway::default_runtime();
     gateway.files = files();
@@ -589,12 +589,12 @@ fn runtime_with(files: impl Fn() -> Box<dyn Files>, process: impl Fn() -> Box<dy
 }
 
 /// A runtime over the fakes.
-fn fake_runtime(files: &FakeFiles, process: &FakeProcess, env: &[(&str, &str)]) -> Runtime {
+pub fn fake_runtime(files: &FakeFiles, process: &FakeProcess, env: &[(&str, &str)]) -> Runtime {
     runtime_with(|| -> Box<dyn Files> { Box::new(files.clone()) }, || -> Box<dyn Process> { Box::new(process.clone()) }, env)
 }
 
 /// The Vibe critic client routing names.
-fn vibe_config() -> VibeCriticClient {
+pub fn vibe_config() -> VibeCriticClient {
     VibeCriticClient {
         binary: "vibe".to_string(),
         agent: "critic-mistral-medium".to_string(),
@@ -774,7 +774,7 @@ fn a_program_that_will_not_start_is_unexpected() {
 }
 
 /// A home that is signed in the way setup checks it, with the critic agent installed.
-fn ready_files() -> FakeFiles {
+pub fn ready_files() -> FakeFiles {
     let files = FakeFiles::default();
     files.put("/bin/vibe", "");
     files.put("/home/owner/.vibe/.env", "MISTRAL_API_KEY=sk-test\n");
@@ -783,7 +783,7 @@ fn ready_files() -> FakeFiles {
 }
 
 /// A process whose keyring holds nothing, so the home's `.env` decides.
-fn empty_keyring() -> FakeProcess {
+pub fn empty_keyring() -> FakeProcess {
     FakeProcess::answering(exit(1))
 }
 
@@ -901,34 +901,16 @@ fn a_missing_home_is_an_error() {
 }
 
 /// A work client of a kind no machine wires yet.
-fn agy_config() -> AgyCriticClient {
+pub fn agy_config() -> AgyCriticClient {
     AgyCriticClient { binary: "agy".to_string(), model: "gemini-3".to_string(), family: "google".to_string(), gateway: None }
 }
 
-fn codex_config() -> CodexCriticClient {
+pub fn codex_config() -> CodexCriticClient {
     CodexCriticClient { binary: "codex".to_string(), model: "gpt-5".to_string(), family: "openai".to_string(), gateway: None }
 }
 
-fn claude_config() -> ClaudeCriticClient {
+pub fn claude_config() -> ClaudeCriticClient {
     ClaudeCriticClient { binary: "claude".to_string(), model: "opus".to_string(), family: "anthropic".to_string(), gateway: None }
-}
-
-#[test]
-fn only_vibe_has_a_wired_client() {
-    let files = ready_files();
-    let runtime = fake_runtime(&files, &empty_keyring(), &[("PATH", "/bin"), ("HOME", "/home/owner")]);
-    assert_eq!(client_readiness(&runtime, &CriticClient::Vibe(vibe_config())), Ok(ClientReadiness { ready: true, detail: None }));
-    let unwired = [
-        (CriticClient::Agy(agy_config()), "agy"),
-        (CriticClient::Codex(codex_config()), "codex"),
-        (CriticClient::Claude(claude_config()), "claude"),
-    ];
-    for (client, kind) in unwired {
-        assert_eq!(
-            client_readiness(&runtime, &client),
-            Ok(ClientReadiness { ready: false, detail: Some(format!("no {kind} critic client is wired on this machine")) })
-        );
-    }
 }
 
 /// A fresh directory under the system's temporary one, named for this test.

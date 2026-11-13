@@ -40,7 +40,7 @@ fn a_porcelain_listing_skips_the_source_of_a_rename_or_copy() {
     assert_eq!(parse_porcelain("ab\0"), vec![PorcelainEntry { code: "ab".to_string(), path: String::new() }]);
 }
 
-struct Status(Mutex<Result<Vec<PorcelainEntry>, String>>);
+pub struct Status(pub Mutex<Result<Vec<PorcelainEntry>, String>>);
 
 impl Git for Status {
     fn commit_log(&self, _cwd: &str, _revision: &str, _paths: &[String], _limit: usize) -> Result<Vec<crate::recovery::HistoryEntry>, String> {
@@ -113,6 +113,9 @@ impl Git for Status {
     fn current_branch(&self, _cwd: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
+    fn commit_log(&self, _cwd: &str, _revision: &str, _paths: &[String], _limit: usize) -> Result<Vec<crate::recovery::HistoryEntry>, String> {
+        Err("unused".to_string())
+    }
     fn porcelain_status(&self, _cwd: &str) -> Result<Vec<PorcelainEntry>, String> {
         self.0.lock().expect("lock").clone()
     }
@@ -125,7 +128,7 @@ fn runtime(sandbox: &Sandbox, status: Result<Vec<PorcelainEntry>, String>) -> Ru
     base
 }
 
-fn write(path: &str, text: &str) {
+pub fn write(path: &str, text: &str) {
     std::fs::create_dir_all(std::path::Path::new(path).parent().expect("a parent")).expect("dirs");
     std::fs::write(path, text).expect("write");
 }

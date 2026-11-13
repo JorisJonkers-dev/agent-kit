@@ -3,6 +3,7 @@
 //! node runner produced (tests/fixtures) byte for byte.
 
 pub mod adjudication;
+pub mod agy_client;
 pub mod adr_drift;
 pub mod adr_log;
 pub mod adr_packet;
@@ -29,6 +30,7 @@ pub mod evidence;
 pub mod cli;
 pub mod clients;
 pub mod critic;
+pub mod critic_run;
 pub mod critic_tools;
 pub mod decision_docs;
 pub mod decode;
@@ -101,6 +103,7 @@ pub mod tripwire;
 pub mod tracker;
 pub mod tracker_resolver;
 pub mod tree_sample;
+pub mod work_client;
 pub mod triage;
 pub mod triage_command;
 pub mod triage_index;

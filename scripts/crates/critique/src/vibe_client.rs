@@ -1,7 +1,8 @@
 //! The Vibe client: what one Vibe run's exit code, journal and export say about it, what it counts against the flow's
 //! cap, and the launch that produces it. The node runner's `adapters/vibe/index.ts`.
 
-use crate::clients::{ClientReadiness, CriticTokens, ModelAnswer, ModelAnswerReport, ModelQuestion};
+use crate::clients::{ClientReadiness, CriticLaunch, CriticOutcome, CriticReport, CriticTokens, ModelAnswer, ModelAnswerReport, ModelQuestion};
+use crate::findings::{parse_findings, FindingsParse};
 use crate::error::CritiqueError;
 use crate::pricing::{token_cost, TokenPrices, TokenUsage};
 use crate::routing::VibeCriticClient;
@@ -253,7 +254,7 @@ fn server_field<'a>(server: &Option<&'a Object>, key: &str) -> Option<&'a Value>
 }
 
 /// `String(value)` for a JSON value, as the node runner words a server's name.
-fn js_string(value: Option<&Value>) -> String {
+pub(crate) fn js_string(value: Option<&Value>) -> String {
     match value {
         None => "undefined".to_string(),
         Some(Value::Null) => "null".to_string(),
@@ -341,7 +342,7 @@ pub fn vibe_ask(runtime: &Runtime, question: &ModelQuestion, config: &VibeCritic
         work_dir: question.work_dir.clone(),
         git_writable: None,
     };
-    let (result, run) = launch(runtime, question.time_limit_s, question.max_price_usd, config, &paths)?;
+    let (result, run) = launch_run(runtime, question.time_limit_s, question.max_price_usd, config, &paths)?;
     Ok(ModelAnswerReport {
         exit_code: result.exit_code,
         stdout: result.stdout,
@@ -353,11 +354,41 @@ pub fn vibe_ask(runtime: &Runtime, question: &ModelQuestion, config: &VibeCritic
     })
 }
 
+/// Runs one Vibe critic in its packet and reads its review from stdout and the export file, launched exactly as a
+/// question is. A critic reads alone: the runner starts no search server for it.
+pub fn vibe_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &VibeCriticClient) -> Result<CriticReport, CritiqueError> {
+    let export_dir = crate::paths::join(&[&launch.critic_dir, "export"]);
+    let export_path = crate::paths::join(&[&export_dir, "export.json"]);
+    let paths = LaunchPaths { export_dir, prompt_path: launch.prompt_path.clone(), run_dir: None, work_dir: launch.packet_dir.clone(), git_writable: None };
+    let (result, run) = launch_run(runtime, launch.critic.time_limit_s, launch.critic.max_price_usd, config, &paths)?;
+    Ok(CriticReport {
+        exit_code: result.exit_code,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        export_path,
+        outcome: classify_vibe_run(&run),
+        charged_usd: vibe_charge(&run, launch.critic.max_price_usd),
+        vibe_cost_usd: Some(run.vibe_cost_usd),
+        tokens: tokens_of(run.exported.as_ref()),
+    })
+}
+
+/// A critic's run is a review when its final message's last ```json block matches the output contract.
+pub fn classify_vibe_run(run: &VibeRun) -> CriticOutcome {
+    match vibe_message(run) {
+        VibeMessage::Failed { failure, detail, cost_usd } => CriticOutcome::Failed { failure, detail, cost_usd },
+        VibeMessage::Ok { text, cost_usd } => match parse_findings(&text) {
+            FindingsParse::Failed { failure, detail } => CriticOutcome::Failed { failure: failure.to_string(), detail, cost_usd },
+            FindingsParse::Ok { findings, no_findings_reason } => CriticOutcome::Ok { findings, no_findings_reason, cost_usd },
+        },
+    }
+}
+
 /// One Vibe launch through the gateway's launch path, and what its output and export say about it. The gateway builds
 /// the command, applies the critic's extras, runs it under its own time and price limits, and reads the export; the
 /// runner prices the run and reads its journal itself. A question never searches, so its effective config must show
 /// MCP off.
-fn launch(
+fn launch_run(
     runtime: &Runtime,
     time_limit_s: f64,
     max_price_usd: f64,
@@ -398,7 +429,7 @@ fn launch(
 
 /// Why a launch did not come to an outcome: the gateway's own refusal, or the platform's words for a program that
 /// would not start.
-fn launch_error(error: ClientRunError) -> CritiqueError {
+pub(crate) fn launch_error(error: ClientRunError) -> CritiqueError {
     match error {
         ClientRunError::Gateway(error) => CritiqueError::unexpected(error.message),
         ClientRunError::Spawn(message) => CritiqueError::unexpected(message),
@@ -408,7 +439,12 @@ fn launch_error(error: ClientRunError) -> CritiqueError {
 /// The gateway client a critic client runs on: the one its config pins, else Vibe itself. A name the gateway does not
 /// run is refused as its own `run` refuses it.
 fn client_of(config: &VibeCriticClient) -> Result<RunClient, CritiqueError> {
-    let name = config.gateway.as_ref().map_or("vibe", |gateway| gateway.client.as_str());
+    gateway_client(config.gateway.as_ref(), "vibe")
+}
+
+/// The gateway client a critic client runs on: the one its config pins, else `default`.
+pub(crate) fn gateway_client(gateway: Option<&crate::routing::GatewayModel>, default: &str) -> Result<RunClient, CritiqueError> {
+    let name = gateway.map_or(default, |gateway| gateway.client.as_str());
     RunClient::parse(name).ok_or_else(|| {
         CritiqueError::new("not-supported-yet", format!("only {} can run a delegation, not {name}", RUN_CLIENTS.join(", ")))
     })
@@ -429,7 +465,7 @@ fn signed_in(runtime: &Runtime, home: &str) -> Result<bool, CritiqueError> {
 }
 
 /// Whether the binary is there: an absolute path as it stands, else the first `PATH` folder that holds it.
-fn on_path(runtime: &Runtime, binary: &str) -> bool {
+pub(crate) fn on_path(runtime: &Runtime, binary: &str) -> bool {
     if binary.starts_with('/') {
         return runtime.files.exists(binary).unwrap_or(false);
     }
