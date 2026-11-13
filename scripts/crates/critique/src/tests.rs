@@ -13,6 +13,8 @@ mod gh;
 mod js_regex;
 mod ledger_source;
 mod manifest;
+mod record_corpus;
+mod record_units;
 mod reviews;
 mod roster;
 mod routing;

@@ -2,6 +2,7 @@
 //! object in, one JSON object out. The unit tests replay the golden scenarios the
 //! node runner produced (tests/fixtures) byte for byte.
 
+pub mod adjudication;
 pub mod adr_drift;
 pub mod adr_log;
 pub mod assets;
@@ -19,14 +20,18 @@ pub mod collate;
 pub mod diff_filter;
 pub mod cli;
 pub mod clients;
+pub mod critic;
 pub mod critic_tools;
 pub mod decision_docs;
+pub mod decode;
 pub mod depth;
 pub mod dirs;
 pub mod error;
 pub mod facts;
+pub mod fan_out_result;
 pub mod family;
 pub mod fields;
+pub mod feature_review;
 pub mod findings;
 pub mod flow_budget;
 pub mod gate;
@@ -46,6 +51,8 @@ pub mod packet_search;
 pub mod plan;
 pub mod pricing;
 pub mod refactoring_plan;
+pub mod refute;
+pub mod report;
 pub mod repository;
 pub mod repository_packet;
 pub mod review_runs;
@@ -53,6 +60,7 @@ pub mod reviews;
 pub mod roster;
 pub mod routing;
 pub mod routing_source;
+pub mod run_ledger;
 pub mod runtime;
 pub mod source_scan;
 pub mod stage;
