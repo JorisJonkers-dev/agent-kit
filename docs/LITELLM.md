@@ -19,7 +19,7 @@ token numbers are never used; the proxy's refusal is the only budget signal.
 A key lists **access groups**, not a provider wildcard: a caller sends one canonical model
 name (`glm-5.3`, `mistral-large`, `claude-sonnet-4-5`, ...) and the proxy routes it across the
 provider accounts by priority (litellm#20), so the agent id no longer picks the provider. The
-litellm#19 sync puts every non-Google deployment, OpenRouter and local included, in `canonical`;
+litellm#19 sync puts every deployment but a Google free-tier one, OpenRouter and local included, in `canonical`;
 there are no per-route groups.
 Which models an account can actually use is the live catalogue's job (below); a listed model
 can still be refused.
