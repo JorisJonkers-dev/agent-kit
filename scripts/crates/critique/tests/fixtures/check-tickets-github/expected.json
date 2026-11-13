@@ -1,0 +1,76 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"spec\": {\n    \"reference\": \"github.com/jorisjonkers-dev/example#1\",\n    \"tracker\": \"github\"\n  },\n  \"coverage\": {\n    \"status\": \"checked\",\n    \"stories\": [\n      1,\n      2,\n      3\n    ],\n    \"uncited\": [\n      3\n    ]\n  },\n  \"cycles\": [\n    [\n      \"#2\",\n      \"#3\"\n    ]\n  ],\n  \"dangling_blockers\": [\n    {\n      \"blocker\": \"github.com/other/repo#11\",\n      \"ticket\": \"#4\"\n    },\n    {\n      \"blocker\": \"#12\",\n      \"ticket\": \"#4\"\n    }\n  ],\n  \"tickets\": [\n    {\n      \"blocked_by\": [\n        \"#3\"\n      ],\n      \"criteria\": 2,\n      \"id\": \"#2\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#2\",\n      \"stories\": [\n        1\n      ],\n      \"title\": \"Ticket 2\"\n    },\n    {\n      \"blocked_by\": [\n        \"#2\",\n        \"#4\"\n      ],\n      \"criteria\": 1,\n      \"id\": \"#3\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#3\",\n      \"stories\": [\n        2,\n        4\n      ],\n      \"title\": \"Ticket 3\"\n    },\n    {\n      \"blocked_by\": [\n        \"github.com/other/repo#11\",\n        \"#12\"\n      ],\n      \"criteria\": 0,\n      \"id\": \"#4\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#4\",\n      \"stories\": [],\n      \"title\": \"Ticket 4\"\n    },\n    {\n      \"blocked_by\": [],\n      \"criteria\": 0,\n      \"id\": \"#5\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#5\",\n      \"stories\": [],\n      \"title\": \"\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"spec\": {\n    \"reference\": \"github.com/jorisjonkers-dev/example#1\",\n    \"tracker\": \"github\"\n  },\n  \"coverage\": {\n    \"status\": \"checked\",\n    \"stories\": [\n      1,\n      2,\n      3\n    ],\n    \"uncited\": [\n      3\n    ]\n  },\n  \"cycles\": [\n    [\n      \"#2\",\n      \"#3\"\n    ]\n  ],\n  \"dangling_blockers\": [\n    {\n      \"blocker\": \"github.com/other/repo#11\",\n      \"ticket\": \"#4\"\n    },\n    {\n      \"blocker\": \"#12\",\n      \"ticket\": \"#4\"\n    }\n  ],\n  \"tickets\": [\n    {\n      \"blocked_by\": [\n        \"#3\"\n      ],\n      \"criteria\": 2,\n      \"id\": \"#2\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#2\",\n      \"stories\": [\n        1\n      ],\n      \"title\": \"Ticket 2\"\n    },\n    {\n      \"blocked_by\": [\n        \"#2\",\n        \"#4\"\n      ],\n      \"criteria\": 1,\n      \"id\": \"#3\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#3\",\n      \"stories\": [\n        2,\n        4\n      ],\n      \"title\": \"Ticket 3\"\n    },\n    {\n      \"blocked_by\": [\n        \"github.com/other/repo#11\",\n        \"#12\"\n      ],\n      \"criteria\": 0,\n      \"id\": \"#4\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#4\",\n      \"stories\": [],\n      \"title\": \"Ticket 4\"\n    },\n    {\n      \"blocked_by\": [],\n      \"criteria\": 0,\n      \"id\": \"#5\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#5\",\n      \"stories\": [],\n      \"title\": \"\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"spec\": {\n    \"reference\": \"github.com/jorisjonkers-dev/example#1\",\n    \"tracker\": \"github\"\n  },\n  \"coverage\": {\n    \"status\": \"checked\",\n    \"stories\": [\n      1,\n      2,\n      3\n    ],\n    \"uncited\": [\n      3\n    ]\n  },\n  \"cycles\": [\n    [\n      \"#2\",\n      \"#3\"\n    ]\n  ],\n  \"dangling_blockers\": [\n    {\n      \"blocker\": \"github.com/other/repo#11\",\n      \"ticket\": \"#4\"\n    },\n    {\n      \"blocker\": \"#12\",\n      \"ticket\": \"#4\"\n    }\n  ],\n  \"tickets\": [\n    {\n      \"blocked_by\": [\n        \"#3\"\n      ],\n      \"criteria\": 2,\n      \"id\": \"#2\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#2\",\n      \"stories\": [\n        1\n      ],\n      \"title\": \"Ticket 2\"\n    },\n    {\n      \"blocked_by\": [\n        \"#2\",\n        \"#4\"\n      ],\n      \"criteria\": 1,\n      \"id\": \"#3\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#3\",\n      \"stories\": [\n        2,\n        4\n      ],\n      \"title\": \"Ticket 3\"\n    },\n    {\n      \"blocked_by\": [\n        \"github.com/other/repo#11\",\n        \"#12\"\n      ],\n      \"criteria\": 0,\n      \"id\": \"#4\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#4\",\n      \"stories\": [],\n      \"title\": \"Ticket 4\"\n    },\n    {\n      \"blocked_by\": [],\n      \"criteria\": 0,\n      \"id\": \"#5\",\n      \"reference\": \"github.com/jorisjonkers-dev/example#5\",\n      \"stories\": [],\n      \"title\": \"\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"spec\": {\n    \"reference\": \"github.com/jorisjonkers-dev/example#6\",\n    \"tracker\": \"github\"\n  },\n  \"coverage\": {\n    \"reason\": \"the spec has no numbered user stories\",\n    \"status\": \"not-checkable\"\n  },\n  \"cycles\": [],\n  \"dangling_blockers\": [],\n  \"tickets\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read issue github.com/jorisjonkers-dev/example#9 through gh: gh issue view exited 1: GraphQL: Could not resolve to an issue\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read the tickets of github.com/jorisjonkers-dev/example#7 through gh: gh api exited 1: HTTP 404: Not Found\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"cannot read the tickets of github.com/jorisjonkers-dev/example#8 through gh: gh api printed something that is not a list of issues\",\n  \"reason\": \"tracker-unreachable\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

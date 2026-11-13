@@ -20,6 +20,7 @@ mod scans;
 mod scenarios;
 mod stats;
 mod stats_corpus;
+mod tickets_corpus;
 mod tracker;
 mod triage_domain;
 mod units;

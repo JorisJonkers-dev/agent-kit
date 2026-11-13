@@ -1,0 +1,85 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"docs/agents/issue-tracker.md names GitLab; the critique reads specs from GitHub issues or local markdown only\",\n  \"reason\": \"unsupported-tracker\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"not-an-issue is not an issue reference; this repository tracks specs as GitHub issues, so name one as #<number> or by its URL\",\"status\":\"error\"}\n",
+      "stderr": "critique check-tickets: not-an-issue is not an issue reference; this repository tracks specs as GitHub issues, so name one as #<number> or by its URL\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"outside-repository\",\"message\":\"other/repo#3 is an issue of github.com/other/repo, not of github.com/jorisjonkers-dev/example\",\"status\":\"error\"}\n",
+      "stderr": "critique check-tickets: other/repo#3 is an issue of github.com/other/repo, not of github.com/jorisjonkers-dev/example\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-tickets input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-tickets: check-tickets input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-tickets input: spec must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-tickets: check-tickets input: spec must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-tickets input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-tickets: check-tickets input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-tickets input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-tickets: check-tickets input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

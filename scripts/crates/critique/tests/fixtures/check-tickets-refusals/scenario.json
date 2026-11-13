@@ -1,0 +1,182 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/r1/docs/agents/issue-tracker.md": "# Issue tracker: GitLab\n",
+        "repos/r2/a.md": "a\n",
+        "repos/r3/a.md": "a\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/r1"
+        ],
+        [
+          "-C",
+          "repos/r1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/r1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/r1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/r2"
+        ],
+        [
+          "-C",
+          "repos/r2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/r2",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/r3"
+        ],
+        [
+          "-C",
+          "repos/r3",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/r3",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/r3",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/r1\",\"spec\":\"#1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\nif [ \"$1\" = api ]; then\ncase \"$6\" in\n\nesac\nelif [ \"$1 $2\" = \"issue view\" ]; then\ncase \"$3\" in\n\nesac\nfi\necho \"gh: unexpected: $*\" >&2\nexit 9\n"
+      },
+      "exec": [
+        "bin/gh"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/r2\",\"spec\":\"#1\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/r3\",\"spec\":\"not-an-issue\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/r3\",\"spec\":\"other/repo#3\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"spec\":\"#1\"}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/r3\",\"spec\":3}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "{\"repo\":5}"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "check-tickets",
+        "--json",
+        "[]"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}
