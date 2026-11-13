@@ -1,0 +1,213 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/s1/a.md": "a\n",
+        "repos/s2/a.md": "a\n",
+        "repos/s3/a.md": "a\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s1"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s2"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s3"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/thing.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s2\"}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s3\"}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"vibe-signed-in\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"read-only:claude\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"other\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"vibe-signed-in\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:vibe-mistral-large\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:vibe-glm\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:vibe-deepseek-flash\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:vibe-mistral-small\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"agy-signed-in\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"critic:agy-gemini-flash-high\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"agy-quota\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"},\"hooks-installed\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"},\"kill-switch\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"pass\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"vibe-signed-in\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"critic:vibe-mistral-large\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"},\"critic:vibe-glm\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"},\"critic:vibe-deepseek-flash\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"},\"critic:vibe-mistral-small\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"},\"agy-signed-in\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"},\"critic:agy-gemini-flash-high\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"},\"agy-quota\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"},\"hooks-installed\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"},\"kill-switch\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"fail\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"checks\":{\"vibe-signed-in\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"critic:vibe-mistral-large\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"critic:vibe-glm\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"critic:vibe-deepseek-flash\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"critic:vibe-mistral-small\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"agy-signed-in\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"critic:agy-gemini-flash-high\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"agy-quota\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"hooks-installed\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"},\"kill-switch\":{\"checked_at\":\"2026-11-01T00:00:00.000Z\",\"detail\":\"d\",\"inputs\":{},\"result\":\"unproven\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"agy-gemini-flash-high\":null},\"stages\":{}}\n"
+      }
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "CRITIQUE_OFF": "1"
+      }
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "CRITIQUE_OFF": "0"
+      },
+      "write": {
+        "home/.config/agent-kit/critique.json": "{\"disabled\":true}\n"
+      }
+    },
+    {
+      "argv": [
+        "session-start",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique.json": "{\"disabled\":false}\n"
+      }
+    }
+  ]
+}

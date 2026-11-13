@@ -1,6 +1,6 @@
 //! The runner's command line: one command, one JSON object in, one JSON object out.
 
-use crate::{allow, check_adrs, check_tickets, check_plan, check_rewrite, cold_read, facts, reviews, stats_command, triage_command};
+use crate::{allow, check_adrs, check_plan, check_rewrite, check_tickets, cold_read, facts, reviews, session_start, stats_command, triage_command};
 use crate::error::CritiqueError;
 use crate::runtime::Runtime;
 use model_gateway::json::{self, Object, Value};
@@ -39,7 +39,7 @@ pub const COMMANDS: [(&str, Option<Command>); 19] = [
     ("record", None),
     ("refute", None),
     ("reviews", Some(reviews::run)),
-    ("session-start", None),
+    ("session-start", Some(session_start::run)),
     ("setup", None),
     ("state", None),
     ("stats", Some(stats_command::run)),
@@ -83,6 +83,7 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
     if name == Some("hook") {
         // Exit 1, never 2: an agent treats exit 2 from a PreToolUse hook as a block.
         return match flag {
+            Some("critique-session-start") if value.is_none() => session_start_hook(runtime),
             Some(hook) if value.is_none() && HOOKS.contains(&hook) => failure("hook", &not_ported(&format!("hook {hook}"))),
             _ => usage(1),
         };
@@ -98,7 +99,10 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
     let Some(command) = command else {
         return failure(name, &not_ported(&format!("critique {name}")));
     };
-    match read_input(flag, value, runtime).and_then(|text| parse_input(&text)).and_then(|input| command(&input, runtime)) {
+    // The gate fails open: input that is not JSON is the gate's to log and allow, not an error.
+    let lenient = matches!(*name, "gate" | "session-start");
+    let parse = |text: String| if lenient { Ok(parse_leniently(text)) } else { parse_input(&text) };
+    match read_input(flag, value, runtime).and_then(parse).and_then(|input| command(&input, runtime)) {
         Ok(result) => CliResult { exit_code: exit_code(&result, strict), stdout: format!("{}\n", json::pretty(&result)), stderr: String::new() },
         Err(error) => failure(name, &error),
     }
@@ -122,6 +126,18 @@ fn read_input(flag: Option<&str>, value: Option<&str>, runtime: &Runtime) -> Res
         (Some("--input"), Some(path)) => runtime.files.read_text(path).map_err(CritiqueError::from_fs),
         _ => Ok((runtime.stdin)()),
     }
+}
+
+/// The input as JSON, or as the text itself when it is not JSON.
+fn parse_leniently(text: String) -> Value {
+    json::parse(&text).unwrap_or(Value::Str(text))
+}
+
+/// The session-start hook: the one line it decided on, or nothing; it always exits 0 (ADR-0002, #197).
+fn session_start_hook(runtime: &Runtime) -> CliResult {
+    let result = session_start::decide_in_time(&parse_leniently((runtime.stdin)()), runtime, std::time::Duration::from_millis(session_start::GATE_DEADLINE_MS));
+    let line = result.as_object().and_then(|object| object.get("line")).and_then(Value::as_str).map(|line| format!("{line}\n"));
+    CliResult { exit_code: 0, stdout: line.unwrap_or_default(), stderr: String::new() }
 }
 
 fn parse_input(text: &str) -> Result<Value, CritiqueError> {

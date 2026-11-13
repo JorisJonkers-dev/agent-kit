@@ -10,12 +10,32 @@ pub fn allowlist_path(env: &HashMap<String, String>) -> Result<String, CritiqueE
     model_gateway::locations::allowlist_path(env).map_err(|error| CritiqueError::unexpected(error.message))
 }
 
-/// One ledger per user, in agent-kit's data directory.
-pub fn ledger_path(env: &HashMap<String, String>) -> Result<String, CritiqueError> {
+/// A path under the owner's home; a missing `HOME` is the error the node runner's `env.require` throws.
+fn in_home(env: &HashMap<String, String>, parts: &[&str]) -> Result<String, CritiqueError> {
     match env.get("HOME") {
-        Some(home) => Ok(model_gateway::text::join(&[home, ".local", "share", "agent-kit", "critique", "ledger.jsonl"])),
+        Some(home) => Ok(model_gateway::text::join(&[&[home.as_str()], parts].concat())),
         None => Err(CritiqueError::new("unexpected", "required environment variable is missing: HOME")),
     }
+}
+
+/// One ledger per user, in agent-kit's data directory.
+pub fn ledger_path(env: &HashMap<String, String>) -> Result<String, CritiqueError> {
+    in_home(env, &[".local", "share", "agent-kit", "critique", "ledger.jsonl"])
+}
+
+/// This machine's critique configuration, which holds the per-machine kill switch.
+pub fn critique_config_path(env: &HashMap<String, String>) -> Result<String, CritiqueError> {
+    in_home(env, &[".config", "agent-kit", "critique.json"])
+}
+
+/// Where the gates and the session-start hook log what they could not decide.
+pub fn gate_log_path(env: &HashMap<String, String>) -> Result<String, CritiqueError> {
+    in_home(env, &[".local", "share", "agent-kit", "critique", "gate.log.jsonl"])
+}
+
+/// The results `/flow setup` recorded for this machine.
+pub fn setup_results_path(env: &HashMap<String, String>) -> Result<String, CritiqueError> {
+    in_home(env, &[".local", "share", "agent-kit", "critique", "machine-setup.json"])
 }
 
 /// The run's manifest, which `prepare` writes and every later command reads.
