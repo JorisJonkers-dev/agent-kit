@@ -284,9 +284,9 @@ impl PromptHashes {
     /// The hashes as the gateway's record carries them.
     pub fn to_json(&self) -> Value {
         let mut object = Object::new();
+        object.set("contract", Value::str(&self.contract));
         object.set("preamble", Value::str(&self.preamble));
         object.set("role", Value::str(&self.role));
-        object.set("contract", Value::str(&self.contract));
         object.set("schema", Value::str(&self.schema));
         Value::Obj(object)
     }

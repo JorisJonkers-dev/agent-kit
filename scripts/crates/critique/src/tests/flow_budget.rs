@@ -176,7 +176,7 @@ fn logs_both_ledgers_for_an_ok_run() {
                 r#""critic_client":"vibe","critic_cost_usd":0.4,"critic_id":"security","critic_model":"vibe-small","#,
                 r#""duration_s":12.5,"exit_code":0,"family":"vibe","finding_count":3,"kind":"vibe","#,
                 r#""lens_hashes":{"security":"abc"},"lenses":["security"],"mode":"read-only","model":"vibe-large","#,
-                r#""outcome":"ok","prompt_hashes":{"preamble":"p","role":"r","contract":"c","schema":"s"},"#,
+                r#""outcome":"ok","prompt_hashes":{"contract":"c","preamble":"p","role":"r","schema":"s"},"#,
                 r#""recorded_at":"2026-11-03T12:00:00.000Z","repository":"acme/widgets","retry_of":"critic-0","#,
                 r#""role":"reviewer","round":2,"run_id":"run-1","spec":"specs/0001.md","stage":"feature-review","#,
                 r#""status":"ok","tokens":{"cached":10,"input":100,"output":20},"type":"invocation","#,
