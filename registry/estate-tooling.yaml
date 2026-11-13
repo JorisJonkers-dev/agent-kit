@@ -187,8 +187,9 @@ litellm:
   edge_token_env: LITELLM_EDGE_TOKEN
   # Each route is one virtual key. `models` are ACCESS GROUP names, not wildcards: a key reaches
   # the canonical models (one name per model, routed across the provider accounts by priority,
-  # litellm#20) that carry one of its groups. `canonical` is every canonical model; `openrouter`
-  # and `local` are those routes' own groups. `google-free-public` is the free-tier Google
+  # litellm#20) that carry one of its groups. litellm#19 puts every non-Google deployment, the
+  # openrouter and local ones included, in `canonical`, so that is the group every key holds; the
+  # public key adds `google-free-public`, the free-tier Google
   # deployments and only the `public` route may hold it (`data_scope: public`), because Google
   # may train on free-tier prompts. `budget_duration` is `30d` on every capped key, so a cap is a
   # monthly allowance, not a lifetime one. `budget_eur: null` is no cap, for a free route.
@@ -217,14 +218,14 @@ litellm:
       budget_eur: 5
       budget_duration: 30d
       data_scope: any
-      models: ["openrouter"]
+      models: ["canonical"]
     # The OpenAI-compatible model server on the GPU workstation: free, so no cap.
     - agent: local
       key_env: LITELLM_LOCAL_KEY
       budget_eur: null
       budget_duration: null
       data_scope: any
-      models: ["local"]
+      models: ["canonical"]
     # Public, non-sensitive work only: the one key with the Google free-tier group. It also
     # holds `canonical`, so a Gemini model falls over to the paid deployments when the free tier
     # refuses; the small cap bounds that.

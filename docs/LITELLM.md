@@ -12,14 +12,15 @@ token numbers are never used; the proxy's refusal is the only budget signal.
 | `vibe` | `LITELLM_VIBE_KEY` | 255 EUR | `canonical` | every canonical model |
 | `vibe-study` | `LITELLM_VIBE_STUDY_KEY` | 127.50 EUR | `canonical` | every canonical model |
 | `opencode-go` | `LITELLM_OPENCODE_GO_KEY` | 60 EUR | `canonical` | every canonical model |
-| `openrouter` | `LITELLM_OPENROUTER_KEY` | 5 EUR | `openrouter` | the free OpenRouter models |
-| `local` | `LITELLM_LOCAL_KEY` | none | `local` | the GPU workstation's model server (free) |
+| `openrouter` | `LITELLM_OPENROUTER_KEY` | 5 EUR | `canonical` | every canonical model (its free `:free` deployments are in it; the cap bounds any paid fallback) |
+| `local` | `LITELLM_LOCAL_KEY` | none | `canonical` | every canonical model, the GPU workstation's server (free) among them; the key has no cap, so use it for local models only |
 | `public` | `LITELLM_PUBLIC_KEY` | 5 EUR | `google-free-public`, `canonical` | the free-tier Google models, and the paid fallbacks |
 
 A key lists **access groups**, not a provider wildcard: a caller sends one canonical model
 name (`glm-5.3`, `mistral-large`, `claude-sonnet-4-5`, ...) and the proxy routes it across the
 provider accounts by priority (litellm#20), so the agent id no longer picks the provider. The
-`<route>/<provider model id>` names still resolve for a key that has the route's own group.
+litellm#19 sync puts every non-Google deployment, OpenRouter and local included, in `canonical`;
+there are no per-route groups.
 Which models an account can actually use is the live catalogue's job (below); a listed model
 can still be refused.
 
@@ -71,7 +72,7 @@ Mistral's four keys: `vibe` (255 EUR) and `vibe-study` (127.50 EUR) are Vibe-sco
 ### Names the litellm repository must match
 
 `canonical` (every canonical model), `google-free-public` (the Google free-tier deployments),
-`openrouter` and `local` (each route's own group), the agent ids / key aliases above, and the
+the agent ids / key aliases above, and the
 canonical model names the gateway defaults use (`registry/litellm-catalogue.json` lists what
 the catalogue serves).
 

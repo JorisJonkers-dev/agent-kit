@@ -1195,8 +1195,8 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
         "vibe": ["canonical"],
         "vibe-study": ["canonical"],
         "opencode-go": ["canonical"],
-        "openrouter": ["openrouter"],
-        "local": ["local"],
+        "openrouter": ["canonical"],
+        "local": ["canonical"],
         "public": ["google-free-public", "canonical"],
     }
     assert not any("*" in model or "/" in model for route in table["routes"] for model in route["models"])
@@ -1230,7 +1230,7 @@ def test_only_the_public_key_reaches_the_google_free_tier_deployments() -> None:
     assert [r["agent"] for r in routes if _can_reach(routes, r["agent"], google)] == ["public"]
     for agent in ("vibe", "vibe-study", "opencode-go", "openrouter", "local"):
         assert not _can_reach(routes, agent, google), agent
-        assert _can_reach(routes, agent, {"canonical"}) or agent in ("openrouter", "local")
+        assert _can_reach(routes, agent, {"canonical"}), agent
     script = (KIT_ROOT / "registry" / "generated" / "litellm" / "make-keys.sh").read_text()
     assert [line for line in script.splitlines() if "google-free-public" in line and "make_key" in line] == [
         line for line in script.splitlines() if '"key_alias":"public"' in line

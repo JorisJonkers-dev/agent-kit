@@ -41,7 +41,7 @@
       "budget_duration": "30d",
       "data_scope": "any",
       "models": [
-        "openrouter"
+        "canonical"
       ]
     },
     {
@@ -51,7 +51,7 @@
       "budget_duration": null,
       "data_scope": "any",
       "models": [
-        "local"
+        "canonical"
       ]
     },
     {

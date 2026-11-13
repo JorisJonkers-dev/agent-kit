@@ -18,6 +18,6 @@ CFG
 make_key '{"key_alias":"vibe","models":["canonical"],"max_budget":255,"budget_duration":"30d"}'
 make_key '{"key_alias":"vibe-study","models":["canonical"],"max_budget":127.5,"budget_duration":"30d"}'
 make_key '{"key_alias":"opencode-go","models":["canonical"],"max_budget":60,"budget_duration":"30d"}'
-make_key '{"key_alias":"openrouter","models":["openrouter"],"max_budget":5,"budget_duration":"30d"}'
-make_key '{"key_alias":"local","models":["local"]}'
+make_key '{"key_alias":"openrouter","models":["canonical"],"max_budget":5,"budget_duration":"30d"}'
+make_key '{"key_alias":"local","models":["canonical"]}'
 make_key '{"key_alias":"public","models":["google-free-public","canonical"],"max_budget":5,"budget_duration":"30d"}'
