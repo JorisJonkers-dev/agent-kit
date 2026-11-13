@@ -15,6 +15,7 @@ use crate::repository::{read_allowlist, resolve, Resolution};
 use crate::routing::CriticClient;
 use crate::routing_source::load_routing;
 use crate::runtime::Runtime;
+use crate::setup_checks::{parse_setup_results, setup_checklist};
 use model_gateway::json::{self, Value};
 use model_gateway::text::dirname;
 use model_gateway::timestamps::to_iso;
@@ -114,50 +115,15 @@ fn decide(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
 
 /// The ids of the setup checks that are not read-only proofs, in the order setup walks them: Vibe's sign-in and each
 /// Vibe critic, Antigravity's sign-in, its critics and its quota, then the hooks and the kill switch. The work clients
-/// have no setup check. The node runner's `setupChecklist` in `domain/setup.ts`.
+/// have no setup check. The node runner's `setupChecklist` in `domain/setup.ts`, without its read-only proofs.
 pub(crate) fn setup_check_ids(clients: &[(String, CriticClient)]) -> Vec<String> {
-    let of = |kind: &str| clients.iter().filter(|(_, client)| client.kind() == kind).map(|(name, _)| format!("critic:{name}")).collect::<Vec<_>>();
-    let (vibe, agy) = (of("vibe"), of("agy"));
-    let mut ids = Vec::new();
-    if !vibe.is_empty() {
-        ids.push("vibe-signed-in".to_string());
-        ids.extend(vibe);
-    }
-    if !agy.is_empty() {
-        ids.push("agy-signed-in".to_string());
-        ids.extend(agy);
-        ids.push("agy-quota".to_string());
-    }
-    ids.push("hooks-installed".to_string());
-    ids.push("kill-switch".to_string());
-    ids
+    setup_checklist(clients).into_iter().filter(|check| check.kind != "read-only").map(|check| check.id).collect()
 }
 
 /// Each check's last result in `/flow setup`'s results file, read as strictly as the node runner's
 /// `parseSetupResults`: an entry with a field of the wrong shape makes the whole file unreadable.
 pub(crate) fn setup_results(text: &str) -> Result<Vec<(String, String)>, ShapeError> {
-    let value = json::parse(text).map_err(ShapeError)?;
-    let file = Fields::of(&value, "")?;
-    let checks = file.entries("checks", |entry, _| {
-        let inputs = entry.object("inputs")?;
-        entry.string("checked_at")?;
-        entry.string("detail")?;
-        if inputs.has("cli_version") {
-            inputs.nullable_string("cli_version")?;
-        }
-        if inputs.has("agent_hash") {
-            inputs.nullable_string("agent_hash")?;
-        }
-        if inputs.has("routing_hash") {
-            inputs.string("routing_hash")?;
-        }
-        if inputs.has("files_hash") {
-            inputs.string("files_hash")?;
-        }
-        entry.one_of("result", &["pass", "fail", "unproven"])
-    })?;
-    file.literal("version", 1.0)?;
-    Ok(checks)
+    Ok(parse_setup_results(text)?.into_iter().map(|(id, entry)| (id, entry.result)).collect())
 }
 
 /// Appends one line to the gate log beside the gates' own; a log that cannot be written is left alone.

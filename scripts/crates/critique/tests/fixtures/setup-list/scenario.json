@@ -1,0 +1,248 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"list\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"nope\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"list\",\"repo\":5}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "[1]"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repos/s1/a.md": "a\n",
+        "repos/s2/a.md": "a\n",
+        "repos/s3/a.md": "a\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s1"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s2"
+        ],
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s3"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/thing.git"
+        ]
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s2\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s3\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s1\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"google\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"budget\":{\"vibe_flow_cap_usd\":5}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"version\":2,\"checks\":{}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\"version\":1,\"checks\":{\"x\":{\"checked_at\":\"t\",\"detail\":\"d\",\"inputs\":{\"files_hash\":5},\"result\":\"pass\"}}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.local/share/agent-kit/critique/machine-setup.json"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "[1]\n"
+      }
+    }
+  ]
+}

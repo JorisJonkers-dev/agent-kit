@@ -190,7 +190,7 @@ fn replay(index: usize, case: &Value) {
         stdin: Box::new(String::new),
         search: None,
     };
-    let run = COMMANDS.iter().find(|(name, _)| *name == "stats").and_then(|(_, command)| *command).expect("stats is ported");
+    let run = COMMANDS.iter().find(|(name, _)| *name == "stats").map(|(_, command)| *command).expect("stats is ported");
     let actual = match run(case.get("input").expect("input"), &runtime) {
         Ok(result) => json::object(vec![("ok", result)]),
         Err(error) => json::object(vec![("error", json::object(vec![("code", Value::str(&error.code)), ("message", Value::str(&error.message))]))]),

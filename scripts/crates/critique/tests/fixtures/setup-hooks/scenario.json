@@ -1,0 +1,304 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "home/.claude"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]}]}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/gone/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/gone/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Edit\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":5}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.claude/settings.json": "{nope"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.claude/settings.json"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "work/codex-home"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CODEX_HOME": "codex-home"
+      },
+      "write": {
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CODEX_HOME": "codex-home"
+      },
+      "write": {
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:00003488eda8d9fca62f4110bb8cd5c828c79e93906029dd56deb046a29bb2f5aa38\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:3a786bd767d263f97681a213369115675894ecb09c96972aadbc2504066246cd\"\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CODEX_HOME": "codex-home"
+      },
+      "write": {
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:3488eda8d9fca62f4110bb8cd5c828c79e93906029dd56deb046a29bb2f5aa38\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:3a786bd767d263f97681a213369115675894ecb09c96972aadbc2504066246cd\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\nenabled = false\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CODEX_HOME": "codex-home"
+      },
+      "write": {
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:3488eda8d9fca62f4110bb8cd5c828c79e93906029dd56deb046a29bb2f5aa38\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:3a786bd767d263f97681a213369115675894ecb09c96972aadbc2504066246cd\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\nenabled = false\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\nenabled = falsey\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CODEX_HOME": "codex-home"
+      },
+      "write": {
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:3488eda8d9fca62f4110bb8cd5c828c79e93906029dd56deb046a29bb2f5aa38\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:3a786bd767d263f97681a213369115675894ecb09c96972aadbc2504066246cd\"\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":false}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CODEX_HOME": "codex-home"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CODEX_HOME": "codex-home"
+      },
+      "write": {
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\",\"timeout\":0,\"statusMessage\":\"gating\",\"additionalContextLimit\":100,\"async\":true}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\",\"additionalContextLimit\":2500,\"timeout\":30}]}]}}\n",
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:57dfb96ec64173e7727b226e8d6d1d10d8c6ec66ce88290ff4533664a0467254\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:b75cf0c52d864895245b8b4ed9ca0096922c79bd8663e663a0f043b4eb0437d9\"\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "elsewhere/claude",
+        "elsewhere/codex"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CLAUDE_CONFIG_DIR": "@SANDBOX@/elsewhere/claude",
+        "CODEX_HOME": "@SANDBOX@/elsewhere/codex"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"hooks-installed\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CLAUDE_CONFIG_DIR": "@SANDBOX@/elsewhere/claude",
+        "CODEX_HOME": "@SANDBOX@/elsewhere/codex"
+      },
+      "write": {
+        "elsewhere/claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "CLAUDE_CONFIG_DIR": null,
+        "CODEX_HOME": null
+      }
+    }
+  ]
+}

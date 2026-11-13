@@ -1,0 +1,109 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"read-only:claude\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"read-only:codex\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"read-only:hermes\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"read-only:opencode\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"read-only:claude\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"read-only:claude\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"read-only:agy-gemini-flash-high\",\"confirmed\":true,\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"list\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

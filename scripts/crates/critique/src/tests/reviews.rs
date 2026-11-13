@@ -224,7 +224,7 @@ fn replay(index: usize, case: &Value) {
     let case = case.as_object().expect("case object");
     let (home, runtime) = machine(case);
     let input = case.get("input").expect("input");
-    let run = COMMANDS.iter().find(|(name, _)| *name == "reviews").and_then(|(_, command)| *command).expect("reviews is ported");
+    let run = COMMANDS.iter().find(|(name, _)| *name == "reviews").map(|(_, command)| *command).expect("reviews is ported");
     let actual = match run(input, &runtime) {
         Ok(result) => json::object(vec![("ok", result)]),
         Err(error) => json::object(vec![("error", json::object(vec![("code", Value::str(&error.code)), ("message", Value::str(&error.message))]))]),

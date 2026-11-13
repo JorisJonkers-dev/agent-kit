@@ -37,6 +37,7 @@ mod merge_corpus;
 mod merge_findings_corpus;
 mod scenarios;
 mod session_start;
+mod setup;
 mod shell_corpus;
 mod search_corpus;
 mod search_wiring;

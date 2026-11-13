@@ -1,6 +1,6 @@
 //! The runner's command line: one command, one JSON object in, one JSON object out.
 
-use crate::{allow, budget_command, check_adrs, check_plan, check_rewrite, check_tickets, cold_read, facts, fan_out_command, gate_command, prepare, record, refute_command, reviews, session_start, state_command, stats_command, triage_command};
+use crate::{allow, budget_command, check_adrs, check_plan, check_rewrite, check_tickets, cold_read, facts, fan_out_command, gate_command, prepare, record, refute_command, reviews, session_start, setup, state_command, stats_command, triage_command};
 use crate::error::CritiqueError;
 use crate::runtime::Runtime;
 use model_gateway::json::{self, Object, Value};
@@ -23,27 +23,27 @@ pub struct CliResult {
 
 pub type Command = fn(&Value, &Runtime) -> Result<Value, CritiqueError>;
 
-/// The commands, each with its port: `None` until it is ported, when the runner says so rather than guess.
-pub const COMMANDS: [(&str, Option<Command>); 19] = [
-    ("allow", Some(allow::run)),
-    ("budget", Some(budget_command::run)),
-    ("check-adrs", Some(check_adrs::run)),
-    ("check-plan", Some(check_plan::run)),
-    ("check-rewrite", Some(check_rewrite::run)),
-    ("check-tickets", Some(check_tickets::run)),
-    ("cold-read", Some(cold_read::run)),
-    ("facts", Some(facts::run)),
-    ("fan-out", Some(fan_out_command::run)),
-    ("gate", Some(gate_command::run)),
-    ("prepare", Some(prepare::run)),
-    ("record", Some(record::run)),
-    ("refute", Some(refute_command::run)),
-    ("reviews", Some(reviews::run)),
-    ("session-start", Some(session_start::run)),
-    ("setup", None),
-    ("state", Some(state_command::run)),
-    ("stats", Some(stats_command::run)),
-    ("triage", Some(triage_command::run)),
+/// The commands, each with its port: every command of the node runner is ported.
+pub const COMMANDS: [(&str, Command); 19] = [
+    ("allow", allow::run),
+    ("budget", budget_command::run),
+    ("check-adrs", check_adrs::run),
+    ("check-plan", check_plan::run),
+    ("check-rewrite", check_rewrite::run),
+    ("check-tickets", check_tickets::run),
+    ("cold-read", cold_read::run),
+    ("facts", facts::run),
+    ("fan-out", fan_out_command::run),
+    ("gate", gate_command::run),
+    ("prepare", prepare::run),
+    ("record", record::run),
+    ("refute", refute_command::run),
+    ("reviews", reviews::run),
+    ("session-start", session_start::run),
+    ("setup", setup::run),
+    ("state", state_command::run),
+    ("stats", stats_command::run),
+    ("triage", triage_command::run),
 ];
 
 
@@ -62,10 +62,6 @@ fn failure(name: &str, error: &CritiqueError) -> CliResult {
         stdout: format!("{}\n", json::compact(&Value::Obj(object))),
         stderr: format!("critique {name}: {}\n", error.message),
     }
-}
-
-fn not_ported(what: &str) -> CritiqueError {
-    CritiqueError::new("not-ported", format!("{what} is not ported to the Rust runner yet; the node runner answers it"))
 }
 
 /// The runner's command line.
@@ -94,9 +90,6 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
     };
     let (Some((name, command)), true, true) = (command, flag_ok, args.len() <= 3) else {
         return usage(2);
-    };
-    let Some(command) = command else {
-        return failure(name, &not_ported(&format!("critique {name}")));
     };
     // The gate fails open: input that is not JSON is the gate's to log and allow, not an error.
     let lenient = matches!(*name, "gate" | "session-start");

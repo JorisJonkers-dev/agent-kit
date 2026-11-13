@@ -1,0 +1,297 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"vibe-signed-in\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"vibe-signed-in\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'vibe 1.2.3' 'second line'\nexit 0\nfi\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = --output-dir ]; then out=\"$2\"; fi\n  shift\ndone\nmkdir -p \"$out\"\ncase \"$out\" in\n\n*)\nexit 9\n;;\nesac\n",
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"vibe-signed-in\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"vibe-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"vibe-signed-in\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'vibe 1.2.4' 'second line'\nexit 0\nfi\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = --output-dir ]; then out=\"$2\"; fi\n  shift\ndone\nmkdir -p \"$out\"\ncase \"$out\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"vibe-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"vibe-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.vibe/.env"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"nope\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"agy-signed-in\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'agy 0.9'\nexit 0\nfi\nif [ \"$1\" = models ]; then\nprintf '%s\\n' 'Fetching available models...' 'gemini-3.8-flash-high\\tGemini 3.8 Flash'\nexit 0\nfi\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"agy-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'agy 0.9'\nexit 0\nfi\nif [ \"$1\" = models ]; then\nprintf '%s\\n' 'Error: Please sign in to view available models.' >&2\nexit 1\nfi\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"agy-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'agy 0.9'\nexit 0\nfi\nif [ \"$1\" = models ]; then\nprintf '%s\\n' 'Fetching available models...'\nexit 0\nfi\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"agy-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "bin/agy"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"vibe-signed-in\",\"confirmed\":\"yes\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    }
+  ]
+}

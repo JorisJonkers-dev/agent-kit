@@ -3,8 +3,7 @@
 # where the critique skill's launcher (skills/workstation/critique/critique) looks
 # for it (~/.local/share/agent-kit/critique/critique). Until it is installed the
 # launcher runs the node runner, critique.mjs, so nothing breaks mid-way; a build
-# that fails leaves the installed binary (or the node runner) as it was. A command
-# the Rust runner does not port yet it hands to critique.mjs itself.
+# that fails leaves the installed binary (or the node runner) as it was.
 #
 #   --check                    report what would happen; build nothing.
 #   KIT_ROOT                   the kit (default: this script's parent).

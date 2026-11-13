@@ -1,0 +1,366 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"6a97ff1fb29a16e685c33f8e7916f3737db1b84442c921e813258869c2d7b1ee\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Neither a Claude Code home nor a Codex home is set up on this machine, so no hook can run.\",\n      \"inputs\": {\n        \"files_hash\": \"6a97ff1fb29a16e685c33f8e7916f3737db1b84442c921e813258869c2d7b1ee\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Neither a Claude Code home nor a Codex home is set up on this machine, so no hook can run.\",\n      \"inputs\": {\n        \"files_hash\": \"6a97ff1fb29a16e685c33f8e7916f3737db1b84442c921e813258869c2d7b1ee\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"6915fbf47a427a9bccca56d47a2d436696598ef9751b14e43d8df2501ffe4ee5\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"6915fbf47a427a9bccca56d47a2d436696598ef9751b14e43d8df2501ffe4ee5\"\n      },\n      \"result\": \"pass\"\n    },\n    \"status\": \"current\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"6915fbf47a427a9bccca56d47a2d436696598ef9751b14e43d8df2501ffe4ee5\"\n      },\n      \"result\": \"pass\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"21a0ea1aa52a486612066cd1a9ed4c06b81d4e05b5af6dd9ae3bc8b49c9463ca\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: critique-pr-gate and critique-session-start are not installed. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"21a0ea1aa52a486612066cd1a9ed4c06b81d4e05b5af6dd9ae3bc8b49c9463ca\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: critique-pr-gate and critique-session-start are not installed. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"21a0ea1aa52a486612066cd1a9ed4c06b81d4e05b5af6dd9ae3bc8b49c9463ca\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"1c09a11d1f8b72bdf2376bd6745a2416703bb429d740f8b77bdcad9691fa90f4\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: critique-pr-gate and critique-session-start name scripts that do not exist. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"1c09a11d1f8b72bdf2376bd6745a2416703bb429d740f8b77bdcad9691fa90f4\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/gone/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/gone/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: critique-pr-gate and critique-session-start name scripts that do not exist. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"1c09a11d1f8b72bdf2376bd6745a2416703bb429d740f8b77bdcad9691fa90f4\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"2afd14ea4025c76b215676cdd5c2870c08457e1f32280a25f1ef6d14e0881b29\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: critique-commit-gate, critique-pr-gate and critique-session-start are not installed. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"2afd14ea4025c76b215676cdd5c2870c08457e1f32280a25f1ef6d14e0881b29\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Edit\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":5}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: critique-commit-gate, critique-pr-gate and critique-session-start are not installed. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"2afd14ea4025c76b215676cdd5c2870c08457e1f32280a25f1ef6d14e0881b29\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"ee876515be7ac359eee8d134183cc67491c6e0c17b0fb57f0c0e53ce8fcbb04c\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: @SANDBOX@/home/.claude/settings.json does not parse. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"ee876515be7ac359eee8d134183cc67491c6e0c17b0fb57f0c0e53ce8fcbb04c\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{nope",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: @SANDBOX@/home/.claude/settings.json does not parse. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"ee876515be7ac359eee8d134183cc67491c6e0c17b0fb57f0c0e53ce8fcbb04c\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"7cbf6bb4862f7b2fd59968eff0c86e88b3e49040b6d8f9117525a00884f1e1d4\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: @SANDBOX@/home/.claude/settings.json does not exist. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"7cbf6bb4862f7b2fd59968eff0c86e88b3e49040b6d8f9117525a00884f1e1d4\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: @SANDBOX@/home/.claude/settings.json does not exist. Codex: not set up here.\",\n      \"inputs\": {\n        \"files_hash\": \"7cbf6bb4862f7b2fd59968eff0c86e88b3e49040b6d8f9117525a00884f1e1d4\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"9f8b630b05a6fc1e3af81b29237eabf1174938bb3a0d4885aa1c0a39e970faf9\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: critique-commit-gate, critique-pr-gate and critique-session-start are not trusted yet.\",\n      \"inputs\": {\n        \"files_hash\": \"9f8b630b05a6fc1e3af81b29237eabf1174938bb3a0d4885aa1c0a39e970faf9\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: critique-commit-gate, critique-pr-gate and critique-session-start are not trusted yet.\",\n      \"inputs\": {\n        \"files_hash\": \"9f8b630b05a6fc1e3af81b29237eabf1174938bb3a0d4885aa1c0a39e970faf9\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"76645a6c1cc9c4a10d2a905584607d75ed28c35b9c31c998a58491a2f3cb34a3\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: critique-commit-gate changed since it was trusted.\",\n      \"inputs\": {\n        \"files_hash\": \"76645a6c1cc9c4a10d2a905584607d75ed28c35b9c31c998a58491a2f3cb34a3\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: critique-commit-gate changed since it was trusted.\",\n      \"inputs\": {\n        \"files_hash\": \"76645a6c1cc9c4a10d2a905584607d75ed28c35b9c31c998a58491a2f3cb34a3\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:00003488eda8d9fca62f4110bb8cd5c828c79e93906029dd56deb046a29bb2f5aa38\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:3a786bd767d263f97681a213369115675894ecb09c96972aadbc2504066246cd\"\n",
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"d6b92aba8bd85122d206c2d3bdfee1d76d9a746f64fed3f5350dfbe03e85d9a6\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: critique-session-start is turned off in /hooks.\",\n      \"inputs\": {\n        \"files_hash\": \"d6b92aba8bd85122d206c2d3bdfee1d76d9a746f64fed3f5350dfbe03e85d9a6\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: critique-session-start is turned off in /hooks.\",\n      \"inputs\": {\n        \"files_hash\": \"d6b92aba8bd85122d206c2d3bdfee1d76d9a746f64fed3f5350dfbe03e85d9a6\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:3488eda8d9fca62f4110bb8cd5c828c79e93906029dd56deb046a29bb2f5aa38\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:3a786bd767d263f97681a213369115675894ecb09c96972aadbc2504066246cd\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\nenabled = false\n",
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"b4f1e7c649fc55d086a957fb7482450fdb87a3343440b75108528766843a4bdf\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: critique-pr-gate is not trusted yet; critique-commit-gate is turned off in /hooks.\",\n      \"inputs\": {\n        \"files_hash\": \"b4f1e7c649fc55d086a957fb7482450fdb87a3343440b75108528766843a4bdf\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: critique-pr-gate is not trusted yet; critique-commit-gate is turned off in /hooks.\",\n      \"inputs\": {\n        \"files_hash\": \"b4f1e7c649fc55d086a957fb7482450fdb87a3343440b75108528766843a4bdf\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:3488eda8d9fca62f4110bb8cd5c828c79e93906029dd56deb046a29bb2f5aa38\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:3a786bd767d263f97681a213369115675894ecb09c96972aadbc2504066246cd\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\nenabled = false\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\nenabled = falsey\n",
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"1264ca17503f638e2838fd1ae05f36eb7f801cd7cc3ef1ff0201adde022a31b5\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: all three hooks installed and trusted.\",\n      \"inputs\": {\n        \"files_hash\": \"1264ca17503f638e2838fd1ae05f36eb7f801cd7cc3ef1ff0201adde022a31b5\"\n      },\n      \"result\": \"pass\"\n    },\n    \"status\": \"current\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: all three hooks installed and trusted.\",\n      \"inputs\": {\n        \"files_hash\": \"1264ca17503f638e2838fd1ae05f36eb7f801cd7cc3ef1ff0201adde022a31b5\"\n      },\n      \"result\": \"pass\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:3488eda8d9fca62f4110bb8cd5c828c79e93906029dd56deb046a29bb2f5aa38\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:3a786bd767d263f97681a213369115675894ecb09c96972aadbc2504066246cd\"\n",
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"1264ca17503f638e2838fd1ae05f36eb7f801cd7cc3ef1ff0201adde022a31b5\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: all three hooks installed and trusted.\",\n      \"inputs\": {\n        \"files_hash\": \"1264ca17503f638e2838fd1ae05f36eb7f801cd7cc3ef1ff0201adde022a31b5\"\n      },\n      \"result\": \"pass\"\n    },\n    \"status\": \"current\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"current\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: all three hooks installed and trusted.\",\n      \"inputs\": {\n        \"files_hash\": \"1264ca17503f638e2838fd1ae05f36eb7f801cd7cc3ef1ff0201adde022a31b5\"\n      },\n      \"result\": \"pass\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:3488eda8d9fca62f4110bb8cd5c828c79e93906029dd56deb046a29bb2f5aa38\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:3a786bd767d263f97681a213369115675894ecb09c96972aadbc2504066246cd\"\n",
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"585bcc4431f73a8f3c54418f0039ed2019d977047adb20085bb70c24742563c2\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: all three hooks installed and trusted.\",\n      \"inputs\": {\n        \"files_hash\": \"585bcc4431f73a8f3c54418f0039ed2019d977047adb20085bb70c24742563c2\"\n      },\n      \"result\": \"pass\"\n    },\n    \"status\": \"current\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: all three hooks installed and trusted.\",\n      \"inputs\": {\n        \"files_hash\": \"585bcc4431f73a8f3c54418f0039ed2019d977047adb20085bb70c24742563c2\"\n      },\n      \"result\": \"pass\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:57dfb96ec64173e7727b226e8d6d1d10d8c6ec66ce88290ff4533664a0467254\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:b75cf0c52d864895245b8b4ed9ca0096922c79bd8663e663a0f043b4eb0437d9\"\n",
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\",\"timeout\":0,\"statusMessage\":\"gating\",\"additionalContextLimit\":100,\"async\":true}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\",\"additionalContextLimit\":2500,\"timeout\":30}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"efb2e0d3e1b066addaaa30699fe49ce4c9d674511da247b428bb8fb2c12c06ff\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: @SANDBOX@/elsewhere/claude/settings.json does not exist. Codex: @SANDBOX@/elsewhere/codex/hooks.json does not exist.\",\n      \"inputs\": {\n        \"files_hash\": \"efb2e0d3e1b066addaaa30699fe49ce4c9d674511da247b428bb8fb2c12c06ff\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: @SANDBOX@/elsewhere/claude/settings.json does not exist. Codex: @SANDBOX@/elsewhere/codex/hooks.json does not exist.\",\n      \"inputs\": {\n        \"files_hash\": \"efb2e0d3e1b066addaaa30699fe49ce4c9d674511da247b428bb8fb2c12c06ff\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:57dfb96ec64173e7727b226e8d6d1d10d8c6ec66ce88290ff4533664a0467254\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:b75cf0c52d864895245b8b4ed9ca0096922c79bd8663e663a0f043b4eb0437d9\"\n",
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\",\"timeout\":0,\"statusMessage\":\"gating\",\"additionalContextLimit\":100,\"async\":true}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\",\"additionalContextLimit\":2500,\"timeout\":30}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"item\": {\n    \"cost\": \"free\",\n    \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n    \"id\": \"hooks-installed\",\n    \"kind\": \"hooks\",\n    \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n    \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n    \"inputs\": {\n      \"files_hash\": \"a59022578c554fa5c168074d5a5aaf40fb4f17e0f6abd77a4f34a901d2411415\"\n    },\n    \"last\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: @SANDBOX@/elsewhere/codex/hooks.json does not exist.\",\n      \"inputs\": {\n        \"files_hash\": \"a59022578c554fa5c168074d5a5aaf40fb4f17e0f6abd77a4f34a901d2411415\"\n      },\n      \"result\": \"fail\"\n    },\n    \"due_because\": \"failed\",\n    \"status\": \"due\"\n  },\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"checked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: @SANDBOX@/elsewhere/codex/hooks.json does not exist.\",\n      \"inputs\": {\n        \"files_hash\": \"a59022578c554fa5c168074d5a5aaf40fb4f17e0f6abd77a4f34a901d2411415\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:57dfb96ec64173e7727b226e8d6d1d10d8c6ec66ce88290ff4533664a0467254\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:b75cf0c52d864895245b8b4ed9ca0096922c79bd8663e663a0f043b4eb0437d9\"\n",
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\",\"timeout\":0,\"statusMessage\":\"gating\",\"additionalContextLimit\":100,\"async\":true}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\",\"additionalContextLimit\":2500,\"timeout\":30}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"items\": [\n    {\n      \"cost\": \"free\",\n      \"fix\": \"Run vibe and sign in with your personal Mistral account, then check again.\",\n      \"id\": \"vibe-signed-in\",\n      \"kind\": \"vibe-signed-in\",\n      \"title\": \"Vibe is signed in on the personal account\",\n      \"why\": \"Every Vibe critic runs on the personal Mistral account, so while it is signed out each one drops out of a run.\",\n      \"inputs\": {\n        \"cli_version\": null\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"vibe\",\n      \"fix\": \"Re-run agent-kit setup to reinstall critic-mistral-large, then check again; if it still fails, read the detail.\",\n      \"id\": \"critic:vibe-mistral-large\",\n      \"kind\": \"critic\",\n      \"title\": \"vibe-mistral-large answers a trivial prompt\",\n      \"why\": \"mistral-large-4-0 runs through the critic-mistral-large agent; a critic that cannot answer a trivial prompt fails every review it is routed to.\",\n      \"client\": \"vibe-mistral-large\",\n      \"inputs\": {\n        \"cli_version\": null,\n        \"agent_hash\": null,\n        \"routing_hash\": \"9024fd4949502193d9ba8e739b9d565277e56aee46c70d0090d79c2de3b99513\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"vibe\",\n      \"fix\": \"Re-run agent-kit setup to reinstall critic-glm, then check again; if it still fails, read the detail.\",\n      \"id\": \"critic:vibe-glm\",\n      \"kind\": \"critic\",\n      \"title\": \"vibe-glm answers a trivial prompt\",\n      \"why\": \"zai-glm-5-3 runs through the critic-glm agent; a critic that cannot answer a trivial prompt fails every review it is routed to.\",\n      \"client\": \"vibe-glm\",\n      \"inputs\": {\n        \"cli_version\": null,\n        \"agent_hash\": null,\n        \"routing_hash\": \"063e71a4c19497703458a7a626c10aeaf0b31df50749e37b2fb04d6484bccacb\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"vibe\",\n      \"fix\": \"Re-run agent-kit setup to reinstall critic-deepseek-flash, then check again; if it still fails, read the detail.\",\n      \"id\": \"critic:vibe-deepseek-flash\",\n      \"kind\": \"critic\",\n      \"title\": \"vibe-deepseek-flash answers a trivial prompt\",\n      \"why\": \"deepseek-v4-1-flash-1017 runs through the critic-deepseek-flash agent; a critic that cannot answer a trivial prompt fails every review it is routed to.\",\n      \"client\": \"vibe-deepseek-flash\",\n      \"inputs\": {\n        \"cli_version\": null,\n        \"agent_hash\": null,\n        \"routing_hash\": \"966b7ec554244ac313ddbbc52fe918c1893a5b12d8cf8fc7ce70ab2e8b8d1f9a\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"vibe\",\n      \"fix\": \"Re-run agent-kit setup to reinstall critic-mistral-small, then check again; if it still fails, read the detail.\",\n      \"id\": \"critic:vibe-mistral-small\",\n      \"kind\": \"critic\",\n      \"title\": \"vibe-mistral-small answers a trivial prompt\",\n      \"why\": \"mistral-small-latest runs through the critic-mistral-small agent; a critic that cannot answer a trivial prompt fails every review it is routed to.\",\n      \"client\": \"vibe-mistral-small\",\n      \"inputs\": {\n        \"cli_version\": null,\n        \"agent_hash\": null,\n        \"routing_hash\": \"d3f5766673b7f097b592b3308b7f1bb3f92073eb609726fb9da9b6bf2966841a\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"free\",\n      \"fix\": \"Run agy and sign in with your Google account, then check again.\",\n      \"id\": \"agy-signed-in\",\n      \"kind\": \"agy-signed-in\",\n      \"title\": \"Antigravity is signed in\",\n      \"why\": \"The Gemini critic runs through agy on your Google account, so while it is signed out its slots fall back to Vibe.\",\n      \"inputs\": {\n        \"cli_version\": null\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"agy\",\n      \"fix\": \"Check that agy runs and offers the model, then check again; if it still fails, read the detail.\",\n      \"id\": \"critic:agy-gemini-flash-high\",\n      \"kind\": \"critic\",\n      \"title\": \"agy-gemini-flash-high answers a trivial prompt\",\n      \"why\": \"gemini-3.8-flash-high runs through agy; a critic that cannot answer a trivial prompt fails every review it is routed to.\",\n      \"client\": \"agy-gemini-flash-high\",\n      \"inputs\": {\n        \"cli_version\": null,\n        \"routing_hash\": \"1135dc76b89eaf0c997600adac83d02e0ac205bbb1e2e8f9720b0c9596301c83\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"free\",\n      \"fix\": \"Give your Antigravity plan's daily request limit and the reserve to keep for the spec and feature reviews.\",\n      \"id\": \"agy-quota\",\n      \"kind\": \"agy-quota\",\n      \"title\": \"The Antigravity daily cap and reserve are set\",\n      \"why\": \"agy reports no quota, so the runner counts its own launches against a daily cap, which should be your plan’s real limit.\",\n      \"inputs\": {\n        \"routing_hash\": \"12dcd01c21bd6d9e4b066bc38360d970dcc9bedf4bc83141544c986c3d47a63f\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"vibe\",\n      \"fix\": \"Re-run agent-kit setup so the critique runner is current, then check again; until it passes, this client reads its packet without searching.\",\n      \"id\": \"read-only:vibe-mistral-large\",\n      \"kind\": \"read-only\",\n      \"title\": \"vibe-mistral-large is proven read-only\",\n      \"why\": \"A critic may only read and search its packet; this proves the search server cannot reach past the packet, and that run_typescript, the only way into the search tools, refuses shell commands, file writes and process starts.\",\n      \"client\": \"vibe-mistral-large\",\n      \"inputs\": {\n        \"agent_hash\": null,\n        \"cli_version\": null,\n        \"files_hash\": \"@RUNNER@\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"agy\",\n      \"fix\": \"Wait for agent-kit#178.\",\n      \"id\": \"read-only:agy-gemini-flash-high\",\n      \"kind\": \"read-only\",\n      \"title\": \"agy-gemini-flash-high is proven read-only\",\n      \"why\": \"A critic may only read and search its packet; this proves the client refuses to change files and its search tools cannot reach past the packet on this machine.\",\n      \"client\": \"agy-gemini-flash-high\",\n      \"detail\": \"not available until agent-kit#178 lands: the read-only proof reuses its live smoke check\",\n      \"status\": \"not-available\"\n    },\n    {\n      \"cost\": \"vibe\",\n      \"fix\": \"Re-run agent-kit setup so the critique runner is current, then check again; until it passes, this client reads its packet without searching.\",\n      \"id\": \"read-only:vibe-glm\",\n      \"kind\": \"read-only\",\n      \"title\": \"vibe-glm is proven read-only\",\n      \"why\": \"A critic may only read and search its packet; this proves the search server cannot reach past the packet, and that run_typescript, the only way into the search tools, refuses shell commands, file writes and process starts.\",\n      \"client\": \"vibe-glm\",\n      \"inputs\": {\n        \"agent_hash\": null,\n        \"cli_version\": null,\n        \"files_hash\": \"@RUNNER@\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"vibe\",\n      \"fix\": \"Re-run agent-kit setup so the critique runner is current, then check again; until it passes, this client reads its packet without searching.\",\n      \"id\": \"read-only:vibe-deepseek-flash\",\n      \"kind\": \"read-only\",\n      \"title\": \"vibe-deepseek-flash is proven read-only\",\n      \"why\": \"A critic may only read and search its packet; this proves the search server cannot reach past the packet, and that run_typescript, the only way into the search tools, refuses shell commands, file writes and process starts.\",\n      \"client\": \"vibe-deepseek-flash\",\n      \"inputs\": {\n        \"agent_hash\": null,\n        \"cli_version\": null,\n        \"files_hash\": \"@RUNNER@\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"vibe\",\n      \"fix\": \"Re-run agent-kit setup so the critique runner is current, then check again; until it passes, this client reads its packet without searching.\",\n      \"id\": \"read-only:vibe-mistral-small\",\n      \"kind\": \"read-only\",\n      \"title\": \"vibe-mistral-small is proven read-only\",\n      \"why\": \"A critic may only read and search its packet; this proves the search server cannot reach past the packet, and that run_typescript, the only way into the search tools, refuses shell commands, file writes and process starts.\",\n      \"client\": \"vibe-mistral-small\",\n      \"inputs\": {\n        \"agent_hash\": null,\n        \"cli_version\": null,\n        \"files_hash\": \"@RUNNER@\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"free\",\n      \"fix\": \"Nothing to fix: this client has no critic, and its read-only delegations run in a throwaway worktree until a live proof exists.\",\n      \"id\": \"read-only:claude\",\n      \"kind\": \"read-only\",\n      \"title\": \"claude has no read-only proof yet\",\n      \"why\": \"Claude Code's read-only mode is a permission mode, and showing that it refuses writes needs a live prompt, which setup does not spend on a proof.\",\n      \"client\": \"claude\",\n      \"inputs\": {},\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"free\",\n      \"fix\": \"Nothing to fix: this client has no critic, and its read-only delegations run in a throwaway worktree until a live proof exists.\",\n      \"id\": \"read-only:codex\",\n      \"kind\": \"read-only\",\n      \"title\": \"codex has no read-only proof yet\",\n      \"why\": \"Codex's read-only mode is a sandbox setting, and showing that it refuses writes needs a live prompt, which setup does not spend on a proof.\",\n      \"client\": \"codex\",\n      \"inputs\": {},\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"free\",\n      \"fix\": \"Nothing to fix: this client has no critic, and its read-only delegations run in a throwaway worktree until a live proof exists.\",\n      \"id\": \"read-only:hermes\",\n      \"kind\": \"read-only\",\n      \"title\": \"hermes has no read-only proof yet\",\n      \"why\": \"Hermes has no read-only flag, so only its toolsets limit a run, and showing that they refuse writes needs a live prompt, which setup does not spend on a proof.\",\n      \"client\": \"hermes\",\n      \"inputs\": {},\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"free\",\n      \"fix\": \"Nothing to fix: this client has no critic, and its read-only delegations run in a throwaway worktree until a live proof exists.\",\n      \"id\": \"read-only:opencode\",\n      \"kind\": \"read-only\",\n      \"title\": \"opencode has no read-only proof yet\",\n      \"why\": \"OpenCode's read-only use is an agent whose edit permissions are denied in its own configuration, and showing that it refuses writes needs a live prompt, which setup does not spend on a proof.\",\n      \"client\": \"opencode\",\n      \"inputs\": {},\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"free\",\n      \"fix\": \"Re-run agent-kit setup to install the hooks; in Codex, open /hooks and trust critique-commit-gate, critique-pr-gate and critique-session-start; then check again.\",\n      \"id\": \"hooks-installed\",\n      \"kind\": \"hooks\",\n      \"title\": \"The critique hooks are installed in Claude Code and Codex\",\n      \"why\": \"Without the commit and PR gate hooks every gate is advisory, and Codex skips a hook the owner has not trusted in /hooks.\",\n      \"inputs\": {\n        \"files_hash\": \"6915fbf47a427a9bccca56d47a2d436696598ef9751b14e43d8df2501ffe4ee5\"\n      },\n      \"last\": {\n        \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n        \"detail\": \"Claude Code: all three hooks installed. Codex: @SANDBOX@/elsewhere/codex/hooks.json does not exist.\",\n        \"inputs\": {\n          \"files_hash\": \"a59022578c554fa5c168074d5a5aaf40fb4f17e0f6abd77a4f34a901d2411415\"\n        },\n        \"result\": \"fail\"\n      },\n      \"changed\": [\n        \"files_hash\"\n      ],\n      \"due_because\": \"inputs-changed\",\n      \"status\": \"due\"\n    },\n    {\n      \"cost\": \"free\",\n      \"fix\": \"Turn the kill switch off or on here, or fix the critique configuration file the detail names.\",\n      \"id\": \"kill-switch\",\n      \"kind\": \"kill-switch\",\n      \"title\": \"The kill switch turns the hooks off\",\n      \"why\": \"CRITIQUE_OFF=1 or the disabled flag in the per-machine critique configuration must make every hook a no-op at once.\",\n      \"inputs\": {\n        \"files_hash\": \"4196b23259336b39fabcd8e09e15e0131a1b3bf6c1d32ce01e2d3602775a6c41\"\n      },\n      \"due_because\": \"never-checked\",\n      \"status\": \"due\"\n    }\n  ],\n  \"results_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/machine-setup.json\",\n  \"status\": \"listed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.claude/": null,
+        "home/.claude/settings.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\"}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\"}]}]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/machine-setup.json": "{\n  \"checks\": {\n    \"hooks-installed\": {\n      \"checked_at\": \"2026-11-03T12:00:00.000Z\",\n      \"detail\": \"Claude Code: all three hooks installed. Codex: @SANDBOX@/elsewhere/codex/hooks.json does not exist.\",\n      \"inputs\": {\n        \"files_hash\": \"a59022578c554fa5c168074d5a5aaf40fb4f17e0f6abd77a4f34a901d2411415\"\n      },\n      \"result\": \"fail\"\n    }\n  },\n  \"version\": 1\n}\n",
+        "work/": null,
+        "work/codex-home/": null,
+        "work/codex-home/config.toml": "[hooks.state.\"codex-home/hooks.json:pre_tool_use:0:0\"]\ntrusted_hash = \"sha256:57dfb96ec64173e7727b226e8d6d1d10d8c6ec66ce88290ff4533664a0467254\"\n\n[hooks.state.\"codex-home/hooks.json:pre_tool_use:1:0\"]\ntrusted_hash = \"sha256:cf928a9b507043956283f5d9c25b257aaa07f7bcbb6fcad257f74fb8ba6016d0\"\n\n[hooks.state.\"codex-home/hooks.json:session_start:0:0\"]\ntrusted_hash = \"sha256:b75cf0c52d864895245b8b4ed9ca0096922c79bd8663e663a0f043b4eb0437d9\"\n",
+        "work/codex-home/hooks.json": "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-commit-gate.sh\",\"type\":\"command\",\"timeout\":0,\"statusMessage\":\"gating\",\"additionalContextLimit\":100,\"async\":true}]},{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"hooks/critique-pr-gate.sh\",\"type\":\"command\"}]}],\"SessionStart\":[{\"hooks\":[{\"command\":\"hooks/critique-session-start.sh\",\"type\":\"command\",\"additionalContextLimit\":2500,\"timeout\":30}]}]}}\n",
+        "work/hooks/": null,
+        "work/hooks/critique-commit-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-pr-gate.sh": "#!/bin/sh\n",
+        "work/hooks/critique-session-start.sh": "#!/bin/sh\n"
+      }
+    }
+  ]
+}

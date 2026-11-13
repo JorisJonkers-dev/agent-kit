@@ -140,14 +140,15 @@ fn argv(parts: &[&str]) -> Vec<String> {
 }
 
 #[test]
-fn a_command_not_ported_yet_says_so() {
-    for (name, _) in COMMANDS.iter().filter(|(_, command)| command.is_none()) {
-        for flags in [vec![*name], vec![*name, "--json", "{}"], vec![*name, "--json", "{}", "--strict"]] {
-            let result = run_cli(&argv(&flags), &runtime(""));
-            assert_eq!((result.exit_code, result.stderr.as_str()), (1, format!("critique {name}: critique {name} is not ported to the Rust runner yet; the node runner answers it\n").as_str()));
-            assert_eq!(result.stdout, format!("{{\"code\":\"not-ported\",\"message\":\"critique {name} is not ported to the Rust runner yet; the node runner answers it\",\"status\":\"error\"}}\n"));
-        }
+fn every_command_the_usage_names_is_ported() {
+    let names: Vec<&str> = COMMANDS.iter().map(|(name, _)| *name).collect();
+    for name in &names {
+        assert!(USAGE.contains(&format!("critique {name}")) || USAGE.contains(name), "{name} is in the usage");
+        // A command that is ported answers its own input, never that it is not ported.
+        let result = run_cli(&argv(&[name, "--json", "5"]), &runtime(""));
+        assert!(!result.stdout.contains("not-ported"), "{name}: {}", result.stdout);
     }
+    assert!(names.contains(&"setup"));
 }
 
 #[test]
