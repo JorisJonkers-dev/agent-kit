@@ -10,7 +10,7 @@ const cmd = (name, input, extra) => step([name, '--json', typeof input === 'stri
 const scenarios = {}
 
 /** A repository at work/<dir> whose remotes are the given [name, url] pairs. */
-const repo = (dir, remotes = []) => [['init', '-q', `work/${dir}`], ...remotes.map(([name, url]) => ['-C', `work/${dir}`, 'remote', 'add', name, url])]
+const repo = (dir, remotes = []) => [['init', '-q', '--template=', `work/${dir}`], ...remotes.map(([name, url]) => ['-C', `work/${dir}`, 'remote', 'add', name, url])]
 const at = (dir) => `@SANDBOX@/work/${dir}`
 
 scenarios['cli-usage'] = [

@@ -10,6 +10,7 @@
         [
           "init",
           "-q",
+          "--template=",
           "work/none"
         ]
       ],
@@ -27,6 +28,7 @@
         [
           "init",
           "-q",
+          "--template=",
           "work/nedap"
         ],
         [
@@ -52,6 +54,7 @@
         [
           "init",
           "-q",
+          "--template=",
           "work/mixed"
         ],
         [
@@ -85,6 +88,7 @@
         [
           "init",
           "-q",
+          "--template=",
           "work/alias"
         ],
         [
@@ -110,6 +114,7 @@
         [
           "init",
           "-q",
+          "--template=",
           "work/upstream"
         ],
         [
@@ -143,6 +148,7 @@
         [
           "init",
           "-q",
+          "--template=",
           "work/ssh"
         ],
         [
@@ -168,6 +174,7 @@
         [
           "init",
           "-q",
+          "--template=",
           "work/plain"
         ],
         [
@@ -241,6 +248,7 @@
         [
           "init",
           "-q",
+          "--template=",
           "work/r1"
         ],
         [
