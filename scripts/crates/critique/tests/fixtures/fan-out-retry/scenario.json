@@ -1,0 +1,162 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/t1\"}"
+      ],
+      "write": {
+        "runs/t1/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"c1-agy\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/t1/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/t1\",\"run_id\":\"t1\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/t1/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/t1/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/t2/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"t2c\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/t2/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/t2\",\"run_id\":\"t2\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/t2/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/t2/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/t3/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"t3c\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/t3/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/t3\",\"run_id\":\"t3\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/t3/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/t3/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/t4/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"t4c\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/t4/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/t4\",\"run_id\":\"t4\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/t4/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/t4/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/t5/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"t5a\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300},{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"t5b\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/t5/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/t5\",\"run_id\":\"t5\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/t5/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/t5/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/t6/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"t6c\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/t6/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/t6\",\"run_id\":\"t6\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/t6/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/t6/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/t7/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"t7a\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300},{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"t7b\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":false,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/t7/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/t7\",\"run_id\":\"t7\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/t7/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/t7/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = models ]; then\nprintf '%s\\n' 'Fetching available models...' 'gemini-3.8-flash-high\tGemini 3.8 Flash' 'gemini-3.8-pro\tGemini 3.8 Pro'\nexit 0\nfi\ncase \"$PWD\" in\n*/critics/c1-agy/packet)\nprintf '%s' 'boom\\n' >&2\nexit 3\n;;\n*/critics/c1-agy-retry-agy-b/packet)\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"response\":\"done\",\"structured_output\":{\"findings\":[{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"claim a\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"The retry budget is unbounded.\"},{\"kind\":\"input\",\"value\":\"the endpoint is down\"}],\"id\":\"a\",\"location\":\"artifact/spec.md\",\"severity\":\"minor\"}]}}}'\nexit 0\n;;\n*/critics/t2c/packet)\nprintf '%s' 'boom\\n' >&2\nexit 3\n;;\n*/critics/t3c/packet)\necho planted > planted.txt\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"response\":\"done\",\"structured_output\":{\"findings\":[{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"claim a\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"The retry budget is unbounded.\"},{\"kind\":\"input\",\"value\":\"the endpoint is down\"}],\"id\":\"a\",\"location\":\"artifact/spec.md\",\"severity\":\"minor\"}]}}}'\nexit 0\n;;\n*/critics/t4c/packet)\nprintf '%s' 'boom\\n' >&2\nexit 3\n;;\n*/critics/t5a/packet)\nprintf '%s' 'boom\\n' >&2\nexit 3\n;;\n*/critics/t5b/packet)\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"response\":\"done\",\"structured_output\":{\"findings\":[{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"claim a\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"The retry budget is unbounded.\"},{\"kind\":\"input\",\"value\":\"the endpoint is down\"}],\"id\":\"a\",\"location\":\"artifact/spec.md\",\"severity\":\"minor\"}]}}}'\nexit 0\n;;\n*/critics/t6c/packet)\nprintf '%s' 'boom\\n' >&2\nexit 3\n;;\n*/critics/t6c-retry-agy-b/packet)\nprintf '%s' 'boom\\n' >&2\nexit 3\n;;\n*/critics/t7a/packet)\nprintf '%s' 'boom\\n' >&2\nexit 3\n;;\n*/critics/t7b/packet)\nsleep 1\nprintf '%s' 'boom\\n' >&2\nexit 3\n;;\n*/critics/t7a-retry-agy-b/packet)\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"response\":\"done\",\"structured_output\":{\"findings\":[{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"claim a\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"The retry budget is unbounded.\"},{\"kind\":\"input\",\"value\":\"the endpoint is down\"}],\"id\":\"a\",\"location\":\"artifact/spec.md\",\"severity\":\"minor\"}]}}}'\nexit 0\n;;\n*/critics/t7b-retry-agy-b/packet)\nsleep 1\nexit 9\n;;\n*)\nexit 9\n;;\nesac\n",
+        "repos/r/README.md": "# r\n"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "git",
+        "sleep"
+      ],
+      "path": [
+        "bin"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/r"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:o/r.git"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/t3\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/t4\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/t5\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/t6\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/t7\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/t2\"}"
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-0\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-1\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-2\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-3\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-4\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-5\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-6\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-7\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-8\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-9\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-10\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-11\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-12\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-13\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-14\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-15\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-16\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-17\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-18\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n{\"charged_usd\":0,\"client\":\"agy-main\",\"critic_id\":\"old-19\",\"family\":\"google\",\"flow\":\"old\",\"kind\":\"agy\",\"model\":\"m\",\"recorded_at\":\"2026-11-03T08:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"old\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\"}\n"
+      },
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}

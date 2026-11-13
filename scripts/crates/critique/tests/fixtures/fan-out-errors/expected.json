@@ -1,0 +1,145 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"fan-out input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: fan-out input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"fan-out input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: fan-out input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"fan-out input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: fan-out input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"fan-out input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: fan-out input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"fan-out input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: fan-out input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"fan-out input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: fan-out input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/missing/manifest.json does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: @SANDBOX@/runs/missing/manifest.json does not exist\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/e-badjson/manifest.json: Unexpected token 'o', \\\"not json\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: @SANDBOX@/runs/e-badjson/manifest.json: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/e-shape/manifest.json: allowed_families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: @SANDBOX@/runs/e-shape/manifest.json: allowed_families must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"critic c1 runs on the work client codex-work, which only a nedap repository's run may use\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: critic c1 runs on the work client codex-work, which only a nedap repository's run may use\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"artifact/spec.md in the packet no longer matches the manifest\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: artifact/spec.md in the packet no longer matches the manifest\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"ENOENT: no such file or directory, open '/assets/roles/no-such-role.md'\",\"status\":\"error\"}\n",
+      "stderr": "critique fan-out: ENOENT: no such file or directory, open '/assets/roles/no-such-role.md'\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "runs/": null,
+        "runs/e-badjson/": null,
+        "runs/e-badjson/manifest.json": "not json",
+        "runs/e-mismatch/": null,
+        "runs/e-mismatch/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"c1\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/e-mismatch/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/e-mismatch\",\"run_id\":\"e-mismatch\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/e-mismatch/packet/": null,
+        "runs/e-mismatch/packet/artifact/": null,
+        "runs/e-mismatch/packet/artifact/spec.md": "changed after prepare\n",
+        "runs/e-mismatch/packet/references/": null,
+        "runs/e-mismatch/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/e-norole/": null,
+        "runs/e-norole/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"c1\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"no-such-role\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/e-norole/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/e-norole\",\"run_id\":\"e-norole\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/e-norole/packet/": null,
+        "runs/e-norole/packet/artifact/": null,
+        "runs/e-norole/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/e-norole/packet/references/": null,
+        "runs/e-norole/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/e-shape/": null,
+        "runs/e-shape/manifest.json": "{}\n",
+        "runs/e-work/": null,
+        "runs/e-work/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"codex-work\",\"client_config\":{\"binary\":\"codex\",\"family\":\"openai\",\"kind\":\"codex\",\"model\":\"gpt-5.5\"},\"critic_id\":\"c1\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/e-work/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/e-work\",\"run_id\":\"e-work\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/e-work/packet/": null,
+        "runs/e-work/packet/artifact/": null,
+        "runs/e-work/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/e-work/packet/references/": null,
+        "runs/e-work/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/e1/": null,
+        "runs/e1/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"c1\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/e1/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/e1\",\"run_id\":\"e1\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/e1/packet/": null,
+        "runs/e1/packet/artifact/": null,
+        "runs/e1/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/e1/packet/references/": null,
+        "runs/e1/packet/references/decision.md": "Decision: retries are capped at three.\n"
+      }
+    }
+  ]
+}
