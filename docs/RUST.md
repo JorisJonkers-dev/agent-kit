@@ -538,6 +538,33 @@ until the next setup run. Both runners read and write the same state files (ledg
 workflows, grants, kept worktrees) in the same format, so switching either way in
 the middle of a workflow loses nothing; the node runner is not removed.
 
+## critique
+
+`critique` is the Rust port of the critique runner
+(`skills/workstation/critique/critique.mjs`, built from `council/ts/src/critique-cli/`
+and `council/ts/src/contexts/critique/`), ported command by command behind the same
+command line and JSON contract. The node runner stays the one the critique skills run
+until the last slice swaps it (this page will say how to roll back then). The crate
+takes no registry dependency: it reuses the ordered JSON, the ports and the adapters of
+`crates/model-gateway` (a path inside this workspace).
+
+* **Ported so far:** the command line (usage, `--input`/`--json`/standard input, error
+  and exit codes, `--strict`) and `allow`. Every other command, and a valid `hook`, answers
+  `{"code":"not-ported",...}` and exits 1; they arrive in later slices. `search-server` is
+  not ported and prints the usage. Known differences: JSON syntax-error context is windowed in
+  characters, not UTF-16 units, a lone surrogate in a string reads as U+FFFD, JSON nested hundreds of thousands deep overflows the stack instead of reading as the wrong shape, an empty or relative `HOME` is read as an absolute path, and an `--input` path is normalised lexically (a trailing `/` or `..` through a symlink).
+* **Goldens.** `tests/gen-scenarios.mjs` writes the scenario inputs and
+  `tests/regenerate-fixtures.mjs` runs the node runner over each with fake programs in a
+  temporary sandbox (fixed clock, fixed `HOME`, git repositories made in the sandbox) and
+  records stdout, stderr, the exit code and every file left under the sandbox. The unit
+  tests replay each scenario through the library and compare byte for byte:
+
+```bash
+node scripts/crates/critique/tests/gen-scenarios.mjs
+node scripts/crates/critique/tests/regenerate-fixtures.mjs   # the goldens, from the node runner
+cargo test --manifest-path scripts/Cargo.toml -p critique    # SCENARIO=<name> replays one scenario
+```
+
 ## Measuring line coverage
 
 One command, from the repository root, on the Linux workstation and

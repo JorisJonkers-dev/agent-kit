@@ -1,0 +1,188 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families[1] must be one of mistral, zhipu, deepseek, google, anthropic, openai\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families[1] must be one of mistral, zhipu, deepseek, google, anthropic, openai\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: code must be true or false\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: code must be true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: code must be true or false\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: code must be true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: history must be true or false\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: history must be true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: history must be true or false\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: history must be true or false\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"allowlist_path\": \"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json\",\n  \"code\": false,\n  \"families\": [\n    \"zhipu\"\n  ],\n  \"history\": false,\n  \"repository\": \"github.com/jorisjonkers-dev/example\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\n  \"version\": 1,\n  \"repositories\": {\n    \"github.com/jorisjonkers-dev/example\": {\n      \"code\": false,\n      \"families\": [\n        \"zhipu\"\n      ],\n      \"history\": false,\n      \"updated_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  }\n}\n",
+        "work/": null,
+        "work/r1/": null,
+        "work/r1/.git/": null,
+        "work/r1/.git/HEAD": "ref: refs/heads/main\n",
+        "work/r1/.git/config": "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n\tlogallrefupdates = true\n[remote \"origin\"]\n\turl = git@github.com:JorisJonkers-dev/example.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n",
+        "work/r1/.git/objects/": null,
+        "work/r1/.git/objects/info/": null,
+        "work/r1/.git/objects/pack/": null,
+        "work/r1/.git/refs/": null,
+        "work/r1/.git/refs/heads/": null,
+        "work/r1/.git/refs/tags/": null
+      }
+    }
+  ]
+}

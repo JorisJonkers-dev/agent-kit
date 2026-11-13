@@ -44,6 +44,13 @@ name = "coverage-gate"
 version = "0.1.0"
 
 [[package]]
+name = "critique"
+version = "0.1.0"
+dependencies = [
+ "model-gateway",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

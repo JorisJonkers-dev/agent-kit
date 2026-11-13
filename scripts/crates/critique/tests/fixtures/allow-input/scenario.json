@@ -1,0 +1,156 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\"}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"families\":[\"zhipu\"]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"\",\"families\":[]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"  \",\"families\":[]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":5,\"families\":[]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":\"zhipu\"}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":null}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"bogus\"]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\",5]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[[\"zhipu\"]]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[],\"code\":\"yes\"}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[],\"code\":null}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[],\"history\":1}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[],\"code\":false,\"history\":\"no\"}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"x\",\"repo\":\"y\",\"families\":[]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"__proto__\":{\"a\":1},\"repo\":\"x\",\"families\":[]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "work/r1"
+        ],
+        [
+          "-C",
+          "work/r1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    }
+  ]
+}

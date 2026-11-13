@@ -1,0 +1,268 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/none\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "work/none"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/nedap\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "work/nedap"
+        ],
+        [
+          "-C",
+          "work/nedap",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/secret.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/mixed\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "work/mixed"
+        ],
+        [
+          "-C",
+          "work/mixed",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "work/mixed",
+          "remote",
+          "add",
+          "work",
+          "https://github.com/nedap/other.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/alias\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "work/alias"
+        ],
+        [
+          "-C",
+          "work/alias",
+          "remote",
+          "add",
+          "origin",
+          "git@github-nedap:nedap/secret.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/upstream\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "work/upstream"
+        ],
+        [
+          "-C",
+          "work/upstream",
+          "remote",
+          "add",
+          "upstream",
+          "https://gitlab.com/group/proj.git"
+        ],
+        [
+          "-C",
+          "work/upstream",
+          "remote",
+          "add",
+          "fork",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/ssh\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "work/ssh"
+        ],
+        [
+          "-C",
+          "work/ssh",
+          "remote",
+          "add",
+          "origin",
+          "ssh://git@example.com:2222/team/proj.git"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/plain\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "work/plain"
+        ],
+        [
+          "-C",
+          "work/plain",
+          "remote",
+          "add",
+          "origin",
+          "not a url"
+        ]
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/missing\",\"families\":[\"zhipu\"]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/none\",\"families\":[\"zhipu\"]}",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/nedap\",\"families\":[\"zhipu\"]}",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/upstream\",\"families\":[\"zhipu\"]}",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--strict",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/none\",\"families\":[\"zhipu\"]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/none\",\"families\":[\"zhipu\"]}",
+        "--strict",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1/sub\",\"families\":[\"zhipu\"]}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "work/r1"
+        ],
+        [
+          "-C",
+          "work/r1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ],
+      "mkdir": [
+        "work/r1/sub"
+      ]
+    }
+  ]
+}

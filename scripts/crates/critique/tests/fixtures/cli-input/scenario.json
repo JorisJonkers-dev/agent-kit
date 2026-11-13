@@ -1,0 +1,252 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "allow",
+        "--json",
+        ""
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\" 1}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "nope"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":1} x"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{'a':1}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":01}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":-}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":1.}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":1e}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":\"\\x\"}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":\"line\nbreak\"}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":[1,2,]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"a\":tru}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "[1]"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "null"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "\"text\""
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "5"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "true"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "[]"
+      ]
+    },
+    {
+      "argv": [
+        "allow"
+      ]
+    },
+    {
+      "argv": [
+        "allow"
+      ],
+      "stdin": "{\"families\":5}"
+    },
+    {
+      "argv": [
+        "allow"
+      ],
+      "stdin": "[1]"
+    },
+    {
+      "argv": [
+        "allow"
+      ],
+      "stdin": "not json"
+    },
+    {
+      "argv": [
+        "allow",
+        "--input",
+        ""
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--input",
+        "",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--input",
+        "missing.json"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--input",
+        "@SANDBOX@/work"
+      ],
+      "mkdir": [
+        "work"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--input",
+        "in.json"
+      ],
+      "write": {
+        "work/in.json": "not json"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--input",
+        "in.json"
+      ],
+      "write": {
+        "work/in.json": "{}"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--input",
+        "@SANDBOX@/work/in2.json"
+      ],
+      "write": {
+        "work/in2.json": "[1]"
+      }
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{}",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--strict",
+        "--json",
+        "{}"
+      ]
+    }
+  ]
+}
