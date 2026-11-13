@@ -113,23 +113,30 @@ workstation_secrets:
     unchecked: the proxy is not tried with the token on its own; litellm-gate checks the key
     export: false
   - env: LITELLM_VIBE_KEY
-    paste: "the LiteLLM virtual key for the vibe agent id, made on the proxy with a max budget of 255"
+    paste: "the LiteLLM virtual key for the vibe agent id, made on the proxy with a max budget of 255 per 30 days"
     unchecked: the key is not tried on its own; litellm-gate checks it
     export: false
   - env: LITELLM_VIBE_STUDY_KEY
-    paste: "the LiteLLM virtual key for the vibe-study agent id, made on the proxy with a max budget of 128"
+    paste: "the LiteLLM virtual key for the vibe-study agent id, made on the proxy with a max budget of 127.5 per 30 days"
     unchecked: the key is not tried on its own; litellm-gate checks it
     export: false
   - env: LITELLM_OPENCODE_GO_KEY
-    paste: "the LiteLLM virtual key for the opencode-go agent id, made on the proxy with a max budget of 60"
+    paste: "the LiteLLM virtual key for the opencode-go agent id, made on the proxy with a max budget of 60 per 30 days"
     unchecked: the key is not tried on its own; litellm-gate checks it
     export: false
   - env: LITELLM_OPENROUTER_KEY
-    paste: "the LiteLLM virtual key for the openrouter agent id, made on the proxy with a max budget of 5"
+    paste: "the LiteLLM virtual key for the openrouter agent id, made on the proxy with a max budget of 5 per 30 days"
     unchecked: the key is not tried on its own; litellm-gate checks it
     export: false
   - env: LITELLM_LOCAL_KEY
     paste: "the LiteLLM virtual key for the local agent id (the GPU workstation's model server), made on the proxy with no max budget"
+    unchecked: the key is not tried on its own; litellm-gate checks it
+    export: false
+  # The one key that reaches the free-tier Google deployments (access group
+  # `google-free-public`). Google may train on free-tier prompts, so this key is for public,
+  # non-sensitive work only: never private repositories, never employer code, never secrets.
+  - env: LITELLM_PUBLIC_KEY
+    paste: "the LiteLLM virtual key for the public agent id (the only key with the google-free-public access group; PUBLIC, NON-SENSITIVE work only, because Google may train on free-tier prompts), made on the proxy with a max budget of 5 per 30 days"
     unchecked: the key is not tried on its own; litellm-gate checks it
     export: false
   # This host's own OpenRouter key: one key per machine, made on openrouter.ai
@@ -178,32 +185,57 @@ litellm:
   base_url: "https://litellm.jorisjonkers.dev/v1"
   key_header: x-litellm-api-key
   edge_token_env: LITELLM_EDGE_TOKEN
-  # `models` are the route's wildcard, or plain ids beneath its own `<agent>/` prefix: any model
-  # the provider offers works (the live catalogue in the litellm repository says which the
-  # account can use). `budget_eur: null` is no cap, for a free route.
+  # Each route is one virtual key. `models` are ACCESS GROUP names, not wildcards: a key reaches
+  # the canonical models (one name per model, routed across the provider accounts by priority,
+  # litellm#20) that carry one of its groups. litellm#19 puts every deployment but a Google free-tier one, the
+  # openrouter and local ones included, in `canonical`, so that is the group every key holds; the
+  # public key adds `google-free-public`, the free-tier Google
+  # deployments and only the `public` route may hold it (`data_scope: public`), because Google
+  # may train on free-tier prompts. `budget_duration` is `30d` on every capped key, so a cap is a
+  # monthly allowance, not a lifetime one. `budget_eur: null` is no cap, for a free route.
   routes:
     - agent: vibe
       key_env: LITELLM_VIBE_KEY
       budget_eur: 255
-      models: ["vibe/*"]
+      budget_duration: 30d
+      data_scope: any
+      models: ["canonical"]
     - agent: vibe-study
       key_env: LITELLM_VIBE_STUDY_KEY
-      budget_eur: 128
-      models: ["vibe-study/*"]
+      budget_eur: 127.5
+      budget_duration: 30d
+      data_scope: any
+      models: ["canonical"]
     - agent: opencode-go
       key_env: LITELLM_OPENCODE_GO_KEY
       budget_eur: 60
-      models: ["opencode-go/*"]
-    # Mostly the `:free` ids; the cap covers the few paid ones.
+      budget_duration: 30d
+      data_scope: any
+      models: ["canonical"]
+    # OpenRouter deploys free `:free` ids only (litellm#20 rule 6), but the key holds `canonical`
+    # like the rest (litellm#19), so it can reach paid deployments of a canonical model; the cap bounds that.
     - agent: openrouter
       key_env: LITELLM_OPENROUTER_KEY
       budget_eur: 5
-      models: ["openrouter/*"]
+      budget_duration: 30d
+      data_scope: any
+      models: ["canonical"]
     # The OpenAI-compatible model server on the GPU workstation: free, so no cap.
     - agent: local
       key_env: LITELLM_LOCAL_KEY
       budget_eur: null
-      models: ["local/*"]
+      budget_duration: null
+      data_scope: any
+      models: ["canonical"]
+    # Public, non-sensitive work only: the one key with the Google free-tier group. It also
+    # holds `canonical`, so a Gemini model falls over to the paid deployments when the free tier
+    # refuses; the small cap bounds that.
+    - agent: public
+      key_env: LITELLM_PUBLIC_KEY
+      budget_eur: 5
+      budget_duration: 30d
+      data_scope: public
+      models: ["google-free-public", "canonical"]
 
 # -------------------------------------------------------------------
 # The packages proxy.

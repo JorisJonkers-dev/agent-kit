@@ -1,30 +1,94 @@
 # LiteLLM: one proxy, per-key budgets
 
 The cheap agents (Pi, Vibe, OpenCode) reach their models (the paid ones, the
-OpenRouter free ones and the local GPU) through one LiteLLM proxy in the estate cluster, shared by both machines, so one budget per
+OpenRouter free ones, the free-tier Google ones for public work and the local GPU) through one LiteLLM proxy in the estate cluster, shared by both machines, so one budget per
 key holds across machines (spec #392, stories 96-98). Gold Band's own cost and
 token numbers are never used; the proxy's refusal is the only budget signal.
 
-## The caps
+## The keys and their caps
 
-| Agent id | Virtual key (secret store) | Max budget | Provider |
-|---|---|---|---|
-| `vibe` | `LITELLM_VIBE_KEY` | 255 EUR | Mistral, the Vibe key |
-| `vibe-study` | `LITELLM_VIBE_STUDY_KEY` | 128 EUR | Mistral, the Vibe-study key |
-| `opencode-go` | `LITELLM_OPENCODE_GO_KEY` | 60 EUR | OpenCode Go |
-| `openrouter` | `LITELLM_OPENROUTER_KEY` | 5 EUR | OpenRouter; prefer the `:free` ids |
-| `local` | `LITELLM_LOCAL_KEY` | none | the OpenAI-compatible server on the GPU workstation (free) |
+| Agent id | Virtual key (secret store) | Max budget, per 30 days | Access groups (`models`) | Reaches |
+|---|---|---|---|---|
+| `vibe` | `LITELLM_VIBE_KEY` | 255 EUR | `canonical` | every canonical model |
+| `vibe-study` | `LITELLM_VIBE_STUDY_KEY` | 127.50 EUR | `canonical` | every canonical model |
+| `opencode-go` | `LITELLM_OPENCODE_GO_KEY` | 60 EUR | `canonical` | every canonical model |
+| `openrouter` | `LITELLM_OPENROUTER_KEY` | 5 EUR | `canonical` | every canonical model (its free `:free` deployments are in it; the cap bounds any paid fallback) |
+| `local` | `LITELLM_LOCAL_KEY` | none | `canonical` | every canonical model, the GPU workstation's server (free) among them; the key has no cap, so use it for local models only |
+| `public` | `LITELLM_PUBLIC_KEY` | 5 EUR | `google-free-public`, `canonical` | the free-tier Google models, and the paid fallbacks |
 
-Each route is a provider wildcard (`vibe/*`, `openrouter/*`, ...): a caller sends
-`<agent id>/<provider model id>` and any model the provider offers works. The key's
-`models` is that wildcard. Which models an account can actually use is the live
-catalogue's job (below); a listed model can still be refused.
+A key lists **access groups**, not a provider wildcard: a caller sends one canonical model
+name (`glm-5.3`, `mistral-large`, `claude-sonnet-4-5`, ...) and the proxy routes it across the
+provider accounts by priority (litellm#20), so the agent id no longer picks the provider. The
+litellm#19 sync puts every deployment but a Google free-tier one, OpenRouter and local included, in `canonical`;
+there are no per-route groups.
+Which models an account can actually use is the live catalogue's job (below); a listed model
+can still be refused.
 
-`registry/estate-tooling.yaml` (`litellm:`) is the source; the render writes
-`registry/generated/litellm/routes.json` (base URL, header, one route per agent
-id with its key variable, cap (`null` is no cap) and models, never a key value). LiteLLM counts
-`max_budget` in its own cost unit (USD): the number is entered as the cap, and
-it is the owner's to rescale if the exchange rate matters.
+`registry/estate-tooling.yaml` (`litellm:`) is the source. The render writes
+`registry/generated/litellm/routes.json` (base URL, header, one route per agent id with its
+key variable, cap (`null` is no cap), `budget_duration`, `data_scope` and access groups, never a
+key value) and `registry/generated/litellm/make-keys.sh` (the owner's `/key/generate` calls,
+below). LiteLLM counts `max_budget` in its own cost unit (USD): the number is entered as the
+cap, and it is the owner's to rescale if the exchange rate matters.
+
+**The budget resets.** Every capped key carries `budget_duration: 30d`, so a cap is a monthly
+allowance that LiteLLM resets, not a lifetime cap that runs out for good. The render refuses a
+capped route without it. The caps on the keys are a safety net; the provider accounts' own
+monthly pools (vibe 255, vibe-study 127.50, vibe-api 25.50, vibe-study-api 12.75) are
+capped on the deployments, in the litellm repository.
+
+### The public key: public, non-sensitive work only
+
+`public` is the only key with the `google-free-public` access group, and the Google free-tier
+deployments are in that group alone, so every other key reaches a Gemini model only through its paid
+deployments (the tests prove the keys' side in `tests/test_registry_render.py`: only `public` lists the group; the group on the deployments is the litellm repository's, and the render refuses
+`google-free-public` on any route not marked `data_scope: public`, or a second public route).
+
+**Google may use free-tier prompts to improve its products, so the `public` key is for
+public, non-sensitive work only.** Use it for open-source code, public documentation and
+questions you would post publicly. Never send it a private repository, employer code
+(`nedap`), a secret, a transcript, a customer's data or anything under an NDA. When unsure, use
+another key: the Gemini model is served by the others too, through the paid deployments.
+Setup prompts for it like the other LiteLLM keys (`LITELLM_PUBLIC_KEY`, unexported).
+
+### Provider priority (what the keys route to)
+
+Set in the litellm repository (litellm#20); recorded here because the agent ids depend on it.
+
+1. A model Vibe serves (including GLM 5.3, GLM 5.3 Flash, DeepSeek V4.1 Flash): `vibe` and
+   `vibe-study` at 2:1, then `vibe-api` and `vibe-study-api` at 2:1, then stop. **No other
+   provider serves a model Vibe serves**, OpenCode Go included.
+2. Models only the general Mistral keys serve (audio, OCR, embeddings): `vibe-api` and
+   `vibe-study-api` at 2:1.
+3. Claude only through the `anthropic` key.
+4. Gemini: Google free tier first, only inside `google-free-public`.
+5. OpenCode Go only for models no Mistral, Google or Anthropic key serves. Its base is
+   `https://opencode.ai/inference/go/openai/v1`.
+6. OpenRouter free models only, `data_collection: deny`.
+
+Mistral's four keys: `vibe` (255 EUR) and `vibe-study` (127.50 EUR) are Vibe-scope; `vibe-api`
+(25.50 EUR) and `vibe-study-api` (12.75 EUR) are general API keys.
+
+### Names the litellm repository must match
+
+`canonical` (every canonical model), `google-free-public` (the Google free-tier deployments),
+the agent ids / key aliases above, and the
+canonical model names the gateway defaults use (`registry/litellm-catalogue.json` lists what
+the catalogue serves).
+
+## The gateway's models resolve through LiteLLM
+
+The model-gateway defaults (`skills/workstation/model-gateway/defaults.json`) name only models
+the catalogue lists as usable: Vibe's `deepseek-v4-1-flash-1017`, `glm-5-3`,
+`mistral-large-latest`, `mistral-medium-latest`, `mistral-small-latest`, `zai-glm-5-3-flash`, and
+OpenCode Go's `kimi-k2.7-code`, `mimo-v2.6-pro`, `mimo-v2.6-flash`, `qwen3.8-flash`. Because Vibe
+serves GLM 5.3, GLM 5.3 Flash and DeepSeek V4.1 Flash, the OpenCode Go entries for them are
+gone: OpenCode Go is not used for a model Vibe serves. `mistral-large-4-0-3` became
+`mistral-large-latest`, and the deprecated `mistral-medium-3.5` (retires 2027-04-30) became
+`mistral-medium-latest`. `tests/test_litellm_models.py` checks every default against
+`registry/litellm-catalogue.json`, a snapshot of the catalogue's usable ids (its `comment` says
+how to refresh it), and fails on one the catalogue does not list or on an OpenCode default that
+Vibe serves.
 
 ## What a request carries
 
@@ -55,46 +119,53 @@ below the cap passes, and exhausted fails.
 
 ```bash
 litellm-gate check --node research-fetch --url https://litellm.jorisjonkers.dev/v1 \
-  --key-env LITELLM_VIBE_KEY --model vibe/zai-glm-5-3-flash
+  --key-env LITELLM_VIBE_KEY --model glm-5.3-flash
 ```
 
 ## Making the keys (owner, once the proxy is deployed)
 
-With the proxy's master key (never stored in this repository):
-
-Put the header in a curl config on stdin so no key reaches argv:
+`registry/generated/litellm/make-keys.sh` makes one key per route, with its access groups and,
+for a capped key, `max_budget` and `budget_duration: 30d`. It reads the proxy's master key from
+`LITELLM_MASTER_KEY` (never stored in this repository) and puts it in a curl config on stdin, so
+no key reaches argv:
 
 ```bash
-curl -sS --config - https://litellm.jorisjonkers.dev/key/generate <<CFG
-header = "Authorization: Bearer $MASTER"
+read -rs LITELLM_MASTER_KEY && export LITELLM_MASTER_KEY
+registry/generated/litellm/make-keys.sh
+```
+
+Each response is a new virtual key: paste it into setup when it asks. The calls it makes are,
+for example:
+
+```bash
+curl -sS --config - --data-binary \
+  '{"key_alias":"vibe","models":["canonical"],"max_budget":255,"budget_duration":"30d"}' \
+  https://litellm.jorisjonkers.dev/key/generate <<CFG
+header = "Authorization: Bearer $LITELLM_MASTER_KEY"
 header = "Content-Type: application/json"
-data = "{\"key_alias\":\"vibe\",\"max_budget\":255,\"models\":[\"vibe/*\"]}"
 CFG
 ```
 
-Repeat for `vibe-study` (128), `opencode-go` (60) and `openrouter` (5) with their
-wildcards, and for `local` without `max_budget`, then run setup in a terminal and
-paste each key when asked. `key_alias` must be the agent id: the dashboards and
-alerts group by it.
+`key_alias` must be the agent id: the dashboards and alerts group by it. Run setup in a
+terminal and paste each key when asked, including `LITELLM_PUBLIC_KEY` (say it is for public
+work only).
 
 ## The window and reset
 
-**Not measured yet.** The caps are set without `budget_duration`, so each is
-a lifetime cap until measured. The ticket asks this section to state the
-window and reset as measured on the real proxy, with the request that measured
-them. `scripts/measure_litellm_budget.py` makes that request: one
-`GET /key/info` with the agent id's key (no model call, no spend), printing only
-`max_budget`, `budget_duration`, `budget_reset_at` and `spend`, and the request
-with both credentials redacted. It reads the key and the edge token from the
-environment or the secret store, where setup put them:
+Every capped key is made with `budget_duration: 30d`, so LiteLLM resets its spend every 30
+days. `scripts/measure_litellm_budget.py` confirms it on the real proxy: one `GET /key/info` with
+the agent id's key (no model call, no spend), printing only `max_budget`, `budget_duration`,
+`budget_reset_at` and `spend`, and the request with both credentials redacted. It reads the key
+and the edge token (when stored) from the environment or the secret store:
 
 ```bash
 python3 scripts/measure_litellm_budget.py --agent vibe
 ```
 
-Result, to be pasted here by the owner (`_pending_`): the request line, the four
-fields, the date it was run, and one sentence: is the cap a lifetime cap
-(`budget_duration` null) or a window that resets (and when)?
+A key made before this change was made without `budget_duration` and is a lifetime cap until it
+is regenerated (or updated with `/key/update`, `budget_duration: 30d`). The result of the
+measurement, to be pasted here by the owner (`_pending_`): the request line, the four fields,
+the date it was run, and whether `budget_duration` is `30d`.
 
 ```text
 _pending_
@@ -103,7 +174,11 @@ _pending_
 ## What the owner adds
 
 - The OpenRouter key, with a 5 EUR credit limit set on OpenRouter, written to Vault
-  as `openrouter_api_key` (`./bootstrap/secrets.sh --only litellm` in estate).
+  as `openrouter_api_key` (`./bootstrap/secrets.sh --only litellm` in estate); on OpenRouter, training
+  providers off for free models. The general Mistral keys, the Google and the Anthropic keys
+  (`vibe_api_general_key`, `vibe_study_api_general_key`, `google_api_key`, `anthropic_api_key`) are
+  written the same way (estate#382); Anthropic: a $100 monthly spend limit, auto-reload off;
+  OpenCode Go: Extra Usage off.
 - The local model server, reachable from the cluster: Ollama on the workstation
   already serves an OpenAI-compatible `/v1` (nix-config `ollama-rocm.nix`, port
   11434), but a Project's pods reach nothing outside the cluster except the

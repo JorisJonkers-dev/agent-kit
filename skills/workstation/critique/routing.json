@@ -22,7 +22,7 @@
       "model": "mistral-large-4-0",
       "family": "mistral",
       "prices": { "input": 0.7, "cached_input": 0.07, "output": 2.1 },
-      "gateway": { "client": "vibe", "model": "mistral-large-4-0-3" }
+      "gateway": { "client": "vibe", "model": "mistral-large-latest" }
     },
     "agy-gemini-flash-high": {
       "kind": "agy",

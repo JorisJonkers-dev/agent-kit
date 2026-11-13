@@ -174,7 +174,7 @@ succeeded or failed; only a refusal is an error, and it prints
 `{"status":"error","code":"<slug>","message":"<one line>"}` and exits 1.
 
 ```sh
-node model-gateway.mjs run --json '{"workflow":"review","client":"vibe","model":"mistral-large-4-0-3","mode":"read-only","prompt":"Review src/app.ts","repo":"/path/to/repo"}'
+node model-gateway.mjs run --json '{"workflow":"review","client":"vibe","model":"mistral-large-latest","mode":"read-only","prompt":"Review src/app.ts","repo":"/path/to/repo"}'
 node model-gateway.mjs run --input <file.json>
 ```
 

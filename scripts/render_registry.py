@@ -84,6 +84,7 @@ VIBE_NO_SIGNATURE = Path("scripts/vibe-no-commit-signature.py")
 RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
 LITELLM_ROUTES = Path("registry/generated/litellm/routes.json")
+LITELLM_KEY_SCRIPT = Path("registry/generated/litellm/make-keys.sh")
 NIXOS_PACKAGES = Path("registry/generated/nixos/packages.nix")
 # The devWorkstation groups a NixOS package can belong to: core is always
 # installed, the others are optional. This order is the rendered order.
@@ -5722,7 +5723,10 @@ def _has_plugin_pins(data: dict[str, Any]) -> bool:
 
 
 LITELLM_ENV = re.compile(r"[A-Z][A-Z0-9_]*")
-LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "models"}
+LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "budget_duration", "data_scope", "models"}
+# The access group only the public key may hold: Google may train on free-tier prompts.
+LITELLM_PUBLIC_GROUP = "google-free-public"
+LITELLM_BUDGET_DURATION = "30d"
 
 
 def _validate_litellm(data: dict[str, Any]) -> None:
@@ -5752,6 +5756,14 @@ def _validate_litellm(data: dict[str, Any]) -> None:
         if not isinstance(route, dict):
             raise RegistryError("each litellm route must be a mapping")
         agent = str(route.get("agent") or "")
+        if not isinstance(route.get("budget_eur"), (int, float, type(None))) or route.get("budget_eur") in (
+            float("inf"),
+            float("-inf"),
+        ):
+            raise RegistryError(
+                f"litellm route {agent}: budget_eur must be a positive number of at most two decimals, "
+                "or null for no cap",
+            )
         if set(route) != LITELLM_ROUTE_KEYS:
             raise RegistryError(f"litellm route {agent!r} takes exactly {sorted(LITELLM_ROUTE_KEYS)}")
         if not re.fullmatch(r"[a-z][a-z0-9-]*", agent) or agent in seen_agents:
@@ -5768,20 +5780,79 @@ def _validate_litellm(data: dict[str, Any]) -> None:
                 "so no shell holds the key",
             )
         budget = route["budget_eur"]
-        if budget is not None and (isinstance(budget, bool) or not isinstance(budget, int) or budget <= 0):
+        if budget is not None and (
+            isinstance(budget, bool)
+            or not isinstance(budget, (int, float))
+            or budget <= 0
+            or round(budget, 2) != budget
+        ):
             raise RegistryError(
-                f"litellm route {agent}: budget_eur must be a positive whole number, or null for no cap",
+                f"litellm route {agent}: budget_eur must be a positive number of at most two decimals, "
+                "or null for no cap",
             )
-        models = route["models"]
-        if not models or not all(isinstance(m, str) and re.fullmatch(r"[A-Za-z0-9._:/*-]+", m) for m in models):
-            raise RegistryError(f"litellm route {agent}: models must be plain model names")
-        for model in models:
-            if not model.startswith(f"{agent}/"):
-                raise RegistryError(f"litellm route {agent}: model {model!r} must sit beneath {agent}/")
-            if model.lower().startswith("opencode/"):
-                raise RegistryError(f"litellm route {agent}: no opencode Zen model")
-            if "*" in model and model != f"{agent}/*":
-                raise RegistryError(f"litellm route {agent}: the only wildcard is {agent}/*")
+        duration = route["budget_duration"]
+        if duration != (None if budget is None else LITELLM_BUDGET_DURATION):
+            raise RegistryError(
+                f"litellm route {agent}: budget_duration must be {LITELLM_BUDGET_DURATION} on a capped key "
+                "(a cap that never resets is a lifetime cap) and null on an uncapped one",
+            )
+        scope = route["data_scope"]
+        if scope not in ("any", "public"):
+            raise RegistryError(f"litellm route {agent}: data_scope must be any or public")
+        groups = route["models"]
+        if not groups or not all(isinstance(g, str) and re.fullmatch(r"[a-z][a-z0-9-]*", g) for g in groups):
+            raise RegistryError(f"litellm route {agent}: models must be access group names, never a wildcard")
+        if len(set(groups)) != len(groups):
+            raise RegistryError(f"litellm route {agent}: models must not repeat an access group")
+        if (LITELLM_PUBLIC_GROUP in groups) != (scope == "public"):
+            raise RegistryError(
+                f"litellm route {agent}: only a data_scope: public key holds {LITELLM_PUBLIC_GROUP}, and it must",
+            )
+    if sum(1 for r in routes if r["data_scope"] == "public") > 1:
+        raise RegistryError("litellm.routes may hold only one public key")
+
+
+def litellm_key_requests(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """The `/key/generate` body per route: alias, access groups, and a budget that resets."""
+    section = data.get("litellm") or {}
+    requests = []
+    for route in section.get("routes") or []:
+        body: dict[str, Any] = {"key_alias": route["agent"], "models": list(route["models"])}
+        if route["budget_eur"] is not None:
+            body["max_budget"] = route["budget_eur"]
+            body["budget_duration"] = route["budget_duration"]
+        requests.append(body)
+    return requests
+
+
+def render_litellm_key_script(data: dict[str, Any]) -> str:
+    """The owner's `/key/generate` calls, one per route: no key inside, the master key from the environment."""
+    section = data.get("litellm")
+    if not section:
+        return "#!/usr/bin/env bash\n"
+    base = section["base_url"].removesuffix("/v1")
+    lines = [
+        "#!/usr/bin/env bash",
+        "# GENERATED from registry/estate-tooling.yaml (litellm.routes); do not edit.",
+        "# The owner runs this once the proxy is deployed, with the proxy's master key in",
+        "# LITELLM_MASTER_KEY. The key goes in a curl config on stdin, so it reaches no argv. Each",
+        "# response is a new virtual key: paste it into setup when it asks, and nowhere else.",
+        f"# `{LITELLM_PUBLIC_GROUP}` is on the public key only (Google may train on free-tier prompts).",
+        "set -euo pipefail",
+        ': "${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY to the proxy master key}"',
+        "",
+        "make_key() {",
+        "  curl -sS --config - --data-binary \"$1\" " + f"{base}/key/generate" + " <<CFG",
+        'header = "Authorization: Bearer ${LITELLM_MASTER_KEY}"',
+        'header = "Content-Type: application/json"',
+        "CFG",
+        "  echo",
+        "}",
+        "",
+    ]
+    for body in litellm_key_requests(data):
+        lines.append(f"make_key '{json.dumps(body, separators=(',', ':'))}'")
+    return "\n".join(lines) + "\n"
 
 
 def render_litellm_routes(data: dict[str, Any]) -> str:
@@ -5881,6 +5952,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
         NIXOS_PACKAGES: (render_nixos_packages(data), 0o644),
         LITELLM_ROUTES: (render_litellm_routes(data), 0o644),
+        LITELLM_KEY_SCRIPT: (render_litellm_key_script(data), 0o755),
         **{
             VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)
             for agent in vibe_critic_agents(data)

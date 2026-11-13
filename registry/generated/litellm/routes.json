@@ -8,40 +8,61 @@
       "agent": "vibe",
       "key_env": "LITELLM_VIBE_KEY",
       "budget_eur": 255,
+      "budget_duration": "30d",
+      "data_scope": "any",
       "models": [
-        "vibe/*"
+        "canonical"
       ]
     },
     {
       "agent": "vibe-study",
       "key_env": "LITELLM_VIBE_STUDY_KEY",
-      "budget_eur": 128,
+      "budget_eur": 127.5,
+      "budget_duration": "30d",
+      "data_scope": "any",
       "models": [
-        "vibe-study/*"
+        "canonical"
       ]
     },
     {
       "agent": "opencode-go",
       "key_env": "LITELLM_OPENCODE_GO_KEY",
       "budget_eur": 60,
+      "budget_duration": "30d",
+      "data_scope": "any",
       "models": [
-        "opencode-go/*"
+        "canonical"
       ]
     },
     {
       "agent": "openrouter",
       "key_env": "LITELLM_OPENROUTER_KEY",
       "budget_eur": 5,
+      "budget_duration": "30d",
+      "data_scope": "any",
       "models": [
-        "openrouter/*"
+        "canonical"
       ]
     },
     {
       "agent": "local",
       "key_env": "LITELLM_LOCAL_KEY",
       "budget_eur": null,
+      "budget_duration": null,
+      "data_scope": "any",
       "models": [
-        "local/*"
+        "canonical"
+      ]
+    },
+    {
+      "agent": "public",
+      "key_env": "LITELLM_PUBLIC_KEY",
+      "budget_eur": 5,
+      "budget_duration": "30d",
+      "data_scope": "public",
+      "models": [
+        "google-free-public",
+        "canonical"
       ]
     }
   ]

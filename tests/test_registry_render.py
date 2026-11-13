@@ -1178,19 +1178,68 @@ def test_a_retired_server_is_removed_from_every_local_agent() -> None:
 # --- B2-07: LiteLLM routes and their budget caps ---------------------------
 
 
+def _litellm_table() -> dict:
+    return json.loads((KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json").read_text())
+
+
 def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
-    """One route per cheap agent id, with the three caps, rendered without any key value."""
-    table = json.loads((KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json").read_text())
+    """One route per agent id with its cap, rendered without any key value."""
+    table = _litellm_table()
     caps = {route["agent"]: route["budget_eur"] for route in table["routes"]}
-    # openrouter is capped at 5, and local (the GPU workstation's server) is free: no cap.
-    assert caps == {"vibe": 255, "vibe-study": 128, "opencode-go": 60, "openrouter": 5, "local": None}
-    # Every route is its own provider wildcard, so any model the provider offers works.
-    assert {route["agent"]: route["models"] for route in table["routes"]} == {
-        agent: [f"{agent}/*"] for agent in caps
+    # openrouter is capped at 5, local (the GPU workstation's server) is free: no cap; public is small.
+    assert caps == {
+        "vibe": 255, "vibe-study": 127.5, "opencode-go": 60, "openrouter": 5, "local": None, "public": 5,
     }
+    # A key holds access groups of canonical models, not a provider wildcard each.
+    assert {route["agent"]: route["models"] for route in table["routes"]} == {
+        "vibe": ["canonical"],
+        "vibe-study": ["canonical"],
+        "opencode-go": ["canonical"],
+        "openrouter": ["canonical"],
+        "local": ["canonical"],
+        "public": ["google-free-public", "canonical"],
+    }
+    assert not any("*" in model or "/" in model for route in table["routes"] for model in route["models"])
     assert table["base_url"].startswith("https://") and table["key_header"] == "x-litellm-api-key"
     # Names of variables only: the keys live in the secret store.
     assert all(route["key_env"].startswith("LITELLM_") for route in table["routes"])
+
+
+def test_every_capped_agent_key_resets_its_budget_every_30_days() -> None:
+    routes = _litellm_table()["routes"]
+    assert all(route["budget_duration"] == "30d" for route in routes if route["budget_eur"] is not None)
+    assert all(route["budget_duration"] is None for route in routes if route["budget_eur"] is None)
+    script = (KIT_ROOT / "registry" / "generated" / "litellm" / "make-keys.sh").read_text()
+    for route in routes:
+        request = next(line for line in script.splitlines() if f'"key_alias":"{route["agent"]}"' in line)
+        body = json.loads(request.removeprefix("make_key '").removesuffix("'"))
+        assert body.get("budget_duration") == route["budget_duration"]
+        assert ("max_budget" in body) == (route["budget_eur"] is not None)
+
+
+def _can_reach(routes: list[dict], agent: str, groups_of_deployment: set[str]) -> bool:
+    """LiteLLM lets a key use a deployment when one of the key's `models` is one of its access groups."""
+    route = next(r for r in routes if r["agent"] == agent)
+    return bool(set(route["models"]) & groups_of_deployment)
+
+
+def test_only_the_public_key_reaches_the_google_free_tier_deployments() -> None:
+    """A Google free-tier deployment sits in `google-free-public` alone; no other key lists that group."""
+    routes = _litellm_table()["routes"]
+    google = {"google-free-public"}
+    assert [r["agent"] for r in routes if _can_reach(routes, r["agent"], google)] == ["public"]
+    for agent in ("vibe", "vibe-study", "opencode-go", "openrouter", "local"):
+        assert not _can_reach(routes, agent, google), agent
+        assert _can_reach(routes, agent, {"canonical"}), agent
+    script = (KIT_ROOT / "registry" / "generated" / "litellm" / "make-keys.sh").read_text()
+    assert [line for line in script.splitlines() if "google-free-public" in line and "make_key" in line] == [
+        line for line in script.splitlines() if '"key_alias":"public"' in line
+    ]
+
+
+def test_the_public_key_is_stored_unexported_and_says_what_it_is_for() -> None:
+    entry = next(e for e in _registry()["workstation_secrets"] if e["env"] == "LITELLM_PUBLIC_KEY")
+    assert entry["export"] is False and "PUBLIC, NON-SENSITIVE" in entry["paste"]
 
 
 def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
@@ -1203,17 +1252,24 @@ def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda d: d["litellm"]["routes"][0].update(budget_eur=0), "positive whole number"),
-        (lambda d: d["litellm"]["routes"][0].update(budget_eur="255"), "positive whole number"),
-        (lambda d: d["litellm"]["routes"][0].update(models=["openrouter/x"]), "must sit beneath vibe/"),
-        (lambda d: d["litellm"]["routes"][0].update(models=["*"]), "must sit beneath vibe/"),
-        (lambda d: d["litellm"]["routes"][0].update(models=["vibe/zai-*"]), "only wildcard is vibe/"),
-        (lambda d: d["litellm"]["routes"][0].update(models=["vibe/a b"]), "plain model names"),
+        (lambda d: d["litellm"]["routes"][0].update(budget_eur=0), "positive number"),
+        (lambda d: d["litellm"]["routes"][0].update(budget_eur="255"), "positive number"),
+        (lambda d: d["litellm"]["routes"][0].update(budget_eur=1.234), "positive number"),
+        (lambda d: d["litellm"]["routes"][0].update(budget_duration=None), "budget_duration must be 30d"),
+        (lambda d: d["litellm"]["routes"][0].update(budget_duration="7d"), "budget_duration must be 30d"),
+        (lambda d: d["litellm"]["routes"][4].update(budget_duration="30d"), "budget_duration must be 30d"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["vibe/*"]), "access group names"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["*"]), "access group names"),
+        (lambda d: d["litellm"]["routes"][0].update(models=[]), "access group names"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["canonical", "canonical"]), "must not repeat"),
+        (lambda d: d["litellm"]["routes"][0].update(data_scope="private"), "data_scope must be"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["google-free-public"]), "only a data_scope: public key"),
+        (lambda d: d["litellm"]["routes"][5].update(models=["canonical"]), "only a data_scope: public key"),
         (
-            lambda d: d["litellm"]["routes"][2].update(agent="opencode", models=["opencode/zen-model"]),
-            "no opencode Zen",
+            lambda d: d["litellm"]["routes"][0].update(data_scope="public", models=["google-free-public"]),
+            "only one public",
         ),
-        (lambda d: d["litellm"]["routes"][4].update(budget_eur=-1), "positive whole number"),
+        (lambda d: d["litellm"]["routes"][4].update(budget_eur=-1), "positive number"),
         (lambda d: d["litellm"]["routes"][1].update(agent="vibe"), "unique lower-case agent id"),
         (lambda d: d["litellm"]["routes"][1].update(key_env="LITELLM_VIBE_KEY"), "unique variable name"),
         (lambda d: d["litellm"]["routes"][0].update(key_env="NOT_A_SECRET"), "workstation secret"),
@@ -1225,7 +1281,6 @@ def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
         (lambda d: d["litellm"].update(edge_token_env="NOT_A_SECRET"), "must be a workstation secret"),
         (lambda d: d.update(litellm="x"), "must be a mapping"),
         (lambda d: d["litellm"]["routes"].append("x"), "must be a mapping"),
-        (lambda d: d["litellm"]["routes"][0].update(models=["OpenRouter/x"]), "must sit beneath vibe/"),
     ],
 )
 def test_a_bad_litellm_section_is_refused(mutate, message: str) -> None:
