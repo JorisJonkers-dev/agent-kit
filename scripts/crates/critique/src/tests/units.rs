@@ -193,10 +193,6 @@ impl Git for Scripted {
         Err("unused".to_string())
     }
 
-    fn file_at(&self, _cwd: &str, _commit: &str, _path: &str) -> Result<String, String> {
-        Err("unused".to_string())
-    }
-
     fn diff_commits(&self, _cwd: &str, _base: &str, _head: &str) -> Result<String, String> {
         Err("unused".to_string())
     }

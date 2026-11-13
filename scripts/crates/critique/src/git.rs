@@ -25,8 +25,6 @@ pub trait Git: Send + Sync {
     fn untracked_paths(&self, cwd: &str) -> Result<Vec<String>, String>;
     /// The best common ancestor of two commits.
     fn merge_base(&self, cwd: &str, a: &str, b: &str) -> Result<String, String>;
-    /// One file's contents at a commit.
-    fn file_at(&self, cwd: &str, commit: &str, path: &str) -> Result<String, String>;
     /// The unified diff from one commit to another, with no external diff driver or text conversion.
     fn diff_commits(&self, cwd: &str, base: &str, head: &str) -> Result<String, String>;
     /// Every path the diff from one commit to another adds, changes or deletes, a rename as both of its paths.
@@ -163,10 +161,6 @@ impl Git for SystemGit {
 
     fn merge_base(&self, cwd: &str, a: &str, b: &str) -> Result<String, String> {
         self.run(cwd, &["merge-base", "--end-of-options", a, b], &[0]).map(|out| js_trim(&out).to_string())
-    }
-
-    fn file_at(&self, cwd: &str, commit: &str, path: &str) -> Result<String, String> {
-        self.run(cwd, &["cat-file", "blob", &format!("{commit}:{path}")], &[0])
     }
 
     fn diff_commits(&self, cwd: &str, base: &str, head: &str) -> Result<String, String> {
