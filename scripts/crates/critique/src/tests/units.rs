@@ -164,6 +164,22 @@ impl Git for Scripted {
     fn root(&self, _cwd: &str) -> Result<String, String> {
         self.root.clone()
     }
+
+    fn resolve_commit(&self, _cwd: &str, _revision: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn last_change(&self, _cwd: &str, _path: &str) -> Result<Option<crate::git::LastChange>, String> {
+        Err("unused".to_string())
+    }
+
+    fn tree_files(&self, _cwd: &str, _commit: &str) -> Result<Vec<String>, String> {
+        Err("unused".to_string())
+    }
+
+    fn untracked_paths(&self, _cwd: &str) -> Result<Vec<String>, String> {
+        Err("unused".to_string())
+    }
 }
 
 fn origin() -> Vec<GitRemote> {

@@ -11,6 +11,33 @@ pub trait Git: Send + Sync {
     fn remotes(&self, cwd: &str) -> Result<Vec<GitRemote>, String>;
     fn common_dir(&self, cwd: &str) -> Result<String, String>;
     fn root(&self, cwd: &str) -> Result<String, String>;
+    /// The commit a revision names; an `Err` when it names none.
+    fn resolve_commit(&self, cwd: &str, revision: &str) -> Result<String, String>;
+    /// The last commit that changed the path and its committer date (ISO 8601); `None` when no commit touched it.
+    fn last_change(&self, cwd: &str, path: &str) -> Result<Option<LastChange>, String>;
+    /// The regular files of a commit's tree, without symbolic links and submodules, as paths from the repository root.
+    fn tree_files(&self, cwd: &str, commit: &str) -> Result<Vec<String>, String>;
+    /// The files the working tree holds that git neither tracks nor ignores.
+    fn untracked_paths(&self, cwd: &str) -> Result<Vec<String>, String>;
+}
+
+/// The last commit that changed one path.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LastChange {
+    pub commit: String,
+    pub date: String,
+}
+
+/// One entry of `git ls-tree -r -z`, `<mode> <type> <object>\t<path>`: the path of a blob that is no symbolic link (mode 120000).
+pub fn blob_path(entry: &str) -> Option<&str> {
+    let (header, path) = entry.split_once('\t')?;
+    let word = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
+    let fields: Vec<&str> = header.split(' ').collect();
+    let [mode, kind, object] = fields[..] else {
+        return None;
+    };
+    let digits = !mode.is_empty() && mode.bytes().all(|b| b.is_ascii_digit());
+    (digits && word(kind) && word(object) && !path.is_empty() && kind == "blob" && mode != "120000").then_some(path)
 }
 
 /// git in the environment it was given (PATH decides which git).
@@ -55,6 +82,11 @@ pub fn parse_remote_line(line: &str) -> Option<GitRemote> {
     Some(GitRemote { name: name.to_string(), url: url.to_string() })
 }
 
+/// The paths a `-z` listing holds.
+fn nul_paths(listing: &str) -> Vec<String> {
+    listing.split('\0').filter(|path| !path.is_empty()).map(str::to_string).collect()
+}
+
 impl Git for SystemGit {
     fn remotes(&self, cwd: &str) -> Result<Vec<GitRemote>, String> {
         // `git config --get-regexp` exits 1 when nothing matches.
@@ -68,5 +100,27 @@ impl Git for SystemGit {
 
     fn root(&self, cwd: &str) -> Result<String, String> {
         self.run(cwd, &["rev-parse", "--show-toplevel"], &[0]).map(|out| js_trim(&out).to_string())
+    }
+
+    fn resolve_commit(&self, cwd: &str, revision: &str) -> Result<String, String> {
+        let named = format!("{revision}^{{commit}}");
+        self.run(cwd, &["rev-parse", "--verify", "--quiet", "--end-of-options", &named], &[0]).map(|out| js_trim(&out).to_string())
+    }
+
+    fn last_change(&self, cwd: &str, path: &str) -> Result<Option<LastChange>, String> {
+        let listing = self.run(cwd, &["--literal-pathspecs", "log", "-1", "--format=%H%x00%cI", "--", path], &[0])?;
+        let mut fields = js_trim(&listing).split('\0');
+        let commit = fields.next().unwrap_or_default();
+        let date = fields.next().unwrap_or_default();
+        Ok((!commit.is_empty()).then(|| LastChange { commit: commit.to_string(), date: date.to_string() }))
+    }
+
+    fn tree_files(&self, cwd: &str, commit: &str) -> Result<Vec<String>, String> {
+        let listing = self.run(cwd, &["ls-tree", "-r", "-z", "--full-tree", commit], &[0])?;
+        Ok(listing.split('\0').filter_map(blob_path).map(str::to_string).collect())
+    }
+
+    fn untracked_paths(&self, cwd: &str) -> Result<Vec<String>, String> {
+        self.run(cwd, &["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z"], &[0]).map(|out| nul_paths(&out))
     }
 }

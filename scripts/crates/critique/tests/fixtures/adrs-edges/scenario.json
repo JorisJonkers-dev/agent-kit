@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/e\"}"
+      ],
+      "write": {
+        "repos/e/docs/adr/0001-a.md": "# A\n\nSee [a](b.md c) [b](<b.md) [c](../..) [d](../../) [e](../../sub/) [f](.) [g](/) supersededby [x](0002-b.md).\n[abc\ndef]:\n[x]: \n[y]:\n\n  [z]:<\n",
+        "repos/e/docs/adr/0002-b.md": "---\nstatus: rejected\n# Unclosed frontmatter\n\nDate 2026-05-05\n",
+        "repos/e/docs/adr/0003-c.md": "#  \n\nbody\n",
+        "repos/e/docs/adr/0004-d.md": "# D\n\n`` `src/a.ts` `` and `open and `\nx` `\n",
+        "repos/e/docs/adr/0005-e.md": "#\t\n#\n#x\n",
+        "repos/e/docs/adr/0006-f.md": "# F\n\nDate 2026-05-05\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/e"
+        ],
+        [
+          "-C",
+          "repos/e",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/e",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/e",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ]
+    }
+  ]
+}

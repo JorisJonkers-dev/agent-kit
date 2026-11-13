@@ -241,6 +241,7 @@ impl Replay {
         let runtime = Runtime {
             clock: Box::new(FixedClock(now)),
             files: Box::new(SystemFiles { cwd: sandbox.join("work").to_string_lossy().into_owned() }),
+            dirs: Box::new(crate::dirs::SystemDirs),
             git: Box::new(SystemGit { env: env.clone() }),
             env,
             stdin: Box::new(move || stdin.clone()),

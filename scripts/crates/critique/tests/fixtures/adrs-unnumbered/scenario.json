@@ -1,0 +1,44 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/u\"}"
+      ],
+      "write": {
+        "repos/u/docs/adr/README.md": "# Index\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/u"
+        ],
+        [
+          "-C",
+          "repos/u",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/u",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/u",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ]
+    }
+  ]
+}

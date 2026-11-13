@@ -1,0 +1,67 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/n\"}"
+      ],
+      "write": {
+        "repos/n/docs/adr/0001-a.md": "# 1. Decision 1\n\nStatus: Accepted\n\nNames `src/gone.ts` and `missingSym()`.\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/n"
+        ],
+        [
+          "-C",
+          "repos/n",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/n\"}"
+      ],
+      "write": {},
+      "git": [
+        [
+          "-C",
+          "repos/n",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/n",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/n\"}"
+      ],
+      "remove": [
+        "repos/n/docs/adr/0001-a.md"
+      ],
+      "write": {
+        "repos/n/docs/adr/0001-a.md": "# 1. Decision 1\n\nStatus: Accepted\n\nNames `src/gone.ts`, `missingSym()`, `docs/adr/0001-a.md`.\n"
+      }
+    }
+  ]
+}

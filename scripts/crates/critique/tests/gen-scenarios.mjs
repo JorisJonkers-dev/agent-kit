@@ -120,6 +120,129 @@ scenarios['allow-environment'] = [
   allow({ repo: at('r1'), families: ['zhipu'] }, { path: ['nowhere'] }),
 ]
 
+// check-adrs. The repositories live under repos/, which the goldens do not snapshot (a commit makes git write binary objects).
+const R = (dir) => `@SANDBOX@/repos/${dir}`
+const adrs = (input, extra) => cmd('check-adrs', input, extra)
+const init = (dir, remote = GITHUB) => [['init', '-q', '--template=', `repos/${dir}`], ['-C', `repos/${dir}`, 'remote', 'add', 'origin', remote]]
+const commit = (dir) => [['-C', `repos/${dir}`, 'add', '-A'], ['-C', `repos/${dir}`, 'commit', '-q', '-m', 'x']]
+/** Files under repos/<dir>/, then the repository made (when `fresh`) and everything committed. */
+const files = (dir, text, { fresh = false, commits = true, git = [], ...extra } = {}) => ({
+  write: Object.fromEntries(Object.entries(text).map(([path, body]) => [`repos/${dir}/${path}`, body])),
+  git: [...(fresh ? init(dir) : []), ...(commits ? commit(dir) : []), ...git],
+  ...extra,
+})
+
+scenarios['adrs-refusals'] = [
+  adrs({}), adrs({ repo: '' }), adrs({ repo: 5 }), adrs([]), adrs('null'), adrs({ repo: R('none') }, { git: init('none').slice(0, 1) }),
+  adrs({ repo: R('nedap') }, { git: init('nedap', 'git@github.com:nedap/secret.git') }),
+  adrs({ repo: R('gone') }),
+  adrs({ repo: R('bare') }, { git: init('bare') }),
+  adrs({ repo: R('bare') }, { write: { 'repos/bare/docs/adr/notes.txt': 'x', 'repos/bare/docs/adr/md': 'x' } }),
+  adrs({ repo: R('bare') }, { mkdir: ['repos/bare/docs/adr/dir.md'] }),
+  adrs({ repo: R('bare') }, { remove: ['repos/bare/docs/adr'], write: { 'repos/bare/docs/adr': 'a file, not a directory' } }),
+  adrs({ repo: R('bare') }, { remove: ['repos/bare/docs'] }),
+  step(['check-adrs', '--json', JSON.stringify({ repo: R('none') }), '--strict']),
+  step(['check-adrs', '--json', JSON.stringify({ repo: R('bare') }), '--strict']),
+]
+
+const adr = (n, body) => `# ${n}. Decision ${n}\n\nStatus: Accepted\n\n${body}\n`
+scenarios['adrs-passed'] = [
+  adrs({ repo: R('ok') }, files('ok', {
+    'docs/adr/0001-first.md': adr(1, 'Uses `src/app.ts` and [the second](0002-second.md).'),
+    'docs/adr/0002-second.md': adr(2, 'Follows ADR-0001. See [readme](../../README.md#intro).'),
+    'docs/adr/0003-third.md': '---\nstatus: accepted\ndate: 2026-12-01\n---\n# Third\n\nNames `src/app.ts#fooBar`.\n',
+    'src/app.ts': 'export function fooBar() {}\n',
+    'README.md': '# Intro\n',
+  }, { fresh: true })),
+  adrs({ repo: R('ok/docs') }),
+  adrs({ repo: R('ok') }, { write: { 'repos/ok/docs/adr/zzz.txt': 'not a record' } }),
+]
+
+scenarios['adrs-structure'] = [
+  adrs({ repo: R('s') }, files('s', {
+    'docs/adr/0001-a.md': adr(1, 'Cites [two](0002-b.md), [missing](0009-gone.md), [site](https://example.com/x.md), [anchor](#top), [mail](mailto:a@b.c), [abs](/docs/adr/0001-a.md), [out](../../../escape.md), `x`.'),
+    'docs/adr/0002-b.md': '# 2. B\n\n## Status\n\n> Superseded by [0004](0004-d.md)\n\nBody.\n',
+    'docs/adr/0002-b-again.md': adr(2, 'Duplicate number.'),
+    'docs/adr/0004-d.md': adr(4, 'Supersedes ADR-0002; see also ADR 7 and adr9 and [ref][r].\n\n[r]: 0001-a.md "Title"\n[^1]: footnote.md\n[<angle>]: <0003-c.md>'),
+    'docs/adr/0006-e.md': adr(6, 'Replaces [x](0001-a.md). Cites [two](0002-b.md); amended by ADR-0001. Unrelated [y](0004-d.md).'),
+    'docs/adr/README.md': '# Index\n\nStatus: Weird\n',
+    'docs/adr/2024-01-15-dated.md': '# Dated\n\nStatus: draft\n',
+    'docs/adr/2024-1-5-short.md': '# Short dated\n',
+    'docs/adr/0020-big.md': '# Big\n\nStatus: **Proposed**\n',
+    'docs/adr/123456-too-big.md': '# Too big\n',
+    'docs/adr/0010 spaced.md': '# Spaced\n\n- Status: deprecated\n',
+    'docs/adr/0011_under.md': '#NoSpace\n',
+  }, { fresh: true })),
+]
+
+const day = (date) => `\n\nDate: ${date}\n`
+scenarios['adrs-drift'] = [
+  adrs({ repo: R('d') }, files('d', {
+    'docs/adr/0001-a.md': `# A${day('2026-10-01')}\nNames \`src/app.ts\`, \`src/app.ts#fooBar\`, \`src/gone.ts\`, \`./lib/\`, \`lib/x.json\`, \`missingSym()\`, \`hiddenSym()\`, \`fooBar()\`, \`src/app.ts#nope()\`, \`yes/no\`, \`max_tokens\`, \`a/../b.ts\`, \`@scope/pkg.json\`, \`Docs/Guide.MD\`, \`docs/adr/0002-b.md\`, \`#frag\`, \`two words.ts\`, \`only#hash\`, \`src/app.ts#\`.\n`,
+    'docs/adr/0002-b.md': `# B\n\n**Date**: 2026-12-31\n\nNames \`src/app.ts\` and \`other.ts\`.\n`,
+    'docs/adr/0003-c.md': `# C\n\n- date: 2026-11-03\n\nNames \`src/app.ts\`.\n`,
+    'docs/adr/0004-d.md': `---\ndate: '2026-09-01'\n---\n# D\n\nNames \`src/app.ts\`.\n`,
+    'docs/adr/0005-e.md': `# E\n\n**Date:** 2026-08-01\n\nNames \`src/app.ts\` and \`lib/\`.\n`,
+    'docs/adr/0006-f.md': `# F\n\n__Date__ 2026-07-01\n\nNames \`src/app.ts\`.\n`,
+    'docs/adr/0007-g.md': `# G\n\nDate: 2026-6-1\n\nNames \`src/app.ts\`.\n`,
+    'docs/adr/0008-h.md': `# H\n\nStatus: Proposed${day('2020-01-01')}\nNames \`src/app.ts\` and \`src/gone.ts\`.\n`,
+    'src/app.ts': 'export function fooBar() { return 9hiddenSym }\n',
+    'lib/x.json': '{}\n',
+    'other.ts': 'export const other = 1\n',
+    'node_modules/pkg/index.js': 'const missingSym = 1\n',
+    'docs/adr/notes.txt': 'missingSym\n',
+  }, { fresh: true })),
+  // A symbol in an untracked file counts, one only in the log or in node_modules does not; a deleted tracked file holds none.
+  adrs({ repo: R('d') }, { write: { 'repos/d/untracked/new.js': 'const missingSym = 2\n' }, remove: ['repos/d/lib/x.json'] }),
+  adrs({ repo: R('d') }, { write: { 'repos/d/.gitignore': 'untracked/\n' } }),
+  // A tracked file that is now a directory cannot be read: the symbol search is incomplete, so every symbol counts as found.
+  adrs({ repo: R('d') }, { remove: ['repos/d/src/app.ts'], mkdir: ['repos/d/src/app.ts'] }),
+  // A path the working tree holds but no commit touched is not stale.
+  adrs({ repo: R('d') }, { write: { 'repos/d/docs/adr/0009-new.md': '# N\n\nDate: 2026-01-01\n\nNames `fresh.ts`.\n', 'repos/d/fresh.ts': 'x\n' } }),
+]
+
+scenarios['adrs-nocommit'] = [
+  adrs({ repo: R('n') }, files('n', {
+    'docs/adr/0001-a.md': adr(1, 'Names `src/gone.ts` and `missingSym()`.'),
+  }, { fresh: true, commits: false })),
+  adrs({ repo: R('n') }, files('n', {})),
+  adrs({ repo: R('n') }, { remove: ['repos/n/docs/adr/0001-a.md'], write: { 'repos/n/docs/adr/0001-a.md': adr(1, 'Names `src/gone.ts`, `missingSym()`, `docs/adr/0001-a.md`.') } }),
+]
+
+scenarios['adrs-edges'] = [
+  adrs({ repo: R('e') }, files('e', {
+    'docs/adr/0001-a.md': '# A\n\nSee [a](b.md c) [b](<b.md) [c](../..) [d](../../) [e](../../sub/) [f](.) [g](/) supersededby [x](0002-b.md).\n[abc\ndef]:\n[x]: \n[y]:\n\n  [z]:<\n',
+    'docs/adr/0002-b.md': '---\nstatus: rejected\n# Unclosed frontmatter\n\nDate 2026-05-05\n',
+    'docs/adr/0003-c.md': '#  \n\nbody\n',
+    'docs/adr/0004-d.md': '# D\n\n`` `src/a.ts` `` and `open and `\nx` `\n',
+    'docs/adr/0005-e.md': '#\t\n#\n#x\n',
+    'docs/adr/0006-f.md': '# F\n\nDate 2026-05-05\n',
+  }, { fresh: true })),
+]
+
+scenarios['adrs-unnumbered'] = [
+  adrs({ repo: R('u') }, files('u', { 'docs/adr/README.md': '# Index\n' }, { fresh: true })),
+]
+
+scenarios['adrs-markdown'] = [
+  adrs({ repo: R('m') }, files('m', {
+    'docs/adr/0001-frontmatter.md': '---\nstatus: "Rejected"\ndate: 2026-01-01\n---\n# Front\n\nNames `src/a.ts`.\n',
+    'docs/adr/0002-plain.md': '# Plain\n\nstatus : proposed\n\nNames `src/a.ts`.\n',
+    'docs/adr/0003-list.md': '# List\n\n* **Status**: Superseded\n\nSee `src/a.ts`.\n',
+    'docs/adr/0004-under.md': '# Under\n\n__Status__: Deprecated\n',
+    'docs/adr/0005-heading.md': '# Heading\n\n### Status\n\n\n  > *Accepted* by the owner\n',
+    'docs/adr/0006-fenced.md': '# Fenced\n\n```\nStatus: rejected\nDate: 2020-01-01\n```\n\n~~~md\nStatus: proposed\n~~~\n\nNames `src/a.ts` but not `src/b.ts` inside:\n\n```\n`src/inside.ts` and [l](0099-x.md)\n```\n',
+    'docs/adr/0007-unclosed.md': '# Unclosed\n\n```\nStatus: rejected\n\nNames `src/a.ts`.\n',
+    'docs/adr/0008-crlf.md': '# CRLF title\r\n\r\nStatus: accepted\r\nDate: 2020-02-02\r\n\r\nNames `src/a.ts`.\r\n```\r\nfenced\r\n```\r\n',
+    'docs/adr/0009-separators.md': '# Sep title\n\nStatus: rejected \nStatus: accepted\n\nSee [a](0001-frontmatter.md) and [b](0002-plain.md).\n',
+    'docs/adr/0010-odd-fences.md': '# Odd\n\n````\nStatus: rejected\n````\n\n~~~\nStatus: deprecated\n```\n~~~\n\n   ```\nStatus: proposed\n```\n',
+    'docs/adr/0011-clauses.md': '# Clauses\n\nSupersedes [a](0003-list.md); superseded by [b](0012-more.md). Replaced by ADR-0013. See [c](0004-under.md).\n',
+    'docs/adr/0012-more.md': '# More\n\nAmends ADR 1. Replaces [x](0002-plain.md) and\n[y](0005-heading.md). Cites ADR-0099 and https://example.com/adr/ADR-0004.md and ADR-123456.\n',
+    'docs/adr/0013-last.md': '# Last\n\nStatus: Accepted\n\nSee [one](0001-frontmatter.md) [two](./0002-plain.md "title") [three](<0003-list.md>) [four](0004-under.md#x).\n[five]: 0005-heading.md\n   [six]: <0006-fenced.md>\n[^7]: 0007-unclosed.md\nADR--5 ADR5 xADR-0001 ADR-0001x\n',
+    'src/a.ts': 'const a = 1\n',
+  }, { fresh: true })),
+]
+
 for (const [name, steps] of Object.entries(scenarios)) {
   mkdirSync(join(fixtures, name), { recursive: true })
   writeFileSync(join(fixtures, name, 'scenario.json'), `${JSON.stringify({ steps }, null, 2)}\n`)

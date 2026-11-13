@@ -1,0 +1,103 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/d\"}"
+      ],
+      "write": {
+        "repos/d/docs/adr/0001-a.md": "# A\n\nDate: 2026-10-01\n\nNames `src/app.ts`, `src/app.ts#fooBar`, `src/gone.ts`, `./lib/`, `lib/x.json`, `missingSym()`, `hiddenSym()`, `fooBar()`, `src/app.ts#nope()`, `yes/no`, `max_tokens`, `a/../b.ts`, `@scope/pkg.json`, `Docs/Guide.MD`, `docs/adr/0002-b.md`, `#frag`, `two words.ts`, `only#hash`, `src/app.ts#`.\n",
+        "repos/d/docs/adr/0002-b.md": "# B\n\n**Date**: 2026-12-31\n\nNames `src/app.ts` and `other.ts`.\n",
+        "repos/d/docs/adr/0003-c.md": "# C\n\n- date: 2026-11-03\n\nNames `src/app.ts`.\n",
+        "repos/d/docs/adr/0004-d.md": "---\ndate: '2026-09-01'\n---\n# D\n\nNames `src/app.ts`.\n",
+        "repos/d/docs/adr/0005-e.md": "# E\n\n**Date:** 2026-08-01\n\nNames `src/app.ts` and `lib/`.\n",
+        "repos/d/docs/adr/0006-f.md": "# F\n\n__Date__ 2026-07-01\n\nNames `src/app.ts`.\n",
+        "repos/d/docs/adr/0007-g.md": "# G\n\nDate: 2026-6-1\n\nNames `src/app.ts`.\n",
+        "repos/d/docs/adr/0008-h.md": "# H\n\nStatus: Proposed\n\nDate: 2020-01-01\n\nNames `src/app.ts` and `src/gone.ts`.\n",
+        "repos/d/src/app.ts": "export function fooBar() { return 9hiddenSym }\n",
+        "repos/d/lib/x.json": "{}\n",
+        "repos/d/other.ts": "export const other = 1\n",
+        "repos/d/node_modules/pkg/index.js": "const missingSym = 1\n",
+        "repos/d/docs/adr/notes.txt": "missingSym\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/d"
+        ],
+        [
+          "-C",
+          "repos/d",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/d",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/d",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/d\"}"
+      ],
+      "write": {
+        "repos/d/untracked/new.js": "const missingSym = 2\n"
+      },
+      "remove": [
+        "repos/d/lib/x.json"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/d\"}"
+      ],
+      "write": {
+        "repos/d/.gitignore": "untracked/\n"
+      }
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/d\"}"
+      ],
+      "remove": [
+        "repos/d/src/app.ts"
+      ],
+      "mkdir": [
+        "repos/d/src/app.ts"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/d\"}"
+      ],
+      "write": {
+        "repos/d/docs/adr/0009-new.md": "# N\n\nDate: 2026-01-01\n\nNames `fresh.ts`.\n",
+        "repos/d/fresh.ts": "x\n"
+      }
+    }
+  ]
+}

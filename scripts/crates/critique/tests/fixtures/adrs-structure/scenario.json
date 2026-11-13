@@ -1,0 +1,55 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/s\"}"
+      ],
+      "write": {
+        "repos/s/docs/adr/0001-a.md": "# 1. Decision 1\n\nStatus: Accepted\n\nCites [two](0002-b.md), [missing](0009-gone.md), [site](https://example.com/x.md), [anchor](#top), [mail](mailto:a@b.c), [abs](/docs/adr/0001-a.md), [out](../../../escape.md), `x`.\n",
+        "repos/s/docs/adr/0002-b.md": "# 2. B\n\n## Status\n\n> Superseded by [0004](0004-d.md)\n\nBody.\n",
+        "repos/s/docs/adr/0002-b-again.md": "# 2. Decision 2\n\nStatus: Accepted\n\nDuplicate number.\n",
+        "repos/s/docs/adr/0004-d.md": "# 4. Decision 4\n\nStatus: Accepted\n\nSupersedes ADR-0002; see also ADR 7 and adr9 and [ref][r].\n\n[r]: 0001-a.md \"Title\"\n[^1]: footnote.md\n[<angle>]: <0003-c.md>\n",
+        "repos/s/docs/adr/0006-e.md": "# 6. Decision 6\n\nStatus: Accepted\n\nReplaces [x](0001-a.md). Cites [two](0002-b.md); amended by ADR-0001. Unrelated [y](0004-d.md).\n",
+        "repos/s/docs/adr/README.md": "# Index\n\nStatus: Weird\n",
+        "repos/s/docs/adr/2024-01-15-dated.md": "# Dated\n\nStatus: draft\n",
+        "repos/s/docs/adr/2024-1-5-short.md": "# Short dated\n",
+        "repos/s/docs/adr/0020-big.md": "# Big\n\nStatus: **Proposed**\n",
+        "repos/s/docs/adr/123456-too-big.md": "# Too big\n",
+        "repos/s/docs/adr/0010 spaced.md": "# Spaced\n\n- Status: deprecated\n",
+        "repos/s/docs/adr/0011_under.md": "#NoSpace\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/s"
+        ],
+        [
+          "-C",
+          "repos/s",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/s",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ]
+    }
+  ]
+}

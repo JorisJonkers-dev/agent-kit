@@ -1,0 +1,57 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/m\"}"
+      ],
+      "write": {
+        "repos/m/docs/adr/0001-frontmatter.md": "---\nstatus: \"Rejected\"\ndate: 2026-01-01\n---\n# Front\n\nNames `src/a.ts`.\n",
+        "repos/m/docs/adr/0002-plain.md": "# Plain\n\nstatus : proposed\n\nNames `src/a.ts`.\n",
+        "repos/m/docs/adr/0003-list.md": "# List\n\n* **Status**: Superseded\n\nSee `src/a.ts`.\n",
+        "repos/m/docs/adr/0004-under.md": "# Under\n\n__Status__: Deprecated\n",
+        "repos/m/docs/adr/0005-heading.md": "# Heading\n\n### Status\n\n\n  > *Accepted* by the owner\n",
+        "repos/m/docs/adr/0006-fenced.md": "# Fenced\n\n```\nStatus: rejected\nDate: 2020-01-01\n```\n\n~~~md\nStatus: proposed\n~~~\n\nNames `src/a.ts` but not `src/b.ts` inside:\n\n```\n`src/inside.ts` and [l](0099-x.md)\n```\n",
+        "repos/m/docs/adr/0007-unclosed.md": "# Unclosed\n\n```\nStatus: rejected\n\nNames `src/a.ts`.\n",
+        "repos/m/docs/adr/0008-crlf.md": "# CRLF title\r\n\r\nStatus: accepted\r\nDate: 2020-02-02\r\n\r\nNames `src/a.ts`.\r\n```\r\nfenced\r\n```\r\n",
+        "repos/m/docs/adr/0009-separators.md": "# Sep title\n\nStatus: rejected \nStatus: accepted\n\nSee [a](0001-frontmatter.md) and [b](0002-plain.md).\n",
+        "repos/m/docs/adr/0010-odd-fences.md": "# Odd\n\n````\nStatus: rejected\n````\n\n~~~\nStatus: deprecated\n```\n~~~\n\n   ```\nStatus: proposed\n```\n",
+        "repos/m/docs/adr/0011-clauses.md": "# Clauses\n\nSupersedes [a](0003-list.md); superseded by [b](0012-more.md). Replaced by ADR-0013. See [c](0004-under.md).\n",
+        "repos/m/docs/adr/0012-more.md": "# More\n\nAmends ADR 1. Replaces [x](0002-plain.md) and\n[y](0005-heading.md). Cites ADR-0099 and https://example.com/adr/ADR-0004.md and ADR-123456.\n",
+        "repos/m/docs/adr/0013-last.md": "# Last\n\nStatus: Accepted\n\nSee [one](0001-frontmatter.md) [two](./0002-plain.md \"title\") [three](<0003-list.md>) [four](0004-under.md#x).\n[five]: 0005-heading.md\n   [six]: <0006-fenced.md>\n[^7]: 0007-unclosed.md\nADR--5 ADR5 xADR-0001 ADR-0001x\n",
+        "repos/m/src/a.ts": "const a = 1\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/m"
+        ],
+        [
+          "-C",
+          "repos/m",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ]
+    }
+  ]
+}

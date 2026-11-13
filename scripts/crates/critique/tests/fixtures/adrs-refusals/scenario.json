@@ -1,0 +1,167 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":5}"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "[]"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "null"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/none"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/nedap\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/nedap"
+        ],
+        [
+          "-C",
+          "repos/nedap",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/secret.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/gone\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/bare\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/bare"
+        ],
+        [
+          "-C",
+          "repos/bare",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/bare\"}"
+      ],
+      "write": {
+        "repos/bare/docs/adr/notes.txt": "x",
+        "repos/bare/docs/adr/md": "x"
+      }
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/bare\"}"
+      ],
+      "mkdir": [
+        "repos/bare/docs/adr/dir.md"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/bare\"}"
+      ],
+      "remove": [
+        "repos/bare/docs/adr"
+      ],
+      "write": {
+        "repos/bare/docs/adr": "a file, not a directory"
+      }
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/bare\"}"
+      ],
+      "remove": [
+        "repos/bare/docs"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\"}",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "check-adrs",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/bare\"}",
+        "--strict"
+      ]
+    }
+  ]
+}
