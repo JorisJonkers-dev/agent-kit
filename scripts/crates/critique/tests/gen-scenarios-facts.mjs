@@ -85,6 +85,23 @@ scenarios['facts-input'] = [
   facts({ repo: R('fx'), files: [], modules: [], extra: 1 }),
 ]
 
+// The tree facts reads: a rename, a symlink and a gitlink (neither is a file), and a binary file.
+const EMPTY_BLOB = 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391'
+scenarios['facts-tree'] = [
+  facts({ repo: R('tr'), files: ['src/a.ts', 'src/moved.ts', 'src/link.ts', 'vendor/sub', 'bin.dat'], modules: ['src/moved.ts'] }, {
+    shims: ['git'],
+    write: put('tr', { ...tree, 'src/empty': '', 'bin.dat': '\u0000\u0001\u00ff binary\n' }),
+    git: [
+      ...init('tr'), ...commit('tr', '2026-01-01T10:00:00Z', 'one'),
+      ['-C', 'repos/tr', 'mv', 'src/a.ts', 'src/moved.ts'],
+      ['-C', 'repos/tr', 'hash-object', '-w', 'src/empty'],
+      ['-C', 'repos/tr', 'update-index', '--add', '--cacheinfo', `120000,${EMPTY_BLOB},src/link.ts`],
+      ['-C', 'repos/tr', 'update-index', '--add', '--cacheinfo', '160000,1111111111111111111111111111111111111111,vendor/sub'],
+      ['GIT_COMMITTER_DATE=2026-02-01T10:00:00Z', '-C', 'repos/tr', 'commit', '-q', '-m', 'two'],
+    ],
+  }),
+]
+
 for (const [name, steps] of Object.entries(scenarios)) {
   mkdirSync(join(fixtures, name), { recursive: true })
   writeFileSync(join(fixtures, name, 'scenario.json'), `${JSON.stringify({ steps }, null, 2)}\n`)

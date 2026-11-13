@@ -1,0 +1,114 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "facts",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/tr\",\"files\":[\"src/a.ts\",\"src/moved.ts\",\"src/link.ts\",\"vendor/sub\",\"bin.dat\"],\"modules\":[\"src/moved.ts\"]}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/tr/src/a.ts": "import { b } from './b.js'\nimport x from 'pkg'\nexport * from \"./c\"\nconst d = require('./d')\nimport('./c')\n// import y from './nope'\n/* import z from './c'\n*/\nexport { q } from '../outside'\n",
+        "repos/tr/src/b.ts": "import { a } from './a'\nimport './e'\n",
+        "repos/tr/src/c.ts": "import d from './d.js'\n",
+        "repos/tr/src/d.ts": "import c from './c.js'\nimport './a'\n",
+        "repos/tr/src/e.ts": "export const e = 1\n",
+        "repos/tr/src/dir/index.ts": "export {}\n",
+        "repos/tr/src/user.ts": "import dir from './dir'\nimport {} from './missing'\n",
+        "repos/tr/pkg/__init__.py": "",
+        "repos/tr/pkg/m.py": "from . import n\nfrom .n import f, g as h\nfrom ..top import z\nimport pkg.n, os\nimport pkg\n# import nope\n",
+        "repos/tr/pkg/n.py": "import pkg.m\n",
+        "repos/tr/top.py": "x = 1\n",
+        "repos/tr/src/main/kotlin/a/B.kt": "import a.C\nimport a.D\nimport kotlin.io.println\n",
+        "repos/tr/src/main/kotlin/a/C.kt": "import a.B\n",
+        "repos/tr/src/main/kotlin/a/D.kt": "",
+        "repos/tr/src/other/kotlin/a/D.kt": "",
+        "repos/tr/cmd/main.go": "package main\n\nimport \"fmt\"\nimport (\n\t\"os\"\n\tio \"io\"\n)\n\nvar s = \"not/an/import\"\n",
+        "repos/tr/src/lib.rs": "mod a;\npub mod b;\nuse crate::a;\nmod missing;\n",
+        "repos/tr/src/a.rs": "mod c;\nuse std::io;\n",
+        "repos/tr/src/a/c.rs": "use super::*;\n",
+        "repos/tr/src/b/mod.rs": "mod lib;\n",
+        "repos/tr/README.md": "# readme\n",
+        "repos/tr/weird name/é.ts": "import x from '../src/e.js'\n",
+        "repos/tr/src/f*.ts": "import './e'\n",
+        "repos/tr/src/empty": "",
+        "repos/tr/bin.dat": "\u0000\u0001ÿ binary\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/tr"
+        ],
+        [
+          "-C",
+          "repos/tr",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/tr",
+          "add",
+          "-A"
+        ],
+        [
+          "GIT_COMMITTER_DATE=2026-01-01T10:00:00Z",
+          "-C",
+          "repos/tr",
+          "commit",
+          "-q",
+          "-m",
+          "one"
+        ],
+        [
+          "-C",
+          "repos/tr",
+          "mv",
+          "src/a.ts",
+          "src/moved.ts"
+        ],
+        [
+          "-C",
+          "repos/tr",
+          "hash-object",
+          "-w",
+          "src/empty"
+        ],
+        [
+          "-C",
+          "repos/tr",
+          "update-index",
+          "--add",
+          "--cacheinfo",
+          "120000,e69de29bb2d1d6434b8b29ae775ad8c2e48c5391,src/link.ts"
+        ],
+        [
+          "-C",
+          "repos/tr",
+          "update-index",
+          "--add",
+          "--cacheinfo",
+          "160000,1111111111111111111111111111111111111111,vendor/sub"
+        ],
+        [
+          "GIT_COMMITTER_DATE=2026-02-01T10:00:00Z",
+          "-C",
+          "repos/tr",
+          "commit",
+          "-q",
+          "-m",
+          "two"
+        ]
+      ]
+    }
+  ]
+}

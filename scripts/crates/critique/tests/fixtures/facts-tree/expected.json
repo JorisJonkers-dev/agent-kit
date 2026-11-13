@@ -1,0 +1,13 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"commit\": \"f97f29646c838a5900d496bd0c0cf48178e3e08d\",\n  \"history\": [\n    {\n      \"churn\": 1,\n      \"last_commit\": \"01a77c55c3123663c6f1cab7abbadd6602f86501\",\n      \"last_date\": \"2026-01-01T10:00:00Z\",\n      \"path\": \"bin.dat\"\n    },\n    {\n      \"churn\": 2,\n      \"last_commit\": \"f97f29646c838a5900d496bd0c0cf48178e3e08d\",\n      \"last_date\": \"2026-02-01T10:00:00Z\",\n      \"path\": \"src/a.ts\"\n    },\n    {\n      \"churn\": 1,\n      \"last_commit\": \"f97f29646c838a5900d496bd0c0cf48178e3e08d\",\n      \"last_date\": \"2026-02-01T10:00:00Z\",\n      \"path\": \"src/link.ts\"\n    },\n    {\n      \"churn\": 1,\n      \"last_commit\": \"f97f29646c838a5900d496bd0c0cf48178e3e08d\",\n      \"last_date\": \"2026-02-01T10:00:00Z\",\n      \"path\": \"src/moved.ts\"\n    },\n    {\n      \"churn\": 1,\n      \"last_commit\": \"f97f29646c838a5900d496bd0c0cf48178e3e08d\",\n      \"last_date\": \"2026-02-01T10:00:00Z\",\n      \"path\": \"vendor/sub\"\n    }\n  ],\n  \"status\": \"reported\",\n  \"cycles\": [],\n  \"modules\": [\n    {\n      \"fan_in\": 0,\n      \"fan_out\": 0,\n      \"imports\": [\n        {\n          \"resolved\": \"src/b.ts\",\n          \"specifier\": \"./b.js\"\n        },\n        {\n          \"resolved\": null,\n          \"specifier\": \"pkg\"\n        },\n        {\n          \"resolved\": \"src/c.ts\",\n          \"specifier\": \"./c\"\n        },\n        {\n          \"resolved\": \"src/d.ts\",\n          \"specifier\": \"./d\"\n        },\n        {\n          \"resolved\": null,\n          \"specifier\": \"../outside\"\n        }\n      ],\n      \"instability\": null,\n      \"language\": \"typescript\",\n      \"path\": \"src/moved.ts\"\n    }\n  ],\n  \"notes\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}
