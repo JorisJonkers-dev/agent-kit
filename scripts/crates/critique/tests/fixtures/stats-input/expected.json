@@ -1,0 +1,139 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"the input is not JSON: SyntaxError: Unexpected token 'o', \\\"nope\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: the input is not JSON: SyntaxError: Unexpected token 'o', \"nope\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: name the repository by repo or by repository, not both\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: name the repository by repo or by repository, not both\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: since must be a date, YYYY-MM-DD\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: since must be a date, YYYY-MM-DD\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: since must be a date, YYYY-MM-DD\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: since must be a date, YYYY-MM-DD\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: until must be a date, YYYY-MM-DD\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: until must be a date, YYYY-MM-DD\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: since must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: since must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: since 2026-11-05 is after until 2026-11-01\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: since 2026-11-05 is after until 2026-11-01\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"cells\": [],\n  \"removal_candidates\": [],\n  \"suggestions\": [],\n  \"filter\": {\n    \"since\": \"2024-02-29\",\n    \"until\": \"2024-02-29\"\n  },\n  \"ledger_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl\",\n  \"report\": \"# Critique stats\\n\\nLedger: @SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl. Repository: all. Dates: 2024-02-29 to 2024-02-29.\\nOne row per critic client and prompt. A row with fewer than 20 adjudicated findings gets no suggestion.\\n\\nNo critic runs in the ledger match.\\n\\n## Removal candidates\\n\\nnone\\n\\n## Suggestions\\n\\nnone\\n\",\n  \"status\": \"reported\",\n  \"thresholds\": {\n    \"min_adjudicated_findings\": 20,\n    \"removal_features\": 3\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: repository must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: repository must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"stats input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: stats input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique stats: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"remote origin belongs to the nedap organisation; nothing is sent to any critic\",\n  \"reason\": \"nedap\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"cells\": [],\n  \"removal_candidates\": [],\n  \"suggestions\": [],\n  \"filter\": {},\n  \"ledger_path\": \"@SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl\",\n  \"report\": \"# Critique stats\\n\\nLedger: @SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl. Repository: all. Dates: all.\\nOne row per critic client and prompt. A row with fewer than 20 adjudicated findings gets no suggestion.\\n\\nNo critic runs in the ledger match.\\n\\n## Removal candidates\\n\\nnone\\n\\n## Suggestions\\n\\nnone\\n\",\n  \"status\": \"reported\",\n  \"thresholds\": {\n    \"min_adjudicated_findings\": 20,\n    \"removal_features\": 3\n  }\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

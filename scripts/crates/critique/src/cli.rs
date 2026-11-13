@@ -1,6 +1,6 @@
 //! The runner's command line: one command, one JSON object in, one JSON object out.
 
-use crate::{allow, check_adrs, check_plan, check_rewrite, cold_read, reviews};
+use crate::{allow, check_adrs, check_plan, check_rewrite, cold_read, reviews, stats_command};
 use crate::error::CritiqueError;
 use crate::runtime::Runtime;
 use model_gateway::json::{self, Object, Value};
@@ -42,7 +42,7 @@ pub const COMMANDS: [(&str, Option<Command>); 19] = [
     ("session-start", None),
     ("setup", None),
     ("state", None),
-    ("stats", None),
+    ("stats", Some(stats_command::run)),
     ("triage", None),
 ];
 

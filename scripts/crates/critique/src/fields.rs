@@ -148,6 +148,13 @@ impl<'a> Fields<'a> {
         Ok(text)
     }
 
+    /// A non-empty string `accept` recognises, or nothing when the key is absent.
+    pub fn optional_matching(&self, key: &str, accept: impl Fn(&str) -> bool, expected: &str) -> Result<Option<String>, ShapeError> {
+        let text = self.optional_string(key)?;
+        ensure(text.as_deref().map_or(true, accept).then_some(()), &self.at(key), expected)?;
+        Ok(text)
+    }
+
     pub fn strings(&self, key: &str) -> Result<Vec<String>, ShapeError> {
         self.items(key)?
             .iter()
