@@ -39,6 +39,7 @@ pub mod feature_review;
 pub mod findings;
 pub mod flow_budget;
 pub mod gate;
+pub mod gate_command;
 pub mod gateway_ledger;
 pub mod gh;
 pub mod git;

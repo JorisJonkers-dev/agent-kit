@@ -1,0 +1,768 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/src/a.ts": "export const a = 1\n",
+        "repos/m1/README.md": "# readme\n",
+        "repos/m1/manifest.yaml": "files:\n  - sha256: 0000000000000000000000000000000000000000000000000000000000000000\n",
+        "repos/m1/.git/critique/flows/feat.json": "{\"repository\":\"github.com/jorisjonkers-dev/example\",\"phase\":\"implementation\"}\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "init",
+          "-q",
+          "--template=",
+          "."
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "checkout",
+          "-q",
+          "-b",
+          "docs"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/docs/x.md": "x\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "docs"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "checkout",
+          "-q",
+          "-b",
+          "risky",
+          "main"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/src/auth/login.ts": "export const login = 1\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "risky"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/src/auth/two.ts": "export const two = 2\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "risky two"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "checkout",
+          "-q",
+          "-b",
+          "clash",
+          "main"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/README.md": "# clash\n",
+        "repos/m1/src/auth/clash.ts": "export const c = 1\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "clash"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "checkout",
+          "-q",
+          "-b",
+          "revert",
+          "main"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/src/auth/tmp.ts": "export const t = 1\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "tmp"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [
+        "repos/m1/src/auth/tmp.ts"
+      ],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "drop tmp"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "checkout",
+          "-q",
+          "-b",
+          "merged",
+          "main"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/notes.md": "n\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "notes"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "merge",
+          "-q",
+          "--no-ff",
+          "-m",
+          "merge docs",
+          "docs"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "checkout",
+          "-q",
+          "--orphan",
+          "lonely"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "rm",
+          "-q",
+          "-rf",
+          "--cached",
+          "."
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/lonely.md": "l\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "lonely.md"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "lonely"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "clean",
+          "-q",
+          "-fd"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "checkout",
+          "-q",
+          "-f",
+          "main"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/README.md": "# main moved\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "commit",
+          "-q",
+          "-m",
+          "main moved"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge docs\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge --no-ff docs\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge risky\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge clash\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge --squash risky\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge revert\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/triages.jsonl": "{\"labels\":[],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"t1\",\"staged_diff\":\"s\",\"staged_on\":\"elsewhere\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"version\":1}\n{\"labels\":[\"docs\"],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"t1\",\"staged_diff\":\"s\",\"staged_on\":\"95c0bc6a4ae610970eef0e39c9511df4b360c852\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"version\":1}\n{\"labels\":[],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/o/r\",\"run_id\":\"t1\",\"staged_diff\":\"s\",\"staged_on\":\"elsewhere\",\"status\":\"risky\",\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge lonely\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge revert\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/triages.jsonl": "{\"labels\":5}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge revert\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/triages.jsonl": ""
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge merged\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge main\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git pull\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git pull origin main\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git checkout docs && git merge risky\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge risky\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"089e5438895658e8cdf9dcb2ad2b066267245453\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":null,\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge risky\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"bb1085bace5130d706505fea18417da287250c71\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":null,\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"089e5438895658e8cdf9dcb2ad2b066267245453\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":null,\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge risky\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"089e5438895658e8cdf9dcb2ad2b066267245453\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"fail\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":null,\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge risky\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/ticket-reviews.jsonl": "",
+        "home/.config/agent-kit/critique-routing.json": "{\"gate\":{\"merge_commits\":0}}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge risky\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"gate\":{\"merge_commits\":1}}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge risky docs\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "merge",
+          "-q",
+          "--no-commit",
+          "--no-ff",
+          "risky"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m merged\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git merge --continue\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m merged\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"bb1085bace5130d706505fea18417da287250c71\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":null,\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"089e5438895658e8cdf9dcb2ad2b066267245453\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":null,\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/manifest.yaml": "files:\n  - sha256: 1111111111111111111111111111111111111111111111111111111111111111\n",
+        "repos/m1/dist/app.js": "x\n",
+        "repos/m1/gen.ts": "// @generated\nexport const g = 1\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m merged\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/ticket-reviews.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"bb1085bace5130d706505fea18417da287250c71\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":null,\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critic_failures\":[],\"degraded\":false,\"head_commit\":\"089e5438895658e8cdf9dcb2ad2b066267245453\",\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"review\":\"pass\",\"reviewed_staged_diff\":null,\"run_id\":\"r1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"ticket-review\",\"staged_diff\":null,\"ticket\":\"github.com/jorisjonkers-dev/example#2\",\"unfixed_critical\":[],\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/m1/src/new.sql": "select 1;\n",
+        "repos/m1/manifest.yaml": "files: []\n"
+      },
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "add",
+          "-A"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m merged\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-commit-gate"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m merged\"}}",
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/m1/.git/critique/ticket-reviews.jsonl": ""
+      }
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/m1",
+          "reset",
+          "-q",
+          "--hard"
+        ],
+        [
+          "-C",
+          "repos/m1",
+          "merge",
+          "-q",
+          "--no-commit",
+          "--allow-unrelated-histories",
+          "lonely"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/m1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m lonely\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    }
+  ]
+}

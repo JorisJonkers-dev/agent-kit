@@ -1,0 +1,326 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/p1/a.md": "a\n",
+        "repos/p1/.git/critique/flows/feat.json": "{\"repository\":\"github.com/jorisjonkers-dev/example\",\"phase\":\"implementation\"}\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/p1",
+          "init",
+          "-q",
+          "--template=",
+          "."
+        ],
+        [
+          "-C",
+          "repos/p1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/p1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/p1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "-C",
+          "repos/p1",
+          "branch",
+          "feat/x"
+        ]
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin feat/x\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin HEAD:feat/y fix/z\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push --all\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin --tags\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push --delete origin old\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh pr create --fill\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git checkout -b feat/q && git push origin main\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x && gh pr create\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/p1/.git/critique/gates.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critical_open\":0,\"follow_ups\":[],\"gate\":\"pass\",\"head_commit\":\"4f0494fa03b04ad61f7151a00620d399ab9ee543\",\"line\":\"GATE: PASS\",\"open_critical\":[],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"g1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"feature-review\",\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh pr create --head main\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/p1/.git/critique/gates.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critical_open\":0,\"follow_ups\":[],\"gate\":\"pass\",\"head_commit\":\"4f0494fa03b04ad61f7151a00620d399ab9ee543\",\"line\":\"GATE: PASS\",\"open_critical\":[],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"g1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"feature-review\",\"version\":1}\n{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critical_open\":0,\"follow_ups\":[],\"gate\":\"fail\",\"head_commit\":\"4f0494fa03b04ad61f7151a00620d399ab9ee543\",\"line\":\"GATE: FAIL (2 critical open)\",\"open_critical\":[],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"g1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"feature-review\",\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/p1/.git/critique/gates.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critical_open\":0,\"follow_ups\":[],\"gate\":\"pass\",\"head_commit\":\"4f0494fa03b04ad61f7151a00620d399ab9ee543\",\"line\":\"GATE: PASS\",\"open_critical\":[],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/o/r\",\"run_id\":\"g1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"feature-review\",\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin feat/x:main\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/p1/.git/critique/gates.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critical_open\":0,\"follow_ups\":[],\"gate\":\"pass\",\"head_commit\":\"4f0494fa03b04ad61f7151a00620d399ab9ee543\",\"line\":\"GATE: PASS\",\"open_critical\":[],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"g1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"feature-review\",\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin nope:main\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/p1/.git/critique/gates.jsonl": "{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"critical_open\":0,\"follow_ups\":[],\"gate\":\"maybe\",\"head_commit\":\"4f0494fa03b04ad61f7151a00620d399ab9ee543\",\"line\":\"GATE: PASS\",\"open_critical\":[],\"recorded_at\":\"2026-11-03T12:00:00Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"g1\",\"spec\":\"github.com/jorisjonkers-dev/example#1\",\"stage\":\"feature-review\",\"version\":1}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/p1/.git/critique/gates.jsonl": "",
+        "home/.config/agent-kit/critique-routing.json": "{\"gate\":{\"feature_branches\":[\"main\"]}}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {},
+      "remove": [],
+      "git": [
+        [
+          "-C",
+          "repos/p1",
+          "checkout",
+          "-q",
+          "--detach"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin HEAD\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-pr-gate"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}",
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "hook",
+        "critique-pr-gate"
+      ],
+      "stdin": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin feat/x\"}}",
+      "shims": [
+        "git"
+      ]
+    }
+  ]
+}

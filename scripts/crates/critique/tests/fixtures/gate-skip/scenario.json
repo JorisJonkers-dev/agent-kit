@@ -1,0 +1,389 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/s1/a.md": "a\n",
+        "repos/s2/a.md": "a\n",
+        "repos/s3/a.md": "a\n",
+        "repos/s1/.git/critique/flows/feat.json": "{\"repository\":\"github.com/jorisjonkers-dev/example\",\"phase\":\"implementation\"}\n",
+        "repos/s2/.git/critique/flows/feat.json": "{\"repository\":\"github.com/jorisjonkers-dev/example\",\"phase\":\"implementation\"}\n",
+        "repos/s3/.git/critique/flows/feat.json": "{\"repository\":\"github.com/jorisjonkers-dev/example\",\"phase\":\"implementation\"}\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/s1",
+          "init",
+          "-q",
+          "--template=",
+          "."
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "-C",
+          "repos/s2",
+          "init",
+          "-q",
+          "--template=",
+          "."
+        ],
+        [
+          "-C",
+          "repos/s2",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s2",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "init",
+          "-q",
+          "--template=",
+          "."
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/thing.git"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/s3",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "env": {
+        "CRITIQUE_OFF": "1"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique.json": "{\"disabled\":true}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique.json": "{\"disabled\":\"no\"}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique.json"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique.json": "{\"disabled\":false}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique.json": "{}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Read\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm test && echo \\\"git commit\\\"\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "not json"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"tool_input\":{}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"/x\",\"tool_input\":{\"command\":5}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"/x\",\"tool_input\":{\"command\":\"git commit\"},\"gate\":\"deploy\"}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x && git push\"},\"gate\":\"pr\"}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cd $DIR && git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s2\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s3\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":false,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "remove": [
+        "repos/s1/.git/critique/flows/feat.json"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/s1/.git/critique/flows/feat.json": "{\"phase\":\"planning\",\"repository\":\"github.com/jorisjonkers-dev/example\"}\n",
+        "repos/s1/.git/critique/flows/other.json": "{\"phase\":\"implementation\",\"repository\":\"github.com/o/r\"}\n",
+        "repos/s1/.git/critique/flows/notes.txt": "x"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/s1/.git/critique/flows/bad.json": "{\"phase\":\"done\"}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "repos/s1/.git/critique/flows/feat.json": "{\"phase\":\"finishing\",\"repository\":\"github.com/jorisjonkers-dev/example\"}\n"
+      }
+    },
+    {
+      "argv": [
+        "gate",
+        "--json",
+        "{\"cwd\":\"@SANDBOX@/repos/s1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit -m x\"}}"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":5}\n"
+      },
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 //! The runner's command line: one command, one JSON object in, one JSON object out.
 
-use crate::{allow, check_adrs, check_plan, check_rewrite, check_tickets, cold_read, facts, record, reviews, session_start, stats_command, triage_command};
+use crate::{allow, check_adrs, check_plan, check_rewrite, check_tickets, cold_read, facts, gate_command, record, reviews, session_start, stats_command, triage_command};
 use crate::error::CritiqueError;
 use crate::runtime::Runtime;
 use model_gateway::json::{self, Object, Value};
@@ -34,7 +34,7 @@ pub const COMMANDS: [(&str, Option<Command>); 19] = [
     ("cold-read", Some(cold_read::run)),
     ("facts", Some(facts::run)),
     ("fan-out", None),
-    ("gate", None),
+    ("gate", Some(gate_command::run)),
     ("prepare", None),
     ("record", Some(record::run)),
     ("refute", None),
@@ -46,8 +46,6 @@ pub const COMMANDS: [(&str, Option<Command>); 19] = [
     ("triage", Some(triage_command::run)),
 ];
 
-/// The hooks ADR-0002 allows.
-const HOOKS: [&str; 3] = ["critique-commit-gate", "critique-pr-gate", "critique-session-start"];
 
 fn usage(exit_code: i32) -> CliResult {
     CliResult { exit_code, stdout: String::new(), stderr: USAGE.to_string() }
@@ -84,7 +82,8 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
         // Exit 1, never 2: an agent treats exit 2 from a PreToolUse hook as a block.
         return match flag {
             Some("critique-session-start") if value.is_none() => session_start_hook(runtime),
-            Some(hook) if value.is_none() && HOOKS.contains(&hook) => failure("hook", &not_ported(&format!("hook {hook}"))),
+            Some("critique-commit-gate") if value.is_none() => gate_hook("commit", runtime),
+            Some("critique-pr-gate") if value.is_none() => gate_hook("pr", runtime),
             _ => usage(1),
         };
     }
@@ -131,6 +130,11 @@ fn read_input(flag: Option<&str>, value: Option<&str>, runtime: &Runtime) -> Res
 /// The input as JSON, or as the text itself when it is not JSON.
 fn parse_leniently(text: String) -> Value {
     json::parse(&text).unwrap_or(Value::Str(text))
+}
+
+/// A gate hook: the gate's `hook_output` when it blocks, or nothing; it always exits 0 (ADR-0002).
+fn gate_hook(gate: &str, runtime: &Runtime) -> CliResult {
+    CliResult { exit_code: 0, stdout: gate_command::hook_output(gate, parse_leniently((runtime.stdin)()), runtime), stderr: String::new() }
 }
 
 /// The session-start hook: the one line it decided on, or nothing; it always exits 0 (ADR-0002, #197).

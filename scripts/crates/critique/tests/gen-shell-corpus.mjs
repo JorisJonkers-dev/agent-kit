@@ -40,7 +40,7 @@ const simple = () =>
     () => `gh pr create ${pick('', '--fill', '--head feat/x', '-H feat/y', '--head=feat/z', '--title "a (b)" --body "$(cat <<EOF\nbody\nEOF\n)"', '--draft --base main')}`,
     () => `gh ${pick('pr view', 'pr list', 'issue create', '--repo o/r pr create', 'pr --x create')}`,
     () => `${pick('env FOO=1', 'FOO=1 BAR=2', 'command', 'exec', 'nohup', 'time -p', 'builtin', 'env -i A=b', 'x=1')} git ${pick('commit -m x', 'push')}`,
-    () => pick('echo "git commit -m x"', "echo 'git push'", 'echo `git push`', 'echo $(git commit -m x)', '# git commit -m x', 'true # git push', 'echo git\\ commit', 'ls > out.txt 2>&1', 'cat <<-EOF\n\tgit commit -m x\n\tEOF', 'cat <<"END"\ngit push\nEND', 'cat <<<word', 'npm test', '2>/dev/null git push', 'git commit -m x >log 2>&1', 'echo "unterminated', "echo 'unterminated", 'echo \\', 'echo "a\\', 'x=$(echo "(" \')\' `y`)', 'echo $(( 1 + 2 ))', 'echo ${A:-git push}'),
+    () => pick('echo "git commit -m x"', "echo 'git push'", 'echo `git push`', 'echo $(git commit -m x)', '# git commit -m x', 'true # git push', 'echo git\\ commit', 'ls > out.txt 2>&1', 'cat <<-EOF\n\tgit commit -m x\n\tEOF', 'cat <<"END"\ngit push\nEND', 'cat <<<word', 'npm test', '2>/dev/null git push', 'git commit -m x >log 2>&1', 'echo "unterminated', "echo 'unterminated", 'echo \\', 'echo "a\\', 'x=$(echo "(" \')\' `y`)', 'echo $(( 1 + 2 ))', 'echo ${A:-git push}', 'x=$(echo "a\\"b $(date) `y`" ) && git push', 'y=$(cat << \'EOF\'\nit\'s (x)\nEOF\n) git commit -m "$y"', 'z=$(echo \\)) && git push', 'cat << EOF\ngit push\nEOF'),
   )()
 const SEP = () => pick(' && ', ' || ', '; ', ' | ', ' & ', '\n', ' ; ', ' (', ') ', '\r\n')
 const line = () => some(simple, 4).reduce((text, part, i) => (i === 0 ? part : text + SEP() + part), '')

@@ -1,0 +1,490 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"low-risk\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the staged change is risky (the ticket carries risk:high) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the staged change is risky (the ticket carries risk:high) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"low-risk\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": null,\n  \"line\": null,\n  \"reason\": \"not-gated\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: /review-implementation run r1 failed for this staged change, with critical F1 accepted and not fixed. Fix and stage it, then run /review-implementation again.\"\n    }\n  },\n  \"line\": \"Commit blocked: /review-implementation run r1 failed for this staged change, with critical F1 accepted and not fixed. Fix and stage it, then run /review-implementation again.\",\n  \"reason\": \"review-failed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: /review-implementation run r1 failed for this staged change, with critical F1, F3 accepted and not fixed. Fix and stage them, then run /review-implementation again.\"\n    }\n  },\n  \"line\": \"Commit blocked: /review-implementation run r1 failed for this staged change, with critical F1, F3 accepted and not fixed. Fix and stage them, then run /review-implementation again.\",\n  \"reason\": \"review-failed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: /review-implementation run r1 is degraded: no critic reported on this staged change (c1: timeout, c2: exit 1). Run /review-implementation again; the commit waits for a run in which a critic reports.\"\n    }\n  },\n  \"line\": \"Commit blocked: /review-implementation run r1 is degraded: no critic reported on this staged change (c1: timeout, c2: exit 1). Run /review-implementation again; the commit waits for a run in which a critic reports.\",\n  \"reason\": \"review-degraded\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: /review-implementation run r1 is degraded: no critic reported on this staged change. Run /review-implementation again; the commit waits for a run in which a critic reports.\"\n    }\n  },\n  \"line\": \"Commit blocked: /review-implementation run r1 is degraded: no critic reported on this staged change. Run /review-implementation again; the commit waits for a run in which a critic reports.\",\n  \"reason\": \"review-degraded\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: /review-implementation run r1 is degraded: no critic reported on this staged change. Run /review-implementation again; the commit waits for a run in which a critic reports.\"\n    }\n  },\n  \"line\": \"Commit blocked: /review-implementation run r1 is degraded: no critic reported on this staged change. Run /review-implementation again; the commit waits for a run in which a critic reports.\",\n  \"reason\": \"review-degraded\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"reviewed\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\n  \"failure\": \"unreadable-state\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\n  \"failure\": \"unreadable-state\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"reviewed\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"reviewed\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"routing has no triage, so the commit gate has no risk rules\",\n  \"failure\": \"error\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":null}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path, and 2 more risk signals) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the staged change is risky (src/auth/login.ts is a risk path, and 2 more risk signals) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"changed_lines_threshold\":0}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the staged change is risky (3 changed lines, above 0, and 1 more risk signal) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the staged change is risky (3 changed lines, above 0, and 1 more risk signal) and no passing /review-implementation run matches it. Run /review-implementation, then commit.\",\n  \"reason\": \"unreviewed\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"changed_lines_threshold\":0,\"risk_paths\":[]}}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"reviewed\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]\n       critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>\n       critique search-server --root DIR [--max-matches N] [--max-bytes N]\n\nEach command reads one JSON object (from FILE, from TEXT, or from stdin) and\nprints one JSON object. A refusal is a normal result with \"status\": \"refused\".\nAn error prints \"status\": \"error\" with its \"code\" and exits 1. A check that\nfails, such as check-tickets finding a dependency cycle or check-adrs a\nstructural error in the decision log, check-rewrite a changed decision\nsentence or check-plan a rule of the plan format, prints\n\"status\": \"failed\" and exits 3. With --strict as the last argument, a refusal\nprints its result as usual and exits 4, so a Gold Band gate node that runs the\ncommand fails on it; without --strict a refusal exits 0. gate and\nsession-start always exit 0; input\nthey cannot read is allowed, and logged.\n\nhook runs one of ADR-0002's hooks on the agent's payload from stdin and\nprints only what the agent reads: a gate's deny, the session-start line, or\nnothing. It always exits 0.\n\nsearch-server is the read-only MCP stdio server a Vibe critic searches its\npacket copy through (ADR-0006); the runner starts it, never the owner.\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\",\n  \"reason\": \"unstaged\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\",\n  \"reason\": \"unstaged\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\",\n  \"reason\": \"unstaged\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"hook_output\": {\n    \"hookSpecificOutput\": {\n      \"hookEventName\": \"PreToolUse\",\n      \"permissionDecision\": \"deny\",\n      \"permissionDecisionReason\": \"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\"\n    }\n  },\n  \"line\": \"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\",\n  \"reason\": \"unstaged\",\n  \"status\": \"blocked\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\"}}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Commit blocked: the change is risky (src/auth/login.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.\"}}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\"],\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 2: Expected ',' or '}' after property value in JSON at position 12 (line 1 column 13)\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"@SANDBOX@/repos/c1/.git/critique/ticket-reviews.jsonl line 1: review must be one of pass, fail, degraded\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/c1\",\"detail\":\"routing has no triage, so the commit gate has no risk rules\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    }
+  ]
+}

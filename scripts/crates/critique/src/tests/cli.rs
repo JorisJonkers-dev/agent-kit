@@ -142,10 +142,7 @@ fn a_command_not_ported_yet_says_so() {
 }
 
 #[test]
-fn a_hook_not_ported_yet_says_so_and_never_exits_2() {
-    let result = run_cli(&argv(&["hook", "critique-commit-gate"]), &runtime(""));
-    assert_eq!(result.exit_code, 1);
-    assert!(result.stderr.starts_with("critique hook: hook critique-commit-gate is not ported"), "{}", result.stderr);
+fn a_hook_it_cannot_name_prints_the_usage_and_never_exits_2() {
     for bad in [&["hook"][..], &["hook", "bogus"], &["hook", "critique-pr-gate", "x"], &["hook", "constructor"]] {
         let result = run_cli(&argv(bad), &runtime(""));
         assert_eq!((result.exit_code, result.stdout.as_str(), result.stderr.as_str()), (1, "", USAGE), "{bad:?}");
