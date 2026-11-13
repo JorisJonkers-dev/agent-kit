@@ -49,6 +49,36 @@ pub trait Git: Send + Sync {
     fn paths_against_head(&self, cwd: &str, staged: bool) -> Result<Vec<String>, String>;
     /// The checked-out branch; empty on a detached HEAD.
     fn current_branch(&self, cwd: &str) -> Result<String, String>;
+    /// What `git status` lists: each path with its two-letter status code, untracked files one by one.
+    fn porcelain_status(&self, cwd: &str) -> Result<Vec<PorcelainEntry>, String>;
+}
+
+/// One path `git status` lists.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PorcelainEntry {
+    pub code: String,
+    pub path: String,
+}
+
+/// The entries of `git status --porcelain=v1 -z`: a rename or copy is followed by the path it came from, which is not
+/// an entry of its own.
+pub fn parse_porcelain(listing: &str) -> Vec<PorcelainEntry> {
+    let fields: Vec<&str> = listing.split('\0').collect();
+    let mut entries = Vec::new();
+    let mut index = 0;
+    while index < fields.len() {
+        let field = fields[index];
+        index += 1;
+        if field.is_empty() {
+            continue;
+        }
+        let code: String = field.chars().take(2).collect();
+        entries.push(PorcelainEntry { path: field.chars().skip(3).collect(), code: code.clone() });
+        if code.contains('R') || code.contains('C') {
+            index += 1;
+        }
+    }
+    entries
 }
 
 /// One commit a merge brings in: its id, its tree and its parents.
@@ -292,5 +322,9 @@ impl Git for SystemGit {
 
     fn current_branch(&self, cwd: &str) -> Result<String, String> {
         self.run(cwd, &["branch", "--show-current"], &[0]).map(|out| js_trim(&out).to_string())
+    }
+
+    fn porcelain_status(&self, cwd: &str) -> Result<Vec<PorcelainEntry>, String> {
+        self.run(cwd, &["status", "--porcelain=v1", "-z", "--untracked-files=all"], &[0]).map(|out| parse_porcelain(&out))
     }
 }

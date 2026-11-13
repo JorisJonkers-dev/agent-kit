@@ -135,6 +135,11 @@ fn the_system_git_reads_a_repository_and_words_its_failures_as_the_node_adapter_
     let real = std::fs::canonicalize(&repo).expect("canonical").to_string_lossy().into_owned();
     assert_eq!(git.root(&repo), Ok(real.clone()));
     assert_eq!(git.common_dir(&repo), Ok(format!("{real}/.git")));
+    // Status lists untracked files one by one, each with its code.
+    std::fs::create_dir_all(format!("{repo}/d")).expect("dir");
+    std::fs::write(format!("{repo}/d/new.txt"), "x").expect("file");
+    let listed = git.porcelain_status(&repo).expect("a status");
+    assert_eq!(listed.iter().map(|entry| (entry.code.as_str(), entry.path.as_str())).collect::<Vec<_>>(), [("??", "d/new.txt")]);
     let plain = sandbox.text();
     let error = git.root(&plain).expect_err("not a repository");
     assert!(error.starts_with(&format!("git rev-parse --show-toplevel failed in {plain}: fatal: not a git repository")), "{error}");
@@ -238,6 +243,10 @@ impl Git for Scripted {
     }
 
     fn current_branch(&self, _cwd: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn porcelain_status(&self, _cwd: &str) -> Result<Vec<crate::git::PorcelainEntry>, String> {
         Err("unused".to_string())
     }
 }

@@ -625,6 +625,10 @@ impl Git for FakeGit {
         Err("unused".to_string())
     }
 
+    fn porcelain_status(&self, _cwd: &str) -> Result<Vec<crate::git::PorcelainEntry>, String> {
+        Err("unused".to_string())
+    }
+
     fn tree_files(&self, _cwd: &str, _commit: &str) -> Result<Vec<String>, String> {
         Err("unused".to_string())
     }
