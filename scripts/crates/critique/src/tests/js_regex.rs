@@ -91,6 +91,13 @@ fn a_pattern_that_cannot_be_read_is_an_error() {
         assert_eq!(Regex::new(pattern, false).expect_err("an error"), message, "{pattern}");
     }
     assert_eq!(Regex::with_flags("a", "y").expect_err("an error"), "the flag y is not supported");
+    assert_eq!(Regex::new("a{2,1}", false).expect_err("an error"), "numbers out of order in {} quantifier");
+    assert_eq!(Regex::new("[z-a]", false).expect_err("an error"), "range out of order in character class");
+    assert_eq!(Regex::with_flags("café", "i").expect_err("an error"), "é is not supported with the i flag");
+    assert_eq!(Regex::with_flags("[A-z]", "i").expect_err("an error"), "the range A-z is not supported with the i flag");
+    assert_eq!(Regex::with_flags("[0-Z]", "i").expect_err("an error"), "the range 0-Z is not supported with the i flag");
+    assert!(Regex::with_flags("[0-9a-fA-F]", "i").is_ok());
+    assert!(Regex::with_flags("[A-z]", "").is_ok());
 }
 
 /// The first match of `pattern` with `flags` in `text`, with its groups.

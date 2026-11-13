@@ -107,6 +107,7 @@ struct Parser<'a> {
     chars: &'a [char],
     at: usize,
     groups: usize,
+    ignore_case: bool,
 }
 
 impl Parser<'_> {
@@ -154,6 +155,9 @@ impl Parser<'_> {
         // JavaScript lets a lookahead be repeated (Annex B), but not `^`, `$` or `\b`.
         if matches!(atom, Node::Start | Node::End | Node::Boundary) {
             return Err("nothing to repeat".to_string());
+        }
+        if max.is_some_and(|max| max < min) {
+            return Err("numbers out of order in {} quantifier".to_string());
         }
         self.at += 1;
         let greedy = !self.eat('?');
@@ -264,6 +268,16 @@ impl Parser<'_> {
                     if range {
                         self.at += 1;
                         let (high, _) = self.escape_or_next()?;
+                        if high < low {
+                            return Err("range out of order in character class".to_string());
+                        }
+                        // JavaScript folds a range's ends before it tests a character, which this engine does not do;
+                        // a range that holds letters of both cases, or more than letters, is refused under `i`.
+                        let letters = |from: char, to: char| (from..=to).any(|c| c.is_ascii_alphabetic());
+                        let one_case = (low.is_ascii_lowercase() && high.is_ascii_lowercase()) || (low.is_ascii_uppercase() && high.is_ascii_uppercase());
+                        if self.ignore_case && letters(low, high) && !one_case {
+                            return Err(format!("the range {low}-{high} is not supported with the i flag"));
+                        }
                         Item::Range(low, high)
                     } else {
                         Item::Range(low, low)
@@ -386,12 +400,18 @@ impl Regex {
             return Err(format!("the flag {flag} is not supported"));
         }
         let chars: Vec<char> = pattern.chars().collect();
-        let mut parser = Parser { chars: &chars, at: 0, groups: 0 };
+        let ignore_case = flags.contains('i');
+        // JavaScript folds every letter under `i`; this engine folds ASCII letters only, so a pattern with another
+        // letter is refused rather than matched without folding.
+        if let Some(letter) = chars.iter().find(|c| ignore_case && c.is_alphabetic() && !c.is_ascii()) {
+            return Err(format!("{letter} is not supported with the i flag"));
+        }
+        let mut parser = Parser { chars: &chars, at: 0, groups: 0, ignore_case };
         let root = parser.alternation()?;
         if parser.at < chars.len() {
             return Err("a group is closed that was not opened".to_string());
         }
-        Ok(Regex { root, groups: parser.groups, multiline: flags.contains('m'), ignore_case: flags.contains('i') })
+        Ok(Regex { root, groups: parser.groups, multiline: flags.contains('m'), ignore_case })
     }
 
     /// How many capture groups the pattern has.
