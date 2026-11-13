@@ -21,7 +21,7 @@ use model_gateway::ports::{Process, ProcessCommand, ProcessResult};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-fn full_run() -> CriticRun {
+pub fn full_run() -> CriticRun {
     CriticRun {
         critic_id: "r-f1-agy".to_string(),
         client: "agy".to_string(),

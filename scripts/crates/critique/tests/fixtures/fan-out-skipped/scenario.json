@@ -1,0 +1,98 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s1\"}"
+      ],
+      "write": {
+        "runs/s1/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"s1c\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"adr-record\"],\"max_price_usd\":2,\"role\":\"adr-reviewer\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/s1/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/adr/0001.md\",\"sha256\":\"3e09cdb685e47660da65ca4486e4ccf8a32d2f45ec3ac1e0b2b27698e490fd9a\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/s1\",\"run_id\":\"s1\",\"stage\":\"adr-review\",\"version\":1}\n",
+        "runs/s1/packet/artifact/adr/0001.md": "# 1. Use Postgres\n\nWe use Postgres for the ledger.\n\nStatus: accepted\n",
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = models ]; then\nprintf '%s\\n' 'Fetching available models...' 'gemini-3.8-flash-high\tGemini 3.8 Flash' 'gemini-3.8-pro\tGemini 3.8 Pro'\nexit 0\nfi\ncase \"$PWD\" in\n*/critics/s1c/packet)\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"response\":\"done\",\"structured_output\":{\"findings\":[{\"category\":\"drift\",\"check\":\"no-confirmation\",\"claim\":\"drifts\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"We use Postgres for the ledger.\"}],\"id\":\"a\",\"location\":\"artifact/adr/0001.md\",\"severity\":\"minor\"},{\"category\":\"unasked-question\",\"check\":\"no-decision-sentence\",\"claim\":\"claim b\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"We use Postgres for the ledger.\"},{\"kind\":\"input\",\"value\":\"x\"}],\"id\":\"b\",\"location\":\"artifact/adr/0001.md\",\"severity\":\"minor\"}]}}}'\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n",
+        "repos/r/README.md": "# r\n"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "git",
+        "sleep"
+      ],
+      "path": [
+        "bin"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/r"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:o/r.git"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s2\"}"
+      ],
+      "write": {
+        "runs/s2/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"s2c\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/s2/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/s2\",\"run_id\":\"s2\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/s2/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/s2/packet/references/decision.md": "Decision: retries are capped at three.\n"
+      },
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s3\"}"
+      ],
+      "write": {
+        "runs/s3/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/s3/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/s3\",\"run_id\":\"s3\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/s3/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/s3/packet/references/decision.md": "Decision: retries are capped at three.\n"
+      },
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}

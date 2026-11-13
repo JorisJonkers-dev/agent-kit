@@ -1,0 +1,62 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/w1\"}"
+      ],
+      "write": {
+        "runs/w1/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"codex-work\",\"client_config\":{\"binary\":\"codex\",\"family\":\"openai\",\"kind\":\"codex\",\"model\":\"gpt-5.5\"},\"critic_id\":\"w1c\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/w1/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"nedap/x\",\"run_dir\":\"@SANDBOX@/runs/w1\",\"run_id\":\"w1\",\"stage\":\"spec\",\"version\":1,\"work\":{\"grant_workflow\":\"wf-1\"}}\n",
+        "runs/w1/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/w1/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "bin/codex": "#!/bin/sh\nprintf '%s\\n' '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"```json\\n{\\\"findings\\\":[{\\\"category\\\":\\\"failure-mode\\\",\\\"check\\\":\\\"dependency-fails\\\",\\\"claim\\\":\\\"claim a\\\",\\\"evidence\\\":[{\\\"kind\\\":\\\"quote\\\",\\\"value\\\":\\\"The retry budget is unbounded.\\\"},{\\\"kind\\\":\\\"input\\\",\\\"value\\\":\\\"the endpoint is down\\\"}],\\\"id\\\":\\\"a\\\",\\\"location\\\":\\\"artifact/spec.md\\\",\\\"severity\\\":\\\"minor\\\"}]}\\n```\"}}'\nexit 0\n",
+        "repos/r/README.md": "# r\n"
+      },
+      "exec": [
+        "bin/codex"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ],
+      "path": [
+        "bin"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/r"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:o/r.git"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}

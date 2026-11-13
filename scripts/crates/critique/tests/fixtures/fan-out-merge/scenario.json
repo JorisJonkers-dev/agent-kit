@@ -1,0 +1,77 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/m1\"}"
+      ],
+      "write": {
+        "runs/m1/manifest.json": "{\"allowed_families\":[\"google\",\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"c1-agy\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300},{\"client\":\"agy-main\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-flash-high\"},\"critic_id\":\"c2-agy\",\"fallbacks\":[{\"client\":\"agy-b\",\"client_config\":{\"binary\":\"agy\",\"family\":\"google\",\"kind\":\"agy\",\"model\":\"gemini-3.8-pro\"}}],\"lenses\":[],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/m1/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/other.md\",\"sha256\":\"805064643bb6dad80a6929b61daeab358a7e8c40b7e5b61341acd0e835b1e22d\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/m1\",\"run_id\":\"m1\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/m1/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/m1/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/m1/packet/references/other.md": "references-only text\n",
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = models ]; then\nprintf '%s\\n' 'Fetching available models...' 'gemini-3.8-flash-high\tGemini 3.8 Flash' 'gemini-3.8-pro\tGemini 3.8 Pro'\nexit 0\nfi\ncase \"$PWD\" in\n*/critics/c1-agy/packet)\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"response\":\"done\",\"structured_output\":{\"findings\":[{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"claim a\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"The retry budget is unbounded.\"},{\"kind\":\"input\",\"value\":\"the endpoint is down\"}],\"id\":\"a\",\"location\":\"artifact/spec.md\",\"severity\":\"minor\"},{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"claim b\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"The retry budget is unbounded.\"},{\"kind\":\"input\",\"value\":\"the endpoint is down\"}],\"id\":\"b\",\"location\":\"artifact/spec.md\",\"severity\":\"critical\",\"suggestion\":\"cap the retries\"},{\"category\":\"failure-mode\",\"check\":\"made-up-check\",\"claim\":\"claim c\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"Users see a spinner while it retries.\"},{\"kind\":\"input\",\"value\":\"x\"}],\"id\":\"c\",\"location\":\"artifact/spec.md:2\",\"severity\":\"minor\"},{\"category\":\"failure-mode\",\"claim\":\"claim d\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"without a limit.\"},{\"kind\":\"input\",\"value\":\"y\"}],\"id\":\"d\",\"location\":\"a/b\",\"severity\":\"minor\"},{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"claim e\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"text nobody wrote\"}],\"id\":\"e\",\"location\":\"elsewhere\",\"severity\":\"minor\"},{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"claim f\",\"evidence\":[],\"id\":\"f\",\"location\":\"again\",\"severity\":\"minor\"},{\"category\":\"failure-mode\",\"check\":\"unbounded-call\",\"claim\":\"claim g\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"references-only\"},{\"kind\":\"input\",\"value\":\"z\"}],\"id\":\"g\",\"location\":\"x\",\"severity\":\"minor\",\"suggestion\":\"first\"}]}}}'\nexit 0\n;;\n*/critics/c2-agy/packet)\nsleep 1\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"response\":\"done\",\"structured_output\":{\"findings\":[{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"Claim C again\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"a spinner while it\"},{\"kind\":\"input\",\"value\":\"x\"}],\"id\":\"h\",\"location\":\"ARTIFACT/spec.md:2 \",\"severity\":\"major\",\"suggestion\":\"second\"},{\"category\":\"failure-mode\",\"check\":\"dependency-fails\",\"claim\":\"A NEW ONE.\",\"evidence\":[],\"id\":\"i\",\"location\":\"else\",\"severity\":\"minor\"}]}}}'\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n",
+        "repos/r/README.md": "# r\n"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "git",
+        "sleep"
+      ],
+      "path": [
+        "bin"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/r"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:o/r.git"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/m1\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}
