@@ -1,0 +1,150 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/t1/a.rs": "fn a() {}\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/t1"
+        ],
+        [
+          "-C",
+          "repos/t1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/t1",
+          "commit",
+          "-q",
+          "-m",
+          "base"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/t1/a.rs": "fn a() { 1; }\n",
+        "runs/s1/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#5\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/s1/packet\",\"packet_files\":[{\"kind\":\"spec\",\"path\":\"spec/spec.md\",\"source\":\"github.com/jorisjonkers-dev/example#1\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/t1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/s1\",\"run_id\":\"s1\",\"stage\":\"ticket-review\",\"version\":1,\"code\":{\"base\":\"HEAD\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbbbbb\",\"staged_diff\":\"deadbeef\"}}\n",
+        "runs/s1/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"critical\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    },\n    {\n      \"id\": \"f2\",\n      \"critic_finding_id\": \"c1-f2\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f2.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/s1/findings.json\",\n  \"run_id\": \"s1\",\n  \"stage\": \"ticket-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/s2/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#5\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/s2/packet\",\"packet_files\":[{\"kind\":\"spec\",\"path\":\"spec/spec.md\",\"source\":\"github.com/jorisjonkers-dev/example#1\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/t1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/s2\",\"run_id\":\"s2\",\"stage\":\"ticket-review\",\"version\":1,\"code\":{\"base\":\"HEAD\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbbbbb\",\"staged_diff\":\"deadbeef\"}}\n",
+        "runs/s2/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"critical\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    },\n    {\n      \"id\": \"f2\",\n      \"critic_finding_id\": \"c1-f2\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f2.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/s2/findings.json\",\n  \"run_id\": \"s2\",\n  \"stage\": \"ticket-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/s3/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#5\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/s3/packet\",\"packet_files\":[{\"kind\":\"spec\",\"path\":\"spec/spec.md\",\"source\":\"github.com/jorisjonkers-dev/example#1\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/t1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/s3\",\"run_id\":\"s3\",\"stage\":\"ticket-review\",\"version\":1,\"code\":{\"base\":\"HEAD\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbbbbb\"}}\n",
+        "runs/s3/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"failed\",\n      \"failure\": \"timeout\"\n    },\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c2\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c2.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"violated-readonly\"\n    },\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c3\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c3.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"budget-skip\"\n    }\n  ],\n  \"degraded\": true,\n  \"findings\": [\n    {\n      \"id\": \"f1\",\n      \"critic_finding_id\": \"c1-f1\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"critical\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f1.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    },\n    {\n      \"id\": \"f2\",\n      \"critic_finding_id\": \"c1-f2\",\n      \"raised_by\": [\n        \"c1\"\n      ],\n      \"severity\": \"major\",\n      \"category\": \"bug\",\n      \"location\": \"spec#L10\",\n      \"claim\": \"The spec says nothing about f2.\",\n      \"evidence\": [\n        {\n          \"kind\": \"quote\",\n          \"value\": \"a quote\",\n          \"file\": \"artifact/spec.md\"\n        }\n      ]\n    }\n  ],\n  \"findings_path\": \"@SANDBOX@/runs/s3/findings.json\",\n  \"run_id\": \"s3\",\n  \"stage\": \"ticket-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/s4/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"github.com/jorisjonkers-dev/example#5\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/s4/packet\",\"packet_files\":[{\"kind\":\"spec\",\"path\":\"spec/spec.md\",\"source\":\"github.com/jorisjonkers-dev/example#1\",\"sha256\":\"x\"}],\"repo_root\":\"@SANDBOX@/repos/t1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/s4\",\"run_id\":\"s4\",\"stage\":\"ticket-review\",\"version\":1,\"code\":{\"base\":\"HEAD\",\"base_commit\":\"aaaaaaa\",\"changed_files\":[\"a.rs\"],\"head\":\"HEAD\",\"head_commit\":\"bbbbbbb\",\"staged_diff\":\"deadbeef\"}}\n",
+        "runs/s4/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"failed\"\n    }\n  ],\n  \"degraded\": true,\n  \"findings\": [],\n  \"findings_path\": \"@SANDBOX@/runs/s4/findings.json\",\n  \"run_id\": \"s4\",\n  \"stage\": \"ticket-review\",\n  \"status\": \"reviewed\"\n}\n",
+        "runs/s5/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/s5/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/r1\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/runs/s5\",\"run_id\":\"s5\",\"stage\":\"ticket-review\",\"version\":1}\n",
+        "runs/s5/findings.json": "{\n  \"critics\": [\n    {\n      \"charged_usd\": 0.01,\n      \"client\": \"vibe-small\",\n      \"cost_usd\": 0.0123,\n      \"critic_id\": \"c1\",\n      \"duration_ms\": 1200,\n      \"exit_code\": 0,\n      \"family\": \"mistral\",\n      \"finding_count\": 1,\n      \"lens_hashes\": {\n        \"lens-a\": \"a1b2c3d4\"\n      },\n      \"lenses\": [\n        \"lens-a\"\n      ],\n      \"model\": \"mistral-small\",\n      \"prompt_hashes\": {\n        \"contract\": \"c0ffee01\",\n        \"preamble\": \"c0ffee02\",\n        \"role\": \"c0ffee03\",\n        \"schema\": \"c0ffee04\"\n      },\n      \"prompt_path\": \"/p/c1.md\",\n      \"role\": \"spec-reviewer\",\n      \"status\": \"ok\"\n    }\n  ],\n  \"degraded\": false,\n  \"findings\": [],\n  \"findings_path\": \"@SANDBOX@/runs/s5/findings.json\",\n  \"run_id\": \"s5\",\n  \"stage\": \"ticket-review\",\n  \"status\": \"reviewed\"\n}\n"
+      },
+      "git": [
+        [
+          "-C",
+          "repos/t1",
+          "add",
+          "-A"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"regression_test\":\"tests/a.rs\"},{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"trace-walked\",\"fixed\":true}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s2\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\",\"regression_test\":\"tests/a.rs\",\"fixed\":true},{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"trace-walked\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s3\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"trace-walked\",\"fixed\":true},{\"finding_id\":\"f2\",\"verdict\":\"accepted\",\"reason_code\":\"trace-walked\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s4\",\"verdicts\":[]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s5\",\"verdicts\":[]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"rule-holds\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"test-fails\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"accepted\",\"reason_code\":\"trace-walked\",\"regression_test\":\"tests/a.rs\"}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "record",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/s1\",\"verdicts\":[{\"finding_id\":\"f1\",\"verdict\":\"rejected\",\"reason\":\"x\",\"fixed\":true}]}"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}
