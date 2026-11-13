@@ -82,9 +82,14 @@ def main(model_arg):
     ]
     for t in tools:
         cmd += ["--enabled-tools", t]
-    p = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
-    # A run that hits the turn limit exits non-zero but still spent tokens and
-    # has no answer: it is graded wrong, not dropped as an error.
+    try:
+        p = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
+    except subprocess.TimeoutExpired:
+        print("vibe timed out after 600 s", file=sys.stderr)
+        return 1
+    # A run that hits the turn limit exits non-zero but still prints its journal:
+    # it is graded wrong, not dropped as an error. Output with no journal at all
+    # is an error.
     if "[" not in p.stdout:
         print(p.stderr.strip()[-400:], file=sys.stderr)
         return p.returncode or 1

@@ -52,20 +52,27 @@ def main(argv):
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
         {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": tool, "arguments": arguments}},
     ]
-    p = subprocess.run(
-        [os.environ["CN_BIN"], "--root", os.environ["CN_ROOT"]],
-        input="\n".join(json.dumps(m) for m in msgs) + "\n",
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
+    try:
+        p = subprocess.run(
+            [os.environ["CN_BIN"], "--root", os.environ["CN_ROOT"]],
+            input="\n".join(json.dumps(m) for m in msgs) + "\n",
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        print("cn: code-nav timed out")
+        return 1
     for line in p.stdout.splitlines():
-        r = json.loads(line)
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
         if r.get("id") == 2:
             res = r.get("result") or {}
             text = "".join(c.get("text", "") for c in res.get("content", []))
             print(text or json.dumps(r.get("error")))
-            return 1 if res.get("isError") else 0
+            return 1 if res.get("isError") or r.get("error") else 0
     print(p.stderr)
     return 1
 

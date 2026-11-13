@@ -23,8 +23,8 @@ Why not an index of vectors:
   exact. Nearest-neighbour results depend on the model version and the chunking,
   so a question set run twice does not give the same files, and the frozen
   set (B7-02) is how every retrieval change is measured.
-- **The measurement does not show a need.** The first run of the question set
-  per layer (docs/code-nav-measurements.md) covered one question, FR-02, on two
+- **The measurement does not show a need.** The first record
+  (docs/code-nav-measurements.md) is a partial run: it covered one question, FR-02, on two
   cheap models. It shows no layer helping or hurting, and it has no concept
   question in it, so it cannot support an index. An index is paid for in
   upkeep and is added only when a number says so.
@@ -37,24 +37,24 @@ identifiers, doc comments and paths, keyed to git for freshness (ticket B7-13,
 
 This decision is reopened only by a new measurement, never by preference. A
 measurement is a run of the whole frozen question set through the runner, at
-least three runs a question, on at least two model families, at the layer the
-agents use (L4 in docs/code-nav-measurements.md). Reopen it when any of these
+least three runs a question, on at least two model families, at every layer of
+docs/code-nav-measurements.md, judged at the best one. Reopen it when any of these
 holds:
 
 1. **Concept questions miss more than 15 percent.** The concept family (questions
    asked as ideas, not names) is answered wrong, or without its gold files, in
-   more than 15 percent of runs. This triggers B7-13 (#528), the identifier
-   index, first. Dense vectors are considered only if BM25 over identifiers is
-   built and the concept miss rate is still above 15 percent after it.
+   more than 15 percent of runs. This does not reopen the decision by itself: it
+   starts B7-13 (#528), the identifier index, first.
 2. **The identifier index was built and did not help.** The concept miss rate
-   stays above 15 percent after B7-13, so the gap is vocabulary and not
-   lookup. That is the evidence a vector index needs.
+   is still above 15 percent after B7-13, so the gap is vocabulary and not
+   lookup. That is the evidence a vector index needs, and it reopens this
+   decision.
 3. **Reference misses do not point at an index.** Misses in the refs family
    (who calls, who uses) trigger B7-12 (#527), the language-server bridge. They
    are not a reason for a vector index: references are exact, and an
    embedding finds them worse than a language server does.
 4. **The cost of looking dominates.** Tokens spent exploring (the transcript
-   analyser, B7-01) stay above the budget the owner sets even at the best layer
+   analyser, B7-01) stay above the budget the owner sets even at the best layer by that measurement
    with the concept miss rate under 15 percent. That is a context problem to
    try with the map and outline first.
 5. **The constraints move.** A local embedding model runs on every host the

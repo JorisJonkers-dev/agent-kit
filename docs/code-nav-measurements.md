@@ -92,16 +92,24 @@ Per run:
 
 ### What the figures do show
 
-- Every L0 run missed (0 of 4); the two models both stayed on whole-tree
-  `find`, `ls` and `grep` and ran to 12 to 15 calls.
-- Runs that gave no answer within 15 turns count as wrong: three of
-  mistral-small-latest's (L0 run 2, L4 runs 1 and 2) and one of
-  zai-glm-5-3-flash's (L3 run 1, an empty answer). On mistral-small-latest the
+- Every L0 run missed (0 of 4); the runs took 9 to 15 tool calls, mostly
+  whole-tree `find`, `ls` and `grep` (read from the session journals, which are
+  not kept in the repository).
+- Runs that gave no answer count as wrong. Three of mistral-small-latest's did
+  not answer within the 15-turn limit (L0 run 2, L4 runs 1 and 2: 15 calls, an
+  empty answer); zai-glm-5-3-flash L3 run 1 gave a one-character answer after
+  9 calls. zai-glm-5-3-flash L3 run 2 made 165 tool calls under the same
+  15-turn limit (Vibe can issue many calls in one turn), the outlier in the
+  table. On mistral-small-latest the
   L4 runs used more tokens than L0 (median 242,599 against 154,234) and did
   not answer more questions right.
 - Input tokens are dominated by re-sent context: about 73 percent of input
   tokens were cache reads, and a run's token count follows its turn count.
   Vibe's fixed tool and context preamble is in every run.
+- "Correct" is the runner's grade on the answer text alone (`must_contain` and
+  `must_not_contain`); gold recall counts the gold files named in the answer or
+  opened, so the two can disagree (zai-glm-5-3-flash L1 run 2 is correct with
+  recall 0.00).
 - No layer is shown to help or to hurt. The spread inside a cell (one run
   right, one wrong) is as large as the spread between layers.
 
