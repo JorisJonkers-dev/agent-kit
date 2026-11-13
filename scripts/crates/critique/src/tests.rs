@@ -22,6 +22,7 @@ mod routing;
 mod samples_corpus;
 mod scan_corpus;
 mod scans;
+mod flow_corpus;
 mod gate_units;
 mod merge_corpus;
 mod scenarios;
