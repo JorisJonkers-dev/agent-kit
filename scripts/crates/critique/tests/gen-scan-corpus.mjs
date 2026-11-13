@@ -119,11 +119,11 @@ const subset = (extra = []) => [...new Set([...POOL.filter(() => rnd() < 0.55), 
 const IDENT = ['a', 'bC', '$d', '_e', 'f1', 'x', 'E', 'N', 'foo', 'é', 'a$', 'T']
 
 const cases = []
-function scanCase() {
+function scanCase(fixed) {
   const [, gen, paths] = pick(...LANGS)
-  const path = pick(...paths, ...(rnd() < 0.1 ? ['README.md', 'noext', '.ts', 'dir.d/file', 'a.TS'] : []))
-  const text = sourceText(gen, rnd() < 0.2)
-  const tree = subset([path])
+  const path = fixed?.path ?? pick(...paths, ...(rnd() < 0.1 ? ['README.md', 'noext', '.ts', 'dir.d/file', 'a.TS'] : []))
+  const text = fixed?.text ?? sourceText(gen, rnd() < 0.2)
+  const tree = fixed?.tree ?? subset([path])
   const language = node.languageOf(path)
   const imports = language === null ? [] : node.scanImports(language, text)
   const resolved = language === null ? [] : imports.map((found) => node.resolveImport2(language, path, found, new Set(tree)))
@@ -163,6 +163,15 @@ function mentionCase() {
   const text = Array.from({ length: between(0, 6) }, () => Array.from({ length: between(0, 5) }, () => pick(name, ' ', '(', '.', 'x', '$', '_', '1', name + 'x', 'x' + name, 'é' + name, '-')).join('')).join(pick('\n', '\r\n'))
   cases.push({ kind: 'mention', text, name, expected: { mentions: node.mentions(text, name), lines: node.mentionLines(text, name) } })
 }
+// A fixed block the random draw rarely reaches: forms of import a scan may or may not read, and signatures.
+const FIXED = [
+  { path: 'pkg/n.py', text: 'import os\nfrom . import cache\nimport sys\nfrom pkg import a, b\nfrom .sub import *\nfrom m import y as z\n', tree: ['pkg/n.py', 'pkg/cache.py', 'pkg/__init__.py', 'pkg/a.py', 'pkg/sub/__init__.py', 'os.py'] },
+  { path: 'a.py', text: 'import foo\nimport foo.bar\n', tree: ['a.py', 'foo.py', 'foo/__init__.py', 'foo/bar.py'] },
+  { path: 'cmd/x/main.go', text: 'package main\nimport (\n"fmt"\n  alias "os/exec"\n)\nimport ("a"; "b")\nimport "c"\n', tree: ['cmd/x/main.go'] },
+  { path: 'src/lib.rs', text: 'pub(crate) mod a;\npub(super) mod b;\npub(in crate::x) mod c;\nmod cache;\nuse cache;\nuse crate::a::thing;\n', tree: ['src/lib.rs', 'src/a.rs', 'src/b.rs', 'src/c.rs', 'src/cache.rs'] },
+  { path: 'src/x.tsx', text: 'export const a = <div>{items.map(i => i)}</div>\nexport const f = <T,>(x: T) => x\nexport const enum E { A, B }\nexport const g = async (y) => y\nimport { q } from \'./y\'\n', tree: ['src/x.tsx', 'src/y.ts'] },
+]
+for (const fixed of FIXED) scanCase(fixed)
 for (let i = 0; i < Number(N); i += 1) pick(scanCase, scanCase, factsCase, mentionCase, graphCase, posixCase)()
 writeFileSync(OUT, `${JSON.stringify(cases)}\n`)
 console.log(`${cases.length} cases to ${OUT}`)
