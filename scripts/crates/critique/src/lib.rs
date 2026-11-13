@@ -49,6 +49,7 @@ pub mod ledger;
 pub mod ledger_source;
 pub mod locations;
 pub mod manifest;
+pub mod merge_commit;
 pub mod merge_patch;
 pub mod paths;
 pub mod packet_search;

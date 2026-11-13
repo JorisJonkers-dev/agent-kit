@@ -21,6 +21,7 @@ mod roster;
 mod routing;
 mod scan_corpus;
 mod scans;
+mod merge_corpus;
 mod scenarios;
 mod session_start;
 mod shell_corpus;

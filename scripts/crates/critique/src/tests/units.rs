@@ -216,6 +216,30 @@ impl Git for Scripted {
     fn commit_tree(&self, _cwd: &str, _tree: &str, _parent: &str, _message: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
+
+    fn commits_between(&self, _cwd: &str, _base: &str, _head: &str) -> Result<Vec<crate::git::CommitLink>, String> {
+        Err("unused".to_string())
+    }
+
+    fn tree_entries(&self, _cwd: &str, _revision: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn merge_tree(&self, _cwd: &str, _ours: &str, _theirs: &str) -> Result<crate::git::MergeTree, String> {
+        Err("unused".to_string())
+    }
+
+    fn diff_against_head(&self, _cwd: &str, _staged: bool) -> Result<String, String> {
+        Err("unused".to_string())
+    }
+
+    fn paths_against_head(&self, _cwd: &str, _staged: bool) -> Result<Vec<String>, String> {
+        Err("unused".to_string())
+    }
+
+    fn current_branch(&self, _cwd: &str) -> Result<String, String> {
+        Err("unused".to_string())
+    }
 }
 
 fn origin() -> Vec<GitRemote> {
