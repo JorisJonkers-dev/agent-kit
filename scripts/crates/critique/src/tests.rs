@@ -8,6 +8,7 @@ mod collate;
 mod critic_tools;
 mod diff_filter;
 mod flow_budget;
+mod gh;
 mod js_regex;
 mod ledger_source;
 mod manifest;

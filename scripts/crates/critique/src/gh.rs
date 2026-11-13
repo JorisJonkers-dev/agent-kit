@@ -129,11 +129,9 @@ fn string_of(value: &Value, key: &str) -> String {
     member(value, key).and_then(Value::as_str).unwrap_or_default().to_string()
 }
 
+/// The `number` of an issue `read_pages` already checked has one.
 fn number_of(value: &Value) -> f64 {
-    match member(value, "number") {
-        Some(Value::Num(number)) => *number,
-        _ => 0.0,
-    }
+    member(value, "number").and_then(|number| if let Value::Num(number) = number { Some(*number) } else { None }).unwrap_or_default()
 }
 
 /// The names of the labels in a list; anything that is no label with a name is skipped.

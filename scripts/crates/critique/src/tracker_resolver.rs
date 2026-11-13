@@ -90,9 +90,14 @@ fn github_artifact(runtime: &Runtime, repository: &Resolved, reference: &str, co
 fn issue_text(read: &GhIssue) -> IssueText {
     IssueText {
         body: read.body.clone(),
-        comments: read.comments.iter().map(|comment| IssueComment { author: comment.author.clone(), body: comment.body.clone(), created_at: comment.created_at.clone() }).collect(),
+        comments: read.comments.iter().map(issue_comment).collect(),
         title: read.title.clone(),
     }
+}
+
+/// One comment of an issue as gh read it, as the tracker renders it.
+pub(crate) fn issue_comment(comment: &crate::gh::IssueComment) -> IssueComment {
+    IssueComment { author: comment.author.clone(), body: comment.body.clone(), created_at: comment.created_at.clone() }
 }
 
 /// The issue a spec reference names, which must be one of this repository's.

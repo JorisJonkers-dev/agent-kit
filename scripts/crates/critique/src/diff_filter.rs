@@ -86,14 +86,13 @@ pub fn parse_diff(diff: &str) -> Vec<DiffSection> {
             sections.push(DiffSection { path: None, header: line.to_string(), hunks: Vec::new() });
             continue;
         }
-        if let Some(current) = sections.last_mut() {
-            match hunk_header(bare) {
-                Some((old, new)) => current.hunks.push(DiffHunk { text: line.to_string(), old, new }),
-                None => match current.hunks.last_mut() {
-                    Some(last) => last.text.push_str(line),
-                    None => current.header.push_str(line),
-                },
-            }
+        let current = sections.last_mut().expect("a section was pushed above");
+        match hunk_header(bare) {
+            Some((old, new)) => current.hunks.push(DiffHunk { text: line.to_string(), old, new }),
+            None => match current.hunks.last_mut() {
+                Some(last) => last.text.push_str(line),
+                None => current.header.push_str(line),
+            },
         }
     }
     for section in &mut sections {

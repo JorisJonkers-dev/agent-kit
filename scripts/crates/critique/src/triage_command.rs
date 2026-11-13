@@ -299,7 +299,7 @@ fn ask(runtime: &Runtime, request: &Ask<'_>) -> Result<Decided, CritiqueError> {
     };
     let client = LedgerClient {
         kind: "vibe".to_string(),
-        gateway: config.gateway.as_ref().map(|gateway| GatewayClient { client: gateway.client.clone(), model: gateway.model.clone() }),
+        gateway: config.gateway.as_ref().map(gateway_client),
     };
     let ledger_warning = FlowBudget::new(runtime).log_invocation(&context, &run, &client, request.spec)?;
     let mut decided = answered(&report);
@@ -344,4 +344,9 @@ fn fresh_run_id(runtime: &Runtime, repository: &Resolved) -> String {
         n += 1.0;
     }
     candidate
+}
+
+/// The gateway client model a critic client is pinned to, as the ledger records it.
+pub(crate) fn gateway_client(gateway: &crate::routing::GatewayModel) -> GatewayClient {
+    GatewayClient { client: gateway.client.clone(), model: gateway.model.clone() }
 }
