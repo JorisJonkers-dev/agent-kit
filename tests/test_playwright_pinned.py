@@ -260,3 +260,48 @@ def test_a_pinned_install_without_an_npm_pin_is_rejected() -> None:
     del next(s for s in data["mcp_servers"] if s["name"] == "playwright")["container"]
     with pytest.raises(render_registry.RegistryError, match="install_pinned needs an npm container pin"):
         render_registry.validate(data)
+
+
+def _every_client_entry() -> dict[str, tuple[str, list[str]]]:
+    """The Playwright command and arguments each client config would start."""
+    reg = _registry()
+    entries: dict[str, tuple[str, list[str]]] = {}
+    for name, render in (("vibe", render_registry.render_vibe_mcp),
+                         ("vibe-private", render_registry.render_vibe_private_mcp)):
+        servers = tomllib.loads(render(reg))["mcp_servers"]
+        server = next(s for s in servers if s["name"] == "playwright")
+        entries[name] = (server["command"], server["args"])
+    local = yaml.safe_load(render_registry.render_hermes_local_mcp(reg))["mcp_servers"]["playwright"]
+    entries["hermes"] = (local["command"], local["args"])
+    for path, key in (("registry/generated/antigravity/mcp_config.json", "mcpServers"),):
+        server = json.loads((KIT_ROOT / path).read_text())[key]["playwright"]
+        entries["antigravity"] = (server["command"], server["args"])
+    opencode = json.loads((KIT_ROOT / "registry/generated/opencode/opencode.json").read_text())
+    command = opencode["mcp"]["servers"]["playwright"]["command"]
+    entries["opencode"] = (command[0], command[1:])
+    return entries
+
+
+def test_every_client_names_the_same_bare_binary_never_npx() -> None:
+    entries = _every_client_entry()
+    assert set(entries) >= {"vibe", "vibe-private", "hermes", "antigravity", "opencode"}
+    assert {command for command, _ in entries.values()} == {_playwright()["requires_binary"]}
+    assert {tuple(args) for _, args in entries.values()} == {tuple(EXPECTED["args"])}
+    for _, args in entries.values():
+        assert not any("npx" in a or "@playwright" in a for a in args)
+
+
+def test_setup_installs_the_pinned_binary_before_any_client_config_names_it() -> None:
+    script = render_registry.render_setup_script(_registry())
+    install = script.index(f'npm install -g "{_pin()}"')
+    writes = {
+        "claude": script.index("claude_each_profile claude mcp add --scope user playwright"),
+        "codex": script.index("codex mcp add playwright"),
+        "vibe": script.index(
+            '"${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml"'
+        ),
+        # The private home is merged by a function; its call site is what runs.
+        "vibe-private": script.index("\n      [ \"${CLOUD}\" = 1 ] || _vibe_private_home"),
+    }
+    for client, position in writes.items():
+        assert install < position, f"{client} config is written before the pinned binary is installed"
