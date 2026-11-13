@@ -7,6 +7,7 @@ mod cold_read;
 mod collate;
 mod critic_tools;
 mod diff_filter;
+mod evidence_corpus;
 mod findings;
 mod flow_budget;
 mod gh;

@@ -331,3 +331,13 @@ fn standard_input_is_read_whole() {
     let output = child.wait_with_output().expect("child ends");
     assert!(String::from_utf8_lossy(&output.stdout).contains("stdin<<h\u{e9}llo\n>>"), "{}", String::from_utf8_lossy(&output.stdout));
 }
+
+#[test]
+fn a_check_id_is_a_lower_case_slug() {
+    use crate::checks::is_check_id;
+    assert!(is_check_id(Some("no-rollback")));
+    assert!(is_check_id(Some("a1")));
+    assert!(!is_check_id(Some("No-Rollback")));
+    assert!(!is_check_id(Some("a--b")));
+    assert!(!is_check_id(None));
+}

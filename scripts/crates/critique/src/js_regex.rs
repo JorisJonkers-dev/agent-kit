@@ -6,7 +6,7 @@
 //! port that kept their text can be read against the node runner's source.
 //!
 //! Supported: literals, `.`, `\s \w \d \b` and escaped punctuation, classes with ranges and
-//! `\s \w \d`, `^`, `$`, groups `( )` and `(?: )`, the lookaheads `(?= )` and `(?! )`, alternation,
+//! `\s \w \d`, `^`, `$`, groups `( )` and `(?: )`, the lookaheads `(?= )` and `(?! )`, the negative lookbehind `(?<! )` over one character, alternation,
 //! `* + ? {n} {n,} {n,m}` with a lazy `?` suffix, the escapes `\n \r \t`, and the `i` flag over ASCII
 //! letters (JavaScript folds no other letter onto an ASCII one). Any other escaped letter is refused,
 //! so a pattern edited to use one fails when it is compiled. Text is matched as characters; an index
@@ -44,6 +44,8 @@ enum Node {
     Repeat { body: Box<Node>, min: usize, max: Option<usize>, greedy: bool },
     Group(usize, Box<Node>),
     NotAhead(Box<Node>),
+    /// `(?<! )` over one character: the character before is not one the body matches.
+    NotBehind(Box<Node>),
     Ahead(Box<Node>),
 }
 
@@ -208,8 +210,12 @@ impl Parser<'_> {
             ('(', false) => {
                 let node = if self.eat('?') {
                     let kind = self.escape()?;
+                    if kind == '<' && !self.eat('!') {
+                        return Err("(?< is not supported".to_string());
+                    }
                     let body = self.alternation()?;
                     match kind {
+                        '<' => Node::NotBehind(Box::new(single_character(body)?)),
                         ':' => body,
                         '!' => Node::NotAhead(Box::new(body)),
                         '=' => Node::Ahead(Box::new(body)),
@@ -289,6 +295,15 @@ impl Parser<'_> {
     }
 }
 
+/// The one character node a lookbehind's body is, so the engine looks one character back.
+fn single_character(body: Node) -> Result<Node, String> {
+    match body {
+        Node::Seq(mut items) if items.len() == 1 => single_character(items.remove(0)),
+        node @ (Node::Char(_) | Node::Set(_) | Node::Word | Node::Digit | Node::Space) => Ok(node),
+        _ => Err("a lookbehind over more than one character is not supported".to_string()),
+    }
+}
+
 struct Matching<'a> {
     text: &'a [char],
     multiline: bool,
@@ -345,6 +360,10 @@ impl<'b> Matching<'b> {
                 let found = self.run(body, pos, &mut |_, _| true);
                 self.captures = captures;
                 !found && next(self, pos)
+            }
+            Node::NotBehind(body) => {
+                let before = pos > 0 && self.single(body, pos - 1) == Some(true);
+                !before && next(self, pos)
             }
             // JavaScript backtracks no further into a lookahead once it matched; its captures stay.
             Node::Ahead(body) => self.run(body, pos, &mut |_, _| true) && next(self, pos),

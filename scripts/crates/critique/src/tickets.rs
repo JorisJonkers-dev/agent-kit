@@ -514,3 +514,31 @@ pub fn local_ticket_open(text: &str) -> bool {
         !CLOSED_STATUSES.contains(&js_trim(&value).to_lowercase().as_str())
     })
 }
+
+/// The rules a ticket finding's location may name.
+pub const TICKET_RULES: [&str; 4] = ["untestable-criterion", "no-seam", "uncovered-requirement", "too-big"];
+
+/// The rule and the ticket of the spec that a finding's location names, where it names them.
+pub fn ticket_target(location: &str, ticket_ids: &[String]) -> (Option<&'static str>, Option<String>) {
+    let text: Vec<char> = location.chars().collect();
+    let rule = TICKET_RULES.iter().find(|name| names(&format!(r"(?<![\w-]){name}(?![\w-])"), "i", &text)).copied();
+    let ticket = ticket_ids.iter().find(|id| names(&format!(r"(?<![\w#/]){}(?!\w)", escape_pattern(id)), "", &text));
+    (rule, ticket.cloned())
+}
+
+/// Whether a pattern built from a finding's wording matches the location; a pattern the engine refuses matches nothing.
+pub(crate) fn names(pattern: &str, flags: &str, text: &[char]) -> bool {
+    Regex::with_flags(pattern, flags).is_ok_and(|regex| regex.find_at(text, 0).is_some())
+}
+
+/// `text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')`.
+pub(crate) fn escape_pattern(text: &str) -> String {
+    let mut escaped = String::new();
+    for c in text.chars() {
+        if ".*+?^${}()|[]\\".contains(c) {
+            escaped.push('\\');
+        }
+        escaped.push(c);
+    }
+    escaped
+}

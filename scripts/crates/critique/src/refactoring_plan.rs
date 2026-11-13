@@ -1180,3 +1180,50 @@ fn advance(text: &str, at: usize) -> usize {
 fn starts_with_ci(text: &str, prefix: &str) -> bool {
     text.get(..prefix.len()).is_some_and(|head| head.eq_ignore_ascii_case(prefix))
 }
+
+/// The rules the plan-critic's checks name; a finding's location names one beside one step, as `S03: mixed-change`.
+pub const PLAN_RULES: [&str; 23] = [
+    "mixed-change",
+    "no-safety-net",
+    "big-bang-change",
+    "broken-main-order",
+    "no-rollback",
+    "scaffold-left",
+    "unanchored-step",
+    "stale-hotspot",
+    "adr-contradiction",
+    "closes-import-cycle",
+    "premature-service-split",
+    "single-adapter-seam",
+    "deletion-without-decision",
+    "plan-consequence",
+    "internals-dependence",
+    "decision-spread",
+    "unexplained-co-change",
+    "pass-through",
+    "wide-interface",
+    "needs-real-infrastructure",
+    "coupled-to-internals",
+    "no-assertion-or-pasted-value",
+    "no-fake",
+];
+
+/// The packet path of the checker's report on the plan, which says which steps the plan has.
+pub const PLAN_CHECK_PATH: &str = "check/plan.json";
+
+/// The step and the rule a plan finding's location names: `S03: mixed-change`. Either is absent when the location
+/// names none the plan has.
+pub fn plan_target(location: &str, step_ids: &[String]) -> (Option<&'static str>, Option<String>) {
+    use crate::tickets::names;
+    let text: Vec<char> = location.chars().collect();
+    let rule = PLAN_RULES.iter().find(|name| names(&format!(r"(?<![\w-]){name}(?![\w-])"), "i", &text)).copied();
+    let step = step_ids.iter().find(|id| names(&format!(r"(?<![\w#/]){id}(?!\w)"), "i", &text));
+    (rule, step.cloned())
+}
+
+/// The step ids the checker's report holds, or none when the text does not read as one.
+pub fn plan_step_ids(report: &str) -> Vec<String> {
+    let Ok(parsed) = model_gateway::json::parse(report) else { return Vec::new() };
+    let Some(model_gateway::json::Value::Arr(steps)) = parsed.as_object().and_then(|object| object.get("steps")) else { return Vec::new() };
+    steps.iter().filter_map(|step| step.as_object().and_then(|object| object.get("id")).and_then(|id| id.as_str()).map(str::to_string)).collect()
+}

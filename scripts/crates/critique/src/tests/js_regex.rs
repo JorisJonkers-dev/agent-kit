@@ -80,7 +80,8 @@ fn a_pattern_that_cannot_be_read_is_an_error() {
         (r"[a", "a class is not closed"),
         (r"a\", "a pattern ends with a backslash"),
         (r"*a", "nothing to repeat"),
-        (r"(?<!a)b", "(?< is not supported"),
+        (r"(?<a)b", "(?< is not supported"),
+        (r"(?#c)b", "(?# is not supported"),
         (r"\d\q", "\\q is not supported"),
         (r"\1", "\\1 is not supported"),
         (r"[\b]", "\\b in a class is not supported"),
@@ -152,4 +153,13 @@ fn ignore_case_folds_ascii_letters_only() {
     assert_eq!(first(r"k", "i", "\u{212a}"), None);
     assert_eq!(first(r"stor(?:y|ies)", "", "STORY"), None);
     assert_eq!(first(r"^x$", "gm", "a\nx\nb"), Some(("x".to_string(), vec![])));
+}
+
+#[test]
+fn a_negative_lookbehind_looks_one_character_back() {
+    assert_eq!(all(r"(?<![\w-])ab", false, "ab -ab xab a_ab (ab"), ["ab", "ab"]);
+    assert_eq!(all(r"(?<!\d)x", false, "1x x"), ["x"]);
+    assert!(Regex::new("(?<=a)b", false).is_err());
+    assert!(Regex::new("(?<!ab)c", false).is_err());
+    assert!(Regex::new("(?<!a|b)c", false).is_err());
 }
