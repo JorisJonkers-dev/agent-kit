@@ -24,6 +24,7 @@ mod packets_corpus;
 mod readers_corpus;
 mod reviews;
 mod roster;
+mod roster_corpus;
 mod routing;
 mod samples_corpus;
 mod scan_corpus;
