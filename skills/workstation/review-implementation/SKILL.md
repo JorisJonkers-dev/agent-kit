@@ -13,14 +13,14 @@ much more of the staged tree as the packet cap lets in), and you are the only on
 who rules on its findings. Execution decides each bug finding: the critic's
 test fails as predicted, or the finding is rejected.
 
-The runner does the deterministic work. It is `critique.mjs` in the
+The runner does the deterministic work. It is the `critique` launcher in the
 `critique` skill directory installed beside this one
-(`../critique/critique.mjs` from the folder this file is in). Each command
+(`../critique/critique` from the folder this file is in). Each command
 takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <triage|prepare|fan-out|refute|record|allow> --json '<object>'
-node <critique dir>/critique.mjs <command> --input <file.json>
+sh <critique dir>/critique <triage|prepare|fan-out|refute|record|allow> --json '<object>'
+sh <critique dir>/critique <command> --input <file.json>
 ```
 
 A result with `"status": "refused"` carries a one-line `message`: give the

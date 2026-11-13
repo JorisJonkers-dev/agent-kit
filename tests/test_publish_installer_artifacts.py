@@ -46,6 +46,7 @@ KIT_FILES = (
     "installer/antigravity-mcp-proxy",
     "installer/model-gateway",
     "scripts/install-model-gateway-rust.sh",
+    "scripts/install-critique-rust.sh",
     "scripts/instruction-block.py",
     "scripts/package-proxy-merge.py",
     "scripts/gold-band/build-linux.sh",

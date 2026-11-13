@@ -4,4 +4,4 @@
 # gate, which prints the deny the agent reads when a risky staged change has no
 # passing /review-implementation run, prints nothing otherwise, and exits 0. A missing
 # node or runner is a failed hook, which Claude Code and Codex both let through.
-exec node "${0%/*}/../critique.mjs" hook critique-commit-gate
+exec /bin/sh "${0%/*}/../critique" hook critique-commit-gate

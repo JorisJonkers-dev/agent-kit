@@ -38,6 +38,7 @@ mod shell_corpus;
 mod search_corpus;
 mod search_server;
 mod stats;
+mod swap;
 mod stats_corpus;
 mod tickets_corpus;
 mod tripwire;

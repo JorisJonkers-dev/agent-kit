@@ -12,13 +12,13 @@ are the only one who rules on their findings. `adr-review` is a **review
 stage**: it runs only when the owner asks, outside any feature's flow, and
 each run is a flow of its own with its own spend.
 
-The runner does the deterministic work. It is `critique.mjs` in the `critique`
-skill directory installed beside this one (`../critique/critique.mjs` from the
+The runner does the deterministic work. It is the `critique` launcher in the `critique`
+skill directory installed beside this one (`../critique/critique` from the
 folder this file is in). Each command takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <prepare|fan-out|refute|record|allow|check-adrs|check-rewrite|cold-read> --json '<object>'
-node <critique dir>/critique.mjs <command> --input <file.json>
+sh <critique dir>/critique <prepare|fan-out|refute|record|allow|check-adrs|check-rewrite|cold-read> --json '<object>'
+sh <critique dir>/critique <command> --input <file.json>
 ```
 
 A result with `"status": "refused"` carries a one-line `message`: give the
@@ -235,7 +235,7 @@ Then run check-rewrite; it reads the working tree, writes nothing, and
 sends nothing anywhere:
 
 ```sh
-node <critique dir>/critique.mjs check-rewrite --input <file.json>
+sh <critique dir>/critique check-rewrite --input <file.json>
 ```
 
 Its input is `repo` (the repository's root), `original_sentences` (the
@@ -272,7 +272,7 @@ rewrite: a client that never saw this review reads each rewritten ADR on its
 own and says what it decided, what it rejected and why, and when to revisit.
 
 ```sh
-node <critique dir>/critique.mjs cold-read --input <file.json>
+sh <critique dir>/critique cold-read --input <file.json>
 ```
 
 Its input is `run_dir` (this run's directory) and `files` (the rewritten ADRs,

@@ -13,12 +13,12 @@ for. You rule on each finding, ask the owner about the ones only they can
 settle, and file nothing. `architecture-review` is a **review stage**: it runs
 only when the owner asks, outside any feature's flow, as a flow of its own.
 
-The runner does the deterministic work. It is `critique.mjs` in the `critique`
-skill directory installed beside this one (`../critique/critique.mjs` from the
+The runner does the deterministic work. It is the `critique` launcher in the `critique`
+skill directory installed beside this one (`../critique/critique` from the
 folder this file is in). Each command takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <prepare|fan-out|record|allow> --input <file.json>
+sh <critique dir>/critique <prepare|fan-out|record|allow> --input <file.json>
 ```
 
 A result with `"status": "refused"` carries a one-line `message`: give the

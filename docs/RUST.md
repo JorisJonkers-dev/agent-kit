@@ -582,6 +582,33 @@ node scripts/crates/critique/tests/regenerate-fixtures.mjs   # the goldens, from
 cargo test --manifest-path scripts/Cargo.toml -p critique    # SCENARIO=<name> replays one scenario
 ```
 
+### Swapping the critique runner in
+
+The skills and the three critique hooks call the critique skill's launcher,
+`skills/workstation/critique/critique` (`sh <critique dir>/critique <command> ...`),
+not `critique.mjs` directly. The launcher runs, in this order: the Rust binary at
+`~/.local/share/agent-kit/critique/critique` (`AGENT_KIT_CRITIQUE_BIN` names another)
+with `AGENT_KIT_CRITIQUE_ASSETS` set to the skill directory, so it reads that
+directory's prompts, roles, lenses, schemas and `routing.json`, unless the node runner
+is asked for; else `node critique.mjs` beside it, as before. A command the Rust runner
+does not port yet it hands to that `critique.mjs` itself, with the same arguments and
+standard input, so the swap does not wait for the last command.
+
+Setup runs `scripts/install-critique-rust.sh`, which builds the crate
+(`cargo build --release --locked -p critique`), checks that the new binary answers
+`--help`, and moves it into place atomically. No cargo, no workspace or a cloud session
+skips the step, and a failed build leaves whatever was installed untouched.
+
+Rollback, without a setup run:
+
+```sh
+AGENT_KIT_CRITIQUE=node sh <critique dir>/critique ...   # one call or one shell
+touch ~/.config/agent-kit/critique-node                 # every call, until removed
+```
+
+`tests/test_critique_rust_swap.py` covers the launcher and the installer with stub
+programs; `tests/binary.rs` runs the real binary through the hand-off to a stub node.
+
 ## Measuring line coverage
 
 One command, from the repository root, on the Linux workstation and
