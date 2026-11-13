@@ -1,0 +1,67 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"runs\": [],\n  \"status\": \"read\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"runs\": [],\n  \"status\": \"read\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "\n\n",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"runs\": [\n    {\n      \"recorded\": true,\n      \"round\": 1,\n      \"run_id\": \"r1\",\n      \"spent_usd\": 0,\n      \"stage\": \"adr-review\",\n      \"verdicts\": {\n        \"accepted\": 0,\n        \"rejected\": 0,\n        \"needs-human\": 0,\n        \"hint\": 0\n      }\n    }\n  ],\n  \"status\": \"read\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "\n\n",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"run\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r1\",\"stage\":\"adr-review\",\"client\":\"vibe\",\"cost_usd\":0.1,\"critic_id\":\"c1\",\"failure\":null,\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"role\":\"r\",\"status\":\"ok\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"runs\": [\n    {\n      \"recorded\": true,\n      \"round\": 1,\n      \"run_id\": \"r1\",\n      \"spent_usd\": 0.5,\n      \"stage\": \"adr-review\",\n      \"verdicts\": {\n        \"accepted\": 0,\n        \"rejected\": 0,\n        \"needs-human\": 0,\n        \"hint\": 0\n      }\n    }\n  ],\n  \"status\": \"read\"\n}\n",
+      "stderr": "",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"r1\",\"workflow\":\"r1\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"vibe\",\"charged_usd\":0.5,\"critic_id\":\"c1\",\"run_id\":\"r1\"}\n",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"run\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r1\",\"stage\":\"adr-review\",\"client\":\"vibe\",\"cost_usd\":0.1,\"critic_id\":\"c1\",\"failure\":null,\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"role\":\"r\",\"status\":\"ok\"}\n",
+        "work/": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/x\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/x"
+        ],
+        [
+          "-C",
+          "repos/x",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ],
+      "write": {
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "not json\n"
+      }
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/x\"}"
+      ],
+      "remove": [
+        "home/.local/share/agent-kit/critique/ledger.jsonl"
+      ],
+      "write": {
+        "state/agent-kit/model-gateway/ledger.jsonl": "not json\n[1]\n{\"type\":\"invocation\"}\n",
+        "repos/x/.git/critique/bad/manifest.json": "{"
+      }
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/x\"}"
+      ],
+      "remove": [
+        "repos/x/.git/critique/bad"
+      ],
+      "write": {
+        "repos/x/.git/critique/odd/manifest.json": "[1]\n",
+        "repos/x/.git/critique/good/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"good\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/x/.git/critique/good/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/x\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/x/.git/critique/good\",\"run_id\":\"good\",\"stage\":\"adr-review\",\"version\":1}\n"
+      }
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/x\"}"
+      ],
+      "remove": [
+        "repos/x/.git/critique/odd"
+      ],
+      "write": {
+        "repos/x/.git/critique/unreadable/manifest.json/keep": "a directory where the manifest belongs\n"
+      }
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/x\"}"
+      ],
+      "remove": [
+        "repos/x/.git/critique/unreadable"
+      ],
+      "mkdir": [
+        "home/.local/share/agent-kit/critique/ledger.jsonl"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/x\"}"
+      ],
+      "remove": [
+        "home/.local/share/agent-kit/critique/ledger.jsonl"
+      ],
+      "env": {
+        "HOME": null
+      }
+    }
+  ]
+}

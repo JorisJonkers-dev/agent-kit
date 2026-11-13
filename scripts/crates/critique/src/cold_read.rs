@@ -172,7 +172,7 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
 }
 
 /// The run's manifest; a missing or malformed one is an `invalid-run`.
-fn read_manifest(runtime: &Runtime, run_dir: &str) -> Result<RunManifest, CritiqueError> {
+pub fn read_manifest(runtime: &Runtime, run_dir: &str) -> Result<RunManifest, CritiqueError> {
     let path = manifest_path(run_dir);
     if !runtime.files.exists(&path).unwrap_or(false) {
         return Err(CritiqueError::new("invalid-run", format!("{path} does not exist")));

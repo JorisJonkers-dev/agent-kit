@@ -1,0 +1,164 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "[]"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "null"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "nope"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":5}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"\"}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\",\"limit\":0}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\",\"limit\":1.5}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\",\"limit\":\"3\"}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\",\"limit\":null}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"limit\":2}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/none"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/nedap\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/nedap"
+        ],
+        [
+          "-C",
+          "repos/nedap",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:nedap/secret.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/gone\"}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/ok\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/ok"
+        ],
+        [
+          "-C",
+          "repos/ok",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/ok\",\"limit\":3}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/none\"}",
+        "--strict"
+      ]
+    }
+  ]
+}

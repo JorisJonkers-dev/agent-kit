@@ -27,3 +27,8 @@ pub fn manifest_path(run_dir: &str) -> String {
 pub fn cold_read_path(run_dir: &str) -> String {
     crate::paths::join(&[run_dir, "cold-read.json"])
 }
+
+/// Written by record, so its presence means the run's verdicts are recorded.
+pub fn report_path(run_dir: &str) -> String {
+    crate::paths::join(&[run_dir, "report.md"])
+}
