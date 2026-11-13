@@ -18,14 +18,14 @@ use model_gateway::json::{self, Value};
 use model_gateway::ports::{Process, ProcessCommand, ProcessResult};
 use std::sync::{Arc, Mutex};
 
-const OUTSIDE_ANSWER: &str = "Nothing: that path is outside the packet, or is not in it.";
+pub const OUTSIDE_ANSWER: &str = "Nothing: that path is outside the packet, or is not in it.";
 
-type Handler = Box<dyn Fn(&ProcessCommand) -> Result<ProcessResult, String> + Send + Sync>;
-type Runs = Arc<Mutex<Vec<ProcessCommand>>>;
-type Kills = Arc<Mutex<Vec<Vec<String>>>>;
+pub type Handler = Box<dyn Fn(&ProcessCommand) -> Result<ProcessResult, String> + Send + Sync>;
+pub type Runs = Arc<Mutex<Vec<ProcessCommand>>>;
+pub type Kills = Arc<Mutex<Vec<Vec<String>>>>;
 
 /// A process that hands every launch to a handler and records the launches and the `pkill` patterns.
-struct Scripted {
+pub struct Scripted {
     handler: Handler,
     runs: Runs,
     kills: Kills,
@@ -49,13 +49,13 @@ impl Process for Scripted {
     }
 }
 
-fn ok(stdout: &str) -> ProcessResult {
+pub fn ok(stdout: &str) -> ProcessResult {
     ProcessResult { stdout: stdout.to_string(), stderr: String::new(), exit_code: 0, timed_out: false }
 }
 
 /// What an MCP server answers to the requests on stdin: every search tool, and for each call the reach proof's honest
 /// answer (`leak` makes call number `leak` name a file outside the packet).
-fn serve(stdin: &str, leak: Option<usize>) -> String {
+pub fn serve(stdin: &str, leak: Option<usize>) -> String {
     let mut out = String::new();
     for line in stdin.lines() {
         let Ok(Value::Obj(request)) = json::parse(line) else { continue };
@@ -84,26 +84,26 @@ fn serve(stdin: &str, leak: Option<usize>) -> String {
     out
 }
 
-fn scripted(handler: Handler) -> (Box<Scripted>, Runs, Kills) {
+pub fn scripted(handler: Handler) -> (Box<Scripted>, Runs, Kills) {
     let runs = Arc::new(Mutex::new(Vec::new()));
     let kills = Arc::new(Mutex::new(Vec::new()));
     (Box::new(Scripted { handler, runs: runs.clone(), kills: kills.clone() }), runs, kills)
 }
 
-fn own() -> SearchCommand {
+pub fn own() -> SearchCommand {
     SearchCommand { command: "/opt/critique".to_string(), args: vec!["--flag".to_string()] }
 }
 
-fn stdin_of(command: &ProcessCommand) -> &str {
+pub fn stdin_of(command: &ProcessCommand) -> &str {
     command.stdin.as_deref().unwrap_or("")
 }
 
-fn honest() -> Handler {
+pub fn honest() -> Handler {
     Box::new(|command| Ok(ok(&serve(stdin_of(command), None))))
 }
 
 /// A run whose search server is `handler`, with the Vibe agent file setup installs in its home.
-fn searching(handler: Handler) -> (Run, Runs, Kills) {
+pub fn searching(handler: Handler) -> (Run, Runs, Kills) {
     let (process, runs, kills) = scripted(handler);
     let mut run = run_in(process, vec![], &[]);
     run.runtime.search = Some(own());
@@ -111,7 +111,7 @@ fn searching(handler: Handler) -> (Run, Runs, Kills) {
     (run, runs, kills)
 }
 
-const AGENT: &str = r#"enabled_tools = ["read_file", "packet_grep", "packet_list", "packet_symbol"]
+pub const AGENT: &str = r#"enabled_tools = ["read_file", "packet_grep", "packet_list", "packet_symbol"]
 [tools.packet_grep]
 permission = "always"
 [tools.packet_list]
@@ -476,7 +476,7 @@ fn prompt(toolset: &CriticToolset) -> crate::prompt::CriticPrompt {
 }
 
 /// Vibe as a critic in the sandbox sees it: it writes the export beside its packet copy and prints a journal.
-fn vibing(searches: &str) -> Handler {
+pub fn vibing(searches: &str) -> Handler {
     let journal = format!(
         r#"[{{"type":"message","role":"assistant","content":[{{"text":"```json\n{{\"findings\":[],\"no_findings_reason\":\"clean\"}}\n```"}}]}}{searches}]"#
     );
@@ -488,7 +488,8 @@ fn vibing(searches: &str) -> Handler {
         let config = format!(
             r#"{{"config":{{"enable_mcp":true,"mcp_servers":[{{"name":"packet","command":"/opt/critique","cwd":"{packet}"}}],"enabled_tools":["read_file","packet_grep","packet_list","packet_symbol"],"include_project_context":false,"outside_workdir":"deny"}}}}"#
         );
-        write(&format!("{packet}/../export/export.json"), &config);
+        let export = command.args.iter().position(|arg| arg == "--output-dir").and_then(|at| command.args.get(at + 1)).cloned().unwrap_or_else(|| format!("{packet}/../export"));
+        write(&format!("{export}/export.json"), &config);
         Ok(ok(&journal))
     })
 }

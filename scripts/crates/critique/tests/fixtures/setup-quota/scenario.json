@@ -1,0 +1,160 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"agy-quota\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":30,\"reserve_threshold\":5}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"agy-quota\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":30,\"reserve_threshold\":30}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":7,\"reserve_threshold\":8}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":1.5,\"reserve_threshold\":1}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":30,\"reserve_threshold\":5}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"antigravity_quota\":\"text\"}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":9,\"reserve_threshold\":2}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"antigravity_quota\":{\"reserved_stages\":[\"spec\"],\"daily_cap\":50},\"budget\":{\"vibe_flow_cap_usd\":1}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":9,\"reserve_threshold\":2}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{nope"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":9,\"reserve_threshold\":2}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"agy-gemini-flash-high\":null}}\n"
+      }
+    }
+  ]
+}

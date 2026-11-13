@@ -1,0 +1,299 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:vibe-mistral-small\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'vibe 1.2.3' 'second line'\nexit 0\nfi\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = --output-dir ]; then out=\"$2\"; fi\n  shift\ndone\nmkdir -p \"$out\"\ncase \"$out\" in\n*/setup-checks/vibe-mistral-small/critic/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"```json\\n{\\\"findings\\\": [], \\\"no_findings_reason\\\": \\\"setup check: nothing to review\\\"}\\n```\\n\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n",
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'agy 0.9'\nexit 0\nfi\nif [ \"$1\" = models ]; then\nprintf '%s\\n' 'Fetching available models...' 'gemini-3.8-flash-high\\tGemini 3.8 Flash'\nexit 0\nfi\ncase \"$PWD\" in\n*/setup-checks/agy-gemini-flash-high/packet)\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"response\":\"ok\",\"structured_output\":{\"findings\":[],\"no_findings_reason\":\"setup check: nothing to review\"}}}'\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n",
+        "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n"
+      },
+      "exec": [
+        "bin/vibe",
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:vibe-mistral-small\",\"confirmed\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:vibe-mistral-small\",\"confirmed\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:agy-gemini-flash-high\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:agy-gemini-flash-high\",\"confirmed\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"agy-quota\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":12,\"reserve_threshold\":6}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":12,\"reserve_threshold\":13}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":0,\"reserve_threshold\":1}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"quota\",\"daily_cap\":12}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"agy-quota\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:vibe-mistral-small\",\"confirmed\":true,\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'vibe 1.2.3' 'second line'\nexit 0\nfi\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = --output-dir ]; then out=\"$2\"; fi\n  shift\ndone\nmkdir -p \"$out\"\ncase \"$out\" in\n*/setup-checks/vibe-mistral-small/critic/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"```json\\n{\\\"findings\\\": [], \\\"no_findings_reason\\\": \\\"setup check: nothing to review\\\"}\\n```\\n\"}]}]'\nprintf '%s' 'boom\n' >&2\nexit 3\n;;\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:vibe-mistral-small\",\"confirmed\":true,\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'vibe 1.2.3' 'second line'\nexit 0\nfi\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = --output-dir ]; then out=\"$2\"; fi\n  shift\ndone\nmkdir -p \"$out\"\ncase \"$out\" in\n*/setup-checks/vibe-mistral-small/critic/export)\nprintf '%s\\n' '{\"config\":{\"enable_mcp\":false,\"enabled_tools\":[\"read_file\"],\"include_project_context\":false,\"outside_workdir\":\"deny\"},\"cost_usd\":0.002,\"usage\":{\"input_tokens\":1200,\"cached_input_tokens\":200,\"output_tokens\":300}}' > \"$out/export.json\"\nprintf '%s' '[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"text\":\"q\"}]},{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"text\":\"no findings here\"}]}]'\nprintf '%s' '' >&2\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/vibe"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:agy-gemini-flash-high\",\"confirmed\":true,\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'agy 0.9'\nexit 0\nfi\nif [ \"$1\" = models ]; then\nprintf '%s\\n' 'Fetching available models...' 'gemini-3.8-flash-high\\tGemini 3.8 Flash'\nexit 0\nfi\ncase \"$PWD\" in\n*/setup-checks/agy-gemini-flash-high/packet)\nexit 5\n;;\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:agy-gemini-flash-high\",\"confirmed\":true,\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' 'agy 0.9'\nexit 0\nfi\nif [ \"$1\" = models ]; then\nprintf '%s\\n' 'Error: Please sign in to view available models.' >&2\nexit 1\nfi\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "mkdir"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:vibe-mistral-small\",\"confirmed\":true,\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.vibe/agents/critic-mistral-small.toml"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    }
+  ]
+}

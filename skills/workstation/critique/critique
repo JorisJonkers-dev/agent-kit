@@ -4,7 +4,7 @@
 # It runs the Rust runner setup built (scripts/install-critique-rust.sh) when that
 # binary is installed, with this directory as its assets, and otherwise the node
 # runner beside it, critique.mjs. The two take the same commands and print the same
-# JSON; a command the Rust runner does not port yet it hands to critique.mjs itself.
+# JSON.
 #
 # Rollback to the node runner, without touching setup:
 #   AGENT_KIT_CRITIQUE=node sh .../critique ...        one call or one shell

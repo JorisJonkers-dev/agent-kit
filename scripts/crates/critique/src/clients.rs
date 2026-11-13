@@ -124,3 +124,37 @@ pub fn review_with(runtime: &Runtime, launch: &CriticLaunch<'_>) -> Result<Criti
         CriticClient::Claude(claude) => crate::work_client::claude_review(runtime, launch, claude),
     }
 }
+
+/// Asks the client of `config`'s kind whether its CLI is installed and signed in.
+pub fn client_sign_in(runtime: &Runtime, config: &CriticClient) -> Result<ClientReadiness, CritiqueError> {
+    match config {
+        CriticClient::Vibe(vibe) => crate::vibe_client::vibe_sign_in(runtime, vibe),
+        // agy has no per-critic file, so being signed in is all a critic needs.
+        CriticClient::Agy(agy) => crate::agy_client::agy_readiness(runtime, agy),
+        CriticClient::Codex(codex) => crate::work_client::codex_sign_in(runtime, codex),
+        CriticClient::Claude(claude) => crate::work_client::claude_sign_in(runtime, claude),
+    }
+}
+
+/// The CLI a critic client runs through.
+pub fn client_binary(config: &CriticClient) -> &str {
+    match config {
+        CriticClient::Vibe(client) => &client.binary,
+        CriticClient::Agy(client) => &client.binary,
+        CriticClient::Codex(client) => &client.binary,
+        CriticClient::Claude(client) => &client.binary,
+    }
+}
+
+/// How long `<binary> --version` may take.
+const VERSION_TIMEOUT_MS: u64 = 10_000;
+
+/// The first line `<binary> --version` prints, or none when the CLI is missing or fails. Free: no model is called.
+pub fn client_version(runtime: &Runtime, config: &CriticClient) -> Option<String> {
+    let result = runtime.gateway.process.exec(client_binary(config), &["--version"], Some(VERSION_TIMEOUT_MS)).ok()?;
+    if result.timed_out || result.exit_code != 0 {
+        return None;
+    }
+    let line = result.stdout.split('\n').next().map_or("", model_gateway::text::js_trim);
+    (!line.is_empty()).then(|| line.to_string())
+}

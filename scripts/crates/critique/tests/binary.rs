@@ -60,31 +60,6 @@ fn the_search_server_answers_a_line_before_its_input_closes() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// A command the Rust runner does not port yet is handed, with its arguments and standard input, to the node runner
-/// beside the assets the launcher names.
-#[test]
-fn a_command_not_ported_yet_runs_the_node_runner() {
-    let Some(name) = critique::cli::COMMANDS.iter().find(|(_, port)| port.is_none()).map(|(name, _)| *name) else { return };
-    let dir = std::env::temp_dir().join(format!("critique-binary-handoff-{}", std::process::id()));
-    std::fs::create_dir_all(dir.join("bin")).expect("dir");
-    std::fs::write(dir.join("critique.mjs"), "// bundle\n").expect("bundle");
-    let node = dir.join("bin/node");
-    std::fs::write(&node, "#!/bin/sh\nprintf 'node:'; printf ' %s' \"$@\"; printf '\\n'; cat\n").expect("node");
-    std::fs::set_permissions(&node, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("chmod");
-    let mut command = Command::new(env!("CARGO_BIN_EXE_critique"));
-    command.args([name, "--json", "{}"]).env_clear().env("PATH", format!("{}:/run/current-system/sw/bin:/usr/bin:/bin", dir.join("bin").display())).env("AGENT_KIT_CRITIQUE_ASSETS", &dir);
-    if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
-        command.env("LLVM_PROFILE_FILE", profile);
-    }
-    let mut child = command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("start critique");
-    child.stdin.take().expect("stdin").write_all(b"from stdin").expect("write");
-    let output = child.wait_with_output().expect("finish");
-    let bundle = dir.join("critique.mjs");
-    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("node: {} {name} --json {{}}\nfrom stdin", bundle.display()));
-    assert_eq!(output.status.code(), Some(0));
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
 /// The real binary serves the reach proof against a real packet with real symlinks out of it, and the proof finds no way out.
 #[test]
 fn the_real_search_server_passes_the_reach_proof() {

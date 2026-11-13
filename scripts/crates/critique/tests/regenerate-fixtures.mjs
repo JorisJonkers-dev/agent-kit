@@ -15,6 +15,7 @@
 // working directory sandbox/work, and the clock is fixed (fake-clock.mjs) at the step's "now".
 // The sandbox's path is written @SANDBOX@ in every output.
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
@@ -41,7 +42,9 @@ function snapshot(sandbox, roots) {
 }
 
 /** The sandbox's path is @SANDBOX@ in every output, and the folder the runner and its shipped files sit in is /assets. */
-const normalise = (text, sandbox) => text.split(sandbox).join('@SANDBOX@').split(dirname(runner)).join('/assets')
+// The hash of the bundled runner, which a setup check records as an input, is @RUNNER@: it changes with every build.
+const RUNNER_HASH = createHash('sha256').update(readFileSync(runner)).digest('hex')
+const normalise = (text, sandbox) => text.split(sandbox).join('@SANDBOX@').split(dirname(runner)).join('/assets').split(RUNNER_HASH).join('@RUNNER@')
 
 /** The first program of that name on the host's PATH. */
 function hostProgram(name) {

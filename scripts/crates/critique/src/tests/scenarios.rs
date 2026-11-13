@@ -44,6 +44,12 @@ fn shipped_folder() -> String {
     std::fs::canonicalize(folder).expect("shipped folder").to_string_lossy().into_owned()
 }
 
+/// The hash of the bundled runner, which a setup check records as an input: it changes with every build, so it reads as `@RUNNER@`.
+fn runner_hash() -> &'static str {
+    static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    HASH.get_or_init(|| model_gateway::sha256::sha256_hex(&std::fs::read(Path::new(&shipped_folder()).join("critique.mjs")).expect("the bundled runner")))
+}
+
 pub fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures")
 }
@@ -282,7 +288,8 @@ impl Replay {
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);
-        let normalise = |text: &str| text.replace(&self.sandbox.text(), "@SANDBOX@").replace(&shipped_folder(), "/assets");
+        let runner = runner_hash();
+        let normalise = |text: &str| text.replace(&self.sandbox.text(), "@SANDBOX@").replace(&shipped_folder(), "/assets").replace(runner, "@RUNNER@");
         let extra: Vec<&str> = list(step, "roots").iter().filter_map(Value::as_str).collect();
         let roots: Vec<&str> = ["state", "home", "work"].into_iter().chain(extra).collect();
         let files = snapshot(&self.sandbox, &roots)
