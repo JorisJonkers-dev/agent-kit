@@ -85,6 +85,8 @@ pub mod recovery_packet;
 pub mod refactoring_plan;
 pub mod refute;
 pub mod repo_map;
+pub mod refute_command;
+pub mod refute_round;
 pub mod report;
 pub mod repository;
 pub mod repository_packet;

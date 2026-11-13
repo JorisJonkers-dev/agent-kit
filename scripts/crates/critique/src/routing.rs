@@ -96,6 +96,16 @@ impl CriticClient {
         }
     }
 
+    /// The gateway client model the client is pinned to, if it is pinned.
+    pub fn gateway(&self) -> Option<&GatewayModel> {
+        match self {
+            CriticClient::Vibe(client) => client.gateway.as_ref(),
+            CriticClient::Agy(client) => client.gateway.as_ref(),
+            CriticClient::Codex(client) => client.gateway.as_ref(),
+            CriticClient::Claude(client) => client.gateway.as_ref(),
+        }
+    }
+
     /// The model the client runs.
     pub fn model(&self) -> &str {
         match self {

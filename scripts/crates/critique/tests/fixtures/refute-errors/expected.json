@@ -1,0 +1,157 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"refute input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: refute input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"refute input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: refute input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"refute input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: refute input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"refute input: run_dir must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: refute input: run_dir must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"refute input: verdicts must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: refute input: verdicts must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"refute input: verdicts must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: refute input: verdicts must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"refute input: verdicts[0] must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: refute input: verdicts[0] must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"refute input: verdicts[0].verdict must be one of accepted, rejected, needs-human, hint\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: refute input: verdicts[0].verdict must be one of accepted, rejected, needs-human, hint\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/missing/manifest.json does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: @SANDBOX@/runs/missing/manifest.json does not exist\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/e-badjson/manifest.json: Unexpected token 'o', \\\"not json\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: @SANDBOX@/runs/e-badjson/manifest.json: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/e-shape/manifest.json: allowed_families must be a list\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: @SANDBOX@/runs/e-shape/manifest.json: allowed_families must be a list\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/e-nofind/findings.json does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: @SANDBOX@/runs/e-nofind/findings.json does not exist\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/runs/e-badfind/findings.json: Unexpected token 'o', \\\"not json\\\" is not valid JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: @SANDBOX@/runs/e-badfind/findings.json: Unexpected token 'o', \"not json\" is not valid JSON\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"already-recorded\",\"message\":\"run e-recorded is already recorded; refute comes before record\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: run e-recorded is already recorded; refute comes before record\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"already-refuted\",\"message\":\"run e-done already had its refute round\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: run e-done already had its refute round\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"more than one verdict for m1\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: more than one verdict for m1\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"unknown finding zz\",\"status\":\"error\"}\n",
+      "stderr": "critique refute: unknown finding zz\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}

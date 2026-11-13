@@ -1,0 +1,85 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "refute",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/l1\",\"verdicts\":[{\"finding_id\":\"m1\",\"verdict\":\"accepted\"}]}"
+      ],
+      "write": {
+        "runs/l1/manifest.json": "{\"allowed_families\":[\"mistral\",\"google\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/l1/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"eca1c6edef4cdb9bd461ec07153eca85dd348290ca5ffe6d4507259dafb204a7\",\"source\":\"o/r#1\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/l1\",\"run_id\":\"l1\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/l1/findings.json": "{\"critics\":[{\"charged_usd\":0,\"client\":\"client-c1\",\"cost_usd\":null,\"critic_id\":\"c1\",\"duration_ms\":0,\"exit_code\":0,\"family\":\"deepseek\",\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"prompt_path\":\"@SANDBOX@/x/prompt.md\",\"role\":\"spec-redteam\",\"status\":\"ok\"}],\"degraded\":false,\"findings\":[{\"category\":\"bug\",\"claim\":\"claim m1\",\"critic_finding_id\":\"m1\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"The retry budget is unbounded.\"},{\"kind\":\"input\",\"value\":\"a case\"}],\"id\":\"m1\",\"location\":\"artifact/spec.md\",\"raised_by\":[\"c1\"],\"severity\":\"critical\"}],\"findings_path\":\"@SANDBOX@/runs/l1/findings.json\",\"run_id\":\"l1\",\"stage\":\"spec\",\"status\":\"reviewed\"}\n",
+        "runs/l1/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\n",
+        "runs/l2/manifest.json": "{\"allowed_families\":[\"mistral\",\"google\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/l2/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"eca1c6edef4cdb9bd461ec07153eca85dd348290ca5ffe6d4507259dafb204a7\",\"source\":\"o/r#1\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/l2\",\"run_id\":\"l2\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/l2/findings.json": "{\"critics\":[{\"charged_usd\":0,\"client\":\"client-c1\",\"cost_usd\":null,\"critic_id\":\"c1\",\"duration_ms\":0,\"exit_code\":0,\"family\":\"deepseek\",\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"prompt_path\":\"@SANDBOX@/x/prompt.md\",\"role\":\"spec-redteam\",\"status\":\"ok\"}],\"degraded\":false,\"findings\":[{\"category\":\"bug\",\"claim\":\"claim m1\",\"critic_finding_id\":\"m1\",\"evidence\":[{\"kind\":\"quote\",\"value\":\"The retry budget is unbounded.\"},{\"kind\":\"input\",\"value\":\"a case\"}],\"id\":\"m1\",\"location\":\"artifact/spec.md\",\"raised_by\":[\"c1\"],\"severity\":\"critical\"}],\"findings_path\":\"@SANDBOX@/runs/l2/findings.json\",\"run_id\":\"l2\",\"stage\":\"spec\",\"status\":\"reviewed\"}\n",
+        "runs/l2/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\n",
+        "bin/agy": "#!/bin/sh\nif [ \"$1\" = models ]; then printf \"%s\\n\" \"gemini-3.8-flash-high\"; exit 0; fi\nexit 5\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"base\":[{\"client\":\"vibe-mistral-large\",\"role\":\"spec-redteam\",\"lenses\":[\"fidelity\",\"testability\"],\"max_price_usd\":0.5,\"time_limit_s\":600},{\"client\":\"agy-gemini-flash-high\",\"role\":\"spec-redteam\",\"lenses\":[\"failure-modes\",\"security\"],\"max_price_usd\":0.5,\"time_limit_s\":600}],\"deep\":[]}}}\n",
+        "repos/r/README.md": "# r\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/r"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:o/r.git"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ],
+      "exec": [
+        "bin/agy"
+      ],
+      "shims": [
+        "env",
+        "git"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "refute",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/l2\",\"verdicts\":[{\"finding_id\":\"m1\",\"verdict\":\"accepted\"}]}"
+      ],
+      "remove": [
+        "state"
+      ],
+      "write": {
+        "state": "a file where the state directory belongs\n"
+      },
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}
