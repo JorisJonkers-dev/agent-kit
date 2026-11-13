@@ -113,9 +113,6 @@ impl Git for Status {
     fn current_branch(&self, _cwd: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
-    fn commit_log(&self, _cwd: &str, _revision: &str, _paths: &[String], _limit: usize) -> Result<Vec<crate::recovery::HistoryEntry>, String> {
-        Err("unused".to_string())
-    }
     fn porcelain_status(&self, _cwd: &str) -> Result<Vec<PorcelainEntry>, String> {
         self.0.lock().expect("lock").clone()
     }
