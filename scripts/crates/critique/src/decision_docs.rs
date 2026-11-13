@@ -1,9 +1,11 @@
 //! Which decision docs a spec is checked against, and what a record says about
 //! itself: its status and the day it was decided. The node runner reads them
-//! with regular expressions; this file is the same expressions written out by
-//! hand, so the crate needs no regular expression engine.
+//! with regular expressions; the status and date readers are those expressions
+//! written out by hand, and the path reader runs its expressions on the crate's
+//! JavaScript-semantics engine.
 
-use model_gateway::text::is_js_whitespace;
+use crate::js_regex::Regex;
+use model_gateway::text::{is_js_whitespace, js_trim};
 
 /// Where the ADRs live when there is no domain doc.
 pub const ADR_DIRECTORY: &str = "docs/adr";
@@ -221,4 +223,42 @@ fn strip_list_marker(text: &str) -> &str {
     } else {
         text
     }
+}
+
+/// The doc Pocock's setup writes to say where a repository's domain docs live.
+pub const DOMAIN_DOC: &str = "docs/agents/domain.md";
+
+/// Tried in order when there is no domain doc; the first that exists is the glossary.
+pub const GLOSSARIES: [&str; 2] = ["GLOSSARY.md", "CONTEXT.md"];
+
+/// The file Pocock's multi-context layout uses to point at one `CONTEXT.md` per context.
+pub const CONTEXT_MAP: &str = "CONTEXT-MAP.md";
+
+/// The docs that define words rather than record decisions, so no status can leave them out.
+pub const NOT_RECORDS: [&str; 3] = ["GLOSSARY.md", "CONTEXT.md", "CONTEXT-MAP.md"];
+
+/// Whether a decision doc, at its repository path, is a decision record: a markdown file directly in an `adr`
+/// directory, the repository's `docs/adr/` or a context's own.
+pub fn is_decision_record(path: &str) -> bool {
+    let parts: Vec<&str> = path.split('/').collect();
+    path.ends_with(".md") && parts.len() >= 2 && parts[parts.len() - 2] == "adr"
+}
+
+/// The repository paths a markdown doc names, in order and without repeats: every inline code span and link target
+/// outside fenced blocks that reads as a relative path. Placeholders, absolute paths, `..` and skill names are left out.
+pub fn named_paths(markdown: &str) -> Vec<String> {
+    let prose: Vec<char> = without_fences(markdown).chars().collect();
+    let spans = Regex::new(r"`([^`\n]+)`|\]\(([^)\s]+)\)", false).expect("the span pattern compiles");
+    let shape = Regex::new(r"^[\w.-]+(\/[\w.-]+)*$", false).expect("the path pattern compiles");
+    let mut paths: Vec<String> = Vec::new();
+    for hit in spans.find_all(&prose) {
+        let candidate = hit.group(&prose, 1).or_else(|| hit.group(&prose, 2)).unwrap_or_default();
+        let trimmed = js_trim(&candidate);
+        let candidate = trimmed.strip_prefix("./").unwrap_or(trimmed).trim_end_matches('/');
+        let chars: Vec<char> = candidate.chars().collect();
+        if shape.find_at(&chars, 0).is_some() && !candidate.split('/').any(|part| part == "..") && !paths.iter().any(|seen| seen == candidate) {
+            paths.push(candidate.to_string());
+        }
+    }
+    paths
 }

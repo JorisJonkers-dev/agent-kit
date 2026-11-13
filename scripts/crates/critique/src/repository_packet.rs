@@ -97,3 +97,10 @@ pub fn exclusion_reason(exclusion: &Exclusion) -> String {
         format!("a {} file: it matches the routing glob `{}`", exclusion.kind, exclusion.rule)
     }
 }
+
+/// A tracked path that is not excluded, with its text, or `None` for a binary file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TrackedFile {
+    pub path: String,
+    pub text: Option<String>,
+}
