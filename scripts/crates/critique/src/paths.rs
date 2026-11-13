@@ -6,10 +6,11 @@ use model_gateway::text::resolve as resolve_path;
 /// The repository-relative form of `path`; a path outside the repository is an error.
 pub fn inside_repository(root: &str, path: &str) -> Result<String, CritiqueError> {
     let absolute = resolve_path(root, path);
-    let relative = if absolute == root {
+    let base = resolve_path(root, ".");
+    let relative = if absolute == base {
         Some("")
     } else {
-        absolute.strip_prefix(&format!("{}/", root.trim_end_matches('/')))
+        absolute.strip_prefix(&format!("{}/", base.trim_end_matches('/')))
     };
     match relative {
         Some(relative) if !relative.starts_with("..") => Ok(relative.to_string()),
@@ -41,7 +42,7 @@ pub fn join(parts: &[&str]) -> String {
     match (absolute, body.is_empty()) {
         (true, true) => "/".to_string(),
         (true, false) => format!("/{body}{trailing}"),
-        (false, true) => ".".to_string(),
+        (false, true) => if joined.ends_with('/') { "./" } else { "." }.to_string(),
         (false, false) => format!("{body}{trailing}"),
     }
 }

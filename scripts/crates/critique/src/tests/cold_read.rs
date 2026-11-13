@@ -83,6 +83,9 @@ fn join_keeps_a_relative_path_relative_and_normalises_like_node() {
     assert_eq!(join(&["", ""]), ".");
     assert_eq!(join(&["a/", "b/"]), "a/b/");
     assert_eq!(join(&["", "a"]), "a");
+    assert_eq!(join(&["b", "..", "./"]), "./");
+    assert_eq!(crate::paths::inside_repository("/a/", ".").as_deref(), Ok(""));
+    assert_eq!(crate::paths::inside_repository("/a/", "x/y").as_deref(), Ok("x/y"));
 }
 
 /// A set of files that delegates to the system's, except that it will not append.
