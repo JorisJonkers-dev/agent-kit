@@ -24,7 +24,7 @@
 mod tests;
 
 use model_gateway::adapters::git::{SystemGit, TIMEOUT_MS};
-use model_gateway::git_remote::{identify_repository, RepositoryIdentity};
+use model_gateway::git_remote::{identify_repository, parse_remote, RepositoryIdentity};
 use model_gateway::ports::{Git, GitRemote};
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -58,11 +58,18 @@ impl Bank {
 }
 
 /// The bank for a repository with these remotes.
-pub fn resolve(remotes: &[GitRemote]) -> Bank {
-    match identify_repository(remotes) {
+///
+/// A remote whose URL cannot be read (a local path, `file://`, no repository segment) is an `Err`, never ignored:
+/// it could be an employer mirror, and a guess would put employer facts in Shared Memory. Any `nedap` remote
+/// makes the repository a Nedap one, even beside a personal `origin`, as it does for delegation and critique.
+pub fn resolve(remotes: &[GitRemote]) -> Result<Bank, String> {
+    if let Some(bad) = remotes.iter().find(|remote| parse_remote(&remote.url).is_none()) {
+        return Err(format!("remote {} has a URL that names no owner", bad.name));
+    }
+    Ok(match identify_repository(remotes) {
         RepositoryIdentity::DeniedOwner { .. } => Bank::Nedap,
         RepositoryIdentity::NoRemote | RepositoryIdentity::Identified { .. } => Bank::Shared,
-    }
+    })
 }
 
 /// What the resolver asks git: whether a path is in a repository, and where its remotes point.
@@ -87,7 +94,7 @@ pub fn resolve_path(git: &dyn Remotes, path: &str) -> Result<Bank, String> {
     if !git.in_repository(path)? {
         return Ok(Bank::Shared);
     }
-    Ok(resolve(&git.remotes(path)?))
+    resolve(&git.remotes(path)?)
 }
 
 /// What a memory server does for one bank.
@@ -125,7 +132,9 @@ const USAGE: &str = "usage: memory-bank resolve [PATH]\n";
 
 /// The command line: `resolve [PATH]` on the real git.
 pub fn run(args: impl IntoIterator<Item = OsString>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
-    let git = SystemGit { env: std::env::vars().collect::<HashMap<_, _>>(), timeout_ms: TIMEOUT_MS };
+    // An inherited GIT_DIR or the like would point git at some other repository than the path's.
+    let env = std::env::vars().filter(|(key, _)| !matches!(key.as_str(), "GIT_DIR" | "GIT_WORK_TREE" | "GIT_COMMON_DIR" | "GIT_INDEX_FILE")).collect::<HashMap<_, _>>();
+    let git = SystemGit { env, timeout_ms: TIMEOUT_MS };
     run_with(args, &git, out, err)
 }
 

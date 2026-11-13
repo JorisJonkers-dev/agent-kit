@@ -110,15 +110,15 @@ fn a_directory_that_is_no_repository_is_shared_memory() {
 #[test]
 fn a_nedap_remote_wins_over_origin_on_any_host_or_alias() {
     let remotes = vec![remote("origin", "git@github.com:me/fork.git"), remote("work", "git@github-work:Nedap/platform.git")];
-    assert_eq!(resolve(&remotes), Bank::Nedap);
-    assert_eq!(resolve(&[remote("origin", "https://github.com/NEDAP/x")]), Bank::Nedap);
-    assert_eq!(resolve(&[remote("origin", "ssh://git@github.com/nedap/x.git")]), Bank::Nedap);
+    assert_eq!(resolve(&remotes), Ok(Bank::Nedap));
+    assert_eq!(resolve(&[remote("origin", "https://github.com/NEDAP/x")]), Ok(Bank::Nedap));
+    assert_eq!(resolve(&[remote("origin", "ssh://git@github.com/nedap/x.git")]), Ok(Bank::Nedap));
 }
 
 #[test]
 fn an_owner_that_only_contains_nedap_is_shared_memory() {
-    assert_eq!(resolve(&[remote("origin", "git@github.com:nedap-fan/x.git")]), Bank::Shared);
-    assert_eq!(resolve(&[remote("origin", "git@github.com:me/nedap.git")]), Bank::Shared);
+    assert_eq!(resolve(&[remote("origin", "git@github.com:nedap-fan/x.git")]), Ok(Bank::Shared));
+    assert_eq!(resolve(&[remote("origin", "git@github.com:me/nedap.git")]), Ok(Bank::Shared));
 }
 
 #[test]
@@ -196,4 +196,15 @@ fn the_real_git_resolves_a_repository_by_its_remote_owner() {
     assert_eq!(run([OsString::from("resolve"), bare.into_os_string()], &mut out, &mut err), 0);
     assert!(String::from_utf8(out).unwrap().contains("\"bank\":\"shared\""));
     let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn a_remote_that_names_no_owner_is_an_error_not_shared_memory() {
+    assert!(resolve(&[remote("origin", "/srv/mirrors/platform.git")]).is_err());
+    assert!(resolve(&[remote("origin", "git@github.com:me/x.git"), remote("mirror", "file:///srv/nedap")]).is_err());
+}
+
+#[test]
+fn a_nedap_upstream_beside_a_personal_origin_is_the_nedap_bank() {
+    assert_eq!(resolve(&[remote("origin", "git@github.com:me/fork.git"), remote("upstream", "git@github.com:nedap/x.git")]), Ok(Bank::Nedap));
 }

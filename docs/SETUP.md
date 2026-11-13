@@ -300,7 +300,7 @@ cargo run -q --manifest-path scripts/Cargo.toml -p memory-bank -- resolve [PATH]
 
 The resolver knows two banks and cannot name Private Memory, which only
 `vibe-private` reaches, behind the passphrase. If git cannot read the remotes,
-it exits 1 with no bank: an unreadable remote never falls back to Shared
+it exits 1 with no bank (as it does for a remote URL that names no owner, such as a local mirror path, and a stripped GIT_DIR keeps git on the path given): an unreadable remote never falls back to Shared
 Memory. A session holds the one bank its repository resolves to, so a `nedap`
 session recalls and retains in the Nedap bank only and a personal session never
 reaches it (the crate's tests prove both against an in-process server). No
