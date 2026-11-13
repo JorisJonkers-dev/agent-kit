@@ -147,6 +147,42 @@ pub struct LedgerRun {
     pub vibe_cost_usd: Option<Option<f64>>,
 }
 
+impl LedgerRun {
+    /// A critic's run as the gateway's record carries it.
+    pub fn of(run: &crate::critic::CriticRun) -> LedgerRun {
+        LedgerRun {
+            charged_usd: run.charged_usd,
+            client: run.client.clone(),
+            cost_usd: run.cost_usd,
+            critic_id: run.critic_id.clone(),
+            exit_code: run.exit_code,
+            family: run.family.clone(),
+            model: run.model.clone(),
+            status: run.status.clone(),
+            duration_ms: Some(run.duration_ms),
+            failure: run.failure.clone(),
+            finding_count: Some(run.finding_count),
+            lens_hashes: Some(run.lens_hashes.clone()),
+            lenses: Some(run.lenses.clone()),
+            prompt_hashes: Some(run.prompt_hashes.clone()),
+            retry_of: run.retry_of.clone(),
+            role: Some(run.role.clone()),
+            tokens: run.tokens.clone(),
+            vibe_cost_usd: run.vibe_cost_usd,
+        }
+    }
+}
+
+impl LedgerClient {
+    /// The critic client a run went through.
+    pub fn of(config: &crate::routing::CriticClient) -> LedgerClient {
+        LedgerClient {
+            kind: config.kind().to_string(),
+            gateway: config.gateway().map(|gateway| GatewayClient { client: gateway.client.clone(), model: gateway.model.clone() }),
+        }
+    }
+}
+
 pub use crate::clients::CriticTokens;
 
 /// The prompt files one critic was given, by the hash of each.

@@ -35,6 +35,8 @@ pub struct RefuteRecord {
     pub severity: Option<String>,
     /// The refuter's objection as it wrote it, for the report.
     pub reply: Option<FindingBody>,
+    /// The id the refuter gave its objection, which `refute.json` keeps beside the fields the reader takes.
+    pub reply_id: Option<String>,
     /// The refuter's run; absent when the round was skipped.
     pub refuter: Option<CriticRun>,
 }
@@ -73,5 +75,5 @@ fn read_refute_record(fields: &Fields<'_>) -> Result<RefuteRecord, ShapeError> {
     let outcome = fields.one_of("outcome", &REFUTE_OUTCOMES)?;
     let reply = if fields.has("reply") { Some(read_finding_body(&fields.object("reply")?)?) } else { None };
     let refuter = if fields.has("refuter") { Some(read_critic_run(&fields.object("refuter")?)?) } else { None };
-    Ok(RefuteRecord { finding_id, outcome, answer, reason_code, detail, severity, reply, refuter })
+    Ok(RefuteRecord { finding_id, outcome, answer, reason_code, detail, severity, reply, reply_id: None, refuter })
 }

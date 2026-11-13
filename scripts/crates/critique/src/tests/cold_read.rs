@@ -89,7 +89,7 @@ fn join_keeps_a_relative_path_relative_and_normalises_like_node() {
 }
 
 /// A set of files that delegates to the system's, except that it will not append.
-struct Refusing(SystemFiles);
+pub struct Refusing(pub SystemFiles);
 
 impl Files for Refusing {
     fn read_text(&self, path: &str) -> Result<String, FsError> {
