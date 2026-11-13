@@ -115,7 +115,11 @@ spent key, HTTP 400 `budget_exceeded` (also 429), ends the node in failure
 (exit 1, naming the node and the key variable); so does any other refusal or an
 unreachable proxy. The key is read from the environment, sent through curl's
 stdin config, and never printed. The stub tests drive both: the same stub
-below the cap passes, and exhausted fails.
+below the cap passes, and exhausted fails. `tests/exit_status.rs` runs the built
+executable against a local stub proxy and asserts the process exit status (1 with
+the one stderr line `litellm-gate: node <node> failed: budget exhausted for key
+<VAR>`, 0 below the cap), so the exit code a node sees is proven, not just the
+library's return value.
 
 ```bash
 litellm-gate check --node research-fetch --url https://litellm.jorisjonkers.dev/v1 \
