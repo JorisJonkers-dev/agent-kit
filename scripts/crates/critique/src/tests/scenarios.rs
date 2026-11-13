@@ -278,6 +278,7 @@ impl Replay {
             env,
             assets_root: self.assets_root(),
             stdin: Box::new(move || stdin.clone()),
+            search: None,
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);

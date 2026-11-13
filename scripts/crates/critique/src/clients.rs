@@ -1,7 +1,7 @@
 //! What a client hands back: one question put to a model, the answer it gave, and whether a client can run at all.
 //! The node runner's `application/ports.ts` and `domain/routing.ts`.
 
-use crate::critic_tools::CriticToolset;
+use crate::critic_tools::{CriticToolset, ToolCall};
 use crate::error::CritiqueError;
 use crate::findings::CriticFinding;
 use crate::roster::RosterCritic;
@@ -99,6 +99,10 @@ pub struct CriticReport {
     pub vibe_cost_usd: Option<Option<f64>>,
     /// What the run used, as its client reported it; absent when the client reports none.
     pub tokens: Option<CriticTokens>,
+    /// Why a searching critic's searches failed, as its journal shows them; none when it searched without a failure or did not search.
+    pub search_failure: Option<String>,
+    /// Every tool call the critic's journal records; none for a client that keeps no journal.
+    pub tool_calls: Vec<ToolCall>,
 }
 
 /// Asks the client of `config`'s kind whether it can run.

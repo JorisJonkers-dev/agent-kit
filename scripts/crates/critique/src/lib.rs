@@ -102,6 +102,7 @@ pub mod routing_source;
 pub mod run_ledger;
 pub mod runtime;
 pub mod shell_command;
+pub mod search_client;
 pub mod search_server;
 pub mod source_scan;
 pub mod stage;
@@ -124,6 +125,7 @@ pub mod triage_command;
 pub mod triage_index;
 pub mod verdicts;
 pub mod vibe_client;
+pub mod vibe_search;
 
 pub use runtime::{default_runtime, Runtime};
 

@@ -51,6 +51,7 @@ fn runtime_with(env: HashMap<String, String>) -> Runtime {
         env,
         assets_root: "/assets".to_string(),
         stdin: Box::new(String::new),
+        search: None,
     }
 }
 

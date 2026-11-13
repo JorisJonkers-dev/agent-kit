@@ -138,6 +138,8 @@ fn report(runtime: &Runtime, client: &str, launch: &CriticLaunch<'_>, run: &Clie
         charged_usd: 0.0,
         vibe_cost_usd: None,
         tokens: Some(CriticTokens { cached: output.tokens.cached, input: output.tokens.input, output: output.tokens.output }),
+        search_failure: None,
+        tool_calls: Vec::new(),
     })
 }
 

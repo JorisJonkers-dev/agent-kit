@@ -188,6 +188,7 @@ fn replay(index: usize, case: &Value) {
         assets_root: "/assets".to_string(),
         gh: Box::new(crate::gh::SystemGh { env: HashMap::new() }),
         stdin: Box::new(String::new),
+        search: None,
     };
     let run = COMMANDS.iter().find(|(name, _)| *name == "stats").and_then(|(_, command)| *command).expect("stats is ported");
     let actual = match run(case.get("input").expect("input"), &runtime) {

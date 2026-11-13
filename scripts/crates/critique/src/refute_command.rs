@@ -11,7 +11,7 @@ use crate::assets::read_asset;
 use crate::budget_command::quota_reached;
 use crate::checks::declared_checks;
 use crate::clients::client_readiness;
-use crate::critic_run::{read_frozen_packet, run_critic, Launch, FINDING_SCHEMA};
+use crate::critic_run::{read_frozen_packet, run_critic, CriticTools, Launch, FINDING_SCHEMA};
 use crate::decode::{read_input, read_json_file};
 use crate::error::{CritiqueError, ShapeError};
 use crate::evidence::{index_packet, PacketIndex};
@@ -56,6 +56,7 @@ struct Round<'a> {
     manifest: &'a RunManifest,
     merged: &'a FanOutResult,
     tripwire: ReadOnlyTripwire,
+    tools: CriticTools,
     packet: PacketIndex,
     candidates: Vec<RefuterCandidate>,
     /// Why each candidate client may not run now, by client name; absent while it may.
@@ -153,6 +154,7 @@ fn round(runtime: &Runtime, manifest: &RunManifest, merged: &FanOutResult, targe
         manifest,
         merged,
         tripwire: ReadOnlyTripwire::load(runtime, manifest)?,
+        tools: CriticTools::new(manifest.limits.search.clone(), join(&[&manifest.run_dir, "search-proof"])),
         packet,
         candidates,
         blocked,
@@ -186,7 +188,7 @@ fn refute(runtime: &Runtime, round: &Round<'_>, finding: &RunFinding, ledger_war
         let slices = manifest.code.as_ref().and_then(|code| code.slices.as_deref()).unwrap_or(&[]);
         with_finding(&assemble_prompt(&round.sources, &listed_files(manifest), &manifest.stage, slices, toolset), finding)
     };
-    let launched = run_critic(runtime, &Launch { tripwire: &round.tripwire, critic: &refuter, critic_dir: &critic_dir, prompt: &prompt, retry_of: None })?;
+    let launched = run_critic(runtime, &Launch { tripwire: &round.tripwire, critic: &refuter, critic_dir: &critic_dir, prompt: &prompt, retry_of: None, tools: &round.tools })?;
     let context = InvocationContext {
         flow: manifest.flow.clone(),
         repository: manifest.repository.clone(),

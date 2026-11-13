@@ -196,6 +196,7 @@ fn machine(case: &json::Object) -> (PathBuf, Runtime) {
         assets_root: "/assets".to_string(),
         gh: Box::new(crate::gh::SystemGh { env: HashMap::new() }),
         stdin: Box::new(String::new),
+        search: None,
     };
     (home, runtime)
 }

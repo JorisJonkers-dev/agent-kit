@@ -3,6 +3,7 @@
 use crate::dirs::{Dirs, SystemDirs};
 use crate::gh::{Gh, SystemGh};
 use crate::git::{Git, SystemGit};
+use crate::search_client::SearchCommand;
 use model_gateway::adapters::clock::SystemClock;
 use model_gateway::adapters::fs::SystemFiles;
 use model_gateway::ports::{Clock, Files};
@@ -23,6 +24,8 @@ pub struct Runtime {
     pub gateway: model_gateway::ports::Runtime,
     /// What a command reads when it is given neither `--input` nor `--json`.
     pub stdin: Box<dyn Fn() -> String + Send + Sync>,
+    /// How the runner starts its own search server for a Vibe critic; without it every Vibe critic reads alone.
+    pub search: Option<SearchCommand>,
 }
 
 /// Where the shipped assets (prompts, roles, lenses, schemas, `routing.json` and the node runner) are:
@@ -48,6 +51,7 @@ pub fn default_runtime() -> Runtime {
         git: Box::new(SystemGit { env: env.clone() }),
         gh: Box::new(SystemGh { env: env.clone() }),
         assets_root: assets_root(&env, std::env::current_exe().ok()),
+        search: std::env::current_exe().ok().map(|exe| SearchCommand { command: exe.to_string_lossy().into_owned(), args: Vec::new() }),
         env,
         stdin: Box::new(|| {
             let mut bytes = Vec::new();

@@ -8,7 +8,9 @@ use crate::pricing::{token_cost, TokenPrices, TokenUsage};
 use crate::routing::VibeCriticClient;
 use crate::runtime::Runtime;
 use model_gateway::client_run::{ClientRun, ClientRunError, ClientRunRequest};
-use model_gateway::extras::RunExtras;
+use crate::critic_tools::{CriticToolset, SearchServerLaunch};
+use crate::packet_search::SearchToolName;
+use crate::vibe_search::{search_failure, tool_calls, vibe_extras};
 use model_gateway::json::{number_text, parse, Object, Value};
 use model_gateway::launchers::{LaunchPaths, LaunchRequest};
 use model_gateway::ports::ProcessResult;
@@ -271,7 +273,7 @@ pub(crate) fn js_string(value: Option<&Value>) -> String {
 }
 
 /// The journal's entries, each as an object when it is one; none when stdout is not a JSON array.
-fn journal_entries(stdout: &str) -> Vec<Option<Object>> {
+pub(crate) fn journal_entries(stdout: &str) -> Vec<Option<Object>> {
     match parse(stdout) {
         Ok(Value::Arr(items)) => items.iter().map(|item| item.as_object().cloned()).collect(),
         _ => Vec::new(),
@@ -342,7 +344,7 @@ pub fn vibe_ask(runtime: &Runtime, question: &ModelQuestion, config: &VibeCritic
         work_dir: question.work_dir.clone(),
         git_writable: None,
     };
-    let (result, run) = launch_run(runtime, question.time_limit_s, question.max_price_usd, config, &paths)?;
+    let (result, run) = launch_run(runtime, question.time_limit_s, question.max_price_usd, config, &paths, None)?;
     Ok(ModelAnswerReport {
         exit_code: result.exit_code,
         stdout: result.stdout,
@@ -355,12 +357,16 @@ pub fn vibe_ask(runtime: &Runtime, question: &ModelQuestion, config: &VibeCritic
 }
 
 /// Runs one Vibe critic in its packet and reads its review from stdout and the export file, launched exactly as a
-/// question is. A critic reads alone: the runner starts no search server for it.
+/// question is, with the runner's search server in its packet copy when its toolset has one (ADR-0006).
 pub fn vibe_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &VibeCriticClient) -> Result<CriticReport, CritiqueError> {
     let export_dir = crate::paths::join(&[&launch.critic_dir, "export"]);
     let export_path = crate::paths::join(&[&export_dir, "export.json"]);
     let paths = LaunchPaths { export_dir, prompt_path: launch.prompt_path.clone(), run_dir: None, work_dir: launch.packet_dir.clone(), git_writable: None };
-    let (result, run) = launch_run(runtime, launch.critic.time_limit_s, launch.critic.max_price_usd, config, &paths)?;
+    let search = match &launch.toolset {
+        CriticToolset::VibeSearch { search, server, .. } => Some((search.as_slice(), server)),
+        _ => None,
+    };
+    let (result, run) = launch_run(runtime, launch.critic.time_limit_s, launch.critic.max_price_usd, config, &paths, search)?;
     Ok(CriticReport {
         exit_code: result.exit_code,
         stdout: result.stdout,
@@ -370,6 +376,8 @@ pub fn vibe_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &VibeCr
         charged_usd: vibe_charge(&run, launch.critic.max_price_usd),
         vibe_cost_usd: Some(run.vibe_cost_usd),
         tokens: tokens_of(run.exported.as_ref()),
+        search_failure: search.and_then(|_| search_failure(&run.stdout)),
+        tool_calls: tool_calls(&run.stdout),
     })
 }
 
@@ -386,14 +394,14 @@ pub fn classify_vibe_run(run: &VibeRun) -> CriticOutcome {
 
 /// One Vibe launch through the gateway's launch path, and what its output and export say about it. The gateway builds
 /// the command, applies the critic's extras, runs it under its own time and price limits, and reads the export; the
-/// runner prices the run and reads its journal itself. A question never searches, so its effective config must show
-/// MCP off.
+/// runner prices the run and reads its journal itself. Without a search server the effective config must show MCP off.
 fn launch_run(
     runtime: &Runtime,
     time_limit_s: f64,
     max_price_usd: f64,
     config: &VibeCriticClient,
     paths: &LaunchPaths,
+    search: Option<(&[SearchToolName], &SearchServerLaunch)>,
 ) -> Result<(ProcessResult, VibeRun), CritiqueError> {
     let request = ClientRunRequest {
         launch: LaunchRequest {
@@ -407,7 +415,7 @@ fn launch_run(
         client: client_of(config)?,
         prompt: runtime.files.read_text(&paths.prompt_path).map_err(CritiqueError::from_fs)?,
         paths: paths.clone(),
-        extras: RunExtras { agent: Some(config.agent.clone()), tools: Some(vec!["read_file".to_string()]), ..RunExtras::default() },
+        extras: vibe_extras(&config.agent, search),
     };
     let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env };
     let launched = gateway.launch(&request).map_err(launch_error)?;
@@ -416,7 +424,10 @@ fn launch_run(
     let run = VibeRun {
         cost_usd: computed_cost(exported.as_ref(), config.prices.as_ref()).or(vibe_cost_usd),
         exit_code: launched.result.exit_code,
-        expected: ExpectedConfig::Off,
+        expected: match search {
+            None => ExpectedConfig::Off,
+            Some((_, server)) => ExpectedConfig::Search { command: server.command.clone(), cwd: paths.work_dir.clone() },
+        },
         exported,
         vibe_cost_usd,
         stderr: launched.result.stderr.clone(),
@@ -451,7 +462,7 @@ pub(crate) fn gateway_client(gateway: Option<&crate::routing::GatewayModel>, def
 }
 
 /// The personal Vibe home, `~/.vibe`.
-fn vibe_home(runtime: &Runtime) -> Result<String, CritiqueError> {
+pub(crate) fn vibe_home(runtime: &Runtime) -> Result<String, CritiqueError> {
     match runtime.env.get("HOME") {
         Some(home) => Ok(join(&[home, ".vibe"])),
         None => Err(CritiqueError::new("unexpected", "required environment variable is missing: HOME")),

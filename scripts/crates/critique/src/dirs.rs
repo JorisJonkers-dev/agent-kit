@@ -12,6 +12,8 @@ pub trait Dirs: Send + Sync {
     fn list_tree(&self, dir: &str) -> Vec<String>;
     /// What a file holds, or nothing when it cannot be read.
     fn read_bytes(&self, path: &str) -> Option<Vec<u8>>;
+    /// A symbolic link at `path` to `target`, making its directory first and replacing whatever is there; the platform's words for a failure.
+    fn symlink(&self, target: &str, path: &str) -> Result<(), String>;
 }
 
 /// The real file system. A symbolic link is not a plain file, and a name that is not UTF-8 is left out.
@@ -39,6 +41,10 @@ impl Dirs for SystemDirs {
 
     fn read_bytes(&self, path: &str) -> Option<Vec<u8>> {
         std::fs::read(path).ok()
+    }
+
+    fn symlink(&self, target: &str, path: &str) -> Result<(), String> {
+        link(target, std::path::Path::new(path)).map_err(|error| error.to_string())
     }
 }
 
@@ -73,4 +79,15 @@ fn names_where(path: &str, accept: fn(&std::fs::FileType) -> bool) -> Vec<String
     // `Array.prototype.sort` compares UTF-16 code units.
     names.sort_by_key(|name| name.encode_utf16().collect::<Vec<u16>>());
     names
+}
+
+/// `mkdir -p` the link's directory, `rm -rf` what is at the link's path, then link.
+fn link(target: &str, path: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(path.parent().unwrap_or(path))?;
+    match std::fs::symlink_metadata(path) {
+        Ok(kind) if kind.is_dir() => std::fs::remove_dir_all(path)?,
+        Ok(_) => std::fs::remove_file(path)?,
+        Err(_) => {}
+    }
+    std::os::unix::fs::symlink(target, path)
 }
