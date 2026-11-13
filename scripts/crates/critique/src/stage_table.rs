@@ -64,3 +64,25 @@ pub fn candidate_questions(stage: &str) -> Option<usize> {
 pub fn mixed_candidates(stage: &str) -> bool {
     stage == "architecture-review"
 }
+
+/// Whether the stage's findings are judged by the architecture evidence rule, which reports its accepted findings as
+/// candidates.
+pub fn architecture_evidence(stage: &str) -> bool {
+    stage == "architecture-review"
+}
+
+/// Whether the stage freezes the repository's decision records as its packet.
+pub fn adrs_packet(stage: &str) -> bool {
+    stage == "adr-review"
+}
+
+/// The command the report says not to start while a critical question is open or the ticket graph has a cycle; `None`
+/// for a review stage, which sits before no command of a feature's flow.
+pub fn do_not_start(stage: &str) -> Option<&'static str> {
+    match stage {
+        "plan" => Some("/to-spec"),
+        "decisions" | "feature-review" | "spec" | "ticket-review" => Some("/to-tickets"),
+        "tickets" => Some("/implement"),
+        _ => None,
+    }
+}
