@@ -1,0 +1,84 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rv\"}"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/rv"
+        ],
+        [
+          "-C",
+          "repos/rv",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ]
+      ],
+      "write": {
+        "repos/rv/.git/critique/r2/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"r2\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/rv/.git/critique/r2/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/rv\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/rv/.git/critique/r2\",\"run_id\":\"r2\",\"stage\":\"adr-review\",\"version\":1,\"round\":1}\n",
+        "repos/rv/.git/critique/r10/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"r10\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/rv/.git/critique/r10/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/rv\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/rv/.git/critique/r10\",\"run_id\":\"r10\",\"stage\":\"adr-review\",\"version\":1,\"round\":2,\"previous_run_id\":\"r2\",\"report\":true}\n",
+        "repos/rv/.git/critique/r10/report.md": "# report\n",
+        "repos/rv/.git/critique/r9/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"r9\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/rv/.git/critique/r9/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/rv\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/rv/.git/critique/r9\",\"run_id\":\"r9\",\"stage\":\"decision-recovery\",\"version\":1}\n",
+        "repos/rv/.git/critique/r1/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"r1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/rv/.git/critique/r1/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/rv\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/rv/.git/critique/r1\",\"run_id\":\"r1\",\"stage\":\"architecture-review\",\"version\":1,\"report\":true}\n",
+        "repos/rv/.git/critique/r1/report.md": "# report\n",
+        "repos/rv/.git/critique/spec-run/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"spec-run\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/rv/.git/critique/spec-run/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/rv\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/rv/.git/critique/spec-run\",\"run_id\":\"spec-run\",\"stage\":\"spec\",\"version\":1}\n",
+        "repos/rv/.git/critique/r09/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"r09\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/rv/.git/critique/r09/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/rv\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/rv/.git/critique/r09\",\"run_id\":\"r09\",\"stage\":\"adr-review\",\"version\":1}\n",
+        "repos/rv/.git/critique/R3/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"R3\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/rv/.git/critique/R3/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/rv\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/rv/.git/critique/R3\",\"run_id\":\"R3\",\"stage\":\"adr-review\",\"version\":1}\n",
+        "repos/rv/.git/critique/r-3/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"r-3\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/rv/.git/critique/r-3/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/rv\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/rv/.git/critique/r-3\",\"run_id\":\"r-3\",\"stage\":\"adr-review\",\"version\":1}\n",
+        "repos/rv/.git/critique/r_3/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"r_3\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/repos/rv/.git/critique/r_3/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/rv\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_dir\":\"@SANDBOX@/repos/rv/.git/critique/r_3\",\"run_id\":\"r_3\",\"stage\":\"decision-recovery\",\"version\":1}\n",
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"type\":\"run\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r10\",\"stage\":\"adr-review\",\"client\":\"vibe\",\"cost_usd\":0.1,\"critic_id\":\"c1\",\"failure\":null,\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"role\":\"r\",\"status\":\"ok\"}\n{\"type\":\"run\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r10\",\"stage\":\"adr-review\",\"client\":\"vibe\",\"cost_usd\":0.1,\"critic_id\":\"c2\",\"failure\":null,\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"role\":\"r\",\"status\":\"ok\"}\n{\"type\":\"run\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r7\",\"stage\":\"adr-review\",\"client\":\"vibe\",\"cost_usd\":0.1,\"critic_id\":\"c1\",\"failure\":null,\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"role\":\"r\",\"status\":\"ok\",\"round\":2}\n{\"type\":\"run\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r1\",\"stage\":\"decision-recovery\",\"client\":\"vibe\",\"cost_usd\":0.1,\"critic_id\":\"c1\",\"failure\":null,\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"role\":\"r\",\"status\":\"ok\"}\n{\"type\":\"run\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r5\",\"stage\":\"plan\",\"client\":\"vibe\",\"cost_usd\":0.1,\"critic_id\":\"c1\",\"failure\":null,\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"role\":\"r\",\"status\":\"ok\"}\n{\"type\":\"run\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/other/repo\",\"run_id\":\"r8\",\"stage\":\"architecture-review\",\"client\":\"vibe\",\"cost_usd\":0.1,\"critic_id\":\"c1\",\"failure\":null,\"finding_count\":1,\"lens_hashes\":{},\"lenses\":[],\"model\":\"m\",\"prompt_hashes\":{\"contract\":\"c\",\"preamble\":\"p\",\"role\":\"r\",\"schema\":\"s\"},\"role\":\"r\",\"status\":\"ok\"}\n\n   \n{\"type\":\"finding\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r10\",\"stage\":\"adr-review\",\"finding_id\":\"r10-accepted\",\"pre_verdict\":null,\"raised_by\":[\"c1\"],\"severity\":\"major\",\"verdict\":\"accepted\"}\n{\"type\":\"finding\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r10\",\"stage\":\"adr-review\",\"finding_id\":\"r10-a2\",\"pre_verdict\":null,\"raised_by\":[\"c1\"],\"severity\":\"major\",\"verdict\":\"accepted\"}\n{\"type\":\"finding\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r10\",\"stage\":\"adr-review\",\"finding_id\":\"r10-rejected\",\"pre_verdict\":null,\"raised_by\":[\"c1\"],\"severity\":\"major\",\"verdict\":\"rejected\"}\n{\"type\":\"finding\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r10\",\"stage\":\"adr-review\",\"finding_id\":\"r10-hint\",\"pre_verdict\":null,\"raised_by\":[\"c1\"],\"severity\":\"major\",\"verdict\":\"hint\"}\n{\"type\":\"finding\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r10\",\"stage\":\"adr-review\",\"finding_id\":\"r10-needs-human\",\"pre_verdict\":null,\"raised_by\":[\"c1\"],\"severity\":\"major\",\"verdict\":\"needs-human\"}\n{\"type\":\"finding\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r7\",\"stage\":\"adr-review\",\"finding_id\":\"r7-accepted\",\"pre_verdict\":null,\"raised_by\":[\"c1\"],\"severity\":\"major\",\"verdict\":\"accepted\"}\n{\"type\":\"finding\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"run_id\":\"r9\",\"stage\":\"decision-recovery\",\"finding_id\":\"r9-hint\",\"pre_verdict\":null,\"raised_by\":[\"c1\"],\"severity\":\"major\",\"verdict\":\"hint\"}\n{\"type\":\"finding\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/other/repo\",\"run_id\":\"r2\",\"stage\":\"adr-review\",\"finding_id\":\"r2-rejected\",\"pre_verdict\":null,\"raised_by\":[\"c1\"],\"severity\":\"major\",\"verdict\":\"rejected\"}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"r10\",\"workflow\":\"r10\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"vibe\",\"charged_usd\":0.1,\"critic_id\":\"c1\",\"run_id\":\"r10\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"r10\",\"workflow\":\"r10\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"vibe\",\"charged_usd\":0.2,\"critic_id\":\"c1\",\"run_id\":\"r10\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"r10\",\"workflow\":\"r10\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"agy\",\"charged_usd\":5,\"critic_id\":\"c1\",\"run_id\":\"r10\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/other/repo\",\"flow\":\"r10\",\"workflow\":\"r10\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"vibe\",\"charged_usd\":0.3,\"critic_id\":\"c1\",\"run_id\":\"r10\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"r2\",\"workflow\":\"r2\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"vibe\",\"charged_usd\":0.7,\"critic_id\":\"c1\",\"run_id\":\"r2\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"x\",\"workflow\":\"x\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"vibe\",\"charged_usd\":9,\"critic_id\":\"c1\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"r9\",\"workflow\":\"r9\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"codex\",\"charged_usd\":1,\"critic_id\":\"c1\",\"run_id\":\"r9\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"r7\",\"workflow\":\"r7\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"vibe\",\"charged_usd\":1e-7,\"critic_id\":\"c1\",\"run_id\":\"r7\"}\n{\"type\":\"invocation\",\"recorded_at\":\"2026-11-02T10:00:00.000Z\",\"repository\":\"github.com/jorisjonkers-dev/example\",\"flow\":\"r7\",\"workflow\":\"r7\",\"round\":1,\"stage\":\"adr-review\",\"kind\":\"vibe\",\"charged_usd\":0.1,\"critic_id\":\"c1\",\"run_id\":\"r7\"}\n"
+      }
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rv\",\"limit\":3}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rv\",\"limit\":1}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rv\",\"limit\":1000000}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rv/.git\"}"
+      ]
+    },
+    {
+      "argv": [
+        "reviews",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repos/rv\"}"
+      ],
+      "mkdir": [
+        "repos/rv/.git/critique/nomanifest",
+        "repos/rv/.git/critique/stray"
+      ],
+      "write": {
+        "repos/rv/.git/critique/file.txt": "a file\n"
+      }
+    }
+  ]
+}

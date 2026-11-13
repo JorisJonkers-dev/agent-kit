@@ -1,0 +1,104 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-ledger\",\"message\":\"@SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl: line 1 is not JSON\",\"status\":\"error\"}\n",
+      "stderr": "critique reviews: @SANDBOX@/home/.local/share/agent-kit/critique/ledger.jsonl: line 1 is not JSON\n",
+      "files": {
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "not json\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/repos/x/.git/critique/bad/manifest.json: Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"status\":\"error\"}\n",
+      "stderr": "critique reviews: @SANDBOX@/repos/x/.git/critique/bad/manifest.json: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "not json\n[1]\n{\"type\":\"invocation\"}\n",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-run\",\"message\":\"@SANDBOX@/repos/x/.git/critique/odd/manifest.json: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique reviews: @SANDBOX@/repos/x/.git/critique/odd/manifest.json: the value must be a JSON object\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "not json\n[1]\n{\"type\":\"invocation\"}\n",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique reviews: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "not json\n[1]\n{\"type\":\"invocation\"}\n",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique reviews: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "not json\n[1]\n{\"type\":\"invocation\"}\n",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/ledger.jsonl/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"required environment variable is missing: HOME\",\"status\":\"error\"}\n",
+      "stderr": "critique reviews: required environment variable is missing: HOME\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/ledger.jsonl": "not json\n[1]\n{\"type\":\"invocation\"}\n",
+        "home/": null,
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "work/": null
+      }
+    }
+  ]
+}
