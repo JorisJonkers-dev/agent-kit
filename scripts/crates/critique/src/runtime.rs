@@ -13,6 +13,8 @@ pub struct Runtime {
     pub files: Box<dyn Files>,
     pub dirs: Box<dyn Dirs>,
     pub env: HashMap<String, String>,
+    /// The folder the runner's shipped files (routing.json, prompts) sit in; the embedded copies are what is read, this is the path messages name.
+    pub assets_root: String,
     pub git: Box<dyn Git>,
     /// What a command reads when it is given neither `--input` nor `--json`.
     pub stdin: Box<dyn Fn() -> String + Send + Sync>,
@@ -28,6 +30,7 @@ pub fn default_runtime() -> Runtime {
         files: Box::new(SystemFiles { cwd }),
         dirs: Box::new(SystemDirs),
         git: Box::new(SystemGit { env: env.clone() }),
+        assets_root: std::env::current_exe().ok().and_then(|exe| exe.parent().map(|dir| dir.to_string_lossy().into_owned())).unwrap_or_default(),
         env,
         stdin: Box::new(|| {
             let mut bytes = Vec::new();

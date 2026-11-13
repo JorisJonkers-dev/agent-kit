@@ -1,0 +1,124 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"heading-blank.md\"}"
+      ],
+      "write": {
+        "work/heading-blank.md": "## Goal\nx\n## Steps\n###S01: no blank\n### S02: ok\n### S2:\n###  S03 :  spaced  \n### S04: a b\n### S05: tab\t\n### Sx: letter\n### S: none\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"field-forms.md\"}"
+      ],
+      "write": {
+        "work/field-forms.md": "## Steps\n### S01: F\n-**Kind**: tidy\n- **Kind: tidy\n- **Kind**:tidy\n- **Kind**: ti dy\n- **Kind** :  tidy \n-  **Done when:** x\n- **Touches**: a\n  -x\n  - \n  - y z\n  continued\n   - deep\n nbsp\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"ids.md\"}"
+      ],
+      "write": {
+        "work/ids.md": "## Steps\n### S01: A\n- **Blocked by**: S and S1 and Sx and S1x and xS2\n- **Kind**: structure\n- **Safety net**: none\n### S02: B\n- **Kind**: tidy\n- **Blocked by**: S01\n### S03: C\n- **Kind**: tidy\n- **Blocked by**: S01\n### S04: D\n- **Kind**: structure\n- **Safety net**: untested\n- **Blocked by**: S02, S03\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"anchor-spans.md\"}"
+      ],
+      "write": {
+        "work/anchor-spans.md": "## Steps\n### S01: A\n- **Anchor**: `` and `src/a.ts\n### S02: B\n- **Anchor**: ``, `a/b.ts`, ` `, `x\n### S03: C\n- **Anchor**: prerequisite-of: foo and prerequisite-of:S and PREREQUISITE-OF:s7 and prerequisite-of:S1x and xprerequisite-of:S1\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"urls.md\"}"
+      ],
+      "write": {
+        "work/urls.md": "## Goal\nx\n## Target\nSee https://example.com/a/b/c.ts then http://x.y/z more and ftp:// empty and a+b.c-d://q/r.ts and ://x and 1http://a/b.c\n## Safety net\nx\n## Steps\n### S01: S\n- **Kind**: tidy\n## Not doing\nx\n## Open decisions\nx\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"paths-1.md\"}"
+      ],
+      "write": {
+        "work/paths-1.md": "## Goal\nx\n## Target\na/b. a/b.1 a/b.x a/b.abcdefg a/b.abcdef a/b.abcde a/b/c/ a/b/ a/b/c d/e.f/g @s/p.ts x.ts .y.ts z_.json q-w.yml ../a/b ./c/d.rs é/ü.md a b/c.sh, w/x.y.z, v/u.t8\n## Safety net\nx\n## Steps\n### S01: S\n- **Kind**: tidy\n## Not doing\nx\n## Open decisions\nx\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"paths-2.md\"}"
+      ],
+      "write": {
+        "work/paths-2.md": "## Goal\nx\n## Target\nlib.rs lib.rsx LIB.RS lib.R foo.tsx.bak a-b.md a_b.md _a.md 9a.md ab.mdd ab.md. x/./y a//b //c/d e/f/ g/h//i\n## Safety net\nx\n## Steps\n### S01: S\n- **Kind**: tidy\n## Not doing\nx\n## Open decisions\nx\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"anchor-solo.md\"}"
+      ],
+      "write": {
+        "work/anchor-solo.md": "## Steps\n### S01: A\n- **Anchor**: `abc\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goal-near.md\"}"
+      ],
+      "write": {
+        "work/goal-near.md": "## Goal\nBehaviourx changes. Behaviors differ. Behaviou changes. Misbehaviour changes. Behaviour\nx\n## Steps\n### S01: B\n- **Kind**: behaviour\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goal-us.md\"}"
+      ],
+      "write": {
+        "work/goal-us.md": "## Goal\nThe behavior changes. The behavior is not changed. Behaviours differ. Behavioural changes. behaviour\nnot changed\n## Steps\n### S01: B\n- **Kind**: behaviour\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goal-1.md\"}"
+      ],
+      "write": {
+        "work/goal-1.md": "## Goal\nBehaviour never changes here, nothing alters. Not a thing alters behaviour. No change to behaviour is planned. Behaviour: is not (really) changed. Behaviour was not at all altered. Behaviour is never differing.\n## Steps\n### S01: B\n- **Kind**: behaviour\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"goal-2.md\"}"
+      ],
+      "write": {
+        "work/goal-2.md": "## Goal\nWe change the behaviour of x, and never touch it. Without changes, behaviour not altered. This will alter the behaviour not at all. It does not change behaviour. A behaviour that did not change.\n## Steps\n### S01: B\n- **Kind**: behaviour\n"
+      }
+    }
+  ]
+}

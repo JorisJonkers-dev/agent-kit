@@ -20,17 +20,22 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
         Resolution::Refused(refusal) => return Ok(refusal),
         Resolution::Resolved(repository) => repository.root,
     };
-    let paths: Vec<String> = runtime
-        .dirs
-        .list_files(&join(&[&root, ADR_DIRECTORY]))
-        .into_iter()
-        .filter(|name| name.ends_with(".md"))
-        .map(|name| format!("{ADR_DIRECTORY}/{name}"))
-        .collect();
+    let paths = log_records(runtime, &root);
     if paths.is_empty() {
         return Ok(refusal("no-adrs", &format!("found no decision records in {ADR_DIRECTORY}/ to review")));
     }
     check_log(runtime, &root, &paths)
+}
+
+/// Every record of the log at `docs/adr/`, as the ADR review's packet lists them.
+pub fn log_records(runtime: &Runtime, root: &str) -> Vec<String> {
+    runtime
+        .dirs
+        .list_files(&join(&[root, ADR_DIRECTORY]))
+        .into_iter()
+        .filter(|name| name.ends_with(".md"))
+        .map(|name| format!("{ADR_DIRECTORY}/{name}"))
+        .collect()
 }
 
 /// Reads the decision log's records and checks its structure, then what the tree and its history say about the code the records name.

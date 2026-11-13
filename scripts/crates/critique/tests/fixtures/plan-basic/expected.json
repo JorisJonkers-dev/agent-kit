@@ -1,0 +1,113 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    },\n    {\n      \"blocked_by\": [\n        \"S01\"\n      ],\n      \"id\": \"S02\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"errors\": [\n    {\n      \"message\": \"step S01 is anchored to ADR-0009, which is not in docs/adr\",\n      \"rule\": \"adr-absent\",\n      \"step\": \"S01\"\n    },\n    {\n      \"message\": \"step S01 is anchored to ADR-0002, which is superseded\",\n      \"rule\": \"adr-superseded\",\n      \"step\": \"S01\"\n    }\n  ],\n  \"notes\": [],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"errors\": [\n    {\n      \"message\": \"step S01 is anchored to ADR-0002, which is superseded\",\n      \"rule\": \"adr-superseded\",\n      \"step\": \"S01\"\n    }\n  ],\n  \"notes\": [],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    },\n    {\n      \"blocked_by\": [],\n      \"id\": \"S02\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    },\n    {\n      \"blocked_by\": [\n        \"S01\"\n      ],\n      \"id\": \"S02\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    },\n    {\n      \"blocked_by\": [\n        \"S01\"\n      ],\n      \"id\": \"S02\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    },\n    {\n      \"blocked_by\": [\n        \"S01\"\n      ],\n      \"id\": \"S02\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/plans/": null,
+        "work/plans/ok.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/plans/": null,
+        "work/plans/ok.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    },\n    {\n      \"blocked_by\": [\n        \"S01\"\n      ],\n      \"id\": \"S02\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/plans/": null,
+        "work/plans/ok.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"errors\": [\n    {\n      \"message\": \"step S01 is anchored to ADR-0009, which is not in docs/adr\",\n      \"rule\": \"adr-absent\",\n      \"step\": \"S01\"\n    },\n    {\n      \"message\": \"step S01 is anchored to ADR-0002, which is superseded\",\n      \"rule\": \"adr-superseded\",\n      \"step\": \"S01\"\n    }\n  ],\n  \"notes\": [],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/plans/": null,
+        "work/plans/ok.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    },\n    {\n      \"blocked_by\": [\n        \"S01\"\n      ],\n      \"id\": \"S02\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/plans/": null,
+        "work/plans/ok.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"plans/ok.md\",\"repo\":\"@SANDBOX@/repos/p\"}"
+      ],
+      "write": {
+        "repos/p/docs/adr/0001-first.md": "# 1. Decision 1\n\nStatus: Accepted\n\nFirst.\n",
+        "repos/p/docs/adr/0002-second.md": "# 2. Decision 2\n\nStatus: Superseded by [0003](0003-third.md)\n\nSecond.\n",
+        "repos/p/docs/adr/0003-third.md": "# 3. Decision 3\n\nStatus: Accepted\n\nReplaces ADR-0002.\n",
+        "repos/p/docs/adr/README.md": "# Index\n",
+        "repos/p/src/a.ts": "export function fooBar() {}\n",
+        "repos/p/plans/ok.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: ADR-0001\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S02: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: ADR 3\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: S01\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "repos/p/plans/absent.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: ADR-0001, adr-9, ADR-0002, `src/a.ts`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "repos/p/plans/dup.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: ADR-0002\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n### S02: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: ADR-0003 and ADR-0003\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/p"
+        ],
+        [
+          "-C",
+          "repos/p",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/p",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/p",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"plans/absent.md\",\"repo\":\"@SANDBOX@/repos/p\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"plans/dup.md\",\"repo\":\"@SANDBOX@/repos/p\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"@SANDBOX@/repos/p/plans/ok.md\",\"repo\":\"@SANDBOX@/repos/p\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"plans/ok.md\",\"repo\":\"@SANDBOX@/repos/p/docs\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"../p/plans/ok.md\",\"repo\":\"@SANDBOX@/repos/p/plans\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"plans/ok.md\"}"
+      ],
+      "write": {
+        "work/plans/ok.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"plans/ok.md\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"@SANDBOX@/repos/p/plans/ok.md\"}"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"plans/absent.md\",\"repo\":\"@SANDBOX@/repos/p\"}",
+        "--strict"
+      ]
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"plans/ok.md\",\"repo\":\"@SANDBOX@/repos/p\"}",
+        "--strict"
+      ]
+    }
+  ]
+}

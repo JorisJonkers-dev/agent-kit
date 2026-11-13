@@ -1,0 +1,166 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: plan must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: plan must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: plan must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: plan must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: plan must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: plan must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: the value must be a JSON object\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: the value must be a JSON object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: repo must be a non-empty string\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: repo must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"message\": \"remote origin belongs to the nedap organisation; nothing is sent to any critic\",\n  \"reason\": \"nedap\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: spawn git ENOENT\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: @SANDBOX@/repos/bare/missing.md does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: @SANDBOX@/repos/bare/missing.md does not exist\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"check-plan input: missing.md does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: check-plan input: missing.md does not exist\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"EISDIR: illegal operation on a directory, read\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: EISDIR: illegal operation on a directory, read\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/dir/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"passed\",\n  \"errors\": [],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [\n    {\n      \"blocked_by\": [],\n      \"id\": \"S01\",\n      \"kind\": \"tidy\",\n      \"title\": \"Do the thing\"\n    }\n  ],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/dir/": null,
+        "work/extra.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+      }
+    },
+    {
+      "exit": 3,
+      "stdout": "{\n  \"status\": \"failed\",\n  \"errors\": [\n    {\n      \"message\": \"the plan has no \\\"## Goal\\\" section\",\n      \"rule\": \"missing-section\"\n    },\n    {\n      \"message\": \"the plan has no \\\"## Target\\\" section\",\n      \"rule\": \"missing-section\"\n    },\n    {\n      \"message\": \"the plan has no \\\"## Safety net\\\" section\",\n      \"rule\": \"missing-section\"\n    },\n    {\n      \"message\": \"the plan has no \\\"## Steps\\\" section\",\n      \"rule\": \"missing-section\"\n    },\n    {\n      \"message\": \"the plan has no \\\"## Not doing\\\" section\",\n      \"rule\": \"missing-section\"\n    },\n    {\n      \"message\": \"the plan has no \\\"## Open decisions\\\" section\",\n      \"rule\": \"missing-section\"\n    }\n  ],\n  \"notes\": [\n    \"ADR ids were not checked against docs/adr: no repo was given\"\n  ],\n  \"steps\": [],\n  \"stored_data_steps\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/dir/": null,
+        "work/extra.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "work/p.md": ""
+      }
+    },
+    {
+      "exit": 4,
+      "stdout": "{\n  \"message\": \"the repository has no remote, so it counts as not opted in\",\n  \"reason\": \"no-remote\",\n  \"status\": \"refused\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "work/dir/": null,
+        "work/extra.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "work/p.md": ""
+      }
+    }
+  ]
+}

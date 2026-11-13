@@ -1,0 +1,488 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"antigravity_quota\":null,\"search\":null,\"packet\":null,\"fallbacks\":null,\"stats\":null,\"gate\":null,\"triage\":null,\"cold_read\":null,\"stages\":{\"tickets\":{\"depth_signals\":null,\"ticket_size\":null}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"gate\":{\"merge_commits\":null}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-new\":{\"kind\":\"vibe\",\"binary\":\"vibe\",\"agent\":\"a\",\"model\":\"m\",\"family\":\"mistral\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-new\":{\"kind\":\"vibe\",\"binary\":\"vibe\",\"agent\":\"a\",\"model\":\"m\",\"family\":\"mistral\",\"prices\":{\"input\":1,\"cached_input\":0,\"output\":1},\"gateway\":{\"client\":\"vibe\",\"model\":\"x\"}}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-new\":{\"kind\":\"bogus\",\"binary\":\"vibe\",\"agent\":\"a\",\"model\":\"m\",\"family\":\"mistral\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"codex-work\":{\"family\":\"mistral\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"claude-work\":{\"family\":\"openai\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"agy-gemini-flash-high\":{\"model\":\"claude-x\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-glm\":{\"family\":\"anthropic\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-glm\":{\"gateway\":{\"client\":\"agy\"}}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-glm\":{\"prices\":{\"input\":0}}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-glm\":{\"prices\":{\"cached_input\":-1}}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"depth_signals\":{\"thresholds\":{\"bogus\":1}}}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"feature-review\":{\"depth_signals\":{\"thresholds\":{\"bogus\":1}}}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"extra\":{\"base\":[],\"distinct_families\":true,\"depth_signals\":{\"thresholds\":{\"x\":1}}}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"extra\":{\"base\":[{\"client\":\"vibe-glm\",\"role\":\"r\",\"lenses\":[],\"max_price_usd\":1,\"time_limit_s\":1}],\"deep\":[{\"client\":\"vibe-glm\",\"role\":\"r\",\"lenses\":[],\"max_price_usd\":1,\"time_limit_s\":1}],\"adr\":[{\"client\":\"vibe-glm\",\"role\":\"r\",\"lenses\":[],\"max_price_usd\":1,\"time_limit_s\":1}],\"work\":[{\"client\":\"claude-work\",\"role\":\"r\",\"lenses\":[],\"max_price_usd\":1,\"time_limit_s\":1}],\"distinct_families\":false}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"base\":[{\"client\":\"codex-work\",\"role\":\"r\",\"lenses\":[],\"max_price_usd\":1,\"time_limit_s\":1}]}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"adr\":[{\"client\":\"claude-work\",\"role\":\"r\",\"lenses\":[],\"max_price_usd\":1,\"time_limit_s\":1}]}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"deep\":[{\"client\":\"codex-work\",\"role\":\"r\",\"lenses\":[],\"max_price_usd\":1,\"time_limit_s\":1}]}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"work\":[{\"client\":\"vibe-glm\",\"role\":\"r\",\"lenses\":[],\"max_price_usd\":1,\"time_limit_s\":1}]}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"base\":[{\"client\":\"unknown-client\",\"role\":\"r\",\"lenses\":[],\"max_price_usd\":1,\"time_limit_s\":1}]}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"base\":[{\"client\":\"vibe-glm\"}]}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"fallbacks\":{\"codex-work\":[\"vibe-glm\"]}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"fallbacks\":{\"vibe-glm\":[\"claude-work\"]}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"fallbacks\":{\"vibe-glm\":\"x\"}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"model\":{\"client\":\"agy-gemini-flash-high\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"model\":{\"client\":\"nope\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"triage\":{\"labels\":\"x\"}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"codex-work\"}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"agy-gemini-flash-high\"}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"nope\"}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stats\":{\"removal_features\":0}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"antigravity_quota\":{\"daily_cap\":\"x\"}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"antigravity_quota\":{\"reserved_stages\":[\"nope\"]}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"antigravity_quota\":{\"daily_cap\":3,\"reserve_threshold\":1,\"reserved_stages\":[\"plan\"]}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"search\":{\"max_bytes\":0}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"packet\":{\"cap_bytes\":\"x\"}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"packet\":{\"exclude\":{\"vendored\":\"x\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"gate\":{\"merge_commits\":0}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"gate\":{\"feature_branches\":5}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"distinct_families\":\"yes\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"base\":\"x\"}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"ticket_size\":{\"max_modules\":1,\"max_criteria\":2}}}}"
+      }
+    },
+    {
+      "argv": [
+        "check-plan",
+        "--json",
+        "{\"plan\":\"sized.md\"}"
+      ],
+      "write": {
+        "work/sized.md": "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: a, b, c\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: a; b; c\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"vibe-glm\":5}}"
+      }
+    }
+  ]
+}
