@@ -29,6 +29,8 @@ mod merge_corpus;
 mod scenarios;
 mod session_start;
 mod shell_corpus;
+mod search_corpus;
+mod search_server;
 mod stats;
 mod stats_corpus;
 mod tickets_corpus;

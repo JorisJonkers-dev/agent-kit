@@ -35,3 +35,27 @@ fn the_usage_exits_2_on_stderr_and_help_exits_0_on_stdout() {
     let help = run(&["--help"], "");
     assert_eq!((help.status.code(), help.stderr.len(), help.stdout.starts_with(b"usage: critique ")), (Some(0), 0, true));
 }
+
+/// The search server answers each request while its client keeps standard input open, as Vibe's MCP client does.
+#[test]
+fn the_search_server_answers_a_line_before_its_input_closes() {
+    use std::io::{BufRead, BufReader};
+    let root = std::env::temp_dir().join(format!("critique-binary-search-{}", std::process::id()));
+    std::fs::create_dir_all(&root).expect("packet");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_critique"));
+    command.args(["search-server", "--root", &root.to_string_lossy()]).env_clear();
+    if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
+        command.env("LLVM_PROFILE_FILE", profile);
+    }
+    let mut child = command.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().expect("start the server");
+    let mut stdin = child.stdin.take().expect("stdin");
+    let mut replies = BufReader::new(child.stdout.take().expect("stdout"));
+    stdin.write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n").expect("write");
+    stdin.flush().expect("flush");
+    let mut line = String::new();
+    replies.read_line(&mut line).expect("read the reply");
+    assert_eq!(line, "{\"id\":1,\"jsonrpc\":\"2.0\",\"result\":{}}\n");
+    drop(stdin);
+    assert_eq!(child.wait().expect("finish").code(), Some(0));
+    let _ = std::fs::remove_dir_all(&root);
+}

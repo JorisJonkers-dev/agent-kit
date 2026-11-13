@@ -84,21 +84,18 @@ fn a_pattern_that_cannot_be_read_is_an_error() {
         (r"(?#c)b", "(?# is not supported"),
         (r"\d\q", "\\q is not supported"),
         (r"\1", "\\1 is not supported"),
-        (r"[\b]", "\\b in a class is not supported"),
+        (r"[\B]", "\\B in a class is not supported"),
+        (r"[a-\d]", "a class escape cannot end a range"),
+        (r"\B*", "nothing to repeat"),
         (r"^*", "nothing to repeat"),
         (r"\b{2}", "nothing to repeat"),
-        (r"(?", "a pattern ends with a backslash"),
+        (r"(?", "a group is not closed"),
     ] {
         assert_eq!(Regex::new(pattern, false).expect_err("an error"), message, "{pattern}");
     }
     assert_eq!(Regex::with_flags("a", "y").expect_err("an error"), "the flag y is not supported");
     assert_eq!(Regex::new("a{2,1}", false).expect_err("an error"), "numbers out of order in {} quantifier");
     assert_eq!(Regex::new("[z-a]", false).expect_err("an error"), "range out of order in character class");
-    assert_eq!(Regex::with_flags("café", "i").expect_err("an error"), "é is not supported with the i flag");
-    assert_eq!(Regex::with_flags("[A-z]", "i").expect_err("an error"), "the range A-z is not supported with the i flag");
-    assert_eq!(Regex::with_flags("[0-Z]", "i").expect_err("an error"), "the range 0-Z is not supported with the i flag");
-    assert!(Regex::with_flags("[0-9a-fA-F]", "i").is_ok());
-    assert!(Regex::with_flags("[A-z]", "").is_ok());
 }
 
 /// The first match of `pattern` with `flags` in `text`, with its groups.
@@ -122,6 +119,21 @@ fn dot_digits_and_control_escapes_match_as_javascript_does() {
 }
 
 #[test]
+fn negated_classes_control_and_numeric_escapes_match_as_javascript_does() {
+    assert_eq!(first(r"\S+\s\W\D", "", " ab !x"), Some(("ab !x".to_string(), vec![])));
+    assert_eq!(first(r"\Bb\B", "", "abc b"), Some(("b".to_string(), vec![])));
+    assert_eq!(first(r"[\S][\W][\D]", "", "a  a-x"), Some(("a  ".to_string(), vec![])));
+    assert_eq!(first(r"[\S][\W][\D]", "", "a-x"), Some(("a-x".to_string(), vec![])));
+    assert_eq!(first(r"[\b-\t]\f\v\0", "", "\u{8}\u{c}\u{b}\0"), Some(("\u{8}\u{c}\u{b}\0".to_string(), vec![])));
+    assert_eq!(first(r"[\d-z]+", "", "5-z"), Some(("5-z".to_string(), vec![])));
+    assert_eq!(first(r"[\x01-\b]", "", "\u{7}"), Some(("\u{7}".to_string(), vec![])));
+    assert_eq!(first(r"\0a", "", "x\0a"), Some(("\0a".to_string(), vec![])));
+    assert_eq!(Regex::new(r"\01", false).expect_err("an error"), "\\0 is not supported");
+    assert_eq!(first(r"\x41\u00e9\xZ\u12", "", "AéxZu12"), Some(("AéxZu12".to_string(), vec![])));
+    assert_eq!(first(r"\ud800", "", "x"), None);
+}
+
+#[test]
 fn braces_repeat_a_counted_number_of_times_or_read_as_a_literal_brace() {
     assert_eq!(first(r"^#{1,3} ", "", "#### x"), None);
     assert_eq!(first(r"#{1,3} ", "", "#### x"), Some(("### ".to_string(), vec![])));
@@ -142,6 +154,19 @@ fn a_lookahead_takes_no_text_and_a_failed_one_keeps_no_capture() {
     assert_eq!(first(r"(?=(a))a", "", "a"), Some(("a".to_string(), vec![Some("a".to_string())])));
     assert_eq!(first(r"(?:(?!(b)c)(a|b))+", "", "ab"), Some(("ab".to_string(), vec![None, Some("b".to_string())])));
     assert_eq!(first(r"(?=a)*b", "", "b"), Some(("b".to_string(), vec![])));
+}
+
+#[test]
+fn ignore_case_folds_as_javascript_canonicalizes() {
+    assert_eq!(first(r"café", "i", "CAFÉ"), Some(("CAFÉ".to_string(), vec![])));
+    assert_eq!(first(r"[A-z]", "i", "g"), Some(("g".to_string(), vec![])));
+    assert_eq!(first(r"[A-z]", "i", "_"), Some(("_".to_string(), vec![])));
+    assert_eq!(first(r"[à-ü]", "i", "À"), Some(("À".to_string(), vec![])));
+    assert_eq!(first(r"[^\x00-\x7f]", "i", "é"), Some(("é".to_string(), vec![])));
+    assert_eq!(first(r"[\u0100-\u017f]", "i", "S"), None);
+    assert_eq!(first(r"ß", "i", "ẞ"), None);
+    assert_eq!(first(r"[é]", "i", "É"), Some(("É".to_string(), vec![])));
+    assert_eq!(first(r"\u{10428}", "", "x"), None);
 }
 
 #[test]
