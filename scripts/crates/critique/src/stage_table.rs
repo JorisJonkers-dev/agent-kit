@@ -86,3 +86,43 @@ pub fn do_not_start(stage: &str) -> Option<&'static str> {
         _ => None,
     }
 }
+
+/// How a stage judges a finding's evidence: the rule `check_evidence` applies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EvidenceRule {
+    Decisions,
+    Spec,
+    Tickets,
+    Code,
+    Adrs,
+    Records,
+    Recovery,
+    Architecture,
+    Plan,
+}
+
+/// Whether the stage sends code rather than documents: the two stages that read a diff.
+pub fn is_code_stage(stage: &str) -> bool {
+    matches!(stage, "ticket-review" | "feature-review")
+}
+
+/// The evidence rule for a finding the critic of `role` raised at `stage`: the role's own there, else the stage's. The
+/// decisions stage's ADR critic reviews the records among the decisions, and a deep architecture review's decision
+/// recoverer follows the recovery rules.
+pub fn evidence_rule(stage: &str, role: Option<&str>) -> EvidenceRule {
+    match (stage, role) {
+        ("decisions", Some("adr-reviewer")) => return EvidenceRule::Records,
+        ("architecture-review", Some("decision-recoverer")) => return EvidenceRule::Recovery,
+        _ => {}
+    }
+    match stage {
+        "architecture-review" => EvidenceRule::Architecture,
+        "adr-review" => EvidenceRule::Adrs,
+        "decision-recovery" => EvidenceRule::Recovery,
+        "plan" => EvidenceRule::Plan,
+        "decisions" => EvidenceRule::Decisions,
+        "spec" => EvidenceRule::Spec,
+        "tickets" => EvidenceRule::Tickets,
+        _ => EvidenceRule::Code,
+    }
+}

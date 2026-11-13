@@ -52,3 +52,19 @@ pub fn build_configs(root_files: &[String]) -> Vec<String> {
     let others = root_files.iter().filter(|name| !is_layer_config(name) && any_matches(&BUILD_CONFIGS, name));
     layers.chain(others).take(BUILD_CONFIG_MAX_FILES).cloned().collect()
 }
+
+/// Whether a packet path is a layer-rule configuration held as a reference.
+pub fn is_layer_config_path(packet_path: &str) -> bool {
+    packet_path.starts_with("references/") && is_layer_config(packet_path.rsplit('/').next().unwrap_or_default())
+}
+
+/// The checks of the `dependency-direction` lens, which assume a layer rule: without a declared layer list, one of
+/// them is an unasked question, not a defect.
+pub const DEPENDENCY_CHECKS: [&str; 4] = ["inward-import", "port-in-adapter", "infrastructure-type-in-domain", "rule-in-adapter"];
+
+/// Whether a claim rests on a word that judges without measuring.
+pub fn has_verdict_word(claim: &str) -> bool {
+    let pattern = r"\b(cohesive|cohesion|leaky|leak(s|ing)?|anemic|tightly[- ]coupled|loosely[- ]coupled|clean|spaghetti|god[- ](class|object|module))\b";
+    let chars: Vec<char> = claim.chars().collect();
+    Regex::with_flags(pattern, "i").expect("the pattern compiles").find_at(&chars, 0).is_some()
+}
