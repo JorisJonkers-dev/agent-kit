@@ -754,3 +754,13 @@ fn a_resolved_repository_is_the_one_the_figures_are_limited_to() {
     assert_eq!(at(&cells[0], "runs"), Value::Num(1.0));
     assert_eq!(json::compact(&at(&result, "filter")), r#"{"repository":"github.com/owner/repo"}"#);
 }
+
+/// A stage the routing has no roster for routes to no client (node: `routing.stages[stage]?.base ?? []`). The ledger
+/// only holds known stages, so the command never asks; the shipped routing answers for one it does hold.
+#[test]
+fn a_stage_routing_lacks_routes_to_no_client() {
+    let shipped = json::parse(model_gateway::SHIPPED_ROUTING).expect("shipped routing");
+    let routing = crate::routing::parse_routing(&shipped).expect("routing");
+    assert!(crate::stats_command::routed_clients(&routing, "no-such-stage").is_empty());
+    assert!(!crate::stats_command::routed_clients(&routing, "spec").is_empty());
+}

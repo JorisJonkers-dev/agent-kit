@@ -69,7 +69,7 @@ fn valid_day(year: i64, month: i64, day: i64) -> bool {
 }
 
 /// The clients a stage's base and adr rosters route to now.
-fn routed_clients(routing: &Routing, stage: &str) -> Vec<String> {
+pub(crate) fn routed_clients(routing: &Routing, stage: &str) -> Vec<String> {
     let Some(found) = routing.stages.iter().find(|(name, _)| name == stage).map(|(_, found)| found) else {
         return Vec::new();
     };
