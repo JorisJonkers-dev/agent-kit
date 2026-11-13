@@ -550,7 +550,7 @@ takes no registry dependency: it reuses the ordered JSON, the ports and the adap
 
 * **Ported so far:** the command line (usage, `--input`/`--json`/standard input, error
   and exit codes, `--strict`), `allow`, `check-adrs`, `check-plan` and `check-rewrite` (the deterministic checkers; check-plan reads the routing the node runner reads, the shipped `routing.json` embedded in the binary with this machine's override merged over it and the whole result validated; its refactoring-plan format is a hand-written port; the regular expressions of the
-  node runner are hand-written scanners here, since the crate takes no registry dependency). Every other command, and a valid `hook`, answers
+  node runner are hand-written scanners here, since the crate takes no registry dependency), `cold-read`, `reviews` and `stats` (both ledgers merged as the node runner merges them, figures, calibration, removal candidates and the rendered report). Every other command, and a valid `hook`, answers
   `{"code":"not-ported",...}` and exits 1; they arrive in later slices. `search-server` is
   not ported and prints the usage. Known differences: JSON syntax-error context is windowed in
   characters, not UTF-16 units, a lone surrogate in a string reads as U+FFFD, JSON nested hundreds of thousands deep overflows the stack instead of reading as the wrong shape, an empty or relative `HOME` is read as an absolute path, and an `--input` path is normalised lexically (a trailing `/` or `..` through a symlink). Sorting that follows `localeCompare(…, 'en')` (`collate.rs`, used by `reviews`) matches node for all ASCII, every one-character pair checked; text beyond ASCII sorts after all of ASCII by code point, where ICU sorts an accented letter with its base letter.
