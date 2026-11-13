@@ -127,6 +127,10 @@ impl Git for TreeGit {
     fn write_index_tree(&self, _cwd: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
+    fn commit_log(&self, _cwd: &str, _revision: &str, _paths: &[String], _limit: usize) -> Result<Vec<crate::recovery::HistoryEntry>, String> {
+        Err("unused".to_string())
+    }
+
     fn commit_tree(&self, _cwd: &str, _tree: &str, _parent: &str, _message: &str) -> Result<String, String> {
         Err("unused".to_string())
     }
@@ -318,4 +322,15 @@ fn a_tree_git_cannot_read_is_an_unexpected_failure() {
     assert_eq!(read_tracked_tree(&refused, "/r", "c", &limits).unwrap_err().code, "unexpected");
     // The default runtime's git fails on a tree it cannot read.
     assert_eq!(read_tracked_tree(&runtime(""), "/r", "c", &default_packet_limits()).unwrap_err().code, "unexpected");
+}
+
+#[test]
+fn a_window_that_holds_ranges_is_frozen_with_them() {
+    use crate::packet_files::frozen_window;
+    use crate::tree_sample::{LineRange, SampledWindow};
+    let prefix = frozen_window(&SampledWindow { last: 40, lines: 90, ranges: None });
+    assert_eq!((prefix.last, prefix.lines, prefix.ranges), (40.0, 90.0, None));
+    let sliced = frozen_window(&SampledWindow { last: 20, lines: 90, ranges: Some(vec![LineRange { first: 3, last: 5 }, LineRange { first: 9, last: 20 }]) });
+    let held: Vec<(f64, f64)> = sliced.ranges.expect("ranges").iter().map(|range| (range.first, range.last)).collect();
+    assert_eq!(held, vec![(3.0, 5.0), (9.0, 20.0)]);
 }

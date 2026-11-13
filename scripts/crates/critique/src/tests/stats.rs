@@ -621,6 +621,10 @@ impl Git for FakeGit {
         Err("unused".to_string())
     }
 
+    fn commit_log(&self, _cwd: &str, _revision: &str, _paths: &[String], _limit: usize) -> Result<Vec<crate::recovery::HistoryEntry>, String> {
+        Err("unused".to_string())
+    }
+
     fn commit_tree(&self, _cwd: &str, _tree: &str, _parent: &str, _message: &str) -> Result<String, String> {
         Err("unused".to_string())
     }

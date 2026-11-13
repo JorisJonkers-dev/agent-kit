@@ -1,6 +1,7 @@
 //! What the runner asks git: a path's remotes, its repository root and its
 //! common directory. The words of a failure are the node adapter's.
 
+use crate::recovery::HistoryEntry;
 use model_gateway::adapters::fs::fail;
 use model_gateway::ports::GitRemote;
 use model_gateway::text::js_trim;
@@ -35,6 +36,9 @@ pub trait Git: Send + Sync {
     fn tree_of(&self, cwd: &str, revision: &str) -> Result<String, String>;
     /// Writes the index's tree objects and returns the top tree's id.
     fn write_index_tree(&self, cwd: &str) -> Result<String, String>;
+    /// The commits reachable from `revision` that changed any of the paths, newest first, at most `limit`: each with its
+    /// message and the paths it changed among them. Nothing, without asking git, when there are no paths.
+    fn commit_log(&self, cwd: &str, revision: &str, paths: &[String], limit: usize) -> Result<Vec<HistoryEntry>, String>;
     /// Writes a commit object holding `tree` with `parent` as its parent and returns its id; no ref moves.
     fn commit_tree(&self, cwd: &str, tree: &str, parent: &str, message: &str) -> Result<String, String>;
     /// The commits `head` has that `base` does not, newest first, each with its tree and parents.
@@ -200,6 +204,22 @@ pub fn parse_remote_line(line: &str) -> Option<GitRemote> {
     Some(GitRemote { name: name.to_string(), url: url.to_string() })
 }
 
+/// The records of `git log --format=%x1e%H%x00%cI%x00%s%x00%b%x00 --name-only -z`: each is a commit, its date, its
+/// subject, its body and the paths it changed.
+pub fn parse_commit_log(listing: &str) -> Vec<HistoryEntry> {
+    listing
+        .split('\u{1e}')
+        .filter(|record| !js_trim(record).is_empty())
+        .map(|record| {
+            let mut fields = record.split('\0');
+            let mut next = || fields.next().unwrap_or_default().to_string();
+            let (commit, date, subject, body) = (next(), next(), next(), next());
+            let files = fields.map(|file| js_trim(file).to_string()).filter(|file| !file.is_empty()).collect();
+            HistoryEntry { body: js_trim(&body).to_string(), commit, date, files, subject }
+        })
+        .collect()
+}
+
 /// The paths a `-z` listing holds.
 fn nul_paths(listing: &str) -> Vec<String> {
     listing.split('\0').filter(|path| !path.is_empty()).map(str::to_string).collect()
@@ -282,6 +302,17 @@ impl Git for SystemGit {
 
     fn write_index_tree(&self, cwd: &str) -> Result<String, String> {
         self.run(cwd, &["write-tree"], &[0]).map(|out| js_trim(&out).to_string())
+    }
+
+    fn commit_log(&self, cwd: &str, revision: &str, paths: &[String], limit: usize) -> Result<Vec<HistoryEntry>, String> {
+        if paths.is_empty() {
+            return Ok(Vec::new());
+        }
+        let max = format!("--max-count={limit}");
+        let mut args: Vec<&str> =
+            vec!["--literal-pathspecs", "log", &max, "--format=%x1e%H%x00%cI%x00%s%x00%b%x00", "--name-only", "-z", "--end-of-options", revision, "--"];
+        args.extend(paths.iter().map(String::as_str));
+        Ok(parse_commit_log(&self.run(cwd, &args, &[0])?))
     }
 
     fn commit_tree(&self, cwd: &str, tree: &str, parent: &str, message: &str) -> Result<String, String> {

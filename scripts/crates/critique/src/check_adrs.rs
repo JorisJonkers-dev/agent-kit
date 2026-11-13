@@ -39,7 +39,7 @@ pub fn log_records(runtime: &Runtime, root: &str) -> Vec<String> {
 }
 
 /// Reads the decision log's records and checks its structure, then what the tree and its history say about the code the records name.
-fn check_log(runtime: &Runtime, root: &str, paths: &[String]) -> Result<Value, CritiqueError> {
+pub fn check_log(runtime: &Runtime, root: &str, paths: &[String]) -> Result<Value, CritiqueError> {
     let mut sources = Vec::new();
     for path in paths {
         let text = runtime.files.read_text(&join(&[root, path])).map_err(CritiqueError::from_fs)?;
