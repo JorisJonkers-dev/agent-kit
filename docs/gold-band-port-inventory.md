@@ -124,8 +124,8 @@ Declared in `registry/estate-tooling.yaml` (`mcp_servers:`, and `hindsight` via
 | hindsight | `registry/estate-tooling.yaml` (`coding_agents:`), registered by `installer/setup-workstation.sh` | Hindsight recall-inject memory server for Claude Code and Codex. | MCP server | direct, gold-band, gold-band-personal | Ported read-only for agents (decision 5). |
 | git-host | `runner/manifests/runtime/mcp/claude-mcp-servers.*.json`, `codex-mcp-servers.*.toml`, via `bin/gh-mcp-wrapper` | GitHub MCP for the runner image through the wrapper and its gh-app token. | MCP server | direct, gold-band, gold-band-personal | |
 | code-intel | `runner/manifests/runtime/mcp/*code-intel*`, `*cluster*`, `*full-diagnostic*` | LSP-backed semantic code intelligence (serena), no-memories mode. | MCP server | direct, gold-band, gold-band-personal | |
-| frontend-docs | `runner/manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json`, `...cluster.json`, cod equivalents | Frontend docs server via a build-time `@FRONTEND_DOCS_MCP_URL@` placeholder. | MCP server | direct, gold-band, gold-band-personal | |
-| ui-docs | same runner profiles | UI docs server via a build-time `@UI_DOCS_MCP_URL@` placeholder. | MCP server | direct, gold-band, gold-band-personal | |
+| frontend-docs | `runner/manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json`, `...cluster.json`, cod equivalents | Frontend docs server via a build-time `@FRONTEND_DOCS_MCP_URL@` placeholder. | stays outside | direct | Stays outside: no URL source exists for it anywhere (#631). |
+| ui-docs | same runner profiles | UI docs server via a build-time `@UI_DOCS_MCP_URL@` placeholder. | stays outside | direct | Stays outside: no URL source exists for it anywhere (#631). |
 | cluster | same runner profiles (plus `claude-mcp-servers.cluster.json`) | Cluster MCP via a build-time `@CLUSTER_MCP_URL@` placeholder. | MCP server | direct, gold-band, gold-band-personal | |
 
 ## Planned
@@ -238,6 +238,4 @@ Last because each needs an owner-run dependency first: the code-nav server (B7-0
 | MCP servers/hindsight | MCP server | B3-15 |
 | MCP servers/git-host | MCP server | B3-15 |
 | MCP servers/code-intel | MCP server | B3-15 |
-| MCP servers/frontend-docs | MCP server | B3-15 |
-| MCP servers/ui-docs | MCP server | B3-15 |
 | MCP servers/cluster | MCP server | B3-15 |
