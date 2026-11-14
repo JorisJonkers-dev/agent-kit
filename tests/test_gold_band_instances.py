@@ -192,7 +192,9 @@ def test_the_work_instance_may_name_a_hindsight_server_of_the_nedap_bank(tmp_pat
     overlay = _overlay(
         tmp_path,
         "instances:\n  gold-band:\n    mcp_servers:\n"
-        "      hindsight: {url: 'https://hindsight.example/mcp/nedap/', env: {HINDSIGHT_NEDAP_TOKEN: $HINDSIGHT_NEDAP_TOKEN}}\n",
+        "      hindsight:\n"
+        "        url: 'https://hindsight.example/mcp/nedap/'\n"
+        "        env: {HINDSIGHT_NEDAP_TOKEN: $HINDSIGHT_NEDAP_TOKEN}\n",
     )
 
     assert gbi.validate(_registry(), overlay) == []
