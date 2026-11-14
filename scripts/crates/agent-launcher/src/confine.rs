@@ -314,6 +314,11 @@ fn interpreter(script: &Path, env: &Env) -> Option<PathBuf> {
 /// the confinement cannot be applied; otherwise it does not return, for the
 /// process has become the command (unless the command cannot be started).
 pub fn confine(args: &[OsString], limit: &dyn WriteLimit) -> i32 {
+    confine_from(args, limit, 3)
+}
+
+/// [`confine`], closing the descriptors from `first_fd` up before the exec (a test passes one far above its own).
+fn confine_from(args: &[OsString], limit: &dyn WriteLimit, first_fd: libc::c_uint) -> i32 {
     let spec = match parse(args) {
         Ok(spec) => spec,
         Err(message) => {
@@ -340,7 +345,7 @@ pub fn confine(args: &[OsString], limit: &dyn WriteLimit) -> i32 {
     command.env_clear().envs(kept_env(std::env::vars_os(), &spec.env));
     // SAFETY: arming only makes syscalls; the launcher is single-threaded
     // here, so the limit covers the whole process the command becomes.
-    unsafe { command.pre_exec(confine_hook(armed, 3)) };
+    unsafe { command.pre_exec(confine_hook(armed, first_fd)) };
     let error = command.exec();
     eprintln!("{NAME}: confine: cannot start {} under the confinement: {error}; nothing started", Path::new(&spec.command[0]).display());
     // The hook may have closed the descriptor the ruleset is held in; dropping it would abort instead of exiting.

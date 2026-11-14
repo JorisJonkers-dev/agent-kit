@@ -112,7 +112,8 @@ fn the_summary_names_the_grants_and_the_network() {
 #[test]
 fn a_command_that_cannot_be_started_or_armed_is_refused() {
     // exec only returns on failure, so this process is never replaced here.
-    assert_eq!(confine(&args(&["--", "/nonexistent/agent-launcher-cmd"]), &Fake::Fine), REFUSED);
+    // The hook closes descriptors from the one given up, so a far one keeps this process's own.
+    assert_eq!(confine_from(&args(&["--", "/nonexistent/agent-launcher-cmd"]), &Fake::Fine, 1 << 20), REFUSED);
     assert_eq!(confine(&args(&["--", "/bin/sh", "-c", "exit 0"]), &Fake::ArmFails), REFUSED);
 }
 
