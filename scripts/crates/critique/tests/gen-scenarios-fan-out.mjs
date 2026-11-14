@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { AGENT, CONFINE_EXEC, confineWrite } from './pi-confine-fixture.mjs'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const SB = '@SANDBOX@'
@@ -150,7 +151,7 @@ scenarios['fan-out-work'] = [
   }),
 ]
 
-// Pi critics over LiteLLM routes: Pi is started directly with the prompt on stdin, and its JSON event stream decides
+// Pi critics over LiteLLM routes: Pi is started through the fake agent-launcher, confined, with the prompt on stdin, and its JSON event stream decides
 // the outcome. The fake `pi` keeps its argv and stdin beside the packet, so both runners must launch it the same way.
 const PI = { binary: 'pi', family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
 const PI_B = { binary: 'pi', family: 'deepseek', kind: 'pi', model: 'deepseek-v4-flash', provider: 'litellm-opencode-go' }
@@ -166,7 +167,7 @@ const piEvents = (text, { calls = [], stopReason = 'stop', errorMessage, usage =
 const piSays = (text, options) => `printf '%s\\n' ${q(piEvents(text, options))}\nexit 0`
 const block = (structured) => `Review.\n\`\`\`json\n${JSON.stringify(structured)}\n\`\`\``
 const fakePi = (cases) =>
-  `#!/bin/sh\nprintf '%s\\n' "$@" > "$PWD/../argv.txt"\ncat > "$PWD/../stdin.txt"\ncase "$PWD" in\n${Object.entries(cases)
+  `#!/bin/sh\nprintf '%s\\n' "$@" > "$PWD/../argv.txt"\ncat > "$PWD/../stdin.txt"\n${AGENT}case "$PWD" in\n${Object.entries(cases)
     .map(([id, body]) => `*/critics/${id}/packet)\n${body}\n;;`)
     .join('\n')}\n*)\nexit 9\n;;\nesac\n`
 const PI_FAMILIES = { allowed_families: ['zhipu', 'deepseek'] }
@@ -177,6 +178,8 @@ scenarios['fan-out-pi'] = [
       ...run('p2', [piCritic('p2a', { fallbacks: [] }), piCritic('p2b', { fallbacks: [] }), piCritic('p2c', { fallbacks: [] })], { extra: { ...PI_FAMILIES, distinct_families: false } }),
       ...run('p3', [piCritic('p3a', { fallbacks: [] }), piCritic('p3b', { fallbacks: [] }), piCritic('p3c', { fallbacks: [] })], { extra: { ...PI_FAMILIES, distinct_families: false } }),
       ...run('p4', [piCritic('p4c')], { extra: PI_FAMILIES }),
+      ...run('p5', [piCritic('p5c', { fallbacks: [] })], { extra: PI_FAMILIES }),
+      ...confineWrite({ '/critics/p5c': 'agent-launcher: confine: the confinement cannot be applied here: Landlock ABI 3 cannot limit the network; nothing started' }),
       'bin/pi': fakePi({
         p1c: piSays(block({ findings: [found('a')] }), { calls: [['read', { path: 'artifact/spec.md' }], ['grep', { pattern: 'retry', path: 'references' }], ['ls', {}]] }),
         p2a: piSays(block({ findings: [found('a')] }), { calls: [['bash', { command: 'ls' }], ['edit', { path: 'x' }], ['bash', { command: 'pwd' }]] }),
@@ -190,11 +193,12 @@ scenarios['fan-out-pi'] = [
       }),
       'repos/r/README.md': '# r\n',
     },
-    exec: ['bin/pi'], shims: ['env', 'git', 'cat', 'sleep'], path: ['bin'], git: GIT, roots: ['runs'],
+    exec: ['bin/pi', ...CONFINE_EXEC], shims: ['env', 'git', 'cat', 'sleep'], path: ['bin'], git: GIT, roots: ['runs'],
   }),
   go('p2', stateless({ roots: ['runs'] })),
   go('p3', stateless({ roots: ['runs'] })),
   go('p4', stateless({ roots: ['runs'] })),
+  go('p5', stateless({ roots: ['runs'] })),
 ]
 
 // What a run must be before it is fanned out, and the input errors, in the order the command meets them.

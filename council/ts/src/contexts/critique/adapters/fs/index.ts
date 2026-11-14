@@ -1,4 +1,4 @@
-import { access, appendFile, mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, appendFile, chmod, mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 
 import type { CritiqueFilesPort } from '../../application/ports.js'
@@ -53,6 +53,17 @@ export class NodeCritiqueFiles implements CritiqueFilesPort {
 
   async remove(path: string): Promise<void> {
     await rm(path, { force: true })
+  }
+
+  async removeTree(path: string): Promise<void> {
+    await rm(path, { force: true, recursive: true })
+  }
+
+  async writePrivate(path: string, content: string): Promise<void> {
+    await mkdir(dirname(path), { mode: 0o700, recursive: true })
+    await writeFile(path, content, { mode: 0o600 })
+    // A file that was already there keeps its mode through writeFile.
+    await chmod(path, 0o600)
   }
 
   async symlink(target: string, path: string): Promise<void> {
