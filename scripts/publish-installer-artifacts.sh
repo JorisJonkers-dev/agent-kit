@@ -59,6 +59,8 @@ KIT_PATHS=(
   scripts/install-model-gateway-rust.sh
   scripts/install-critique-rust.sh
   scripts/fold-profile-settings.py
+  scripts/pi-merge-providers.py
+  registry/generated/pi/providers.json
   scripts/instruction-block.py
   scripts/package-proxy-merge.py
   scripts/gold-band/build-linux.sh
