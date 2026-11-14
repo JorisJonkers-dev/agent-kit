@@ -156,8 +156,8 @@ scenarios['setup-read-only'] = [
 // Pi clients over LiteLLM routes, named by this machine's routing override: the provider check reads `pi auth check`
 // and `pi --list-models` for free, the trivial prompt spends on the route once confirmed, and the read-only item is not
 // available. The fake `pi` keeps a launch's argv and stdin beside its packet.
-const PI_A = { family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
-const PI_B = { binary: 'pi', family: 'deepseek', kind: 'pi', model: 'deepseek-v4-flash', provider: 'litellm-opencode-go' }
+const PI_A = { data_scope: 'any', family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
+const PI_B = { binary: 'pi', data_scope: 'any', family: 'deepseek', kind: 'pi', model: 'deepseek-v4-flash', provider: 'litellm-opencode-go' }
 const PI_OVERRIDE = { [OVERRIDE]: `${JSON.stringify({ clients: { 'pi-vibe-study-glm': PI_A, 'pi-opencode-go-deepseek': PI_B } })}\n` }
 const piEvents = (text, stopReason = 'stop') =>
   [{ type: 'session' }, { message: { content: [{ text, type: 'text' }], role: 'assistant', stopReason, usage: { cacheRead: 0, cost: { total: 0.0004 }, input: 900, output: 30 } }, type: 'message_end' }]

@@ -79,5 +79,5 @@ pub fn resolve_for_roster(runtime: &Runtime, cwd: &str) -> Result<RosterResoluti
 
 /// What a `nedap` repository's entry is, whatever its allowlist says: the work families, with code and history.
 pub fn work_entry() -> Entry {
-    Entry { code: true, families: vec!["anthropic".to_string(), "openai".to_string()], history: true, updated_at: String::new() }
+    Entry { code: true, families: vec!["anthropic".to_string(), "openai".to_string()], history: true, public: false, updated_at: String::new() }
 }

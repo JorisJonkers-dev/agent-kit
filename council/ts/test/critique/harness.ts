@@ -1395,6 +1395,31 @@ function workClients(named: { readonly codex?: ClientReadiness; readonly claude?
   }
 }
 
+/**
+ * The shipped assets with the Vibe-login rosters (`vibe-roster.json`) in place of the Pi rosters
+ * `routing.json` ships, built once per process. Most tests drive the Vibe client, its plan limit and its
+ * fallbacks, so the harness gives them this unless they ask for `shippedRoster`.
+ */
+let vibeRosterAssets: Promise<string> | undefined
+
+function vibeRoster(): Promise<string> {
+  vibeRosterAssets ??= (async () => {
+    const root = await mkdtemp(join(tmpdir(), 'critique-assets-'))
+    await cp(ASSETS_ROOT, root, { recursive: true })
+    const shipped = JSON.parse(await readFile(join(root, 'routing.json'), 'utf8')) as Record<string, unknown>
+    const legacy = JSON.parse(await readFile(join(dirname(fileURLToPath(import.meta.url)), 'vibe-roster.json'), 'utf8')) as Record<string, unknown>
+    await writeFile(join(root, 'routing.json'), JSON.stringify({ ...shipped, fallbacks: legacy.fallbacks, stages: legacy.stages }))
+    process.once('exit', () => void rm(root, { force: true, recursive: true }))
+    return root
+  })()
+  return vibeRosterAssets
+}
+
+/** The shipped routing with the Vibe-login rosters, as the harness runs it by default. */
+export async function vibeRosterRouting(): Promise<Record<string, unknown>> {
+  return JSON.parse(await readFile(join(await vibeRoster(), 'routing.json'), 'utf8')) as Record<string, unknown>
+}
+
 export const AGENT_KIT_REMOTE: GitRemote = {
   name: 'origin',
   url: 'git@github.com:JorisJonkers-dev/agent-kit.git',
@@ -1474,13 +1499,16 @@ export async function harness(
     readonly grants?: readonly Record<string, unknown>[]
     /** Wires the Pi critic client over a stubbed `pi`; no Pi client is wired unless named. */
     readonly piCli?: PiCli
+    /** Runs on the rosters `routing.json` ships (Pi critics first) instead of the Vibe-login rosters tests use by default. */
+    readonly shippedRoster?: boolean
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
-  let assetsRoot = ASSETS_ROOT
+  const source = options.routing === undefined && options.shippedRoster !== true ? await vibeRoster() : ASSETS_ROOT
+  let assetsRoot = source
   if (options.routing !== undefined || options.assets !== undefined) {
     assetsRoot = join(base, 'assets')
-    await cp(ASSETS_ROOT, assetsRoot, { recursive: true })
+    await cp(source, assetsRoot, { recursive: true })
     if (options.routing !== undefined) await writeFile(join(assetsRoot, 'routing.json'), JSON.stringify(options.routing))
     for (const [path, rewrite] of Object.entries(options.assets ?? {})) {
       await writeFile(join(assetsRoot, path), rewrite(await readFile(join(assetsRoot, path), 'utf8')))

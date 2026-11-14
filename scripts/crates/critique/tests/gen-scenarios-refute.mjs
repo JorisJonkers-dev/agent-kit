@@ -80,7 +80,8 @@ const agyStep = (cases, write = {}, extra = {}) => ({ write: { ...write, 'bin/ag
 const REPO = { git: [['init', '-q', '--template=', 'repos/r'], ['-C', 'repos/r', 'remote', 'add', 'origin', 'git@github.com:o/r.git']], write: { 'repos/r/README.md': '# r\n' } }
 const repoCommit = [['-C', 'repos/r', 'add', '-A'], ['-C', 'repos/r', 'commit', '-q', '-m', 'x']]
 const OVERRIDE = 'home/.config/agent-kit/critique-routing.json'
-const slot = (client) => shipped.stages.spec.base.find((entry) => entry.client === client)
+// The shipped roster is Pi first: a Vibe or agy client of these scenarios takes its slot's role, lenses and caps from the Pi client that holds it there.
+const slot = (client) => ({ ...shipped.stages.spec.base.find((entry) => entry.client === (client === 'vibe-mistral-large' ? 'pi-vibe-mistral-large' : client)), client })
 // Only the base roster, so the candidates are the base clients and their fallbacks.
 const routing = (over = {}) => `${JSON.stringify({ stages: { spec: { base: [slot('vibe-mistral-large'), slot('agy-gemini-flash-high')], deep: [], ...over } } })}\n`
 
@@ -199,7 +200,7 @@ scenarios['refute-code'] = [
 
 // A Pi refuter over a LiteLLM route: started through the fake agent-launcher, confined, with the prompt on stdin, its JSON event stream read as a critic's
 // is, and logged as a pi launch. The fake `pi` keeps its argv and stdin beside the refuter's packet.
-const PI = { family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
+const PI = { data_scope: 'any', family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
 const piRouting = `${JSON.stringify({ clients: { 'pi-vibe-study-glm': PI }, stages: { spec: { base: [{ ...slot('vibe-mistral-large'), client: 'pi-vibe-study-glm' }], deep: [] } } })}\n`
 const piSays = (structured, calls = []) =>
   `printf '%s\\n' ${q(
@@ -226,6 +227,19 @@ scenarios['refute-pi'] = Object.keys(PI_CASES).map((id, index) =>
     roots: ['runs'],
   }),
 )
+
+// A client on a public-only route never refutes for a repository that is not recorded as public: the run's manifest
+// says public_repository only when the allowlist entry did, so the first run skips the Pi refuter and the second uses it.
+const PI_PUBLIC = { ...PI, data_scope: 'public' }
+const publicRouting = `${JSON.stringify({ clients: { 'pi-public-glm': PI_PUBLIC }, stages: { spec: { base: [{ ...slot('vibe-mistral-large'), client: 'pi-public-glm' }], deep: [] } } })}\n`
+const scopeRuns = {
+  ...run('scope-private', [finding('p1')], { manifestExtra: { allowed_families: ['mistral', 'zhipu'] } }),
+  ...run('scope-public', [finding('p1')], { manifestExtra: { allowed_families: ['mistral', 'zhipu'], public_repository: true } }),
+}
+scenarios['refute-data-scope'] = [
+  go('scope-private', accept('p1'), { write: { ...scopeRuns, 'bin/pi': fakePi({ p1: PI_CASES.p1 }), ...confineWrite(), [OVERRIDE]: publicRouting, ...REPO.write }, exec: ['bin/pi', ...CONFINE_EXEC], shims: ['env', 'git', 'cat'], path: ['bin'], git: [...REPO.git, ...repoCommit], roots: ['runs'] }),
+  go('scope-public', accept('p1'), { path: ['bin'], roots: ['runs'] }),
+]
 
 // A step names its PATH: the sandbox's bin/ with the host's env and git linked in, so a CLI the host happens to have
 // installed (vibe, agy) never changes what the step sees.

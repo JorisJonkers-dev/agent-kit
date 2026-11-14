@@ -126,12 +126,12 @@ fn a_dropped_critic_names_the_first_wrong_field() {
     assert_eq!(shape(r#"{"client":"a","reason":"quota"}"#, read_dropped_critic), "family must be one of mistral, zhipu, deepseek, google, anthropic, openai");
     assert_eq!(
         shape(r#"{"client":"a","family":"mistral"}"#, read_dropped_critic),
-        "reason must be one of family-not-allowed, orchestrator-family, same-family, unavailable, quota, no-grant"
+        "reason must be one of family-not-allowed, orchestrator-family, same-family, unavailable, quota, no-grant, data-scope"
     );
     assert_eq!(shape(r#"{"client":"a","family":"mistral","reason":"quota","deep":"yes"}"#, read_dropped_critic), "deep must be true or false");
 }
 
 #[test]
 fn the_drop_reasons_are_the_ones_a_manifest_may_name() {
-    assert_eq!(DROP_REASONS, ["family-not-allowed", "orchestrator-family", "same-family", "unavailable", "quota", "no-grant"]);
+    assert_eq!(DROP_REASONS, ["family-not-allowed", "orchestrator-family", "same-family", "unavailable", "quota", "no-grant", "data-scope"]);
 }

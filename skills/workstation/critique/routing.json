@@ -15,6 +15,55 @@
       "family": "anthropic",
       "gateway": { "client": "claude", "model": "claude-sonnet-5-5" }
     },
+    "pi-vibe-mistral-large": {
+      "kind": "pi",
+      "provider": "litellm-vibe",
+      "model": "mistral-large",
+      "family": "mistral",
+      "data_scope": "any"
+    },
+    "pi-vibe-glm": {
+      "kind": "pi",
+      "provider": "litellm-vibe",
+      "model": "glm-5.3",
+      "family": "zhipu",
+      "data_scope": "any"
+    },
+    "pi-vibe-deepseek-flash": {
+      "kind": "pi",
+      "provider": "litellm-vibe",
+      "model": "deepseek-v4.1-flash",
+      "family": "deepseek",
+      "data_scope": "any"
+    },
+    "pi-opencode-go-mistral-large": {
+      "kind": "pi",
+      "provider": "litellm-opencode-go",
+      "model": "mistral-large",
+      "family": "mistral",
+      "data_scope": "any"
+    },
+    "pi-opencode-go-glm": {
+      "kind": "pi",
+      "provider": "litellm-opencode-go",
+      "model": "glm-5.3",
+      "family": "zhipu",
+      "data_scope": "any"
+    },
+    "pi-opencode-go-deepseek-flash": {
+      "kind": "pi",
+      "provider": "litellm-opencode-go",
+      "model": "deepseek-v4.1-flash",
+      "family": "deepseek",
+      "data_scope": "any"
+    },
+    "pi-public-gemini-flash": {
+      "kind": "pi",
+      "provider": "litellm-public",
+      "model": "public/gemini-3.8-flash",
+      "family": "google",
+      "data_scope": "public"
+    },
     "vibe-mistral-large": {
       "kind": "vibe",
       "binary": "vibe",
@@ -125,8 +174,10 @@
     "merge_commits": 50
   },
   "fallbacks": {
-    "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],
-    "agy-gemini-flash-high": ["vibe-glm"]
+    "pi-vibe-mistral-large": ["pi-opencode-go-mistral-large", "vibe-mistral-large"],
+    "pi-vibe-glm": ["pi-opencode-go-glm", "vibe-glm"],
+    "pi-vibe-deepseek-flash": ["pi-opencode-go-deepseek-flash", "vibe-deepseek-flash"],
+    "agy-gemini-flash-high": ["pi-vibe-glm", "vibe-glm", "pi-public-gemini-flash"]
   },
   "packet": {
     "cap_bytes": 153600,
@@ -161,7 +212,7 @@
       ],
       "base": [
         {
-          "client": "vibe-mistral-large",
+          "client": "pi-vibe-mistral-large",
           "role": "gap-critic",
           "lenses": ["unasked-questions"],
           "max_price_usd": 0.3,
@@ -177,7 +228,7 @@
       ],
       "adr": [
         {
-          "client": "vibe-deepseek-flash",
+          "client": "pi-vibe-deepseek-flash",
           "role": "adr-reviewer",
           "lenses": ["adr-record"],
           "max_price_usd": 0.3,
@@ -186,7 +237,7 @@
       ],
       "deep": [
         {
-          "client": "vibe-glm",
+          "client": "pi-vibe-glm",
           "role": "gap-critic",
           "lenses": ["integration"],
           "max_price_usd": 0.3,
@@ -233,7 +284,7 @@
       ],
       "base": [
         {
-          "client": "vibe-mistral-large",
+          "client": "pi-vibe-mistral-large",
           "role": "spec-redteam",
           "lenses": ["fidelity", "testability"],
           "max_price_usd": 0.5,
@@ -249,14 +300,14 @@
       ],
       "deep": [
         {
-          "client": "vibe-glm",
+          "client": "pi-vibe-glm",
           "role": "spec-redteam",
           "lenses": ["integration", "operability"],
           "max_price_usd": 0.5,
           "time_limit_s": 600
         },
         {
-          "client": "vibe-deepseek-flash",
+          "client": "pi-vibe-deepseek-flash",
           "role": "spec-redteam",
           "lenses": ["simplicity", "fidelity"],
           "max_price_usd": 0.5,
@@ -304,7 +355,7 @@
       ],
       "base": [
         {
-          "client": "vibe-deepseek-flash",
+          "client": "pi-vibe-deepseek-flash",
           "role": "ticket-linter",
           "lenses": ["testability"],
           "max_price_usd": 1,
@@ -313,7 +364,7 @@
       ],
       "deep": [
         {
-          "client": "vibe-mistral-large",
+          "client": "pi-vibe-mistral-large",
           "role": "ticket-linter",
           "lenses": ["simplicity"],
           "max_price_usd": 1,
@@ -371,7 +422,7 @@
       ],
       "deep": [
         {
-          "client": "vibe-mistral-large",
+          "client": "pi-vibe-mistral-large",
           "role": "diff-reviewer",
           "lenses": ["integration"],
           "max_price_usd": 0.5,
@@ -403,7 +454,7 @@
       ],
       "base": [
         {
-          "client": "vibe-mistral-large",
+          "client": "pi-vibe-mistral-large",
           "role": "feature-reviewer",
           "lenses": ["integration"],
           "max_price_usd": 1,
@@ -419,14 +470,14 @@
       ],
       "deep": [
         {
-          "client": "vibe-glm",
+          "client": "pi-vibe-glm",
           "role": "feature-reviewer",
           "lenses": ["operability"],
           "max_price_usd": 1,
           "time_limit_s": 720
         },
         {
-          "client": "vibe-deepseek-flash",
+          "client": "pi-vibe-deepseek-flash",
           "role": "feature-reviewer",
           "lenses": ["simplicity"],
           "max_price_usd": 1,
@@ -461,7 +512,7 @@
       ],
       "base": [
         {
-          "client": "vibe-deepseek-flash",
+          "client": "pi-vibe-deepseek-flash",
           "role": "plan-critic",
           "lenses": [
             "incremental-safety"
@@ -470,7 +521,7 @@
           "time_limit_s": 600
         },
         {
-          "client": "vibe-mistral-large",
+          "client": "pi-vibe-mistral-large",
           "role": "plan-critic",
           "lenses": [
             "evidence-anchoring"
@@ -481,7 +532,7 @@
       ],
       "deep": [
         {
-          "client": "vibe-glm",
+          "client": "pi-vibe-glm",
           "role": "plan-critic",
           "lenses": [
             "coupling",
@@ -552,7 +603,7 @@
           "time_limit_s": 600
         },
         {
-          "client": "vibe-mistral-large",
+          "client": "pi-vibe-mistral-large",
           "role": "architecture-critic",
           "lenses": [
             "domain-language",
@@ -564,7 +615,7 @@
       ],
       "deep": [
         {
-          "client": "vibe-glm",
+          "client": "pi-vibe-glm",
           "role": "architecture-critic",
           "lenses": [
             "test-seams",
@@ -574,7 +625,7 @@
           "time_limit_s": 600
         },
         {
-          "client": "vibe-deepseek-flash",
+          "client": "pi-vibe-deepseek-flash",
           "role": "decision-recoverer",
           "lenses": [],
           "max_price_usd": 0.5,
@@ -608,14 +659,14 @@
       ],
       "base": [
         {
-          "client": "vibe-deepseek-flash",
+          "client": "pi-vibe-deepseek-flash",
           "role": "decision-recoverer",
           "lenses": [],
           "max_price_usd": 0.5,
           "time_limit_s": 600
         },
         {
-          "client": "vibe-mistral-large",
+          "client": "pi-vibe-mistral-large",
           "role": "decision-recoverer",
           "lenses": [],
           "max_price_usd": 0.5,
@@ -646,7 +697,7 @@
       ],
       "base": [
         {
-          "client": "vibe-mistral-large",
+          "client": "pi-vibe-mistral-large",
           "role": "adr-reviewer",
           "lenses": ["adr-record"],
           "max_price_usd": 0.5,
@@ -662,7 +713,7 @@
       ],
       "deep": [
         {
-          "client": "vibe-glm",
+          "client": "pi-vibe-glm",
           "role": "adr-reviewer",
           "lenses": ["adr-record", "decision-log"],
           "max_price_usd": 0.5,

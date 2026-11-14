@@ -153,8 +153,8 @@ scenarios['fan-out-work'] = [
 
 // Pi critics over LiteLLM routes: Pi is started through the fake agent-launcher, confined, with the prompt on stdin, and its JSON event stream decides
 // the outcome. The fake `pi` keeps its argv and stdin beside the packet, so both runners must launch it the same way.
-const PI = { binary: 'pi', family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
-const PI_B = { binary: 'pi', family: 'deepseek', kind: 'pi', model: 'deepseek-v4-flash', provider: 'litellm-opencode-go' }
+const PI = { binary: 'pi', data_scope: 'any', family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
+const PI_B = { binary: 'pi', data_scope: 'any', family: 'deepseek', kind: 'pi', model: 'deepseek-v4-flash', provider: 'litellm-opencode-go' }
 const piCritic = (id, extra = {}) => critic(id, { client: 'pi-vibe-study-glm', client_config: PI, fallbacks: [{ client: 'pi-opencode-go-deepseek', client_config: PI_B }], ...extra })
 const piEvents = (text, { calls = [], stopReason = 'stop', errorMessage, usage = { cacheRead: 30, cost: { total: 0.0021 }, input: 100, output: 20 } } = {}) =>
   [
