@@ -1190,16 +1190,19 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
     assert caps == {
         "vibe": 255, "vibe-study": 127.5, "opencode-go": 60, "openrouter": None, "local": None, "public": 5,
     }
-    # A key holds access groups of canonical models, not a provider wildcard each.
+    # A key holds access groups of canonical models, not a provider wildcard each. The free local
+    # route alone adds its own wildcard, so local/<id> answers before the catalogue deploys it.
     assert {route["agent"]: route["models"] for route in table["routes"]} == {
         "vibe": ["canonical"],
         "vibe-study": ["canonical"],
         "opencode-go": ["canonical"],
         "openrouter": ["openrouter-free-public"],
-        "local": ["canonical"],
+        "local": ["canonical", "local/*"],
         "public": ["google-free-public", "canonical"],
     }
-    assert not any("*" in model or "/" in model for route in table["routes"] for model in route["models"])
+    for route in table["routes"]:
+        wildcards = [model for model in route["models"] if "*" in model or "/" in model]
+        assert wildcards == (["local/*"] if route["agent"] == "local" else []), route["agent"]
     assert table["base_url"].startswith("https://")
     assert "key_header" not in table and "edge_token_env" not in table
     # Names of variables only: the keys live in the secret store.
@@ -1299,6 +1302,11 @@ def test_the_admin_token_script_makes_a_one_hour_management_key_and_no_agent_key
         (lambda d: d["litellm"]["routes"][0].update(budget_duration="7d"), "budget_duration must be 30d"),
         (lambda d: d["litellm"]["routes"][4].update(budget_duration="30d"), "budget_duration must be 30d"),
         (lambda d: d["litellm"]["routes"][0].update(models=["vibe/*"]), "access group names"),
+        # Only an uncapped route may hold a wildcard, only its own, and never alone.
+        (lambda d: d["litellm"]["routes"][0].update(models=["canonical", "vibe/*"]), "access group names"),
+        (lambda d: d["litellm"]["routes"][4].update(models=["canonical", "vibe/*"]), "access group names"),
+        (lambda d: d["litellm"]["routes"][4].update(models=["local/*"]), "access group names"),
+        (lambda d: d["litellm"]["routes"][4].update(models=["canonical", "local/*", "local/*"]), "must not repeat"),
         (lambda d: d["litellm"]["routes"][0].update(models=["*"]), "access group names"),
         (lambda d: d["litellm"]["routes"][0].update(models=[]), "access group names"),
         (lambda d: d["litellm"]["routes"][0].update(models=["canonical", "canonical"]), "must not repeat"),

@@ -5905,10 +5905,18 @@ def _validate_litellm(data: dict[str, Any]) -> None:
         scope = route["data_scope"]
         if scope not in ("any", "public"):
             raise RegistryError(f"litellm route {agent}: data_scope must be any or public")
-        groups = route["models"]
+        # An uncapped (free) route may also hold its own provider wildcard, `<agent>/*`, so its key
+        # reaches any id that provider serves before the catalogue deploys it. LiteLLM puts no
+        # wildcard in an access group without an Enterprise licence, so the key holds it by name.
+        own_wildcard = f"{agent}/*"
+        wildcards = [g for g in route["models"] if g == own_wildcard] if budget is None else []
+        groups = [g for g in route["models"] if g not in wildcards]
         if not groups or not all(isinstance(g, str) and re.fullmatch(r"[a-z][a-z0-9-]*", g) for g in groups):
-            raise RegistryError(f"litellm route {agent}: models must be access group names, never a wildcard")
-        if len(set(groups)) != len(groups):
+            raise RegistryError(
+                f"litellm route {agent}: models must be access group names, never a wildcard "
+                f"(an uncapped route may add its own {own_wildcard})",
+            )
+        if len(set(route["models"])) != len(route["models"]):
             raise RegistryError(f"litellm route {agent}: models must not repeat an access group")
         public_groups = sorted(set(groups) & set(LITELLM_PUBLIC_GROUPS))
         if public_groups and scope != "public":
@@ -6011,6 +6019,8 @@ def litellm_route_models(access_groups: list[str]) -> list[str]:
     groups = json.loads((KIT_ROOT / LITELLM_ACCESS_GROUPS).read_text())["groups"]
     models: set[str] = set()
     for group in access_groups:
+        if group.endswith("/*"):
+            continue  # a route's own provider wildcard names no model to list
         if group not in groups:
             raise RegistryError(f"litellm access group {group!r} is not in {LITELLM_ACCESS_GROUPS}")
         models.update(groups[group])

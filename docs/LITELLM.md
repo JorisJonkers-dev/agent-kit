@@ -13,10 +13,12 @@ token numbers are never used; the proxy's refusal is the only budget signal.
 | `vibe-study` | `LITELLM_VIBE_STUDY_KEY` | 127.50 EUR | `canonical` | every canonical model |
 | `opencode-go` | `LITELLM_OPENCODE_GO_KEY` | 60 EUR | `canonical` | every canonical model |
 | `openrouter` | `LITELLM_OPENROUTER_KEY` | none | `openrouter-free-public` | OpenRouter's free `:free` models only, nothing paid; **public work only** |
-| `local` | `LITELLM_LOCAL_KEY` | none | `canonical` | every canonical model, the GPU workstation's server (free) among them; the key has no cap, so use it for local models only |
+| `local` | `LITELLM_LOCAL_KEY` | none | `canonical`, `local/*` | every canonical model, and `local/<id>` for any id the GPU workstation's server (free) serves, such as `local/qwen3:32b`; the key has no cap, so use it for local models only |
 | `public` | `LITELLM_PUBLIC_KEY` | 5 EUR | `google-free-public`, `canonical` | the free-tier Google models, and the paid fallbacks; **public work only** |
 
-A key lists **access groups**, not a provider wildcard: a caller sends one canonical model
+A key lists **access groups**, not a provider wildcard (the free `local` key alone adds its own
+`local/*`: LiteLLM puts a wildcard in an access group only with an Enterprise licence, so the key
+names it): a caller sends one canonical model
 name (`glm-5.3`, `mistral-large`, `claude-sonnet-4-5`, ...) and the proxy routes it across the
 provider accounts by priority (litellm#20), so the agent id no longer picks the provider. Every paid
 deployment, and the local one, is in `canonical`. The free-tier deployments are not: each free
@@ -218,11 +220,12 @@ The cap is 255 (LiteLLM's unit), the window is `30d`, and LiteLLM resets the spe
   (`vibe_api_general_key`, `vibe_study_api_general_key`, `google_api_key`, `anthropic_api_key`) are
   written the same way (estate#382); Anthropic: a $100 monthly spend limit, auto-reload off;
   OpenCode Go: Extra Usage off.
-- The local model server, reachable from the cluster: Ollama on the workstation
-  already serves an OpenAI-compatible `/v1` (nix-config `ollama-rocm.nix`, port
-  11434), but a Project's pods reach nothing outside the cluster except the
-  public internet, so the `local` route answers 502 until the follow-up ticket
-  makes it reachable.
+- The local model server's gate key: Ollama on the workstation listens on loopback, and a
+  keyed gate serves its `/v1` on the tailnet address, port 11435 (nix-config
+  `services.llmLocalGate`, agent-kit#569). The same key is in
+  `/var/lib/secrets/llm-local-gate.key` on the workstation and in Vault as
+  `local_llm_api_key` (`./bootstrap/secrets.sh --only litellm` in estate). A pod
+  without it gets 401; while a game holds the GPU the gate answers 503 at once.
 - Optionally a private `JorisJonkers-dev/litellm-model-catalog` repository and a
   fine-grained token on it, as `catalog_publish_token`.
 
