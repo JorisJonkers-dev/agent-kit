@@ -184,7 +184,8 @@ workstation_secrets:
 # -------------------------------------------------------------------
 litellm:
   base_url: "https://litellm.jorisjonkers.dev/v1"
-  # Each route is one virtual key. `models` are ACCESS GROUP names, not wildcards: a key reaches
+  # Each route is one virtual key. `models` are ACCESS GROUP names (plus, on an uncapped route
+  # only, that route's own `<agent>/*` wildcard), not provider wildcards: a key reaches
   # the canonical models (one name per model, routed across the provider accounts by priority,
   # litellm#20) that carry one of its groups. Every paid (and local) deployment is in
   # `canonical`. The free-tier deployments are not: a free-tier provider may train on the
@@ -221,13 +222,15 @@ litellm:
       budget_duration: null
       data_scope: public
       models: ["openrouter-free-public"]
-    # The OpenAI-compatible model server on the GPU workstation: free, so no cap.
+    # The OpenAI-compatible model server on the GPU workstation: free, so no cap. It also holds
+    # its own wildcard, so local/<id> reaches whatever the server serves (qwen3:32b) before the
+    # catalogue deploys it under its canonical name (agent-kit#569).
     - agent: local
       key_env: LITELLM_LOCAL_KEY
       budget_eur: null
       budget_duration: null
       data_scope: any
-      models: ["canonical"]
+      models: ["canonical", "local/*"]
     # Public, non-sensitive work only: the one key with the Google free-tier group. It also
     # holds `canonical`, so a Gemini model falls over to the paid deployments when the free tier
     # refuses; the small cap bounds that.
