@@ -189,7 +189,8 @@ pub fn place(prompt: &str) -> Result<Place, String> {
             .find_map(|line| line.trim().strip_prefix("- ")?.strip_prefix(label))
             .map(str::trim)
             .ok_or_else(|| format!("the prompt names no `{}`", label.trim_end()))?;
-        component(value).ok_or_else(|| format!("`{}` is not a plain name: {}", label.trim_end(), value))
+        component(value)
+            .ok_or_else(|| format!("`{}` is not a plain name: {}", label.trim_end(), value))
     };
     let attempt = field("Attempt: ")?;
     let number = attempt
@@ -338,7 +339,12 @@ impl Pinned {
 
     /// The command and the report directory of one shim for this run, the
     /// directory created.
-    fn command(&self, cwd: &str, place: &Place, shim: &str) -> Result<(Vec<String>, PathBuf), String> {
+    fn command(
+        &self,
+        cwd: &str,
+        place: &Place,
+        shim: &str,
+    ) -> Result<(Vec<String>, PathBuf), String> {
         let dir = place.report_dir(&self.config.report_root, shim);
         fs::create_dir_all(&dir)
             .map_err(|error| format!("cannot create {}: {}", dir.display(), error))?;
@@ -399,8 +405,8 @@ impl Pinned {
             .join("findings-check.json");
         let text = fs::read_to_string(&path)
             .map_err(|error| format!("cannot read {}: {}", path.display(), error))?;
-        let report: Value = serde_json::from_str(&text)
-            .map_err(|_| format!("{} is not JSON", path.display()))?;
+        let report: Value =
+            serde_json::from_str(&text).map_err(|_| format!("{} is not JSON", path.display()))?;
         if report.get("run_id").and_then(Value::as_str) != Some(place.run_id().as_str()) {
             return Err(format!("{} is for another run", path.display()));
         }
@@ -416,7 +422,11 @@ impl Pinned {
 ///
 /// Blank lines and lines that are not a JSON object are skipped; every frame is
 /// written as one line of compact JSON and flushed.
-pub fn serve<R: BufRead, W: Write>(input: R, output: &mut W, config: Config) -> std::io::Result<()> {
+pub fn serve<R: BufRead, W: Write>(
+    input: R,
+    output: &mut W,
+    config: Config,
+) -> std::io::Result<()> {
     let mut agent = Pinned::new(config);
     for line in input.lines() {
         let line = line?;

@@ -5,9 +5,10 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs;
 use std::io::{BufRead, Write};
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
@@ -20,6 +21,8 @@ use crate::stub;
 
 /// The process exit code of a refused run.
 pub const REFUSED: i32 = 5;
+/// The exit code of a live run killed at its `--timeout` limit.
+pub const TIMED_OUT: i32 = 6;
 
 /// The seconds one `gold-band run` may take when `--timeout` is not given.
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
@@ -32,7 +35,7 @@ usage: gold-band-proof prove --workflow FILE [--gold-band BIN] [--gold-band-comm
        gold-band-proof check --workflow FILE [--record-dir DIR] [--build-record FILE]
        gold-band-proof run   --workflow FILE [--record-dir DIR] [--build-record FILE]
                              [--gold-band BIN] [--pins FILE [--instance-home DIR]]
-                             [-- <gold-band run arguments>]
+                             [--timeout SECS] [-- <gold-band run arguments>]
 
 prove  run the workflow headless against the stub agent and record the proof
        (a scenario verdict is clean, needs-human, fail, gate-fail=NAME or
@@ -40,7 +43,8 @@ prove  run the workflow headless against the stub agent and record the proof
 check  refuse unless a passing proof of the workflow is recorded
 run    check, then start `gold-band run` for the workflow; with --pins, in a
        run home that adds a pinned shim agent for every gate, copier and
-       verdict id to the instance's agents (docs/gold-band-proof.md)
+       verdict id to the instance's agents (docs/gold-band-proof.md); with --pins,
+       --timeout kills the live run and its processes after that many seconds
 ";
 
 /// Everything the command line reads from outside its arguments.
@@ -84,6 +88,8 @@ struct Options {
     scenarios: Vec<String>,
     /// The seconds one `gold-band run` may take.
     timeout_secs: u64,
+    /// The wall-clock limit a live run was given with `--timeout`, if any.
+    run_limit: Option<u64>,
     /// The arguments after `--`, for `run`.
     extra: Vec<OsString>,
     /// The pins file of a live run, for `run`.
@@ -101,7 +107,7 @@ enum Invocation {
     /// Serve the pinned shim agent on the given streams.
     PinnedAcp,
     /// One of the commands that names a workflow.
-    Command(Options),
+    Command(Box<Options>),
 }
 
 /// Runs one command line against `env` and the given streams, and returns the
@@ -185,6 +191,7 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
     let mut build_record: Option<PathBuf> = None;
     let mut scenarios: Vec<String> = Vec::new();
     let mut timeout_secs = DEFAULT_TIMEOUT_SECS;
+    let mut run_limit: Option<u64> = None;
     let mut extra: Vec<OsString> = Vec::new();
     let mut pins: Option<PathBuf> = None;
     let mut instance_home: Option<PathBuf> = None;
@@ -212,7 +219,10 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
             "--record-dir" => record_dir = Some(PathBuf::from(value(args, &mut index, &flag)?)),
             "--build-record" => build_record = Some(PathBuf::from(value(args, &mut index, &flag)?)),
             "--scenario" => scenarios.push(text(args, &mut index, &flag)?),
-            "--timeout" => timeout_secs = timeout(&text(args, &mut index, &flag)?)?,
+            "--timeout" => {
+                timeout_secs = timeout(&text(args, &mut index, &flag)?)?;
+                run_limit = Some(timeout_secs);
+            }
             "--pins" | "--instance-home" if command != Subcommand::Run => {
                 return Err(format!("`{}` is only for `run`", flag));
             }
@@ -231,7 +241,7 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
     if instance_home.is_some() && pins.is_none() {
         return Err("`--instance-home` needs `--pins`".to_string());
     }
-    Ok(Invocation::Command(Options {
+    Ok(Invocation::Command(Box::new(Options {
         command,
         workflow,
         gold_band,
@@ -240,10 +250,11 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
         build_record,
         scenarios,
         timeout_secs,
+        run_limit,
         extra,
         pins,
         instance_home,
-    }))
+    })))
 }
 
 /// The value of the flag at `index`, advancing past it.
@@ -398,8 +409,14 @@ fn run_command(options: &Options, env: &Env, stderr: &mut dyn Write) -> i32 {
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
-    match command.status() {
-        Ok(status) => status.code().unwrap_or(3),
+    // A live run may be bounded by `--timeout`; its own process group is
+    // killed at the limit so no agent outlives the run.
+    let limit = options.pins.as_ref().and(options.run_limit);
+    if limit.is_some() {
+        command.process_group(0);
+    }
+    let mut child = match command.spawn() {
+        Ok(child) => child,
         Err(error) => {
             let _ = writeln!(
                 stderr,
@@ -407,8 +424,34 @@ fn run_command(options: &Options, env: &Env, stderr: &mut dyn Write) -> i32 {
                 program.display(),
                 error
             );
-            3
+            return 3;
         }
+    };
+    let Some(limit) = limit else {
+        return child
+            .wait()
+            .ok()
+            .and_then(|status| status.code())
+            .unwrap_or(3);
+    };
+    let deadline = Instant::now() + Duration::from_secs(limit);
+    loop {
+        if let Ok(Some(status)) = child.try_wait() {
+            return status.code().unwrap_or(3);
+        }
+        if Instant::now() >= deadline {
+            let group = format!("-{}", child.id());
+            let _ = Command::new("kill").args(["-KILL", "--", &group]).status();
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = writeln!(
+                stderr,
+                "gold-band-proof: the live run passed its limit of {} seconds and was killed",
+                limit
+            );
+            return TIMED_OUT;
+        }
+        std::thread::sleep(Duration::from_millis(200));
     }
 }
 
@@ -444,10 +487,16 @@ fn pinned_acp(
 /// Builds the run home of a live run and returns it, or every reason the run
 /// cannot be bound.
 fn live_home(options: &Options, pins: &Path, env: &Env) -> Result<PathBuf, Vec<String>> {
-    let text = fs::read_to_string(pins)
-        .map_err(|error| vec![format!("cannot read the pins file {}: {}", pins.display(), error)])?;
+    let text = fs::read_to_string(pins).map_err(|error| {
+        vec![format!(
+            "cannot read the pins file {}: {}",
+            pins.display(),
+            error
+        )]
+    })?;
     let pins = live::parse_pins(&text).map_err(|problem| vec![problem])?;
-    let workflow = fs::read_to_string(&options.workflow).map_err(|error| vec![error.to_string()])?;
+    let workflow =
+        fs::read_to_string(&options.workflow).map_err(|error| vec![error.to_string()])?;
     let info = harness::inspect(&workflow).map_err(|problem| vec![problem])?;
     let instance_home = options
         .instance_home
@@ -464,7 +513,10 @@ fn live_home(options: &Options, pins: &Path, env: &Env) -> Result<PathBuf, Vec<S
     values.insert("tools".to_string(), tools.to_string_lossy().into_owned());
     values.extend(head_commit().map(|base| ("base".to_string(), base)));
     if let Some(requirement) = requirement_file(&options.extra) {
-        values.insert("requirement".to_string(), requirement.to_string_lossy().into_owned());
+        values.insert(
+            "requirement".to_string(),
+            requirement.to_string_lossy().into_owned(),
+        );
     }
     live::compose(&LiveInputs {
         info: &info,
@@ -492,7 +544,9 @@ fn head_commit() -> Option<String> {
 /// The requirement file the run arguments name, made absolute against the
 /// working directory, since the gates run from the node's.
 fn requirement_file(extra: &[OsString]) -> Option<PathBuf> {
-    let index = extra.iter().position(|argument| argument == "--requirement-file")?;
+    let index = extra
+        .iter()
+        .position(|argument| argument == "--requirement-file")?;
     let path = PathBuf::from(extra.get(index + 1)?);
     if path.is_absolute() {
         return Some(path);

@@ -57,8 +57,8 @@ pub struct Pins {
 
 /// The pins a pins file holds, or why it is refused.
 pub fn parse_pins(text: &str) -> Result<Pins, String> {
-    let value: Value =
-        serde_json::from_str(text).map_err(|error| format!("the pins file is not JSON: {}", error))?;
+    let value: Value = serde_json::from_str(text)
+        .map_err(|error| format!("the pins file is not JSON: {}", error))?;
     let Some(object) = value.as_object() else {
         return Err("the pins file is not a JSON object".to_string());
     };
@@ -130,7 +130,13 @@ pub struct LiveInputs<'a> {
 }
 
 /// The settings entry of one pinned shim agent.
-fn pinned_entry(inputs: &LiveInputs, agent_id: &str, role: &Role, command: &[String], reports: &Path) -> Value {
+fn pinned_entry(
+    inputs: &LiveInputs,
+    agent_id: &str,
+    role: &Role,
+    command: &[String],
+    reports: &Path,
+) -> Value {
     let models = inputs
         .info
         .models
@@ -159,15 +165,30 @@ fn pinned_entry(inputs: &LiveInputs, agent_id: &str, role: &Role, command: &[Str
 /// run cannot be bound.
 pub fn compose(inputs: &LiveInputs) -> Result<PathBuf, Vec<String>> {
     let settings_path = inputs.instance_home.join(".gold-band/settings.json");
-    let text = fs::read_to_string(&settings_path)
-        .map_err(|error| vec![format!("cannot read {}: {}", settings_path.display(), error)])?;
+    let text = fs::read_to_string(&settings_path).map_err(|error| {
+        vec![format!(
+            "cannot read {}: {}",
+            settings_path.display(),
+            error
+        )]
+    })?;
     let mut settings: Map<String, Value> = match serde_json::from_str::<Value>(&text) {
         Ok(Value::Object(object)) => object,
-        _ => return Err(vec![format!("{} is not a JSON object", settings_path.display())]),
+        _ => {
+            return Err(vec![format!(
+                "{} is not a JSON object",
+                settings_path.display()
+            )])
+        }
     };
     let mut agents = match settings.remove("agents") {
         Some(Value::Object(agents)) => agents,
-        _ => return Err(vec![format!("{} has no agents map", settings_path.display())]),
+        _ => {
+            return Err(vec![format!(
+                "{} has no agents map",
+                settings_path.display()
+            )])
+        }
     };
     let reports = inputs.run_home.join("reports");
     let mut problems = Vec::new();
@@ -208,12 +229,18 @@ pub fn compose(inputs: &LiveInputs) -> Result<PathBuf, Vec<String>> {
             _ => match shim_command(inputs.pins, &shim) {
                 Some(command) => command.clone(),
                 None => {
-                    problems.push(format!("agent {}: the pins file names no command for `{}`", agent_id, shim));
+                    problems.push(format!(
+                        "agent {}: the pins file names no command for `{}`",
+                        agent_id, shim
+                    ));
                     continue;
                 }
             },
         };
-        added.insert(agent_id.clone(), pinned_entry(inputs, agent_id, role, &command, &reports));
+        added.insert(
+            agent_id.clone(),
+            pinned_entry(inputs, agent_id, role, &command, &reports),
+        );
     }
     if !problems.is_empty() {
         return Err(problems);

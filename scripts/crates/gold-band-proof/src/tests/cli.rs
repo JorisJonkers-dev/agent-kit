@@ -8,7 +8,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::cli::{run, run_with, Env, REFUSED};
+use crate::cli::{run, run_with, Env, REFUSED, TIMED_OUT};
 use crate::record::{self, write_record, Outcome, Record, ScenarioResult};
 use crate::refuse::{load_workflow, Workflow};
 
@@ -1467,7 +1467,10 @@ fn proven_live(dir: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let fake = script(
         dir,
         "gold-band",
-        &format!("#!/bin/sh\necho \"$GOLD_BAND_HOME\" \"$@\" > {}\nexit 0\n", seen.display()),
+        &format!(
+            "#!/bin/sh\necho \"$GOLD_BAND_HOME\" \"$@\" > {}\nexit 0\n",
+            seen.display()
+        ),
     );
     (workflow, proofs, fake, seen)
 }
@@ -1484,9 +1487,17 @@ fn pinned_acp_serves_the_pinned_agent() {
         _ => None,
     };
     let env = env_for(&get, &dir);
-    let output = drive(&["pinned-acp"], &env, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}\n");
+    let output = drive(
+        &["pinned-acp"],
+        &env,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}\n",
+    );
     assert_eq!(output.code, 0, "{}", output.err);
-    assert!(output.out.contains("\"protocolVersion\":1"), "{}", output.out);
+    assert!(
+        output.out.contains("\"protocolVersion\":1"),
+        "{}",
+        output.out
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -1511,7 +1522,8 @@ fn pinned_acp_reports_a_broken_output() {
     };
     let env = env_for(&get, &dir);
     let args = vec![OsString::from("pinned-acp")];
-    let mut stdin = io::Cursor::new(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}\n".to_vec());
+    let mut stdin =
+        io::Cursor::new(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}\n".to_vec());
     let mut err: Vec<u8> = Vec::new();
     assert_eq!(run_with(&args, &env, &mut stdin, &mut Broken, &mut err), 1);
     let _ = fs::remove_dir_all(&dir);
@@ -1527,9 +1539,17 @@ fn the_live_flags_are_only_for_run_and_the_instance_home_needs_pins() {
         assert_eq!(output.code, 2);
         assert!(output.err.contains("is only for `run`"), "{}", output.err);
     }
-    let output = drive(&["run", "--workflow", "w.json", "--instance-home", "x"], &env, "");
+    let output = drive(
+        &["run", "--workflow", "w.json", "--instance-home", "x"],
+        &env,
+        "",
+    );
     assert_eq!(output.code, 2);
-    assert!(output.err.contains("`--instance-home` needs `--pins`"), "{}", output.err);
+    assert!(
+        output.err.contains("`--instance-home` needs `--pins`"),
+        "{}",
+        output.err
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -1539,7 +1559,11 @@ fn a_live_run_starts_gold_band_in_a_run_home_with_the_pinned_agents() {
     let (workflow, proofs, fake, seen) = proven_live(&dir);
     let instance = dir.join("instance");
     fs::create_dir_all(instance.join(".gold-band")).unwrap();
-    fs::write(instance.join(".gold-band/settings.json"), r#"{"agents":{"vibe":{}}}"#).unwrap();
+    fs::write(
+        instance.join(".gold-band/settings.json"),
+        r#"{"agents":{"vibe":{}}}"#,
+    )
+    .unwrap();
     let pins = dir.join("pins.json");
     fs::write(&pins, r#"{"version":1,"shims":{"build":["true"]}}"#).unwrap();
     let state = dir.join("state").to_string_lossy().into_owned();
@@ -1568,12 +1592,25 @@ fn a_live_run_starts_gold_band_in_a_run_home_with_the_pinned_agents() {
     assert_eq!(output.code, 0, "{}", output.err);
     let line = fs::read_to_string(&seen).unwrap();
     let home = line.split_whitespace().next().unwrap().to_string();
-    assert!(home.starts_with(&format!("{}/state/agent-kit/gold-band/live/cli-proof-", dir.display())), "{home}");
-    assert!(output.err.contains(&format!("live run home {}", home)), "{}", output.err);
+    assert!(
+        home.starts_with(&format!(
+            "{}/state/agent-kit/gold-band/live/cli-proof-",
+            dir.display()
+        )),
+        "{home}"
+    );
+    assert!(
+        output.err.contains(&format!("live run home {}", home)),
+        "{}",
+        output.err
+    );
     let settings = fs::read_to_string(Path::new(&home).join(".gold-band/settings.json")).unwrap();
     assert!(settings.contains("\"gate-build\""), "{settings}");
     assert!(settings.contains("requirement.md"), "{settings}");
-    assert!(settings.contains("\\\"tools\\\":\\\"/usr/bin\\\""), "{settings}");
+    assert!(
+        settings.contains("\\\"tools\\\":\\\"/usr/bin\\\""),
+        "{settings}"
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -1583,7 +1620,11 @@ fn a_live_run_takes_the_instance_from_the_environment_and_an_absolute_requiremen
     let (workflow, proofs, fake, seen) = proven_live(&dir);
     let instance = dir.join("instance");
     fs::create_dir_all(instance.join(".gold-band")).unwrap();
-    fs::write(instance.join(".gold-band/settings.json"), r#"{"agents":{"vibe":{}}}"#).unwrap();
+    fs::write(
+        instance.join(".gold-band/settings.json"),
+        r#"{"agents":{"vibe":{}}}"#,
+    )
+    .unwrap();
     let pins = dir.join("pins.json");
     fs::write(&pins, r#"{"version":1,"shims":{"build":["true"]}}"#).unwrap();
     let instance_text = instance.to_string_lossy().into_owned();
@@ -1611,10 +1652,99 @@ fn a_live_run_takes_the_instance_from_the_environment_and_an_absolute_requiremen
     let output = drive(&args, &env, "");
     assert_eq!(output.code, 0, "{}", output.err);
     let line = fs::read_to_string(&seen).unwrap();
-    assert!(line.starts_with(&format!("{}/.local/state/agent-kit/gold-band/live/", dir.display())), "{line}");
+    assert!(
+        line.starts_with(&format!(
+            "{}/.local/state/agent-kit/gold-band/live/",
+            dir.display()
+        )),
+        "{line}"
+    );
     let home = line.split_whitespace().next().unwrap();
     let settings = fs::read_to_string(Path::new(home).join(".gold-band/settings.json")).unwrap();
     assert!(settings.contains("/abs/requirement.md"), "{settings}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The arguments of a live run bounded by `--timeout`.
+fn bounded_live(
+    dir: &Path,
+    fake: &Path,
+    workflow: &Path,
+    proofs: &Path,
+    seconds: &str,
+) -> (Vec<String>, PathBuf) {
+    let instance = dir.join("instance");
+    fs::create_dir_all(instance.join(".gold-band")).unwrap();
+    fs::write(
+        instance.join(".gold-band/settings.json"),
+        r#"{"agents":{"vibe":{}}}"#,
+    )
+    .unwrap();
+    let pins = dir.join("pins.json");
+    fs::write(&pins, r#"{"version":1,"shims":{"build":["true"]}}"#).unwrap();
+    let args = [
+        "run",
+        "--workflow",
+        workflow.to_str().unwrap(),
+        "--record-dir",
+        proofs.to_str().unwrap(),
+        "--gold-band",
+        fake.to_str().unwrap(),
+        "--pins",
+        pins.to_str().unwrap(),
+        "--instance-home",
+        instance.to_str().unwrap(),
+        "--timeout",
+        seconds,
+    ];
+    (args.iter().map(|arg| arg.to_string()).collect(), instance)
+}
+
+#[test]
+fn a_bounded_live_run_that_finishes_keeps_its_exit_code() {
+    let dir = temp_dir("livebounded");
+    let (workflow, proofs, fake, _seen) = proven_live(&dir);
+    let (args, _) = bounded_live(&dir, &fake, &workflow, &proofs, "60");
+    let state = dir.join("state").to_string_lossy().into_owned();
+    let get = move |name: &str| (name == "XDG_STATE_HOME").then(|| state.clone());
+    let env = env_for(&get, &dir);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let output = drive(&args, &env, "");
+    assert_eq!(output.code, 0, "{}", output.err);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_bounded_live_run_that_passes_its_limit_is_killed_with_its_children() {
+    let dir = temp_dir("livelimit");
+    let (workflow, proofs, _fake, _seen) = proven_live(&dir);
+    let pid_file = dir.join("child.pid");
+    let slow = script(
+        &dir,
+        "slow-gold-band",
+        &format!(
+            "#!/bin/sh\nsleep 300 &\necho $! > {}\nwait\n",
+            pid_file.display()
+        ),
+    );
+    let (args, _) = bounded_live(&dir, &slow, &workflow, &proofs, "1");
+    let state = dir.join("state").to_string_lossy().into_owned();
+    let get = move |name: &str| (name == "XDG_STATE_HOME").then(|| state.clone());
+    let env = env_for(&get, &dir);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let output = drive(&args, &env, "");
+    assert_eq!(output.code, TIMED_OUT, "{}", output.err);
+    assert!(
+        output.err.contains("passed its limit of 1 seconds"),
+        "{}",
+        output.err
+    );
+    let child = fs::read_to_string(&pid_file).unwrap().trim().to_string();
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert!(
+        !Path::new(&format!("/proc/{}", child)).exists(),
+        "child {child} outlived the run"
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -1624,7 +1754,11 @@ fn a_live_run_that_cannot_be_bound_is_refused_before_gold_band_starts() {
     let (workflow, proofs, fake, seen) = proven_live(&dir);
     let instance = dir.join("instance");
     fs::create_dir_all(instance.join(".gold-band")).unwrap();
-    fs::write(instance.join(".gold-band/settings.json"), r#"{"agents":{"vibe":{}}}"#).unwrap();
+    fs::write(
+        instance.join(".gold-band/settings.json"),
+        r#"{"agents":{"vibe":{}}}"#,
+    )
+    .unwrap();
     let good_pins = dir.join("good.json");
     fs::write(&good_pins, r#"{"version":1,"shims":{"build":["true"]}}"#).unwrap();
     let empty_pins = dir.join("empty.json");
@@ -1634,12 +1768,38 @@ fn a_live_run_that_cannot_be_bound_is_refused_before_gold_band_starts() {
     let state = dir.join("state").to_string_lossy().into_owned();
     let with_state = move |name: &str| (name == "XDG_STATE_HOME").then(|| state.clone());
     let nothing = |_: &str| None::<String>;
-    let cases: Vec<(&dyn Fn(&str) -> Option<String>, PathBuf, Option<&Path>, &str)> = vec![
-        (&with_state, dir.join("missing.json"), Some(&instance), "cannot read the pins file"),
-        (&with_state, bad_pins.clone(), Some(&instance), "the pins file is not JSON"),
-        (&with_state, empty_pins.clone(), Some(&instance), "names no command for `build`"),
+    type Case<'a> = (
+        &'a dyn Fn(&str) -> Option<String>,
+        PathBuf,
+        Option<&'a Path>,
+        &'a str,
+    );
+    let cases: Vec<Case> = vec![
+        (
+            &with_state,
+            dir.join("missing.json"),
+            Some(&instance),
+            "cannot read the pins file",
+        ),
+        (
+            &with_state,
+            bad_pins.clone(),
+            Some(&instance),
+            "the pins file is not JSON",
+        ),
+        (
+            &with_state,
+            empty_pins.clone(),
+            Some(&instance),
+            "names no command for `build`",
+        ),
         (&nothing, good_pins.clone(), None, "no instance home"),
-        (&nothing, good_pins.clone(), Some(&instance), "no state directory"),
+        (
+            &nothing,
+            good_pins.clone(),
+            Some(&instance),
+            "no state directory",
+        ),
     ];
     for (get, pins, instance_home, expected) in cases {
         let env = env_for(get, &dir);

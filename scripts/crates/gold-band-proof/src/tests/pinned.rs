@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde_json::{json, Value};
@@ -38,11 +38,11 @@ fn gold_band_prompt(attempt: &str, requirement: &str) -> String {
     )
 }
 
-fn config(role: Role, command: &[&str], root: &PathBuf) -> Config {
+fn config(role: Role, command: &[&str], root: &Path) -> Config {
     Config {
         role: Some(role),
         command: command.iter().map(|s| s.to_string()).collect(),
-        report_root: root.clone(),
+        report_root: root.to_path_buf(),
         timeout_secs: 30,
         models: "pinned-command".to_string(),
         values: BTreeMap::new(),
@@ -56,7 +56,10 @@ fn request(id: u64, method: &str, params: Value) -> Value {
 /// Opens a session in `cwd` and returns its id.
 fn open(agent: &mut Pinned, cwd: &str) -> String {
     let frames = agent.handle(&request(1, "session/new", json!({ "cwd": cwd })));
-    frames[0]["result"]["sessionId"].as_str().unwrap().to_string()
+    frames[0]["result"]["sessionId"]
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 /// Sends one prompt and returns its frames.
@@ -72,7 +75,9 @@ fn prompt(agent: &mut Pinned, session: &str, text: &str) -> Vec<Value> {
 fn answer(frames: &[Value]) -> Value {
     assert_eq!(frames.len(), 2, "{frames:?}");
     assert_eq!(frames[1]["result"]["stopReason"], "end_turn");
-    let text = frames[0]["params"]["update"]["content"]["text"].as_str().unwrap();
+    let text = frames[0]["params"]["update"]["content"]["text"]
+        .as_str()
+        .unwrap();
     let body = text
         .trim()
         .strip_prefix("```json")
@@ -130,11 +135,21 @@ fn a_verdict_needs_no_command_and_defaults_the_rest() {
 fn the_config_refuses_what_it_cannot_use() {
     let cases: Vec<(Vec<(&str, &str)>, &str)> = vec![
         (vec![(ROLE_ENV, "answer")], ROLE_ENV),
-        (vec![(ROLE_ENV, "gate:x"), (COMMAND_ENV, "nope")], "JSON array"),
-        (vec![(ROLE_ENV, "copy:x")], "names no command"),
-        (vec![(ROLE_ENV, "gate:x"), (COMMAND_ENV, r#"["true"]"#)], REPORT_ROOT_ENV),
         (
-            vec![(ROLE_ENV, "gate:x"), (COMMAND_ENV, r#"["true"]"#), (REPORT_ROOT_ENV, "")],
+            vec![(ROLE_ENV, "gate:x"), (COMMAND_ENV, "nope")],
+            "JSON array",
+        ),
+        (vec![(ROLE_ENV, "copy:x")], "names no command"),
+        (
+            vec![(ROLE_ENV, "gate:x"), (COMMAND_ENV, r#"["true"]"#)],
+            REPORT_ROOT_ENV,
+        ),
+        (
+            vec![
+                (ROLE_ENV, "gate:x"),
+                (COMMAND_ENV, r#"["true"]"#),
+                (REPORT_ROOT_ENV, ""),
+            ],
             REPORT_ROOT_ENV,
         ),
         (
@@ -185,7 +200,8 @@ fn the_place_comes_from_the_leading_hidden_blocks_only() {
 
 #[test]
 fn a_requirement_alone_names_no_place() {
-    let problem = place("# 需求\n- Project: p\n- Task: t\n- Run: r\n- Attempt: attempt-001").unwrap_err();
+    let problem =
+        place("# 需求\n- Project: p\n- Task: t\n- Run: r\n- Attempt: attempt-001").unwrap_err();
     assert!(problem.contains("Attempt"), "{problem}");
     // An unterminated hidden block is not read either.
     assert_eq!(leading_hidden("<hidden>\n- Run: r\n"), "");
@@ -212,8 +228,15 @@ fn fill_replaces_every_named_placeholder() {
     let mut values = BTreeMap::new();
     values.insert("repo".to_string(), "/w".to_string());
     values.insert("tools".to_string(), "/t".to_string());
-    let command = vec!["{tools}/gate".to_string(), "--repo={repo}".to_string(), "{other}".to_string()];
-    assert_eq!(fill(&command, &values), vec!["/t/gate", "--repo=/w", "{other}"]);
+    let command = vec![
+        "{tools}/gate".to_string(),
+        "--repo={repo}".to_string(),
+        "{other}".to_string(),
+    ];
+    assert_eq!(
+        fill(&command, &values),
+        vec!["/t/gate", "--repo=/w", "{other}"]
+    );
 }
 
 #[test]
@@ -224,19 +247,38 @@ fn the_handshake_offers_the_pinned_model() {
     assert_eq!(init[0]["result"]["protocolVersion"], 1);
     let new = agent.handle(&request(1, "session/new", json!({ "cwd": "/w" })));
     assert_eq!(new[0]["result"]["sessionId"], "pinned-session-1");
-    assert_eq!(new[0]["result"]["configOptions"][0]["currentValue"], "pinned-command");
+    assert_eq!(
+        new[0]["result"]["configOptions"][0]["currentValue"],
+        "pinned-command"
+    );
     let set = agent.handle(&request(
         2,
         "session/set_config_option",
         json!({ "sessionId": "pinned-session-1", "configId": "model", "value": "pinned-command" }),
     ));
-    assert_eq!(set[0]["result"]["configOptions"][0]["currentValue"], "pinned-command");
-    let other = agent.handle(&request(3, "session/set_config_option", json!({ "configId": "mode" })));
-    assert_eq!(other[0]["result"]["configOptions"][0]["currentValue"], "pinned-command");
+    assert_eq!(
+        set[0]["result"]["configOptions"][0]["currentValue"],
+        "pinned-command"
+    );
+    let other = agent.handle(&request(
+        3,
+        "session/set_config_option",
+        json!({ "configId": "mode" }),
+    ));
+    assert_eq!(
+        other[0]["result"]["configOptions"][0]["currentValue"],
+        "pinned-command"
+    );
     for method in ["session/set_mode", "session/delete", "session/close"] {
-        assert_eq!(agent.handle(&request(4, method, json!({})))[0]["result"], json!({}));
+        assert_eq!(
+            agent.handle(&request(4, method, json!({})))[0]["result"],
+            json!({})
+        );
     }
-    assert_eq!(agent.handle(&request(5, "session/list", json!({})))[0]["result"]["sessions"], json!([]));
+    assert_eq!(
+        agent.handle(&request(5, "session/list", json!({})))[0]["result"]["sessions"],
+        json!([])
+    );
     let unknown = agent.handle(&request(6, "session/unknown", json!({})));
     assert_eq!(unknown[0]["error"]["code"], -32601);
     let note = agent.handle(&json!({ "jsonrpc": "2.0", "method": "session/cancel" }));
@@ -250,13 +292,23 @@ fn a_gate_runs_its_command_once_per_session_and_the_copier_verifies_it() {
     let root = temp_dir("gate");
     let repo = temp_dir("gate-repo");
     let marker = repo.join("runs");
-    let command = ["sh", "-c", "echo run >> {repo}/runs; echo {run_id} {attempt}"];
+    let command = [
+        "sh",
+        "-c",
+        "echo run >> {repo}/runs; echo {run_id} {attempt}",
+    ];
     let mut gate = Pinned::new(config(Role::Gate("build-r1".to_string()), &command, &root));
     let session = open(&mut gate, &repo.to_string_lossy());
     let text = gold_band_prompt("attempt-001", "");
-    assert_eq!(answer(&prompt(&mut gate, &session, &text)), json!({ "exit_code": 0 }));
+    assert_eq!(
+        answer(&prompt(&mut gate, &session, &text)),
+        json!({ "exit_code": 0 })
+    );
     // The finalize turn repeats the answer without running the command again.
-    assert_eq!(answer(&prompt(&mut gate, &session, "finalize")), json!({ "exit_code": 0 }));
+    assert_eq!(
+        answer(&prompt(&mut gate, &session, "finalize")),
+        json!({ "exit_code": 0 })
+    );
     assert_eq!(fs::read_to_string(&marker).unwrap(), "run\n");
     let dir = root.join("proj-1/task-001/run-002/build-r1");
     let output = fs::read_to_string(dir.join("gate-output.txt")).unwrap();
@@ -276,7 +328,10 @@ fn a_failing_gate_answers_its_code_and_the_copier_refuses() {
     let mut gate = Pinned::new(config(Role::Gate("lint".to_string()), &["false"], &root));
     let session = open(&mut gate, "/");
     let text = gold_band_prompt("attempt-001", "");
-    assert_eq!(answer(&prompt(&mut gate, &session, &text)), json!({ "exit_code": 1 }));
+    assert_eq!(
+        answer(&prompt(&mut gate, &session, &text)),
+        json!({ "exit_code": 1 })
+    );
     let mut copy = Pinned::new(config(Role::Copy("lint".to_string()), &["false"], &root));
     let session = open(&mut copy, "/");
     let report = answer(&prompt(&mut copy, &session, &text));
@@ -291,7 +346,11 @@ fn a_copier_for_another_command_is_refused() {
     let mut gate = Pinned::new(config(Role::Gate("test".to_string()), &["true"], &root));
     let session = open(&mut gate, "/");
     answer(&prompt(&mut gate, &session, &text));
-    let mut copy = Pinned::new(config(Role::Copy("test".to_string()), &["true", "x"], &root));
+    let mut copy = Pinned::new(config(
+        Role::Copy("test".to_string()),
+        &["true", "x"],
+        &root,
+    ));
     let session = open(&mut copy, "/");
     assert_eq!(answer(&prompt(&mut copy, &session, &text))["exit_code"], 1);
 }
@@ -304,7 +363,11 @@ fn a_prompt_without_a_place_is_refused_with_a_protocol_error() {
     let message = refusal(&prompt(&mut gate, &session, "just text"));
     assert!(message.starts_with("pinned shim agent: "), "{message}");
     // The refusal sticks for the session.
-    refusal(&prompt(&mut gate, &session, &gold_band_prompt("attempt-001", "")));
+    refusal(&prompt(
+        &mut gate,
+        &session,
+        &gold_band_prompt("attempt-001", ""),
+    ));
 }
 
 #[test]
@@ -313,7 +376,10 @@ fn an_unusable_report_root_is_refused() {
     let file = root.join("file");
     fs::write(&file, "").unwrap();
     let text = gold_band_prompt("attempt-001", "");
-    for role in [Role::Gate("build".to_string()), Role::Copy("build".to_string())] {
+    for role in [
+        Role::Gate("build".to_string()),
+        Role::Copy("build".to_string()),
+    ] {
         let mut agent = Pinned::new(config(role, &["true"], &file));
         let session = open(&mut agent, "/");
         assert!(refusal(&prompt(&mut agent, &session, &text)).contains("cannot create"));
@@ -373,7 +439,12 @@ fn serve_answers_each_line_and_skips_noise() {
         request(1, "session/new", json!({ "cwd": "/" }))
     );
     let mut out = Vec::new();
-    serve(input.as_bytes(), &mut out, config(Role::Gate("b".to_string()), &["true"], &root)).unwrap();
+    serve(
+        input.as_bytes(),
+        &mut out,
+        config(Role::Gate("b".to_string()), &["true"], &root),
+    )
+    .unwrap();
     let lines: Vec<Value> = String::from_utf8(out)
         .unwrap()
         .lines()
