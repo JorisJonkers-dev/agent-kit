@@ -22,6 +22,7 @@ import os
 import pwd
 from pathlib import Path
 
+import ci_shard
 import pytest
 
 REAL_HOME = Path(pwd.getpwuid(os.getuid()).pw_dir)
@@ -86,6 +87,17 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if reporter is not None:
             reporter.write_line("\n".join(lines), red=True, bold=True)
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Keep only this CI shard's tests when PYTEST_SHARD names one (tests/ci_shard.py)."""
+    spec = os.environ.get(ci_shard.ENV)
+    if not spec:
+        return
+    index, count = ci_shard.parse(spec)
+    keep = set(ci_shard.select([item.nodeid for item in items], index, count))
+    config.hook.pytest_deselected(items=[item for n, item in enumerate(items) if n not in keep])
+    items[:] = [item for n, item in enumerate(items) if n in keep]
 
 
 @pytest.fixture(autouse=True)

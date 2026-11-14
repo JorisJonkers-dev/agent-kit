@@ -15,8 +15,15 @@
   'contents': 'read'
 
 'jobs':
-  'python':
-    'name': 'Python Lint / Typecheck / Tests'
+  # The Python checks are three jobs: lint and type check in one, the tests
+  # split across a matrix of shards (each on every core of its runner with
+  # pytest-xdist), and the aggregate below that carries the historic check
+  # name. A setup-script test runs the whole installer in a temp HOME, so the
+  # suite is CPU-bound; the repository is public, so the extra runners are not
+  # billed. tests/ci_shard.py does the split: together the shards run every
+  # test exactly once.
+  'python-lint':
+    'name': 'Python Lint / Typecheck'
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 'actions/checkout@v6'
@@ -28,9 +35,45 @@
       - 'run': 'uv sync --frozen'
       - 'run': 'uv run ruff check .'
       - 'run': 'uv run mypy'
-      - 'run': 'uv run pytest -n auto --durations=40'
+        'if': '${{ !cancelled() }}'
       - 'run': 'uv run python scripts/check_skill_sources.py --validate'
+        'if': '${{ !cancelled() }}'
       - 'run': 'uv run python scripts/check_agents_md.py'
+        'if': '${{ !cancelled() }}'
+
+  'python-tests':
+    'name': 'Python Tests (${{ matrix.shard }}/${{ strategy.job-total }})'
+    'strategy':
+      'fail-fast': false
+      'matrix':
+        'shard': [1, 2, 3]
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
+      - 'uses': 'astral-sh/setup-uv@v8.2.0'
+      - 'run': 'uv sync --frozen'
+      - 'run': 'uv run pytest -n auto --durations=20'
+        'env':
+          'PYTEST_SHARD': '${{ matrix.shard }}/${{ strategy.job-total }}'
+
+  # The check name every earlier run reported. It passes only when lint, type
+  # check and every test shard passed: a failed, cancelled or skipped shard
+  # fails it.
+  'python':
+    'name': 'Python Lint / Typecheck / Tests'
+    'if': 'always()'
+    'needs':
+      - 'python-lint'
+      - 'python-tests'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 're-actors/alls-green@release/v1'
+        'with':
+          'jobs': '${{ toJSON(needs) }}'
 
   'runtime-package':
     'name': 'Runtime Package Contract'
@@ -308,6 +351,8 @@
       - 'nixos-packages'
       - 'node'
       - 'python'
+      - 'python-lint'
+      - 'python-tests'
       - 'runtime-package'
       - 'shell-lint'
       - 'workflow-lint'
