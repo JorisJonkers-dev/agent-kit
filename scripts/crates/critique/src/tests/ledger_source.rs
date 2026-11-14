@@ -7,7 +7,7 @@ use crate::error::ShapeError;
 use crate::fields::Fields;
 use crate::flow_budget::FlowBudget;
 use crate::gateway_ledger::gateway_ledger_lines;
-use crate::ledger::{parse_ledger, FlowEvent, LedgerCriticRun, LedgerFinding, LedgerFlowEvent, LedgerRunContext, LedgerSkippedReview};
+use crate::ledger::{parse_ledger, FlowEvent, LedgerCriticRun, LedgerFinding, LedgerFlowEvent, LedgerRefute, LedgerRunContext, LedgerSkippedReview};
 use crate::ledger_source::{LedgerRead, LedgerSource};
 use crate::Runtime;
 use model_gateway::json::{self, Object, Value};
@@ -220,11 +220,21 @@ fn finding_json(finding: &LedgerFinding) -> Value {
     let mut object = Object::new();
     context_into(&mut object, &finding.context);
     object.set("answered", Value::Bool(finding.answered));
+    object.set("check", text_or_null(&finding.check));
     object.set("finding_id", Value::str(&finding.finding_id));
     object.set("pre_verdict", text_or_null(&finding.pre_verdict));
     object.set("raised_by", string_array(&finding.raised_by));
     object.set("severity", Value::str(&finding.severity));
     object.set("verdict", Value::str(&finding.verdict));
+    Value::Obj(object)
+}
+
+fn refute_json(refute: &LedgerRefute) -> Value {
+    let mut object = Object::new();
+    context_into(&mut object, &refute.context);
+    object.set("client", text_or_null(&refute.client));
+    object.set("finding_id", Value::str(&refute.finding_id));
+    object.set("outcome", Value::str(&refute.outcome));
     Value::Obj(object)
 }
 
@@ -278,6 +288,7 @@ fn read_json(read: &LedgerRead, spend: &[FlowSpend], agy: usize) -> Value {
                     json::object(vec![
                         ("findings", Value::Arr(read.ledger.findings.iter().map(finding_json).collect())),
                         ("flow_events", Value::Arr(read.ledger.flow_events.iter().map(event_json).collect())),
+                        ("refutes", Value::Arr(read.ledger.refutes.iter().map(refute_json).collect())),
                         ("runs", Value::Arr(read.ledger.runs.iter().map(run_json).collect())),
                         ("skipped_reviews", Value::Arr(read.ledger.skipped_reviews.iter().map(skipped_json).collect())),
                     ]),

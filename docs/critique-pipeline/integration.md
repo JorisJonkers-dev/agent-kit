@@ -3819,7 +3819,7 @@ Run on a Linux workstation with the runner built from this branch (`skills/works
   | tickets | vibe-deepseek-flash | 53084df1d5eb | 50 | 0.96 (25) | 1.00 (25) | +0.04 | 1.00 (3) | 0.98 (43) | 1.00 (4) |
 
   Every other cell stays `(too few)` and show no calibration. DeepSeek Flash's ticket-linter findings are accepted 98% of the time and its criticals are not less accurate than its minors, so it is calibrated by this reading; its precision is not getting worse. The report suggests no routing change and lists no removal candidate.
-- **Not covered by this ticket:** the replaced ticket #246 also asked for per-check precision and refute outcomes per stage and refuter client. The stats do not compute them yet.
+- **Not covered by this ticket:** the replaced ticket #246 also asked for per-check precision and refute outcomes per stage and refuter client. The stats do not compute them yet (#679 adds both: precision per check id from the ledger's finding lines, and the refute round's outcomes per stage and refuter client from its `refute` lines).
 
 ### #491: the remaining critique live checks
 
@@ -3841,3 +3841,13 @@ Run on a Linux workstation with the runner built from this branch (`skills/works
 ### Spend
 
 About $1.50 of Vibe money in all, the runner's figures: setup checks $0.036, #478 $0.169, #481 $0.536 (of which $0.326 for the discarded first run), #484 $0.342, #488 $0.161, #491 about $0.25 (the spec, decisions, tickets and code runs, with $0.074 on the two degraded decisions and tickets runs), plus one short Claude Code session for the hooks. The allowlist entry for agent-kit was the one in place (families mistral, zhipu, deepseek, google, code on); its history permission was turned on for #481 and restored to off afterwards.
+
+## What #678 settled
+
+The gate log (`~/.local/share/agent-kit/critique/gate.log.jsonl`) showed three kinds of fail-open on the Linux workstation. Each has a named cause now.
+
+- **"The command line does not say which directory the command runs in"** (150 lines). The gate follows `cd` and `git -C` through the command line. A directory it cannot read from the text (`cd -`, `cd "$DIR"`, `git -C $DIR`, a command substitution) used to end the check with an error, so a commit or push that went through such a line was never looked at. The gate now judges that invocation in the hook payload's own `cwd`, the directory the session is in and the likeliest place the command runs, so it is checked against that repository's opt-in, flow, review and gate records like any other. A command that runs in another repository through such a line can be blocked on this repository's records; it is let through by running it in a command of its own, as the head-unknown blocks already say.
+- **`spawn git ENOENT`** (46 lines, the latest 2026-11-12). Node reports a missing program and a missing working directory with the same words. There were two causes: the hook environment's `PATH` has no git (an agent's hook environment is not the login shell's, and on NixOS git is in a profile directory), and a `cwd` that no longer exists (a removed worktree). The runners now run git by the full path of the first executable git on `PATH`, then in the usual places (`/run/current-system/sw/bin`, the user's Nix profiles, `/usr/local/bin`, `/usr/bin`, `/bin`, `/opt/homebrew/bin`), and say which of the two went wrong: `git was not found on PATH (...) or in ...`, or `git cannot run in <dir>: the directory does not exist`. Both runners do this the same way (`adapters/git` in the node runner, `locate_git` in `git.rs`).
+- **`unreadable-state`** (263 lines, 2026-11-10). The allowlist held an entry the runner rejected. That was a bad state file, not a gate defect, and it fails open by design (ADR-0002); the log line already names the file.
+
+Every log line now carries a `command` field: the command line the gate did not look at, with the credentials of any `scheme://user:secret@host` removed and cut to 300 characters, or `null` when the payload had none. A fail-open line therefore says which command went through.

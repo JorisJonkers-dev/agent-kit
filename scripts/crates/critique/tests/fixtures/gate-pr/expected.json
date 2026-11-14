@@ -205,7 +205,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git push origin nope:main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -222,7 +222,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git push origin nope:main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push origin main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -240,7 +240,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git push origin nope:main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push origin main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -257,7 +257,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git push origin nope:main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push origin main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -274,7 +274,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git push origin nope:main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push origin main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -291,7 +291,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git push origin nope:main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push origin main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -308,7 +308,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git push origin nope:main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push origin main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -325,7 +325,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git push origin nope:main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push origin main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -342,7 +342,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git push origin nope:main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"git rev-parse --verify --quiet --end-of-options nope^{commit} failed in @SANDBOX@/repos/p1: exit code 1\",\"failure\":\"error\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push origin main\",\"cwd\":\"@SANDBOX@/repos/p1\",\"detail\":\"@SANDBOX@/repos/p1/.git/critique/gates.jsonl line 1: gate must be one of pass, fail\",\"failure\":\"unreadable-state\",\"gate\":\"pr\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     }

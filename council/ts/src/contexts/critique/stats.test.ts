@@ -686,6 +686,169 @@ describe('critique stats calibration', () => {
   })
 })
 
+describe('critique stats per check', () => {
+  const finding = (check: string | null | undefined, verdict: SyntheticFinding['verdict'], stage = 'spec'): SyntheticFinding & { stage: string } => ({
+    ...(check === undefined ? {} : { check }),
+    raised_by: [MISTRAL],
+    stage,
+    verdict,
+  })
+
+  /** One run per finding, so each finding is its own line. */
+  function ledgerOf(...findings: readonly (SyntheticFinding & { stage: string })[]): SyntheticLedger {
+    const ledger = new SyntheticLedger()
+    for (const { stage, ...one } of findings) ledger.run({ critics: [{ client: MISTRAL }], findings: [one], stage })
+    return ledger
+  }
+
+  it('reports precision per check id as accepted over accepted plus rejected, leaving hints and needs-human out', async () => {
+    const result = await stats(
+      ledgerOf(
+        finding('unstated-assumption', 'accepted'),
+        finding('unstated-assumption', 'accepted'),
+        finding('unstated-assumption', 'rejected'),
+        finding('unstated-assumption', 'hint'),
+        finding('unstated-assumption', 'needs-human'),
+        finding('contradiction', 'rejected'),
+        finding('contradiction', 'rejected', 'tickets'),
+      ),
+    )
+
+    expect(result.checks).toEqual([
+      { accepted: 0, adjudicated: 2, check: 'contradiction', findings: 2, hints: 0, needs_human: 0, precision: 0, rejected: 2 },
+      { accepted: 2, adjudicated: 3, check: 'unstated-assumption', findings: 5, hints: 1, needs_human: 1, precision: 2 / 3, rejected: 1 },
+    ])
+  })
+
+  it('reports no precision for a check with nothing adjudicated', async () => {
+    const result = await stats(ledgerOf(finding('hint-only', 'hint')))
+
+    expect(result.checks).toEqual([{ accepted: 0, adjudicated: 0, check: 'hint-only', findings: 1, hints: 1, needs_human: 0, precision: null, rejected: 0 }])
+  })
+
+  it('counts a finding once for its check however many critics raised it', async () => {
+    const ledger = new SyntheticLedger().run({
+      critics: [{ client: MISTRAL }, { client: GLM }],
+      findings: [{ check: 'contradiction', raised_by: [MISTRAL, GLM], verdict: 'accepted' }],
+    })
+
+    expect((await stats(ledger)).checks).toMatchObject([{ accepted: 1, check: 'contradiction', findings: 1 }])
+  })
+
+  it('leaves out findings that name no check, and lines recorded before the ledger kept one', async () => {
+    const result = await stats(ledgerOf(finding(null, 'accepted'), finding(undefined, 'accepted')))
+
+    expect(result.checks).toEqual([])
+  })
+
+  it('orders checks by id, and applies the filters', async () => {
+    const result = await stats(
+      new SyntheticLedger()
+        .run({ critics: [{ client: MISTRAL }], findings: [{ check: 'b-two', raised_by: [MISTRAL], verdict: 'accepted' }], recorded_at: '2026-10-01T10:00:00.000Z' })
+        .run({ critics: [{ client: MISTRAL }], findings: [{ check: 'a-one', raised_by: [MISTRAL], verdict: 'accepted' }], recorded_at: '2026-10-01T10:01:00.000Z' })
+        .run({ critics: [{ client: MISTRAL }], findings: [{ check: 'c-three', raised_by: [MISTRAL], verdict: 'accepted' }], recorded_at: '2026-10-09T10:00:00.000Z' }),
+      { until: '2026-10-02' },
+    )
+
+    expect(result.checks.map((row) => row.check)).toEqual(['a-one', 'b-two'])
+  })
+
+  it('shows the per-check table in the report, or says no finding names a check', async () => {
+    const shown = await stats(ledgerOf(finding('contradiction', 'accepted'), finding('contradiction', 'hint'), finding('empty-one', 'needs-human')))
+    expect(shown.report).toContain(
+      [
+        '## Precision by check',
+        '',
+        'Accepted over accepted plus rejected findings, per check id. Hints and needs-human findings are left out.',
+        '',
+        '| check | findings | adjudicated | accepted | precision |',
+        '|---|---|---|---|---|',
+        '| contradiction | 2 | 1 | 1 | 1.00 |',
+        '| empty-one | 1 | 0 | 0 | - |',
+      ].join('\n'),
+    )
+
+    const none = await stats(ledgerOf(finding(null, 'accepted')))
+    expect(none.report).toContain('## Precision by check\n\nNo finding names a check yet.')
+  })
+})
+
+describe('critique stats refute outcomes', () => {
+  const refuted = (outcome: string | undefined, refuter: string | null, stage = 'spec'): SyntheticFinding & { stage: string } => ({
+    raised_by: [MISTRAL],
+    ...(outcome === undefined ? {} : { refute: { client: refuter, outcome } }),
+    stage,
+    verdict: 'accepted',
+  })
+
+  function ledgerOf(...findings: readonly (SyntheticFinding & { stage: string })[]): SyntheticLedger {
+    const ledger = new SyntheticLedger()
+    for (const { stage, ...one } of findings) ledger.run({ critics: [{ client: MISTRAL }], findings: [one], stage })
+    return ledger
+  }
+
+  it('counts the refute round per stage and refuter client, by outcome', async () => {
+    const result = await stats(
+      ledgerOf(
+        refuted('refute', GLM),
+        refuted('no-objection', GLM),
+        refuted('no-objection', GLM),
+        refuted('downgrade', AGY),
+        refuted('stands', GLM, 'tickets'),
+        refuted('skipped', null),
+        refuted(undefined, null),
+      ),
+    )
+
+    const outcomes = (row: Partial<Record<string, number>>) => ({ downgrade: 0, 'no-objection': 0, refute: 0, skipped: 0, stands: 0, ...row })
+    expect(result.refutes).toEqual([
+      { outcomes: outcomes({ skipped: 1 }), refuter: null, stage: 'spec', total: 1 },
+      { outcomes: outcomes({ downgrade: 1 }), refuter: AGY, stage: 'spec', total: 1 },
+      { outcomes: outcomes({ 'no-objection': 2, refute: 1 }), refuter: GLM, stage: 'spec', total: 3 },
+      { outcomes: outcomes({ stands: 1 }), refuter: GLM, stage: 'tickets', total: 1 },
+    ])
+  })
+
+  it('orders the outcomes the way a refute file does', async () => {
+    const [row] = (await stats(ledgerOf(refuted('refute', GLM)))).refutes
+
+    expect(Object.keys(row?.outcomes ?? {})).toEqual(['no-objection', 'refute', 'downgrade', 'stands', 'skipped'])
+  })
+
+  it('applies the filters and shows the table in the report', async () => {
+    const ledger = new SyntheticLedger()
+      .run({ critics: [{ client: MISTRAL }], findings: [{ raised_by: [MISTRAL], refute: { client: GLM, outcome: 'refute' }, verdict: 'rejected' }], recorded_at: '2026-10-01T10:00:00.000Z' })
+      .run({ critics: [{ client: MISTRAL }], findings: [{ raised_by: [MISTRAL], refute: { client: GLM, outcome: 'stands' }, verdict: 'accepted' }], recorded_at: '2026-10-09T10:00:00.000Z' })
+    const result = await stats(ledger, { since: '2026-10-05' })
+
+    expect(result.refutes).toMatchObject([{ outcomes: { refute: 0, stands: 1 }, total: 1 }])
+    expect(result.report).toContain(
+      [
+        '## Refute round',
+        '',
+        'Accepted critical findings the refute round checked, per stage and refuter client. Skipped means no client could refute the finding.',
+        '',
+        '| stage | refuter | checked | no objection | refuted | downgraded | stands | skipped |',
+        '|---|---|---|---|---|---|---|---|',
+        `| spec | ${GLM} | 1 | 0 | 0 | 0 | 1 | 0 |`,
+      ].join('\n'),
+    )
+  })
+
+  it('says so in the report when no refute round was recorded', async () => {
+    const result = await stats(ledgerOf(refuted(undefined, null)))
+
+    expect(result.refutes).toEqual([])
+    expect(result.report).toContain('## Refute round\n\nNo refute round has been recorded.')
+  })
+
+  it('shows a skipped round under a dash', async () => {
+    const result = await stats(ledgerOf(refuted('skipped', null)))
+
+    expect(result.report).toContain('| spec | - | 1 | 0 | 0 | 0 | 0 | 1 |')
+  })
+})
+
 describe('critique stats removal candidates', () => {
   /** One feature's spec-stage runs: every accepted finding raised by both clients, so none is unique. */
   function feature(ledger: SyntheticLedger, spec: string, uniqueAccepted = 0): SyntheticLedger {
@@ -889,6 +1052,15 @@ describe('critique stats ledger', () => {
       code: 'invalid-ledger',
       message: expect.stringContaining('line 1.') as unknown,
     })
+  })
+
+  it('refuses a refute line whose outcome is not one the round gives', async () => {
+    const h = await opened()
+    await new SyntheticLedger()
+      .raw({ client: GLM, finding_id: 'F1', outcome: 'maybe', recorded_at: '2026-10-01T10:00:00.000Z', repository: AGENT_KIT, run_id: 'r1', stage: 'spec', type: 'refute' })
+      .writeTo(h)
+
+    await expect(h.commands.stats.run({})).rejects.toMatchObject({ code: 'invalid-ledger', message: expect.stringContaining('outcome') as unknown })
   })
 
   it('refuses a finding raised by a critic that has no run line', async () => {

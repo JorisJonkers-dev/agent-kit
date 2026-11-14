@@ -137,8 +137,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
-      "stderr": "critique facts: spawn git ENOENT\n",
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"git cannot run in @SANDBOX@/repos/fx: the directory does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: git cannot run in @SANDBOX@/repos/fx: the directory does not exist\n",
       "files": {
         "home/": null,
         "work/": null
@@ -146,8 +146,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
-      "stderr": "critique facts: spawn git ENOENT\n",
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"git cannot run in @SANDBOX@/repos/fx: the directory does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: git cannot run in @SANDBOX@/repos/fx: the directory does not exist\n",
       "files": {
         "home/": null,
         "work/": null
@@ -155,8 +155,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
-      "stderr": "critique facts: spawn git ENOENT\n",
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"git cannot run in @SANDBOX@/repos/fx: the directory does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique facts: git cannot run in @SANDBOX@/repos/fx: the directory does not exist\n",
       "files": {
         "home/": null,
         "work/": null

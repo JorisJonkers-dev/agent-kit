@@ -43,16 +43,22 @@ scenarios['stats-empty'] = [
 // that are not run or finding records.
 const runs = []
 const findings = []
+const refutes = []
 for (const [i, client] of ['vibe', 'agy', 'codex', 'claude'].entries()) {
   for (let n = 0; n < 6 + i * 4; n += 1) {
     const id = `r${client}${n}`
     const stage = n % 3 === 0 ? 'adr-review' : n % 3 === 1 ? 'spec' : 'tickets'
     runs.push(runLine(id, stage, `${client}-c`, client, n % 5 === 4 ? { status: 'failed', failure: 'timeout', finding_count: 0 } : {}))
-    findings.push(finding(id, stage, n % 4 === 0 ? 'rejected' : n % 4 === 1 ? 'hint' : 'accepted', [`${client}-c`], { severity: n % 3 === 0 ? 'critical' : n % 3 === 1 ? 'minor' : 'major' }))
+    findings.push(finding(id, stage, n % 4 === 0 ? 'rejected' : n % 4 === 1 ? 'hint' : 'accepted', [`${client}-c`], { severity: n % 3 === 0 ? 'critical' : n % 3 === 1 ? 'minor' : 'major', ...(n % 5 === 4 ? {} : { check: n % 6 === 5 ? null : ['unstated-assumption', 'contradiction', 'hint-only'][n % 3] }) }))
+    // The refute round's line for each accepted critical finding, with the outcomes in turn and no refuter when skipped.
+    if (n % 4 !== 1 && n % 3 === 0) {
+      const outcome = ['no-objection', 'refute', 'downgrade', 'stands', 'skipped'][(n + i) % 5]
+      refutes.push({ type: 'refute', ...context(id, stage), finding_id: `${id}-accepted-${client}-c`, client: outcome === 'skipped' ? null : ['vibe-glm', 'agy-gemini'][n % 2], outcome })
+    }
   }
 }
 const ledgerWrite = {
-  [OWN]: lines(...runs.slice(0, 10), ...findings.slice(0, 10), '{"type":"other"}', runLine('o1', 'spec', 'x', 'vibe', { repository: 'github.com/other/repo' })),
+  [OWN]: lines(...runs.slice(0, 10), ...findings.slice(0, 10), ...refutes.slice(0, 4), '{"type":"other"}', runLine('o1', 'spec', 'x', 'vibe', { repository: 'github.com/other/repo' })),
   [GATEWAY]: lines(...runs.slice(10), ...findings.slice(10), finding('o1', 'spec', 'accepted', ['x'], { repository: 'github.com/other/repo' })),
 }
 scenarios['stats-figures'] = [

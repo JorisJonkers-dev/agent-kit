@@ -3,6 +3,7 @@ import { CRITIC_STATUSES, type CriticStatus } from './critic.js'
 import { SEVERITIES, type Severity } from './findings.js'
 import { JsonFields, JsonShapeError } from './json.js'
 import type { PromptHashes } from './prompt.js'
+import { REFUTE_OUTCOMES, type RefuteOutcome } from './refute.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from './stage.js'
 import { familiesOf, VERDICTS, type AdjudicatedRun, type VerdictKind } from './verdicts.js'
 
@@ -114,9 +115,19 @@ export interface LedgerFinding extends LedgerRunContext {
   readonly severity: Severity
   readonly raised_by: readonly string[]
   readonly verdict: VerdictKind
+  /** The lens check or role rule the finding names; null for free text, and on lines recorded before the ledger kept it. */
+  readonly check: string | null
   readonly pre_verdict: string | null
   /** False on lines recorded before the ledger kept answers. */
   readonly answered: boolean
+}
+
+/** The refute round's result for one accepted critical finding, as stats reads it back. */
+export interface LedgerRefute extends LedgerRunContext {
+  readonly finding_id: string
+  readonly outcome: RefuteOutcome
+  /** The refuter's client; null when no client could refute the finding. */
+  readonly client: string | null
 }
 
 /** The status of the run line a low-risk triage writes for the ticket review it skipped. */
@@ -163,11 +174,12 @@ export function flowEventLine(event: FlowEvent, context: FlowEventContext): stri
 export interface Ledger {
   readonly runs: readonly LedgerCriticRun[]
   readonly findings: readonly LedgerFinding[]
+  readonly refutes: readonly LedgerRefute[]
   readonly skipped_reviews: readonly LedgerSkippedReview[]
   readonly flow_events: readonly LedgerFlowEvent[]
 }
 
-export const EMPTY_LEDGER: Ledger = { findings: [], flow_events: [], runs: [], skipped_reviews: [] }
+export const EMPTY_LEDGER: Ledger = { findings: [], flow_events: [], refutes: [], runs: [], skipped_reviews: [] }
 
 /**
  * Reads a ledger back, field by field. A blank line is skipped, and so is a
@@ -178,6 +190,7 @@ export const EMPTY_LEDGER: Ledger = { findings: [], flow_events: [], runs: [], s
 export function parseLedger(text: string): Ledger {
   const runs: LedgerCriticRun[] = []
   const findings: LedgerFinding[] = []
+  const refutes: LedgerRefute[] = []
   const skipped: LedgerSkippedReview[] = []
   const events: LedgerFlowEvent[] = []
   text.split('\n').forEach((line, index) => {
@@ -188,9 +201,10 @@ export function parseLedger(text: string): Ledger {
     if (type === 'run' && fields.optionalString('status') === SKIPPED_LOW_RISK) skipped.push(readSkippedReview(fields))
     else if (type === 'run') runs.push(readCriticRunLine(fields))
     if (type === 'finding') findings.push(readFindingLine(fields))
+    if (type === 'refute') refutes.push(readRefuteLine(fields))
     if (type === 'flow') events.push(readFlowEvent(fields))
   })
-  return { findings, flow_events: events, runs, skipped_reviews: skipped }
+  return { findings, flow_events: events, refutes, runs, skipped_reviews: skipped }
 }
 
 function readSkippedReview(fields: JsonFields): LedgerSkippedReview {
@@ -200,6 +214,15 @@ function readSkippedReview(fields: JsonFields): LedgerSkippedReview {
     repository: fields.string('repository'),
     run_id: fields.string('run_id'),
     ticket: fields.string('ticket'),
+  }
+}
+
+function readRefuteLine(fields: JsonFields): LedgerRefute {
+  return {
+    ...readContext(fields),
+    client: fields.nullableString('client'),
+    finding_id: fields.string('finding_id'),
+    outcome: fields.oneOf('outcome', REFUTE_OUTCOMES),
   }
 }
 
@@ -260,6 +283,7 @@ function readFindingLine(fields: JsonFields): LedgerFinding {
   return {
     ...readContext(fields),
     answered: fields.has('answered') && fields.boolean('answered'),
+    check: fields.has('check') ? fields.nullableString('check') : null,
     finding_id: fields.string('finding_id'),
     pre_verdict: fields.nullableString('pre_verdict'),
     severity: fields.oneOf('severity', SEVERITIES),

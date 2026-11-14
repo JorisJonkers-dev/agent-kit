@@ -20,6 +20,9 @@ pub const VERDICTS: [&str; 4] = ["accepted", "rejected", "needs-human", "hint"];
 /// The events the flow state records.
 pub const FLOW_EVENTS: [&str; 5] = ["grilled", "no-critique", "landed", "answered", "draft"];
 
+/// What the refute round did to one accepted critical finding.
+pub const REFUTE_OUTCOMES: [&str; 5] = ["no-objection", "refute", "downgrade", "stands", "skipped"];
+
 /// The status of the run line a low-risk triage writes for the ticket review it skipped.
 pub const SKIPPED_LOW_RISK: &str = "skipped-low-risk";
 
@@ -72,9 +75,21 @@ pub struct LedgerFinding {
     pub severity: String,
     pub raised_by: Vec<String>,
     pub verdict: String,
+    /// The lens check or role rule the finding names; none for free text, and on lines recorded before the ledger kept it.
+    pub check: Option<String>,
     pub pre_verdict: Option<String>,
     /// False on lines recorded before the ledger kept answers.
     pub answered: bool,
+}
+
+/// The refute round's result for one accepted critical finding, as stats reads it back.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LedgerRefute {
+    pub context: LedgerRunContext,
+    pub finding_id: String,
+    pub outcome: String,
+    /// The refuter's client; none when no client could refute the finding.
+    pub client: Option<String>,
 }
 
 /// A ticket review a low-risk triage skipped, as the flow state reads it back.
@@ -112,6 +127,7 @@ pub struct LedgerFlowEvent {
 pub struct Ledger {
     pub runs: Vec<LedgerCriticRun>,
     pub findings: Vec<LedgerFinding>,
+    pub refutes: Vec<LedgerRefute>,
     pub skipped_reviews: Vec<LedgerSkippedReview>,
     pub flow_events: Vec<LedgerFlowEvent>,
 }
@@ -123,6 +139,7 @@ pub struct Ledger {
 pub fn parse_ledger(text: &str) -> Result<Ledger, ShapeError> {
     let mut runs: Vec<LedgerCriticRun> = Vec::new();
     let mut findings: Vec<LedgerFinding> = Vec::new();
+    let mut refutes: Vec<LedgerRefute> = Vec::new();
     let mut skipped: Vec<LedgerSkippedReview> = Vec::new();
     let mut events: Vec<LedgerFlowEvent> = Vec::new();
     for (index, line) in text.split('\n').enumerate() {
@@ -142,11 +159,14 @@ pub fn parse_ledger(text: &str) -> Result<Ledger, ShapeError> {
         if r#type == "finding" {
             findings.push(read_finding_line(&fields)?);
         }
+        if r#type == "refute" {
+            refutes.push(read_refute_line(&fields)?);
+        }
         if r#type == "flow" {
             events.push(read_flow_event(&fields)?);
         }
     }
-    Ok(Ledger { runs, findings, skipped_reviews: skipped, flow_events: events })
+    Ok(Ledger { runs, findings, refutes, skipped_reviews: skipped, flow_events: events })
 }
 
 fn read_skipped_review(fields: &Fields) -> Result<LedgerSkippedReview, ShapeError> {
@@ -157,6 +177,14 @@ fn read_skipped_review(fields: &Fields) -> Result<LedgerSkippedReview, ShapeErro
         run_id: fields.string("run_id")?,
         ticket: fields.string("ticket")?,
     })
+}
+
+fn read_refute_line(fields: &Fields) -> Result<LedgerRefute, ShapeError> {
+    let context = read_context(fields)?;
+    let client = fields.nullable_string("client")?;
+    let finding_id = fields.string("finding_id")?;
+    let outcome = fields.one_of("outcome", &REFUTE_OUTCOMES)?;
+    Ok(LedgerRefute { context, finding_id, outcome, client })
 }
 
 fn read_flow_event(fields: &Fields) -> Result<LedgerFlowEvent, ShapeError> {
@@ -210,10 +238,11 @@ fn read_critic_run_line(fields: &Fields) -> Result<LedgerCriticRun, ShapeError> 
 fn read_finding_line(fields: &Fields) -> Result<LedgerFinding, ShapeError> {
     let context = read_context(fields)?;
     let answered = fields.has("answered") && fields.boolean("answered")?;
+    let check = if fields.has("check") { fields.nullable_string("check")? } else { None };
     let finding_id = fields.string("finding_id")?;
     let pre_verdict = fields.nullable_string("pre_verdict")?;
     let severity = fields.one_of("severity", &SEVERITIES)?;
     let raised_by = fields.strings("raised_by")?;
     let verdict = fields.one_of("verdict", &VERDICTS)?;
-    Ok(LedgerFinding { context, finding_id, severity, raised_by, verdict, pre_verdict, answered })
+    Ok(LedgerFinding { context, finding_id, severity, raised_by, verdict, check, pre_verdict, answered })
 }
