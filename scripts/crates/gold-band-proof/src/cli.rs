@@ -484,6 +484,11 @@ fn pinned_acp(
     }
 }
 
+/// A single problem as the list of problems a refused run reports.
+fn one_problem(problem: String) -> Vec<String> {
+    vec![problem]
+}
+
 /// Builds the run home of a live run and returns it, or every reason the run
 /// cannot be bound.
 fn live_home(options: &Options, pins: &Path, env: &Env) -> Result<PathBuf, Vec<String>> {
@@ -494,10 +499,11 @@ fn live_home(options: &Options, pins: &Path, env: &Env) -> Result<PathBuf, Vec<S
             error
         )]
     })?;
-    let pins = live::parse_pins(&text).map_err(|problem| vec![problem])?;
-    let workflow =
-        fs::read_to_string(&options.workflow).map_err(|error| vec![error.to_string()])?;
-    let info = harness::inspect(&workflow).map_err(|problem| vec![problem])?;
+    let pins = live::parse_pins(&text).map_err(one_problem)?;
+    // `refuse::check` read this workflow a moment ago, so a read that fails
+    // here is inspected as an empty workflow and refused with its own reason.
+    let workflow = fs::read_to_string(&options.workflow).unwrap_or_default();
+    let info = harness::inspect(&workflow).map_err(one_problem)?;
     let instance_home = options
         .instance_home
         .clone()
