@@ -277,3 +277,64 @@ pub fn open_code_output(stdout: &str) -> ClientOutput {
     }
     ClientOutput { answer, charged: charged_amount(charged), error, failure, tokens: sum }
 }
+
+/// Pi, `--mode json`: one event per line. The answer is the text of the last
+/// assistant message that ended; every assistant message adds the tokens it
+/// counted (Pi's `input` leaves out the cached prompt, which it counts as
+/// `cacheRead`, so the input here is both) and the dollars Pi priced it at from
+/// the model's entry in `models.json`, which is none for a model that names no
+/// price. A last assistant message that stopped with an error, or a stream that
+/// has no assistant message, fails the run: Pi exits 0 after a provider error.
+pub fn pi_output(stdout: &str) -> ClientOutput {
+    let mut last: Option<Object> = None;
+    let mut charged = 0.0;
+    let mut sum = NO_TOKENS;
+    for line in stdout.split('\n') {
+        let Some(Value::Obj(event)) = parse_json(line) else {
+            continue;
+        };
+        if event.get("type").and_then(Value::as_str) != Some("message_end") {
+            continue;
+        }
+        let Some(message) = event.get("message").and_then(Value::as_object).filter(|message| message.get("role").and_then(Value::as_str) == Some("assistant")) else {
+            continue;
+        };
+        let usage = message.get("usage").and_then(Value::as_object).cloned().unwrap_or_default();
+        let cost = usage.get("cost").and_then(Value::as_object).cloned().unwrap_or_default();
+        charged += count(cost.get("total"));
+        sum.cached += count(usage.get("cacheRead"));
+        sum.input += count(usage.get("input")) + count(usage.get("cacheRead"));
+        sum.output += count(usage.get("output"));
+        last = Some(message.clone());
+    }
+    let Some(last) = last else {
+        return ClientOutput { answer: None, charged: None, error: None, failure: Some("client-error".to_string()), tokens: NO_TOKENS };
+    };
+    let answer = pi_text(&last);
+    let stop = last.get("stopReason").and_then(Value::as_str);
+    if matches!(stop, Some("error" | "aborted")) {
+        let said = text_of(last.get("errorMessage")).or(stop).unwrap_or_default().to_string();
+        return ClientOutput {
+            answer,
+            charged: charged_amount(charged),
+            error: Some(ClientError { text: said, status: None }),
+            failure: Some("client-error".to_string()),
+            tokens: sum,
+        };
+    }
+    ClientOutput { answer, charged: charged_amount(charged), error: None, failure: None, tokens: sum }
+}
+
+/// The text parts of a Pi message, joined; `None` when it has none.
+fn pi_text(message: &Object) -> Option<String> {
+    let Some(Value::Arr(content)) = message.get("content") else {
+        return None;
+    };
+    let text: String = content
+        .iter()
+        .filter_map(Value::as_object)
+        .filter(|part| part.get("type").and_then(Value::as_str) == Some("text"))
+        .filter_map(|part| part.get("text").and_then(Value::as_str))
+        .collect();
+    text_of(Some(&Value::Str(text.clone()))).map(|_| text)
+}

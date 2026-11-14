@@ -7,7 +7,7 @@
 //! the reason rather than taking the whole listing down.
 
 use crate::json::{self, Object, Value};
-use crate::locations::{vibe_available_cache_path, vibe_config_path};
+use crate::locations::{pi_models_path, vibe_available_cache_path, vibe_config_path};
 use crate::models::{
     hermes_default_model, is_vibe_model_id, parse_antigravity_models, parse_opencode_models, parse_vibe_available,
     vibe_models, ClientListing, ClientModel,
@@ -56,6 +56,7 @@ pub fn list_client(runtime: &Runtime, id: &str) -> Option<ClientListing> {
         "hermes" => Some(hermes_listing(runtime)),
         "opencode" => Some(opencode_listing(runtime)),
         "vibe" => Some(vibe_listing(runtime)),
+        client if crate::run::is_pi_client(client) => Some(pi_listing(runtime, client)),
         _ => None,
     }
 }
@@ -90,6 +91,47 @@ fn opencode_listing(runtime: &Runtime) -> ClientListing {
         return ClientListing::Reason(failure_reason(OPENCODE_COMMAND, &result));
     }
     ClientListing::Models(parse_opencode_models(&result.stdout))
+}
+
+/// Pi's own configuration: setup writes one `litellm-<route>` provider per
+/// LiteLLM route into the home's `models.json`, with the canonical models the
+/// live catalogue says that route's key reaches, so the file is the one
+/// non-interactive source of what a Pi client on that route can run. The
+/// client id names the route (`pi-vibe` is `litellm-vibe`); a file that is
+/// missing, is not JSON or has no such provider leaves the client out with the
+/// reason, rather than offering a model a run would be refused on.
+fn pi_listing(runtime: &Runtime, client: &str) -> ClientListing {
+    let provider = crate::run::pi_provider(client);
+    let path = match pi_models_path(&runtime.env) {
+        Ok(path) => path,
+        Err(error) => return ClientListing::Reason(format!("listing failed: {}", error.message)),
+    };
+    match runtime.files.read_text(&path) {
+        Ok(text) => parse_pi_listing(&text, &provider, &path),
+        Err(error) => ClientListing::Reason(format!(
+            "listing failed: {path} cannot be read ({}): re-run agent-kit setup, which writes the {provider} provider",
+            error.message
+        )),
+    }
+}
+
+/// The models a Pi `models.json` gives one provider, in the order it lists them.
+pub fn parse_pi_listing(text: &str, provider: &str, path: &str) -> ClientListing {
+    let Ok(parsed) = json::parse(text) else {
+        return ClientListing::Reason(format!("listing failed: {path} is not JSON"));
+    };
+    let models = parsed.as_object().and_then(|object| object.get("providers")).and_then(Value::as_object).and_then(|providers| providers.get(provider)).and_then(Value::as_object).and_then(|entry| entry.get("models"));
+    let Some(Value::Arr(models)) = models else {
+        return ClientListing::Reason(format!("listing failed: {path} has no {provider} provider with models: re-run agent-kit setup, which writes it"));
+    };
+    ClientListing::Models(
+        models
+            .iter()
+            .filter_map(|model| model.as_object().and_then(|model| model.get("id")).and_then(Value::as_str))
+            .filter(|id| !id.is_empty())
+            .map(|id| ClientModel { model: id.to_string(), names: Vec::new(), provider: None })
+            .collect(),
+    )
 }
 
 /// Hermes' own configuration: `hermes model` is an interactive picker, so the

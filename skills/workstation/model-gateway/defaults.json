@@ -6,7 +6,12 @@
     "claude": {"binary": "claude", "cost_class": "subsidised",       "model_source": "declared"},
     "hermes": {"binary": "hermes", "cost_class": "metered-personal", "model_source": "config"},
     "opencode": {"binary": "opencode", "cost_class": "metered-personal", "model_source": "live", "provider_cost_classes": {"opencode-go": "subsidised"}, "litellm_route": "opencode-go"},
-    "codex":  {"binary": "codex",  "cost_class": "metered-employer", "model_source": "declared"}
+    "codex":  {"binary": "codex",  "cost_class": "metered-employer", "model_source": "declared"},
+    "pi-vibe":        {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
+    "pi-vibe-study":  {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
+    "pi-opencode-go": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
+    "pi-local":       {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
+    "pi-public":      {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"}
   },
   "models": [
     {"client": "claude", "model": "claude-opus-5-5",   "family": "anthropic", "tier": "frontier", "notes": "Strongest Claude; design, hard debugging, review of risky changes."},
@@ -25,7 +30,23 @@
     {"client": "opencode", "model": "opencode-go/kimi-k2.7-code", "family": "moonshot", "tier": "hard", "notes": "Strong agentic coding on OpenCode Go; served by no Vibe, Google or Anthropic key."},
     {"client": "opencode", "model": "opencode-go/mimo-v2.6-pro", "family": "xiaomi", "tier": "hard", "notes": "Xiaomi’s MiMo pro variant on OpenCode Go; untried as a delegate."},
     {"client": "opencode", "model": "opencode-go/qwen3.8-flash", "family": "alibaba", "tier": "routine", "notes": "Fast Qwen; routine edits and summaries on OpenCode Go."},
-    {"client": "opencode", "model": "opencode-go/mimo-v2.6-flash", "family": "xiaomi", "tier": "routine", "notes": "Xiaomi’s MiMo flash variant, new on the plan; untried as a delegate."}
+    {"client": "opencode", "model": "opencode-go/mimo-v2.6-flash", "family": "xiaomi", "tier": "routine", "notes": "Xiaomi’s MiMo flash variant, new on the plan; untried as a delegate."},
+    {"client": "pi", "model": "deepseek-v4.1-flash", "family": "deepseek", "tier": "routine", "notes": "Cheap and quick; good at well-specified code changes and lint-like review."},
+    {"client": "pi", "model": "glm-5.3", "family": "zhipu", "tier": "hard", "notes": "Strong code review and integration reasoning."},
+    {"client": "pi", "model": "glm-5.3-flash", "family": "zhipu", "tier": "routine", "notes": "Cheap and quick; well-specified code changes and lint-like review."},
+    {"client": "pi", "model": "mistral-large-4", "family": "mistral", "tier": "hard", "notes": "Broad general model."},
+    {"client": "pi", "model": "mistral-medium-3.5", "family": "mistral", "tier": "routine", "notes": "General coding, tool use and reasoning."},
+    {"client": "pi", "model": "mistral-small", "family": "mistral", "tier": "trivial", "notes": "Very cheap; short summaries and classification."},
+    {"client": "pi", "model": "ministral-3b", "family": "mistral", "tier": "trivial", "notes": "Tiny and very cheap; classification and one-line answers."},
+    {"client": "pi", "model": "ministral-8b", "family": "mistral", "tier": "trivial", "notes": "Small and cheap; short summaries and lookups."},
+    {"client": "pi", "model": "codestral", "family": "mistral", "tier": "routine", "notes": "Code-tuned Mistral; focused edits and code explanation."},
+    {"client": "pi", "model": "kimi-k2.7-code", "family": "moonshot", "tier": "hard", "notes": "Strong agentic coding."},
+    {"client": "pi", "model": "mimo-v2.6-pro", "family": "xiaomi", "tier": "hard", "notes": "Xiaomi’s MiMo pro variant; untried as a delegate."},
+    {"client": "pi", "model": "mimo-v2.6-flash", "family": "xiaomi", "tier": "routine", "notes": "Xiaomi’s MiMo flash variant; untried as a delegate."},
+    {"client": "pi", "model": "qwen3.8-flash", "family": "alibaba", "tier": "routine", "notes": "Fast Qwen; routine edits and summaries."},
+    {"client": "pi", "model": "minimax-m3.1-flash", "family": "minimax", "tier": "routine", "notes": "Fast MiniMax; routine edits and summaries."},
+    {"client": "pi", "model": "public/gemini-3.8-flash", "family": "google", "tier": "routine", "notes": "Fast long-context reader; public material only."},
+    {"client": "pi", "model": "public/gemini-3.5-flash-lite", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries and lookups; public material only."}
   ],
   "settings": {
     "plan_warning_ratio": 0.8,

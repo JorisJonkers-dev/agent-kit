@@ -116,6 +116,44 @@ export const opencodeOut = (text = 'Looked it up.\nSUMMARY: opencode is fine') =
   ]
     .map((event) => JSON.stringify(event))
     .join('\n')
+/** What Pi's `--mode json` prints: the assistant messages that ended, with the usage Pi counted and priced. */
+export const piOut = (text = 'Looked.\nSUMMARY: pi is fine', message = {}) =>
+  [
+    { type: 'tool_execution_start', toolName: 'read', args: { path: 'README.md' } },
+    { type: 'message_end', message: { role: 'user', content: [{ type: 'text', text: 'ignored' }] } },
+    { type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text }], stopReason: 'stop', usage: { input: 100, output: 40, cacheRead: 30, cost: { total: 0.002 } }, ...message } },
+  ]
+    .map((event) => JSON.stringify(event))
+    .join('\n')
+
+/**
+ * What confines a Pi launch: the launcher records how it was called and what it made, then runs the
+ * command after `--`, as `agent-launcher confine` does; and the secret store answers a key by its name.
+ */
+export const LAUNCHER = `#!/bin/sh
+D="$HOME/calls"
+mkdir -p "$D"
+{
+  echo "launcher $*"
+  echo "env PATH=$PATH"
+  echo "env PI_CODING_AGENT_DIR=\${PI_CODING_AGENT_DIR-<unset>}"
+  echo "env TMPDIR=\${TMPDIR-<unset>}"
+  echo "agent settings.json: $(cat "$PI_CODING_AGENT_DIR/settings.json")"
+  echo "agent models.json: $(cat "$PI_CODING_AGENT_DIR/models.json")"
+} >> "$D/launcher.txt"
+while [ "$1" != "--" ]; do shift; done
+shift
+exec "$@"
+`
+export const SECRET_STORE = `#!/bin/sh
+case "$2" in
+  MISSING) echo "no such secret" >&2; exit 1 ;;
+  *) echo "secret-for-$2" ;;
+esac
+`
+export const piHome = (providers) => ({ write: { 'home/.pi/agent/models.json': JSON.stringify({ providers }) } })
+export const piProvider = (apiKey, ...models) => ({ api: 'openai-completions', apiKey, baseUrl: 'https://litellm.example/v1', models: models.map((id) => ({ id })) })
+export const confined = { write: { 'bin/agent-launcher': LAUNCHER, 'bin/agent-kit-secret': SECRET_STORE }, exec: ['bin/agent-launcher', 'bin/agent-kit-secret'] }
 export const hermesUsage = (extra = {}) => JSON.stringify({ input_tokens: 2000, output_tokens: 300, cache_read_tokens: 500, estimated_cost_usd: 0.002, failed: false, ...extra })
 export const codexOut = (text = 'Checked.\nSUMMARY: codex is fine') =>
   [
@@ -256,6 +294,66 @@ export function addRunScenarios(scenarios, step) {
     run({ client: 'claude', mode: 'read-only', model: 'claude-sonnet-5-5', prompt: 'List of events.' }, merge(
       behaves('claude', { out: JSON.stringify([{ type: 'system' }, JSON.parse(claudeOut({ total_cost_usd: 0 }))]) }),
       { now: '2026-11-03T12:05:00Z' },
+    )),
+  ]
+
+  // Pi: one client per LiteLLM route, started through the launcher that confines it to its working directory,
+  // on the provider its id names, with the read tools alone and the prompt on stdin; its own agent directory
+  // (the route's provider with the key just read) is made for the launch and gone after it.
+  scenarios['run-pi'] = [
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'Look at the plan.', escalate: false }, merge(
+      clients('pi'),
+      confined,
+      piHome({ 'litellm-vibe': piProvider('literal-key', 'glm-5.3', 'mistral-large-4') }),
+      behaves('pi', { out: piOut() }),
+    )),
+    run({ client: 'pi-opencode-go', mode: 'read-only', model: 'qwen3.8-flash', prompt: 'Read the repository.', repo: REPO, time_limit_s: 300, escalate: false }, merge(
+      repo('alibaba'),
+      piHome({ 'litellm-opencode-go': piProvider('!agent-kit-secret get LITELLM_OPENCODE_GO_KEY', 'qwen3.8-flash') }),
+      behaves('pi', { out: piOut('Second.\nSUMMARY: from the repository', { usage: { input: 10, output: 5, cost: { total: 0 } } }) }),
+      { now: '2026-11-03T12:05:00Z' },
+    )),
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'The launcher is named by the environment.', escalate: false }, merge(
+      piHome({ 'litellm-vibe': piProvider('literal-key', 'glm-5.3') }),
+      behaves('pi', { out: piOut('Named.') }),
+      { env: { AGENT_KIT_LAUNCHER_BIN: `${SBX}/bin/agent-launcher`, PI_CODING_AGENT_DIR: `${SBX}/pi-home` }, write: { 'pi-home/models.json': JSON.stringify({ providers: { 'litellm-vibe': piProvider('literal-key', 'glm-5.3') } }) }, now: '2026-11-03T12:10:00Z' },
+    )),
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'The stream ends in a provider error.', escalate: false }, merge(
+      behaves('pi', { out: piOut('partial', { stopReason: 'error', errorMessage: 'upstream said 500' }) }),
+      { env: { PI_CODING_AGENT_DIR: null }, now: '2026-11-03T12:15:00Z' },
+    )),
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'No assistant message at all.', escalate: false }, merge(
+      behaves('pi', { out: '{"type":"agent_start"}\nnot json' }),
+      { now: '2026-11-03T12:20:00Z' },
+    )),
+  ]
+
+  // Pi never runs unconfined: no launcher, no provider for the route, a key the store cannot give, a models
+  // file that cannot be read or a key that is a shell command all end the run as launch-failed before Pi starts.
+  scenarios['run-pi-unconfined'] = [
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'No launcher.', escalate: false }, merge(
+      clients('pi'),
+      { write: { 'bin/agent-kit-secret': SECRET_STORE }, exec: ['bin/agent-kit-secret'] },
+      piHome({ 'litellm-vibe': piProvider('literal-key', 'glm-5.3') }),
+      behaves('pi', { out: piOut() }),
+    )),
+    run({ client: 'pi-local', mode: 'read-only', model: 'glm-5.3', prompt: 'No provider for the route.', escalate: false }, merge(confined, { now: '2026-11-03T12:01:00Z' })),
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'The key is missing.', escalate: false }, merge(
+      piHome({ 'litellm-vibe': piProvider('!agent-kit-secret get MISSING', 'glm-5.3') }),
+      { now: '2026-11-03T12:02:00Z' },
+    )),
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'The key is a shell command.', escalate: false }, merge(
+      piHome({ 'litellm-vibe': piProvider('!echo hi | cat', 'glm-5.3') }),
+      { now: '2026-11-03T12:03:00Z' },
+    )),
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'A provider with no key.', escalate: false }, merge(
+      { write: { 'home/.pi/agent/models.json': JSON.stringify({ providers: { 'litellm-vibe': { api: 'openai-completions', baseUrl: 'https://litellm.example/v1' } } }) }, now: '2026-11-03T12:04:00Z' },
+    )),
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'A base URL with no port.', escalate: false }, merge(
+      { write: { 'home/.pi/agent/models.json': JSON.stringify({ providers: { 'litellm-vibe': { api: 'openai-completions', apiKey: 'k', baseUrl: 'ftp://litellm.example:x/v1', models: [] } } }) }, now: '2026-11-03T12:05:00Z' },
+    )),
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'A models file that is not JSON.', escalate: false }, merge(
+      { write: { 'home/.pi/agent/models.json': 'not json' }, now: '2026-11-03T12:06:00Z' },
     )),
   ]
 
@@ -548,6 +646,16 @@ exit 1
       },
     }))],
     [{ client: 'opencode', model: 'opencode-go/kimi-k2.7-code', mode: 'read-only', prompt: 'Probe failed.' }, {}],
+    // Pi: a route no client is declared for, a client on the public route never sent a repository, a provider
+    // the caller may not name, and a canonical group the catalogue finds blocked on its only deployment.
+    [{ client: 'pi-nowhere', model: 'glm-5.3', mode: 'read-only', prompt: 'No such route.' }, {}],
+    [{ client: 'pi-public', model: 'public/gemini-3.8-flash', mode: 'read-only', prompt: 'Public route, private repository.', repo: REPO }, merge(allowlist('google'))],
+    [{ client: 'pi-vibe', model: 'glm-5.3', provider: 'litellm-vibe', mode: 'read-only', prompt: 'A provider of its own.' }, {}],
+    [{ client: 'pi-vibe', model: 'mistral-large-4', mode: 'read-only', prompt: 'Blocked group.' }, merge(file(LITELLM_CATALOGUE, {
+      updated_at: '2026-11-03T11:17:01Z',
+      providers: { vibe: { models: [{ id: 'vibe/mistral-large-4', metadata: { status: 'blocked', reason: 'Not on your plan.', free: false } }] } },
+      groups: { 'mistral-large-4': { modality: 'chat', public: false, deployments: [{ route: 'vibe', upstream_id: 'mistral-large-4', order: 1, weight: 1 }] } },
+    }))],
   ]
   scenarios['run-refusals'] = refusals.map(([input, extra], index) => run(input, index === 0 ? merge(clients('vibe'), extra) : merge(extra)))
 
@@ -559,7 +667,7 @@ exit 1
     run('[]'), run('null'), run('"x"'), run('5'),
     bad({ extras: {} }), bad({ extras: null }),
     without('workflow'), bad({ workflow: '' }), bad({ workflow: 'bad name' }), bad({ workflow: 5 }),
-    without('client'), bad({ client: 'nobody' }), bad({ client: 5 }), bad({ client: 'VIBE' }),
+    without('client'), bad({ client: 'nobody' }), bad({ client: 5 }), bad({ client: 'VIBE' }), bad({ client: 'pi-' }), bad({ client: 'pi-Vibe' }), bad({ client: 'pi' }),
     without('mode'), bad({ mode: 'plan' }), bad({ mode: 5 }),
     without('model'), bad({ model: '' }), bad({ model: 5 }),
     without('prompt'), bad({ prompt: '' }), bad({ prompt: ['x'] }),

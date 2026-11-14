@@ -71,6 +71,11 @@ const FAMILY_PREFIXES: readonly (readonly [string, string])[] = [
   ['qwen', 'alibaba'],
   ['mistral', 'mistral'],
   ['codestral', 'mistral'],
+  ['ministral', 'mistral'],
+  ['magistral', 'mistral'],
+  ['voxtral', 'mistral'],
+  ['gemma', 'google'],
+  ['mimo', 'xiaomi'],
 ]
 
 export function familyOf(model: string): string | undefined {

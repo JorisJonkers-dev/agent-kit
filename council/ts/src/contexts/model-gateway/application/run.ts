@@ -14,6 +14,7 @@ import {
   PROVIDER_CLIENTS,
   readOnlyProof,
   readRunInput,
+  runClientOf,
   requireAllowedProvider,
   priceRun,
   runFailureReason,
@@ -36,7 +37,7 @@ import { EscalatedRun, type AttemptOptions } from './escalation.js'
 import { GrantGuard } from './grants.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
-import { DELEGATION_MARK, READ_ONLY_AGENT, type LaunchPaths } from './launchers.js'
+import { DELEGATION_MARK, piProvider, READ_ONLY_AGENT, type LaunchPaths } from './launchers.js'
 import { requireUsable } from './litellm-catalogue.js'
 import { resolveScope } from './policy.js'
 import type { ClientConfig } from '../domain/config.js'
@@ -890,7 +891,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     try {
       return await this.clientRun.launch({
         binary,
-        client: input.client as RunClient,
+        client: runClientOf(input.client) ?? (input.client as RunClient),
         extras: { env: { [DELEGATION_MARK]: '1' } },
         mode: input.mode,
         model: input.model,
@@ -899,6 +900,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
         time_limit_s: input.time_limit_s,
         ...(input.max_price_usd === undefined ? {} : { max_price_usd: input.max_price_usd }),
         ...(input.provider === undefined ? {} : { provider: input.provider }),
+        ...(runClientOf(input.client) === 'pi' ? { provider: piProvider(input.client) } : {}),
       })
     } catch (error) {
       return {

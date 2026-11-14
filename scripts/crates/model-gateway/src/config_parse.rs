@@ -14,8 +14,11 @@ use crate::ports::Runtime;
 use std::collections::BTreeMap;
 
 /// The fields a client has; a machine file that names another is refused, not quietly ignored.
-const CLIENT_FIELDS: [&str; 8] =
-    ["binary", "cost_class", "model_source", "families", "provider_cost_classes", "providers", "plan_limits", "litellm_route"];
+const CLIENT_FIELDS: [&str; 9] =
+    ["binary", "cost_class", "model_source", "families", "provider_cost_classes", "providers", "plan_limits", "litellm_route", "data_scope"];
+
+/// What a client's `data_scope` may name: anything its policy allows, or public material only.
+const DATA_SCOPES: [&str; 2] = ["any", "public"];
 
 /// The top-level keys a machine file may name; one it does not is refused, not quietly dropped.
 const OVERRIDE_KEYS: [&str; 5] = ["version", "clients", "disabled", "models", "settings"];
@@ -45,12 +48,35 @@ pub fn parse_defaults(raw: &Value) -> Result<GatewayConfig, GatewayError> {
     for (index, value) in models_raw.iter().enumerate() {
         models.push(parse_model_entry(value, index, None)?);
     }
+    let models = expand_client_groups(models, &clients);
     let Some(settings_raw) = object.get("settings").and_then(Value::as_object) else {
         return Err(invalid("settings must be an object"));
     };
     let disabled = parse_disabled(object.get("disabled"))?;
     let settings = parse_settings(settings_raw)?;
     Ok(GatewayConfig { version: CONFIG_VERSION, clients, models, settings, disabled })
+}
+
+/// A defaults entry whose `client` is no client of its own but the prefix of
+/// several (`pi` for `pi-vibe`, `pi-opencode-go`, ...) describes one model for
+/// each of them, so the catalogue states a model once however many routes
+/// serve it. An entry that names a client, or a prefix that matches none, is
+/// kept as it is.
+fn expand_client_groups(models: Vec<ModelEntry>, clients: &BTreeMap<String, ClientConfig>) -> Vec<ModelEntry> {
+    models
+        .into_iter()
+        .flat_map(|entry| {
+            if clients.contains_key(&entry.client) {
+                return vec![entry];
+            }
+            let prefix = format!("{}-", entry.client);
+            let members: Vec<&String> = clients.keys().filter(|id| id.starts_with(&prefix)).collect();
+            if members.is_empty() {
+                return vec![entry];
+            }
+            members.into_iter().map(|id| ModelEntry { client: id.clone(), ..entry.clone() }).collect()
+        })
+        .collect()
 }
 
 /// This machine's override merged over the defaults: a client field replaces
@@ -168,10 +194,14 @@ fn parse_client(id: &str, raw: &Object, base: Option<&ClientConfig>) -> Result<C
         None => base.and_then(|client| client.litellm_route.clone()),
         Some(value) => Some(require_string(Some(value), &format!("{where_}.litellm_route"))?),
     };
+    let public_only = match raw.get("data_scope") {
+        None => base.is_some_and(|client| client.public_only),
+        Some(value) => require_one_of(Some(value), &DATA_SCOPES, &format!("{where_}.data_scope"))? == 1,
+    };
     let (Some(binary), Some(cost_class), Some(model_source)) = (binary, cost_class, model_source) else {
         return Err(invalid(format!("{where_} is new, so it needs binary, cost_class and model_source")));
     };
-    Ok(ClientConfig { binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits, litellm_route })
+    Ok(ClientConfig { binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits, litellm_route, public_only })
 }
 
 /// The windows of a client's plan, each naming its span and either its dollars or its runs.

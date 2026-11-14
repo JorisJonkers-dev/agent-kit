@@ -3,7 +3,7 @@
 
 // src/model-gateway-cli/index.ts
 import { readFile as readFile6 } from "node:fs/promises";
-import { join as join10 } from "node:path";
+import { join as join12 } from "node:path";
 
 // src/adapters/clock/index.ts
 import { performance } from "node:perf_hooks";
@@ -51,6 +51,7 @@ var CONFIG_VERSION = 1;
 var COST_CLASSES = ["subsidised", "metered-personal", "metered-employer"];
 var TIERS = ["trivial", "routine", "hard", "frontier"];
 var MODEL_SOURCES = ["live", "config", "declared"];
+var CLIENT_DATA_SCOPES = ["any", "public"];
 var PLAN_WINDOWS = ["5h", "day", "week", "month"];
 var CLIENT_FIELDS = [
   "binary",
@@ -60,7 +61,8 @@ var CLIENT_FIELDS = [
   "provider_cost_classes",
   "providers",
   "plan_limits",
-  "litellm_route"
+  "litellm_route",
+  "data_scope"
 ];
 var OVERRIDE_KEYS = ["version", "clients", "disabled", "models", "settings"];
 var ModelGatewayError = class extends Error {
@@ -85,7 +87,10 @@ function parseDefaults(raw) {
     })
   );
   if (!Array.isArray(raw.models)) throw invalid("models must be a list");
-  const models = raw.models.map((value, index) => parseModelEntry(value, index, void 0));
+  const models = expandClientGroups(
+    raw.models.map((value, index) => parseModelEntry(value, index, void 0)),
+    clients
+  );
   if (!isObject(raw.settings)) throw invalid("settings must be an object");
   return {
     clients,
@@ -94,6 +99,13 @@ function parseDefaults(raw) {
     settings: parseSettings(raw.settings),
     version: CONFIG_VERSION
   };
+}
+function expandClientGroups(models, clients) {
+  return models.flatMap((entry) => {
+    if (entry.client in clients) return [entry];
+    const members = Object.keys(clients).filter((id) => id.startsWith(`${entry.client}-`));
+    return members.length === 0 ? [entry] : members.map((id) => ({ ...entry, client: id }));
+  });
 }
 function applyOverride(config, raw) {
   if (!isObject(raw)) throw invalid("the override must be a JSON object");
@@ -131,6 +143,7 @@ function parseClient(id, raw, base) {
   const providers = raw.providers === void 0 ? base?.providers : requireStrings(raw.providers, `${where}.providers`);
   const planLimits = raw.plan_limits === void 0 ? base?.plan_limits : parsePlanLimits(raw.plan_limits, `${where}.plan_limits`);
   const litellmRoute = raw.litellm_route === void 0 ? base?.litellm_route : requireString(raw.litellm_route, `${where}.litellm_route`);
+  const dataScope = raw.data_scope === void 0 ? base?.data_scope : requireOneOf(raw.data_scope, CLIENT_DATA_SCOPES, `${where}.data_scope`);
   if (binary === void 0 || costClass === void 0 || modelSource === void 0) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`);
   }
@@ -142,7 +155,8 @@ function parseClient(id, raw, base) {
     provider_cost_classes: providerCostClasses,
     providers,
     ...planLimits === void 0 ? {} : { plan_limits: planLimits },
-    ...litellmRoute === void 0 ? {} : { litellm_route: litellmRoute }
+    ...litellmRoute === void 0 ? {} : { litellm_route: litellmRoute },
+    ...dataScope === void 0 ? {} : { data_scope: dataScope }
   };
 }
 function parsePlanLimits(raw, where) {
@@ -435,6 +449,12 @@ function endWorkflow(records, name, now) {
 
 // src/contexts/model-gateway/domain/run.ts
 var RUN_CLIENTS = ["vibe", "agy", "claude", "opencode", "hermes", "codex"];
+var PI_CLIENT = /^pi-[a-z0-9][a-z0-9-]*$/;
+function runClientOf(id) {
+  if (typeof id !== "string") return void 0;
+  if (RUN_CLIENTS.includes(id)) return id;
+  return PI_CLIENT.test(id) ? "pi" : void 0;
+}
 var PROVIDER_CLIENTS = ["hermes"];
 var FORBIDDEN_PROVIDERS = ["openrouter"];
 var DEFAULT_TIME_LIMIT_S = 900;
@@ -442,7 +462,7 @@ function readRunInput(raw) {
   if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
   if (raw.extras !== void 0) throw new ModelGatewayError("invalid-input", "extras are for in-process callers only");
   const workflow = requireWorkflowName(raw.workflow, "a run must name its workflow");
-  if (typeof raw.client !== "string" || !RUN_CLIENTS.includes(raw.client)) {
+  if (typeof raw.client !== "string" || runClientOf(raw.client) === void 0) {
     throw new ModelGatewayError("not-supported-yet", `only ${RUN_CLIENTS.join(", ")} can run a delegation, not ${shown(raw.client)}`);
   }
   if (raw.mode !== "read-only" && raw.mode !== "write") {
@@ -1065,7 +1085,12 @@ var FAMILY_PREFIXES = [
   ["grok", "xai"],
   ["qwen", "alibaba"],
   ["mistral", "mistral"],
-  ["codestral", "mistral"]
+  ["codestral", "mistral"],
+  ["ministral", "mistral"],
+  ["magistral", "mistral"],
+  ["voxtral", "mistral"],
+  ["gemma", "google"],
+  ["mimo", "xiaomi"]
 ];
 function familyOf(model) {
   return FAMILY_PREFIXES.find(([prefix]) => model.startsWith(prefix))?.[1];
@@ -2028,6 +2053,10 @@ function runsDir(env) {
 function workflowsPath(env) {
   return join2(stateDir(env), "workflows.json");
 }
+function piModelsPath(env) {
+  const own = env.get("PI_CODING_AGENT_DIR") ?? "";
+  return join2(own.length > 0 ? own : join2(env.require("HOME"), ".pi", "agent"), "models.json");
+}
 
 // src/contexts/model-gateway/application/batch.ts
 var BatchCommand = class {
@@ -2475,6 +2504,36 @@ function openCodeOutput(stdout) {
   }
   return { answer, charged: chargedAmount(charged), error, failure: failure2, tokens: sum3 };
 }
+function piOutput(stdout) {
+  let last;
+  let charged = 0;
+  const sum3 = { cached: 0, input: 0, output: 0 };
+  for (const line of stdout.split("\n")) {
+    const event = parseJson2(line);
+    if (!isObject(event) || event.type !== "message_end" || !isObject(event.message) || event.message.role !== "assistant") continue;
+    const message = event.message;
+    last = message;
+    const usage = isObject(message.usage) ? message.usage : {};
+    const cost = isObject(usage.cost) ? usage.cost : {};
+    charged += count(cost.total);
+    sum3.cached += count(usage.cacheRead);
+    sum3.input += count(usage.input) + count(usage.cacheRead);
+    sum3.output += count(usage.output);
+  }
+  if (last === void 0) return { answer: void 0, charged: void 0, failure: "client-error", tokens: NO_TOKENS };
+  const text = piText(last);
+  if (last.stopReason === "error" || last.stopReason === "aborted") {
+    const said = textOf(last.errorMessage) ?? last.stopReason;
+    return { answer: text, charged: chargedAmount(charged), error: { text: said }, failure: "client-error", tokens: sum3 };
+  }
+  return { answer: text, charged: chargedAmount(charged), tokens: sum3 };
+}
+function piText(message) {
+  const content = message.content;
+  if (!Array.isArray(content)) return void 0;
+  const text = content.filter((part) => isObject(part) && part.type === "text" && typeof part.text === "string").map((part) => String(part.text)).join("");
+  return textOf(text);
+}
 
 // src/contexts/model-gateway/application/launchers.ts
 var DELEGATION_MARK = "AGENT_KIT_DELEGATION";
@@ -2683,9 +2742,166 @@ var codex = {
   protectedEnv: [],
   read: (stdout) => codexOutput(stdout)
 };
-var LAUNCHERS = { agy, claude, codex, hermes, opencode, vibe };
+var PI_READ_TOOLS = ["read", "grep", "find", "ls"];
+var PI_WRITE_TOOLS = [...PI_READ_TOOLS, "edit", "write"];
+var PI_READ_SYSTEM_PROMPT = "You are a read-only delegate. Read and search only the files of your working directory, and answer exactly as the user message asks.";
+var PI_WRITE_SYSTEM_PROMPT = "You are a delegate that changes the files of your working directory. Read, search, edit and write only those files, run no command, and answer exactly as the user message asks.";
+function piProvider(client) {
+  return `litellm-${client.replace(/^pi-/, "")}`;
+}
+function piGrants(input, paths, binary, confine) {
+  const write = input.mode === "write";
+  return [
+    ...write ? ["--write", paths.workDir, ...(paths.gitWritable ?? []).flatMap((dir) => ["--write", dir])] : ["--read", paths.workDir],
+    "--run-from",
+    binary,
+    ...confine.bin === void 0 ? [] : ["--run", confine.bin],
+    "--write",
+    confine.agentDir,
+    "--net-connect",
+    String(confine.port)
+  ];
+}
+var pi = {
+  command: (binary, input, paths, prompt, extras) => {
+    const write = input.mode === "write";
+    const piArgs = [
+      "-p",
+      "--mode",
+      "json",
+      "--no-session",
+      "--offline",
+      "--provider",
+      input.provider ?? "undefined",
+      "--model",
+      input.model,
+      "--tools",
+      (write ? PI_WRITE_TOOLS : PI_READ_TOOLS).join(","),
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--no-context-files",
+      "--no-mcp",
+      "--no-approve",
+      "--system-prompt",
+      write ? PI_WRITE_SYSTEM_PROMPT : PI_READ_SYSTEM_PROMPT
+    ];
+    const confine = extras?.confine;
+    if (confine === void 0) {
+      return { args: piArgs, command: binary, cwd: paths.workDir, env: extras?.env ?? {}, stdin: prompt, timeoutMs: input.time_limit_s * 1e3 };
+    }
+    const searched = [confine.bin, confine.path].filter((part) => part !== void 0 && part !== "").join(":");
+    return {
+      args: ["confine", ...piGrants(input, paths, binary, confine), "--", binary, ...piArgs],
+      command: confine.launcher,
+      cwd: paths.workDir,
+      env: { ...extras?.env, PATH: searched, PI_CODING_AGENT_DIR: confine.agentDir, TMPDIR: confine.agentDir },
+      stdin: prompt,
+      timeoutMs: input.time_limit_s * 1e3
+    };
+  },
+  extras: ["env"],
+  sandboxedExtras: [],
+  protectedEnv: ["PATH", "PI_CODING_AGENT_DIR", "TMPDIR"],
+  read: (stdout) => piOutput(stdout)
+};
+var LAUNCHERS = { agy, claude, codex, hermes, opencode, pi, vibe };
+
+// src/contexts/model-gateway/application/pi-launch.ts
+import { join as join5 } from "node:path";
+var KEY_TIMEOUT_MS = 2e4;
+var NO_LAUNCHER = "pi: agent-launcher is not on PATH, and a Pi delegate only runs confined to its working directory; re-run agent-kit setup, which installs it";
+var FIX = "re-run agent-kit setup so it writes the LiteLLM providers into ~/.pi/agent/models.json";
+function homeAgentDir(ports) {
+  const own = ports.env.get("PI_CODING_AGENT_DIR") ?? "";
+  return own.length > 0 ? own : join5(ports.env.get("HOME") ?? "", ".pi", "agent");
+}
+function urlPort(url) {
+  const scheme = url.startsWith("https://") ? "https" : url.startsWith("http://") ? "http" : void 0;
+  if (scheme === void 0) return void 0;
+  const authority = url.slice(scheme.length + 3).split("/")[0] ?? "";
+  const colon = authority.lastIndexOf(":");
+  if (colon < 0) return scheme === "https" ? 443 : 80;
+  const port = authority.slice(colon + 1);
+  return /^[0-9]{1,5}$/.test(port) && Number(port) > 0 && Number(port) < 65536 ? Number(port) : void 0;
+}
+async function routeOf(ports, provider, model) {
+  const path = join5(homeAgentDir(ports), "models.json");
+  let parsed;
+  try {
+    parsed = JSON.parse(await ports.files.readText(path));
+  } catch {
+    return `pi: ${path} cannot be read; ${FIX}`;
+  }
+  const providers = isObject(parsed) && isObject(parsed.providers) ? parsed.providers : {};
+  const entry = providers[provider];
+  if (!isObject(entry)) return `pi: ${path} has no ${provider} provider; ${FIX}`;
+  const { api, apiKey, baseUrl } = entry;
+  if (typeof baseUrl !== "string" || typeof api !== "string" || typeof apiKey !== "string") {
+    return `pi: the ${provider} provider in ${path} lacks a baseUrl, api or apiKey; ${FIX}`;
+  }
+  const port = urlPort(baseUrl);
+  if (port === void 0) return `pi: the ${provider} provider's baseUrl is not an http or https URL with a port the confinement can allow`;
+  const models = Array.isArray(entry.models) ? entry.models : [];
+  const routed = models.find((candidate) => isObject(candidate) && candidate.id === model);
+  return { api, apiKey, baseUrl, model: routed ?? { id: model }, port };
+}
+async function keyOf(ports, provider, apiKey) {
+  if (!apiKey.startsWith("!")) return { value: apiKey };
+  const words = apiKey.slice(1).trim().split(/\s+/);
+  const [program = "", get = "", name = ""] = words;
+  if (words.length !== 3 || get !== "get") {
+    return { error: `pi: the ${provider} key is a shell command the gateway does not run; setup writes it as !agent-kit-secret get <NAME>` };
+  }
+  let said;
+  try {
+    const read = await ports.process.exec({ args: ["get", name], command: program, timeoutMs: KEY_TIMEOUT_MS });
+    const value = read.timedOut === true || read.exitCode !== 0 ? "" : read.stdout.trim();
+    if (value.length > 0) return { value };
+    said = firstLine(read.stderr) ?? `exit ${String(read.exitCode)}`;
+  } catch (error) {
+    said = error instanceof Error ? error.message : String(error);
+  }
+  return { error: `pi: the ${provider} key could not be read from the secret store (${name}): ${said}` };
+}
+function firstLine(text) {
+  return text.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
+}
+async function launcherOf(ports) {
+  const named = ports.env.get("AGENT_KIT_LAUNCHER_BIN") ?? "";
+  if (named.length > 0) return named;
+  for (const dir of (ports.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
+    if (await ports.files.exists(join5(dir, "agent-launcher"))) return "agent-launcher";
+  }
+  return void 0;
+}
+async function preparePi(ports, provider, model, agentDir) {
+  const route = await routeOf(ports, provider, model);
+  if (typeof route === "string") return route;
+  const launcher = await launcherOf(ports);
+  if (launcher === void 0) return NO_LAUNCHER;
+  const key = await keyOf(ports, provider, route.apiKey);
+  if ("error" in key) return key.error;
+  const files = ports.files;
+  if (files.writeTextPrivate === void 0) return "pi: the launch has no way to write its private agent directory";
+  const entry = { api: route.api, apiKey: key.value, baseUrl: route.baseUrl, models: [route.model] };
+  await files.writeTextPrivate(join5(agentDir, "settings.json"), "{}\n");
+  await files.writeTextPrivate(join5(agentDir, "models.json"), `${JSON.stringify({ providers: { [provider]: entry } }, null, 2)}
+`);
+  const bin = join5(homeAgentDir(ports), "bin");
+  const path = ports.env.get("PATH");
+  return {
+    agentDir,
+    launcher,
+    port: route.port,
+    ...await ports.files.exists(bin) ? { bin } : {},
+    ...path === void 0 ? {} : { path }
+  };
+}
 
 // src/contexts/model-gateway/application/client-run.ts
+import { join as join6 } from "node:path";
 var VIBE_ON_DEMAND_TOOLS = ["web_search", "web_fetch"];
 function requireSupportedExtras(client, extras) {
   const launcher = LAUNCHERS[client];
@@ -2720,11 +2936,27 @@ var ClientRun = class {
   async launch(request) {
     requireSupportedExtras(request.client, request.extras);
     const launcher = LAUNCHERS[request.client];
-    const extras = await this.extrasOf(request);
-    const result2 = await this.ports.process.exec(launcher.command(request.binary, request, request.paths, request.prompt, extras));
+    const confine = request.client === "pi" ? await this.confinementOf(request) : void 0;
+    const extras = { ...await this.extrasOf(request), ...confine === void 0 ? {} : { confine } };
+    let result2;
+    try {
+      result2 = await this.ports.process.exec(launcher.command(request.binary, request, request.paths, request.prompt, extras));
+    } finally {
+      if (confine !== void 0) await this.ports.files.remove?.(confine.agentDir);
+    }
     const reportPath = launcher.reportPath?.(request.paths);
     const exported = reportPath === void 0 ? void 0 : await this.readReport(reportPath);
     return { exported, output: launcher.read(result2.stdout, exported), result: result2 };
+  }
+  /**
+   * What a Pi launch runs through, or the refusal that says why it cannot: Pi
+   * has no sandbox of its own, so a launch that cannot be confined never starts.
+   */
+  async confinementOf(request) {
+    if (request.provider === void 0) throw new ModelGatewayError("unconfined", "a pi launch must name its provider");
+    const prepared = await preparePi(this.ports, request.provider, request.model, join6(request.paths.exportDir, "pi-agent"));
+    if (typeof prepared === "string") throw new ModelGatewayError("unconfined", prepared);
+    return prepared;
   }
   /** The caller's extras as the launcher applies them, with the client's home servers resolved. */
   async extrasOf(request) {
@@ -2777,7 +3009,8 @@ function permission(config, subject, scope) {
       return {
         ...base,
         may_send: scope.entry === void 0 ? NOTHING2 : { code: scope.entry.code, history: scope.entry.history },
-        permitted: scope.entry?.families.includes(subject.family) === true
+        // A client on a public-only route never sees a repository, whatever the allowlist says of its family.
+        permitted: scope.entry?.families.includes(subject.family) === true && config.clients[subject.client]?.data_scope !== "public"
       };
   }
 }
@@ -2994,7 +3227,7 @@ function round2(value, places) {
 
 // src/contexts/model-gateway/application/grants.ts
 import { createHash, randomBytes as randomBytes2 } from "node:crypto";
-import { join as join5 } from "node:path";
+import { join as join7 } from "node:path";
 var NODE_START_ESTIMATE_USD = 0;
 var NODE_START_TIME_LIMIT_S = 1;
 var NODE_START_MODEL = "node-start";
@@ -3113,7 +3346,7 @@ var GrantReserveCommand = class {
       model: NODE_START_MODEL,
       reserved_at: now,
       // A start has no run directory of its own, and a path that holds no result is one no settle reads a cost from.
-      run_dir: join5(stateDir(this.deps.env), "node-starts", runId2),
+      run_dir: join7(stateDir(this.deps.env), "node-starts", runId2),
       run_id: runId2,
       time_limit_s: NODE_START_TIME_LIMIT_S,
       workflow: input.workflow
@@ -3415,7 +3648,19 @@ function parseLiteLLMCatalogue(raw) {
     }
     routes.set(route, models);
   }
-  return { routes, updated_at: raw.updated_at };
+  return { groups: parseGroups(raw.groups), routes, updated_at: raw.updated_at };
+}
+function parseGroups(raw) {
+  const groups = /* @__PURE__ */ new Map();
+  if (!isObject(raw)) return groups;
+  for (const [name, group] of Object.entries(raw)) {
+    if (!isObject(group) || !Array.isArray(group.deployments)) continue;
+    const deployments = group.deployments.flatMap(
+      (deployment) => isObject(deployment) && typeof deployment.route === "string" && typeof deployment.upstream_id === "string" ? [{ order: typeof deployment.order === "number" ? deployment.order : 0, route: deployment.route, upstream: deployment.upstream_id }] : []
+    );
+    groups.set(name, { deployments, public: group.public === true });
+  }
+  return groups;
 }
 function catalogueStaleness(catalogue, path, nowMs) {
   const at = Date.parse(catalogue.updated_at);
@@ -3439,6 +3684,30 @@ function notUsableReason(route, probe) {
   const reason = probe.reason === "" ? "" : `: ${probe.reason}`;
   return `the LiteLLM catalogue marks it ${probe.status} on route ${route}${reason}`;
 }
+function deploymentProbe(catalogue, deployment) {
+  const bare = deployment.upstream.startsWith(`${deployment.route}/`) ? deployment.upstream.slice(deployment.route.length + 1) : deployment.upstream;
+  return probeFor(catalogue, deployment.route, [`${deployment.route}/${bare}`]);
+}
+function groupProbe(catalogue, group) {
+  const known = group.deployments.flatMap((deployment) => {
+    const probe = deploymentProbe(catalogue, deployment);
+    return probe === void 0 ? [] : [{ probe, route: deployment.route }];
+  });
+  const chosen = known.find((entry) => entry.probe.status === "usable") ?? known[0];
+  if (chosen === void 0) return void 0;
+  const first = Math.min(...group.deployments.map((deployment) => deployment.order));
+  const free = group.public || group.deployments.filter((deployment) => deployment.order === first).every((deployment) => deploymentProbe(catalogue, deployment)?.free === true);
+  return { probe: { ...chosen.probe, free }, route: chosen.route };
+}
+function judgement(config, catalogue, client, model) {
+  if (runClientOf(client) === "pi") {
+    const group = catalogue.groups.get(model);
+    return group === void 0 ? void 0 : groupProbe(catalogue, group);
+  }
+  const route = config.clients[client]?.litellm_route;
+  const probe = route === void 0 ? void 0 : probeFor(catalogue, route, namesOf2(config, client, model));
+  return route === void 0 || probe === void 0 ? void 0 : { probe, route };
+}
 function namesOf2(config, client, model) {
   const entry = config.models.find(
     (candidate) => candidate.client === client && [candidate.model, ...candidate.names ?? []].includes(model)
@@ -3448,9 +3717,8 @@ function namesOf2(config, client, model) {
 function judgeListing(config, listing, catalogue) {
   if (catalogue === void 0) return listing;
   const notUsable = (client, id) => {
-    const route = config.clients[client]?.litellm_route;
-    const probe = route === void 0 ? void 0 : probeFor(catalogue, route, namesOf2(config, client, id));
-    return route === void 0 || probe === void 0 || probe.status === "usable" ? void 0 : notUsableReason(route, probe);
+    const judged = judgement(config, catalogue, client, id);
+    return judged === void 0 || judged.probe.status === "usable" ? void 0 : notUsableReason(judged.route, judged.probe);
   };
   const models = [];
   const skipped = listing.skipped.map((entry) => {
@@ -3463,8 +3731,7 @@ function judgeListing(config, listing, catalogue) {
       skipped.push({ client: model.client, model: model.model, reason });
       continue;
     }
-    const route = config.clients[model.client]?.litellm_route;
-    const free = route !== void 0 && probeFor(catalogue, route, namesOf2(config, model.client, model.model))?.free === true;
+    const free = judgement(config, catalogue, model.client, model.model)?.probe.free === true;
     models.push(free ? { ...model, free: true } : model);
   }
   skipped.sort((left, right) => compare2(left.client, right.client) || compare2(left.model, right.model));
@@ -3504,13 +3771,12 @@ async function readLiteLLMCatalogue(deps) {
   return stale === void 0 ? { catalogue: parsed } : { catalogue: parsed, warning: stale };
 }
 async function requireUsable(deps, config, client, model) {
-  const route = config.clients[client]?.litellm_route;
-  if (route === void 0) return;
+  if (config.clients[client]?.litellm_route === void 0 && runClientOf(client) !== "pi") return;
   const { catalogue } = await readLiteLLMCatalogue(deps);
   if (catalogue === void 0) return;
-  const probe = probeFor(catalogue, route, namesOf2(config, client, model));
-  if (probe === void 0 || probe.status === "usable") return;
-  throw new ModelGatewayError("model-not-usable", `${client}:${model} cannot run: ${notUsableReason(route, probe)}`);
+  const judged = judgement(config, catalogue, client, model);
+  if (judged === void 0 || judged.probe.status === "usable") return;
+  throw new ModelGatewayError("model-not-usable", `${client}:${model} cannot run: ${notUsableReason(judged.route, judged.probe)}`);
 }
 
 // src/contexts/model-gateway/application/models.ts
@@ -3528,11 +3794,11 @@ var ModelsCommand = class {
     }
     const listings = /* @__PURE__ */ new Map();
     for (const [id, client] of sortedClients(config)) {
-      const source = this.deps.sources[id];
+      const source = this.deps.sources[id] ?? (runClientOf(id) === "pi" ? this.deps.sources.pi : void 0);
       if (source === void 0 || !installed.has(id) || client.model_source === "declared") continue;
-      listings.set(id, await source.list());
+      listings.set(id, await source.list(id));
     }
-    const judged = sortedClients(config).some(([id, client]) => installed.has(id) && client.litellm_route !== void 0);
+    const judged = sortedClients(config).some(([id, client]) => installed.has(id) && (client.litellm_route !== void 0 || runClientOf(id) === "pi"));
     const reading = judged ? await readLiteLLMCatalogue(this.deps) : {};
     const listing = judgeListing(config, listModels(config, installed, listings, await this.unavailable()), reading.catalogue);
     const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models);
@@ -3566,10 +3832,10 @@ function readModelsInput(raw) {
 
 // src/contexts/model-gateway/application/run.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { join as join7, sep } from "node:path";
+import { join as join9, sep } from "node:path";
 
 // src/contexts/model-gateway/application/escalation.ts
-import { dirname, join as join6 } from "node:path";
+import { dirname, join as join8 } from "node:path";
 
 // src/contexts/model-gateway/application/usage.ts
 var UsageCommand = class {
@@ -3749,7 +4015,7 @@ ${run.summary}`.slice(0, summaryMax) };
    */
   async failureDetail(run) {
     const check = run.reason?.startsWith("check-") === true ? run.check?.output_path : void 0;
-    for (const path of [check, join6(dirname(run.output_path), "stderr.txt"), run.output_path]) {
+    for (const path of [check, join8(dirname(run.output_path), "stderr.txt"), run.output_path]) {
       const text = path === void 0 ? "" : await this.readQuietly(path);
       if (text.trim() !== "") return text;
     }
@@ -3901,7 +4167,7 @@ var RunCommand = class {
       planWindows(input.client, client.plan_limits ?? [], runRecords(await this.deps.ledger.read()), this.deps.clock.now(), config.settings.plan_warning_ratio)
     );
     const recorded = warnings.length === 0 ? released : { ...released, warnings };
-    await this.deps.files.writeText(join7(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
+    await this.deps.files.writeText(join9(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
 `);
     return recorded;
   }
@@ -3963,15 +4229,15 @@ var RunCommand = class {
     const { config, entry, input, runDir } = run;
     const codex2 = await this.codexWorker(run);
     const paths = {
-      exportDir: join7(runDir, "vibe"),
-      promptPath: join7(runDir, "prompt.md"),
+      exportDir: join9(runDir, "vibe"),
+      promptPath: join9(runDir, "prompt.md"),
       runDir,
       workDir: run.workDir,
       ...codex2.gitWritable === void 0 ? {} : { gitWritable: codex2.gitWritable }
     };
     const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode, codex2.worker);
     await this.deps.files.writeText(paths.promptPath, prompt);
-    await this.deps.files.writeText(join7(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
+    await this.deps.files.writeText(join9(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
 `);
     const launched = await this.launch(run.binary, input, paths, prompt);
     const output = launched.output;
@@ -3980,9 +4246,9 @@ var RunCommand = class {
     const reason = finished === void 0 ? delegateReason : finished.reason;
     const unavailableUntil = delegateReason === "rate-limited" || delegateReason === "model-unavailable" ? namedReset(launched.result, output.error, new Date(run.at.getTime() + (this.deps.clock.monotonicMs() - run.startedMs))) : void 0;
     const cost = priceRun(output.charged, output.tokens, entry?.prices);
-    const outputPath = join7(runDir, "output.json");
+    const outputPath = join9(runDir, "output.json");
     await this.deps.files.writeText(outputPath, launched.result.stdout);
-    if (launched.result.stderr !== "") await this.deps.files.writeText(join7(runDir, "stderr.txt"), launched.result.stderr);
+    if (launched.result.stderr !== "") await this.deps.files.writeText(join9(runDir, "stderr.txt"), launched.result.stderr);
     const result2 = {
       client: input.client,
       cost_usd: cost,
@@ -4028,14 +4294,14 @@ var RunCommand = class {
       const gitDir = await this.deps.git.gitDir(workDir);
       const common = await this.commonDir(repo);
       if (gitDir === common) return void 0;
-      return [gitDir, join7(common, "objects"), join7(common, "refs"), join7(common, "logs")];
+      return [gitDir, join9(common, "objects"), join9(common, "refs"), join9(common, "logs")];
     } catch {
       return void 0;
     }
   }
   /** The brief the worktree keeps for a Codex writing run, cut at the limit; undefined when it keeps none. */
   async codexBrief(workDir) {
-    const path = join7(workDir, CODEX_BRIEF_FILE);
+    const path = join9(workDir, CODEX_BRIEF_FILE);
     try {
       if (!await this.deps.files.exists(path)) return void 0;
       return (await this.deps.files.readText(path)).slice(0, CODEX_BRIEF_MAX_CHARS);
@@ -4127,7 +4393,7 @@ var RunCommand = class {
       throw new ModelGatewayError("worktree-failed", `${repo}: cannot list the worktrees to watch: ${messageOf3(error)}`);
     }
     const common = await this.commonDir(repo);
-    const kept = join7(common, "model-gateway", "worktrees");
+    const kept = join9(common, "model-gateway", "worktrees");
     const watched = [];
     for (const path of worktrees) {
       if (path === kept || path.startsWith(`${kept}${sep}`)) continue;
@@ -4184,7 +4450,7 @@ var RunCommand = class {
     } catch (error) {
       result2 = { exitCode: 127, stderr: messageOf3(error), stdout: "" };
     }
-    const outputPath = join7(run.runDir, "check-output.txt");
+    const outputPath = join9(run.runDir, "check-output.txt");
     const report = { command: input.check, exit_code: result2.exitCode, output_path: outputPath };
     try {
       await this.deps.files.writeText(outputPath, `${result2.stdout}${result2.stderr}`);
@@ -4320,8 +4586,8 @@ var RunCommand = class {
    * directory otherwise.
    */
   async runDir(root, id) {
-    if (root === void 0) return join7(runsDir(this.deps.env), id);
-    return join7(await this.commonDir(root), "model-gateway", "runs", id);
+    if (root === void 0) return join9(runsDir(this.deps.env), id);
+    return join9(await this.commonDir(root), "model-gateway", "runs", id);
   }
   /** The repository's common directory, which every gateway directory of the repository sits in. */
   async commonDir(root) {
@@ -4340,7 +4606,7 @@ var RunCommand = class {
    * branch are removed again, and the list's error is the run's.
    */
   async writeWorkplace(input, root, id, at) {
-    const dir = join7(await this.commonDir(root), "model-gateway", "worktrees", id);
+    const dir = join9(await this.commonDir(root), "model-gateway", "worktrees", id);
     const branch = `gateway/${id}`;
     try {
       await this.deps.git.createWorktree(root, dir, branch, input.base);
@@ -4392,7 +4658,7 @@ var RunCommand = class {
     try {
       return await this.clientRun.launch({
         binary,
-        client: input.client,
+        client: runClientOf(input.client) ?? input.client,
         extras: { env: { [DELEGATION_MARK]: "1" } },
         mode: input.mode,
         model: input.model,
@@ -4400,7 +4666,8 @@ var RunCommand = class {
         prompt,
         time_limit_s: input.time_limit_s,
         ...input.max_price_usd === void 0 ? {} : { max_price_usd: input.max_price_usd },
-        ...input.provider === void 0 ? {} : { provider: input.provider }
+        ...input.provider === void 0 ? {} : { provider: input.provider },
+        ...runClientOf(input.client) === "pi" ? { provider: piProvider(input.client) } : {}
       });
     } catch (error) {
       return {
@@ -4555,7 +4822,7 @@ function createModelGatewayCommands(deps) {
 import { createHash as createHash2, randomBytes as randomBytes4 } from "node:crypto";
 import { access, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname as dirname2, join as join8 } from "node:path";
+import { dirname as dirname2, join as join10 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 async function writeFileAtomic(path, content, mode) {
   const temp = `${path}.${randomBytes4(6).toString("hex")}.tmp`;
@@ -4589,7 +4856,7 @@ var NodeModelGatewayFiles = class {
     await mkdir(path, { recursive: true });
   }
   async tempDir(prefix) {
-    return mkdtemp(join8(tmpdir(), prefix));
+    return mkdtemp(join10(tmpdir(), prefix));
   }
   async remove(path) {
     await rm(path, { force: true, recursive: true });
@@ -5021,6 +5288,40 @@ var OpenCodeModelSource = class {
     return { models: parseOpenCodeModels(result2.stdout) };
   }
 };
+var PiModelSource = class {
+  constructor(files, env) {
+    this.files = files;
+    this.env = env;
+  }
+  files;
+  env;
+  async list(client) {
+    const provider = piProvider(client);
+    const path = piModelsPath(this.env);
+    let text;
+    try {
+      text = await this.files.readText(path);
+    } catch (error) {
+      return { reason: `listing failed: ${path} cannot be read (${messageOf7(error)}): re-run agent-kit setup, which writes the ${provider} provider` };
+    }
+    return piListing(text, provider, path);
+  }
+};
+function piListing(text, provider, path) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { reason: `listing failed: ${path} is not JSON` };
+  }
+  const providers = isObject(parsed) && isObject(parsed.providers) ? parsed.providers : {};
+  const entry = providers[provider];
+  if (!isObject(entry) || !Array.isArray(entry.models)) {
+    return { reason: `listing failed: ${path} has no ${provider} provider with models: re-run agent-kit setup, which writes it` };
+  }
+  const ids = entry.models.flatMap((model) => isObject(model) && typeof model.id === "string" && model.id !== "" ? [model.id] : []);
+  return { models: ids.map((model) => ({ model })) };
+}
 var HermesModelSource = class {
   constructor(process2) {
     this.process = process2;
@@ -5206,6 +5507,7 @@ function modelSources(deps) {
     agy: new AntigravityModelSource(deps.process),
     hermes: new HermesModelSource(deps.process),
     opencode: new OpenCodeModelSource(deps.process),
+    pi: new PiModelSource(deps.files, deps.env),
     vibe: new VibeModelSource(deps.files, deps.env, deps.process, deps.clock)
   };
 }
@@ -5233,12 +5535,12 @@ function readingOf(command, run, decide) {
   if (run.result.timedOut === true) return { command, detail: TIMED_OUT, signed_in: "unknown" };
   return { command, ...decide(run.result) };
 }
-function firstLine(text) {
+function firstLine2(text) {
   return text.split("\n").map((line) => line.trim()).find((line) => line !== "");
 }
 var NOT_LOGGED_IN = /not logged in|logged out|no credentials|log ?in required|unauthenticated/i;
 function loginReading(result2) {
-  const said = firstLine(result2.stdout) ?? firstLine(result2.stderr);
+  const said = firstLine2(result2.stdout) ?? firstLine2(result2.stderr);
   if (result2.exitCode === 0) return { detail: said ?? `exited ${String(result2.exitCode)}`, signed_in: "yes" };
   if (said !== void 0 && NOT_LOGGED_IN.test(said)) return { detail: said, signed_in: "no" };
   return {
@@ -5248,7 +5550,7 @@ function loginReading(result2) {
 }
 function listingReading(result2) {
   if (result2.exitCode !== 0) {
-    const complaint = firstLine(result2.stderr);
+    const complaint = firstLine2(result2.stderr);
     return {
       detail: `could not be read: exited ${String(result2.exitCode)}${complaint === void 0 ? "" : `: ${complaint}`}`,
       signed_in: "unknown"
@@ -5356,7 +5658,7 @@ var NodeModelGatewayKept = class {
 // src/contexts/model-gateway/adapters/process/index.ts
 import { constants } from "node:fs";
 import { access as access2 } from "node:fs/promises";
-import { delimiter, join as join9 } from "node:path";
+import { delimiter, join as join11 } from "node:path";
 
 // src/adapters/process/node-process.ts
 import { spawn } from "node:child_process";
@@ -5449,7 +5751,7 @@ var NodeModelGatewayProcess = class {
   async resolve(binary) {
     for (const folder of this.path.split(delimiter)) {
       if (folder === "") continue;
-      const candidate = join9(folder, binary);
+      const candidate = join11(folder, binary);
       try {
         await access2(candidate, constants.X_OK);
         return candidate;
@@ -5757,7 +6059,7 @@ function failure(code, message, name, problems) {
 function messageOf8(error) {
   return error instanceof Error ? error.message : String(error);
 }
-var DEFAULT_ROUTING_PATH = join10(import.meta.dirname, "..", "critique", "routing.json");
+var DEFAULT_ROUTING_PATH = join12(import.meta.dirname, "..", "critique", "routing.json");
 function defaultModelGatewayRuntime(options = {}) {
   const { routingPath = DEFAULT_ROUTING_PATH, ...overrides } = options;
   const env = overrides.env ?? new ProcessEnvAdapter();
@@ -5768,7 +6070,7 @@ function defaultModelGatewayRuntime(options = {}) {
   return {
     commands: createModelGatewayCommands({
       clock,
-      defaultsPath: join10(import.meta.dirname, "defaults.json"),
+      defaultsPath: join12(import.meta.dirname, "defaults.json"),
       env,
       files,
       git,

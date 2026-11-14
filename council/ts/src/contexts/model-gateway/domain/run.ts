@@ -6,7 +6,22 @@ export type RunMode = 'read-only' | 'write'
 
 /** The clients a delegation can be handed to: Vibe, Antigravity, Claude Code, OpenCode, Hermes and Codex. */
 export const RUN_CLIENTS = ['vibe', 'agy', 'claude', 'opencode', 'hermes', 'codex'] as const
-export type RunClient = (typeof RUN_CLIENTS)[number]
+
+/**
+ * The id of a Pi client is `pi-` and the LiteLLM route it runs on (`pi-vibe`,
+ * `pi-opencode-go`): one client per route, all launched by the one `pi` launcher.
+ */
+export const PI_CLIENT = /^pi-[a-z0-9][a-z0-9-]*$/
+
+/** The launcher a client id runs through: a client's own, or Pi for a route's client. */
+export type RunClient = (typeof RUN_CLIENTS)[number] | 'pi'
+
+/** The launcher kind of a client id, or undefined when no run can launch it. */
+export function runClientOf(id: unknown): RunClient | undefined {
+  if (typeof id !== 'string') return undefined
+  if ((RUN_CLIENTS as readonly string[]).includes(id)) return id as RunClient
+  return PI_CLIENT.test(id) ? 'pi' : undefined
+}
 
 /**
  * The clients that run on a provider the caller names, and whose provider this
@@ -76,7 +91,7 @@ export function readRunInput(raw: unknown): RunInput {
   if (!isObject(raw)) throw new ModelGatewayError('invalid-input', 'the input must be a JSON object')
   if (raw.extras !== undefined) throw new ModelGatewayError('invalid-input', 'extras are for in-process callers only')
   const workflow = requireWorkflowName(raw.workflow, 'a run must name its workflow')
-  if (typeof raw.client !== 'string' || !(RUN_CLIENTS as readonly string[]).includes(raw.client)) {
+  if (typeof raw.client !== 'string' || runClientOf(raw.client) === undefined) {
     throw new ModelGatewayError('not-supported-yet', `only ${RUN_CLIENTS.join(', ')} can run a delegation, not ${shown(raw.client)}`)
   }
   if (raw.mode !== 'read-only' && raw.mode !== 'write') {

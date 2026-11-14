@@ -299,6 +299,78 @@
         "work/": null,
         "tmp/": null
       }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unknown-model\",\"message\":\"the gateway knows no client pi-nowhere\"}\n",
+      "stderr": "model-gateway run: the gateway knows no client pi-nowhere\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"stale\",\"started_at\":\"2026-11-01T08:00:00Z\"}]}",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"pi-public:public/gemini-3.8-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\"}\n",
+      "stderr": "model-gateway run: pi-public:public/gemini-3.8-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"stale\",\"started_at\":\"2026-11-01T08:00:00Z\"}]}",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"pi-vibe may not run on litellm-vibe: this machine allows no provider\"}\n",
+      "stderr": "model-gateway run: pi-vibe may not run on litellm-vibe: this machine allows no provider\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"stale\",\"started_at\":\"2026-11-01T08:00:00Z\"}]}",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"model-not-usable\",\"message\":\"pi-vibe:mistral-large-4 cannot run: blocked by the provider on LiteLLM route vibe: Not on your plan.\"}\n",
+      "stderr": "model-gateway run: pi-vibe:mistral-large-4 cannot run: blocked by the provider on LiteLLM route vibe: Not on your plan.\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"stale\",\"started_at\":\"2026-11-01T08:00:00Z\"}]}",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
     }
   ]
 }

@@ -20,6 +20,7 @@ fn client(binary: &str, cost_class: CostClass, model_source: ModelSource) -> Cli
         providers: None,
         plan_limits: None,
         litellm_route: None,
+        public_only: false,
     }
 }
 

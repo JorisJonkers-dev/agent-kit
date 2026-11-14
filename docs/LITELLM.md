@@ -268,6 +268,14 @@ Readers:
   the models the catalogue calls usable, skips a blocked one with the provider's reason, marks a
   free one `"free": true`, and refuses a run on a refused model (`model-not-usable`). A model the
   catalogue does not list is listed as before. See the gateway's SKILL.md.
+- **The model gateway's Pi clients** (`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`,
+  `pi-public`: one per route in `registry/generated/litellm/routes.json`, but `openrouter`) list the
+  models the home's `~/.pi/agent/models.json` gives the route's `litellm-<route>` provider, which
+  setup wrote from `canonical_groups`, and judge each canonical group by its deployments in the live
+  catalogue: usable when one deployment is, skipped with the provider's reason when every probed
+  deployment is blocked or failed, free when public or every deployment tried first is free. A Pi
+  run goes through `agent-launcher confine`. `pi-public` (the `public` route, `data_scope: public`)
+  is never sent a repository.
 - **Setup's own writers** (the Pi providers per route) use `scripts/litellm_catalogue.py`:
   `load_catalogue()` returns the live copy, else the snapshot `registry/litellm-catalogue.json`,
   with every problem as a warning; `provider_models(catalogue, provider)` lists one provider

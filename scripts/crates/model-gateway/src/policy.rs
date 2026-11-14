@@ -121,7 +121,9 @@ fn permission(config: &GatewayConfig, subject: &PolicySubject, scope: &DataScope
                 None => NOTHING,
                 Some(entry) => SendPermission { code: entry.code, history: entry.history },
             };
-            let permitted = entry.as_ref().is_some_and(|entry| entry.families.contains(&subject.family));
+            // A client on a public-only route never sees a repository, whatever the allowlist says of its family.
+            let public_only = config.clients.get(&subject.client).is_some_and(|client| client.public_only);
+            let permitted = !public_only && entry.as_ref().is_some_and(|entry| entry.families.contains(&subject.family));
             base(false, may_send, permitted)
         }
     }

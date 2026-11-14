@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { ProcessCommand } from '../../../ports/index.js'
 import { FakeEnv, FakeFiles, FakeVibeProcess, agyResult, agyStream, type VibeScript } from '../../../../test/model-gateway/harness.js'
 import { ClientRun, type ClientRunRequest } from './client-run.js'
+import { LAUNCHERS, piProvider } from './launchers.js'
 
 const cleanups: (() => Promise<void>)[] = []
 
@@ -391,5 +392,135 @@ describe('the git directories a Codex writing run may write', () => {
     const [command] = w.process.commands
     expect(command?.args).not.toContain('--add-dir')
     expect(command?.args).not.toContain(GIT_WRITABLE[0])
+  })
+})
+
+describe('a Pi launch', () => {
+  const STREAM = JSON.stringify({ message: { content: [{ text: 'done\nSUMMARY: ok', type: 'text' }], role: 'assistant', usage: { input: 3, output: 2 } }, type: 'message_end' })
+
+  /** A home with the route's provider, a launcher on PATH, and a process that answers the secret store and Pi. */
+  async function piWorkspace(apiKey: string, answer: (command: ProcessCommand) => Promise<{ exitCode: number; stderr: string; stdout: string }>): Promise<{
+    readonly agentDir: string
+    readonly asked: ProcessCommand[]
+    readonly request: (overrides?: Partial<ClientRunRequest>) => ClientRunRequest
+    readonly run: ClientRun
+    readonly dir: string
+  }> {
+    const dir = await mkdtemp(join(tmpdir(), 'model-gateway-pi-run-'))
+    cleanups.push(() => rm(dir, { force: true, recursive: true }))
+    const home = join(dir, 'home')
+    await mkdir(join(home, '.pi', 'agent'), { recursive: true })
+    await writeFile(
+      join(home, '.pi', 'agent', 'models.json'),
+      JSON.stringify({ providers: { 'litellm-vibe': { api: 'openai-completions', apiKey, baseUrl: 'http://127.0.0.1:4000/v1', models: [{ id: 'glm-5.3' }] } } }),
+    )
+    await mkdir(join(dir, 'bin'), { recursive: true })
+    await writeFile(join(dir, 'bin', 'agent-launcher'), '')
+    await mkdir(join(dir, 'work'), { recursive: true })
+    const asked: ProcessCommand[] = []
+    const run = new ClientRun({
+      env: new FakeEnv({ HOME: home, PATH: join(dir, 'bin') }),
+      files: new FakeFiles(),
+      process: {
+        exec: (command) => {
+          asked.push(command)
+          return answer(command).then((result) => ({ ...result, timedOut: false }))
+        },
+      },
+    })
+    const agentDir = join(dir, 'export', 'pi-agent')
+    return {
+      agentDir,
+      asked,
+      dir,
+      request: (overrides = {}) => ({
+        binary: 'pi',
+        client: 'pi',
+        extras: { env: { AGENT_KIT_DELEGATION: '1' } },
+        mode: 'read-only',
+        model: 'glm-5.3',
+        paths: { exportDir: join(dir, 'export'), promptPath: join(dir, 'prompt.md'), workDir: join(dir, 'work') },
+        prompt: 'read this',
+        provider: 'litellm-vibe',
+        time_limit_s: 120,
+        ...overrides,
+      }),
+      run,
+    }
+  }
+
+  const piAnswer = (command: ProcessCommand): Promise<{ exitCode: number; stderr: string; stdout: string }> =>
+    Promise.resolve(command.command === 'agent-kit-secret' ? { exitCode: 0, stderr: '', stdout: 'the-key\n' } : { exitCode: 0, stderr: '', stdout: STREAM })
+
+  it('runs Pi through the launcher, confined to its working directory, with the prompt on stdin, and removes the agent directory with the key', async () => {
+    const w = await piWorkspace('!agent-kit-secret get LITELLM_VIBE_KEY', async (command) => {
+      if (command.command !== 'agent-kit-secret') {
+        expect((JSON.parse(await readFile(join(w.agentDir, 'models.json'), 'utf8')) as { providers: Record<string, { apiKey: string }> }).providers['litellm-vibe']?.apiKey).toBe('the-key')
+      }
+      return piAnswer(command)
+    })
+
+    const outcome = await w.run.launch(w.request())
+
+    const launch = w.asked.at(-1)
+    expect(launch).toMatchObject({
+      command: 'agent-launcher',
+      cwd: join(w.dir, 'work'),
+      env: { AGENT_KIT_DELEGATION: '1', PATH: join(w.dir, 'bin'), PI_CODING_AGENT_DIR: w.agentDir, TMPDIR: w.agentDir },
+      stdin: 'read this',
+      timeoutMs: 120_000,
+    })
+    expect(launch?.args.slice(0, 11)).toEqual(['confine', '--read', join(w.dir, 'work'), '--run-from', 'pi', '--write', w.agentDir, '--net-connect', '4000', '--', 'pi'])
+    expect(launch?.args).toContain('litellm-vibe')
+    expect(launch?.args[launch.args.indexOf('--tools') + 1]).toBe('read,grep,find,ls')
+    expect(outcome.output).toEqual({ answer: 'done\nSUMMARY: ok', charged: undefined, tokens: { cached: 0, input: 3, output: 2 } })
+    await expect(readFile(join(w.agentDir, 'models.json'), 'utf8')).rejects.toThrow()
+  })
+
+  it('lets a writing run write its working directory and the git directories it names, and gives Pi the edit tools', async () => {
+    const w = await piWorkspace('literal', piAnswer)
+    const git = join(w.dir, 'git')
+
+    await w.run.launch(w.request({ mode: 'write', paths: { ...w.request().paths, gitWritable: [git] } }))
+
+    const launch = w.asked.at(-1)
+    expect(launch?.args.slice(0, 6)).toEqual(['confine', '--write', join(w.dir, 'work'), '--write', git, '--run-from'])
+    expect(launch?.args[launch.args.indexOf('--tools') + 1]).toBe('read,grep,find,ls,edit,write')
+  })
+
+  it('finds the home’s bin on PATH for the find tool, and removes the agent directory when the launch itself fails', async () => {
+    const w = await piWorkspace('literal', (command) => (command.command === 'agent-launcher' ? Promise.reject(new Error('spawn failed')) : piAnswer(command)))
+    await writeFile(join(w.dir, 'home', '.pi', 'agent', 'bin'), '')
+
+    await expect(w.run.launch(w.request())).rejects.toThrow('spawn failed')
+
+    const launch = w.asked.at(-1)
+    expect(launch?.env?.PATH).toBe(`${join(w.dir, 'home', '.pi', 'agent', 'bin')}:${join(w.dir, 'bin')}`)
+    expect(launch?.args).toContain(join(w.dir, 'home', '.pi', 'agent', 'bin'))
+    await expect(readFile(join(w.agentDir, 'models.json'), 'utf8')).rejects.toThrow()
+  })
+
+  it('never starts Pi unconfined: no provider named, or none the home can give', async () => {
+    const w = await piWorkspace('literal', piAnswer)
+
+    await expect(w.run.launch(w.request({ provider: undefined as never }))).rejects.toMatchObject({ code: 'unconfined', message: 'a pi launch must name its provider' })
+    await expect(w.run.launch(w.request({ provider: 'litellm-local' }))).rejects.toMatchObject({ code: 'unconfined' })
+    expect(w.asked).toEqual([])
+  })
+
+  it('refuses an environment variable Pi’s launch sets itself', async () => {
+    const w = await piWorkspace('literal', piAnswer)
+
+    await expect(w.run.launch(w.request({ extras: { env: { PI_CODING_AGENT_DIR: '/elsewhere' } } }))).rejects.toMatchObject({
+      message: 'pi sets PI_CODING_AGENT_DIR itself, so extras.env may not name it',
+    })
+  })
+
+  it('has a bare command, started where it is told, when nothing confines it: the launcher’s own builder, never the run’s', () => {
+    const command = LAUNCHERS.pi.command('pi', { model: 'glm-5.3', provider: 'litellm-vibe', time_limit_s: 30 }, { exportDir: '/e', promptPath: '/p', workDir: '/w' }, 'ask')
+    expect(command).toMatchObject({ command: 'pi', cwd: '/w', env: {}, stdin: 'ask', timeoutMs: 30_000 })
+    expect(command.args.slice(0, 7)).toEqual(['-p', '--mode', 'json', '--no-session', '--offline', '--provider', 'litellm-vibe'])
+    expect(LAUNCHERS.pi.command('pi', { model: 'm', time_limit_s: 1 }, { exportDir: '/e', promptPath: '/p', workDir: '/w' }, 'x').args).toContain('undefined')
+    expect(piProvider('pi-opencode-go')).toBe('litellm-opencode-go')
   })
 })

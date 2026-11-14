@@ -526,7 +526,7 @@ lock, a start reserved against a grant's `max_starts` in one locked ledger updat
 (`grant reserve`; `tests/concurrency.rs` runs the real binary with parallel processes and
 checks that exactly the grant's starts pass), and the kept-worktrees file with `git worktree
 remove` and `git branch -D` (`worktrees clean`), and `run` for every client (vibe, agy, claude,
-opencode, hermes, codex): launchers, the retry, climb and swap, cost estimation and cap or grant reservation,
+opencode, hermes, codex, and one Pi client per LiteLLM route, `pi-<route>`): launchers, the retry, climb and swap, cost estimation and cap or grant reservation,
 the read-only proof (critique's `routing.json` is embedded like `defaults.json`), throwaway worktrees, the
 run directory, `result.json` and the ledger line. A writing run is ported too: its worktree under the
 repository's common directory on a branch of its own, entered in the kept list, the other checkouts of the
@@ -540,6 +540,22 @@ independent delegations in parallel at most `max_parallel_per_client` per client
 mutex-and-condvar slot table, and a slot of the client each attempt really runs on), a delegation that fails for
 good skipping only what depends on it, and the reservations of delegations that never ran given back with reason
 `not-run`. The binary swap is done (below). The engine guard is not part of `run` or `batch` and is not ported.
+
+Pi (`src/pi_launch.rs`, `src/launchers.rs`, `src/outputs.rs`): one client per LiteLLM route
+(`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`, `pi-public`), all started by the one `pi`
+program. A Pi run goes through `agent-launcher confine`, as the Pi critics do: the launch reads (or, for
+a writing run, writes) its working directory, runs Pi, writes its own agent directory and reaches the
+proxy's port, and nothing else. The agent directory is made per launch under the run directory, holds the
+route's provider from the home's `models.json` with its key read from the secret store just now (mode
+0600), and is removed when the launch ends. A launch that cannot be confined (no provider, no key, no
+launcher) never starts: it is `launch-failed` with the reason in `stderr.txt`. `models` lists what the
+home's `models.json` gives each route's provider, judged by the live catalogue's canonical groups
+(`litellm_catalogue.rs`: usable when a deployment is, free when public or every deployment tried first is
+free); the tier and notes come from the defaults entries for client `pi`, which `config_parse` expands into
+one entry per `pi-*` client. A client with `data_scope: public` (`pi-public`) is never sent a repository.
+The goldens `models-pi`, `run-pi`, `run-pi-unconfined` and `run-write-pi` use a fake `pi` and a fake
+`agent-launcher` that records its arguments and the agent directory it was given. Different from the node
+runner: with no `HOME` the home's Pi directory resolves under `/`, not the working directory.
 
 Known differences from the node runner: a zone-less date-time in a state file
 reads as UTC, not local time (the goldens run with `TZ=UTC`); `Date.parse`'s
@@ -559,7 +575,7 @@ suffix comes from the standard library's hasher rather than from `randomBytes`; 
 Also different in `run`: the tools a client's `extras.env` adds are ordered by name (`BTreeMap`) rather than by insertion (only an in-process caller can send them); a surrogate pair in a client's output is cut by characters, not UTF-16 units, where the two differ; a `named_reset` past the last moment a JavaScript `Date` holds gives none, as the node runner gives an invalid date; an error that is not one of the gateway's own (a file that cannot be written) has the code `unexpected`; the process adapter calls `kill` through an `extern "C"` declaration (the only `unsafe`), since std cannot send SIGTERM; and the monotonic clock is `Instant`-based, frozen at 0 in the goldens as the node clock fake freezes `performance.now`.
 
 ```bash
-node scripts/crates/model-gateway/tests/gen-scenarios.mjs        # the scenario inputs (gen-scenarios-clients.mjs: models, usage, grants; -reserve and -worktrees: grant reserve, worktrees clean; -run: read-only `run` through fake clients)
+node scripts/crates/model-gateway/tests/gen-scenarios.mjs        # the scenario inputs (gen-scenarios-clients.mjs: models, usage, grants; -reserve and -worktrees: grant reserve, worktrees clean; -run: read-only `run` through fake clients, Pi included)
 node scripts/crates/model-gateway/tests/regenerate-fixtures.mjs  # the goldens, from the node runner
 cargo test --manifest-path scripts/Cargo.toml -p model-gateway   # SCENARIO=<name> replays one scenario
 ```

@@ -16,6 +16,7 @@ import {
   requireAllowedProvider,
   type ProofFiles,
   readRunInput,
+  runClientOf,
   runCost,
   runFailureReason,
   runId,
@@ -514,5 +515,27 @@ describe('readOnlyProof for the other clients', () => {
         status: 'unproven',
       })
     }
+  })
+})
+
+describe('runClientOf', () => {
+  it('is the client itself for the clients that have an id of their own, and Pi for one client per route', () => {
+    expect(runClientOf('vibe')).toBe('vibe')
+    expect(runClientOf('codex')).toBe('codex')
+    expect(runClientOf('pi-vibe')).toBe('pi')
+    expect(runClientOf('pi-opencode-go')).toBe('pi')
+    expect(runClientOf('pi-9')).toBe('pi')
+  })
+
+  it('is nothing for an id no run can launch', () => {
+    for (const id of ['pi', 'pi-', 'pi-Vibe', 'pi-vibe/x', 'nobody', 5, undefined]) expect(runClientOf(id)).toBeUndefined()
+  })
+
+  it('lets a run name a Pi client, and refuses a malformed one with the clients that can run', () => {
+    const base = { client: 'pi-vibe', mode: 'read-only', model: 'glm-5.3', prompt: 'p', workflow: 'w' }
+    expect(readRunInput(base)).toMatchObject({ client: 'pi-vibe', model: 'glm-5.3' })
+    expect(thrown(() => readRunInput({ ...base, client: 'pi-' })).message).toBe(
+      'only vibe, agy, claude, opencode, hermes, codex can run a delegation, not "pi-"',
+    )
   })
 })

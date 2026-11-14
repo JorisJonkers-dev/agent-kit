@@ -88,6 +88,11 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "hermes": ("hermes", "metered-personal", "config"),
         "opencode": ("opencode", "metered-personal", "live"),
         "codex": ("codex", "metered-employer", "declared"),
+        "pi-vibe": ("pi", "subsidised", "live"),
+        "pi-vibe-study": ("pi", "subsidised", "live"),
+        "pi-opencode-go": ("pi", "subsidised", "live"),
+        "pi-local": ("pi", "subsidised", "live"),
+        "pi-public": ("pi", "subsidised", "live"),
     }
     assert clients["agy"]["families"] == ["google"]
     assert clients["opencode"]["provider_cost_classes"] == {"opencode-go": "subsidised"}
@@ -113,6 +118,22 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("opencode", "opencode-go/mimo-v2.6-pro", "xiaomi", "hard"),
         ("opencode", "opencode-go/qwen3.8-flash", "alibaba", "routine"),
         ("opencode", "opencode-go/mimo-v2.6-flash", "xiaomi", "routine"),
+        ("pi", "deepseek-v4.1-flash", "deepseek", "routine"),
+        ("pi", "glm-5.3", "zhipu", "hard"),
+        ("pi", "glm-5.3-flash", "zhipu", "routine"),
+        ("pi", "mistral-large-4", "mistral", "hard"),
+        ("pi", "mistral-medium-3.5", "mistral", "routine"),
+        ("pi", "mistral-small", "mistral", "trivial"),
+        ("pi", "ministral-3b", "mistral", "trivial"),
+        ("pi", "ministral-8b", "mistral", "trivial"),
+        ("pi", "codestral", "mistral", "routine"),
+        ("pi", "kimi-k2.7-code", "moonshot", "hard"),
+        ("pi", "mimo-v2.6-pro", "xiaomi", "hard"),
+        ("pi", "mimo-v2.6-flash", "xiaomi", "routine"),
+        ("pi", "qwen3.8-flash", "alibaba", "routine"),
+        ("pi", "minimax-m3.1-flash", "minimax", "routine"),
+        ("pi", "public/gemini-3.8-flash", "google", "routine"),
+        ("pi", "public/gemini-3.5-flash-lite", "google", "trivial"),
     ]
     assert all(m["notes"].strip() for m in models)
 
@@ -244,6 +265,28 @@ def test_the_schema_lets_a_client_set_a_cost_class_per_provider() -> None:
     ]
     assert "opencode" in schema["properties"]["clients"]["required"]
     assert "opencode" in schema["$defs"]["model"]["properties"]["client"]["enum"]
+    # One client per LiteLLM route, named pi-<route>; a model entry for "pi" describes it for each of them.
+    assert "pi" in schema["$defs"]["model"]["properties"]["client"]["enum"]
+    assert list(schema["properties"]["clients"]["patternProperties"]) == ["^pi-[a-z0-9][a-z0-9-]*$"]
+
+
+def test_the_shipped_pi_clients_are_one_per_litellm_route_and_only_the_public_one_is_public_only() -> None:
+    routes = json.loads((KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json").read_text())["routes"]
+    clients = json.loads(DEFAULTS.read_text())["clients"]
+    shipped = {name.removeprefix("pi-"): client for name, client in clients.items() if name.startswith("pi-")}
+    # No openrouter client: the owner forbade OpenRouter, so the gateway never runs on it.
+    assert set(shipped) == {route["agent"] for route in routes} - {"openrouter"}
+    for route in routes:
+        client = shipped.get(route["agent"])
+        if client is not None:
+            assert (client.get("data_scope") == "public") == (route["data_scope"] == "public"), route["agent"]
+
+
+def test_every_shipped_pi_model_is_stated_once_for_every_pi_client() -> None:
+    models = json.loads(DEFAULTS.read_text())["models"]
+    pi = [(m["model"]) for m in models if m["client"] == "pi"]
+    assert len(pi) == len(set(pi))
+    assert all(m["family"] and m["notes"].strip() for m in models if m["client"] == "pi")
 
 
 def test_the_schema_lets_a_model_record_the_names_its_client_configuration_gives_it() -> None:

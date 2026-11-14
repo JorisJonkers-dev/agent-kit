@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import type { ProcessCommand } from '../../../ports/index.js'
 import type { AttachedServer, ExtraName, SandboxProfile } from '../domain/extras.js'
-import { agyOutput, claudeOutput, codexOutput, hermesOutput, openCodeOutput, vibeOutput, type ClientOutput } from '../domain/outputs.js'
+import { agyOutput, claudeOutput, codexOutput, hermesOutput, openCodeOutput, piOutput, vibeOutput, type ClientOutput } from '../domain/outputs.js'
 import type { RunClient, RunMode } from '../domain/run.js'
 
 /** The mark the gateway puts in every delegate's environment, and refuses to run under. */
@@ -99,8 +99,24 @@ export interface LaunchRequest {
   readonly provider?: string
 }
 
+/**
+ * What a confined Pi launch runs through: the launcher, the launch's own agent
+ * directory (made for it, holding only the route's provider with its key), the
+ * home's `bin` where Pi keeps the `fd` its find tool runs, the one TCP port the
+ * proxy answers on, and the `PATH` the launch searches.
+ */
+export interface PiConfinement {
+  readonly launcher: string
+  readonly agentDir: string
+  readonly bin?: string
+  readonly port: number
+  readonly path?: string
+}
+
 /** What a caller adds to one launch, with the client's home servers already resolved. */
 export interface LaunchExtras {
+  /** Set for a Pi launch, which only ever runs confined to its working directory. */
+  readonly confine?: PiConfinement
   readonly mcp_servers: readonly AttachedServer[]
   /** The MCP servers the client's home declares, which a run with `disable_home_mcp` switches off by name. */
   readonly homeServers: readonly string[]
@@ -391,5 +407,96 @@ const codex: ClientLauncher = {
   read: (stdout) => codexOutput(stdout),
 }
 
+/** The tools a read-only Pi run may use: read, search, list. */
+export const PI_READ_TOOLS = ['read', 'grep', 'find', 'ls'] as const
+
+/** A writing Pi run's tools: the read tools, and edit and write; no shell. */
+export const PI_WRITE_TOOLS = [...PI_READ_TOOLS, 'edit', 'write'] as const
+
+/** Pi's system prompt for a read-only delegate, in place of its own, which offers to run commands and points at its documentation. */
+export const PI_READ_SYSTEM_PROMPT =
+  'You are a read-only delegate. Read and search only the files of your working directory, and answer exactly as the user message asks.'
+
+/** Pi's system prompt for a writing delegate. */
+export const PI_WRITE_SYSTEM_PROMPT =
+  'You are a delegate that changes the files of your working directory. Read, search, edit and write only those files, run no command, and answer exactly as the user message asks.'
+
+/** The Pi provider of a Pi client: setup writes one per LiteLLM route into Pi's `models.json`, named `litellm-<route>`. */
+export function piProvider(client: string): string {
+  return `litellm-${client.replace(/^pi-/, '')}`
+}
+
+/** The grants a confined Pi run is started with: what it may read or write, Pi itself, and the proxy's port. */
+export function piGrants(input: LaunchRequest, paths: LaunchPaths, binary: string, confine: PiConfinement): readonly string[] {
+  const write = input.mode === 'write'
+  return [
+    ...(write ? ['--write', paths.workDir, ...(paths.gitWritable ?? []).flatMap((dir) => ['--write', dir])] : ['--read', paths.workDir]),
+    '--run-from',
+    binary,
+    ...(confine.bin === undefined ? [] : ['--run', confine.bin]),
+    '--write',
+    confine.agentDir,
+    '--net-connect',
+    String(confine.port),
+  ]
+}
+
+/**
+ * Pi, print mode with its JSON event stream, the wrapped prompt on stdin, on
+ * the LiteLLM route's provider the client id names. The launch has only the
+ * read tools, or for a writing run the edit tools besides, with every
+ * extension, skill, prompt template, theme, context file, MCP server and
+ * trust-gated project file switched off, and no session kept. Pi has no
+ * sandbox of its own and its tools run inside its own process, so the whole
+ * process runs through `agent-launcher confine`: it can read (or write) only
+ * its working directory, the Pi and node installs, the system runtime and its
+ * own agent directory, and reach only the proxy's port. It has no time limit
+ * of its own, so the outer timer is the limit.
+ */
+const pi: ClientLauncher = {
+  command: (binary, input, paths, prompt, extras) => {
+    const write = input.mode === 'write'
+    const piArgs = [
+      '-p',
+      '--mode',
+      'json',
+      '--no-session',
+      '--offline',
+      '--provider',
+      input.provider ?? 'undefined',
+      '--model',
+      input.model,
+      '--tools',
+      (write ? PI_WRITE_TOOLS : PI_READ_TOOLS).join(','),
+      '--no-extensions',
+      '--no-skills',
+      '--no-prompt-templates',
+      '--no-themes',
+      '--no-context-files',
+      '--no-mcp',
+      '--no-approve',
+      '--system-prompt',
+      write ? PI_WRITE_SYSTEM_PROMPT : PI_READ_SYSTEM_PROMPT,
+    ]
+    const confine = extras?.confine
+    if (confine === undefined) {
+      return { args: piArgs, command: binary, cwd: paths.workDir, env: extras?.env ?? {}, stdin: prompt, timeoutMs: input.time_limit_s * 1000 }
+    }
+    const searched = [confine.bin, confine.path].filter((part): part is string => part !== undefined && part !== '').join(':')
+    return {
+      args: ['confine', ...piGrants(input, paths, binary, confine), '--', binary, ...piArgs],
+      command: confine.launcher,
+      cwd: paths.workDir,
+      env: { ...extras?.env, PATH: searched, PI_CODING_AGENT_DIR: confine.agentDir, TMPDIR: confine.agentDir },
+      stdin: prompt,
+      timeoutMs: input.time_limit_s * 1000,
+    }
+  },
+  extras: ['env'],
+  sandboxedExtras: [],
+  protectedEnv: ['PATH', 'PI_CODING_AGENT_DIR', 'TMPDIR'],
+  read: (stdout) => piOutput(stdout),
+}
+
 /** The launcher of every client a run can be handed to. */
-export const LAUNCHERS: Readonly<Record<RunClient, ClientLauncher>> = { agy, claude, codex, hermes, opencode, vibe }
+export const LAUNCHERS: Readonly<Record<RunClient, ClientLauncher>> = { agy, claude, codex, hermes, opencode, pi, vibe }

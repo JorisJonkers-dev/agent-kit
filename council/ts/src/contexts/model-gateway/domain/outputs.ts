@@ -236,3 +236,48 @@ export function openCodeOutput(stdout: string): ClientOutput {
   }
   return { answer, charged: chargedAmount(charged), error, failure, tokens: sum }
 }
+
+/**
+ * Pi, `--mode json`: one event per line. The answer is the text of the last
+ * assistant message that ended; every assistant message adds the tokens it
+ * counted (Pi's `input` leaves out the cached prompt, which it counts as
+ * `cacheRead`, so the input here is both) and the dollars Pi priced it at from
+ * the model's entry in `models.json`, which is none for a model that names no
+ * price. A last assistant message that stopped with an error, or a stream that
+ * has no assistant message, fails the run: Pi exits 0 after a provider error.
+ */
+export function piOutput(stdout: string): ClientOutput {
+  let last: JsonObject | undefined
+  let charged = 0
+  const sum = { cached: 0, input: 0, output: 0 }
+  for (const line of stdout.split('\n')) {
+    const event = parseJson(line)
+    if (!isObject(event) || event.type !== 'message_end' || !isObject(event.message) || event.message.role !== 'assistant') continue
+    const message = event.message
+    last = message
+    const usage = isObject(message.usage) ? message.usage : {}
+    const cost = isObject(usage.cost) ? usage.cost : {}
+    charged += count(cost.total)
+    sum.cached += count(usage.cacheRead)
+    sum.input += count(usage.input) + count(usage.cacheRead)
+    sum.output += count(usage.output)
+  }
+  if (last === undefined) return { answer: undefined, charged: undefined, failure: 'client-error', tokens: NO_TOKENS }
+  const text = piText(last)
+  if (last.stopReason === 'error' || last.stopReason === 'aborted') {
+    const said = textOf(last.errorMessage) ?? last.stopReason
+    return { answer: text, charged: chargedAmount(charged), error: { text: said }, failure: 'client-error', tokens: sum }
+  }
+  return { answer: text, charged: chargedAmount(charged), tokens: sum }
+}
+
+/** The text parts of a Pi message, joined; undefined when it has none. */
+function piText(message: JsonObject): string | undefined {
+  const content: unknown = message.content
+  if (!Array.isArray(content)) return undefined
+  const text = (content as unknown[])
+    .filter((part): part is JsonObject => isObject(part) && part.type === 'text' && typeof part.text === 'string')
+    .map((part) => String(part.text))
+    .join('')
+  return textOf(text)
+}

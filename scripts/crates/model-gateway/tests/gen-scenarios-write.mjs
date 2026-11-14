@@ -18,10 +18,14 @@ import {
   claudeOut,
   clients,
   codexOut,
+  confined,
   grant,
   grants,
   journal,
   merge,
+  piHome,
+  piOut,
+  piProvider,
   repo,
   runSteps,
   vibeExport,
@@ -62,6 +66,18 @@ export function addWriteScenarios(scenarios, step) {
     write({ client: 'claude', model: 'claude-haiku-5-5', prompt: 'Commit the change.', check: 'test "$(git log --format=%s -1)" = "feat: change the readme"' }, merge(
       behaves('claude', { act: "echo committed > README.md\ngit add -A\ngit -c commit.gpgsign=false commit -q -m 'feat: change the readme'", out: claudeOut() }),
       { env: COMMITTER, now: '2026-11-03T12:05:00Z' },
+    )),
+  ]
+
+  // A Pi writing run: the launcher is given the worktree and the git directories it may write besides its
+  // own agent directory, and Pi gets the edit tools; the gateway then stages and checks as for any client.
+  scenarios['run-write-pi'] = [
+    write({ client: 'pi-vibe', model: 'glm-5.3', prompt: 'Add the new file.' }, merge(
+      sandbox('pi'),
+      confined,
+      repo('zhipu'),
+      piHome({ 'litellm-vibe': piProvider('literal-key', 'glm-5.3') }),
+      behaves('pi', { act: 'echo changed > README.md\ntouch new.txt', out: piOut('Added.\nSUMMARY: wrote new.txt') }),
     )),
   ]
 

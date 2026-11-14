@@ -467,6 +467,84 @@
         "tmp",
         "repo/.git/model-gateway"
       ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-nowhere\",\"model\":\"glm-5.3\",\"mode\":\"read-only\",\"prompt\":\"No such route.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-public\",\"model\":\"public/gemini-3.8-flash\",\"mode\":\"read-only\",\"prompt\":\"Public route, private repository.\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"model\":\"glm-5.3\",\"provider\":\"litellm-vibe\",\"mode\":\"read-only\",\"prompt\":\"A provider of its own.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"model\":\"mistral-large-4\",\"mode\":\"read-only\",\"prompt\":\"Blocked group.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/agent-kit/litellm-catalogue.json": "{\"updated_at\":\"2026-11-03T11:17:01Z\",\"providers\":{\"vibe\":{\"models\":[{\"id\":\"vibe/mistral-large-4\",\"metadata\":{\"status\":\"blocked\",\"reason\":\"Not on your plan.\",\"free\":false}}]}},\"groups\":{\"mistral-large-4\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"vibe\",\"upstream_id\":\"mistral-large-4\",\"order\":1,\"weight\":1}]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
     }
   ]
 }

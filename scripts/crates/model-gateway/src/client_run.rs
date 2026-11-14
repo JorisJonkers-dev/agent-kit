@@ -7,9 +7,11 @@ use crate::error::GatewayError;
 use crate::extras::{RunExtras, EXTRA_NAMES};
 use crate::home_mcp::home_mcp_servers;
 use crate::json::{self, Value};
-use crate::launchers::{launcher, LaunchExtras, LaunchPaths, LaunchRequest};
+use crate::launchers::{launcher, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
 use crate::outputs::ClientOutput;
+use crate::pi_launch::prepare_pi;
 use crate::ports::{Files, Process, ProcessResult};
+use crate::text::join;
 use crate::run::RunClient;
 use std::collections::HashMap;
 
@@ -115,9 +117,15 @@ impl ClientRun<'_> {
     pub fn launch(&self, request: &ClientRunRequest) -> Result<ClientRunOutcome, ClientRunError> {
         require_supported_extras(request.client, &request.extras)?;
         let launcher = launcher(request.client);
-        let extras = self.extras_of(request)?;
+        let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request)?) } else { None };
+        let extras = LaunchExtras { confine: confine.clone(), ..self.extras_of(request)? };
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
-        let result = self.process.run(&command).map_err(ClientRunError::Spawn)?;
+        let ran = self.process.run(&command);
+        // The agent directory holds the route's key, so it goes the moment the launch ends.
+        if let Some(confine) = &confine {
+            let _ = self.files.remove(&confine.agent_dir);
+        }
+        let result = ran.map_err(ClientRunError::Spawn)?;
         let exported = match launcher.report_path {
             Some(path) => self.read_report(&path(&request.paths))?,
             None => None,
@@ -126,11 +134,22 @@ impl ClientRun<'_> {
         Ok(ClientRunOutcome { result, exported, output })
     }
 
+    /// What a Pi launch runs through, or the refusal that says why it cannot: Pi has no sandbox of its own,
+    /// so a launch that cannot be confined never starts.
+    fn confinement_of(&self, request: &ClientRunRequest) -> Result<PiConfinement, GatewayError> {
+        let Some(provider) = request.launch.provider.as_deref() else {
+            return Err(GatewayError::new("unconfined", "a pi launch must name its provider"));
+        };
+        let agent_dir = join(&[&request.paths.export_dir, "pi-agent"]);
+        prepare_pi(self.files, self.process, self.env, provider, &request.launch.model, &agent_dir).map_err(|message| GatewayError::new("unconfined", message))
+    }
+
     /// The caller's extras as the launcher applies them, with the client's home servers resolved.
     fn extras_of(&self, request: &ClientRunRequest) -> Result<LaunchExtras, GatewayError> {
         let extras = &request.extras;
         let home_servers = if extras.disable_home_mcp == Some(true) { home_mcp_servers(self.files, self.env)? } else { Vec::new() };
         Ok(LaunchExtras {
+            confine: None,
             agent: extras.agent.clone(),
             env: extras.env.clone().unwrap_or_default(),
             home_servers,

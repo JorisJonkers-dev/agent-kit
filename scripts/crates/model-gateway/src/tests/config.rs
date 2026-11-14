@@ -541,7 +541,7 @@ fn the_shipped_defaults_parse() {
     let config = parse_defaults(&json(crate::SHIPPED_DEFAULTS)).expect("the shipped defaults");
     assert_eq!(config.version, 1.0);
     assert_eq!(config.disabled, Vec::<String>::new());
-    assert_eq!(config.clients.len(), 6);
+    assert_eq!(config.clients.len(), 11);
     assert_eq!(config.clients.get("codex").map(|client| client.cost_class), Some(CostClass::MeteredEmployer));
     assert_eq!(config.clients.get("vibe").map(|client| client.model_source), Some(ModelSource::Live));
     assert_eq!(config.clients.get("agy").and_then(|client| client.families.clone()), Some(vec!["google".to_string()]));
@@ -549,7 +549,7 @@ fn the_shipped_defaults_parse() {
         config.clients.get("opencode").and_then(|client| client.provider_cost_classes.clone()),
         Some(BTreeMap::from([("opencode-go".to_string(), CostClass::Subsidised)]))
     );
-    assert_eq!(config.models.len(), 17);
+    assert_eq!(config.models.len(), 17 + 5 * 16);
     assert_eq!(config.models[0].model, "claude-opus-5-5");
     assert_eq!(config.models[0].tier, Tier::Frontier);
     assert_eq!(config.models[5].names, Some(vec!["zai-glm-5-3".to_string()]));
@@ -888,7 +888,7 @@ fn an_override_adds_a_client_the_defaults_do_not_name() {
 fn an_override_refuses_a_client_field_it_does_not_know() {
     assert_eq!(
         message_of(apply_override(&shipped(), &json(r#"{"clients": {"vibe": {"read_only_proof": "trusted"}}}"#))),
-        "clients.vibe.read_only_proof is not a field a client has; choose from binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits, litellm_route"
+        "clients.vibe.read_only_proof is not a field a client has; choose from binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits, litellm_route, data_scope"
     );
 }
 
@@ -1080,8 +1080,8 @@ fn an_override_reads_the_clients_before_the_disabled_list_and_the_models() {
 fn the_shipped_defaults_load_with_no_override() {
     let runtime = runtime(StubFiles::new(), StubGit::new(None, &[]), home_env("/home/me"));
     let config = load_config(&runtime).expect("the configuration");
-    assert_eq!(config.clients.len(), 6);
-    assert_eq!(config.models.len(), 17);
+    assert_eq!(config.clients.len(), 11);
+    assert_eq!(config.models.len(), 17 + 5 * 16);
 }
 
 #[test]
@@ -1092,7 +1092,7 @@ fn the_override_is_merged_over_the_shipped_defaults() {
     let config = load_config(&runtime).expect("the configuration");
     assert_eq!(config.settings.summary_max_chars, 500.0);
     assert_eq!(config.disabled, vec!["codex:gpt-5.5".to_string()]);
-    assert_eq!(config.clients.len(), 6);
+    assert_eq!(config.clients.len(), 11);
 }
 
 #[test]

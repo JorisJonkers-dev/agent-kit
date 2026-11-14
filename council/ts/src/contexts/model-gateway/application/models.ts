@@ -3,6 +3,7 @@ import { runRecords } from '../domain/ledger.js'
 import { listModels, sortedClients, type ClientListing, type SkippedModel } from '../domain/models.js'
 import { judgeListing } from '../domain/litellm-catalogue.js'
 import { decidePolicy, permittedModels, type PolicyListing } from '../domain/policy.js'
+import { runClientOf } from '../domain/run.js'
 import { standingRefusals } from '../domain/usage.js'
 import { loadConfig } from './config.js'
 import { readLiteLLMCatalogue } from './litellm-catalogue.js'
@@ -45,11 +46,11 @@ export class ModelsCommand implements ModelGatewayCommand<ModelsInput, ModelsRes
     }
     const listings = new Map<string, ClientListing>()
     for (const [id, client] of sortedClients(config)) {
-      const source = this.deps.sources[id]
+      const source = this.deps.sources[id] ?? (runClientOf(id) === 'pi' ? this.deps.sources.pi : undefined)
       if (source === undefined || !installed.has(id) || client.model_source === 'declared') continue
-      listings.set(id, await source.list())
+      listings.set(id, await source.list(id))
     }
-    const judged = sortedClients(config).some(([id, client]) => installed.has(id) && client.litellm_route !== undefined)
+    const judged = sortedClients(config).some(([id, client]) => installed.has(id) && (client.litellm_route !== undefined || runClientOf(id) === 'pi'))
     const reading = judged ? await readLiteLLMCatalogue(this.deps) : {}
     const listing = judgeListing(config, listModels(config, installed, listings, await this.unavailable()), reading.catalogue)
     const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models)

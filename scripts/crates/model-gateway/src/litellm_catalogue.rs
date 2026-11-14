@@ -26,11 +26,30 @@ pub struct CatalogueProbe {
     pub free: bool,
 }
 
+/// One deployment behind a canonical group: the provider route and the id it serves the group's model under.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CatalogueDeployment {
+    pub route: String,
+    pub upstream: String,
+    /// Deployments of the lowest order are tried first.
+    pub order: i64,
+}
+
+/// One canonical model name the proxy serves, and what serves it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CatalogueGroup {
+    /// A public group is a free tier.
+    pub public: bool,
+    pub deployments: Vec<CatalogueDeployment>,
+}
+
 /// Each provider route's models, by id without the route prefix, in the order the catalogue lists them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LiteLlmCatalogue {
     pub updated_at: String,
     pub routes: BTreeMap<String, Vec<(String, CatalogueProbe)>>,
+    /// The canonical groups the proxy serves, by name; empty when the catalogue lists none.
+    pub groups: BTreeMap<String, CatalogueGroup>,
 }
 
 /// A catalogue older than this means the sync, or setup's fetch, has stopped: two days, against an hourly sync.
@@ -64,7 +83,38 @@ pub fn parse_catalogue(raw: &Value) -> Result<LiteLlmCatalogue, String> {
         }
         routes.insert(route.to_string(), models);
     }
-    Ok(LiteLlmCatalogue { updated_at: updated_at.clone(), routes })
+    Ok(LiteLlmCatalogue { updated_at: updated_at.clone(), routes, groups: parse_groups(object.get("groups")) })
+}
+
+/// The canonical groups of a catalogue; a group or deployment that is not well formed is passed over.
+fn parse_groups(raw: Option<&Value>) -> BTreeMap<String, CatalogueGroup> {
+    let mut groups = BTreeMap::new();
+    let Some(Value::Obj(raw)) = raw else {
+        return groups;
+    };
+    for (name, group) in raw.entries() {
+        let Some(group) = group.as_object() else {
+            continue;
+        };
+        let Some(Value::Arr(items)) = group.get("deployments") else {
+            continue;
+        };
+        let deployments = items
+            .iter()
+            .filter_map(Value::as_object)
+            .filter_map(|deployment| {
+                let route = deployment.get("route").and_then(Value::as_str)?;
+                let upstream = deployment.get("upstream_id").and_then(Value::as_str)?;
+                let order = match deployment.get("order") {
+                    Some(Value::Num(order)) => *order as i64,
+                    _ => 0,
+                };
+                Some(CatalogueDeployment { route: route.to_string(), upstream: upstream.to_string(), order })
+            })
+            .collect();
+        groups.insert(name.to_string(), CatalogueGroup { public: matches!(group.get("public"), Some(Value::Bool(true))), deployments });
+    }
+    groups
 }
 
 /// One listed model as its id without the route prefix and its probe; `None` for an entry with no string id.
@@ -130,16 +180,40 @@ pub fn names_of(config: &GatewayConfig, client: &str, model: &str) -> Vec<String
     names
 }
 
-/// The probe of a client model when the client has a route and the catalogue knows the model, with its route.
-fn judged<'a>(config: &GatewayConfig, catalogue: &'a LiteLlmCatalogue, client: &str, model: &str) -> Option<(String, &'a CatalogueProbe)> {
+/// The probe of one deployment: the model its route lists under the id the group is served by.
+fn deployment_probe<'a>(catalogue: &'a LiteLlmCatalogue, deployment: &CatalogueDeployment) -> Option<&'a CatalogueProbe> {
+    let bare = deployment.upstream.strip_prefix(&format!("{}/", deployment.route)).unwrap_or(&deployment.upstream);
+    probe_for(catalogue, &deployment.route, &[format!("{}/{bare}", deployment.route)])
+}
+
+/// What the catalogue says of a canonical group: its route and probe are those of a usable deployment, else of the
+/// first the catalogue knows, and it is free when the group is public or every deployment tried first is a free
+/// model. `None` when the catalogue probed none of its deployments.
+fn group_probe(catalogue: &LiteLlmCatalogue, group: &CatalogueGroup) -> Option<(String, CatalogueProbe)> {
+    let known: Vec<(&CatalogueDeployment, &CatalogueProbe)> =
+        group.deployments.iter().filter_map(|deployment| deployment_probe(catalogue, deployment).map(|probe| (deployment, probe))).collect();
+    let (deployment, probe) = known.iter().find(|(_, probe)| probe.status == "usable").or_else(|| known.first())?;
+    let first = group.deployments.iter().map(|deployment| deployment.order).min().unwrap_or(0);
+    let free = group.public
+        || group.deployments.iter().filter(|deployment| deployment.order == first).all(|deployment| deployment_probe(catalogue, deployment).is_some_and(|probe| probe.free));
+    Some((deployment.route.clone(), CatalogueProbe { free, ..(*probe).clone() }))
+}
+
+/// Where the catalogue places a client model: the route and probe that judge it. A Pi client's model is a canonical
+/// group, judged by its deployments; another client's is judged on its own `litellm_route`. `None` when the client
+/// has no route to judge by or the catalogue does not know the model.
+fn judged(config: &GatewayConfig, catalogue: &LiteLlmCatalogue, client: &str, model: &str) -> Option<(String, CatalogueProbe)> {
+    if crate::run::is_pi_client(client) {
+        return group_probe(catalogue, catalogue.groups.get(model)?);
+    }
     let route = config.clients.get(client)?.litellm_route.clone()?;
-    let probe = probe_for(catalogue, &route, &names_of(config, client, model))?;
+    let probe = probe_for(catalogue, &route, &names_of(config, client, model))?.clone();
     Some((route, probe))
 }
 
 /// Why the catalogue refuses a client model, or `None` when it does not.
 fn refusal(config: &GatewayConfig, catalogue: &LiteLlmCatalogue, client: &str, model: &str) -> Option<String> {
-    judged(config, catalogue, client, model).filter(|(_, probe)| probe.status != "usable").map(|(route, probe)| not_usable_reason(&route, probe))
+    judged(config, catalogue, client, model).filter(|(_, probe)| probe.status != "usable").map(|(route, probe)| not_usable_reason(&route, &probe))
 }
 
 /// The listing with the catalogue applied; without a catalogue it is unchanged.
@@ -205,7 +279,7 @@ pub fn read_catalogue(runtime: &Runtime) -> CatalogueReading {
 
 /// Refuses a run on a client model the catalogue says cannot be used on its route, with the provider's reason.
 pub fn require_usable(runtime: &Runtime, config: &GatewayConfig, client: &str, model: &str) -> Result<(), GatewayError> {
-    if config.clients.get(client).and_then(|client| client.litellm_route.as_ref()).is_none() {
+    if config.clients.get(client).and_then(|client| client.litellm_route.as_ref()).is_none() && !crate::run::is_pi_client(client) {
         return Ok(());
     }
     let reading = read_catalogue(runtime);

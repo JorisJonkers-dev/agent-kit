@@ -23,6 +23,10 @@ export type Tier = (typeof TIERS)[number]
 export const MODEL_SOURCES = ['live', 'config', 'declared'] as const
 export type ModelSource = (typeof MODEL_SOURCES)[number]
 
+/** What a client may be sent: anything its policy allows, or public material only (a free or public LiteLLM route). */
+export const CLIENT_DATA_SCOPES = ['any', 'public'] as const
+export type ClientDataScope = (typeof CLIENT_DATA_SCOPES)[number]
+
 /** The spans a plan limit may name; each reaches back from now. */
 export const PLAN_WINDOWS = ['5h', 'day', 'week', 'month'] as const
 export type PlanWindow = (typeof PLAN_WINDOWS)[number]
@@ -65,6 +69,12 @@ export interface ClientConfig {
    * does not cover the client.
    */
   readonly litellm_route?: string
+  /**
+   * `public` marks a client whose route is for public work only (the `public`
+   * and `openrouter` LiteLLM routes): a delegation that reads a repository is
+   * never sent to it. Undefined is `any`.
+   */
+  readonly data_scope?: ClientDataScope
 }
 
 /** The fields a client has; a machine file that names another is refused, not quietly ignored. */
@@ -77,6 +87,7 @@ const CLIENT_FIELDS = [
   'providers',
   'plan_limits',
   'litellm_route',
+  'data_scope',
 ] as const
 
 /** The top-level keys a machine file may name; one it does not is refused, not quietly dropped. */
@@ -224,6 +235,8 @@ export type ModelGatewayErrorCode =
    * that asks the gateway first is refused rather than started to fail.
    */
   | 'unable-to-start'
+  /** A Pi delegate could not be confined to its working directory (no provider, no key, no launcher), so it never started. */
+  | 'unconfined'
 
 export class ModelGatewayError extends Error {
   constructor(
@@ -253,7 +266,10 @@ export function parseDefaults(raw: unknown): GatewayConfig {
     }),
   )
   if (!Array.isArray(raw.models)) throw invalid('models must be a list')
-  const models = raw.models.map((value, index) => parseModelEntry(value, index, undefined))
+  const models = expandClientGroups(
+    raw.models.map((value, index) => parseModelEntry(value, index, undefined)),
+    clients,
+  )
   if (!isObject(raw.settings)) throw invalid('settings must be an object')
   return {
     clients,
@@ -262,6 +278,21 @@ export function parseDefaults(raw: unknown): GatewayConfig {
     settings: parseSettings(raw.settings),
     version: CONFIG_VERSION,
   }
+}
+
+/**
+ * A defaults entry whose `client` is no client of its own but the prefix of
+ * several (`pi` for `pi-vibe`, `pi-opencode-go`, ...) describes one model for
+ * each of them, so the catalogue states a model once however many routes
+ * serve it. An entry that names a client, or a prefix that matches none, is
+ * kept as it is.
+ */
+function expandClientGroups(models: readonly ModelEntry[], clients: Readonly<Record<string, ClientConfig>>): readonly ModelEntry[] {
+  return models.flatMap((entry) => {
+    if (entry.client in clients) return [entry]
+    const members = Object.keys(clients).filter((id) => id.startsWith(`${entry.client}-`))
+    return members.length === 0 ? [entry] : members.map((id) => ({ ...entry, client: id }))
+  })
 }
 
 /**
@@ -320,6 +351,7 @@ function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined
   const planLimits = raw.plan_limits === undefined ? base?.plan_limits : parsePlanLimits(raw.plan_limits, `${where}.plan_limits`)
   const litellmRoute =
     raw.litellm_route === undefined ? base?.litellm_route : requireString(raw.litellm_route, `${where}.litellm_route`)
+  const dataScope = raw.data_scope === undefined ? base?.data_scope : requireOneOf(raw.data_scope, CLIENT_DATA_SCOPES, `${where}.data_scope`)
   if (binary === undefined || costClass === undefined || modelSource === undefined) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`)
   }
@@ -332,6 +364,7 @@ function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined
     providers,
     ...(planLimits === undefined ? {} : { plan_limits: planLimits }),
     ...(litellmRoute === undefined ? {} : { litellm_route: litellmRoute }),
+    ...(dataScope === undefined ? {} : { data_scope: dataScope }),
   }
 }
 

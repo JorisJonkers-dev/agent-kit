@@ -142,6 +142,36 @@
     },
     {
       "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \\\"pi-\\\"\"}\n",
+      "stderr": "model-gateway run: only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \"pi-\"\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \\\"pi-Vibe\\\"\"}\n",
+      "stderr": "model-gateway run: only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \"pi-Vibe\"\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \\\"pi\\\"\"}\n",
+      "stderr": "model-gateway run: only vibe, agy, claude, opencode, hermes, codex can run a delegation, not \"pi\"\n",
+      "files": {
+        "home/": null,
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
       "stdout": "{\"status\":\"error\",\"code\":\"not-supported-yet\",\"message\":\"only read-only and write runs are supported, not missing\"}\n",
       "stderr": "model-gateway run: only read-only and write runs are supported, not missing\n",
       "files": {

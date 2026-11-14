@@ -259,6 +259,60 @@
       "argv": [
         "run",
         "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-Vibe\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi\",\"mode\":\"read-only\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
         "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"mistral-small-latest\",\"prompt\":\"p\"}"
       ],
       "path": [

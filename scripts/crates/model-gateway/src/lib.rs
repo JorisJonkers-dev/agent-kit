@@ -38,6 +38,7 @@ pub mod lock;
 pub mod locations;
 pub mod models;
 pub mod outputs;
+pub mod pi_launch;
 pub mod plan;
 pub mod policy;
 pub mod ports;

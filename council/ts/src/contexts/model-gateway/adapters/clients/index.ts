@@ -1,5 +1,6 @@
 import type { ClockPort, EnvPort, ProcessResult } from '../../../../ports/index.js'
-import { vibeAvailableCachePath, vibeConfigPath } from '../../application/locations.js'
+import { piModelsPath, vibeAvailableCachePath, vibeConfigPath } from '../../application/locations.js'
+import { piProvider } from '../../application/launchers.js'
 import type { ModelGatewayDependencies, ModelGatewayFilesPort, ModelGatewayProcessPort, ModelSourcePort } from '../../application/ports.js'
 import {
   hermesDefaultModel,
@@ -10,6 +11,7 @@ import {
   vibeModels,
   type ClientListing,
 } from '../../domain/models.js'
+import { isObject } from '../../domain/config.js'
 
 /**
  * Antigravity's own listing: `agy models` prints a `Fetching available
@@ -50,6 +52,51 @@ export class OpenCodeModelSource implements ModelSourcePort {
     if (result.exitCode !== 0) return { reason: failureReason(command, result) }
     return { models: parseOpenCodeModels(result.stdout) }
   }
+}
+
+/**
+ * Pi's own configuration: setup writes one `litellm-<route>` provider per
+ * LiteLLM route into the home's `models.json`, with the canonical models the
+ * live catalogue says that route's key reaches, so the file is the one
+ * non-interactive source of what a Pi client on that route can run. The
+ * client id names the route (`pi-vibe` is `litellm-vibe`); a file that is
+ * missing, is not JSON or has no such provider leaves the client out with the
+ * reason, rather than offering a model a run would be refused on.
+ */
+export class PiModelSource implements ModelSourcePort {
+  constructor(
+    private readonly files: ModelGatewayFilesPort,
+    private readonly env: EnvPort,
+  ) {}
+
+  async list(client: string): Promise<ClientListing> {
+    const provider = piProvider(client)
+    const path = piModelsPath(this.env)
+    let text: string
+    try {
+      text = await this.files.readText(path)
+    } catch (error) {
+      return { reason: `listing failed: ${path} cannot be read (${messageOf(error)}): re-run agent-kit setup, which writes the ${provider} provider` }
+    }
+    return piListing(text, provider, path)
+  }
+}
+
+/** The models a Pi `models.json` gives one provider, in the order it lists them. */
+export function piListing(text: string, provider: string, path: string): ClientListing {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return { reason: `listing failed: ${path} is not JSON` }
+  }
+  const providers = isObject(parsed) && isObject(parsed.providers) ? parsed.providers : {}
+  const entry = providers[provider]
+  if (!isObject(entry) || !Array.isArray(entry.models)) {
+    return { reason: `listing failed: ${path} has no ${provider} provider with models: re-run agent-kit setup, which writes it` }
+  }
+  const ids = (entry.models as unknown[]).flatMap((model) => (isObject(model) && typeof model.id === 'string' && model.id !== '' ? [model.id] : []))
+  return { models: ids.map((model) => ({ model })) }
 }
 
 /**
@@ -337,6 +384,7 @@ export function modelSources(deps: Pick<ModelGatewayDependencies, 'clock' | 'env
     agy: new AntigravityModelSource(deps.process),
     hermes: new HermesModelSource(deps.process),
     opencode: new OpenCodeModelSource(deps.process),
+    pi: new PiModelSource(deps.files, deps.env),
     vibe: new VibeModelSource(deps.files, deps.env, deps.process, deps.clock),
   }
 }

@@ -116,3 +116,9 @@ export function runsDir(env: EnvPort): string {
 export function workflowsPath(env: EnvPort): string {
   return join(stateDir(env), 'workflows.json')
 }
+
+/** The home's Pi models file, where setup writes one `litellm-<route>` provider per LiteLLM route: `PI_CODING_AGENT_DIR`, else `~/.pi/agent`. */
+export function piModelsPath(env: EnvPort): string {
+  const own = env.get('PI_CODING_AGENT_DIR') ?? ''
+  return join(own.length > 0 ? own : join(env.require('HOME'), '.pi', 'agent'), 'models.json')
+}

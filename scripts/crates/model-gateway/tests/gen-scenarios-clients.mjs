@@ -351,6 +351,53 @@ esac`)
     modelsStep({}, { shims: ['git'] }),
   ]
 
+  // Pi: one client per LiteLLM route, each listing what the home's models.json gives its provider, judged
+  // by the live catalogue's canonical groups; a client on the public route is never sent a repository.
+  const PI_MODELS = 'home/.pi/agent/models.json'
+  const piProvider = (...ids) => ({ api: 'openai-completions', apiKey: 'x', baseUrl: 'https://litellm.example/v1', models: ids.map((id) => (typeof id === 'string' ? { id } : id)) })
+  const piHome = (providers) => ({ [PI_MODELS]: text({ providers }) })
+  const group = (route, upstream, extra = {}) => ({ modality: 'chat', public: false, deployments: [{ route, upstream_id: upstream, order: 1, weight: 1 }], ...extra })
+  const piCatalogue = JSON.stringify({
+    version: 1,
+    updated_at: '2026-11-03T11:17:01Z',
+    providers: {
+      vibe: { models: [probe('vibe/zai-glm-5-3', 'usable'), probe('vibe/mistral-large-4', 'blocked', { reason: 'Not on your plan.' })] },
+      'opencode-go': { models: [probe('opencode-go/qwen3.8-flash', 'usable', { free: true })] },
+      google: { models: [probe('google/gemini-3.8-flash', 'usable')] },
+    },
+    groups: {
+      'glm-5.3': group('vibe', 'zai-glm-5-3'),
+      'mistral-large-4': group('vibe', 'mistral-large-4'),
+      'qwen3.8-flash': group('opencode-go', 'qwen3.8-flash'),
+      'public/gemini-3.8-flash': group('google', 'gemini-3.8-flash', { public: true }),
+      'ministral-3b': { modality: 'chat', public: false, deployments: [] },
+      'bad-group': 3,
+      'no-deployments': { modality: 'chat' },
+    },
+  })
+  const PI_PROVIDERS = {
+    'litellm-vibe': piProvider('glm-5.3', 'mistral-large-4', 'ministral-3b', 'hy3', 'glm-5.3', { id: 7 }, { id: '' }),
+    'litellm-opencode-go': piProvider('kimi-k2.7-code', 'qwen3.8-flash'),
+    'litellm-public': piProvider('public/gemini-3.8-flash', 'public/gemini-3.5-flash-lite'),
+    'litellm-local': { api: 'openai-completions' },
+  }
+  const PI_REPO = {
+    ...gitFiles('repo', '[remote "origin"]\n\turl = https://github.com/Owner/Repo.git\n'),
+    ...allow({ version: 1, repositories: { 'github.com/owner/repo': { families: ['zhipu', 'mistral', 'google', 'moonshot', 'alibaba'], code: true, history: false } } }),
+  }
+  scenarios['models-pi'] = [
+    modelsStep({}, { write: { ...script('pi', 'exit 0'), ...piHome(PI_PROVIDERS), [CATALOGUE_PATH]: piCatalogue }, exec: execs('pi') }),
+    repoStep('repo', { write: PI_REPO, mkdir: gitDirs('repo') }),
+    modelsStep({}, { write: piHome({ 'litellm-vibe': piProvider('glm-5.3') }), remove: [CATALOGUE_PATH] }),
+    modelsStep({}, { write: { [PI_MODELS]: 'not json' } }),
+    modelsStep({}, { write: { [PI_MODELS]: '[]' } }),
+    modelsStep({}, { remove: [PI_MODELS] }),
+    modelsStep({}, { write: piHome({ 'litellm-vibe': piProvider('glm-5.3') }), env: { PI_CODING_AGENT_DIR: `${SBX}/elsewhere` } }),
+    modelsStep({}, { write: { 'elsewhere/models.json': text({ providers: { 'litellm-vibe': piProvider('mistral-large-4') } }) } }),
+    repoStep('repo', { write: { ...piHome(PI_PROVIDERS), [CATALOGUE_PATH]: piCatalogue, 'home/.config/agent-kit/model-gateway.json': text({ clients: { 'pi-public': { data_scope: 'any' }, 'pi-vibe': { data_scope: 'public' } } }) } }),
+    modelsStep({}, { write: { 'home/.config/agent-kit/model-gateway.json': text({ clients: { 'pi-vibe': { data_scope: 'private' } } }) } }),
+  ]
+
   const tokens = (input, output, cached) => ({ tokens: { input, output, cached } })
   scenarios['usage'] = [
     usageStep({}, {

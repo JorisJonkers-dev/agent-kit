@@ -184,6 +184,13 @@ def test_the_plan_step_comes_before_the_rating() -> None:
     assert text.index("## Plan first") < text.index("## Rate each task")
 
 
+def test_the_choice_prefers_pi_and_keeps_the_public_route_off_repositories() -> None:
+    section = _section("Choose the model")
+    assert "Prefer Pi" in section
+    assert "`pi-<route>` client over any other client" in section
+    assert "`pi-public` is the one Pi client the data policy never lists for a repository" in section
+
+
 def test_the_choice_rule_is_cheapest_class_then_capability_notes() -> None:
     section = _section("Choose the model")
     assert "cheapest cost class whose model covers its tier" in section
@@ -257,7 +264,10 @@ def test_only_the_short_results_are_read() -> None:
 
 def test_the_example_models_are_ones_the_shipped_catalogue_declares() -> None:
     models = json.loads((KIT_ROOT / "skills" / "workstation" / "model-gateway" / "defaults.json").read_text())["models"]
+    clients = json.loads((KIT_ROOT / "skills" / "workstation" / "model-gateway" / "defaults.json").read_text())["clients"]
     declared = {(m["client"], m["model"]) for m in models}
+    # An entry for client "pi" describes the model for every pi-<route> client.
+    declared |= {(c, m["model"]) for m in models if m["client"] == "pi" for c in clients if c.startswith("pi-")}
     for d in _example_plan()["delegations"]:
         assert (d["client"], d["model"]) in declared, d["id"]
 

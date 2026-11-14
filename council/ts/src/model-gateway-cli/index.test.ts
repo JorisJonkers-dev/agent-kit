@@ -341,6 +341,11 @@ describe('model-gateway models', () => {
         { client: 'agy', reason: 'not installed: agy is not on PATH' },
         { client: 'hermes', reason: 'not installed: hermes is not on PATH' },
         { client: 'opencode', reason: 'not installed: opencode is not on PATH' },
+      { client: 'pi-local', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-opencode-go', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-public', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe-study', reason: 'not installed: pi is not on PATH' },
         { client: 'vibe', reason: 'not installed: vibe is not on PATH' },
       ],
       models: [
@@ -411,7 +416,7 @@ describe('model-gateway models', () => {
 
     await w.run('models', '--json', '{}')
 
-    expect(w.asked).toEqual(['agy', 'claude', 'codex', 'hermes', 'opencode', 'vibe'])
+    expect(w.asked).toEqual(['agy', 'claude', 'codex', 'hermes', 'opencode', 'pi', 'pi', 'pi', 'pi', 'pi', 'vibe'])
     expect(w.ran).toEqual([])
   })
 
@@ -425,6 +430,11 @@ describe('model-gateway models', () => {
       { client: 'codex', reason: 'not installed: codex is not on PATH' },
       { client: 'hermes', reason: 'not installed: hermes is not on PATH' },
       { client: 'opencode', reason: 'not installed: opencode is not on PATH' },
+      { client: 'pi-local', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-opencode-go', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-public', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe-study', reason: 'not installed: pi is not on PATH' },
       { client: 'vibe', reason: 'not installed: vibe is not on PATH' },
     ])
     expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
@@ -442,6 +452,11 @@ describe('model-gateway models', () => {
       { client: 'codex', reason: 'not installed: codex is not on PATH' },
       { client: 'hermes', reason: 'not installed: hermes is not on PATH' },
       { client: 'opencode', reason: 'not installed: opencode is not on PATH' },
+      { client: 'pi-local', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-opencode-go', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-public', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe-study', reason: 'not installed: pi is not on PATH' },
       { client: 'vibe', reason: 'not installed: vibe is not on PATH' },
     ])
   })
@@ -704,6 +719,11 @@ describe('the shipped defaults', () => {
           model_source: 'live',
           provider_cost_classes: { 'opencode-go': 'subsidised' },
         },
+        'pi-local': { binary: 'pi', cost_class: 'subsidised', model_source: 'live' },
+        'pi-opencode-go': { binary: 'pi', cost_class: 'subsidised', model_source: 'live' },
+        'pi-public': { binary: 'pi', cost_class: 'subsidised', data_scope: 'public', model_source: 'live' },
+        'pi-vibe': { binary: 'pi', cost_class: 'subsidised', model_source: 'live' },
+        'pi-vibe-study': { binary: 'pi', cost_class: 'subsidised', model_source: 'live' },
         vibe: { binary: 'vibe', cost_class: 'subsidised', litellm_route: 'vibe', model_source: 'live' },
       },
       models: [
@@ -835,6 +855,118 @@ describe('the shipped defaults', () => {
           notes: 'Xiaomi’s MiMo flash variant, new on the plan; untried as a delegate.',
           tier: 'routine',
         },
+        {
+          client: 'pi',
+          family: 'deepseek',
+          model: 'deepseek-v4.1-flash',
+          notes: 'Cheap and quick; good at well-specified code changes and lint-like review.',
+          tier: 'routine',
+        },
+        {
+          client: 'pi',
+          family: 'zhipu',
+          model: 'glm-5.3',
+          notes: 'Strong code review and integration reasoning.',
+          tier: 'hard',
+        },
+        {
+          client: 'pi',
+          family: 'zhipu',
+          model: 'glm-5.3-flash',
+          notes: 'Cheap and quick; well-specified code changes and lint-like review.',
+          tier: 'routine',
+        },
+        {
+          client: 'pi',
+          family: 'mistral',
+          model: 'mistral-large-4',
+          notes: 'Broad general model.',
+          tier: 'hard',
+        },
+        {
+          client: 'pi',
+          family: 'mistral',
+          model: 'mistral-medium-3.5',
+          notes: 'General coding, tool use and reasoning.',
+          tier: 'routine',
+        },
+        {
+          client: 'pi',
+          family: 'mistral',
+          model: 'mistral-small',
+          notes: 'Very cheap; short summaries and classification.',
+          tier: 'trivial',
+        },
+        {
+          client: 'pi',
+          family: 'mistral',
+          model: 'ministral-3b',
+          notes: 'Tiny and very cheap; classification and one-line answers.',
+          tier: 'trivial',
+        },
+        {
+          client: 'pi',
+          family: 'mistral',
+          model: 'ministral-8b',
+          notes: 'Small and cheap; short summaries and lookups.',
+          tier: 'trivial',
+        },
+        {
+          client: 'pi',
+          family: 'mistral',
+          model: 'codestral',
+          notes: 'Code-tuned Mistral; focused edits and code explanation.',
+          tier: 'routine',
+        },
+        {
+          client: 'pi',
+          family: 'moonshot',
+          model: 'kimi-k2.7-code',
+          notes: 'Strong agentic coding.',
+          tier: 'hard',
+        },
+        {
+          client: 'pi',
+          family: 'xiaomi',
+          model: 'mimo-v2.6-pro',
+          notes: 'Xiaomi’s MiMo pro variant; untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'pi',
+          family: 'xiaomi',
+          model: 'mimo-v2.6-flash',
+          notes: 'Xiaomi’s MiMo flash variant; untried as a delegate.',
+          tier: 'routine',
+        },
+        {
+          client: 'pi',
+          family: 'alibaba',
+          model: 'qwen3.8-flash',
+          notes: 'Fast Qwen; routine edits and summaries.',
+          tier: 'routine',
+        },
+        {
+          client: 'pi',
+          family: 'minimax',
+          model: 'minimax-m3.1-flash',
+          notes: 'Fast MiniMax; routine edits and summaries.',
+          tier: 'routine',
+        },
+        {
+          client: 'pi',
+          family: 'google',
+          model: 'public/gemini-3.8-flash',
+          notes: 'Fast long-context reader; public material only.',
+          tier: 'routine',
+        },
+        {
+          client: 'pi',
+          family: 'google',
+          model: 'public/gemini-3.5-flash-lite',
+          notes: 'Cheapest Gemini; short summaries and lookups; public material only.',
+          tier: 'trivial',
+        },
       ],
       settings: {
         availability_window_minutes: 60,
@@ -949,6 +1081,11 @@ describe('models: the clients whose models the gateway declares', () => {
         { client: 'agy', reason: 'not installed: agy is not on PATH' },
         { client: 'hermes', reason: 'not installed: hermes is not on PATH' },
         { client: 'opencode', reason: 'not installed: opencode is not on PATH' },
+      { client: 'pi-local', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-opencode-go', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-public', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe-study', reason: 'not installed: pi is not on PATH' },
         { client: 'vibe', reason: 'not installed: vibe is not on PATH' },
       ],
       models: [
@@ -1007,7 +1144,7 @@ describe('models: the clients whose models the gateway declares', () => {
 
     await w.run('models', '--json', '{}')
 
-    expect(w.asked).toEqual(['agy', 'claude', 'codex', 'hermes', 'opencode', 'vibe'])
+    expect(w.asked).toEqual(['agy', 'claude', 'codex', 'hermes', 'opencode', 'pi', 'pi', 'pi', 'pi', 'pi', 'vibe'])
     expect(w.ran).toEqual([])
   })
 
@@ -1021,6 +1158,11 @@ describe('models: the clients whose models the gateway declares', () => {
       { client: 'codex', reason: 'not installed: codex is not on PATH' },
       { client: 'hermes', reason: 'not installed: hermes is not on PATH' },
       { client: 'opencode', reason: 'not installed: opencode is not on PATH' },
+      { client: 'pi-local', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-opencode-go', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-public', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe', reason: 'not installed: pi is not on PATH' },
+      { client: 'pi-vibe-study', reason: 'not installed: pi is not on PATH' },
       { client: 'vibe', reason: 'not installed: vibe is not on PATH' },
     ])
     expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
@@ -3115,7 +3257,7 @@ describe('model-gateway usage: availability', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stderr).toBe('')
     expect(printed(result)).toMatchObject({ days: 7, status: 'ok' })
-    expect(usageClients(result)).toEqual(['agy', 'claude', 'codex', 'hermes', 'opencode', 'vibe'])
+    expect(usageClients(result)).toEqual(['agy', 'claude', 'codex', 'hermes', 'opencode', 'pi-local', 'pi-opencode-go', 'pi-public', 'pi-vibe', 'pi-vibe-study', 'vibe'])
     expect(usageClient(result, 'vibe')).toEqual({
       availability: {
         installed: true,

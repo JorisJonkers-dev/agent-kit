@@ -201,3 +201,21 @@ describe('permittedModels', () => {
     expect(permittedModels(listing, decision).models.map((model) => model.client)).toEqual(['claude'])
   })
 })
+
+describe('a client on a public-only route', () => {
+  const withPublic = (): GatewayConfig => {
+    const base = config()
+    const vibe = base.clients.vibe
+    if (vibe === undefined) throw new Error('the fixture has a vibe client')
+    return { ...base, clients: { ...base.clients, vibe: { ...vibe, data_scope: 'public' } } }
+  }
+  const keys = (decision: ReturnType<typeof decidePolicy>): string[] =>
+    decision.permissions.filter((permission) => permission.permitted).map((permission) => `${permission.client}:${permission.model}`)
+
+  it('is never sent a repository, whatever the entry says of its family, but may take inline content', () => {
+    const scope: DataScope = { entry: entry(['anthropic', 'zhipu']), key: 'github.com/acme/widgets', kind: 'repository' }
+
+    expect(keys(decidePolicy(withPublic(), scope))).toEqual(['claude:claude-sonnet-5-5'])
+    expect(keys(decidePolicy(withPublic(), { kind: 'outside' }))).toEqual(['claude:claude-sonnet-5-5', 'hermes:hermes-4', 'vibe:zai-glm-5-3'])
+  })
+})
