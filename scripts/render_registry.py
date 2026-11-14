@@ -4553,10 +4553,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
         if pin_block:
             # The whole step is generated from the pin block, so a pinned
             # npm CLI takes no install:/update:/version_command: of its own.
-            block = _pinned_npm_cli_block(cli, pin_block)
+            pinned = _pinned_npm_cli_block(cli, pin_block)
             if name == "pi" and data.get("litellm"):
-                block = [*block, *_pi_providers_block()]
-            out.extend(_cloud_guard(block, cli, ""))
+                pinned = [*pinned, *_pi_providers_block()]
+            out.extend(_cloud_guard(pinned, cli, ""))
             continue
         block: list[str] = []
         b = block.append
