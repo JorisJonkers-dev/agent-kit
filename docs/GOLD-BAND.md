@@ -535,8 +535,9 @@ gold-band-proof run --workflow installer/gold-band/workflows/workflow-b.json \
 * **agent-kit's pins** run the Rust workspace: `cargo build --all-targets`,
   `cargo test`, `cargo clippy --all-targets` (clippy's deny-by-default lints
   only: the workspace is not warning-clean, so `-D warnings` would fail every
-  run), `coverage-gate --base {base}` (100 percent on the files the run
-  changed), and the finding check over `findings/*.json` against the diff from
+  run), `coverage-gate --base {base} --ignore /tests/` (100 percent on the
+  files the run changed; a test file under `tests/` is left out, since
+  `cargo llvm-cov` never reports one and the gate would read it as unmeasured), and the finding check over `findings/*.json` against the diff from
   `{base}` (the findings themselves left out) and the requirement.
   The coverage gate needs `cargo llvm-cov` with an LLVM of rustc's major version
   (`LLVM_COV` and `LLVM_PROFDATA` set), and the gates build with this host's

@@ -30,7 +30,9 @@
       "--repo-dir",
       "{repo}",
       "--base",
-      "{base}"
+      "{base}",
+      "--ignore",
+      "/tests/"
     ],
     "findings": [
       "sh",
