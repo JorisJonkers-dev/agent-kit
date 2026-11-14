@@ -188,6 +188,30 @@ def test_the_overlay_may_give_the_work_instance_a_code_nav_work_root(tmp_path: P
 
 
 @needs_crate
+def test_the_work_instance_may_name_a_hindsight_server_of_the_nedap_bank(tmp_path: Path) -> None:
+    overlay = _overlay(
+        tmp_path,
+        "instances:\n  gold-band:\n    mcp_servers:\n"
+        "      hindsight: {url: 'https://hindsight.example/mcp/nedap/', env: {HINDSIGHT_NEDAP_TOKEN: $HINDSIGHT_NEDAP_TOKEN}}\n",
+    )
+
+    assert gbi.validate(_registry(), overlay) == []
+
+
+def test_every_memory_server_the_personal_instance_holds_reaches_the_shared_bank_only() -> None:
+    registry = _registry()
+    bound = [s for s in registry["mcp_servers"] if "gold-band-personal" in (s.get("instances") or [])]
+    banks = {
+        s["name"]: s["url_workstation"].split("/mcp/", 1)[1].split("/")[0]
+        for s in bound
+        if "/mcp/" in (s.get("url_workstation") or "")
+    }
+    assert banks.get("memory-api") == "default"
+    assert set(banks.values()) == {"default"}, banks
+    assert all("gold-band" not in (s.get("instances") or []) for s in registry["mcp_servers"])
+
+
+@needs_crate
 def test_the_personal_instance_never_takes_a_code_nav_root(tmp_path: Path) -> None:
     overlay = _overlay(
         tmp_path,
@@ -213,6 +237,14 @@ def test_the_personal_instance_never_takes_a_code_nav_root(tmp_path: Path) -> No
         ("gold-band: {mcp_servers: {x: {command: npx, token: abc}}}", "unknown field mcp_servers.x.token"),
         ("gold-band: {mcp_servers: {x: {command: npx, env: {API_TOKEN: hunter2}}}}", "secret-named"),
         ("gold-band: {settings: {a: sk-aaaaaaaaaaaaaaaaaaaaaaaa}}", "literal secret"),
+        (
+            "gold-band: {mcp_servers: {hindsight: {url: 'https://h.example/mcp/default/'}}}",
+            "reaches the default bank (the work instance reaches the nedap bank only)",
+        ),
+        (
+            "gold-band: {mcp_servers: {hindsight: {url: 'https://h.example/mcp'}}}",
+            "single-bank endpoint of the nedap bank",
+        ),
         ("other: {agents: [vibe]}", "unknown instance"),
     ],
 )

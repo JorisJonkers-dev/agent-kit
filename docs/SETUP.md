@@ -314,6 +314,14 @@ every other employer entry. The deployed memory server must serve the `nedap`
 bank on its own host and token service before that entry works; that is a
 live step listed on agent-kit#440.
 
+The registry check holds the entry to its bank. In the overlay, a server `url`
+that is a single-bank endpoint (`.../mcp/<bank>/`) must name `nedap`, and a
+server called `hindsight` must be one, so the work instance's Hindsight server
+reaches the Nedap bank alone. The personal instance cannot take overlay servers
+at all, and the only memory server the registry binds to it, `memory-api`, is
+the single-bank endpoint of `default`. A literal token anywhere in an overlay
+server is refused: its credential is an environment reference (`$NAME`).
+
 ### Vibe launchers and Private Memory
 
 Personal notes go to Private Memory, a separate Hindsight bank (`private`),
