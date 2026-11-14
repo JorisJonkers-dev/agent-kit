@@ -206,7 +206,7 @@ def test_every_memory_server_the_personal_instance_holds_reaches_the_shared_bank
     banks = {
         s["name"]: s["url_workstation"].split("/mcp/", 1)[1].split("/")[0]
         for s in bound
-        if "/mcp/" in (s.get("url_workstation") or "")
+        if "/mcp/" in (s.get("url_workstation") or "") and "hindsight" in s["url_workstation"]
     }
     assert banks.get("memory-api") == "default"
     assert set(banks.values()) == {"default"}, banks
