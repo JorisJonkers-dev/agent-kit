@@ -543,7 +543,7 @@ model_gateway:
       sha256: afedad0c239da9c0e3a9b415b10cce8b9f48afff7144f4c70e2fa1ba4628b3fc
       mode: "0755"
     - path: skills/workstation/model-gateway/defaults.json
-      sha256: 0bdd4f570725827d58b99726eb81de2753c18ed4c51a536abcaf8c5e68c2777b
+      sha256: 762570b0ca0c91ab2da1adb27603c609f0049b24830498f4675508a5c0fd84ab
       mode: "0644"
     - path: skills/workstation/model-gateway/defaults.schema.json
       sha256: 0af3d8d3ae3871ab0961c7e9684f91c11f0100aad7d07c63e6cc7234e9fb5ccd

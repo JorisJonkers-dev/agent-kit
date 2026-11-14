@@ -122,7 +122,7 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("pi", "glm-5.3", "zhipu", "hard"),
         ("pi", "glm-5.3-flash", "zhipu", "routine"),
         ("pi", "mistral-large-4", "mistral", "hard"),
-        ("pi", "mistral-medium-3.5", "mistral", "routine"),
+        ("pi", "mistral-medium", "mistral", "routine"),
         ("pi", "mistral-small", "mistral", "trivial"),
         ("pi", "ministral-3b", "mistral", "trivial"),
         ("pi", "ministral-8b", "mistral", "trivial"),

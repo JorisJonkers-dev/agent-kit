@@ -35,7 +35,7 @@
     {"client": "pi", "model": "glm-5.3", "family": "zhipu", "tier": "hard", "notes": "Strong code review and integration reasoning."},
     {"client": "pi", "model": "glm-5.3-flash", "family": "zhipu", "tier": "routine", "notes": "Cheap and quick; well-specified code changes and lint-like review."},
     {"client": "pi", "model": "mistral-large-4", "family": "mistral", "tier": "hard", "notes": "Broad general model."},
-    {"client": "pi", "model": "mistral-medium-3.5", "family": "mistral", "tier": "routine", "notes": "General coding, tool use and reasoning."},
+    {"client": "pi", "model": "mistral-medium", "family": "mistral", "tier": "routine", "notes": "General coding, tool use and reasoning."},
     {"client": "pi", "model": "mistral-small", "family": "mistral", "tier": "trivial", "notes": "Very cheap; short summaries and classification."},
     {"client": "pi", "model": "ministral-3b", "family": "mistral", "tier": "trivial", "notes": "Tiny and very cheap; classification and one-line answers."},
     {"client": "pi", "model": "ministral-8b", "family": "mistral", "tier": "trivial", "notes": "Small and cheap; short summaries and lookups."},

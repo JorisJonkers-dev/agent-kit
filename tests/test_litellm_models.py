@@ -33,6 +33,9 @@ sys.modules["litellm_catalogue"] = litellm_catalogue
 _spec.loader.exec_module(litellm_catalogue)
 
 
+GROUPS = set(json.loads(CATALOGUE.read_text())["groups"])
+
+
 def _routes() -> dict[str, set[str]]:
     """The usable ids per provider route the snapshot lists (never the machine's live copy: tests stay fixed)."""
     snapshot = litellm_catalogue.Catalogue(json.loads(CATALOGUE.read_text()), "snapshot")
@@ -50,6 +53,9 @@ def unresolved(models: list[dict], routes: dict[str, set[str]]) -> list[str]:
         elif client == "opencode":
             route, _, bare = model.partition("/")
             ok = route == "opencode-go" and bare in routes["opencode-go"]
+        elif client == "pi":
+            # Pi's models are canonical groups, which the catalogue lists by name.
+            ok = model in GROUPS
         else:
             assert client in NOT_VIA_LITELLM, f"{client} has no LiteLLM route check"
             continue

@@ -886,7 +886,7 @@ describe('the shipped defaults', () => {
         {
           client: 'pi',
           family: 'mistral',
-          model: 'mistral-medium-3.5',
+          model: 'mistral-medium',
           notes: 'General coding, tool use and reasoning.',
           tier: 'routine',
         },
