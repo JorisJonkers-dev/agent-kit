@@ -625,10 +625,7 @@ impl RunCommand<'_> {
         let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: result.stderr.clone() };
         let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
         let delegate_reason = failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report)));
-        let finished: Option<FinishedWrite> = match writing(input) {
-            Some(write) => Some(self.finish_write(run, &write, delegate_reason.as_deref())),
-            None => None,
-        };
+        let finished: Option<FinishedWrite> = writing(input).map(|write| self.finish_write(run, &write, delegate_reason.as_deref()));
         let reason = match &finished {
             Some(finished) => finished.reason.clone(),
             None => delegate_reason.clone(),

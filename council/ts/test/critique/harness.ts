@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { Readable } from 'node:stream'
@@ -1043,6 +1043,38 @@ export interface PiCli {
   readonly models?: readonly (readonly [string, string])[] | ProcessResult
   readonly version?: string
   readonly scripts?: WorkScript[]
+  /** Whether `agent-launcher` is on PATH (it is unless named). */
+  readonly launcher?: boolean
+  /** What `agent-launcher confine --check` answers: success unless named. */
+  readonly confine?: ProcessResult
+  /** What `agent-kit-secret get <NAME>` answers: a key unless named. */
+  readonly secret?: ProcessResult | 'spawn-error'
+  /** The home's `~/.pi/agent/models.json`: both routes' providers with a secret-store key unless named; null for none. */
+  readonly homeModels?: string | null
+  /** Whether the home has Pi's `bin` (where `fd` lives). */
+  readonly homeBin?: boolean
+}
+
+/** A key as the fake secret store hands it out. */
+export const PI_TEST_KEY = 'sk-test-route-key'
+
+/** The home's Pi providers as setup writes them: each key read from the secret store when a request is made. */
+export function homePiModels(secret: string): string {
+  const provider = (name: string, model: string) => ({
+    api: 'openai-completions',
+    apiKey: `!${secret} get LITELLM_${name.toUpperCase().replaceAll('-', '_')}_KEY`,
+    baseUrl: 'https://litellm.example.test/v1',
+    models: [{ cost: { input: 0.5, output: 1 }, id: model }],
+  })
+  return `${JSON.stringify({ providers: { 'litellm-opencode-go': provider('opencode-go', 'deepseek-v4-flash'), 'litellm-vibe-study': provider('vibe-study', 'glm-5-3') } }, null, 2)}\n`
+}
+
+/** What one confined Pi launch saw of its agent directory while it ran. */
+export interface PiAgentSeen {
+  readonly models: string
+  readonly modelsMode: number
+  readonly settings: string
+  readonly dirMode: number
 }
 
 /** What `pi --mode json` prints for a run whose last assistant message is `text`, after the tool calls named. */
@@ -1085,6 +1117,8 @@ export function piStream(
  */
 export class FakePiProcess implements ProcessPort {
   readonly commands: ProcessCommand[] = []
+  /** The agent directory of each launch, as it was while it ran. */
+  readonly agents: PiAgentSeen[] = []
 
   constructor(
     private readonly repo: string,
@@ -1092,14 +1126,29 @@ export class FakePiProcess implements ProcessPort {
     private readonly log: LaunchLog,
   ) {}
 
-  /** The critic launches only. */
+  /** The critic launches only, as Pi saw them under the launcher: the command after its `--`. */
   get launches(): readonly ProcessCommand[] {
-    return this.commands.filter((command) => command.args[0] === '-p')
+    return this.confined.map((command) => {
+      const [pi = '', ...args] = command.args.slice(command.args.indexOf('--') + 1)
+      return { ...command, args, command: pi }
+    })
+  }
+
+  /** The launcher's command lines of the critic launches. */
+  get confined(): readonly ProcessCommand[] {
+    return this.commands.filter((command) => command.args[0] === 'confine' && !command.args.includes('--check'))
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
     this.commands.push(command)
     const [first] = command.args
+    if (first === 'get') {
+      const secret = this.cli.secret ?? { exitCode: 0, stderr: '', stdout: `${PI_TEST_KEY}\n` }
+      if (secret === 'spawn-error') throw new Error(`spawn ${command.command} ENOENT`)
+      return secret
+    }
+    if (first === 'confine' && command.args.includes('--check')) return this.cli.confine ?? { exitCode: 0, stderr: '', stdout: 'confine: ok\n' }
+    if (first === 'confine') return this.launch(command)
     if (first === '--version') return { exitCode: 0, stderr: '', stdout: `${this.cli.version ?? '1.5.0'}\n` }
     if (first === 'auth') {
       const auth = this.cli.auth ?? 'ready'
@@ -1109,13 +1158,23 @@ export class FakePiProcess implements ProcessPort {
       const answer = auth === 'ready' ? { authType: 'api_key', provider, status: auth } : { provider, reason: 'provider_not_found', status: auth }
       return { exitCode: auth === 'ready' ? 0 : auth === 'not_ready' ? 1 : 2, stderr: '', stdout: `${JSON.stringify(answer)}\n` }
     }
-    if (first === '--offline') {
-      const models = this.cli.models
-      if (models !== undefined && !Array.isArray(models)) return models as ProcessResult
-      const asked = command.args[2] ?? ''
-      const rows = (models as readonly (readonly [string, string])[] | undefined) ?? [['litellm-vibe-study', asked], ['litellm-opencode-go', asked]]
-      return { exitCode: 0, stderr: '', stdout: ['provider  model  context', ...rows.map(([provider, model]) => `${provider}  ${model}  128K`)].join('\n') }
-    }
+    const models = this.cli.models
+    if (models !== undefined && !Array.isArray(models)) return models as ProcessResult
+    const asked = command.args[2] ?? ''
+    const rows = (models as readonly (readonly [string, string])[] | undefined) ?? [['litellm-vibe-study', asked], ['litellm-opencode-go', asked]]
+    return { exitCode: 0, stderr: '', stdout: ['provider  model  context', ...rows.map(([provider, model]) => `${provider}  ${model}  128K`)].join('\n') }
+  }
+
+  private async launch(command: ProcessCommand): Promise<ProcessResult> {
+    const agentDir = command.env?.PI_CODING_AGENT_DIR ?? ''
+    this.agents.push({
+      dirMode: (await stat(agentDir)).mode & 0o777,
+      models: await readFile(join(agentDir, 'models.json'), 'utf8'),
+      modelsMode: (await stat(join(agentDir, 'models.json'))).mode & 0o777,
+      settings: await readFile(join(agentDir, 'settings.json'), 'utf8'),
+    })
+    // Pi keeps files of its own there; they go with the directory.
+    await writeFile(join(agentDir, 'auth.json'), '{}\n')
     const script = this.cli.scripts?.shift()
     if (script === undefined) throw new Error('unexpected pi launch')
     await this.log.play('pi')
@@ -1491,6 +1550,13 @@ export async function harness(
   }
   const pi = options.piCli === undefined ? undefined : new FakePiProcess(repo, options.piCli, launches)
   if (options.piCli !== undefined && (options.piCli.onPath ?? true)) await writeFile(join(bin, 'pi'), '#!/bin/sh\n')
+  if (options.piCli !== undefined && (options.piCli.launcher ?? true)) await writeFile(join(bin, 'agent-launcher'), '#!/bin/sh\n')
+  const homeModels = options.piCli === undefined ? null : options.piCli.homeModels === undefined ? homePiModels(join(bin, 'agent-kit-secret')) : options.piCli.homeModels
+  if (homeModels !== null) {
+    await mkdir(join(home, '.pi', 'agent'), { recursive: true })
+    await writeFile(join(home, '.pi', 'agent', 'models.json'), homeModels)
+  }
+  if (options.piCli?.homeBin === true) await mkdir(join(home, '.pi', 'agent', 'bin'), { recursive: true })
   const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':'), ...options.env })
   const clock = new FixedClock('2026-10-30T12:00:00.000Z')
   const commands = createCritiqueCommands({

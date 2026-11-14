@@ -1380,6 +1380,8 @@ var RUN_FAILURES = [
   "denied-action",
   "missing-structured-output",
   "unsafe-tool",
+  /** The operating system could not confine the critic to its packet, so it never started. */
+  "unconfined",
   /** The CLI outlived its outer timeout and was killed. */
   "timeout"
 ];
@@ -13006,7 +13008,7 @@ function createCritiqueCommands(deps) {
 }
 
 // src/contexts/critique/adapters/fs/index.ts
-import { access as access2, appendFile as appendFile2, mkdir as mkdir5, readdir, readFile as readFile5, rm as rm4, symlink, writeFile as writeFile2 } from "node:fs/promises";
+import { access as access2, appendFile as appendFile2, chmod, mkdir as mkdir5, readdir, readFile as readFile5, rm as rm4, symlink, writeFile as writeFile2 } from "node:fs/promises";
 import { dirname as dirname10, join as join37, relative as relative4 } from "node:path";
 var NodeCritiqueFiles = class {
   async readText(path) {
@@ -13044,6 +13046,14 @@ var NodeCritiqueFiles = class {
   }
   async remove(path) {
     await rm4(path, { force: true });
+  }
+  async removeTree(path) {
+    await rm4(path, { force: true, recursive: true });
+  }
+  async writePrivate(path, content) {
+    await mkdir5(dirname10(path), { mode: 448, recursive: true });
+    await writeFile2(path, content, { mode: 384 });
+    await chmod(path, 384);
   }
   async symlink(target, path) {
     await mkdir5(dirname10(path), { recursive: true });
@@ -13227,17 +13237,32 @@ var PiCriticClient = class {
     const checked = await this.status(config.binary, ["auth", "check", "--provider", config.provider, "--json"]);
     return authReadiness(checked, config);
   }
-  /** Signed in, and the provider offers the routed model, as `pi --list-models` reads `models.json`. */
+  /**
+   * Signed in, the provider offers the routed model, as `pi --list-models`
+   * reads `models.json`, and the operating system can confine a critic.
+   */
   async readiness(config) {
     const signIn = await this.signIn(config);
     if (!signIn.ready) return signIn;
-    return modelsReadiness2(await this.status(config.binary, ["--offline", "--list-models", config.model]), config);
+    const models = modelsReadiness2(await this.status(config.binary, ["--offline", "--list-models", config.model]), config);
+    if (!models.ready) return models;
+    const route = await this.route(config);
+    if (typeof route === "string") return { detail: route, ready: false };
+    const launcher = await this.launcher();
+    if (launcher === void 0) return { detail: NO_LAUNCHER, ready: false };
+    const checked = await this.status(launcher, ["confine", "--check", ...await this.grants(config, route)]);
+    return confineReadiness(checked);
   }
   async version(config) {
     return cliVersion(this.process, config.binary);
   }
   async review(launch, config) {
-    const result = await this.process.exec(piCommand(config, launch, await this.files.readText(launch.promptPath)));
+    const prompt = await this.files.readText(launch.promptPath);
+    const agentDir = join39(launch.criticDir, "pi-agent");
+    const prepared = await this.prepare(config, agentDir);
+    if (typeof prepared === "string") return unconfinedReport(launch, prepared);
+    const command2 = confinedCommand(prepared.launcher, await this.grants(config, prepared.route, launch.packetDir, agentDir), piCommand(config, launch, prompt), this.env.get("PATH"), agentDir, prepared.bin);
+    const result = await this.process.exec(command2).finally(() => this.files.removeTree(agentDir));
     const stream = readPiStream(result.stdout);
     const exportPath = join39(launch.criticDir, "result.json");
     await this.files.writeText(
@@ -13254,6 +13279,72 @@ var PiCriticClient = class {
       ...stream.tokens === void 0 ? {} : { tokens: stream.tokens }
     };
   }
+  /**
+   * The launch's own agent directory: a `models.json` holding only the
+   * route's provider, its key read from the secret store just now and written
+   * in plain (mode 0600), and an empty `settings.json`; or why there is none.
+   */
+  async prepare(config, agentDir) {
+    const route = await this.route(config);
+    if (typeof route === "string") return route;
+    const launcher = await this.launcher();
+    if (launcher === void 0) return NO_LAUNCHER;
+    const key2 = await this.key(config, route.apiKey);
+    if (key2.error !== void 0) return key2.error;
+    const provider = { api: route.api, apiKey: key2.value, baseUrl: route.baseUrl, models: [route.model] };
+    await this.files.writePrivate(join39(agentDir, "settings.json"), "{}\n");
+    await this.files.writePrivate(join39(agentDir, "models.json"), `${JSON.stringify({ providers: { [config.provider]: provider } }, null, 2)}
+`);
+    return { bin: await this.homeBin(), launcher, route };
+  }
+  /** The route's provider as the home's `models.json` holds it, or why a confined critic cannot use it. */
+  async route(config) {
+    const path = join39(this.homeAgentDir(), "models.json");
+    const text = await this.files.readText(path).catch(() => void 0);
+    const providers = jsonObjectOrUndefined(text === void 0 ? void 0 : parseObject(text)?.providers);
+    return routeOf(jsonObjectOrUndefined(providers?.[config.provider]), config, path);
+  }
+  /** The key: a literal as it is, or `!<program> get <NAME>` run without a shell; never a shell command. */
+  async key(config, apiKey) {
+    if (!apiKey.startsWith("!")) return { value: apiKey };
+    const words = apiKey.slice(1).trim().split(/\s+/);
+    if (words.length !== 3 || words[1] !== "get") return { error: `pi: the ${config.provider} key is a shell command the runner does not run; setup writes it as !agent-kit-secret get <NAME>` };
+    const [program = "", , name = ""] = words;
+    const read = await this.status(program, ["get", name]);
+    const value = typeof read === "string" || read.timedOut === true || read.exitCode !== 0 ? "" : read.stdout.trim();
+    if (value.length > 0) return { value };
+    const said = typeof read === "string" ? read : firstLine4(read.stderr) ?? `exit ${String(read.exitCode)}`;
+    return { error: `pi: the ${config.provider} key could not be read from the secret store (${name}): ${said}` };
+  }
+  /** The grants of a confined launch: the packet and the agent directory when there is a launch, Pi, its tools and the proxy's port. */
+  async grants(config, route, packetDir, agentDir) {
+    const bin = await this.homeBin();
+    return [
+      ...packetDir === void 0 ? [] : ["--read", packetDir],
+      "--run-from",
+      config.binary,
+      ...bin === void 0 ? [] : ["--run", bin],
+      ...agentDir === void 0 ? [] : ["--write", agentDir],
+      "--net-connect",
+      String(route.port)
+    ];
+  }
+  /** The home's Pi directory: `PI_CODING_AGENT_DIR`, else `~/.pi/agent`. */
+  homeAgentDir() {
+    const own = this.env.get("PI_CODING_AGENT_DIR") ?? "";
+    return own.length > 0 ? own : join39(this.env.get("HOME") ?? "", ".pi", "agent");
+  }
+  /** The home's Pi `bin`, where Pi keeps the `fd` its find tool runs, when there is one. */
+  async homeBin() {
+    const bin = join39(this.homeAgentDir(), "bin");
+    return await this.files.exists(bin) ? bin : void 0;
+  }
+  /** The launcher that confines a critic: `AGENT_KIT_LAUNCHER_BIN`, else `agent-launcher` on `PATH`. */
+  async launcher() {
+    const named = this.env.get("AGENT_KIT_LAUNCHER_BIN") ?? "";
+    if (named.length > 0) return named;
+    return await this.onPath("agent-launcher") ? "agent-launcher" : void 0;
+  }
   async status(binary, args) {
     return this.process.exec({ args, command: binary, timeoutMs: STATUS_TIMEOUT_MS }).catch((error) => error instanceof Error ? error.message : String(error));
   }
@@ -13265,6 +13356,53 @@ var PiCriticClient = class {
     return false;
   }
 };
+var NO_LAUNCHER = "pi: agent-launcher is not on PATH, and a Pi critic only runs confined to its packet; re-run agent-kit setup, which installs it";
+var CONFINE_REFUSED = 125;
+function urlPort(url) {
+  const scheme = url.startsWith("https://") ? "https" : url.startsWith("http://") ? "http" : void 0;
+  if (scheme === void 0) return void 0;
+  const authority = url.slice(scheme.length + 3).split("/")[0] ?? "";
+  const colon = authority.lastIndexOf(":");
+  if (colon < 0) return scheme === "https" ? 443 : 80;
+  const port = authority.slice(colon + 1);
+  return /^[0-9]{1,5}$/.test(port) && Number(port) > 0 && Number(port) < 65536 ? Number(port) : void 0;
+}
+function routeOf(provider, config, path) {
+  const fix = "re-run agent-kit setup so it writes the LiteLLM providers into ~/.pi/agent/models.json";
+  if (provider === void 0) return `pi: ${path} has no ${config.provider} provider; ${fix}`;
+  const { api, apiKey, baseUrl } = provider;
+  if (typeof baseUrl !== "string" || typeof api !== "string" || typeof apiKey !== "string") {
+    return `pi: the ${config.provider} provider in ${path} lacks a baseUrl, api or apiKey; ${fix}`;
+  }
+  const port = urlPort(baseUrl);
+  if (port === void 0) return `pi: the ${config.provider} provider's baseUrl is not an http or https URL with a port the confinement can allow`;
+  const models = Array.isArray(provider.models) ? provider.models.map(jsonObjectOrUndefined) : [];
+  const model = models.find((entry2) => entry2?.id === config.model) ?? { id: config.model };
+  return { api, apiKey, baseUrl, model, port };
+}
+function confineReadiness(checked) {
+  if (typeof checked !== "string" && checked.timedOut !== true && checked.exitCode === 0) return { ready: true };
+  return { detail: `pi: the operating system cannot confine a Pi critic to its packet here, so it does not run: ${unreadable(checked)}`, ready: false };
+}
+function confinedCommand(launcher, grants, pi, path, agentDir, bin) {
+  const searched2 = bin === void 0 ? path ?? "" : [bin, ...path === void 0 || path.length === 0 ? [] : [path]].join(":");
+  return {
+    ...pi,
+    args: ["confine", ...grants, "--", pi.command, ...pi.args],
+    command: launcher,
+    env: { PATH: searched2, PI_CODING_AGENT_DIR: agentDir, TMPDIR: agentDir }
+  };
+}
+function unconfinedReport(launch, detail) {
+  return {
+    chargedUsd: 0,
+    exitCode: CONFINE_REFUSED,
+    exportPath: join39(launch.criticDir, "result.json"),
+    outcome: { cost_usd: null, detail, failure: "unconfined", status: "failed" },
+    stderr: "",
+    stdout: ""
+  };
+}
 function piCommand(config, launch, prompt) {
   return {
     args: [
@@ -13408,6 +13546,9 @@ function classifyPiRun(result, stream, packetDir, timeLimitS) {
   const cost = stream.costUsd;
   const failed = (failure3, detail) => ({ cost_usd: cost, detail, failure: failure3, status: "failed" });
   if (result.timedOut === true) return failed("timeout", `pi did not return within ${String(timeLimitS)}s, so the outer timer killed it`);
+  if (result.exitCode === CONFINE_REFUSED) {
+    return failed("unconfined", `the operating system could not confine pi to its packet, so it did not start: ${firstLine4(result.stderr) ?? "exit 125"}`);
+  }
   if (result.exitCode !== 0) {
     const said = firstLine4(result.stderr);
     return failed(`exit-${String(result.exitCode)}`, `pi exited ${String(result.exitCode)}${said === void 0 ? "" : `: ${said}`}`);

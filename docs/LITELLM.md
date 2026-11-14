@@ -276,5 +276,19 @@ Readers:
   an access group that only `data_scope: public` routes hold in `routes.json`, or the access
   groups the catalogue names on the group itself, so no group name is fixed in the reader.
 
+- **The Pi provider table** (`registry/generated/pi/providers.json`, rendered by
+  `scripts/render_registry.py`) takes each route's models from `canonical_groups()`; no model list is
+  kept by hand any more (the old `registry/litellm-access-groups.json` is gone). Only chat groups are
+  listed. Each Pi model entry carries `contextWindow` (the group's `context_length`: the smallest among
+  its first-tried deployments, left out when unknown) and, for a free group, an all-zero `cost`. The
+  catalogue holds no price, only whether a model is free, so a paid model has no `cost` entry.
+  The render must give the same text on every machine for `--check`, so it reads the checked-in
+  snapshot `registry/litellm-catalogue.json`, never the live cache, and it never touches the network.
+  Refresh the snapshot with the command in its `comment` (it now keeps `context_length`), then run
+  `render_registry.py --write`. The catalogue does not say which public-only access group serves a
+  public group, so the estate's naming stands in: a public group on route `<r>` is listed for a key
+  holding an access group named `<r>-...` (`openrouter-free-public` for `openrouter/*`,
+  `google-free-public` for `public/*`).
+
 A missing or stale catalogue is a warning, never a failed run: the gateway lists unchecked when
 it has none and still uses a stale one (older than two days) with a warning.

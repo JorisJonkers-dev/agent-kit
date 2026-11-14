@@ -11,6 +11,7 @@ no real runner.
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -129,8 +130,14 @@ class Kit:
         self.dest = home / ".local" / "share" / "agent-kit" / "critique" / "critique"
         self.cargo(0, "echo built")
 
-    def cargo(self, code: int, binary_body: str | None, smoke: int = 0) -> None:
+    def cargo(self, code: int, binary_body: str | None, smoke: int = 0, launcher: str | None = None) -> None:
         build = f"mkdir -p {self.root}/scripts/target/release\n"
+        if launcher is not None:
+            build += (
+                f"printf '#!/usr/bin/env bash\\n%s\\n' {shlex.quote(launcher)}"
+                f" > {self.root}/scripts/target/release/agent-launcher\n"
+                f"chmod 755 {self.root}/scripts/target/release/agent-launcher\n"
+            )
         if binary_body is not None:
             build += (
                 f"printf '#!/usr/bin/env bash\\n[ \"$1\" = --help ] && exit {smoke}\\n{binary_body}\\n' "
@@ -164,6 +171,30 @@ def test_the_installer_builds_and_installs_the_binary(kit: Kit) -> None:
     assert args[args.index("--manifest-path") + 1] == f"{kit.root}/scripts/Cargo.toml"
     assert os.access(kit.dest, os.X_OK)
     assert kit.run().stdout.count("already current") == 1
+
+
+def test_the_installer_puts_agent_launcher_on_path_for_the_pi_critics(kit: Kit) -> None:
+    launcher = kit.home / ".local" / "bin" / "agent-launcher"
+    assert "the build left no" in kit.run().stdout and not launcher.exists()
+    kit.cargo(0, "echo built", launcher="echo 'usage: agent-launcher validate' >&2; exit 2")
+    result = kit.run()
+    assert result.returncode == 0, result.stderr
+    assert f"installed {launcher}" in result.stdout and os.access(launcher, os.X_OK)
+    args = args_of(kit)
+    assert args[args.index("-p", args.index("-p") + 1) + 1] == "agent-launcher"
+    assert "agent-launcher is up to date" in kit.run().stdout
+    kit.cargo(0, "echo built", launcher="exit 1")
+    assert "does not answer; the installed one is unchanged" in kit.run().stdout
+    kit.cargo(0, "echo built", launcher="echo 'usage: agent-launcher new' >&2")
+    (kit.home / ".local" / "bin").chmod(0o500)
+    try:
+        assert "could not install" in kit.run().stdout
+    finally:
+        (kit.home / ".local" / "bin").chmod(0o700)
+
+
+def args_of(kit: Kit) -> list[str]:
+    return (kit.root / "cargo-args").read_text().split()
 
 
 def test_a_failed_build_leaves_the_installed_binary_alone(kit: Kit) -> None:

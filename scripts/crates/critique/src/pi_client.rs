@@ -2,8 +2,12 @@
 //! on stdin and the critic's copy of the packet as its working directory. Pi is started directly, not through the
 //! gateway, which has no Pi client. The launch is read-only by its tools: only `read`, `grep`, `find` and `ls`, with
 //! every extension, skill, prompt template, theme, context file, MCP server and trust-gated project file switched off,
-//! and no session kept. Pi has no sandbox of its own, so the stream is checked afterwards: any other tool, or a path
-//! outside the packet, voids the review, and the tripwire catches a write. The node runner's `adapters/pi/index.ts`.
+//! and no session kept. Pi has no sandbox of its own and its read tools run inside its own process, so the whole process
+//! is confined by the operating system (`agent-launcher confine`, Landlock): it can read only its packet copy, the Pi and
+//! node installs, the system runtime and its own agent directory, and reach only the proxy's port. The agent directory
+//! is made for the one launch, holds only the route's provider with its key and is removed afterwards. A critic that
+//! cannot be confined does not start. The stream is still checked afterwards as a second layer: any other tool, or a
+//! path outside the packet, voids the review, and the tripwire catches a write. The node runner's `adapters/pi/index.ts`.
 
 use crate::clients::{ClientReadiness, CriticLaunch, CriticOutcome, CriticReport, CriticTokens};
 use crate::critic_tools::PI_TOOLS;
@@ -35,14 +39,232 @@ pub fn pi_sign_in(runtime: &Runtime, config: &PiCriticClient) -> Result<ClientRe
     Ok(auth_readiness(&checked, config))
 }
 
-/// Signed in, and the provider offers the routed model, as `pi --list-models` reads `models.json`.
+/// Signed in, the provider offers the routed model, as `pi --list-models` reads `models.json`, and the operating system
+/// can confine a critic.
 pub fn pi_readiness(runtime: &Runtime, config: &PiCriticClient) -> Result<ClientReadiness, CritiqueError> {
     let sign_in = pi_sign_in(runtime, config)?;
     if !sign_in.ready {
         return Ok(sign_in);
     }
     let listed = runtime.gateway.process.exec(&config.binary, &["--offline", "--list-models", &config.model], Some(STATUS_TIMEOUT_MS));
-    Ok(models_readiness(&listed, config))
+    let models = models_readiness(&listed, config);
+    if !models.ready {
+        return Ok(models);
+    }
+    let route = match route(runtime, config) {
+        Ok(route) => route,
+        Err(detail) => return Ok(ClientReadiness { ready: false, detail: Some(detail) }),
+    };
+    let Some(launcher) = launcher(runtime) else {
+        return Ok(ClientReadiness { ready: false, detail: Some(NO_LAUNCHER.to_string()) });
+    };
+    let mut args = vec!["confine".to_string(), "--check".to_string()];
+    args.extend(grants(runtime, config, &route, None));
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    Ok(confine_readiness(&runtime.gateway.process.exec(&launcher, &args, Some(STATUS_TIMEOUT_MS))))
+}
+
+/// Why a Pi critic cannot run without the launcher.
+const NO_LAUNCHER: &str = "pi: agent-launcher is not on PATH, and a Pi critic only runs confined to its packet; re-run agent-kit setup, which installs it";
+
+/// The launcher's exit code when it could not apply the confinement and started nothing.
+pub const CONFINE_REFUSED: i32 = 125;
+
+/// What a confined launch needs of the route's provider in the home's `models.json`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PiRoute {
+    pub base_url: String,
+    pub api: String,
+    pub api_key: String,
+    /// The routed model's entry, as the home holds it (its prices included).
+    pub model: Value,
+    /// The proxy's TCP port, the one port a critic may connect to.
+    pub port: u16,
+}
+
+/// The port of an `http` or `https` URL: the one after the host, else the scheme's own.
+pub fn url_port(url: &str) -> Option<u16> {
+    let (rest, default) = match (url.strip_prefix("https://"), url.strip_prefix("http://")) {
+        (Some(rest), _) => (rest, 443),
+        (None, Some(rest)) => (rest, 80),
+        (None, None) => return None,
+    };
+    let authority = rest.split('/').next().unwrap_or("");
+    let Some((_, port)) = authority.rsplit_once(':') else {
+        return Some(default);
+    };
+    let digits = !port.is_empty() && port.len() <= 5 && port.bytes().all(|byte| byte.is_ascii_digit());
+    port.parse::<u16>().ok().filter(|port| digits && *port > 0)
+}
+
+/// The route from the home's provider entry, or why it cannot be used.
+pub fn route_of(provider: Option<&Object>, config: &PiCriticClient, path: &str) -> Result<PiRoute, String> {
+    let fix = "re-run agent-kit setup so it writes the LiteLLM providers into ~/.pi/agent/models.json";
+    let Some(provider) = provider else {
+        return Err(format!("pi: {path} has no {} provider; {fix}", config.provider));
+    };
+    let text = |key: &str| provider.get(key).and_then(Value::as_str).map(str::to_string);
+    let (Some(base_url), Some(api), Some(api_key)) = (text("baseUrl"), text("api"), text("apiKey")) else {
+        return Err(format!("pi: the {} provider in {path} lacks a baseUrl, api or apiKey; {fix}", config.provider));
+    };
+    let Some(port) = url_port(&base_url) else {
+        return Err(format!("pi: the {} provider's baseUrl is not an http or https URL with a port the confinement can allow", config.provider));
+    };
+    let entries = match provider.get("models") {
+        Some(Value::Arr(models)) => models.clone(),
+        _ => Vec::new(),
+    };
+    let routed = entries.into_iter().find(|entry| entry.as_object().and_then(|entry| entry.get("id")).and_then(Value::as_str) == Some(config.model.as_str()));
+    let model = routed.unwrap_or_else(|| json::object(vec![("id", Value::str(&config.model))]));
+    Ok(PiRoute { base_url, api, api_key, model, port })
+}
+
+/// What `agent-launcher confine --check` says.
+pub fn confine_readiness(checked: &Result<ProcessResult, String>) -> ClientReadiness {
+    match checked {
+        Ok(result) if !result.timed_out && result.exit_code == 0 => ClientReadiness { ready: true, detail: None },
+        _ => ClientReadiness {
+            ready: false,
+            detail: Some(format!("pi: the operating system cannot confine a Pi critic to its packet here, so it does not run: {}", unreadable(checked))),
+        },
+    }
+}
+
+/// The home's Pi directory: `PI_CODING_AGENT_DIR`, else `~/.pi/agent`.
+pub(crate) fn home_agent_dir(runtime: &Runtime) -> String {
+    match runtime.env.get("PI_CODING_AGENT_DIR").filter(|dir| !dir.is_empty()) {
+        Some(dir) => dir.clone(),
+        None => join(&[runtime.env.get("HOME").map_or("", String::as_str), ".pi", "agent"]),
+    }
+}
+
+/// The home's Pi `bin`, where Pi keeps the `fd` its find tool runs, when there is one.
+pub(crate) fn home_bin(runtime: &Runtime) -> Option<String> {
+    let bin = join(&[&home_agent_dir(runtime), "bin"]);
+    runtime.files.exists(&bin).unwrap_or(false).then_some(bin)
+}
+
+/// The launcher that confines a critic: `AGENT_KIT_LAUNCHER_BIN`, else `agent-launcher` on `PATH`.
+pub(crate) fn launcher(runtime: &Runtime) -> Option<String> {
+    if let Some(named) = runtime.env.get("AGENT_KIT_LAUNCHER_BIN").filter(|named| !named.is_empty()) {
+        return Some(named.clone());
+    }
+    on_path(runtime, "agent-launcher").then(|| "agent-launcher".to_string())
+}
+
+/// The route's provider as the home's `models.json` holds it, or why a confined critic cannot use it.
+pub(crate) fn route(runtime: &Runtime, config: &PiCriticClient) -> Result<PiRoute, String> {
+    let path = join(&[&home_agent_dir(runtime), "models.json"]);
+    let text = runtime.files.read_text(&path).ok();
+    let providers = text.as_deref().and_then(parse_object).and_then(|models| models.get("providers").and_then(Value::as_object).cloned());
+    route_of(providers.as_ref().and_then(|providers| providers.get(&config.provider)).and_then(Value::as_object), config, &path)
+}
+
+/// The key: a literal as it is, or `!<program> get <NAME>` run without a shell; never a shell command.
+pub(crate) fn key(runtime: &Runtime, config: &PiCriticClient, api_key: &str) -> Result<String, String> {
+    let Some(command) = api_key.strip_prefix('!') else {
+        return Ok(api_key.to_string());
+    };
+    let words: Vec<&str> = command.split_whitespace().collect();
+    let [program, "get", name] = words.as_slice() else {
+        return Err(format!("pi: the {} key is a shell command the runner does not run; setup writes it as !agent-kit-secret get <NAME>", config.provider));
+    };
+    let read = runtime.gateway.process.exec(program, &["get", name], Some(STATUS_TIMEOUT_MS));
+    let value = match &read {
+        Ok(result) if !result.timed_out && result.exit_code == 0 => js_trim(&result.stdout).to_string(),
+        _ => String::new(),
+    };
+    if !value.is_empty() {
+        return Ok(value);
+    }
+    // Only the error stream is shown: a failed read never puts anything of the key in a message.
+    let said = match &read {
+        Err(reason) => reason.clone(),
+        Ok(result) => first_line(&result.stderr).unwrap_or_else(|| format!("exit {}", result.exit_code)),
+    };
+    Err(format!("pi: the {} key could not be read from the secret store ({name}): {said}", config.provider))
+}
+
+/// The grants of a confined launch: the packet and the agent directory when there is a launch, Pi, its tools and the
+/// proxy's port.
+pub(crate) fn grants(runtime: &Runtime, config: &PiCriticClient, route: &PiRoute, launch: Option<(&str, &str)>) -> Vec<String> {
+    let mut grants = Vec::new();
+    if let Some((packet_dir, _)) = launch {
+        grants.extend(["--read".to_string(), packet_dir.to_string()]);
+    }
+    grants.extend(["--run-from".to_string(), config.binary.clone()]);
+    if let Some(bin) = home_bin(runtime) {
+        grants.extend(["--run".to_string(), bin]);
+    }
+    if let Some((_, agent_dir)) = launch {
+        grants.extend(["--write".to_string(), agent_dir.to_string()]);
+    }
+    grants.extend(["--net-connect".to_string(), route.port.to_string()]);
+    grants
+}
+
+/// The launch's own agent directory: a `models.json` holding only the route's provider, its key read from the secret
+/// store just now and written in plain (mode 0600), and an empty `settings.json`; the launcher and route, or why not.
+pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str) -> Result<Result<(String, PiRoute), String>, CritiqueError> {
+    let route = match route(runtime, config) {
+        Ok(route) => route,
+        Err(detail) => return Ok(Err(detail)),
+    };
+    let Some(launcher) = launcher(runtime) else {
+        return Ok(Err(NO_LAUNCHER.to_string()));
+    };
+    let key = match key(runtime, config, &route.api_key) {
+        Ok(key) => key,
+        Err(detail) => return Ok(Err(detail)),
+    };
+    let provider = json::object(vec![
+        ("api", Value::str(&route.api)),
+        ("apiKey", Value::str(&key)),
+        ("baseUrl", Value::str(&route.base_url)),
+        ("models", Value::Arr(vec![route.model.clone()])),
+    ]);
+    let models = json::object(vec![("providers", json::object(vec![(config.provider.as_str(), provider)]))]);
+    // The key goes in last, so a write that fails leaves no key behind.
+    runtime.files.write_private(&join(&[agent_dir, "settings.json"]), "{}\n").map_err(CritiqueError::from_fs)?;
+    runtime.files.write_private(&join(&[agent_dir, "models.json"]), &format!("{}\n", json::pretty(&models))).map_err(CritiqueError::from_fs)?;
+    Ok(Ok((launcher, route)))
+}
+
+/// The Pi launch run through the launcher, confined: the launcher's grants, then `--` and Pi's own command line. Pi
+/// reads its agent directory from `PI_CODING_AGENT_DIR`, keeps its temporary files there, and finds the home's `fd` on
+/// `PATH`.
+pub fn confined_command(launcher: &str, grants: Vec<String>, pi: ProcessCommand, path: Option<&str>, agent_dir: &str, bin: Option<&str>) -> ProcessCommand {
+    let searched = match (bin, path) {
+        (None, path) => path.unwrap_or("").to_string(),
+        (Some(bin), Some(path)) if !path.is_empty() => format!("{bin}:{path}"),
+        (Some(bin), _) => bin.to_string(),
+    };
+    let mut args = vec!["confine".to_string()];
+    args.extend(grants);
+    args.push("--".to_string());
+    args.push(pi.command.clone());
+    args.extend(pi.args.iter().cloned());
+    let env = [("PATH", searched), ("PI_CODING_AGENT_DIR", agent_dir.to_string()), ("TMPDIR", agent_dir.to_string())]
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect();
+    ProcessCommand { command: launcher.to_string(), args, env, ..pi }
+}
+
+/// A Pi critic that never started because it could not be confined.
+pub(crate) fn unconfined_report(launch: &CriticLaunch<'_>, detail: String) -> CriticReport {
+    CriticReport {
+        exit_code: CONFINE_REFUSED,
+        stdout: String::new(),
+        stderr: String::new(),
+        export_path: join(&[&launch.critic_dir, "result.json"]),
+        outcome: CriticOutcome::Failed { failure: "unconfined".to_string(), detail, cost_usd: None },
+        charged_usd: 0.0,
+        vibe_cost_usd: None,
+        tokens: None,
+        search_failure: None,
+        tool_calls: Vec::new(),
+    }
 }
 
 /// One Pi critic's launch: print mode, the JSON stream, the read tools alone, and nothing of the home's or the packet's
@@ -84,7 +306,17 @@ pub fn pi_command(config: &PiCriticClient, launch: &CriticLaunch<'_>, prompt: St
 /// Runs one critic through Pi and keeps its answer, price and tokens beside the stream.
 pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient) -> Result<CriticReport, CritiqueError> {
     let prompt = runtime.files.read_text(&launch.prompt_path).map_err(CritiqueError::from_fs)?;
-    let result = runtime.gateway.process.run(&pi_command(config, launch, prompt)).map_err(CritiqueError::unexpected)?;
+    let agent_dir = join(&[&launch.critic_dir, "pi-agent"]);
+    let (launcher, route) = match prepare(runtime, config, &agent_dir)? {
+        Ok(prepared) => prepared,
+        Err(detail) => return Ok(unconfined_report(launch, detail)),
+    };
+    let grants = grants(runtime, config, &route, Some((&launch.packet_dir, &agent_dir)));
+    let bin = home_bin(runtime);
+    let command = confined_command(&launcher, grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), &agent_dir, bin.as_deref());
+    let ran = runtime.gateway.process.run(&command);
+    let _ = runtime.files.remove(&agent_dir);
+    let result = ran.map_err(CritiqueError::unexpected)?;
     let stream = read_pi_stream(&result.stdout);
     let export_path = join(&[&launch.critic_dir, "result.json"]);
     let number = |value: f64| Value::Num(value);
@@ -307,6 +539,10 @@ pub fn classify_pi_run(result: &ProcessResult, stream: &PiStream, packet_dir: &s
     let failed = |failure: &str, detail: String| CriticOutcome::Failed { failure: failure.to_string(), detail, cost_usd: cost };
     if result.timed_out {
         return failed("timeout", format!("pi did not return within {}s, so the outer timer killed it", json::number_text(time_limit_s)));
+    }
+    if result.exit_code == CONFINE_REFUSED {
+        let said = first_line(&result.stderr).unwrap_or_else(|| "exit 125".to_string());
+        return failed("unconfined", format!("the operating system could not confine pi to its packet, so it did not start: {said}"));
     }
     if result.exit_code != 0 {
         let said = first_line(&result.stderr).map_or_else(String::new, |said| format!(": {said}"));

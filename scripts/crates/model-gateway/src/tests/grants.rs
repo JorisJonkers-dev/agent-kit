@@ -152,7 +152,8 @@ fn parse_grants_file_refuses_a_file_that_is_not_json_of_this_version_or_holds_no
 
 #[test]
 fn parse_grants_file_names_the_field_that_is_wrong() {
-    let cases: [(&str, &[(&str, &str)], &str); 10] = [
+    type Case<'a> = (&'a str, &'a [(&'a str, &'a str)], &'a str);
+    let cases: [Case; 10] = [
         ("7", &[], "grants[0] must be an object"),
         ("{}", &[("cap_usd", "0")], "grants[0].cap_usd must be a number above 0"),
         ("{}", &[("cap_usd", "\"5\"")], "grants[0].cap_usd must be a number above 0"),

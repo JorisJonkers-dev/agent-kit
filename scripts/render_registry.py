@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 import gold_band_instances
+import litellm_catalogue
 import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
@@ -85,8 +86,6 @@ RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
 LITELLM_ROUTES = Path("registry/generated/litellm/routes.json")
 LITELLM_ADMIN_TOKEN_SCRIPT = Path("registry/generated/litellm/make-admin-token.sh")
-# The chat models each LiteLLM access group serves, by canonical name (a snapshot).
-LITELLM_ACCESS_GROUPS = Path("registry/litellm-access-groups.json")
 # One Pi provider per LiteLLM route; scripts/pi-merge-providers.py merges it into Pi's models.json.
 PI_PROVIDERS = Path("registry/generated/pi/providers.json")
 PI_MERGE_PROVIDERS = Path("scripts/pi-merge-providers.py")
@@ -6037,22 +6036,45 @@ def render_litellm_admin_token_script(data: dict[str, Any]) -> str:
     ])
 
 
-def litellm_route_models(access_groups: list[str]) -> list[str]:
-    """The chat models a key holding these access groups reaches, by canonical name.
+def litellm_route_models(access_groups: list[str], catalogue: Any = None) -> list[dict[str, Any]]:
+    """The chat models a key holding these access groups reaches, as Pi model entries sorted by id.
 
-    A route reaches every model of each access group its key holds. This reads the
-    snapshot in ``registry/litellm-access-groups.json``; it is the one place to swap for
-    the live catalogue's ``canonical_groups()`` (#568), which takes the same groups.
+    The names come from the catalogue's ``canonical_groups()`` (#568). Rendering has to give
+    the same text on every machine, so the default catalogue is the checked-in snapshot
+    ``registry/litellm-catalogue.json`` and never the live copy in the cache; nothing here
+    touches the network. Each entry has ``id`` and, when the catalogue knows them,
+    ``contextWindow`` (the group's ``context_length``) and ``cost`` (all zero for a free
+    group: the catalogue carries no price, only whether a model is free).
     """
-    groups = json.loads((KIT_ROOT / LITELLM_ACCESS_GROUPS).read_text())["groups"]
-    models: set[str] = set()
-    for group in access_groups:
-        if group.endswith("/*"):
-            continue  # a route's own provider wildcard names no model to list
-        if group not in groups:
-            raise RegistryError(f"litellm access group {group!r} is not in {LITELLM_ACCESS_GROUPS}")
-        models.update(groups[group])
-    return sorted(models)
+    # A route's own provider wildcard (``local/*``) names no model to list.
+    held = [group for group in access_groups if not group.endswith("/*")]
+    if catalogue is None:
+        catalogue = litellm_catalogue.load_catalogue(live_path=KIT_ROOT / "registry" / "no-live-catalogue.json")
+        if catalogue.source != "snapshot":
+            raise RegistryError(f"the LiteLLM catalogue snapshot cannot be read: {'; '.join(catalogue.warnings)}")
+    known = {group for entry in catalogue.data.get("groups", {}).values() if isinstance(entry, dict)
+             for group in entry.get("access_groups", [])}
+    gates = litellm_catalogue.public_access_groups(KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json")
+    for group in held:
+        if group != litellm_catalogue.CANONICAL and group not in gates and group not in known:
+            raise RegistryError(
+                f"litellm access group {group!r} is neither canonical, a public group nor named by the catalogue"
+            )
+    models = []
+    for entry in litellm_catalogue.canonical_groups(catalogue, held, gates):
+        if entry.modality != "chat":
+            continue
+        # The catalogue does not say which public-only access group serves a public group, so the
+        # estate's naming stands in: a group on the openrouter route is reached by openrouter-free-public.
+        if entry.public and not all(any(g.startswith(f"{route}-") for g in held) for route in entry.routes):
+            continue
+        model: dict[str, Any] = {"id": entry.name}
+        if entry.context_length is not None:
+            model["contextWindow"] = entry.context_length
+        if entry.free:
+            model["cost"] = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
+        models.append(model)
+    return sorted(models, key=lambda model: model["id"])
 
 
 def pi_provider_name(route: dict[str, Any]) -> str:

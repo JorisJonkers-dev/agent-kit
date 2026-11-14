@@ -383,7 +383,7 @@ struct FlakyLedger {
 impl Files for FlakyLedger {
     fn read_text(&self, path: &str) -> Result<String, FsError> {
         let flaky = self.switch.ran.load(Ordering::SeqCst)
-            && self.switch.flaky.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| left.checked_sub(1)).is_ok();
+            && self.switch.flaky.try_update(Ordering::SeqCst, Ordering::SeqCst, |left| left.checked_sub(1)).is_ok();
         if path.ends_with("ledger.jsonl") && (flaky || self.switch.lost.load(Ordering::SeqCst)) {
             return Err(FsError { code: "EIO".to_string(), message: "EIO: i/o error, read".to_string() });
         }

@@ -433,7 +433,7 @@ fn catalogue_entries<'a>(
         .filter(|(index, entry)| {
             entry.client == id
                 && !except.contains(index)
-                && client.families.as_ref().map_or(true, |families| families.contains(&entry.family))
+                && client.families.as_ref().is_none_or(|families| families.contains(&entry.family))
                 && !entry.all_names().iter().any(|key| config.disabled.contains(&model_key(id, key)))
         })
         .map(|(_, entry)| entry)

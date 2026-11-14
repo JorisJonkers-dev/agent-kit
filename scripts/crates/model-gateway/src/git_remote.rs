@@ -71,7 +71,7 @@ fn standard_match(url: &str) -> Option<(&str, &str)> {
     let tail = &url[scheme_end + 3..];
     for start in user_prefixes(tail, |c| c == '/') {
         let rest = &tail[start..];
-        let Some(end) = rest.find(|c: char| c == ':' || c == '/') else {
+        let Some(end) = rest.find([':', '/']) else {
             continue;
         };
         let host = &rest[..end];

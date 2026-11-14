@@ -398,10 +398,7 @@ impl Files for LockFiles {
         if let Some(error) = &self.create_error {
             return Err(error.clone());
         }
-        if self.present.swap(true, Ordering::SeqCst) {
-            return Ok(false);
-        }
-        Ok(true)
+        Ok(!self.present.swap(true, Ordering::SeqCst))
     }
 
     fn remove_file(&self, _path: &str) -> Result<(), FsError> {
