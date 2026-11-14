@@ -3,7 +3,7 @@ import { isAbsolute, join } from 'node:path'
 import type { EnvPort, ProcessPort, ProcessResult } from '../../../../ports/index.js'
 import type { CriticClientPort, CriticLaunch, CriticReport, CritiqueFilesPort } from '../../application/ports.js'
 import type { CriticFailure, CriticOutcome, CriticTokens } from '../../domain/critic.js'
-import { PI_TOOLS } from '../../domain/critic-tools.js'
+import { piSearchTool, PI_TOOLS, VIBE_SEARCH_SERVER, type CriticToolset, type SearchServerLaunch } from '../../domain/critic-tools.js'
 import { parseFindings } from '../../domain/findings.js'
 import { jsonObjectOrUndefined, type JsonObject } from '../../domain/json.js'
 import type { ClientReadiness, PiCriticClient as PiClientConfig } from '../../domain/routing.js'
@@ -80,9 +80,10 @@ export class PiCriticClient implements CriticClientPort<PiClientConfig> {
   async review(launch: CriticLaunch, config: PiClientConfig): Promise<CriticReport> {
     const prompt = await this.files.readText(launch.promptPath)
     const agentDir = join(launch.criticDir, 'pi-agent')
-    const prepared = await this.prepare(config, agentDir)
+    const server = launch.toolset?.kind === 'pi-search' ? launch.toolset.server : undefined
+    const prepared = await this.prepare(config, agentDir, server)
     if (typeof prepared === 'string') return unconfinedReport(launch, prepared)
-    const command = confinedCommand(prepared.launcher, await this.grants(config, prepared.route, launch.packetDir, agentDir), piCommand(config, launch, prompt), this.env.get('PATH'), agentDir, prepared.bin)
+    const command = confinedCommand(prepared.launcher, await this.grants(config, prepared.route, launch.packetDir, agentDir, server), piCommand(config, launch, prompt), this.env.get('PATH'), agentDir, prepared.bin)
     const result = await this.process.exec(command).finally(() => this.files.removeTree(agentDir))
     const stream = readPiStream(result.stdout)
     const exportPath = join(launch.criticDir, 'result.json')
@@ -95,7 +96,7 @@ export class PiCriticClient implements CriticClientPort<PiClientConfig> {
       // Pi spends on its LiteLLM route's budget, never the flow's Vibe cap; the gateway ledger carries what Pi priced it at.
       chargedUsd: stream.costUsd ?? 0,
       exportPath,
-      outcome: classifyPiRun(result, stream, launch.packetDir, launch.critic.time_limit_s),
+      outcome: classifyPiRun(result, stream, launch.packetDir, launch.critic.time_limit_s, allowedTools(launch.toolset)),
       ...(stream.tokens === undefined ? {} : { tokens: stream.tokens }),
     }
   }
@@ -105,7 +106,7 @@ export class PiCriticClient implements CriticClientPort<PiClientConfig> {
    * route's provider, its key read from the secret store just now and written
    * in plain (mode 0600), and an empty `settings.json`; or why there is none.
    */
-  private async prepare(config: PiClientConfig, agentDir: string): Promise<string | { launcher: string; route: PiRoute; bin: string | undefined }> {
+  private async prepare(config: PiClientConfig, agentDir: string, server?: SearchServerLaunch): Promise<string | { launcher: string; route: PiRoute; bin: string | undefined }> {
     const route = await this.route(config)
     if (typeof route === 'string') return route
     const launcher = await this.launcher()
@@ -115,6 +116,7 @@ export class PiCriticClient implements CriticClientPort<PiClientConfig> {
     const provider = { api: route.api, apiKey: key.value, baseUrl: route.baseUrl, models: [route.model] }
     // The key goes in last, so a write that fails leaves no key behind.
     await this.files.writePrivate(join(agentDir, 'settings.json'), '{}\n')
+    if (server !== undefined) await this.files.writePrivate(join(agentDir, 'mcp.json'), `${JSON.stringify(mcpServers(server), null, 2)}\n`)
     await this.files.writePrivate(join(agentDir, 'models.json'), `${JSON.stringify({ providers: { [config.provider]: provider } }, null, 2)}\n`)
     return { bin: await this.homeBin(), launcher, route }
   }
@@ -142,16 +144,24 @@ export class PiCriticClient implements CriticClientPort<PiClientConfig> {
   }
 
   /** The grants of a confined launch: the packet and the agent directory when there is a launch, Pi, its tools and the proxy's port. */
-  private async grants(config: PiClientConfig, route: PiRoute, packetDir?: string, agentDir?: string): Promise<readonly string[]> {
+  private async grants(config: PiClientConfig, route: PiRoute, packetDir?: string, agentDir?: string, server?: SearchServerLaunch): Promise<readonly string[]> {
     const bin = await this.homeBin()
+    // Pi starts the search server itself, inside the confinement: it runs from its own program, and reads the files its
+    // arguments name (a script it is started with), the packet being granted already.
+    const named: string[] = []
+    for (const argument of server?.args ?? []) if (argument.startsWith('/') && (await this.files.exists(argument))) named.push('--read', argument)
     return [
       ...(packetDir === undefined ? [] : ['--read', packetDir]),
       '--run-from',
       config.binary,
+      ...(server === undefined ? [] : ['--run-from', server.command, ...named]),
       ...(bin === undefined ? [] : ['--run', bin]),
       ...(agentDir === undefined ? [] : ['--write', agentDir]),
       '--net-connect',
       String(route.port),
+      // The launcher hands the command no more than its own few variables; Pi's agent directory is the one it names.
+      '--env',
+      'PI_CODING_AGENT_DIR',
     ]
   }
 
@@ -261,6 +271,24 @@ export function confinedCommand(
   }
 }
 
+/**
+ * The launch's `mcp.json`: the runner's search server as the only MCP server,
+ * its tools called directly by name. Pi reads MCP servers from its
+ * configuration alone, and the launch's agent directory is the one it reads.
+ */
+export function mcpServers(server: SearchServerLaunch) {
+  return {
+    mcpServers: {
+      [VIBE_SEARCH_SERVER]: {
+        args: [...server.args],
+        command: server.command,
+        description: 'Search the files of your working directory',
+        exposure: 'direct',
+      },
+    },
+  }
+}
+
 /** A Pi critic that never started because it could not be confined. */
 function unconfinedReport(launch: CriticLaunch, detail: string): CriticReport {
   return {
@@ -275,6 +303,9 @@ function unconfinedReport(launch: CriticLaunch, detail: string): CriticReport {
 
 /** One Pi critic's launch: print mode, the JSON stream, the read tools alone, and nothing of the home's or the packet's own. */
 export function piCommand(config: PiClientConfig, launch: CriticLaunch, prompt: string) {
+  const searching = launch.toolset?.kind === 'pi-search'
+  // With the search server on, `--tools` names its tools too (an `mcp__` entry filters MCP tools as well). MCP is a
+  // built-in extension, which `--no-extensions` switches off, so it is named back in; without the server MCP is off.
   return {
     args: [
       '-p',
@@ -287,13 +318,14 @@ export function piCommand(config: PiClientConfig, launch: CriticLaunch, prompt: 
       '--model',
       config.model,
       '--tools',
-      PI_TOOLS.join(','),
+      searching ? `${PI_TOOLS.join(',')},mcp__${VIBE_SEARCH_SERVER}__*` : PI_TOOLS.join(','),
       '--no-extensions',
+      ...(searching ? ['-e', 'builtin:mcp'] : []),
       '--no-skills',
       '--no-prompt-templates',
       '--no-themes',
       '--no-context-files',
-      '--no-mcp',
+      ...(searching ? [] : ['--no-mcp']),
       '--no-approve',
       '--system-prompt',
       PI_SYSTEM_PROMPT,
@@ -467,13 +499,18 @@ export function outsideCalls(calls: readonly PiToolCall[], packetDir: string): r
   return outside
 }
 
+/** The tools a Pi critic may call: the read tools, and the search server's when it has them. */
+export function allowedTools(toolset: CriticToolset | undefined): readonly string[] {
+  return toolset?.kind === 'pi-search' ? [...PI_TOOLS, ...toolset.search.map(piSearchTool)] : PI_TOOLS
+}
+
 /**
  * Pi exits 0 after a provider error too, so the stream decides: the run must
  * end in an assistant message that stopped normally, its tools must be the
  * read tools alone, every path they took must stay in the packet, and its
  * text's last ```json block must match the output contract.
  */
-export function classifyPiRun(result: ProcessResult, stream: PiStream, packetDir: string, timeLimitS: number): CriticOutcome {
+export function classifyPiRun(result: ProcessResult, stream: PiStream, packetDir: string, timeLimitS: number, allowed: readonly string[] = PI_TOOLS): CriticOutcome {
   const cost = stream.costUsd
   const failed = (failure: CriticFailure, detail: string): CriticOutcome => ({ cost_usd: cost, detail, failure, status: 'failed' })
   if (result.timedOut === true) return failed('timeout', `pi did not return within ${String(timeLimitS)}s, so the outer timer killed it`)
@@ -486,7 +523,7 @@ export function classifyPiRun(result: ProcessResult, stream: PiStream, packetDir
   }
   if (result.stdout.trim().length === 0) return failed('empty-output', 'pi exited 0 with empty stdout')
   if (!stream.parsed) return failed('unparseable-output', 'stdout is not a Pi JSON event stream')
-  const unsafe = [...new Set(stream.calls.map((call) => call.tool).filter((tool) => !(PI_TOOLS as readonly string[]).includes(tool)))]
+  const unsafe = [...new Set(stream.calls.map((call) => call.tool).filter((tool) => !allowed.includes(tool)))]
   if (unsafe.length > 0) return failed('unsafe-tool', `the critic used tools beyond reading its packet: ${unsafe.join(', ')}`)
   const outside = outsideCalls(stream.calls, packetDir)
   if (outside.length > 0) return failed('unsafe-tool', `the critic reached outside its packet: ${outside.join(', ')}`)

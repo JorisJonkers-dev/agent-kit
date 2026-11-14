@@ -7678,16 +7678,20 @@ function unavailableFile(path, reason) {
 // src/contexts/critique/domain/critic-tools.ts
 var READ_ONLY_TOOLSET = { kind: "vibe-read" };
 var VIBE_SEARCH_SERVER = "packet";
+function piSearchTool(tool) {
+  return `mcp__${VIBE_SEARCH_SERVER}__${tool}`;
+}
 var AGY_TOOLS = ["view_file", "list_dir", "grep_search", "find_by_name"];
 var PI_TOOLS = ["read", "grep", "find", "ls"];
 function toolNames(toolset) {
   if (toolset.kind === "pi") return PI_TOOLS;
+  if (toolset.kind === "pi-search") return [...PI_TOOLS, ...toolset.search.map(piSearchTool)];
   if (toolset.kind === "agy") return toolset.search ? AGY_TOOLS : ["view_file"];
   if (toolset.kind === "vibe-read") return ["read_file"];
   return ["read_file", "run_typescript", ...toolset.search.map((tool) => `mcp_${VIBE_SEARCH_SERVER}.${tool}`)];
 }
 function readTool(toolset) {
-  if (toolset.kind === "pi") return "read";
+  if (toolset.kind === "pi" || toolset.kind === "pi-search") return "read";
   return toolset.kind === "agy" ? "view_file" : "read_file";
 }
 var SWITCHED_OFF = "You cannot write, edit, run commands, fetch anything or load skills: those tools are switched off, and calling them only wastes your turns.";
@@ -7726,6 +7730,15 @@ function toolsSection(toolset) {
       "# Tools",
       "",
       "Your tools read and search your working directory: `read` reads one file, `ls` lists a directory, `grep` searches the contents of files and `find` finds files by a glob. Give every path relative to your working directory: a call that reaches outside it voids your review. " + SEARCH_FIRST,
+      "",
+      SWITCHED_OFF
+    ].join("\n");
+  }
+  if (toolset.kind === "pi-search") {
+    return [
+      "# Tools",
+      "",
+      `Your tools read and search your working directory: \`read\` reads one file, \`ls\` lists a directory, \`grep\` searches the contents of files and \`find\` finds files by a glob. Give every path relative to your working directory: a call that reaches outside it voids your review. The runner's search tools see only your working directory too, and are called by name: ${toolset.search.map((tool) => `\`${piSearchTool(tool)}\``).join(", ")}. An answer holds at most ${String(toolset.limits.max_matches)} matches and ${String(toolset.limits.max_bytes)} bytes; past that it ends by saying how many were left out, so search narrower rather than wider. ` + SEARCH_FIRST,
       "",
       SWITCHED_OFF
     ].join("\n");
@@ -8349,7 +8362,7 @@ async function runCritic(deps, launch) {
     schemaPath: join18(deps.assetsRoot, FINDING_SCHEMA),
     toolset
   }).finally(async () => {
-    if (toolset.kind === "vibe-search") await deps.search?.stop(packetDir);
+    if (toolset.kind === "vibe-search" || toolset.kind === "pi-search") await deps.search?.stop(packetDir);
   });
   const durationMs = deps.clock.monotonicMs() - started;
   const searchFailure2 = choice.searchFailure ?? report2.searchFailure;
@@ -8611,20 +8624,42 @@ var CriticTools = class {
       toolset: { kind: "agy", search: false }
     };
   }
+  /**
+   * A Pi critic searches with its own read-only tools, checked against the
+   * packet after the run, and with the runner's search server too when it
+   * proved it cannot see past the packet and started on this critic's copy.
+   */
+  async pi(packetDir) {
+    const search = this.deps.search;
+    if (search === void 0) return { toolset: { kind: "pi" } };
+    const unproven = await this.proven();
+    if (unproven !== void 0) return { searchFailure: `search is not proven to stay inside the packet: ${unproven}`, toolset: { kind: "pi" } };
+    const session = await search.session(packetDir, this.limits, []);
+    if (session.status === "failed") return { searchFailure: session.detail, toolset: { kind: "pi" } };
+    return { toolset: { kind: "pi-search", limits: this.limits, search: session.tools, server: search.server(packetDir, this.limits) } };
+  }
+  /**
+   * The reach proof, made once. A proof that throws (a symlink the file
+   * system refuses, say) is a proof that failed, and is not kept: the next
+   * critic tries it again.
+   */
+  proven() {
+    this.proof ??= proveSearchReach(this.deps, this.proofDir, this.limits).catch((error) => {
+      this.proof = void 0;
+      return error instanceof Error ? error.message : String(error);
+    });
+    return this.proof;
+  }
   async choose(critic, packetDir) {
     const config = critic.client_config;
     if (config.kind === "agy") return this.agy(critic.client);
-    if (config.kind === "pi") return { toolset: { kind: "pi" } };
+    if (config.kind === "pi") return this.pi(packetDir);
     if (config.kind !== "vibe") return { toolset: READ_ONLY_TOOLSET };
     const search = this.deps.search;
     if (search === void 0) return { toolset: READ_ONLY_TOOLSET };
     const blocked2 = await this.deps.clients.vibe.searchBlocked(config);
     if (blocked2 !== void 0) return { searchFailure: blocked2, toolset: READ_ONLY_TOOLSET };
-    this.proof ??= proveSearchReach(this.deps, this.proofDir, this.limits).catch((error) => {
-      this.proof = void 0;
-      return error instanceof Error ? error.message : String(error);
-    });
-    const unproven = await this.proof;
+    const unproven = await this.proven();
     if (unproven !== void 0) return { searchFailure: `search is not proven to stay inside the packet: ${unproven}`, toolset: READ_ONLY_TOOLSET };
     const session = await search.session(packetDir, this.limits, []);
     if (session.status === "failed") return { searchFailure: session.detail, toolset: READ_ONLY_TOOLSET };
@@ -13356,9 +13391,10 @@ var PiCriticClient = class {
   async review(launch, config) {
     const prompt = await this.files.readText(launch.promptPath);
     const agentDir = join39(launch.criticDir, "pi-agent");
-    const prepared = await this.prepare(config, agentDir);
+    const server = launch.toolset?.kind === "pi-search" ? launch.toolset.server : void 0;
+    const prepared = await this.prepare(config, agentDir, server);
     if (typeof prepared === "string") return unconfinedReport(launch, prepared);
-    const command2 = confinedCommand(prepared.launcher, await this.grants(config, prepared.route, launch.packetDir, agentDir), piCommand(config, launch, prompt), this.env.get("PATH"), agentDir, prepared.bin);
+    const command2 = confinedCommand(prepared.launcher, await this.grants(config, prepared.route, launch.packetDir, agentDir, server), piCommand(config, launch, prompt), this.env.get("PATH"), agentDir, prepared.bin);
     const result = await this.process.exec(command2).finally(() => this.files.removeTree(agentDir));
     const stream = readPiStream(result.stdout);
     const exportPath = join39(launch.criticDir, "result.json");
@@ -13372,7 +13408,7 @@ var PiCriticClient = class {
       // Pi spends on its LiteLLM route's budget, never the flow's Vibe cap; the gateway ledger carries what Pi priced it at.
       chargedUsd: stream.costUsd ?? 0,
       exportPath,
-      outcome: classifyPiRun(result, stream, launch.packetDir, launch.critic.time_limit_s),
+      outcome: classifyPiRun(result, stream, launch.packetDir, launch.critic.time_limit_s, allowedTools(launch.toolset)),
       ...stream.tokens === void 0 ? {} : { tokens: stream.tokens }
     };
   }
@@ -13381,7 +13417,7 @@ var PiCriticClient = class {
    * route's provider, its key read from the secret store just now and written
    * in plain (mode 0600), and an empty `settings.json`; or why there is none.
    */
-  async prepare(config, agentDir) {
+  async prepare(config, agentDir, server) {
     const route = await this.route(config);
     if (typeof route === "string") return route;
     const launcher = await this.launcher();
@@ -13390,6 +13426,8 @@ var PiCriticClient = class {
     if (key2.error !== void 0) return key2.error;
     const provider = { api: route.api, apiKey: key2.value, baseUrl: route.baseUrl, models: [route.model] };
     await this.files.writePrivate(join39(agentDir, "settings.json"), "{}\n");
+    if (server !== void 0) await this.files.writePrivate(join39(agentDir, "mcp.json"), `${JSON.stringify(mcpServers(server), null, 2)}
+`);
     await this.files.writePrivate(join39(agentDir, "models.json"), `${JSON.stringify({ providers: { [config.provider]: provider } }, null, 2)}
 `);
     return { bin: await this.homeBin(), launcher, route };
@@ -13414,16 +13452,22 @@ var PiCriticClient = class {
     return { error: `pi: the ${config.provider} key could not be read from the secret store (${name}): ${said}` };
   }
   /** The grants of a confined launch: the packet and the agent directory when there is a launch, Pi, its tools and the proxy's port. */
-  async grants(config, route, packetDir, agentDir) {
+  async grants(config, route, packetDir, agentDir, server) {
     const bin = await this.homeBin();
+    const named = [];
+    for (const argument of server?.args ?? []) if (argument.startsWith("/") && await this.files.exists(argument)) named.push("--read", argument);
     return [
       ...packetDir === void 0 ? [] : ["--read", packetDir],
       "--run-from",
       config.binary,
+      ...server === void 0 ? [] : ["--run-from", server.command, ...named],
       ...bin === void 0 ? [] : ["--run", bin],
       ...agentDir === void 0 ? [] : ["--write", agentDir],
       "--net-connect",
-      String(route.port)
+      String(route.port),
+      // The launcher hands the command no more than its own few variables; Pi's agent directory is the one it names.
+      "--env",
+      "PI_CODING_AGENT_DIR"
     ];
   }
   /** The home's Pi directory: `PI_CODING_AGENT_DIR`, else `~/.pi/agent`. */
@@ -13490,6 +13534,18 @@ function confinedCommand(launcher, grants, pi, path, agentDir, bin) {
     env: { PATH: searched2, PI_CODING_AGENT_DIR: agentDir, TMPDIR: agentDir }
   };
 }
+function mcpServers(server) {
+  return {
+    mcpServers: {
+      [VIBE_SEARCH_SERVER]: {
+        args: [...server.args],
+        command: server.command,
+        description: "Search the files of your working directory",
+        exposure: "direct"
+      }
+    }
+  };
+}
 function unconfinedReport(launch, detail) {
   return {
     chargedUsd: 0,
@@ -13501,6 +13557,7 @@ function unconfinedReport(launch, detail) {
   };
 }
 function piCommand(config, launch, prompt) {
+  const searching = launch.toolset?.kind === "pi-search";
   return {
     args: [
       "-p",
@@ -13513,13 +13570,14 @@ function piCommand(config, launch, prompt) {
       "--model",
       config.model,
       "--tools",
-      PI_TOOLS.join(","),
+      searching ? `${PI_TOOLS.join(",")},mcp__${VIBE_SEARCH_SERVER}__*` : PI_TOOLS.join(","),
       "--no-extensions",
+      ...searching ? ["-e", "builtin:mcp"] : [],
       "--no-skills",
       "--no-prompt-templates",
       "--no-themes",
       "--no-context-files",
-      "--no-mcp",
+      ...searching ? [] : ["--no-mcp"],
       "--no-approve",
       "--system-prompt",
       PI_SYSTEM_PROMPT
@@ -13639,7 +13697,10 @@ function outsideCalls(calls, packetDir) {
   }
   return outside;
 }
-function classifyPiRun(result, stream, packetDir, timeLimitS) {
+function allowedTools(toolset) {
+  return toolset?.kind === "pi-search" ? [...PI_TOOLS, ...toolset.search.map(piSearchTool)] : PI_TOOLS;
+}
+function classifyPiRun(result, stream, packetDir, timeLimitS, allowed2 = PI_TOOLS) {
   const cost = stream.costUsd;
   const failed = (failure3, detail) => ({ cost_usd: cost, detail, failure: failure3, status: "failed" });
   if (result.timedOut === true) return failed("timeout", `pi did not return within ${String(timeLimitS)}s, so the outer timer killed it`);
@@ -13652,7 +13713,7 @@ function classifyPiRun(result, stream, packetDir, timeLimitS) {
   }
   if (result.stdout.trim().length === 0) return failed("empty-output", "pi exited 0 with empty stdout");
   if (!stream.parsed) return failed("unparseable-output", "stdout is not a Pi JSON event stream");
-  const unsafe = [...new Set(stream.calls.map((call) => call.tool).filter((tool) => !PI_TOOLS.includes(tool)))];
+  const unsafe = [...new Set(stream.calls.map((call) => call.tool).filter((tool) => !allowed2.includes(tool)))];
   if (unsafe.length > 0) return failed("unsafe-tool", `the critic used tools beyond reading its packet: ${unsafe.join(", ")}`);
   const outside = outsideCalls(stream.calls, packetDir);
   if (outside.length > 0) return failed("unsafe-tool", `the critic reached outside its packet: ${outside.join(", ")}`);
@@ -15148,8 +15209,8 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
       plan: new GatewayPlanLimit(env, clock, join45(assetsRoot, "..", "model-gateway", "defaults.json")),
       // The tree sample is ordered by code-nav's repository map when code-nav is installed.
       repoMap: new CodeNavRepoMap(processPort),
-      // Vibe starts the search server as `node critique.mjs search-server ...`.
-      search: new ProcessSearchClient(processPort, { args: [join45(assetsRoot, "critique.mjs")], command: process.execPath })
+      // Vibe and Pi start the search server as `node critique.mjs search-server ...`; CRITIQUE_SEARCH_OFF=1 gives no critic one.
+      ...environment.CRITIQUE_SEARCH_OFF === "1" ? {} : { search: new ProcessSearchClient(processPort, { args: [join45(assetsRoot, "critique.mjs")], command: process.execPath }) }
     }),
     readFile: (path) => files.readText(path),
     readStdin: readStdin2

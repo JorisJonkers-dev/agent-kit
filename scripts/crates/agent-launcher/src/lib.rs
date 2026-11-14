@@ -93,7 +93,7 @@ pub fn plan(record: &Record, id: &str, os: &str) -> Result<Plan, String> {
     let agent = entry.agent.clone().unwrap_or_default();
     let level = entry.reach.clone().unwrap_or_default();
     let spec = &record.agents[&agent];
-    if spec.command.first().map_or(true, String::is_empty) {
+    if spec.command.first().is_none_or(String::is_empty) {
         return Err(format!("{id}: agent {agent} has no command"));
     }
     let mut argv = spec.command.clone();

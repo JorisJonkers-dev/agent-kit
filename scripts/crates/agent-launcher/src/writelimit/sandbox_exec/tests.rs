@@ -1,8 +1,7 @@
 use super::*;
 use std::os::unix::fs::symlink;
 
-#[path = "../../../../../test-support/fake_exe.rs"]
-mod fake_exe;
+use crate::writelimit::tests::fake_exe;
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("agent-launcher-sx-{name}-{}", std::process::id()));

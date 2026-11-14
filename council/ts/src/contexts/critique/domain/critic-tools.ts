@@ -15,7 +15,9 @@ export interface SearchServerLaunch {
  * `grep_search` and `find_by_name` only once setup has proven agy
  * read-only on this machine (#178); until then it reads alone. A Pi critic
  * reads and searches with Pi's own `read`, `grep`, `find` and `ls`, and any
- * call that reaches past the packet voids its review.
+ * call that reaches past the packet voids its review; it also searches
+ * through the runner's search server, which Pi starts from the launch's own
+ * `mcp.json`, when the server proved it cannot see past the packet.
  */
 export type CriticToolset =
   | { readonly kind: 'vibe-read' }
@@ -27,6 +29,12 @@ export type CriticToolset =
     }
   | { readonly kind: 'agy'; readonly search: boolean }
   | { readonly kind: 'pi' }
+  | {
+      readonly kind: 'pi-search'
+      readonly search: readonly SearchToolName[]
+      readonly limits: SearchLimits
+      readonly server: SearchServerLaunch
+    }
 
 export const READ_ONLY_TOOLSET: CriticToolset = { kind: 'vibe-read' }
 
@@ -40,6 +48,11 @@ export interface ToolCall {
 /** The name the runner's search server goes by in Vibe; its tools are `tools.mcp_packet.<tool>` there. */
 export const VIBE_SEARCH_SERVER = 'packet'
 
+/** The name Pi gives one of the search server's tools: `mcp__<server>__<tool>`. */
+export function piSearchTool(tool: SearchToolName): string {
+  return `mcp__${VIBE_SEARCH_SERVER}__${tool}`
+}
+
 /** agy's own read-only tools a critic is told about: one to read and three to list and search. */
 export const AGY_TOOLS = ['view_file', 'list_dir', 'grep_search', 'find_by_name'] as const
 
@@ -49,6 +62,7 @@ export const PI_TOOLS = ['read', 'grep', 'find', 'ls'] as const
 /** The tool names the critic's prompt gives, in that order. */
 export function toolNames(toolset: CriticToolset): readonly string[] {
   if (toolset.kind === 'pi') return PI_TOOLS
+  if (toolset.kind === 'pi-search') return [...PI_TOOLS, ...toolset.search.map(piSearchTool)]
   if (toolset.kind === 'agy') return toolset.search ? AGY_TOOLS : ['view_file']
   if (toolset.kind === 'vibe-read') return ['read_file']
   return ['read_file', 'run_typescript', ...toolset.search.map((tool) => `mcp_${VIBE_SEARCH_SERVER}.${tool}`)]
@@ -56,7 +70,7 @@ export function toolNames(toolset: CriticToolset): readonly string[] {
 
 /** The tool a critic reads one file with. */
 export function readTool(toolset: CriticToolset): string {
-  if (toolset.kind === 'pi') return 'read'
+  if (toolset.kind === 'pi' || toolset.kind === 'pi-search') return 'read'
   return toolset.kind === 'agy' ? 'view_file' : 'read_file'
 }
 
@@ -103,6 +117,18 @@ export function toolsSection(toolset: CriticToolset): string {
       '# Tools',
       '',
       'Your tools read and search your working directory: `read` reads one file, `ls` lists a directory, `grep` searches the contents of files and `find` finds files by a glob. Give every path relative to your working directory: a call that reaches outside it voids your review. ' +
+        SEARCH_FIRST,
+      '',
+      SWITCHED_OFF,
+    ].join('\n')
+  }
+  if (toolset.kind === 'pi-search') {
+    return [
+      '# Tools',
+      '',
+      'Your tools read and search your working directory: `read` reads one file, `ls` lists a directory, `grep` searches the contents of files and `find` finds files by a glob. Give every path relative to your working directory: a call that reaches outside it voids your review. ' +
+        `The runner's search tools see only your working directory too, and are called by name: ${toolset.search.map((tool) => `\`${piSearchTool(tool)}\``).join(', ')}. ` +
+        `An answer holds at most ${String(toolset.limits.max_matches)} matches and ${String(toolset.limits.max_bytes)} bytes; past that it ends by saying how many were left out, so search narrower rather than wider. ` +
         SEARCH_FIRST,
       '',
       SWITCHED_OFF,

@@ -435,5 +435,6 @@ describe('the real adapters', () => {
 
   it('defaults to the process environment', () => {
     expect(defaultCritiqueRuntime(ASSETS_ROOT, () => Promise.resolve('')).commands).toBeDefined()
+    expect(defaultCritiqueRuntime(ASSETS_ROOT, () => Promise.resolve(''), { CRITIQUE_SEARCH_OFF: '1' }).commands).toBeDefined()
   })
 })

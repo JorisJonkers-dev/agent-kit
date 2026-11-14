@@ -8,7 +8,7 @@
 #![cfg(target_os = "linux")]
 
 use std::fs;
-use std::net::{TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
@@ -122,13 +122,18 @@ fn a_confined_command_writes_only_its_writable_directory() {
 fn probe() {
     let Ok(spec) = std::env::var(PROBE) else { return };
     for item in spec.split(',') {
-        let result = match item.strip_prefix('c') {
-            Some(port) => TcpStream::connect(("127.0.0.1", port.parse::<u16>().unwrap())).map(drop),
-            None => TcpListener::bind("127.0.0.1:0").map(drop),
+        let udp = |port: &str| {
+            let socket = UdpSocket::bind("0.0.0.0:0")?;
+            socket.connect(("127.0.0.1", port.parse::<u16>().unwrap()))
+        };
+        let result = match (item.strip_prefix('c'), item.strip_prefix('u')) {
+            (Some(port), _) => TcpStream::connect(("127.0.0.1", port.parse::<u16>().unwrap())).map(drop),
+            (None, Some(port)) => udp(port),
+            (None, None) => TcpListener::bind("127.0.0.1:0").map(drop),
         };
         match result {
             Ok(()) => println!("{item}: ok"),
-            Err(e) => println!("{item}: {}", e.raw_os_error().map_or(-1, |c| c)),
+            Err(e) => println!("{item}: {}", e.raw_os_error().unwrap_or(-1)),
         }
     }
 }
@@ -136,7 +141,7 @@ fn probe() {
 fn net_probe(options: &[&str], spec: &str) -> String {
     let me = std::env::current_exe().unwrap();
     let deps = me.parent().unwrap().to_str().unwrap().to_string();
-    let mut all = vec!["--run", deps.as_str()];
+    let mut all = vec!["--run", deps.as_str(), "--env", PROBE, "--env", "LLVM_PROFILE_FILE"];
     all.extend_from_slice(options);
     let out = Command::new(LAUNCHER)
         .arg("confine")
@@ -163,6 +168,24 @@ fn tcp_reaches_only_the_listed_ports_and_nothing_binds() {
     // Without --net-connect the network is left alone.
     let free = net_probe(&[], &spec);
     assert!(free.contains(&format!("c{o}: ok")) && free.contains("b: ok"), "{free}");
+}
+
+/// Whether this kernel's Landlock limits UDP (ABI 10 or newer).
+fn landlock_limits_udp() -> bool {
+    // SAFETY: a null attribute with size 0 and the VERSION flag only asks the ABI.
+    let abi = unsafe { libc::syscall(libc::SYS_landlock_create_ruleset, std::ptr::null::<u8>(), 0usize, 1u32) };
+    abi >= 10
+}
+
+#[test]
+fn udp_reaches_only_dns_where_the_kernel_can_limit_it() {
+    let spec = "u53,u5353";
+    let said = net_probe(&["--net-connect", "443"], spec);
+    assert!(said.contains("u53: ok"), "{said}");
+    let other = if landlock_limits_udp() { libc_eacces().to_string() } else { "ok".to_string() };
+    assert!(said.contains(&format!("u5353: {other}")), "{said}");
+    // Without --net-connect UDP is left alone.
+    assert!(net_probe(&[], spec).contains("u5353: ok"));
 }
 
 /// EACCES, the errno a Landlock denial gives.
@@ -207,4 +230,23 @@ fn run_from_grants_what_a_packaged_script_needs_and_nothing_else_does() {
     assert_eq!(refused.status.code(), Some(125), "{}", text(&refused));
     assert!(text(&refused).contains("Permission denied"), "{}", text(&refused));
     fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn the_command_inherits_no_secret_variables_and_no_open_descriptors() {
+    let out = Command::new(LAUNCHER)
+        .args(["confine", "--env", "KEPT_BY_NAME", "--", "/bin/sh", "-c", "echo \"secret=${LEAKY_SECRET-unset} named=${KEPT_BY_NAME-unset} path=${PATH:+set} locale=${LC_ALL-unset}\""])
+        .env("LEAKY_SECRET", "hunter2")
+        .env("KEPT_BY_NAME", "yes")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    let said = text(&out);
+    assert!(said.contains("secret=unset named=yes path=set locale=C"), "{said}");
+    assert!(!said.contains("hunter2"), "{said}");
+    // A descriptor the caller left open (7, a file here) is closed before the command starts.
+    let script = format!("exec 7</etc/hostname; exec {LAUNCHER} confine -- /bin/sh -c 'if read -r line <&7 2>/dev/null; then echo fd7=open; else echo fd7=closed; fi'");
+    let out = Command::new("/bin/sh").args(["-c", &script]).stdin(Stdio::null()).output().unwrap();
+    assert!(text(&out).contains("fd7=closed"), "{}", text(&out));
 }
