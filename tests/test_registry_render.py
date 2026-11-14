@@ -1200,7 +1200,8 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
         "public": ["google-free-public", "canonical"],
     }
     assert not any("*" in model or "/" in model for route in table["routes"] for model in route["models"])
-    assert table["base_url"].startswith("https://") and table["key_header"] == "x-litellm-api-key"
+    assert table["base_url"].startswith("https://")
+    assert "key_header" not in table and "edge_token_env" not in table
     # Names of variables only: the keys live in the secret store.
     assert all(route["key_env"].startswith("LITELLM_") for route in table["routes"])
 
@@ -1276,9 +1277,8 @@ def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
         (lambda d: d["litellm"]["routes"][0].pop("models"), "takes exactly"),
         (lambda d: d["litellm"].update(base_url="http://litellm.example/v1"), "https URL"),
         (lambda d: d["litellm"].update(routes=[]), "at least one agent id"),
-        (lambda d: d["litellm"].update(key_header="X_Key"), "lower-case header"),
-        (lambda d: d["litellm"].update(edge_token_env="bad name"), "environment variable name"),
-        (lambda d: d["litellm"].update(edge_token_env="NOT_A_SECRET"), "must be a workstation secret"),
+        (lambda d: d["litellm"].update(key_header="x-litellm-api-key"), "key_header is retired"),
+        (lambda d: d["litellm"].update(edge_token_env="LITELLM_EDGE_TOKEN"), "edge_token_env is retired"),
         (lambda d: d.update(litellm="x"), "must be a mapping"),
         (lambda d: d["litellm"]["routes"].append("x"), "must be a mapping"),
     ],

@@ -98,14 +98,9 @@ any client can send. Pi, Vibe and OpenCode will be configured from `routes.json`
 header. The Pi and launcher wiring that reads it lands with the Gold Band instances (B1); this
 repository ships the table and the gate.
 
-**Legacy edge token.** While the host still signs callers in (before litellm#17 is deployed), the
-edge wants an auth-api service token as `Authorization: Bearer`, so the key goes in
-`x-litellm-api-key` instead. LiteLLM always accepts that header and prefers it to
-`Authorization`, so it works in both states. The tools use that two-header form only while
-`LITELLM_EDGE_TOKEN` is stored (`measure_litellm_budget.py` reads it from the store itself; `litellm-gate`
-only when given `--edge-token-env LITELLM_EDGE_TOKEN`, which a node needs until the anonymous edge is live).
-Once the anonymous edge is live, remove `LITELLM_EDGE_TOKEN` from the store and the tools send
-the plain bearer. The auth-api service-token path for LiteLLM is then unused.
+The old sign-in edge's auth-api service token, `LITELLM_EDGE_TOKEN`, is retired: setup removes
+it from the secret store, and neither `litellm-gate` nor `measure_litellm_budget.py` sends a second
+header any more (`--edge-token-env` is gone from `litellm-gate`).
 
 ## A budget refusal fails the node
 
@@ -159,8 +154,8 @@ work only).
 Every capped key is made with `budget_duration: 30d`, so LiteLLM resets its spend every 30
 days. `scripts/measure_litellm_budget.py` confirms it on the real proxy: one `GET /key/info` with
 the agent id's key (no model call, no spend), printing only `max_budget`, `budget_duration`,
-`budget_reset_at` and `spend`, and the request with both credentials redacted. It reads the key
-and the edge token (when stored) from the environment or the secret store:
+`budget_reset_at` and `spend`, and the request with the key redacted. It reads the key from the
+environment or the secret store:
 
 ```bash
 python3 scripts/measure_litellm_budget.py --agent vibe

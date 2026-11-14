@@ -1,8 +1,6 @@
 {
   "generated_from": "registry/estate-tooling.yaml",
   "base_url": "https://litellm.jorisjonkers.dev/v1",
-  "key_header": "x-litellm-api-key",
-  "edge_token_env": "LITELLM_EDGE_TOKEN",
   "routes": [
     {
       "agent": "vibe",
