@@ -41,6 +41,10 @@ export interface CritiqueFilesPort {
   /** The names of the directories directly inside a directory, sorted; empty when it does not exist. */
   listDirectories(path: string): Promise<readonly string[]>
   remove(path: string): Promise<void>
+  /** Removes a directory and everything in it; nothing when it does not exist. */
+  removeTree(path: string): Promise<void>
+  /** Writes the file readable by its owner alone (0600), creating its directory owner-only (0700). */
+  writePrivate(path: string, content: string): Promise<void>
   /** Creates a symlink at `path` pointing to `target`, creating parent directories; any file already there is replaced. */
   symlink(target: string, path: string): Promise<void>
 }

@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { AGENT, CONFINE_EXEC, confineWrite } from './pi-confine-fixture.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = join(here, 'fixtures')
@@ -196,7 +197,7 @@ scenarios['refute-code'] = [
   }),
 ]
 
-// A Pi refuter over a LiteLLM route: started directly with the prompt on stdin, its JSON event stream read as a critic's
+// A Pi refuter over a LiteLLM route: started through the fake agent-launcher, confined, with the prompt on stdin, its JSON event stream read as a critic's
 // is, and logged as a pi launch. The fake `pi` keeps its argv and stdin beside the refuter's packet.
 const PI = { family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
 const piRouting = `${JSON.stringify({ clients: { 'pi-vibe-study-glm': PI }, stages: { spec: { base: [{ ...slot('vibe-mistral-large'), client: 'pi-vibe-study-glm' }], deep: [] } } })}\n`
@@ -213,14 +214,14 @@ const PI_CASES = {
   p3: piSays({ findings: [objection('refute')] }, [['read', { path: '../../../packet/artifact/spec.md' }]]),
 }
 const fakePi = (cases) =>
-  `#!/bin/sh\nif [ "$1" = auth ]; then printf '%s\\n' '{"status":"ready"}'; exit 0; fi\nif [ "$1" = --offline ]; then printf '%s\\n' 'litellm-vibe-study glm-5-3 128K'; exit 0; fi\nprintf '%s\\n' "$@" > "$PWD/../argv.txt"\ncat > "$PWD/../stdin.txt"\ncase "$PWD" in\n${Object.entries(cases)
+  `#!/bin/sh\nif [ "$1" = auth ]; then printf '%s\\n' '{"status":"ready"}'; exit 0; fi\nif [ "$1" = --offline ]; then printf '%s\\n' 'litellm-vibe-study glm-5-3 128K'; exit 0; fi\nprintf '%s\\n' "$@" > "$PWD/../argv.txt"\ncat > "$PWD/../stdin.txt"\n${AGENT}case "$PWD" in\n${Object.entries(cases)
     .map(([id, body]) => `*/refute/${id}/packet)\n${body}\n;;`)
     .join('\n')}\n*)\nexit 9\n;;\nesac\n`
 const piRuns = Object.assign({}, ...Object.keys(PI_CASES).map((id) => run(`pi-${id}`, [finding(id)], { manifestExtra: { allowed_families: ['mistral', 'zhipu'] } })))
 scenarios['refute-pi'] = Object.keys(PI_CASES).map((id, index) =>
   go(`pi-${id}`, accept(id), {
     ...(index === 0
-      ? { write: { ...piRuns, 'bin/pi': fakePi(PI_CASES), [OVERRIDE]: piRouting, ...REPO.write }, exec: ['bin/pi'], shims: ['env', 'git', 'cat'], path: ['bin'], git: [...REPO.git, ...repoCommit] }
+      ? { write: { ...piRuns, 'bin/pi': fakePi(PI_CASES), ...confineWrite(), [OVERRIDE]: piRouting, ...REPO.write }, exec: ['bin/pi', ...CONFINE_EXEC], shims: ['env', 'git', 'cat'], path: ['bin'], git: [...REPO.git, ...repoCommit] }
       : { path: ['bin'] }),
     roots: ['runs'],
   }),

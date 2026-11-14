@@ -5,6 +5,11 @@
 # launcher runs the node runner, critique.mjs, so nothing breaks mid-way; a build
 # that fails leaves the installed binary (or the node runner) as it was.
 #
+# The same build makes agent-launcher, which the runner starts every Pi critic
+# through (`agent-launcher confine`, docs/RUST.md); it is installed on PATH as
+# ~/.local/bin/agent-launcher. Without it a Pi critic is unavailable, never
+# started unconfined.
+#
 #   --check                    report what would happen; build nothing.
 #   KIT_ROOT                   the kit (default: this script's parent).
 #
@@ -36,7 +41,7 @@ if [ "$CHECK" = 1 ]; then say "would build and install $DEST_DIR/critique"; exit
 target=${CARGO_TARGET_DIR:-$KIT/scripts/target}
 # From the kit, so its .cargo/config.toml (the crate gate) applies whatever the caller's directory.
 cd "$KIT"
-if ! cargo build --release --locked -p critique --manifest-path "$MANIFEST" >&2; then
+if ! cargo build --release --locked -p critique -p agent-launcher --manifest-path "$MANIFEST" >&2; then
   say "the build failed; the installed runner is unchanged"
   exit 1
 fi
@@ -44,6 +49,23 @@ built=$target/release/critique
 [ -x "$built" ] || { say "the build left no $built"; exit 1; }
 # The smoke check: the binary starts and answers --help before it replaces anything.
 "$built" --help >/dev/null 2>&1 || { say "the new binary does not answer --help; the installed runner is unchanged"; exit 1; }
+# agent-launcher, beside the runner's own install and before it, so an
+# up-to-date runner still gets its launcher.
+LAUNCHER_DIR=${XDG_BIN_HOME:-$HOME/.local/bin}
+launcher=$target/release/agent-launcher
+answer=$([ -x "$launcher" ] && "$launcher" 2>&1 || true)
+if [ ! -x "$launcher" ]; then
+  say "the build left no $launcher; Pi critics stay unavailable"
+elif [ "${answer#usage: agent-launcher}" = "$answer" ]; then
+  say "the new agent-launcher does not answer; the installed one is unchanged"
+elif [ -x "$LAUNCHER_DIR/agent-launcher" ] && cmp -s "$launcher" "$LAUNCHER_DIR/agent-launcher"; then
+  say "agent-launcher is up to date: $LAUNCHER_DIR/agent-launcher"
+elif mkdir -p "$LAUNCHER_DIR" && cp "$launcher" "$LAUNCHER_DIR/.agent-launcher.new" && chmod 0755 "$LAUNCHER_DIR/.agent-launcher.new" && mv -f "$LAUNCHER_DIR/.agent-launcher.new" "$LAUNCHER_DIR/agent-launcher"; then
+  say "installed $LAUNCHER_DIR/agent-launcher"
+else
+  rm -f "$LAUNCHER_DIR/.agent-launcher.new"
+  say "could not install $LAUNCHER_DIR/agent-launcher; Pi critics stay unavailable"
+fi
 if [ -x "$DEST_DIR/critique" ] && cmp -s "$built" "$DEST_DIR/critique"; then
   say "already current: $DEST_DIR/critique"
   exit 0
