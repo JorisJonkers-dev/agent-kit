@@ -1440,3 +1440,229 @@ fn run_refuses_a_second_workflow_after_the_separator() {
     }
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// A proven workflow, its record directory and a fake gold-band that writes
+/// its arguments and the home it was given into `seen`.
+fn proven_live(dir: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let workflow = workflow_file(
+        dir,
+        &MINIMAL_WORKFLOW.replace(
+            r#""edges": [{"from": "only", "to": "$end", "on": "success"}]"#,
+            r#""edges": [{"from": "only", "to": "gate-build", "on": "success"}]"#,
+        )
+        .replace(
+            r#"        "output": {"kind": "json", "schema": {"ok": true}}
+      }
+    ],"#,
+            r#"        "output": {"kind": "json", "schema": {"ok": true}}
+      },
+      {"type": "worker", "id": "gate-build", "provider": "gate-build", "model": "pinned-command", "profile": "pf-spec-redteam"}
+    ],"#,
+        ),
+    );
+    let loaded = load_workflow(&workflow).expect("workflow loaded");
+    let proofs = dir.join("proofs");
+    write_record(&proofs, &record_for(&loaded, Outcome::Passed)).expect("record written");
+    let seen = dir.join("seen");
+    let fake = script(
+        dir,
+        "gold-band",
+        &format!("#!/bin/sh\necho \"$GOLD_BAND_HOME\" \"$@\" > {}\nexit 0\n", seen.display()),
+    );
+    (workflow, proofs, fake, seen)
+}
+
+#[test]
+fn pinned_acp_serves_the_pinned_agent() {
+    let dir = temp_dir("pinnedacp");
+    let root = dir.join("reports");
+    let root_text = root.to_string_lossy().into_owned();
+    let get = move |name: &str| match name {
+        "PINNED_ACP_ROLE" => Some("gate:build".to_string()),
+        "PINNED_ACP_COMMAND" => Some(r#"["true"]"#.to_string()),
+        "PINNED_ACP_REPORT_ROOT" => Some(root_text.clone()),
+        _ => None,
+    };
+    let env = env_for(&get, &dir);
+    let output = drive(&["pinned-acp"], &env, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}\n");
+    assert_eq!(output.code, 0, "{}", output.err);
+    assert!(output.out.contains("\"protocolVersion\":1"), "{}", output.out);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn pinned_acp_refuses_an_unusable_configuration() {
+    let dir = temp_dir("pinnedbad");
+    let get = |_: &str| None::<String>;
+    let env = env_for(&get, &dir);
+    let output = drive(&["pinned-acp"], &env, "");
+    assert_eq!(output.code, 2);
+    assert!(output.err.contains("PINNED_ACP_ROLE"), "{}", output.err);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn pinned_acp_reports_a_broken_output() {
+    let dir = temp_dir("pinnedbroken");
+    let get = |name: &str| match name {
+        "PINNED_ACP_ROLE" => Some("verdict:1".to_string()),
+        "PINNED_ACP_REPORT_ROOT" => Some("/r".to_string()),
+        _ => None,
+    };
+    let env = env_for(&get, &dir);
+    let args = vec![OsString::from("pinned-acp")];
+    let mut stdin = io::Cursor::new(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}\n".to_vec());
+    let mut err: Vec<u8> = Vec::new();
+    assert_eq!(run_with(&args, &env, &mut stdin, &mut Broken, &mut err), 1);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_live_flags_are_only_for_run_and_the_instance_home_needs_pins() {
+    let dir = temp_dir("liveflags");
+    let get = |_: &str| None::<String>;
+    let env = env_for(&get, &dir);
+    for flag in ["--pins", "--instance-home"] {
+        let output = drive(&["check", "--workflow", "w.json", flag, "x"], &env, "");
+        assert_eq!(output.code, 2);
+        assert!(output.err.contains("is only for `run`"), "{}", output.err);
+    }
+    let output = drive(&["run", "--workflow", "w.json", "--instance-home", "x"], &env, "");
+    assert_eq!(output.code, 2);
+    assert!(output.err.contains("`--instance-home` needs `--pins`"), "{}", output.err);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_live_run_starts_gold_band_in_a_run_home_with_the_pinned_agents() {
+    let dir = temp_dir("liverun");
+    let (workflow, proofs, fake, seen) = proven_live(&dir);
+    let instance = dir.join("instance");
+    fs::create_dir_all(instance.join(".gold-band")).unwrap();
+    fs::write(instance.join(".gold-band/settings.json"), r#"{"agents":{"vibe":{}}}"#).unwrap();
+    let pins = dir.join("pins.json");
+    fs::write(&pins, r#"{"version":1,"shims":{"build":["true"]}}"#).unwrap();
+    let state = dir.join("state").to_string_lossy().into_owned();
+    let get = move |name: &str| (name == "XDG_STATE_HOME").then(|| state.clone());
+    let env = env_for(&get, &dir);
+    let output = drive(
+        &[
+            "run",
+            "--workflow",
+            workflow.to_str().unwrap(),
+            "--record-dir",
+            proofs.to_str().unwrap(),
+            "--gold-band",
+            fake.to_str().unwrap(),
+            "--pins",
+            pins.to_str().unwrap(),
+            "--instance-home",
+            instance.to_str().unwrap(),
+            "--",
+            "--requirement-file",
+            "requirement.md",
+        ],
+        &env,
+        "",
+    );
+    assert_eq!(output.code, 0, "{}", output.err);
+    let line = fs::read_to_string(&seen).unwrap();
+    let home = line.split_whitespace().next().unwrap().to_string();
+    assert!(home.starts_with(&format!("{}/state/agent-kit/gold-band/live/cli-proof-", dir.display())), "{home}");
+    assert!(output.err.contains(&format!("live run home {}", home)), "{}", output.err);
+    let settings = fs::read_to_string(Path::new(&home).join(".gold-band/settings.json")).unwrap();
+    assert!(settings.contains("\"gate-build\""), "{settings}");
+    assert!(settings.contains("requirement.md"), "{settings}");
+    assert!(settings.contains("\\\"tools\\\":\\\"/usr/bin\\\""), "{settings}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_live_run_takes_the_instance_from_the_environment_and_an_absolute_requirement() {
+    let dir = temp_dir("liveenv");
+    let (workflow, proofs, fake, seen) = proven_live(&dir);
+    let instance = dir.join("instance");
+    fs::create_dir_all(instance.join(".gold-band")).unwrap();
+    fs::write(instance.join(".gold-band/settings.json"), r#"{"agents":{"vibe":{}}}"#).unwrap();
+    let pins = dir.join("pins.json");
+    fs::write(&pins, r#"{"version":1,"shims":{"build":["true"]}}"#).unwrap();
+    let instance_text = instance.to_string_lossy().into_owned();
+    let home_text = dir.to_string_lossy().into_owned();
+    let get = move |name: &str| match name {
+        "GOLD_BAND_HOME" => Some(instance_text.clone()),
+        "HOME" => Some(home_text.clone()),
+        _ => None,
+    };
+    let env = env_for(&get, &dir);
+    let args = [
+        "run",
+        "--workflow",
+        workflow.to_str().unwrap(),
+        "--record-dir",
+        proofs.to_str().unwrap(),
+        "--gold-band",
+        fake.to_str().unwrap(),
+        "--pins",
+        pins.to_str().unwrap(),
+        "--",
+        "--requirement-file",
+        "/abs/requirement.md",
+    ];
+    let output = drive(&args, &env, "");
+    assert_eq!(output.code, 0, "{}", output.err);
+    let line = fs::read_to_string(&seen).unwrap();
+    assert!(line.starts_with(&format!("{}/.local/state/agent-kit/gold-band/live/", dir.display())), "{line}");
+    let home = line.split_whitespace().next().unwrap();
+    let settings = fs::read_to_string(Path::new(home).join(".gold-band/settings.json")).unwrap();
+    assert!(settings.contains("/abs/requirement.md"), "{settings}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_live_run_that_cannot_be_bound_is_refused_before_gold_band_starts() {
+    let dir = temp_dir("liverefused");
+    let (workflow, proofs, fake, seen) = proven_live(&dir);
+    let instance = dir.join("instance");
+    fs::create_dir_all(instance.join(".gold-band")).unwrap();
+    fs::write(instance.join(".gold-band/settings.json"), r#"{"agents":{"vibe":{}}}"#).unwrap();
+    let good_pins = dir.join("good.json");
+    fs::write(&good_pins, r#"{"version":1,"shims":{"build":["true"]}}"#).unwrap();
+    let empty_pins = dir.join("empty.json");
+    fs::write(&empty_pins, r#"{"version":1,"shims":{}}"#).unwrap();
+    let bad_pins = dir.join("bad.json");
+    fs::write(&bad_pins, "{").unwrap();
+    let state = dir.join("state").to_string_lossy().into_owned();
+    let with_state = move |name: &str| (name == "XDG_STATE_HOME").then(|| state.clone());
+    let nothing = |_: &str| None::<String>;
+    let cases: Vec<(&dyn Fn(&str) -> Option<String>, PathBuf, Option<&Path>, &str)> = vec![
+        (&with_state, dir.join("missing.json"), Some(&instance), "cannot read the pins file"),
+        (&with_state, bad_pins.clone(), Some(&instance), "the pins file is not JSON"),
+        (&with_state, empty_pins.clone(), Some(&instance), "names no command for `build`"),
+        (&nothing, good_pins.clone(), None, "no instance home"),
+        (&nothing, good_pins.clone(), Some(&instance), "no state directory"),
+    ];
+    for (get, pins, instance_home, expected) in cases {
+        let env = env_for(get, &dir);
+        let mut args = vec![
+            "run".to_string(),
+            "--workflow".to_string(),
+            workflow.to_string_lossy().into_owned(),
+            "--record-dir".to_string(),
+            proofs.to_string_lossy().into_owned(),
+            "--gold-band".to_string(),
+            fake.to_string_lossy().into_owned(),
+            "--pins".to_string(),
+            pins.to_string_lossy().into_owned(),
+        ];
+        if let Some(home) = instance_home {
+            args.push("--instance-home".to_string());
+            args.push(home.to_string_lossy().into_owned());
+        }
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        let output = drive(&args, &env, "");
+        assert_eq!(output.code, REFUSED, "{expected}: {}", output.err);
+        assert!(output.err.contains(expected), "{expected}: {}", output.err);
+        assert!(!seen.exists(), "gold-band started for {expected}");
+    }
+    let _ = fs::remove_dir_all(&dir);
+}

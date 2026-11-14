@@ -1,5 +1,7 @@
-//! The command line: `prove`, `check`, `run` and the hidden `stub-acp`.
+//! The command line: `prove`, `check`, `run` and the hidden `stub-acp` and
+//! `pinned-acp`.
 
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs;
 use std::io::{BufRead, Write};
@@ -10,6 +12,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::Value;
 
 use crate::harness::{self, ProveOptions};
+use crate::live::{self, LiveInputs};
+use crate::pinned;
 use crate::record::{self, Outcome};
 use crate::refuse;
 use crate::stub;
@@ -27,13 +31,16 @@ usage: gold-band-proof prove --workflow FILE [--gold-band BIN] [--gold-band-comm
                              [--scenario NAME:VERDICT:EXIT]... [--timeout SECS]
        gold-band-proof check --workflow FILE [--record-dir DIR] [--build-record FILE]
        gold-band-proof run   --workflow FILE [--record-dir DIR] [--build-record FILE]
-                             [--gold-band BIN] [-- <gold-band run arguments>]
+                             [--gold-band BIN] [--pins FILE [--instance-home DIR]]
+                             [-- <gold-band run arguments>]
 
 prove  run the workflow headless against the stub agent and record the proof
        (a scenario verdict is clean, needs-human, fail, gate-fail=NAME or
        grant-lapse=NAME)
 check  refuse unless a passing proof of the workflow is recorded
-run    check, then start `gold-band run` for the workflow
+run    check, then start `gold-band run` for the workflow; with --pins, in a
+       run home that adds a pinned shim agent for every gate, copier and
+       verdict id to the instance's agents (docs/gold-band-proof.md)
 ";
 
 /// Everything the command line reads from outside its arguments.
@@ -79,6 +86,10 @@ struct Options {
     timeout_secs: u64,
     /// The arguments after `--`, for `run`.
     extra: Vec<OsString>,
+    /// The pins file of a live run, for `run`.
+    pins: Option<PathBuf>,
+    /// The instance's Gold Band home of a live run, when one was named.
+    instance_home: Option<PathBuf>,
 }
 
 /// What a command line asks for.
@@ -87,6 +98,8 @@ enum Invocation {
     Usage,
     /// Serve the stub ACP agent on the given streams.
     StubAcp,
+    /// Serve the pinned shim agent on the given streams.
+    PinnedAcp,
     /// One of the commands that names a workflow.
     Command(Options),
 }
@@ -110,6 +123,7 @@ pub fn run_with(
             0
         }
         Invocation::StubAcp => stub_acp(env, stdin, stdout),
+        Invocation::PinnedAcp => pinned_acp(env, stdin, stdout, stderr),
         Invocation::Command(options) => match options.command {
             Subcommand::Prove => prove(&options, env, stdout, stderr),
             Subcommand::Check => check(&options, env, stdout, stderr),
@@ -161,6 +175,7 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
         "check" => Subcommand::Check,
         "run" => Subcommand::Run,
         "stub-acp" => return Ok(Invocation::StubAcp),
+        "pinned-acp" => return Ok(Invocation::PinnedAcp),
         other => return Err(format!("unknown subcommand `{}`", other)),
     };
     let mut workflow: Option<PathBuf> = None;
@@ -171,6 +186,8 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
     let mut scenarios: Vec<String> = Vec::new();
     let mut timeout_secs = DEFAULT_TIMEOUT_SECS;
     let mut extra: Vec<OsString> = Vec::new();
+    let mut pins: Option<PathBuf> = None;
+    let mut instance_home: Option<PathBuf> = None;
     let mut index = 1;
     while index < args.len() {
         let flag = args[index].to_string_lossy().into_owned();
@@ -196,6 +213,13 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
             "--build-record" => build_record = Some(PathBuf::from(value(args, &mut index, &flag)?)),
             "--scenario" => scenarios.push(text(args, &mut index, &flag)?),
             "--timeout" => timeout_secs = timeout(&text(args, &mut index, &flag)?)?,
+            "--pins" | "--instance-home" if command != Subcommand::Run => {
+                return Err(format!("`{}` is only for `run`", flag));
+            }
+            "--pins" => pins = Some(PathBuf::from(value(args, &mut index, &flag)?)),
+            "--instance-home" => {
+                instance_home = Some(PathBuf::from(value(args, &mut index, &flag)?))
+            }
             other if other.starts_with('-') => return Err(format!("unknown flag `{}`", other)),
             other => return Err(format!("unexpected argument `{}`", other)),
         }
@@ -204,6 +228,9 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
     let Some(workflow) = workflow else {
         return Err("`--workflow` is required".to_string());
     };
+    if instance_home.is_some() && pins.is_none() {
+        return Err("`--instance-home` needs `--pins`".to_string());
+    }
     Ok(Invocation::Command(Options {
         command,
         workflow,
@@ -214,6 +241,8 @@ fn parse(args: &[OsString]) -> Result<Invocation, String> {
         scenarios,
         timeout_secs,
         extra,
+        pins,
+        instance_home,
     }))
 }
 
@@ -347,6 +376,20 @@ fn run_command(options: &Options, env: &Env, stderr: &mut dyn Write) -> i32 {
     }
     let program = gold_band_program(options, env);
     let mut command = Command::new(&program);
+    if let Some(pins) = &options.pins {
+        match live_home(options, pins, env) {
+            Ok(home) => {
+                let _ = writeln!(stderr, "gold-band-proof: live run home {}", home.display());
+                command.env("GOLD_BAND_HOME", home);
+            }
+            Err(problems) => {
+                for problem in problems {
+                    let _ = writeln!(stderr, "gold-band-proof: {}", problem);
+                }
+                return REFUSED;
+            }
+        }
+    }
     command
         .arg("run")
         .arg("--workflow")
@@ -379,6 +422,82 @@ fn stub_acp(env: &Env, stdin: &mut dyn BufRead, mut stdout: &mut dyn Write) -> i
         Ok(()) => 0,
         Err(_) => 1,
     }
+}
+
+/// `pinned-acp`: serve the pinned shim agent on the given streams.
+fn pinned_acp(
+    env: &Env,
+    stdin: &mut dyn BufRead,
+    mut stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> i32 {
+    let config = match pinned::Config::from_env(env.get) {
+        Ok(config) => config,
+        Err(problem) => return failure(stderr, &problem),
+    };
+    match pinned::serve(stdin, &mut stdout, config) {
+        Ok(()) => 0,
+        Err(_) => 1,
+    }
+}
+
+/// Builds the run home of a live run and returns it, or every reason the run
+/// cannot be bound.
+fn live_home(options: &Options, pins: &Path, env: &Env) -> Result<PathBuf, Vec<String>> {
+    let text = fs::read_to_string(pins)
+        .map_err(|error| vec![format!("cannot read the pins file {}: {}", pins.display(), error)])?;
+    let pins = live::parse_pins(&text).map_err(|problem| vec![problem])?;
+    let workflow = fs::read_to_string(&options.workflow).map_err(|error| vec![error.to_string()])?;
+    let info = harness::inspect(&workflow).map_err(|problem| vec![problem])?;
+    let instance_home = options
+        .instance_home
+        .clone()
+        .or_else(|| (env.get)("GOLD_BAND_HOME").map(PathBuf::from))
+        .or_else(|| (env.get)("HOME").map(PathBuf::from))
+        .ok_or_else(|| vec!["no instance home: pass --instance-home or set HOME".to_string()])?;
+    let state = state_dir(env).ok_or_else(|| vec!["no state directory: set HOME".to_string()])?;
+    let run_home = state
+        .join("agent-kit/gold-band/live")
+        .join(format!("{}-{}", info.id, nanos()));
+    let mut values = BTreeMap::new();
+    let tools = env.exe.parent().unwrap_or(Path::new("/"));
+    values.insert("tools".to_string(), tools.to_string_lossy().into_owned());
+    values.extend(head_commit().map(|base| ("base".to_string(), base)));
+    if let Some(requirement) = requirement_file(&options.extra) {
+        values.insert("requirement".to_string(), requirement.to_string_lossy().into_owned());
+    }
+    live::compose(&LiveInputs {
+        info: &info,
+        pins: &pins,
+        instance_home: &instance_home,
+        run_home: &run_home,
+        exe: &env.exe,
+        values: &values,
+    })?;
+    Ok(run_home)
+}
+
+/// The commit the working directory's repository is at when the run starts,
+/// the base a gate measures the run's change against.
+fn head_commit() -> Option<String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (output.status.success() && !text.is_empty()).then_some(text)
+}
+
+/// The requirement file the run arguments name, made absolute against the
+/// working directory, since the gates run from the node's.
+fn requirement_file(extra: &[OsString]) -> Option<PathBuf> {
+    let index = extra.iter().position(|argument| argument == "--requirement-file")?;
+    let path = PathBuf::from(extra.get(index + 1)?);
+    if path.is_absolute() {
+        return Some(path);
+    }
+    std::env::current_dir().ok().map(|dir| dir.join(path))
 }
 
 /// The proof record directory: the flag, else the environment, else the state

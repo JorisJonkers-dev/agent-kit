@@ -97,6 +97,15 @@ def bindings(template: dict[str, Any]) -> list[dict[str, Any]]:
     return template["modelBindings"]["bindings"]
 
 
+def _family(model: str) -> str:
+    """The model family a model id names, with any LiteLLM route prefix dropped."""
+    name = model.rsplit("/", 1)[-1]
+    for family in ("mistral", "deepseek", "glm", "sonnet", "opus"):
+        if family in name:
+            return "anthropic" if family in ("sonnet", "opus") else family
+    raise AssertionError(f"no known family in {model}")
+
+
 def _node(nodes: list[dict[str, Any]], node_id: str) -> dict[str, Any]:
     return next(node for node in nodes if node["id"] == node_id)
 
@@ -146,13 +155,18 @@ def test_no_gate_has_a_failure_edge(edges: list[dict[str, Any]]) -> None:
 def test_the_test_author_and_the_writer_are_different_families(
     nodes: list[dict[str, Any]],
 ) -> None:
-    """The tests come from one family and the implementation from another."""
+    """The tests come from one family and the implementation from another.
+
+    Both run on Pi over LiteLLM, so the family is the model's, not the agent id's.
+    """
     author = _node(nodes, "test-author")
     writer = _node(nodes, "writer")
-    assert author["provider"] == "vibe"
-    assert writer["provider"] == "vibe-study"
-    assert author["provider"] != writer["provider"]
-    assert author["model"] != writer["model"]
+    assert (author["provider"], author["model"]) == ("pi", "litellm-vibe/mistral-large-4-0")
+    assert (writer["provider"], writer["model"]) == ("pi", "litellm-vibe-study/deepseek-v4.1-flash")
+    assert _family(author["model"]) != _family(writer["model"])
+    for repair in ("repair-1", "repair-2"):
+        node = _node(nodes, repair)
+        assert (node["provider"], node["model"]) == (writer["provider"], writer["model"])
 
 
 def test_no_node_binds_codex(template: dict[str, Any]) -> None:
@@ -247,16 +261,18 @@ def test_each_critics_round_is_one_ai_dynamic_node_fanning_out_to_two_critics(
 def test_the_critics_are_two_families_that_differ_from_the_writers(
     nodes: list[dict[str, Any]],
 ) -> None:
-    """The critics run as Vibe (GLM) and Claude, and neither is the writer's family."""
+    """The critics run as GLM on Pi and as Claude, and neither is the writer's family."""
     writer = _node(nodes, "writer")
+    author = _node(nodes, "test-author")
     for round_ in ROUNDS:
         strategy = _node(nodes, f"critics-{round_}")["agentStrategy"]
         providers = [agent["provider"] for agent in strategy["availableAgents"]]
-        assert providers == ["vibe", "claude"]
-        assert writer["provider"] not in providers
+        assert providers == ["pi", "claude"]
         models = {agent["provider"]: agent["model"] for agent in strategy["availableAgents"]}
-        assert writer["model"] not in models.values()
-        assert models["vibe"] != _node(nodes, "test-author")["model"]
+        assert models == {"pi": "litellm-vibe/glm-5.3", "claude": "sonnet"}
+        families = {_family(model) for model in models.values()}
+        assert _family(writer["model"]) not in families
+        assert _family(author["model"]) not in families
         assert strategy["bootstrapProvider"] in providers
 
 
