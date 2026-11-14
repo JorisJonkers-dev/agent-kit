@@ -1452,9 +1452,12 @@ claude_in_profile() {
 }
 
 # Links one shared surface of the primary profile into a secondary one.
-# A real file or directory already sitting at the destination is left
-# alone: that is someone's own config, and a symlink cannot give back
-# what replacing it would lose.
+# A real directory already sitting at the destination is left alone: that
+# is someone's own config, and a symlink cannot give back what replacing it
+# would lose. A real settings.json is folded into the shared one, backed up
+# and linked (scripts/fold-profile-settings.py), unless it sets a key the
+# shared file sets differently: without the link the profile has no
+# enabledPlugins, so every plugin is off in it.
 link_profile_path() {
   local primary="$1" secondary="$2" rel="$3"
   local src="${primary}/${rel}" dest="${secondary}/${rel}"
@@ -1486,6 +1489,19 @@ link_profile_path() {
   fi
   if [ -L "${dest}" ] && [ "$(readlink "${dest}")" = "${src}" ]; then
     ok "profile: ${dest} -> ${src}"
+    return 0
+  fi
+  if [ "${rel}" = settings.json ] && [ -f "${dest}" ] && [ ! -L "${dest}" ]; then
+    local fold_out fold_rc=0 fold_mode=()
+    [ "${CHECK_ONLY}" = 1 ] && fold_mode=(--check)
+    fold_out="$(python3 "${KIT_ROOT}/scripts/fold-profile-settings.py" "${src}" "${dest}" ${fold_mode[@]+"${fold_mode[@]}"} 2>&1)" || fold_rc=$?
+    if [ "${fold_rc}" = 0 ]; then
+      if [ "${CHECK_ONLY}" = 1 ]; then log "profile: ${fold_out}"; else ok "profile: ${fold_out}"; fi
+      return 0
+    fi
+    [ "${fold_rc}" = 3 ] || fold_out="could not fold ${dest} (exit ${fold_rc}): ${fold_out}"
+    warn "profile: ${fold_out}"
+    unshared_profile_paths+=("${dest}: ${fold_out}")
     return 0
   fi
   if [ -e "${dest}" ] && [ ! -L "${dest}" ]; then
