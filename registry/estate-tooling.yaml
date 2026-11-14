@@ -647,7 +647,7 @@ clis:
     container:
       datasource: npm
       package: "@anthropic-ai/claude-code"
-      version: "2.1.318"
+      version: "2.1.319"
       install: 'npm install -g "@anthropic-ai/claude-code@${VERSION}"'
       requires: [node]
 
@@ -662,7 +662,7 @@ clis:
     container:
       datasource: npm
       package: "@openai/codex"
-      version: "0.166.0"
+      version: "0.167.0"
       install: 'npm install -g "@openai/codex@${VERSION}"'
       requires: [node]
 
@@ -799,7 +799,7 @@ clis:
     container:
       datasource: npm
       package: "@aloth/olcli"
-      version: "0.15.3"
+      version: "0.16.1"
       install: 'npm install -g "@aloth/olcli@${VERSION}"'
       requires: [node]
 
@@ -873,7 +873,7 @@ clis:
     container:
       datasource: github-releases
       package: "jdx/mise"
-      version: "v2026.11.1"
+      version: "v2026.11.3"
       install: >-
         curl -fsSL -o /usr/local/bin/mise
         "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}"
@@ -2215,7 +2215,7 @@ mcp_servers:
     pin:
       datasource: npm
       package: "n8n-mcp"
-      version: "2.101.0"
+      version: "2.101.3"
 
   - name: kubernetes
     instances: [gold-band-personal]
@@ -2383,7 +2383,7 @@ mcp_servers:
     container:
       datasource: npm
       package: "@drawio/mcp"
-      version: "1.10.1"
+      version: "1.11.0"
       install: 'npm install -g "@drawio/mcp@${VERSION}"'
       # The binary starts a server rather than printing a version.
       version_command: "npm ls -g @drawio/mcp"
