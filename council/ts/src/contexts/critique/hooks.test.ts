@@ -406,7 +406,7 @@ describe('the session-start hook', () => {
     const h = await optedIn()
 
     expect(await sessionStart(h)).toEqual({
-      line: 'Critique: /flow setup has not checked this machine yet (10 of 10 checks never ran). Run /flow setup.',
+      line: 'Critique: /flow setup has not checked this machine yet (18 of 18 checks never ran). Run /flow setup.',
       reason: 'setup-missing',
       status: 'suggest',
     })
@@ -416,7 +416,7 @@ describe('the session-start hook', () => {
     const h = await optedIn()
     await recordSetup(h, (id) => (id.startsWith('critic:') ? undefined : 'pass'))
 
-    expect((await sessionStart(h)).line).toBe('Critique: /flow setup has not checked this machine yet (5 of 10 checks never ran). Run /flow setup.')
+    expect((await sessionStart(h)).line).toBe('Critique: /flow setup has not checked this machine yet (12 of 18 checks never ran). Run /flow setup.')
   })
 
   it('names a failing check first', async () => {

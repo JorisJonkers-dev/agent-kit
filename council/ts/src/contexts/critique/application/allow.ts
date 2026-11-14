@@ -14,6 +14,8 @@ export interface AllowResult {
   readonly code: boolean
   /** Whether the repository may send its commit messages and issue text. */
   readonly history: boolean
+  /** Present, and true, only for a repository recorded as public. */
+  readonly public?: true
   readonly allowlist_path: string
 }
 
@@ -21,7 +23,9 @@ export interface AllowResult {
  * Records which model families this machine lets a repository send content
  * to, whether that content may be code, and whether it may be history.
  * `code` or `history` left out keeps the entry's current permission, which
- * is off for a new entry.
+ * is off for a new entry. `public` says the repository is public, which is
+ * what lets a client on a public-only LiteLLM route critique it; it is off
+ * for a new entry, so every repository is private until the owner says so.
  */
 export class AllowCommand implements CritiqueCommand<AllowResult | Refusal> {
   private readonly repositories: RepositoryGate
@@ -35,6 +39,7 @@ export class AllowCommand implements CritiqueCommand<AllowResult | Refusal> {
       code: fields.has('code') ? fields.boolean('code') : undefined,
       families: fields.oneOfList('families', ALLOWLIST_FAMILIES),
       history: fields.has('history') ? fields.boolean('history') : undefined,
+      public: fields.has('public') ? fields.boolean('public') : undefined,
       repo: fields.string('repo'),
     }))
     const repository = await this.repositories.resolve(input.repo)
@@ -44,8 +49,17 @@ export class AllowCommand implements CritiqueCommand<AllowResult | Refusal> {
     const current = allowlist.repositories[repository.key]
     const code = input.code ?? current?.code ?? false
     const history = input.history ?? current?.history ?? false
-    const next = withEntry(allowlist, repository.key, { code, families: input.families, history }, this.deps.clock.now())
+    const isPublic = input.public ?? current?.public ?? false
+    const next = withEntry(allowlist, repository.key, { code, families: input.families, history, public: isPublic }, this.deps.clock.now())
     await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}\n`)
-    return { allowlist_path: path, code, families: input.families, history, repository: repository.key, status: 'allowed' }
+    return {
+      allowlist_path: path,
+      code,
+      families: input.families,
+      history,
+      ...(isPublic ? { public: true as const } : {}),
+      repository: repository.key,
+      status: 'allowed',
+    }
   }
 }

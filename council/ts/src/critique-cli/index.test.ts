@@ -254,7 +254,7 @@ describe('critique runner command line', () => {
 
     expect([before, after]).toEqual([
       { exitCode: 0, stderr: '', stdout: '' },
-      { exitCode: 0, stderr: '', stdout: 'Critique: /flow setup has not checked this machine yet (10 of 10 checks never ran). Run /flow setup.\n' },
+      { exitCode: 0, stderr: '', stdout: 'Critique: /flow setup has not checked this machine yet (18 of 18 checks never ran). Run /flow setup.\n' },
     ])
     expect(await run(cli(h, payload), 'session-start')).toMatchObject({ reason: 'setup-missing', status: 'suggest' })
   })

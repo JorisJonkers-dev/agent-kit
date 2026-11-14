@@ -67,6 +67,15 @@ employer code (`nedap`), a secret, a transcript, a customer's data or anything u
 never route a critic on a private repository to one. When unsure, use a `canonical` key: a model a
 paid provider serves is reachable there too.
 
+The critique runner enforces the last rule rather than leaving it to care (#737). Every Pi critic
+client in `skills/workstation/critique/routing.json` names its route's `data_scope` (`any` or
+`public`; `tests/test_critique_setup.py` checks it against `routes.json`). A client with
+`data_scope: public` is routed only to a repository whose entry in the machine's critique allowlist
+says `"public": true` (set with `critique allow`, off for every new entry). For any other repository
+the roster drops it with the reason `data-scope`, it is never kept as a fallback, and a refute round
+passes it over. The check lives in both runners (`council/ts` and `scripts/crates/critique`), each
+with tests.
+
 There is no route for OpenCode Zen's free models: OpenCode's docs say they answer HTTP 403 to
 every client but OpenCode itself, so a route through the proxy would serve nothing.
 
@@ -119,13 +128,56 @@ notes, prices) the gateway already lists from the client's own answer, and the l
 
 The proxy is anonymous at the edge (litellm#17): LiteLLM authenticates every request
 itself, so a request carries its virtual key as a standard `Authorization: Bearer sk-...`, which
-any client can send. Pi, Vibe and OpenCode will be configured from `routes.json` with that one
-header. The Pi and launcher wiring that reads it lands with the Gold Band instances (B1); this
-repository ships the table and the gate.
+any client can send. Pi, Claude Code, Codex, Hermes, OpenCode and Vibe send that one header
+(see "Running a harness on a route"); this repository ships the table, the launchers and the gate.
 
 The old sign-in edge's auth-api service token, `LITELLM_EDGE_TOKEN`, is retired: setup removes
 it from the secret store, and neither `litellm-gate` nor `measure_litellm_budget.py` sends a second
 header any more (`--edge-token-env` is gone from `litellm-gate`).
+
+## Running a harness on a route
+
+Each harness has one way to run a LiteLLM model with a route key read from the secret store.
+`scripts/litellm-harness.py` does it, installed as `agent-kit-litellm`; the data it uses is
+`registry/generated/litellm/harnesses.json`, rendered from the `litellm` section of the registry
+by `scripts/render_registry.py` (the proxy URL and, per route, `litellm-<agent>`, the key
+variable, the data scope and the models its access groups reach). Pi has its own providers
+(`registry/generated/pi/providers.json`). No file written here holds a key, only the name of the
+variable that does.
+
+```bash
+agent-kit-litellm run claude   vibe --model glm-5-3 -- -p "hello"
+agent-kit-litellm run codex    vibe --model glm-5-3
+agent-kit-litellm run hermes   vibe --model glm-5-3
+agent-kit-litellm run opencode vibe --model glm-5-3
+agent-kit-litellm run vibe     vibe --model glm-5-3
+```
+
+`run <harness> <route>` reads `LITELLM_<ROUTE>_KEY` with `agent-kit-secret get`, puts it in the
+child's environment and replaces itself with the harness. Arguments after `--` go to the harness.
+The key is never in argv and never printed. A missing key, route or model stops the run with
+exit 2 before anything starts.
+
+| Harness | Config setup writes | What `run` does |
+| --- | --- | --- |
+| Claude Code | none | sets `ANTHROPIC_BASE_URL` (the proxy without `/v1`) and `ANTHROPIC_AUTH_TOKEN` for that one process, and drops `ANTHROPIC_API_KEY`; the default profile and its `settings.json` are never changed |
+| Codex | `[model_providers.litellm-<route>]` in `~/.codex/config.toml` (`base_url`, `env_key`, `wire_api = "responses"`) | `codex -c model_provider="litellm-<route>"`, key in the route's variable |
+| Hermes | `providers.litellm-<route>` in `~/.hermes/config.yaml` (`base_url`, `key_env`, `api_mode`, models) | `hermes chat --provider litellm-<route>` |
+| OpenCode | `provider.litellm-<route>` in `opencode.json` (`options.baseURL`, `options.apiKey = "{env:KEY}"`, models) | `opencode -m litellm-<route>/<model>` |
+| Vibe | `[[providers]]` and `[[models]]` in `~/.config/agent-kit/vibe-litellm/config.toml` | `VIBE_HOME` set to that home, `VIBE_ACTIVE_MODEL=litellm-<route>/<model>` |
+
+Setup (`setup-workstation.sh`) installs the launcher, then merges the entries into the config of
+each harness that is on `PATH` (not in a cloud session; OpenCode 1 is left alone). It owns every
+entry named `litellm-*`: it replaces those the registry names, removes the ones whose route is
+gone, keeps everything else and keeps a `.bak` of the file it changed.
+
+Vibe is the exception to "the harness's own config": its provider entries go in a home of their
+own, and the launcher and the merge both refuse `~/.vibe`, `~/.vibe-private` and any home whose
+name contains `private`. Plain `vibe`, `vibe-study` and `vibe-private` do not see the LiteLLM
+providers, and a LiteLLM run does not see Shared or Private Memory.
+
+Data scope: the `openrouter` and `public` routes (`data_scope: public`) are for public work only.
+Never start a harness on them in a private repository.
 
 ## A budget refusal fails the node
 

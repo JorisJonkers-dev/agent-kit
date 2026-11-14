@@ -20,7 +20,9 @@ agent, each never in the orchestrator's own family, and no other family. An
 entry covers documents only until its code permission is on, which the code
 stages need, and leaves out commit messages and issue text until its history
 permission is on. Both are off by default. The first stage that needs one
-offers it.
+offers it. A third flag, `public`, is off too and is only ever set by `allow`:
+a repository is private until the owner says it is public, and a client on a
+public-only LiteLLM route (below) is never routed to a private repository.
 
 ## Stages
 
@@ -508,7 +510,7 @@ optional and defaults to `pi`. Its routing name is `pi-<route>-<model>`:
 ```json
 {
   "clients": {
-    "pi-vibe-study-glm": { "kind": "pi", "provider": "litellm-vibe-study", "model": "glm-5-3", "family": "zhipu" }
+    "pi-vibe-study-glm": { "kind": "pi", "provider": "litellm-vibe-study", "model": "glm-5-3", "family": "zhipu", "data_scope": "any" }
   }
 }
 ```
@@ -579,7 +581,32 @@ back like any other. `/flow setup` lists `pi-signed-in` (free), one
 `critic:<client>` trivial prompt per Pi client (cost `pi`), and a read-only
 item that is not available, since no read-only proof is wired for Pi yet.
 
-The shipped `routing.json` names no Pi client yet.
+**Pi is the default critic.** In the shipped `routing.json` every stage's
+base and deep slot is a Pi client over the LiteLLM `vibe` route, or `agy`:
+`pi-vibe-mistral-large` (mistral), `pi-vibe-glm` (zhipu),
+`pi-vibe-deepseek-flash` (deepseek) and `agy-gemini-flash-high` (google), so
+each stage still has one critic per family and `distinct_families` holds. The
+Vibe-login clients (`vibe-mistral-large`, `vibe-glm`, `vibe-deepseek-flash`) are
+the fallbacks behind them, after a Pi client on the `opencode-go` route
+(`pi-opencode-go-*`, the same models on another route and budget), so a
+machine with no Pi, no route key or no Landlock runs as it did before.
+`agy-gemini-flash-high` falls back to `pi-vibe-glm`, `vibe-glm` and, last,
+`pi-public-gemini-flash`. The work roster, the triage model and the cold
+read are unchanged.
+
+**Data scope.** A Pi client names the data scope of its route, as
+`registry/generated/litellm/routes.json` has it: `any`, or `public` for a
+route whose key is for public work only (`public`, `openrouter`). The field
+is required, and a test checks it against `routes.json`. A client with
+`data_scope: public` is routed only to a repository whose allowlist entry has
+`"public": true` (`critique allow --json '{"repo": ..., "families": [...],
+"public": true}'`); for any other repository it is dropped from the roster
+with the reason `data-scope` (its slot goes to the next fallback), it is not
+kept as a fallback, and a refute round passes it over. The run's manifest
+carries `public_repository: true` only when the entry did, so a refute round
+applies the same bar as the run it follows. No public-scope client leads a
+slot in the shipped routing: `pi-public-gemini-flash` is only a last fallback,
+so it runs for a public repository when everything before it could not.
 
 **Decide what to change** with `/critique-stats`: from the ledger
 (`~/.local/share/agent-kit/critique/ledger.jsonl`, metadata only) it reports

@@ -8,7 +8,7 @@ use crate::fields::Fields;
 use crate::routing::{read_critic_client, read_roster_slot, CriticClient};
 
 /// The reasons a routed critic does not run.
-pub const DROP_REASONS: [&str; 6] = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable", "quota", "no-grant"];
+pub const DROP_REASONS: [&str; 7] = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable", "quota", "no-grant", "data-scope"];
 
 /// A client a critic may be retried through.
 #[derive(Clone, Debug, PartialEq)]

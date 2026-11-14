@@ -84,6 +84,28 @@ export interface PiCriticClient {
   /** The LiteLLM model id the route reaches. */
   readonly model: string
   readonly family: ModelFamily
+  /**
+   * The route's data scope, as `registry/generated/litellm/routes.json` has it:
+   * `public` for a route whose key is for public work only (`public`,
+   * `openrouter`), `any` for the rest. A `public` client never reviews a
+   * private repository.
+   */
+  readonly data_scope: DataScope
+}
+
+/** The data scopes a Pi client's route can have. */
+export const DATA_SCOPES = ['any', 'public'] as const
+export type DataScope = (typeof DATA_SCOPES)[number]
+
+/**
+ * Whether a client may not see a repository because of its route's data scope:
+ * a client on a `public` route is routed to a repository only when its entry
+ * says the repository is public. Only a Pi client names a route.
+ */
+export const DATA_SCOPE_REASON = "its LiteLLM route is public-only and this repository is not recorded as public"
+
+export function dataScopeBar(client: CriticClient, publicRepository: boolean): boolean {
+  return client.kind === 'pi' && client.data_scope === 'public' && !publicRepository
 }
 
 /** The work Claude agent. Only the work roster of a `nedap` repository names it. */
@@ -238,7 +260,7 @@ export interface RosterCritic extends RosterSlot {
   readonly fallbacks: readonly RosterFallback[]
 }
 
-export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable', 'quota', 'no-grant'] as const
+export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable', 'quota', 'no-grant', 'data-scope'] as const
 
 /** A routed critic that does not run, and the fallback critic that runs in its slot, if one could. */
 export interface DroppedCritic {
@@ -335,6 +357,7 @@ export function readCriticClient(fields: JsonFields): CriticClient {
   if (kind === 'pi') {
     return {
       binary: fields.has('binary') ? fields.string('binary') : 'pi',
+      data_scope: fields.oneOf('data_scope', DATA_SCOPES),
       family: fields.oneOf('family', MODEL_FAMILIES),
       kind,
       model: fields.string('model'),
@@ -432,6 +455,8 @@ export interface RosterRequest {
   readonly orchestratorFamily: OrchestratorFamily
   /** Whether the artifact holds a decision record, which adds the stage's ADR critics. */
   readonly adr?: boolean
+  /** Whether the repository's allowlist entry says it is public; absent, it is private. */
+  readonly publicRepository?: boolean
 }
 
 /**
@@ -443,7 +468,7 @@ export function candidateClients(routing: Routing, request: RosterRequest): read
   const names = new Set(slotsAt(stageRouting(routing, request), request).flatMap(({ slot }) => slotCandidates(routing, slot.client)))
   return [...names]
     .map((name) => [name, clientNamed(routing, request, name)] as const)
-    .filter(([, client]) => familyReason(client.family, request) === undefined)
+    .filter(([, client]) => clientReason(client, request) === undefined)
 }
 
 /**
@@ -467,11 +492,11 @@ export function resolveRoster(
   const dropped: DroppedCritic[] = []
   const refusal = (name: string, client: CriticClient): Pick<DroppedCritic, 'reason' | 'detail'> | undefined => {
     const reason =
-      familyReason(client.family, request) ??
+      clientReason(client, request) ??
       (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family)
         ? 'same-family'
         : undefined)
-    if (reason !== undefined) return { reason }
+    if (reason !== undefined) return reason === 'data-scope' ? { detail: DATA_SCOPE_REASON, reason } : { reason }
     const ready = readiness.get(name)
     if (ready?.ready !== false) return undefined
     return { detail: ready.detail, reason: 'reason' in ready ? ready.reason : 'unavailable' }
@@ -487,7 +512,7 @@ export function resolveRoster(
       .map((candidate) => ({ client: candidate, client_config: clientNamed(routing, request, candidate) }))
       .filter(
         (fallback) =>
-          familyReason(fallback.client_config.family, request) === undefined && readiness.get(fallback.client)?.ready !== false,
+          clientReason(fallback.client_config, request) === undefined && readiness.get(fallback.client)?.ready !== false,
       )
     const chosen =
       name === undefined
@@ -539,6 +564,12 @@ function clientNamed(routing: Routing, request: Pick<RosterRequest, 'stage'>, na
     throw new CritiqueError('invalid-routing', `routing stage ${request.stage} names unknown client ${name}`)
   }
   return client
+}
+
+/** Why a client may not run for this repository, whatever its readiness: its route's data scope, then its family. */
+function clientReason(client: CriticClient, request: RosterRequest): DroppedCritic['reason'] | undefined {
+  if (dataScopeBar(client, request.publicRepository === true)) return 'data-scope'
+  return familyReason(client.family, request)
 }
 
 function familyReason(family: CriticFamily, request: RosterRequest): DroppedCritic['reason'] | undefined {

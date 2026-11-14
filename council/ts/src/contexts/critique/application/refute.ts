@@ -30,7 +30,7 @@ import { parseFanOutResult, type FanOutResult } from './fan-out.js'
 import { findingsPath, ledgerPath, manifestPath, refutePath, reportPath } from './locations.js'
 import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { readVerdict, verdictsByFinding } from './record.js'
-import type { CodexCriticClient } from '../domain/routing.js'
+import { dataScopeBar, DATA_SCOPE_REASON, type CodexCriticClient } from '../domain/routing.js'
 import { RoutingSource } from './routing.js'
 import { ReadOnlyTripwire } from './tripwire.js'
 
@@ -191,8 +191,14 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
     const plan = (await this.deps.plan.read('vibe')).unable_to_start
     const quota = quotaReached(await budget.agyInvocationsToday(), manifest.limits.antigravity_quota, manifest.stage)
     const eligible = candidates.filter(
-      ({ client_config: config }) => manifest.allowed_families.includes(config.family) && config.family !== manifest.orchestrator_family,
+      ({ client_config: config }) =>
+        manifest.allowed_families.includes(config.family) &&
+        config.family !== manifest.orchestrator_family &&
+        !dataScopeBar(config, manifest.public_repository === true),
     )
+    const scoped = candidates
+      .filter(({ client_config: config }) => dataScopeBar(config, manifest.public_repository === true))
+      .map(({ client }) => [client, DATA_SCOPE_REASON] as const)
     const reasons = await Promise.all(
       eligible.map(async ({ client, client_config: config }) => {
         const limit = config.kind === 'vibe' ? plan : config.kind === 'agy' ? quota : undefined
@@ -203,7 +209,7 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
         return [client, ready.ready ? undefined : ready.detail] as const
       }),
     )
-    return new Map(reasons.flatMap(([client, reason]) => (reason === undefined ? [] : [[client, reason] as const])))
+    return new Map([...scoped, ...reasons.flatMap(([client, reason]) => (reason === undefined ? [] : [[client, reason] as const]))])
   }
 
   /**

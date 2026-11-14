@@ -4340,6 +4340,56 @@ for install in installs:
       _agents_pointer "${OPENCODE_HOME}/AGENTS.md" shared
       attribution_rule "${OPENCODE_HOME}/AGENTS.md"
     fi
+    # One LiteLLM provider per route (litellm-<agent>) in each harness's own config, and the
+    # agent-kit-litellm launcher that runs a harness on a route with its key from the secret store.
+    litellm_check=""
+    [ "${CHECK_ONLY}" = 1 ] && litellm_check="--check"
+    litellm_state="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit"
+    litellm_launcher="${HOME}/.local/bin/agent-kit-litellm"
+    litellm_marker="# managed by agent-kit setup-workstation.sh"
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "would install ${litellm_launcher}"
+    elif [ -e "${litellm_launcher}" ] && ! grep -qxF "${litellm_marker}" "${litellm_launcher}"; then
+      warn "${litellm_launcher} exists and was not written by setup; left alone"
+    else
+      mkdir -p "${HOME}/.local/bin" "${litellm_state}" \
+        && install -m 0644 "${KIT_ROOT}/registry/generated/litellm/harnesses.json" "${litellm_state}/litellm-harnesses.json" \
+        && install -m 0755 "${KIT_ROOT}/scripts/litellm-harness.py" "${litellm_launcher}" \
+        && ok "agent-kit-litellm -> ${litellm_launcher}" \
+        || fail "agent-kit-litellm: could not install ${litellm_launcher}"
+    fi
+    if command -v codex >/dev/null 2>&1 && [ "${CLOUD}" != 1 ]; then
+      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit --with pyyaml python \
+        "${KIT_ROOT}/scripts/litellm-harness.py" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure codex --config "${CODEX_HOME}/config.toml" ${litellm_check})"; then
+        ok "codex: ${litellm_said}"
+      else
+        fail "codex: could not write the LiteLLM providers"
+      fi
+    fi
+    if command -v hermes >/dev/null 2>&1 && [ "${CLOUD}" != 1 ]; then
+      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit --with pyyaml python \
+        "${KIT_ROOT}/scripts/litellm-harness.py" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure hermes --config "${HERMES_HOME:-${HOME}/.hermes}/config.yaml" ${litellm_check})"; then
+        ok "hermes: ${litellm_said}"
+      else
+        fail "hermes: could not write the LiteLLM providers"
+      fi
+    fi
+    if command -v opencode >/dev/null 2>&1 && [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ]; then
+      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit --with pyyaml python \
+        "${KIT_ROOT}/scripts/litellm-harness.py" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure opencode --config "${OPENCODE_HOME}/opencode.json" ${litellm_check})"; then
+        ok "opencode: ${litellm_said}"
+      else
+        fail "opencode: could not write the LiteLLM providers"
+      fi
+    fi
+    if command -v vibe >/dev/null 2>&1 && [ "${CLOUD}" != 1 ]; then
+      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit --with pyyaml python \
+        "${KIT_ROOT}/scripts/litellm-harness.py" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure vibe --config "${litellm_state}/vibe-litellm/config.toml" ${litellm_check})"; then
+        ok "vibe: ${litellm_said}"
+      else
+        fail "vibe: could not write the LiteLLM providers"
+      fi
+    fi
     converge_mcp
     # Verify the VALUE, not the exit codes: ask Claude what it
     # actually has, and check every expected server is present.

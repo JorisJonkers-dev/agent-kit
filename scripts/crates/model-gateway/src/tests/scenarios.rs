@@ -55,6 +55,20 @@ pub fn mask_stamp(text: &str) -> String {
     out
 }
 
+/// Git's "not a git repository" message names a filesystem boundary when the sandbox sits on another filesystem than
+/// its parents (a separate /tmp, a btrfs subvolume), and the node runner's goldens were recorded without one. Both
+/// spellings mean the same, so the boundary form is read as the plain one, escaped or not.
+pub fn mask_git_boundary(text: &str) -> String {
+    const START: &str = "(or any parent up to mount point ";
+    const END: &str = "Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).";
+    let mut out = text.to_string();
+    while let Some(start) = out.find(START) {
+        let Some(end) = out[start..].find(END) else { break };
+        out.replace_range(start..start + end + END.len(), "(or any of the parent directories): .git");
+    }
+    out
+}
+
 /// Where the random parts of what a run makes sit, in text: a run id (`20261103T120000Z-ab12cd`) and a temporary directory
 /// (`model-gateway-run-Ab12Cd`, `model-gateway-worktree-Ab12Cd`). Each is the byte range of the random suffix.
 fn random_parts(text: &str, run_ids: bool) -> Vec<(usize, usize)> {
@@ -395,7 +409,7 @@ impl Replay {
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);
-        let normalise = |text: &str| mask_stamp(&mask_grant_ids(&text.replace(&self.sandbox.text(), "@SANDBOX@")));
+        let normalise = |text: &str| mask_git_boundary(&mask_stamp(&mask_grant_ids(&text.replace(&self.sandbox.text(), "@SANDBOX@"))));
         let extra: Vec<&str> = list(step, "roots").iter().filter_map(Value::as_str).collect();
         let roots: Vec<&str> = ["state", "home", "work"].into_iter().chain(extra).collect();
         let files = snapshot(&self.sandbox, &roots)
@@ -506,4 +520,15 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
     }
     let shown: Vec<&String> = mismatches.iter().take(6).collect();
     assert!(mismatches.is_empty(), "{} mismatches, first {}:\n{}", mismatches.len(), shown.len(), shown.iter().map(|m| m.as_str()).collect::<Vec<_>>().join("\n====\n"));
+}
+
+#[test]
+fn the_filesystem_boundary_message_reads_as_the_plain_one() {
+    let escaped = r#"worktree /t: fatal: not a git repository (or any parent up to mount point /)\nStopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set)."#;
+    assert_eq!(mask_git_boundary(escaped), "worktree /t: fatal: not a git repository (or any of the parent directories): .git");
+    let twice = format!("{escaped} and {escaped}");
+    assert_eq!(mask_git_boundary(&twice).matches("(or any of the parent directories): .git").count(), 2);
+    // A start without its end is left as it is.
+    let partial = "fatal: (or any parent up to mount point /home) and nothing more";
+    assert_eq!(mask_git_boundary(partial), partial);
 }

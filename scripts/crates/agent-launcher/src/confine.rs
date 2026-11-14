@@ -162,12 +162,24 @@ pub fn kept_env(vars: impl Iterator<Item = (OsString, OsString)>, named: &[OsStr
 }
 
 /// Closes the descriptors `first` to `last`, or says why not (EINVAL when `first` is past `last`).
+#[cfg(target_os = "linux")]
 fn close_range(first: libc::c_uint, last: libc::c_uint) -> std::io::Result<()> {
     // SAFETY: closes descriptors only; the launcher holds none it still needs.
     match unsafe { libc::syscall(libc::SYS_close_range, first, last, 0 as libc::c_uint) } {
         0 => Ok(()),
         _ => Err(std::io::Error::last_os_error()),
     }
+}
+
+/// Closes the descriptors `first` to `last` one by one (no `close_range` here); the confinement itself is held on
+/// Linux only, so this exists to keep the crate building.
+#[cfg(not(target_os = "linux"))]
+fn close_range(first: libc::c_uint, last: libc::c_uint) -> std::io::Result<()> {
+    for fd in first..last.min(65_536) {
+        // SAFETY: closing a descriptor that is not open only fails with EBADF.
+        unsafe { libc::close(fd as libc::c_int) };
+    }
+    Ok(())
 }
 
 /// What runs before the exec: the confinement, then closing every descriptor from `first` up.

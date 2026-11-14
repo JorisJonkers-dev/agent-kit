@@ -251,5 +251,6 @@ fn descriptors_from_the_given_one_up_are_closed_after_the_confinement_is_on() {
     assert!(own(kept));
     // SAFETY: closes the descriptor made above.
     unsafe { libc::close(kept) };
+    #[cfg(target_os = "linux")]
     assert_eq!(close_range(5, 3).unwrap_err().raw_os_error(), Some(libc::EINVAL));
 }
