@@ -1,0 +1,218 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"glm-5.3\",\"prompt\":\"Look at the plan.\",\"escalate\":false}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/pi.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/pi.n\" ] && read n < \"$D/pi.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/pi.n\"\npick() { if [ -f \"$C/pi.$1.$n\" ]; then echo \"$C/pi.$1.$n\"; else echo \"$C/pi.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/pi.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/agent-launcher": "#!/bin/sh\nD=\"$HOME/calls\"\nmkdir -p \"$D\"\n{\n  echo \"launcher $*\"\n  echo \"env PATH=$PATH\"\n  echo \"env PI_CODING_AGENT_DIR=${PI_CODING_AGENT_DIR-<unset>}\"\n  echo \"env TMPDIR=${TMPDIR-<unset>}\"\n  echo \"agent settings.json: $(cat \"$PI_CODING_AGENT_DIR/settings.json\")\"\n  echo \"agent models.json: $(cat \"$PI_CODING_AGENT_DIR/models.json\")\"\n} >> \"$D/launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/agent-kit-secret": "#!/bin/sh\ncase \"$2\" in\n  MISSING) echo \"no such secret\" >&2; exit 1 ;;\n  *) echo \"secret-for-$2\" ;;\nesac\n",
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]}}}",
+        "home/canned/pi.out": "{\"type\":\"tool_execution_start\",\"toolName\":\"read\",\"args\":{\"path\":\"README.md\"}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"ignored\"}]}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Looked.\\nSUMMARY: pi is fine\"}],\"stopReason\":\"stop\",\"usage\":{\"input\":100,\"output\":40,\"cacheRead\":30,\"cost\":{\"total\":0.002}}}}\n"
+      },
+      "exec": [
+        "bin/pi",
+        "bin/agent-launcher",
+        "bin/agent-kit-secret"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "remove": [
+        "home/canned/pi.out",
+        "home/canned/pi.err",
+        "home/canned/pi.exit",
+        "home/canned/pi.export",
+        "home/canned/pi.usage",
+        "home/canned/pi.sleep",
+        "home/canned/pi.act"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-opencode-go\",\"mode\":\"read-only\",\"model\":\"qwen3.8-flash\",\"prompt\":\"Read the repository.\",\"repo\":\"@SANDBOX@/repo\",\"time_limit_s\":300,\"escalate\":false}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "repo/README.md": "demo\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"!agent-kit-secret get LITELLM_OPENCODE_GO_KEY\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "home/canned/pi.out": "{\"type\":\"tool_execution_start\",\"toolName\":\"read\",\"args\":{\"path\":\"README.md\"}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"ignored\"}]}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Second.\\nSUMMARY: from the repository\"}],\"stopReason\":\"stop\",\"usage\":{\"input\":10,\"output\":5,\"cost\":{\"total\":0}}}}\n"
+      },
+      "git": [
+        [
+          "init",
+          "-q",
+          "-b",
+          "main",
+          "@SANDBOX@/repo"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "remote",
+          "add",
+          "origin",
+          "https://github.com/JorisJonkers-dev/demo.git"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "commit",
+          "-q",
+          "-m",
+          "init"
+        ]
+      ],
+      "remove": [
+        "home/canned/pi.out",
+        "home/canned/pi.err",
+        "home/canned/pi.exit",
+        "home/canned/pi.export",
+        "home/canned/pi.usage",
+        "home/canned/pi.sleep",
+        "home/canned/pi.act"
+      ],
+      "now": "2026-11-03T12:05:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"glm-5.3\",\"prompt\":\"The launcher is named by the environment.\",\"escalate\":false}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"}]}}}",
+        "home/canned/pi.out": "{\"type\":\"tool_execution_start\",\"toolName\":\"read\",\"args\":{\"path\":\"README.md\"}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"ignored\"}]}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Named.\"}],\"stopReason\":\"stop\",\"usage\":{\"input\":100,\"output\":40,\"cacheRead\":30,\"cost\":{\"total\":0.002}}}}\n",
+        "pi-home/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"}]}}}"
+      },
+      "remove": [
+        "home/canned/pi.out",
+        "home/canned/pi.err",
+        "home/canned/pi.exit",
+        "home/canned/pi.export",
+        "home/canned/pi.usage",
+        "home/canned/pi.sleep",
+        "home/canned/pi.act"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "AGENT_KIT_LAUNCHER_BIN": "@SANDBOX@/bin/agent-launcher",
+        "PI_CODING_AGENT_DIR": "@SANDBOX@/pi-home"
+      },
+      "now": "2026-11-03T12:10:00Z",
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"glm-5.3\",\"prompt\":\"The stream ends in a provider error.\",\"escalate\":false}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/pi.out",
+        "home/canned/pi.err",
+        "home/canned/pi.exit",
+        "home/canned/pi.export",
+        "home/canned/pi.usage",
+        "home/canned/pi.sleep",
+        "home/canned/pi.act"
+      ],
+      "write": {
+        "home/canned/pi.out": "{\"type\":\"tool_execution_start\",\"toolName\":\"read\",\"args\":{\"path\":\"README.md\"}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"ignored\"}]}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"partial\"}],\"stopReason\":\"error\",\"usage\":{\"input\":100,\"output\":40,\"cacheRead\":30,\"cost\":{\"total\":0.002}},\"errorMessage\":\"upstream said 500\"}}\n"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "PI_CODING_AGENT_DIR": null
+      },
+      "now": "2026-11-03T12:15:00Z",
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"glm-5.3\",\"prompt\":\"No assistant message at all.\",\"escalate\":false}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/canned/pi.out",
+        "home/canned/pi.err",
+        "home/canned/pi.exit",
+        "home/canned/pi.export",
+        "home/canned/pi.usage",
+        "home/canned/pi.sleep",
+        "home/canned/pi.act"
+      ],
+      "write": {
+        "home/canned/pi.out": "{\"type\":\"agent_start\"}\nnot json\n"
+      },
+      "now": "2026-11-03T12:20:00Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

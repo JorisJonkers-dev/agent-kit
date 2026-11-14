@@ -200,3 +200,72 @@ describe('judgeListing', () => {
     expect(judgeListing(CONFIG, { missing: [], models: [listed('ghost', 'x')], skipped: [] }, catalogue()).models).toHaveLength(1)
   })
 })
+
+describe('a Pi client’s models are canonical groups, judged by the deployments behind them', () => {
+  const group = (deployments: Record<string, unknown>[], extra: Record<string, unknown> = {}): Record<string, unknown> => ({ deployments, modality: 'chat', public: false, ...extra })
+  const at = (route: string, upstream: string, order = 1): Record<string, unknown> => ({ order, route, upstream_id: upstream, weight: 1 })
+  const raw = {
+    groups: {
+      broken: 3,
+      free: group([at('opencode-go', 'beam-free')]),
+      'free-needs-both': group([at('opencode-go', 'beam-free'), at('vibe', 'zai-glm-5-3')]),
+      'free-then-paid': group([at('opencode-go', 'beam-free', 1), at('vibe', 'zai-glm-5-3', 2)]),
+      'free-unprobed': group([at('opencode-go', 'beam-free'), at('vibe', 'unprobed')]),
+      'no-deployments': { modality: 'chat' },
+      'no-order': group([{ route: 'vibe', upstream_id: 'zai-glm-5-3' }, { route: 5, upstream_id: 'x' }, { route: 'only-route' }]),
+      'prefixed-upstream': group([at('vibe', 'vibe/zai-glm-5-3')]),
+      public: group([at('vibe', 'zai-glm-5-3')], { public: true }),
+      'public-unprobed': group([at('google', 'gemini')], { public: true }),
+      'two-blocked': group([at('vibe', 'glm-5-3'), at('opencode-go', 'iceman-contributor-free')]),
+      'usable-second': group([at('vibe', 'glm-5-3', 1), at('vibe', 'zai-glm-5-3', 2)]),
+      unknown: group([at('nowhere', 'x')]),
+    },
+    providers: RAW.providers,
+    updated_at: RAW.updated_at,
+  }
+  const read = catalogue(raw)
+  const listing = (...ids: string[]): ModelListing => ({ missing: [], models: ids.map((id) => listed('pi-vibe', id)), skipped: [] })
+
+  it('reads the groups a catalogue lists, and none from one that lists none', () => {
+    expect([...read.groups.keys()]).toEqual(['free', 'free-needs-both', 'free-then-paid', 'free-unprobed', 'no-order', 'prefixed-upstream', 'public', 'public-unprobed', 'two-blocked', 'usable-second', 'unknown'])
+    expect(read.groups.get('no-order')).toEqual({ deployments: [{ order: 0, route: 'vibe', upstream: 'zai-glm-5-3' }], public: false })
+    expect(read.groups.get('public')?.public).toBe(true)
+    expect(catalogue({ ...raw, groups: 3 }).groups.size).toBe(0)
+    expect(catalogue(RAW).groups.size).toBe(0)
+  })
+
+  it('offers a group one deployment of which is usable, and marks it free only when every deployment tried first is a free model', () => {
+    const judged = judgeListing(CONFIG, listing('free', 'free-needs-both', 'free-then-paid', 'free-unprobed', 'usable-second', 'prefixed-upstream'), read)
+    expect(judged.models.map((entry) => [entry.model, entry.free ?? false])).toEqual([
+      ['free', true],
+      ['free-needs-both', false],
+      ['free-then-paid', true],
+      ['free-unprobed', false],
+      ['usable-second', false],
+      ['prefixed-upstream', false],
+    ])
+    expect(judged.skipped).toEqual([])
+  })
+
+  it('counts a public group as free, and a group of no deployment the catalogue probed as unknown, which is offered', () => {
+    const judged = judgeListing(CONFIG, listing('public', 'public-unprobed', 'unknown', 'not-a-group', 'no-order'), read)
+    expect(judged.models.map((entry) => [entry.model, entry.free ?? false])).toEqual([
+      ['public', true],
+      ['public-unprobed', false],
+      ['unknown', false],
+      ['not-a-group', false],
+      ['no-order', false],
+    ])
+  })
+
+  it('skips a group whose deployments the catalogue finds blocked or failed, with the provider’s reason', () => {
+    const judged = judgeListing(CONFIG, listing('two-blocked'), read)
+    expect(judged.models).toEqual([])
+    expect(judged.skipped).toEqual([{ client: 'pi-vibe', model: 'two-blocked', reason: 'the LiteLLM catalogue marks it error on route vibe: timeout' }])
+  })
+
+  it('judges only a Pi client by its groups, and leaves a client with no route alone', () => {
+    const other = { ...listing('two-blocked'), models: [listed('claude', 'two-blocked')] }
+    expect(judgeListing(CONFIG, other, read).models).toHaveLength(1)
+  })
+})

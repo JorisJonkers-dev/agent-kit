@@ -69,7 +69,8 @@ export interface ModelGatewayProcessPort {
 
 /** A client's own model listing: what it offers now, or why it could not be read. */
 export interface ModelSourcePort {
-  list(): Promise<ClientListing>
+  /** `client` is the id the listing is for, which a source shared by several clients (Pi's, one per route) reads its route from. */
+  list(client: string): Promise<ClientListing>
 }
 
 /** The repository a path sits in, and the throwaway worktrees of it. It runs git, never a client. */

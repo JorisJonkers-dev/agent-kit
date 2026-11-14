@@ -677,7 +677,7 @@ impl RunCommand<'_> {
                     time_limit_s: input.time_limit_s,
                     max_price_usd: input.max_price_usd,
                     mode: Some(input.mode),
-                    provider: input.provider.clone(),
+                    provider: if client == RunClient::Pi { Some(crate::run::pi_provider(&input.client)) } else { input.provider.clone() },
                 },
                 binary: binary.to_string(),
                 client,

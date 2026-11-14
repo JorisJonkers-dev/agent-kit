@@ -1,5 +1,6 @@
 import { isObject, type GatewayConfig } from './config.js'
 import type { ListedModel, ModelListing, SkippedModel } from './models.js'
+import { runClientOf } from './run.js'
 
 /**
  * The live LiteLLM model catalogue (#568): what the litellm repository's sync
@@ -13,6 +14,13 @@ import type { ListedModel, ModelListing, SkippedModel } from './models.js'
  * blocked one is skipped with the provider's own reason, and a free one is
  * marked. A model the catalogue does not know is offered as before, since the
  * client's own answer is still the measure of what it accepts.
+ *
+ * A Pi client is judged by the catalogue's canonical groups instead: its
+ * models are the groups the route's key reaches, each served by deployments on
+ * provider routes. A group is usable when one of its deployments is, blocked
+ * when none is and a probe says so, and free when it is public or every
+ * deployment tried first is a free model, as `canonical_groups` in
+ * scripts/litellm_catalogue.py decides.
  */
 
 /** What one probe found for one model. */
@@ -24,11 +32,28 @@ export interface CatalogueProbe {
   readonly free: boolean
 }
 
+/** One deployment behind a canonical group: the provider route and the id it serves the group's model under. */
+export interface CatalogueDeployment {
+  readonly route: string
+  readonly upstream: string
+  /** Deployments of the lowest order are tried first. */
+  readonly order: number
+}
+
+/** One canonical model name the proxy serves, and what serves it. */
+export interface CatalogueGroup {
+  /** A public group is a free tier. */
+  readonly public: boolean
+  readonly deployments: readonly CatalogueDeployment[]
+}
+
 export interface LiteLLMCatalogue {
   /** When the sync last probed, as the catalogue says it. */
   readonly updated_at: string
   /** Each provider route's models, by id without the route prefix. */
   readonly routes: ReadonlyMap<string, ReadonlyMap<string, CatalogueProbe>>
+  /** The canonical groups the proxy serves, by name; empty when the catalogue lists none. */
+  readonly groups: ReadonlyMap<string, CatalogueGroup>
 }
 
 /** A catalogue older than this means the sync, or setup's fetch, has stopped: two days, against an hourly sync. */
@@ -61,7 +86,23 @@ export function parseLiteLLMCatalogue(raw: unknown): LiteLLMCatalogue | { readon
     }
     routes.set(route, models)
   }
-  return { routes, updated_at: raw.updated_at }
+  return { groups: parseGroups(raw.groups), routes, updated_at: raw.updated_at }
+}
+
+/** The canonical groups of a catalogue; a group or deployment that is not well formed is passed over. */
+function parseGroups(raw: unknown): ReadonlyMap<string, CatalogueGroup> {
+  const groups = new Map<string, CatalogueGroup>()
+  if (!isObject(raw)) return groups
+  for (const [name, group] of Object.entries(raw)) {
+    if (!isObject(group) || !Array.isArray(group.deployments)) continue
+    const deployments = (group.deployments as unknown[]).flatMap((deployment): CatalogueDeployment[] =>
+      isObject(deployment) && typeof deployment.route === 'string' && typeof deployment.upstream_id === 'string'
+        ? [{ order: typeof deployment.order === 'number' ? deployment.order : 0, route: deployment.route, upstream: deployment.upstream_id }]
+        : [],
+    )
+    groups.set(name, { deployments, public: group.public === true })
+  }
+  return groups
 }
 
 /** A warning when the catalogue is older than two days, or names no instant; undefined when it is fresh. */
@@ -103,6 +144,46 @@ export function notUsableReason(route: string, probe: CatalogueProbe): string {
   return `the LiteLLM catalogue marks it ${probe.status} on route ${route}${reason}`
 }
 
+/** The probe of one deployment: the model its route lists under the id the group is served by. */
+function deploymentProbe(catalogue: LiteLLMCatalogue, deployment: CatalogueDeployment): CatalogueProbe | undefined {
+  const bare = deployment.upstream.startsWith(`${deployment.route}/`) ? deployment.upstream.slice(deployment.route.length + 1) : deployment.upstream
+  return probeFor(catalogue, deployment.route, [`${deployment.route}/${bare}`])
+}
+
+/**
+ * What the catalogue says of a canonical group: its route and probe are those
+ * of a usable deployment, else of the first the catalogue knows, and it is free
+ * when the group is public or every deployment tried first is a free model.
+ * Undefined when the catalogue probed none of its deployments.
+ */
+function groupProbe(catalogue: LiteLLMCatalogue, group: CatalogueGroup): { route: string; probe: CatalogueProbe } | undefined {
+  const known = group.deployments.flatMap((deployment) => {
+    const probe = deploymentProbe(catalogue, deployment)
+    return probe === undefined ? [] : [{ probe, route: deployment.route }]
+  })
+  const chosen = known.find((entry) => entry.probe.status === 'usable') ?? known[0]
+  if (chosen === undefined) return undefined
+  const first = Math.min(...group.deployments.map((deployment) => deployment.order))
+  const free = group.public || group.deployments.filter((deployment) => deployment.order === first).every((deployment) => deploymentProbe(catalogue, deployment)?.free === true)
+  return { probe: { ...chosen.probe, free }, route: chosen.route }
+}
+
+/**
+ * Where the catalogue places a client model: the route and probe that judge it.
+ * A Pi client's model is a canonical group, judged by its deployments; another
+ * client's is judged on its own `litellm_route`. Undefined when the client has
+ * no route to judge by or the catalogue does not know the model.
+ */
+export function judgement(config: GatewayConfig, catalogue: LiteLLMCatalogue, client: string, model: string): { route: string; probe: CatalogueProbe } | undefined {
+  if (runClientOf(client) === 'pi') {
+    const group = catalogue.groups.get(model)
+    return group === undefined ? undefined : groupProbe(catalogue, group)
+  }
+  const route = config.clients[client]?.litellm_route
+  const probe = route === undefined ? undefined : probeFor(catalogue, route, namesOf(config, client, model))
+  return route === undefined || probe === undefined ? undefined : { probe, route }
+}
+
 /** Every name a client model goes by: its id, and the id and names of the defaults entry it belongs to. */
 export function namesOf(config: GatewayConfig, client: string, model: string): readonly string[] {
   const entry = config.models.find(
@@ -121,9 +202,8 @@ export function namesOf(config: GatewayConfig, client: string, model: string): r
 export function judgeListing(config: GatewayConfig, listing: ModelListing, catalogue: LiteLLMCatalogue | undefined): ModelListing {
   if (catalogue === undefined) return listing
   const notUsable = (client: string, id: string): string | undefined => {
-    const route = config.clients[client]?.litellm_route
-    const probe = route === undefined ? undefined : probeFor(catalogue, route, namesOf(config, client, id))
-    return route === undefined || probe === undefined || probe.status === 'usable' ? undefined : notUsableReason(route, probe)
+    const judged = judgement(config, catalogue, client, id)
+    return judged === undefined || judged.probe.status === 'usable' ? undefined : notUsableReason(judged.route, judged.probe)
   }
   const models: ListedModel[] = []
   // A model skipped for another reason that the catalogue also refuses is skipped for the provider's reason.
@@ -137,8 +217,7 @@ export function judgeListing(config: GatewayConfig, listing: ModelListing, catal
       skipped.push({ client: model.client, model: model.model, reason })
       continue
     }
-    const route = config.clients[model.client]?.litellm_route
-    const free = route !== undefined && probeFor(catalogue, route, namesOf(config, model.client, model.model))?.free === true
+    const free = judgement(config, catalogue, model.client, model.model)?.probe.free === true
     models.push(free ? { ...model, free: true } : model)
   }
   skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))

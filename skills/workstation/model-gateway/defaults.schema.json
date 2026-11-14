@@ -14,6 +14,9 @@
       "type": "object",
       "required": ["vibe", "agy", "claude", "hermes", "opencode", "codex"],
       "additionalProperties": false,
+      "patternProperties": {
+        "^pi-[a-z0-9][a-z0-9-]*$": { "$ref": "#/$defs/client" }
+      },
       "properties": {
         "vibe": { "$ref": "#/$defs/client" },
         "agy": { "$ref": "#/$defs/client" },
@@ -71,6 +74,10 @@
           "items": { "$ref": "#/$defs/plan_limit" },
           "description": "What the client's plan allows, window by window. The shipped defaults carry none: the owner's own plans go in the machine file, which replaces this list whole."
         },
+        "data_scope": {
+          "enum": ["any", "public"],
+          "description": "`public` marks a client whose route is for public work only (the public LiteLLM route): a delegation that reads a repository is never sent to it. Absent is any."
+        },
         "litellm_route": {
           "type": "string",
           "minLength": 1,
@@ -120,7 +127,8 @@
       "additionalProperties": false,
       "properties": {
         "client": {
-          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "codex"]
+          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "codex", "pi"],
+          "description": "The client the model belongs to. `pi` describes the model for every client whose id starts with pi- (one per LiteLLM route), so a model is stated once however many routes serve it."
         },
         "model": {
           "type": "string",

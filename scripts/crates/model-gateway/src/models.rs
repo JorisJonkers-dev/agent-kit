@@ -68,7 +68,7 @@ pub fn model_key(client: &str, model: &str) -> String {
 }
 
 /// The model family each prefix names, in the order the gateway reads them.
-const FAMILY_PREFIXES: [(&str, &str); 12] = [
+const FAMILY_PREFIXES: [(&str, &str); 17] = [
     ("gemini", "google"),
     ("claude", "anthropic"),
     ("gpt", "openai"),
@@ -81,6 +81,11 @@ const FAMILY_PREFIXES: [(&str, &str); 12] = [
     ("qwen", "alibaba"),
     ("mistral", "mistral"),
     ("codestral", "mistral"),
+    ("ministral", "mistral"),
+    ("magistral", "mistral"),
+    ("voxtral", "mistral"),
+    ("gemma", "google"),
+    ("mimo", "xiaomi"),
 ];
 
 /// The model family a model id names, from its prefix; `None` when the gateway

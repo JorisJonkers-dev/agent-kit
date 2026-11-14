@@ -67,6 +67,15 @@ pub fn litellm_catalogue_path(env: &HashMap<String, String>) -> Result<String, G
     Ok(join(&[&root, "agent-kit", "litellm-catalogue.json"]))
 }
 
+/// The home's Pi models file, where setup writes one `litellm-<route>` provider per LiteLLM route:
+/// `PI_CODING_AGENT_DIR`, else `~/.pi/agent`.
+pub fn pi_models_path(env: &HashMap<String, String>) -> Result<String, GatewayError> {
+    match env.get("PI_CODING_AGENT_DIR").filter(|dir| !dir.is_empty()) {
+        Some(dir) => Ok(join(&[dir, "models.json"])),
+        None => Ok(join(&[require_home(env)?, ".pi", "agent", "models.json"])),
+    }
+}
+
 /// The machine-wide ledger: one JSON line per run, whichever repository it ran in.
 pub fn ledger_path(env: &HashMap<String, String>) -> Result<String, GatewayError> {
     Ok(join(&[&state_dir(env)?, "ledger.jsonl"]))

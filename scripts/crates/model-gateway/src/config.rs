@@ -141,6 +141,8 @@ pub struct ClientConfig {
     pub plan_limits: Option<Vec<PlanLimit>>,
     /// The provider route of the LiteLLM catalogue whose probes judge this client's models; `None` when it covers none.
     pub litellm_route: Option<String>,
+    /// `data_scope: public` in the JSON: the client's route is for public work only, so a delegation that reads a repository is never sent to it.
+    pub public_only: bool,
 }
 
 /// What one model costs, in USD per million tokens.

@@ -1,12 +1,6 @@
 import { ModelGatewayError, type GatewayConfig } from '../domain/config.js'
-import {
-  catalogueStaleness,
-  namesOf,
-  notUsableReason,
-  parseLiteLLMCatalogue,
-  probeFor,
-  type LiteLLMCatalogue,
-} from '../domain/litellm-catalogue.js'
+import { catalogueStaleness, judgement, notUsableReason, parseLiteLLMCatalogue, type LiteLLMCatalogue } from '../domain/litellm-catalogue.js'
+import { runClientOf } from '../domain/run.js'
 import { liteLLMCataloguePath } from './locations.js'
 import type { ModelGatewayDependencies } from './ports.js'
 
@@ -57,11 +51,10 @@ export async function readLiteLLMCatalogue(deps: ModelGatewayDependencies): Prom
  * client with no route, and a machine with no readable catalogue all pass.
  */
 export async function requireUsable(deps: ModelGatewayDependencies, config: GatewayConfig, client: string, model: string): Promise<void> {
-  const route = config.clients[client]?.litellm_route
-  if (route === undefined) return
+  if (config.clients[client]?.litellm_route === undefined && runClientOf(client) !== 'pi') return
   const { catalogue } = await readLiteLLMCatalogue(deps)
   if (catalogue === undefined) return
-  const probe = probeFor(catalogue, route, namesOf(config, client, model))
-  if (probe === undefined || probe.status === 'usable') return
-  throw new ModelGatewayError('model-not-usable', `${client}:${model} cannot run: ${notUsableReason(route, probe)}`)
+  const judged = judgement(config, catalogue, client, model)
+  if (judged === undefined || judged.probe.status === 'usable') return
+  throw new ModelGatewayError('model-not-usable', `${client}:${model} cannot run: ${notUsableReason(judged.route, judged.probe)}`)
 }

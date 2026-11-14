@@ -1,0 +1,215 @@
+{
+  "steps": [
+    {
+      "exit": 0,
+      "stdout": "{\n  \"policy\": \"no repository: only inline content, to subsidised and metered-personal clients\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"agy\",\n      \"reason\": \"not installed: agy is not on PATH\"\n    },\n    {\n      \"client\": \"claude\",\n      \"reason\": \"not installed: claude is not on PATH\"\n    },\n    {\n      \"client\": \"codex\",\n      \"reason\": \"not installed: codex is not on PATH\"\n    },\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    },\n    {\n      \"client\": \"opencode\",\n      \"reason\": \"not installed: opencode is not on PATH\"\n    },\n    {\n      \"client\": \"pi-local\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-local provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-vibe-study\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-vibe-study provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"vibe\",\n      \"reason\": \"not installed: vibe is not on PATH\"\n    }\n  ],\n  \"models\": [\n    {\n      \"client\": \"pi-opencode-go\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"moonshot\",\n      \"model\": \"kimi-k2.7-code\",\n      \"notes\": \"Strong agentic coding.\",\n      \"source\": \"live\",\n      \"tier\": \"hard\",\n      \"inline_only\": true,\n      \"may_send\": {\n        \"code\": false,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-opencode-go\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"alibaba\",\n      \"model\": \"qwen3.8-flash\",\n      \"notes\": \"Fast Qwen; routine edits and summaries.\",\n      \"source\": \"live\",\n      \"tier\": \"routine\",\n      \"free\": true,\n      \"inline_only\": true,\n      \"may_send\": {\n        \"code\": false,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-public\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"google\",\n      \"model\": \"public/gemini-3.5-flash-lite\",\n      \"notes\": \"Cheapest Gemini; short summaries and lookups; public material only.\",\n      \"source\": \"live\",\n      \"tier\": \"trivial\",\n      \"inline_only\": true,\n      \"may_send\": {\n        \"code\": false,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-public\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"google\",\n      \"model\": \"public/gemini-3.8-flash\",\n      \"notes\": \"Fast long-context reader; public material only.\",\n      \"source\": \"live\",\n      \"tier\": \"routine\",\n      \"free\": true,\n      \"inline_only\": true,\n      \"may_send\": {\n        \"code\": false,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"zhipu\",\n      \"model\": \"glm-5.3\",\n      \"notes\": \"Strong code review and integration reasoning.\",\n      \"source\": \"live\",\n      \"tier\": \"hard\",\n      \"inline_only\": true,\n      \"may_send\": {\n        \"code\": false,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"mistral\",\n      \"model\": \"ministral-3b\",\n      \"notes\": \"Tiny and very cheap; classification and one-line answers.\",\n      \"source\": \"live\",\n      \"tier\": \"trivial\",\n      \"inline_only\": true,\n      \"may_send\": {\n        \"code\": false,\n        \"history\": false\n      }\n    }\n  ],\n  \"skipped\": [\n    {\n      \"client\": \"pi-vibe\",\n      \"model\": \"hy3\",\n      \"reason\": \"no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override\"\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"model\": \"mistral-large-4\",\n      \"reason\": \"blocked by the provider on LiteLLM route vibe: Not on your plan.\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"},{\"id\":\"ministral-3b\"},{\"id\":\"hy3\"},{\"id\":\"glm-5.3\"},{\"id\":7},{\"id\":\"\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"kimi-k2.7-code\"},{\"id\":\"qwen3.8-flash\"}]},\"litellm-public\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"public/gemini-3.8-flash\"},{\"id\":\"public/gemini-3.5-flash-lite\"}]},\"litellm-local\":{\"api\":\"openai-completions\"}}}",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"policy\": \"github.com/owner/repo: the entry allows zhipu, mistral, google, moonshot, alibaba\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"agy\",\n      \"reason\": \"not installed: agy is not on PATH\"\n    },\n    {\n      \"client\": \"claude\",\n      \"reason\": \"not installed: claude is not on PATH\"\n    },\n    {\n      \"client\": \"codex\",\n      \"reason\": \"not installed: codex is not on PATH\"\n    },\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    },\n    {\n      \"client\": \"opencode\",\n      \"reason\": \"not installed: opencode is not on PATH\"\n    },\n    {\n      \"client\": \"pi-local\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-local provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-vibe-study\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-vibe-study provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"vibe\",\n      \"reason\": \"not installed: vibe is not on PATH\"\n    }\n  ],\n  \"models\": [\n    {\n      \"client\": \"pi-opencode-go\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"moonshot\",\n      \"model\": \"kimi-k2.7-code\",\n      \"notes\": \"Strong agentic coding.\",\n      \"source\": \"live\",\n      \"tier\": \"hard\",\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-opencode-go\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"alibaba\",\n      \"model\": \"qwen3.8-flash\",\n      \"notes\": \"Fast Qwen; routine edits and summaries.\",\n      \"source\": \"live\",\n      \"tier\": \"routine\",\n      \"free\": true,\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"zhipu\",\n      \"model\": \"glm-5.3\",\n      \"notes\": \"Strong code review and integration reasoning.\",\n      \"source\": \"live\",\n      \"tier\": \"hard\",\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"mistral\",\n      \"model\": \"ministral-3b\",\n      \"notes\": \"Tiny and very cheap; classification and one-line answers.\",\n      \"source\": \"live\",\n      \"tier\": \"trivial\",\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": false\n      }\n    }\n  ],\n  \"skipped\": [\n    {\n      \"client\": \"pi-vibe\",\n      \"model\": \"hy3\",\n      \"reason\": \"no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override\"\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"model\": \"mistral-large-4\",\n      \"reason\": \"blocked by the provider on LiteLLM route vibe: Not on your plan.\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"mistral\",\"google\",\"moonshot\",\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"},{\"id\":\"ministral-3b\"},{\"id\":\"hy3\"},{\"id\":\"glm-5.3\"},{\"id\":7},{\"id\":\"\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"kimi-k2.7-code\"},{\"id\":\"qwen3.8-flash\"}]},\"litellm-public\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"public/gemini-3.8-flash\"},{\"id\":\"public/gemini-3.5-flash-lite\"}]},\"litellm-local\":{\"api\":\"openai-completions\"}}}",
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Repo.git\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"policy\": \"no repository: only inline content, to subsidised and metered-personal clients\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"agy\",\n      \"reason\": \"not installed: agy is not on PATH\"\n    },\n    {\n      \"client\": \"claude\",\n      \"reason\": \"not installed: claude is not on PATH\"\n    },\n    {\n      \"client\": \"codex\",\n      \"reason\": \"not installed: codex is not on PATH\"\n    },\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    },\n    {\n      \"client\": \"opencode\",\n      \"reason\": \"not installed: opencode is not on PATH\"\n    },\n    {\n      \"client\": \"pi-local\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-local provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-opencode-go\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-opencode-go provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-public\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-public provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-vibe-study\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-vibe-study provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"vibe\",\n      \"reason\": \"not installed: vibe is not on PATH\"\n    }\n  ],\n  \"models\": [\n    {\n      \"client\": \"pi-vibe\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"zhipu\",\n      \"model\": \"glm-5.3\",\n      \"notes\": \"Strong code review and integration reasoning.\",\n      \"source\": \"live\",\n      \"tier\": \"hard\",\n      \"inline_only\": true,\n      \"may_send\": {\n        \"code\": false,\n        \"history\": false\n      }\n    }\n  ],\n  \"skipped\": [],\n  \"warnings\": [\n    \"no LiteLLM catalogue at @SANDBOX@/cache/agent-kit/litellm-catalogue.json: setup fetches it, so the models are listed unchecked\"\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"mistral\",\"google\",\"moonshot\",\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"}]}}}",
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Repo.git\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"policy\": \"no repository: only inline content, to subsidised and metered-personal clients\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"agy\",\n      \"reason\": \"not installed: agy is not on PATH\"\n    },\n    {\n      \"client\": \"claude\",\n      \"reason\": \"not installed: claude is not on PATH\"\n    },\n    {\n      \"client\": \"codex\",\n      \"reason\": \"not installed: codex is not on PATH\"\n    },\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    },\n    {\n      \"client\": \"opencode\",\n      \"reason\": \"not installed: opencode is not on PATH\"\n    },\n    {\n      \"client\": \"pi-local\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json is not JSON\"\n    },\n    {\n      \"client\": \"pi-opencode-go\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json is not JSON\"\n    },\n    {\n      \"client\": \"pi-public\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json is not JSON\"\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json is not JSON\"\n    },\n    {\n      \"client\": \"pi-vibe-study\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json is not JSON\"\n    },\n    {\n      \"client\": \"vibe\",\n      \"reason\": \"not installed: vibe is not on PATH\"\n    }\n  ],\n  \"models\": [],\n  \"skipped\": [],\n  \"warnings\": [\n    \"no LiteLLM catalogue at @SANDBOX@/cache/agent-kit/litellm-catalogue.json: setup fetches it, so the models are listed unchecked\"\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"mistral\",\"google\",\"moonshot\",\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "not json",
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Repo.git\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"policy\": \"no repository: only inline content, to subsidised and metered-personal clients\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"agy\",\n      \"reason\": \"not installed: agy is not on PATH\"\n    },\n    {\n      \"client\": \"claude\",\n      \"reason\": \"not installed: claude is not on PATH\"\n    },\n    {\n      \"client\": \"codex\",\n      \"reason\": \"not installed: codex is not on PATH\"\n    },\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    },\n    {\n      \"client\": \"opencode\",\n      \"reason\": \"not installed: opencode is not on PATH\"\n    },\n    {\n      \"client\": \"pi-local\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-local provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-opencode-go\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-opencode-go provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-public\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-public provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-vibe provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-vibe-study\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-vibe-study provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"vibe\",\n      \"reason\": \"not installed: vibe is not on PATH\"\n    }\n  ],\n  \"models\": [],\n  \"skipped\": [],\n  \"warnings\": [\n    \"no LiteLLM catalogue at @SANDBOX@/cache/agent-kit/litellm-catalogue.json: setup fetches it, so the models are listed unchecked\"\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"mistral\",\"google\",\"moonshot\",\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "[]",
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Repo.git\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"policy\": \"no repository: only inline content, to subsidised and metered-personal clients\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"agy\",\n      \"reason\": \"not installed: agy is not on PATH\"\n    },\n    {\n      \"client\": \"claude\",\n      \"reason\": \"not installed: claude is not on PATH\"\n    },\n    {\n      \"client\": \"codex\",\n      \"reason\": \"not installed: codex is not on PATH\"\n    },\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    },\n    {\n      \"client\": \"opencode\",\n      \"reason\": \"not installed: opencode is not on PATH\"\n    },\n    {\n      \"client\": \"pi-local\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/home/.pi/agent/models.json'): re-run agent-kit setup, which writes the litellm-local provider\"\n    },\n    {\n      \"client\": \"pi-opencode-go\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/home/.pi/agent/models.json'): re-run agent-kit setup, which writes the litellm-opencode-go provider\"\n    },\n    {\n      \"client\": \"pi-public\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/home/.pi/agent/models.json'): re-run agent-kit setup, which writes the litellm-public provider\"\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/home/.pi/agent/models.json'): re-run agent-kit setup, which writes the litellm-vibe provider\"\n    },\n    {\n      \"client\": \"pi-vibe-study\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/home/.pi/agent/models.json'): re-run agent-kit setup, which writes the litellm-vibe-study provider\"\n    },\n    {\n      \"client\": \"vibe\",\n      \"reason\": \"not installed: vibe is not on PATH\"\n    }\n  ],\n  \"models\": [],\n  \"skipped\": [],\n  \"warnings\": [\n    \"no LiteLLM catalogue at @SANDBOX@/cache/agent-kit/litellm-catalogue.json: setup fetches it, so the models are listed unchecked\"\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"mistral\",\"google\",\"moonshot\",\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Repo.git\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"policy\": \"no repository: only inline content, to subsidised and metered-personal clients\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"agy\",\n      \"reason\": \"not installed: agy is not on PATH\"\n    },\n    {\n      \"client\": \"claude\",\n      \"reason\": \"not installed: claude is not on PATH\"\n    },\n    {\n      \"client\": \"codex\",\n      \"reason\": \"not installed: codex is not on PATH\"\n    },\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    },\n    {\n      \"client\": \"opencode\",\n      \"reason\": \"not installed: opencode is not on PATH\"\n    },\n    {\n      \"client\": \"pi-local\",\n      \"reason\": \"listing failed: @SANDBOX@/elsewhere/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/elsewhere/models.json'): re-run agent-kit setup, which writes the litellm-local provider\"\n    },\n    {\n      \"client\": \"pi-opencode-go\",\n      \"reason\": \"listing failed: @SANDBOX@/elsewhere/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/elsewhere/models.json'): re-run agent-kit setup, which writes the litellm-opencode-go provider\"\n    },\n    {\n      \"client\": \"pi-public\",\n      \"reason\": \"listing failed: @SANDBOX@/elsewhere/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/elsewhere/models.json'): re-run agent-kit setup, which writes the litellm-public provider\"\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"reason\": \"listing failed: @SANDBOX@/elsewhere/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/elsewhere/models.json'): re-run agent-kit setup, which writes the litellm-vibe provider\"\n    },\n    {\n      \"client\": \"pi-vibe-study\",\n      \"reason\": \"listing failed: @SANDBOX@/elsewhere/models.json cannot be read (ENOENT: no such file or directory, open '@SANDBOX@/elsewhere/models.json'): re-run agent-kit setup, which writes the litellm-vibe-study provider\"\n    },\n    {\n      \"client\": \"vibe\",\n      \"reason\": \"not installed: vibe is not on PATH\"\n    }\n  ],\n  \"models\": [],\n  \"skipped\": [],\n  \"warnings\": [\n    \"no LiteLLM catalogue at @SANDBOX@/cache/agent-kit/litellm-catalogue.json: setup fetches it, so the models are listed unchecked\"\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"mistral\",\"google\",\"moonshot\",\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"}]}}}",
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Repo.git\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"policy\": \"no repository: only inline content, to subsidised and metered-personal clients\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"agy\",\n      \"reason\": \"not installed: agy is not on PATH\"\n    },\n    {\n      \"client\": \"claude\",\n      \"reason\": \"not installed: claude is not on PATH\"\n    },\n    {\n      \"client\": \"codex\",\n      \"reason\": \"not installed: codex is not on PATH\"\n    },\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    },\n    {\n      \"client\": \"opencode\",\n      \"reason\": \"not installed: opencode is not on PATH\"\n    },\n    {\n      \"client\": \"pi-local\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-local provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-opencode-go\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-opencode-go provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-public\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-public provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-vibe-study\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-vibe-study provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"vibe\",\n      \"reason\": \"not installed: vibe is not on PATH\"\n    }\n  ],\n  \"models\": [\n    {\n      \"client\": \"pi-vibe\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"zhipu\",\n      \"model\": \"glm-5.3\",\n      \"notes\": \"Strong code review and integration reasoning.\",\n      \"source\": \"live\",\n      \"tier\": \"hard\",\n      \"inline_only\": true,\n      \"may_send\": {\n        \"code\": false,\n        \"history\": false\n      }\n    }\n  ],\n  \"skipped\": [],\n  \"warnings\": [\n    \"no LiteLLM catalogue at @SANDBOX@/cache/agent-kit/litellm-catalogue.json: setup fetches it, so the models are listed unchecked\"\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"mistral\",\"google\",\"moonshot\",\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"}]}}}",
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Repo.git\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"policy\": \"github.com/owner/repo: the entry allows zhipu, mistral, google, moonshot, alibaba\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"agy\",\n      \"reason\": \"not installed: agy is not on PATH\"\n    },\n    {\n      \"client\": \"claude\",\n      \"reason\": \"not installed: claude is not on PATH\"\n    },\n    {\n      \"client\": \"codex\",\n      \"reason\": \"not installed: codex is not on PATH\"\n    },\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    },\n    {\n      \"client\": \"opencode\",\n      \"reason\": \"not installed: opencode is not on PATH\"\n    },\n    {\n      \"client\": \"pi-local\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-local provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"pi-vibe-study\",\n      \"reason\": \"listing failed: @SANDBOX@/home/.pi/agent/models.json has no litellm-vibe-study provider with models: re-run agent-kit setup, which writes it\"\n    },\n    {\n      \"client\": \"vibe\",\n      \"reason\": \"not installed: vibe is not on PATH\"\n    }\n  ],\n  \"models\": [\n    {\n      \"client\": \"pi-opencode-go\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"moonshot\",\n      \"model\": \"kimi-k2.7-code\",\n      \"notes\": \"Strong agentic coding.\",\n      \"source\": \"live\",\n      \"tier\": \"hard\",\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-opencode-go\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"alibaba\",\n      \"model\": \"qwen3.8-flash\",\n      \"notes\": \"Fast Qwen; routine edits and summaries.\",\n      \"source\": \"live\",\n      \"tier\": \"routine\",\n      \"free\": true,\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-public\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"google\",\n      \"model\": \"public/gemini-3.5-flash-lite\",\n      \"notes\": \"Cheapest Gemini; short summaries and lookups; public material only.\",\n      \"source\": \"live\",\n      \"tier\": \"trivial\",\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": false\n      }\n    },\n    {\n      \"client\": \"pi-public\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"google\",\n      \"model\": \"public/gemini-3.8-flash\",\n      \"notes\": \"Fast long-context reader; public material only.\",\n      \"source\": \"live\",\n      \"tier\": \"routine\",\n      \"free\": true,\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": false\n      }\n    }\n  ],\n  \"skipped\": [\n    {\n      \"client\": \"pi-vibe\",\n      \"model\": \"hy3\",\n      \"reason\": \"no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override\"\n    },\n    {\n      \"client\": \"pi-vibe\",\n      \"model\": \"mistral-large-4\",\n      \"reason\": \"blocked by the provider on LiteLLM route vibe: Not on your plan.\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"mistral\",\"google\",\"moonshot\",\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"pi-public\":{\"data_scope\":\"any\"},\"pi-vibe\":{\"data_scope\":\"public\"}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"},{\"id\":\"ministral-3b\"},{\"id\":\"hy3\"},{\"id\":\"glm-5.3\"},{\"id\":7},{\"id\":\"\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"kimi-k2.7-code\"},{\"id\":\"qwen3.8-flash\"}]},\"litellm-public\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"public/gemini-3.8-flash\"},{\"id\":\"public/gemini-3.5-flash-lite\"}]},\"litellm-local\":{\"api\":\"openai-completions\"}}}",
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Repo.git\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-config\",\"message\":\"@SANDBOX@/home/.config/agent-kit/model-gateway.json: clients.pi-vibe.data_scope must be one of any, public\"}\n",
+      "stderr": "model-gateway models: @SANDBOX@/home/.config/agent-kit/model-gateway.json: clients.pi-vibe.data_scope must be one of any, public\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"mistral\",\"google\",\"moonshot\",\"alibaba\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"pi-vibe\":{\"data_scope\":\"private\"}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"},{\"id\":\"ministral-3b\"},{\"id\":\"hy3\"},{\"id\":\"glm-5.3\"},{\"id\":7},{\"id\":\"\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"kimi-k2.7-code\"},{\"id\":\"qwen3.8-flash\"}]},\"litellm-public\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"public/gemini-3.8-flash\"},{\"id\":\"public/gemini-3.5-flash-lite\"}]},\"litellm-local\":{\"api\":\"openai-completions\"}}}",
+        "work/": null,
+        "work/repo/": null,
+        "work/repo/.git/": null,
+        "work/repo/.git/HEAD": "ref: refs/heads/main\n",
+        "work/repo/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Repo.git\n",
+        "work/repo/.git/objects/": null,
+        "work/repo/.git/refs/": null,
+        "work/repo/.git/refs/heads/": null
+      }
+    }
+  ]
+}

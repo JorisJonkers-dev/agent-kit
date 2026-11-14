@@ -7,8 +7,9 @@ disable-model-invocation: true
 # delegate
 
 You are the **orchestrator**. This skill is how you plan work that other model
-clients carry out through the model gateway: Vibe, Antigravity, OpenCode,
-Hermes, Claude Code and, with the owner's grant, Codex. The point is that
+clients carry out through the model gateway: Pi (one client per LiteLLM
+route), Vibe, Antigravity, OpenCode, Hermes, Claude Code and, with the owner's
+grant, Codex. The point is that
 cheap, already-paid-for clients do most of the work and you spend few tokens
 planning and checking it.
 
@@ -66,6 +67,12 @@ For each task, pick the cheapest cost class whose model covers its tier, in this
 order: subsidised, then metered-personal, then metered-employer.
 
 - A model covers a tier when its own tier is at least the task's.
+- Prefer Pi. Within a class, take a `pi-<route>` client over any other client
+  whose model covers the tier: Pi runs confined to its working directory, on a
+  LiteLLM route's own budget. Take another client only when no Pi model covers
+  the tier or the family the task needs. `pi-public` is the one Pi client the
+  data policy never lists for a repository: use it only for a task with no
+  `repo` and nothing private in the prompt.
 - Within one class, choose by the models' capability notes, excluding
   OpenRouter entirely and any `opencode/...` model (only `opencode-go/...`),
   and never a model with `tier: null`.
@@ -104,7 +111,7 @@ Send the whole plan in one call with `model-gateway batch`. The plan's
 {
   "workflow": "spec-293-parsers",
   "delegations": [
-    {"id": "find", "client": "vibe", "model": "glm-5-3", "mode": "read-only",
+    {"id": "find", "client": "pi-vibe", "model": "glm-5.3", "mode": "read-only",
      "prompt": "List every caller of parse() with file and line.",
      "repo": "/path/to/repo"},
     {"id": "fix", "depends_on": ["find"], "client": "claude",

@@ -333,7 +333,7 @@ describe('applyOverride', () => {
 
   it('refuses a client field it does not know, rather than quietly ignoring it', () => {
     expect(messageOf(() => applyOverride(shipped(), { clients: { vibe: { read_only_proof: 'trusted' } } }))).toBe(
-      'clients.vibe.read_only_proof is not a field a client has; choose from binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits, litellm_route',
+      'clients.vibe.read_only_proof is not a field a client has; choose from binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits, litellm_route, data_scope',
     )
   })
 
@@ -493,6 +493,46 @@ describe('applyOverride', () => {
   it('says a new model entry needs its family, tier and notes', () => {
     expect(messageOf(() => applyOverride(shipped(), { models: [{ client: 'claude', model: 'new' }] }))).toBe(
       'models[0] (claude:new) is new, so it needs family, tier and notes',
+    )
+  })
+})
+
+describe('a client that is a prefix of several', () => {
+  const withPi = (extra: Record<string, unknown>[] = []): Record<string, unknown> => ({
+    ...defaults(),
+    clients: {
+      ...(defaults().clients as Record<string, unknown>),
+      'pi-local': { binary: 'pi', cost_class: 'subsidised', model_source: 'live' },
+      'pi-public': { binary: 'pi', cost_class: 'subsidised', data_scope: 'public', model_source: 'live' },
+    },
+    models: [
+      ...(defaults().models as unknown[]),
+      { client: 'pi', family: 'zhipu', model: 'glm-5.3', notes: 'one entry', tier: 'hard' },
+      { client: 'nobody', family: 'x', model: 'x', notes: 'x', tier: 'hard' },
+      ...extra,
+    ],
+  })
+
+  it('describes the model for each of its members, and keeps an entry whose prefix matches none', () => {
+    const models = parseDefaults(withPi()).models
+    expect(models.filter((entry) => entry.model === 'glm-5.3').map((entry) => entry.client)).toEqual(['pi-local', 'pi-public'])
+    expect(models.filter((entry) => entry.client === 'nobody')).toHaveLength(1)
+  })
+
+  it('keeps an entry that names a client of its own', () => {
+    const models = parseDefaults(withPi([{ client: 'pi-local', family: 'zhipu', model: 'own', notes: 'own', tier: 'routine' }])).models
+    expect(models.filter((entry) => entry.model === 'own').map((entry) => entry.client)).toEqual(['pi-local'])
+  })
+
+  it('marks a client public-only, lets an override change it, and refuses a scope it does not know', () => {
+    const config = parseDefaults(withPi())
+    expect(config.clients['pi-public']?.data_scope).toBe('public')
+    expect(config.clients['pi-local']?.data_scope).toBeUndefined()
+    expect(applyOverride(config, { clients: { 'pi-public': { data_scope: 'any' } } }).clients['pi-public']?.data_scope).toBe('any')
+    expect(applyOverride(config, { clients: { 'pi-local': { data_scope: 'public' } } }).clients['pi-local']?.data_scope).toBe('public')
+    expect(applyOverride(config, { clients: { 'pi-public': { cost_class: 'subsidised' } } }).clients['pi-public']?.data_scope).toBe('public')
+    expect(messageOf(() => applyOverride(config, { clients: { 'pi-local': { data_scope: 'private' } } }))).toBe(
+      'clients.pi-local.data_scope must be one of any, public',
     )
   })
 })

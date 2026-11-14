@@ -97,7 +97,8 @@ function permission(config: GatewayConfig, subject: PolicySubject, scope: DataSc
       return {
         ...base,
         may_send: scope.entry === undefined ? NOTHING : { code: scope.entry.code, history: scope.entry.history },
-        permitted: scope.entry?.families.includes(subject.family) === true,
+        // A client on a public-only route never sees a repository, whatever the allowlist says of its family.
+        permitted: scope.entry?.families.includes(subject.family) === true && config.clients[subject.client]?.data_scope !== 'public',
       }
   }
 }

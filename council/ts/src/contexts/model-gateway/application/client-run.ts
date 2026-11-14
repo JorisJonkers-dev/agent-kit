@@ -1,15 +1,15 @@
-import type { ProcessCommand, ProcessResult } from '../../../ports/index.js'
+import type { ProcessResult } from '../../../ports/index.js'
 import { ModelGatewayError } from '../domain/config.js'
 import { EXTRA_NAMES, type ExtraName, type RunExtras } from '../domain/extras.js'
 import type { ClientOutput } from '../domain/outputs.js'
 import type { RunClient } from '../domain/run.js'
-import { homeMcpServers, type HomePorts } from './home-mcp.js'
-import { LAUNCHERS, type LaunchExtras, type LaunchPaths, type LaunchRequest } from './launchers.js'
+import { homeMcpServers } from './home-mcp.js'
+import { LAUNCHERS, type LaunchExtras, type LaunchPaths, type LaunchRequest, type PiConfinement } from './launchers.js'
+import { preparePi, type PiLaunchPorts } from './pi-launch.js'
+import { join } from 'node:path'
 
 /** What one client launch needs: the process it starts, the files it reads, and the home it reads a client's servers from. */
-export interface ClientRunPorts extends HomePorts {
-  readonly process: { exec(command: ProcessCommand): Promise<ProcessResult> }
-}
+export type ClientRunPorts = PiLaunchPorts
 
 /** One client launch, as a caller inside this process asks for it: its own prompt, its own directory, its own extras. */
 export interface ClientRunRequest extends LaunchRequest {
@@ -78,11 +78,29 @@ export class ClientRun {
   async launch(request: ClientRunRequest): Promise<ClientRunOutcome> {
     requireSupportedExtras(request.client, request.extras)
     const launcher = LAUNCHERS[request.client]
-    const extras = await this.extrasOf(request)
-    const result = await this.ports.process.exec(launcher.command(request.binary, request, request.paths, request.prompt, extras))
+    const confine = request.client === 'pi' ? await this.confinementOf(request) : undefined
+    const extras = { ...(await this.extrasOf(request)), ...(confine === undefined ? {} : { confine }) }
+    let result: ProcessResult
+    try {
+      result = await this.ports.process.exec(launcher.command(request.binary, request, request.paths, request.prompt, extras))
+    } finally {
+      // The agent directory holds the route's key, so it goes the moment the launch ends.
+      if (confine !== undefined) await this.ports.files.remove?.(confine.agentDir)
+    }
     const reportPath = launcher.reportPath?.(request.paths)
     const exported = reportPath === undefined ? undefined : await this.readReport(reportPath)
     return { exported, output: launcher.read(result.stdout, exported), result }
+  }
+
+  /**
+   * What a Pi launch runs through, or the refusal that says why it cannot: Pi
+   * has no sandbox of its own, so a launch that cannot be confined never starts.
+   */
+  private async confinementOf(request: ClientRunRequest): Promise<PiConfinement> {
+    if (request.provider === undefined) throw new ModelGatewayError('unconfined', 'a pi launch must name its provider')
+    const prepared = await preparePi(this.ports, request.provider, request.model, join(request.paths.exportDir, 'pi-agent'))
+    if (typeof prepared === 'string') throw new ModelGatewayError('unconfined', prepared)
+    return prepared
   }
 
   /** The caller's extras as the launcher applies them, with the client's home servers resolved. */

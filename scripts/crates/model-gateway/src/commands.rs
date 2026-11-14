@@ -114,7 +114,7 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
         .collect();
     let now = runtime.clock.now_ms();
     let unavailable = standing_refusals(runtime, now);
-    let judges = config.clients.iter().any(|(id, client)| installed.contains(id) && client.litellm_route.is_some());
+    let judges = config.clients.iter().any(|(id, client)| installed.contains(id) && (client.litellm_route.is_some() || crate::run::is_pi_client(id)));
     let reading = if judges { crate::litellm_catalogue::read_catalogue(runtime) } else { Default::default() };
     let listing = crate::litellm_catalogue::judge_listing(
         &config,

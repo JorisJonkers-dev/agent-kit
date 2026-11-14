@@ -113,6 +113,47 @@ never offered, and is named in `skipped` with the reason, whether Vibe dropped
 the model or the catalogue outlived it. The entry keeps recording the model's
 prices until it is removed from `defaults.json`.
 
+### Pi: one client per LiteLLM route
+
+Pi is the preferred client: `pi-vibe`, `pi-vibe-study`, `pi-opencode-go`,
+`pi-local` and `pi-public`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
+all started by the one `pi` program, each on its route's key, which sits in the
+route's own team and budget. There is no `pi-openrouter`: the owner forbade
+OpenRouter. All are `subsidised`. Each lists the models the home's
+`~/.pi/agent/models.json` (or `PI_CODING_AGENT_DIR`) gives its
+`litellm-<route>` provider, which setup writes from the live catalogue's
+canonical groups the route's key reaches, so `models` shows what a Pi client
+can run now. A model's family comes from its id (a few more prefixes than the
+other clients know: `ministral`, `magistral`, `voxtral`, `gemma`, `mimo`), and
+its tier and notes from the defaults entries with `"client": "pi"`, which
+describe a model once for every `pi-<route>` client; a canonical model with no
+entry is listed with `"tier": null` and is never picked. A client whose
+`models.json` is missing, is not JSON or has no such provider is named in
+`missing` with the reason.
+
+The live catalogue judges a Pi model by its canonical group, not by a route:
+the group is offered when one of its deployments is usable, is named in
+`skipped` with the provider's own reason when every deployment the catalogue
+probed is blocked or failed, is marked `"free": true` when it is public or every
+deployment tried first is a free model, and is offered unchecked when the
+catalogue probed none of them.
+
+`pi-public` has `"data_scope": "public"` (a client field, `any` by default):
+that route is for public work only, so a delegation that reads a repository is
+never sent to it, whatever the repository's allowlist says of its family. It
+lists only for a run with no `repo`, which carries only what the caller
+declares.
+
+A Pi run starts through `agent-launcher confine`, never bare: Pi has no
+sandbox of its own and its tools run inside its own process. The launch's own
+agent directory (`<run dir>/<client>/pi-agent`, `PI_CODING_AGENT_DIR` and
+`TMPDIR` for the launch) holds only the route's provider with its key, read from
+the secret store just now and written 0600, and is removed when the launch ends.
+A launch that cannot be confined (no provider for the route in `models.json`,
+a key the store cannot give, no `agent-launcher`) never starts: the run is
+`launch-failed`, its `stderr.txt` names the reason, and no key is ever in a
+message. See "The `run` command".
+
 ### The live LiteLLM catalogue
 
 A client with a `litellm_route` (`vibe` on `vibe`, `opencode` on
@@ -212,8 +253,11 @@ digit, then letters, digits and `. _ : / @ -` only, at most 80 characters. Every
 command that takes a workflow name holds it to that rule, because the name
 reaches the shell command the gateway suggests. A run can go to `client:
 "vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code), `"opencode"`,
-`"hermes"` or `"codex"`, in `mode: "read-only"` or `"write"` (below); any other
-client or mode is `code: "not-supported-yet"`.
+`"hermes"`, `"codex"` or a Pi client named `pi-<route>` (`pi-vibe`,
+`pi-opencode-go`, ...), in `mode: "read-only"` or `"write"` (below); any other
+client or mode is `code: "not-supported-yet"`. A Pi client the configuration
+does not declare is `unknown-model`, and one that names a `provider` of its own
+is `provider-not-allowed`: the provider is the route's.
 
 Everything that can refuse the run happens before anything is launched:
 
@@ -300,10 +344,28 @@ claude -p --model <id> --output-format json --permission-mode plan \
     --allowedTools Read,Grep,Glob            # the prompt on stdin
 opencode run --model <provider>/<model> --format json <prompt>
 hermes -z <wrapped prompt> --usage-file <run dir>/usage.json -m <model> --provider <provider>
+agent-launcher confine --read <dir> --run-from pi [--run <home's Pi bin>] \
+    --write <run dir>/<client>/pi-agent --net-connect <proxy port> -- \
+  pi -p --mode json --no-session --offline --provider litellm-<route> --model <id> \
+    --tools read,grep,find,ls --no-extensions --no-skills --no-prompt-templates \
+    --no-themes --no-context-files --no-mcp --no-approve --system-prompt <read-only delegate>
+                                             # the prompt on stdin
 codex exec --json --skip-git-repo-check -m <model> \
     -c model_reasoning_effort="<low|medium|high>" \
     -s <read-only|workspace-write> -C <dir>   # the prompt on stdin
 ```
+
+A Pi run is the read tools alone (`read`, `grep`, `find`, `ls`) in a read-only
+run, and for a writing run `--write <dir>` (and each git directory the run may
+write) with `edit` and `write` besides and no shell; the gateway stages and
+checks afterwards as for any client. Its output is Pi's JSON event stream: the
+answer is the last assistant message's text, the tokens are the sum of what
+every assistant message counted (`input` plus `cacheRead`), and the dollars are
+what Pi priced them at from the model's entry in `models.json`, none for a
+model that names no price. Pi exits 0 after a provider error, so a stream that
+ends in an assistant message with `stopReason` `error` or `aborted`, or has no
+assistant message, is a failed run with the error's own text. `AGENT_KIT_LAUNCHER_BIN`
+names the launcher, else `agent-launcher` on `PATH`.
 
 Codex runs non-interactively with its own sandbox: `-s read-only` for a
 read-only run and `-s workspace-write` for a writing one, so the sandbox is
@@ -854,6 +916,8 @@ go to. It lives at `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json`, else
   `policy` says why.
 - A repository owned by the `nedap` GitHub organisation lists only Codex and
   Claude Code, whatever its entry says, with code and history allowed.
+- A client with `"data_scope": "public"` (`pi-public`) is never listed for a
+  repository, whatever its entry says of the family.
 - No `repo`, or a path outside any repository, lists only subsidised and
   metered-personal client models, each `inline_only` and allowed to send
   neither code nor history.

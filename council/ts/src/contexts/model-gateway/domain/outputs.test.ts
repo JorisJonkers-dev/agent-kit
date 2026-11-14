@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { agyOutput, claudeOutput, codexOutput, openCodeOutput, vibeOutput } from './outputs.js'
+import { agyOutput, claudeOutput, codexOutput, openCodeOutput, piOutput, vibeOutput } from './outputs.js'
 
 const NO_TOKENS = { cached: 0, input: 0, output: 0 }
 
@@ -185,5 +185,44 @@ describe('codexOutput', () => {
     expect(codexOutput('')).toEqual({ answer: undefined, charged: undefined, failure: undefined, tokens: NO_TOKENS })
     expect(codexOutput(lines(message('  '))).answer).toBeUndefined()
     expect(codexOutput('oops').answer).toBeUndefined()
+  })
+})
+
+describe('piOutput', () => {
+  const assistant = (message: Record<string, unknown>): string => JSON.stringify({ message: { role: 'assistant', ...message }, type: 'message_end' })
+
+  it('takes the last assistant message as the answer and sums what every one counted and was priced at', () => {
+    const stdout = [
+      JSON.stringify({ toolName: 'read', type: 'tool_execution_start' }),
+      JSON.stringify({ message: { content: [{ text: 'ignored', type: 'text' }], role: 'user' }, type: 'message_end' }),
+      assistant({ content: [{ text: 'first', type: 'text' }], usage: { cacheRead: 30, cost: { total: 0.002 }, input: 100, output: 40 } }),
+      'not json',
+      JSON.stringify({ type: 'agent_end' }),
+      assistant({ content: [{ text: 'Done.', type: 'text' }, { type: 'thinking' }, { text: ' SUMMARY: ok', type: 'text' }], stopReason: 'stop', usage: { cost: { total: 0.001 }, input: 10, output: 5 } }),
+    ].join('\n')
+
+    expect(piOutput(stdout)).toEqual({ answer: 'Done. SUMMARY: ok', charged: 0.003, tokens: { cached: 30, input: 140, output: 45 } })
+  })
+
+  it('prices nothing for a model that names no price, and counts no tokens for a message that reports none', () => {
+    expect(piOutput(assistant({ content: [{ text: 'x', type: 'text' }] }))).toEqual({ answer: 'x', charged: undefined, tokens: NO_TOKENS })
+    expect(piOutput(assistant({ content: 'not a list' }))).toEqual({ answer: undefined, charged: undefined, tokens: NO_TOKENS })
+    expect(piOutput(assistant({ content: [{ text: '  ', type: 'text' }] })).answer).toBeUndefined()
+  })
+
+  it('fails a run whose last message stopped with an error or was aborted, with the error text it carries', () => {
+    expect(piOutput(assistant({ content: [{ text: 'partial', type: 'text' }], errorMessage: 'upstream said 500', stopReason: 'error' }))).toEqual({
+      answer: 'partial',
+      charged: undefined,
+      error: { text: 'upstream said 500' },
+      failure: 'client-error',
+      tokens: NO_TOKENS,
+    })
+    expect(piOutput(assistant({ stopReason: 'aborted' }))).toMatchObject({ error: { text: 'aborted' }, failure: 'client-error' })
+  })
+
+  it('fails a stream with no assistant message, since Pi exits 0 after a provider error', () => {
+    expect(piOutput('')).toEqual({ answer: undefined, charged: undefined, failure: 'client-error', tokens: NO_TOKENS })
+    expect(piOutput('{"type":"agent_start"}\n[]\n{"type":"message_end"}\n{"type":"message_end","message":[]}')).toMatchObject({ failure: 'client-error' })
   })
 })

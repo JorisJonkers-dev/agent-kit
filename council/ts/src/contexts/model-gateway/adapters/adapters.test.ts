@@ -11,6 +11,7 @@ import type { KeptWorktree } from '../application/ports.js'
 import { newGrant, type Grant } from '../domain/grants.js'
 import type { LedgerRecord } from '../domain/ledger.js'
 import { endWorkflow, startWorkflow } from '../domain/workflows.js'
+import { PiModelSource } from './clients/index.js'
 import { CodexStatus } from './clients/status.js'
 import { NodeModelGatewayFiles, writeFileAtomic } from './fs/index.js'
 import { NodeModelGatewayGit } from './git/index.js'
@@ -1111,5 +1112,49 @@ describe('NodeModelGatewayGrants', () => {
     await grants.update((held) => ({ grant: written, grants: [...held, written] }))
 
     expect(await readdir(join(path, '..'))).toEqual(['model-gateway-grants.json'])
+  })
+})
+
+describe('PiModelSource', () => {
+  const models = (providers: unknown): string => JSON.stringify({ providers })
+  const provider = (...ids: unknown[]): unknown => ({ api: 'openai-completions', models: ids.map((id) => (typeof id === 'string' ? { id } : id)) })
+
+  async function source(env: Record<string, string>, files?: Record<string, string>): Promise<PiModelSource> {
+    const dir = await tempDir()
+    for (const [path, text] of Object.entries(files ?? {})) {
+      await mkdir(dirname(join(dir, path)), { recursive: true })
+      await writeFile(join(dir, path), text)
+    }
+    const resolved = Object.fromEntries(Object.entries(env).map(([name, value]) => [name, value.replace('@DIR@', dir)]))
+    return new PiModelSource(new NodeModelGatewayFiles(), new FakeEnv(resolved))
+  }
+
+  it('lists the models the home’s models.json gives the route’s provider, in its order, leaving out an entry with no id', async () => {
+    const pi = await source(
+      { HOME: '@DIR@/home' },
+      { 'home/.pi/agent/models.json': models({ 'litellm-vibe': provider('glm-5.3', 'ministral-3b', { id: 7 }, { id: '' }, 'glm-5.3'), 'litellm-local': provider('x') }) },
+    )
+
+    expect(await pi.list('pi-vibe')).toEqual({ models: [{ model: 'glm-5.3' }, { model: 'ministral-3b' }, { model: 'glm-5.3' }] })
+    expect(await pi.list('pi-local')).toEqual({ models: [{ model: 'x' }] })
+  })
+
+  it('reads the directory PI_CODING_AGENT_DIR names instead of the home’s', async () => {
+    const pi = await source({ HOME: '@DIR@/home', PI_CODING_AGENT_DIR: '@DIR@/pi' }, { 'pi/models.json': models({ 'litellm-vibe': provider('own') }) })
+
+    expect(await pi.list('pi-vibe')).toEqual({ models: [{ model: 'own' }] })
+  })
+
+  it('leaves the client out, with the reason, when the file is missing, is not JSON or has no such provider', async () => {
+    const missing = await source({ HOME: '@DIR@/home' })
+    expect(await missing.list('pi-vibe')).toMatchObject({ reason: expect.stringContaining('models.json cannot be read') as string })
+    const notJson = await source({ HOME: '@DIR@/home' }, { 'home/.pi/agent/models.json': 'not json' })
+    expect(await notJson.list('pi-vibe')).toEqual({ reason: expect.stringContaining('is not JSON') as string })
+    const none = await source({ HOME: '@DIR@/home' }, { 'home/.pi/agent/models.json': models({ 'litellm-vibe': { api: 'x' }, 'litellm-local': 3 }) })
+    expect(await none.list('pi-vibe')).toEqual({ reason: expect.stringContaining('has no litellm-vibe provider with models') as string })
+    expect(await none.list('pi-local')).toEqual({ reason: expect.stringContaining('has no litellm-local provider with models') as string })
+    expect(await none.list('pi-public')).toEqual({ reason: expect.stringContaining('has no litellm-public provider with models') as string })
+    const array = await source({ HOME: '@DIR@/home' }, { 'home/.pi/agent/models.json': '[]' })
+    expect(await array.list('pi-vibe')).toEqual({ reason: expect.stringContaining('has no litellm-vibe provider with models') as string })
   })
 })

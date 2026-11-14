@@ -30,7 +30,7 @@ impl RunMode {
 /// The clients a delegation can be handed to: Vibe, Antigravity, Claude Code, OpenCode, Hermes and Codex.
 pub const RUN_CLIENTS: [&str; 6] = ["vibe", "agy", "claude", "opencode", "hermes", "codex"];
 
-/// One of `RUN_CLIENTS`.
+/// The launcher a client id runs through: one of `RUN_CLIENTS`, or Pi, which every client named `pi-<route>` runs through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunClient {
     Vibe,
@@ -39,18 +39,41 @@ pub enum RunClient {
     Opencode,
     Hermes,
     Codex,
+    Pi,
 }
 
 impl RunClient {
+    /// The clients that have an id of their own; Pi's ids are one per LiteLLM route.
     pub const ALL: [RunClient; 6] = [RunClient::Vibe, RunClient::Agy, RunClient::Claude, RunClient::Opencode, RunClient::Hermes, RunClient::Codex];
 
     pub fn as_str(self) -> &'static str {
-        RUN_CLIENTS[self as usize]
+        match self {
+            RunClient::Pi => "pi",
+            fixed => RUN_CLIENTS[fixed as usize],
+        }
     }
 
+    /// The launcher a client id runs through: a client's own, or Pi for `pi-<route>`; `None` when no run can launch it.
     pub fn parse(text: &str) -> Option<RunClient> {
+        if is_pi_client(text) {
+            return Some(RunClient::Pi);
+        }
         RunClient::ALL.into_iter().find(|client| client.as_str() == text)
     }
+}
+
+/// Whether an id is a Pi client: `pi-` and the LiteLLM route it runs on (`pi-vibe`, `pi-opencode-go`).
+pub fn is_pi_client(id: &str) -> bool {
+    let Some(route) = id.strip_prefix("pi-") else {
+        return false;
+    };
+    route.starts_with(|char: char| char.is_ascii_lowercase() || char.is_ascii_digit())
+        && route.chars().all(|char| char.is_ascii_lowercase() || char.is_ascii_digit() || char == '-')
+}
+
+/// The Pi provider of a Pi client: setup writes one per LiteLLM route into Pi's `models.json`, named `litellm-<route>`.
+pub fn pi_provider(client: &str) -> String {
+    format!("litellm-{}", client.strip_prefix("pi-").unwrap_or(client))
 }
 
 /// The clients that run on a provider the caller names, and whose provider this

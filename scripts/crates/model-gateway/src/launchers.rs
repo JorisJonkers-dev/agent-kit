@@ -5,7 +5,7 @@
 
 use crate::extras::{AttachedServer, SandboxProfile};
 use crate::json::{self, Value};
-use crate::outputs::{agy_output, claude_output, codex_output, hermes_output, open_code_output, vibe_output, ClientOutput};
+use crate::outputs::{agy_output, claude_output, codex_output, hermes_output, open_code_output, pi_output, vibe_output, ClientOutput};
 use crate::ports::ProcessCommand;
 use crate::run::{RunClient, RunMode};
 use crate::text::join;
@@ -82,9 +82,24 @@ pub struct LaunchRequest {
     pub provider: Option<String>,
 }
 
+/// What a confined Pi launch runs through: the launcher, the launch's own agent
+/// directory (made for it, holding only the route's provider with its key), the
+/// home's `bin` where Pi keeps the `fd` its find tool runs, the one TCP port the
+/// proxy answers on, and the `PATH` the launch searches.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PiConfinement {
+    pub launcher: String,
+    pub agent_dir: String,
+    pub bin: Option<String>,
+    pub port: u16,
+    pub path: Option<String>,
+}
+
 /// What a caller adds to one launch, with the client's home servers already resolved.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LaunchExtras {
+    /// Set for a Pi launch, which only ever runs confined to its working directory.
+    pub confine: Option<PiConfinement>,
     pub mcp_servers: Vec<AttachedServer>,
     /// The MCP servers the client's home declares, which a run with `disable_home_mcp` switches off by name.
     pub home_servers: Vec<String>,
@@ -121,6 +136,7 @@ pub fn launcher(client: RunClient) -> &'static ClientLauncher {
         RunClient::Opencode => &OPENCODE,
         RunClient::Hermes => &HERMES,
         RunClient::Codex => &CODEX,
+        RunClient::Pi => &PI,
     }
 }
 
@@ -417,5 +433,116 @@ static CODEX: ClientLauncher = ClientLauncher {
     protected_env: &[],
     command: codex_command,
     read: codex_read,
+    report_path: None,
+};
+
+/// The tools a read-only Pi run may use: read, search, list.
+pub const PI_READ_TOOLS: [&str; 4] = ["read", "grep", "find", "ls"];
+
+/// A writing Pi run's tools: the read tools, and edit and write; no shell.
+pub const PI_WRITE_TOOLS: [&str; 6] = ["read", "grep", "find", "ls", "edit", "write"];
+
+/// Pi's system prompt for a read-only delegate, in place of its own, which offers to run commands and points at its documentation.
+pub const PI_READ_SYSTEM_PROMPT: &str =
+    "You are a read-only delegate. Read and search only the files of your working directory, and answer exactly as the user message asks.";
+
+/// Pi's system prompt for a writing delegate.
+pub const PI_WRITE_SYSTEM_PROMPT: &str =
+    "You are a delegate that changes the files of your working directory. Read, search, edit and write only those files, run no command, and answer exactly as the user message asks.";
+
+/// The grants a confined Pi run is started with: what it may read or write, Pi itself, and the proxy's port.
+pub fn pi_grants(input: &LaunchRequest, paths: &LaunchPaths, binary: &str, confine: &PiConfinement) -> Vec<String> {
+    let mut grants = Vec::new();
+    if input.mode == Some(RunMode::Write) {
+        grants.extend(strings(&["--write", &paths.work_dir]));
+        for dir in paths.git_writable.as_deref().unwrap_or_default() {
+            grants.extend(strings(&["--write", dir]));
+        }
+    } else {
+        grants.extend(strings(&["--read", &paths.work_dir]));
+    }
+    grants.extend(strings(&["--run-from", binary]));
+    if let Some(bin) = &confine.bin {
+        grants.extend(strings(&["--run", bin]));
+    }
+    grants.extend(strings(&["--write", &confine.agent_dir, "--net-connect", &confine.port.to_string()]));
+    grants
+}
+
+/// Pi, print mode with its JSON event stream, the wrapped prompt on stdin, on
+/// the LiteLLM route's provider the client id names. The launch has only the
+/// read tools, or for a writing run the edit tools besides, with every
+/// extension, skill, prompt template, theme, context file, MCP server and
+/// trust-gated project file switched off, and no session kept. Pi has no
+/// sandbox of its own and its tools run inside its own process, so the whole
+/// process runs through `agent-launcher confine`: it can read (or write) only
+/// its working directory, the Pi and node installs, the system runtime and its
+/// own agent directory, and reach only the proxy's port. It has no time limit
+/// of its own, so the outer timer is the limit.
+fn pi_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
+    let write = input.mode == Some(RunMode::Write);
+    let tools = if write { PI_WRITE_TOOLS.join(",") } else { PI_READ_TOOLS.join(",") };
+    let provider = input.provider.as_deref().unwrap_or("undefined");
+    let mut pi_args = strings(&[
+        "-p",
+        "--mode",
+        "json",
+        "--no-session",
+        "--offline",
+        "--provider",
+        provider,
+        "--model",
+        &input.model,
+        "--tools",
+        &tools,
+        "--no-extensions",
+        "--no-skills",
+        "--no-prompt-templates",
+        "--no-themes",
+        "--no-context-files",
+        "--no-mcp",
+        "--no-approve",
+        "--system-prompt",
+        if write { PI_WRITE_SYSTEM_PROMPT } else { PI_READ_SYSTEM_PROMPT },
+    ]);
+    let Some(confine) = extras.and_then(|extras| extras.confine.as_ref()) else {
+        return ProcessCommand {
+            command: binary.to_string(),
+            args: pi_args,
+            cwd: Some(paths.work_dir.clone()),
+            env: caller_env(extras),
+            stdin: Some(prompt.to_string()),
+            timeout_ms: limit_ms(input),
+        };
+    };
+    let mut args = strings(&["confine"]);
+    args.extend(pi_grants(input, paths, binary, confine));
+    args.extend(strings(&["--", binary]));
+    args.append(&mut pi_args);
+    let searched = [confine.bin.as_deref(), confine.path.as_deref()].into_iter().flatten().filter(|part| !part.is_empty()).collect::<Vec<_>>().join(":");
+    let mut env = caller_env(extras);
+    env.insert("PATH".to_string(), searched);
+    env.insert("PI_CODING_AGENT_DIR".to_string(), confine.agent_dir.clone());
+    env.insert("TMPDIR".to_string(), confine.agent_dir.clone());
+    ProcessCommand {
+        command: confine.launcher.clone(),
+        args,
+        cwd: Some(paths.work_dir.clone()),
+        env,
+        stdin: Some(prompt.to_string()),
+        timeout_ms: limit_ms(input),
+    }
+}
+
+fn pi_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
+    pi_output(stdout)
+}
+
+static PI: ClientLauncher = ClientLauncher {
+    extras: &["env"],
+    sandboxed_extras: &[],
+    protected_env: &["PATH", "PI_CODING_AGENT_DIR", "TMPDIR"],
+    command: pi_command,
+    read: pi_read,
     report_path: None,
 };
