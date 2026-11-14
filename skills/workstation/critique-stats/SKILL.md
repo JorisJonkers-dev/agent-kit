@@ -51,7 +51,7 @@ an error.
 ### 2. Show the report
 
 Print the result's `report` field as it stands: one table per stage, the
-calibration table, the removal candidates, then the suggestions. Add nothing to the figures.
+calibration table, the per-check precision table, the refute round table, the removal candidates, then the suggestions. Add nothing to the figures.
 
 Done when the owner has the report.
 
@@ -97,6 +97,19 @@ result's `cells`:
   accepted less often than its minors is not calibrated. A dash means nothing
   was adjudicated in that slice. Calibration never drives a suggestion; it is
   there for the owner to read.
+- **Precision by check**: `checks`, one row per check id the ledger's finding
+  lines name, over every critic and stage: accepted over accepted plus rejected,
+  with the number of findings that name it. A finding counts once however many
+  critics raised it; hints and needs-human findings are left out of precision;
+  a finding that names no check (free text, or a line recorded before the ledger
+  kept the field) has no row. A check whose precision stays low is a candidate to
+  tighten or drop from its lens.
+- **Refute round**: `refutes`, one row per stage and refuter client: how many
+  accepted critical findings the round was run on, and how many ended as
+  `no-objection`, `refute` (the objection held and the finding was rejected),
+  `downgrade`, `stands` (an objection without evidence the packet holds, or no
+  usable answer) and `skipped` (no client could refute it; the refuter shows as
+  a dash). Read from the `refute` lines the refute step writes to the ledger.
 - **Cost per accepted**: the cell's known cost over its accepted findings. A
   dash means no accepted finding or no priced run (Antigravity reports no
   cost).

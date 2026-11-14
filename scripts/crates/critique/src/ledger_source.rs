@@ -44,7 +44,7 @@ impl<'a> LedgerSource<'a> {
         } else {
             parse_ledger(&own).map_err(|error| error.into_error("invalid-ledger", &own_path))?
         };
-        let Ledger { findings, flow_events, runs, skipped_reviews } = ledger;
+        let Ledger { findings, flow_events, refutes, runs, skipped_reviews } = ledger;
         let recorded_runs = runs.clone();
         Ok(LedgerRead {
             invocations: merge(invocation_lines(&own), gateway.invocations, |line| {
@@ -53,6 +53,7 @@ impl<'a> LedgerSource<'a> {
             ledger: Ledger {
                 findings,
                 flow_events,
+                refutes,
                 runs: merge(runs, gateway.runs, |run| format!("{} {}", run.context.run_id, run.critic_id)),
                 skipped_reviews,
             },

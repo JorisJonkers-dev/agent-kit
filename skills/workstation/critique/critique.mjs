@@ -3772,422 +3772,322 @@ var NEEDS_TREE = {
   verdict: "hint"
 };
 
-// src/contexts/critique/domain/verdicts.ts
-var VERDICTS = ["accepted", "rejected", "needs-human", "hint"];
-function countVerdicts(run) {
-  const counts = { accepted: 0, hint: 0, "needs-human": 0, rejected: 0 };
-  for (const finding of run.findings) counts[finding.verdict.verdict] += 1;
-  return counts;
+// src/contexts/critique/domain/architecture.ts
+var READMES = ["README.md", "readme.md", "README"];
+var LAYER_CONFIGS = [
+  /^\.?dependency-cruiser(\.config)?\.(c|m)?js$/,
+  /^\.?dependency-cruiser(\.config)?\.json$/,
+  /^\.importlinter$/,
+  /^tach\.toml$/,
+  /^\.?arch-?unit\.(json|ya?ml|properties)$/,
+  /^\.go-arch-lint\.ya?ml$/,
+  /^deptrac\.ya?ml$/
+];
+var BUILD_CONFIGS = [
+  /^package\.json$/,
+  /^tsconfig(\.[\w-]+)?\.json$/,
+  /^Cargo\.toml$/,
+  /^pyproject\.toml$/,
+  /^go\.mod$/,
+  /^pom\.xml$/,
+  /^build\.gradle(\.kts)?$/,
+  /^settings\.gradle(\.kts)?$/,
+  /^Makefile$/,
+  /^justfile$/,
+  /^docker-compose\.ya?ml$/
+];
+var BUILD_CONFIG_MAX_FILES = 12;
+var BUILD_CONFIG_MAX_BYTES = 8192;
+function isLayerConfig(name) {
+  return LAYER_CONFIGS.some((pattern) => pattern.test(name));
 }
-function secondRoundDue(run) {
-  const critical = run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted");
-  return run.round === 1 && STAGE_TABLE[run.stage].secondRound && critical.length > SECOND_ROUND_AFTER_CRITICAL;
+function buildConfigs(rootFiles) {
+  const layers = rootFiles.filter(isLayerConfig);
+  const others = rootFiles.filter((name) => !isLayerConfig(name) && BUILD_CONFIGS.some((pattern) => pattern.test(name)));
+  return [...layers, ...others].slice(0, BUILD_CONFIG_MAX_FILES);
 }
-function stageVerdictError(stage, verdict, category) {
-  const id = verdict.finding_id;
-  const behaviour = STAGE_TABLE[stage];
-  const candidate = behaviour.candidateQuestions !== null && (behaviour.mixedCandidates !== true || category === "undocumented-decision");
-  if (candidate && verdict.verdict === "accepted") {
-    return `${id}: a recovered decision is never accepted: only the owner's answer writes a record, so give it needs-human, or rejected with the reason it fails`;
-  }
-  if (stage === "decisions") {
-    if (verdict.verdict === "needs-human") return `${id}: the decisions stage asks every accepted gap as a question; give it accepted, not needs-human`;
-    if (verdict.answered !== void 0 && verdict.verdict !== "accepted") return `${id}: only an accepted verdict can be answered at the decisions stage`;
-    return void 0;
-  }
-  return verdict.answered !== void 0 && verdict.verdict !== "needs-human" ? `${id}: only a needs-human verdict can be answered` : void 0;
+function isLayerConfigPath(packetPath) {
+  return packetPath.startsWith("references/") && isLayerConfig(packetPath.split("/").at(-1) ?? "");
 }
-function candidateQuestions(run) {
-  const cap = STAGE_TABLE[run.stage].candidateQuestions;
-  if (cap === null) return void 0;
-  const ranked = run.findings.map((finding, position) => ({ finding, position })).filter(({ finding }) => finding.verdict.verdict === "needs-human").sort((a, b) => SEVERITIES.indexOf(a.finding.severity) - SEVERITIES.indexOf(b.finding.severity) || a.position - b.position).map(({ finding }) => finding);
-  return { asked: ranked.slice(0, cap), deferred: ranked.slice(cap) };
-}
-function severityOverrideProblem(finding, verdict) {
-  const id = verdict.finding_id;
-  if (verdict.severity === void 0) {
-    return verdict.severity_reason === void 0 ? void 0 : `${id}: a severity_reason belongs to a severity override`;
-  }
-  if (finding.declared_severity === void 0) return `${id}: only a finding whose check fixes its severity can be overridden`;
-  if (verdict.severity === finding.declared_severity) return `${id}: the override repeats the declared severity ${verdict.severity}`;
-  return verdict.severity_reason === void 0 ? `${id}: a severity override needs a severity_reason` : void 0;
-}
-function openCriticalQuestions(run) {
-  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "needs-human" && f.verdict.answered !== true);
-}
-function familiesOf(run, finding) {
-  const families = run.critics.filter((critic) => finding.raised_by.includes(critic.critic_id)).map((c) => c.family);
-  return [...new Set(families)];
-}
-function isDissent(run, finding) {
-  return finding.verdict.verdict === "rejected" && !MECHANICAL_REJECTIONS.includes(finding.verdict.reason_code ?? "") && (finding.severity === "critical" || familiesOf(run, finding).length >= 2);
-}
-var FEATURE_ACCEPT_REASONS = ["test-fails", "cross-ticket-trace"];
-function verdictProblem(stage, verdict, packetFiles) {
-  return featureVerdictProblem(stage, verdict, packetFiles) ?? ticketVerdictProblem(stage, verdict);
-}
-function featureVerdictProblem(stage, verdict, packetFiles) {
-  const id = verdict.finding_id;
-  const extras = verdict.follow_up !== void 0 || verdict.trace_tickets !== void 0;
-  if (stage !== "feature-review") return extras ? `${id}: follow_up and trace_tickets belong to a feature-review verdict` : void 0;
-  if (verdict.verdict !== "accepted") return extras ? `${id}: only an accepted feature finding has a follow_up or trace_tickets` : void 0;
-  const reason = verdict.reason_code;
-  if (reason !== "test-fails" && reason !== "cross-ticket-trace") {
-    return `${id}: a feature finding is accepted only with reason_code ${FEATURE_ACCEPT_REASONS.join(" or ")}`;
-  }
-  if (reason === "cross-ticket-trace") {
-    const tickets = new Set(packetFiles.filter((file) => file.kind === "ticket").map((file) => file.path));
-    const crossed = new Set(verdict.trace_tickets ?? []);
-    if (crossed.size < 2 || [...crossed].some((path) => !tickets.has(path))) {
-      return `${id}: a cross-ticket-trace names at least two tickets of the packet in trace_tickets`;
-    }
-  } else if (verdict.trace_tickets !== void 0) {
-    return `${id}: trace_tickets belong to a cross-ticket-trace`;
-  }
-  return verdict.follow_up === void 0 ? `${id}: an accepted feature finding names its follow-up ticket in follow_up` : void 0;
-}
-var TICKET_ACCEPT_REASONS = ["test-fails", "trace-walked"];
-function ticketVerdictProblem(stage, verdict) {
-  const id = verdict.finding_id;
-  const extras = verdict.regression_test !== void 0 || verdict.fixed !== void 0;
-  if (stage !== "ticket-review") return extras ? `${id}: regression_test and fixed belong to a ticket-review verdict` : void 0;
-  if (verdict.verdict !== "accepted") return extras ? `${id}: only an accepted ticket finding has a regression_test or is fixed` : void 0;
-  const reason = verdict.reason_code;
-  if (reason !== "test-fails" && reason !== "trace-walked") {
-    return `${id}: a ticket finding is accepted only with reason_code ${TICKET_ACCEPT_REASONS.join(" or ")}`;
-  }
-  if (reason === "test-fails" && verdict.regression_test === void 0) {
-    return `${id}: a finding accepted by test-fails names the test kept in the ticket's change in regression_test`;
-  }
-  if (reason !== "test-fails" && verdict.regression_test !== void 0) return `${id}: regression_test belongs to a finding accepted by test-fails`;
-  return void 0;
-}
-function degradedTicketReview(run) {
-  return run.stage === "ticket-review" && run.degraded;
-}
-function unfixedCritical(run) {
-  if (run.stage !== "ticket-review") return [];
-  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted" && f.verdict.fixed !== true);
-}
+var DEPENDENCY_CHECKS = ["inward-import", "port-in-adapter", "infrastructure-type-in-domain", "rule-in-adapter"];
+var VERDICT_WORDS = /\b(cohesive|cohesion|leaky|leak(s|ing)?|anemic|tightly[- ]coupled|loosely[- ]coupled|clean|spaghetti|god[- ](class|object|module))\b/i;
 
-// src/contexts/critique/domain/ledger.ts
-function ledgerLines(run, recordedAt) {
-  const common = {
-    depth: run.depth,
-    flow: run.flow,
-    depth_chosen_by: run.depth_choice.chosen_by,
-    depth_measures: run.depth_choice.measures,
-    depth_signals: run.depth_choice.signals,
-    recorded_at: recordedAt.toISOString(),
-    repository: run.repository,
-    round: run.round,
-    run_id: run.run_id,
-    spec: run.spec,
-    stage: run.stage
-  };
-  const criticFields = (criticId) => {
-    const critic = run.critics.find((c) => c.critic_id === criticId);
-    return {
-      client: critic?.client,
-      critic_id: criticId,
-      family: critic?.family,
-      lens_hashes: critic?.lens_hashes,
-      lenses: critic?.lenses,
-      model: critic?.model,
-      prompt_hashes: critic?.prompt_hashes,
-      role: critic?.role
-    };
-  };
-  const runLines = run.critics.map((critic) => ({
-    type: "run",
-    ...common,
-    ...criticFields(critic.critic_id),
-    charged_usd: critic.charged_usd,
-    cost_usd: critic.cost_usd,
-    duration_ms: critic.duration_ms,
-    exit_code: critic.exit_code,
-    failure: critic.failure ?? null,
-    finding_count: critic.finding_count,
-    retry_of: critic.retry_of ?? null,
-    status: critic.status,
-    ...critic.vibe_cost_usd === void 0 ? {} : { vibe_cost_usd: critic.vibe_cost_usd }
-  }));
-  const findingLines = run.findings.map((finding) => ({
-    type: "finding",
-    ...common,
-    ...criticFields(finding.raised_by[0] ?? ""),
-    category: finding.category,
-    /** The lens check or role rule the finding names, so stats can count precision per check; free text stays out. */
-    check: isCheckId(finding.check) ? finding.check : null,
-    evidence_kinds: finding.evidence.map((e) => e.kind),
-    finding_id: finding.id,
-    /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */
-    pre_verdict: finding.pre_verdict?.reason_code ?? null,
-    /** Whether the owner answered a needs-human question before the run was recorded. */
-    answered: finding.verdict.answered === true,
-    raised_by: finding.raised_by,
-    raised_by_families: familiesOf(run, finding),
-    reason_code: finding.verdict.reason_code ?? null,
-    /** The severity as recorded: the check's, the critic's, or the orchestrator's override. */
-    severity: finding.severity,
-    /** The severity the finding's check fixed, so stats can measure how often the orchestrator overrides it. */
-    declared_severity: finding.declared_severity ?? null,
-    severity_override: finding.verdict.severity ?? null,
-    severity_reason: finding.verdict.severity_reason ?? null,
-    verdict: finding.verdict.verdict
-  }));
-  return [...runLines, ...findingLines].map((line2) => JSON.stringify(line2));
-}
-var SKIPPED_LOW_RISK = "skipped-low-risk";
-var FLOW_EVENTS = ["grilled", "no-critique", "landed", "answered", "draft"];
-function flowEventLine(event, context) {
-  return JSON.stringify({ type: "flow", ...context, ...event });
-}
-var EMPTY_LEDGER = { findings: [], flow_events: [], runs: [], skipped_reviews: [] };
-function parseLedger(text) {
-  const runs = [];
-  const findings = [];
-  const skipped = [];
-  const events = [];
-  text.split("\n").forEach((line2, index) => {
-    if (line2.trim() === "") return;
-    const fields = JsonFields.of(parseLine(line2, index + 1), `line ${String(index + 1)}`);
-    const type = fields.string("type");
-    if (type === "run" && fields.optionalString("status") === SKIPPED_LOW_RISK) skipped.push(readSkippedReview(fields));
-    else if (type === "run") runs.push(readCriticRunLine(fields));
-    if (type === "finding") findings.push(readFindingLine(fields));
-    if (type === "flow") events.push(readFlowEvent(fields));
-  });
-  return { findings, flow_events: events, runs, skipped_reviews: skipped };
-}
-function readSkippedReview(fields) {
+// src/contexts/critique/domain/triage.ts
+function readTriageRules(fields) {
+  const model = fields.object("model");
   return {
-    flow: fields.string("flow"),
-    recorded_at: fields.string("recorded_at"),
-    repository: fields.string("repository"),
-    run_id: fields.string("run_id"),
-    ticket: fields.string("ticket")
-  };
-}
-function readFlowEvent(fields) {
-  const context = { flow: fields.string("flow"), recorded_at: fields.string("recorded_at"), repository: fields.string("repository") };
-  const event = fields.oneOf("event", FLOW_EVENTS);
-  if (event === "no-critique") return { ...context, event, value: fields.boolean("value") };
-  if (event === "landed") return { ...context, event, ticket: fields.string("ticket") };
-  if (event === "answered") return { ...context, event, finding_id: fields.string("finding_id"), run_id: fields.string("run_id") };
-  if (event === "draft") return { ...context, draft: fields.string("draft"), event };
-  return { ...context, event };
-}
-function parseLine(line2, number) {
-  try {
-    return JSON.parse(line2);
-  } catch {
-    throw new JsonShapeError(`line ${String(number)} is not JSON`);
-  }
-}
-function readContext(fields) {
-  return {
-    recorded_at: fields.string("recorded_at"),
-    repository: fields.string("repository"),
-    run_id: fields.string("run_id"),
-    spec: fields.optionalString("spec"),
-    flow: fields.optionalString("flow"),
-    round: fields.has("round") ? fields.number("round") : 1,
-    stage: fields.oneOf("stage", CRITIQUE_STAGES)
-  };
-}
-function readCriticRunLine(fields) {
-  const hashes = fields.object("prompt_hashes");
-  return {
-    ...readContext(fields),
-    client: fields.string("client"),
-    cost_usd: fields.nullableNumber("cost_usd"),
-    critic_id: fields.string("critic_id"),
-    failure: fields.nullableString("failure"),
-    finding_count: fields.has("finding_count") ? fields.number("finding_count") : 0,
-    lens_hashes: fields.stringMap("lens_hashes"),
-    lenses: fields.strings("lenses"),
-    model: fields.string("model"),
-    prompt_hashes: {
-      contract: hashes.string("contract"),
-      preamble: hashes.string("preamble"),
-      role: hashes.string("role"),
-      schema: hashes.string("schema")
+    changed_lines_threshold: fields.number("changed_lines_threshold"),
+    labels: fields.strings("labels"),
+    model: {
+      client: model.string("client"),
+      max_price_usd: model.number("max_price_usd"),
+      time_limit_s: model.number("time_limit_s")
     },
-    role: fields.string("role"),
-    status: fields.oneOf("status", CRITIC_STATUSES)
+    risk_paths: fields.strings("risk_paths")
   };
 }
-function readFindingLine(fields) {
+function codeChange(diff, paths) {
+  return { changed_lines: countChangedLines(diff), paths };
+}
+function riskSignals(change, labels, rules) {
+  const carried = new Set(labels.map((label) => label.toLowerCase()));
+  return [
+    ...change.paths.flatMap((path) => {
+      const glob = rules.risk_paths.find((candidate) => matchesGlob(path, candidate));
+      return glob === void 0 ? [] : [{ glob, kind: "risk-path", path }];
+    }),
+    ...change.changed_lines > rules.changed_lines_threshold ? [{ changed_lines: change.changed_lines, kind: "size", threshold: rules.changed_lines_threshold }] : [],
+    ...rules.labels.filter((label) => carried.has(label.toLowerCase())).map((label) => ({ kind: "label", label }))
+  ];
+}
+function riskPathHits(change, rules) {
+  return change.paths.filter((path) => rules.risk_paths.some((glob) => matchesGlob(path, glob))).length;
+}
+function matchesGlob(path, glob) {
+  return globPattern(glob).test(path);
+}
+function globPattern(glob) {
+  let pattern = "";
+  let braces = 0;
+  for (let i = 0; i < glob.length; i += 1) {
+    const char = glob.charAt(i);
+    if (glob.startsWith("**/", i)) {
+      pattern += "(?:.*/)?";
+      i += 2;
+    } else if (glob.startsWith("/**", i) && i + 3 === glob.length) {
+      pattern += "(?:/.*)?";
+      i += 2;
+    } else if (glob.startsWith("**", i)) {
+      pattern += ".*";
+      i += 1;
+    } else if (char === "*") pattern += "[^/]*";
+    else if (char === "?") pattern += "[^/]";
+    else if (char === "{") {
+      braces += 1;
+      pattern += "(?:";
+    } else if (char === "}" && braces > 0) {
+      braces -= 1;
+      pattern += ")";
+    } else if (char === "," && braces > 0) pattern += "|";
+    else pattern += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`^${pattern}$`);
+}
+function countChangedLines(diff) {
+  let header = false;
+  let count2 = 0;
+  for (const line2 of diff.split("\n")) {
+    if (line2.startsWith("diff --git ")) header = true;
+    else if (header && (line2.startsWith("+++ ") || line2.startsWith("@@"))) header = false;
+    else if (!header && (line2.startsWith("+") || line2.startsWith("-"))) count2 += 1;
+  }
+  return count2;
+}
+function readTriageAnswer(text) {
+  const word = text.trim().toLowerCase().replace(/^[\s*_`"']+|[\s*_`"'.!]+$/g, "");
+  return word === "yes" || word === "no" ? word : void 0;
+}
+function triageSummary(decision, signal, client) {
+  const model = `no risk rule fired, and the triage model (${client})`;
+  switch (signal.kind) {
+    case "risk-path":
+      return `Triage: risky: ${signal.path} matches the risk path ${signal.glob}.`;
+    case "size":
+      return `Triage: risky: ${String(signal.changed_lines)} changed lines, above the threshold of ${String(signal.threshold)}.`;
+    case "label":
+      return `Triage: risky: the ticket carries the label ${signal.label}.`;
+    case "model":
+      return decision === "risky" ? `Triage: risky: ${model} answered yes.` : `Triage: low-risk: ${model} answered no, so the review is skipped.`;
+    case "model-unavailable":
+      return `Triage: risky: ${model} could not answer: ${signal.detail}.`;
+  }
+}
+function triageLedgerLine(record) {
   return {
-    ...readContext(fields),
-    answered: fields.has("answered") && fields.boolean("answered"),
-    finding_id: fields.string("finding_id"),
-    pre_verdict: fields.nullableString("pre_verdict"),
-    severity: fields.oneOf("severity", SEVERITIES),
-    raised_by: fields.strings("raised_by"),
-    verdict: fields.oneOf("verdict", VERDICTS)
+    type: record.status === "low-risk" ? "run" : "triage",
+    recorded_at: record.recorded_at,
+    repository: record.repository,
+    flow: record.flow,
+    run_id: record.run_id,
+    stage: "ticket-review",
+    status: record.status === "low-risk" ? "skipped-low-risk" : "risky",
+    ticket: record.ticket.reference,
+    triage_signal: ledgerSignal(record.signal),
+    risk_signals: record.signals.map(ledgerSignal),
+    changed_files: record.change.changed_files,
+    changed_lines: record.change.changed_lines,
+    changed_lines_threshold: record.change.changed_lines_threshold,
+    client: record.model?.client ?? null,
+    model: record.model?.model ?? null,
+    answer: record.model?.answer ?? null,
+    cost_usd: record.model?.cost_usd ?? null,
+    charged_usd: record.model?.charged_usd ?? 0,
+    prompt_hash: record.prompt_hash
   };
 }
-
-// src/contexts/critique/application/ledger-source.ts
-var LedgerSource = class {
-  constructor(deps) {
-    this.deps = deps;
-  }
-  deps;
-  async read() {
-    const own = await this.text(ledgerPath(this.deps.env));
-    const gateway = gatewayLedgerLines(await this.text(ledgerPath2(this.deps.env)));
-    const ledger = decoded("invalid-ledger", ledgerPath(this.deps.env), () => own === "" ? EMPTY_LEDGER : parseLedger(own));
-    return {
-      invocations: merge(invocationLines(own), gateway.invocations, (line2) => `${line2.run_id ?? ""} ${line2.critic_id} ${line2.kind}`),
-      ledger: {
-        findings: ledger.findings,
-        flow_events: ledger.flow_events,
-        runs: merge(ledger.runs, gateway.runs, (run) => `${run.run_id} ${run.critic_id}`),
-        skipped_reviews: ledger.skipped_reviews
-      },
-      recorded_runs: ledger.runs
-    };
-  }
-  async text(path) {
-    return await this.deps.files.exists(path) ? this.deps.files.readText(path) : "";
-  }
-};
-function merge(own, gateway, key2) {
-  const seen = new Set(own.map(key2));
-  return [...own, ...gateway.filter((line2) => !seen.has(key2(line2)))];
+function ledgerSignal(signal) {
+  if (signal.kind === "risk-path") return { glob: signal.glob, kind: signal.kind };
+  if (signal.kind === "model-unavailable") return { kind: signal.kind, reason: signal.reason };
+  return signal;
 }
 
-// src/contexts/critique/application/budget.ts
-var FlowBudget = class {
-  constructor(deps) {
-    this.deps = deps;
-    this.source = new LedgerSource(deps);
-  }
-  deps;
-  source;
-  /** What the Vibe critics were charged under each of a feature's flow keys. */
-  async vibeSpendByFlow(repository, flows) {
-    return spendByFlow(await this.lines(), repository, flows);
-  }
-  /** agy launches on this machine today. */
-  async agyInvocationsToday() {
-    return agyInvocationsOn(await this.lines(), this.deps.clock.now());
-  }
-  /**
-   * Records one launch: critique's own invocation line, and the gateway's
-   * record of the run, which carries the gateway's fields beside critique's.
-   * `spec` is the spec the run belongs to, where it has one. A gateway ledger
-   * that will not take the record is not the stage's failure — the critics
-   * have already run and spent money — so the message comes back for the
-   * stage's summary instead of throwing.
-   */
-  async logInvocation(manifest, run, client, spec) {
-    const at = this.deps.clock.now().toISOString();
-    const line2 = {
-      charged_usd: run.charged_usd,
-      client: run.client,
-      critic_id: run.critic_id,
-      family: run.family,
-      flow: manifest.flow,
-      kind: client.kind,
-      model: run.model,
-      recorded_at: at,
-      repository: manifest.repository,
-      round: manifest.round,
-      run_id: manifest.run_id,
-      stage: manifest.stage,
-      status: run.status,
-      type: "invocation",
-      ...run.vibe_cost_usd === void 0 ? {} : { vibe_cost_usd: run.vibe_cost_usd }
-    };
-    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line2)}
+// src/contexts/critique/domain/diff-filter.ts
+var LEFT_OUT_PREFIX = "Left out of this diff: ";
+var HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+function filterDiff(diff, leftOut) {
+  const kept2 = [];
+  const left = [];
+  for (const section2 of parseDiff(diff)) {
+    const reason = section2.path === void 0 ? void 0 : leftOut(section2.path);
+    if (section2.path === void 0 || reason === void 0) {
+      kept2.push(sectionText(section2));
+      continue;
+    }
+    const changed = countChangedLines(sectionText(section2));
+    left.push({ changed_lines: changed, path: section2.path, reason });
+    kept2.push(`${LEFT_OUT_PREFIX}${section2.path}, ${reason}; its ${String(changed)} changed lines are not shown.
 `);
-    try {
-      await this.deps.ledger.append(
-        critiqueLedgerRecord(
-          {
-            flow: manifest.flow,
-            repository: manifest.repository,
-            round: manifest.round,
-            run_id: manifest.run_id,
-            stage: manifest.stage,
-            ...spec === void 0 ? {} : { spec }
-          },
-          run,
-          client,
-          at
-        )
-      );
-    } catch (error) {
-      return error instanceof Error ? error.message : String(error);
-    }
-    return void 0;
   }
-  async lines() {
-    return (await this.source.read()).invocations;
-  }
-};
-
-// src/contexts/critique/application/flow-state.ts
-import { join as join12 } from "node:path";
-
-// src/contexts/critique/domain/feature-review.ts
-function gateLine(criticalOpen) {
-  return criticalOpen === 0 ? "GATE: PASS" : `GATE: FAIL (${String(criticalOpen)} critical)`;
+  return { diff: kept2.join(""), left_out: left };
 }
-function openCriticalFollowUps(runId2, current, earlier, isOpen2) {
-  const critical = [
-    ...current.map((followUp) => ({ followUp, from: runId2 })),
-    ...earlier.flatMap((record) => record.follow_ups.map((followUp) => ({ followUp, from: record.run_id })))
-  ].filter(({ followUp }) => followUp.severity === "critical");
-  const seen = /* @__PURE__ */ new Set();
-  const open2 = [];
-  for (const { followUp, from } of critical) {
-    if (seen.has(followUp.reference)) continue;
-    seen.add(followUp.reference);
-    if (isOpen2(followUp.reference)) {
-      open2.push({ finding_id: followUp.finding_id, reference: followUp.reference, run_id: from, ticket: followUp.ticket });
+function parseDiff(diff) {
+  const sections = [];
+  for (const line2 of diff.split(/(?<=\n)/)) {
+    const bare = line2.replace(/\n$/, "");
+    const current = sections.at(-1);
+    const hunk = HUNK_HEADER.exec(bare);
+    if (bare.startsWith("diff --git ") || bare.startsWith(LEFT_OUT_PREFIX) || current === void 0) {
+      sections.push({ header: line2, hunks: [], path: void 0 });
+    } else if (hunk !== null) {
+      current.hunks.push({ new: side(hunk[3], hunk[4]), old: side(hunk[1], hunk[2]), text: line2 });
+    } else {
+      const last = current.hunks.at(-1);
+      if (last === void 0) current.header += line2;
+      else current.hunks[current.hunks.length - 1] = { ...last, text: last.text + line2 };
     }
   }
-  return open2;
+  return sections.map((section2) => ({ ...section2, path: section2.header.startsWith("diff --git ") ? headerPath(section2.header) : void 0 }));
 }
-function parseGateRecord(text) {
-  const file = JsonFields.parse(text);
-  return {
-    base_commit: file.string("base_commit"),
-    critical_open: file.number("critical_open"),
-    follow_ups: file.list("follow_ups", (followUp) => ({
-      finding_id: followUp.string("finding_id"),
-      open: followUp.boolean("open"),
-      reference: followUp.string("reference"),
-      severity: followUp.oneOf("severity", SEVERITIES),
-      ticket: followUp.string("ticket")
-    })),
-    gate: file.oneOf("gate", ["pass", "fail"]),
-    head_commit: file.string("head_commit"),
-    line: file.string("line"),
-    open_critical: file.list("open_critical", (followUp) => ({
-      finding_id: followUp.string("finding_id"),
-      reference: followUp.string("reference"),
-      run_id: followUp.string("run_id"),
-      ticket: followUp.string("ticket")
-    })),
-    recorded_at: file.string("recorded_at"),
-    repository: file.string("repository"),
-    run_id: file.string("run_id"),
-    spec: file.string("spec"),
-    stage: file.literal("stage", "feature-review"),
-    version: file.literal("version", 1)
+function sectionText(section2) {
+  return section2.header + section2.hunks.map((hunk) => hunk.text).join("");
+}
+function side(start, count2) {
+  return { count: count2 === void 0 ? 1 : Number(count2), start: Number(start) };
+}
+function headerPath(header) {
+  const lines = header.replace(/\n$/, "").split("\n");
+  const field = (prefix, strip) => {
+    const line2 = lines.find((entry2) => entry2.startsWith(prefix));
+    if (line2 === void 0) return void 0;
+    const path = unquote(line2.slice(prefix.length).replace(/\t$/, ""));
+    return path === "/dev/null" || !path.startsWith(strip) ? void 0 : path.slice(strip.length);
   };
+  return field("+++ ", "b/") ?? field("rename to ", "") ?? field("copy to ", "") ?? field("--- ", "a/") ?? gitLinePath(lines[0] ?? "");
 }
-var CLOSED_STATUSES = ["closed", "done", "resolved", "wontfix"];
-function localTicketOpen(text) {
-  const status = /^[ \t>]*\**Status\**[ \t]*:\**[ \t]*(.*)$/im.exec(text)?.[1];
-  const value = status?.replace(/[*_`]/g, "").trim().toLowerCase();
-  return value === void 0 || !CLOSED_STATUSES.includes(value);
+function gitLinePath(line2) {
+  const rest = line2.slice("diff --git ".length);
+  if (rest.startsWith('"')) {
+    const second = rest.slice(quotedLength(rest) + 1);
+    const path2 = unquote(second);
+    return path2.startsWith("b/") ? path2.slice(2) : void 0;
+  }
+  const length = (rest.length - 5) / 2;
+  const path = rest.slice(2, 2 + length);
+  return rest === `a/${path} b/${path}` ? path : void 0;
+}
+function quotedLength(text) {
+  let i = 1;
+  while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
+  return i + 1;
+}
+var ESCAPES = { '"': 34, "\\": 92, a: 7, b: 8, f: 12, n: 10, r: 13, t: 9, v: 11 };
+function unquote(text) {
+  if (!text.startsWith('"') || !text.endsWith('"') || text.length < 2) return text;
+  const bytes2 = [];
+  const body = text.slice(1, -1);
+  for (let i = 0; i < body.length; i += 1) {
+    const char = body[i] ?? "";
+    if (char !== "\\") {
+      bytes2.push(...new TextEncoder().encode(char));
+      continue;
+    }
+    const octal = /^[0-7]{3}/.exec(body.slice(i + 1));
+    if (octal !== null) {
+      bytes2.push(parseInt(octal[0], 8));
+      i += 3;
+      continue;
+    }
+    const next = body[i + 1] ?? "";
+    bytes2.push(ESCAPES[next] ?? next.charCodeAt(0));
+    i += 1;
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes2));
+}
+
+// src/contexts/critique/domain/diff-window.ts
+var FILE_KINDS = ["source", "test", "doc"];
+var TEST_PATH = /(^|\/)(tests?|__tests__|specs?)\/|[._-](test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$/;
+var DOC_PATH = /(^|\/)docs?\/|\.(md|mdx|markdown|rst|adoc|txt)$/i;
+function fileKind(path) {
+  if (TEST_PATH.test(path)) return "test";
+  return DOC_PATH.test(path) ? "doc" : "source";
+}
+var DIFF_WINDOW_NOTICE = "The packet cap left hunks out of this diff; facts/INDEX.md lists each one by file and line.\n";
+function windowDiff(diff, budget) {
+  const sections = parseDiff(diff);
+  const files = rankFiles(sections.filter((section2) => section2.path !== void 0));
+  const standing = sections.filter((section2) => section2.path === void 0).map(sectionText);
+  let remaining = budget;
+  const kept2 = [];
+  const dropped = [];
+  for (const file of files) {
+    const pieces = file.hunks.length === 0 ? [void 0] : file.hunks;
+    const sent = [];
+    const left = [];
+    for (const hunk of pieces) {
+      const cost = bytes(hunk?.text ?? "") + (sent.length === 0 ? bytes(file.header) : 0);
+      const fits2 = cost <= remaining;
+      if (fits2) remaining -= cost;
+      if (hunk === void 0) {
+        if (fits2) kept2.push(file.header);
+        else dropped.push({ hunks: [], path: file.path });
+        continue;
+      }
+      ;
+      (fits2 ? sent : left).push(hunk);
+    }
+    if (sent.length > 0) kept2.push(file.header + sent.map((hunk) => hunk.text).join(""));
+    if (left.length > 0) dropped.push({ hunks: left, path: file.path });
+  }
+  return { diff: [DIFF_WINDOW_NOTICE, ...kept2, ...standing].join(""), dropped };
+}
+function rankFiles(files) {
+  const changed = (file) => file.hunks.reduce((sum3, hunk) => sum3 + countChangedLines(hunk.text), 0);
+  return [...files].sort(
+    (a, b) => FILE_KINDS.indexOf(fileKind(a.path)) - FILE_KINDS.indexOf(fileKind(b.path)) || changed(b) - changed(a) || (a.path < b.path ? -1 : 1)
+  );
+}
+function diffDropLine(drop) {
+  if (drop.hunks.length === 0) return `- \`${drop.path}\`: its whole section, which has no hunks`;
+  const head = drop.hunks.filter((hunk) => hunk.new.count > 0).map((hunk) => span(hunk.new.start, hunk.new.count));
+  const base = drop.hunks.filter((hunk) => hunk.new.count === 0).map((hunk) => span(hunk.old.start, hunk.old.count));
+  const parts = [...head.length === 0 ? [] : [`lines ${head.join(", ")}`], ...base.length === 0 ? [] : [`base lines ${base.join(", ")}`]];
+  return `- \`${drop.path}\`: ${parts.join("; ")}`;
+}
+function span(start, count2) {
+  return count2 === 1 ? String(start) : `${String(start)}-${String(start + count2 - 1)}`;
+}
+function diffShownLines(diff) {
+  const shown = /* @__PURE__ */ new Map();
+  for (const section2 of parseDiff(diff)) {
+    if (section2.path === void 0) continue;
+    const ranges = section2.hunks.flatMap((hunk) => {
+      const side2 = hunk.new.count > 0 ? hunk.new : hunk.new.start === 0 ? hunk.old : void 0;
+      return side2 === void 0 || side2.count === 0 ? [] : [{ first: side2.start, last: side2.start + side2.count - 1 }];
+    });
+    shown.set(section2.path, [...shown.get(section2.path) ?? [], ...ranges]);
+  }
+  return new Map([...shown].map(([path, ranges]) => [path, mergeRanges(ranges)]));
 }
 
 // src/contexts/critique/domain/manifest.ts
@@ -4353,125 +4253,6 @@ function groupLines(drops, k) {
 }
 function line(key2, count2, size, reason) {
   return `- \`${key2}\` (${String(count2)} ${count2 === 1 ? "file" : "files"}, ${String(size)} bytes): ${reason}`;
-}
-
-// src/contexts/critique/domain/triage.ts
-function readTriageRules(fields) {
-  const model = fields.object("model");
-  return {
-    changed_lines_threshold: fields.number("changed_lines_threshold"),
-    labels: fields.strings("labels"),
-    model: {
-      client: model.string("client"),
-      max_price_usd: model.number("max_price_usd"),
-      time_limit_s: model.number("time_limit_s")
-    },
-    risk_paths: fields.strings("risk_paths")
-  };
-}
-function codeChange(diff, paths) {
-  return { changed_lines: countChangedLines(diff), paths };
-}
-function riskSignals(change, labels, rules) {
-  const carried = new Set(labels.map((label) => label.toLowerCase()));
-  return [
-    ...change.paths.flatMap((path) => {
-      const glob = rules.risk_paths.find((candidate) => matchesGlob(path, candidate));
-      return glob === void 0 ? [] : [{ glob, kind: "risk-path", path }];
-    }),
-    ...change.changed_lines > rules.changed_lines_threshold ? [{ changed_lines: change.changed_lines, kind: "size", threshold: rules.changed_lines_threshold }] : [],
-    ...rules.labels.filter((label) => carried.has(label.toLowerCase())).map((label) => ({ kind: "label", label }))
-  ];
-}
-function riskPathHits(change, rules) {
-  return change.paths.filter((path) => rules.risk_paths.some((glob) => matchesGlob(path, glob))).length;
-}
-function matchesGlob(path, glob) {
-  return globPattern(glob).test(path);
-}
-function globPattern(glob) {
-  let pattern = "";
-  let braces = 0;
-  for (let i = 0; i < glob.length; i += 1) {
-    const char = glob.charAt(i);
-    if (glob.startsWith("**/", i)) {
-      pattern += "(?:.*/)?";
-      i += 2;
-    } else if (glob.startsWith("/**", i) && i + 3 === glob.length) {
-      pattern += "(?:/.*)?";
-      i += 2;
-    } else if (glob.startsWith("**", i)) {
-      pattern += ".*";
-      i += 1;
-    } else if (char === "*") pattern += "[^/]*";
-    else if (char === "?") pattern += "[^/]";
-    else if (char === "{") {
-      braces += 1;
-      pattern += "(?:";
-    } else if (char === "}" && braces > 0) {
-      braces -= 1;
-      pattern += ")";
-    } else if (char === "," && braces > 0) pattern += "|";
-    else pattern += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  }
-  return new RegExp(`^${pattern}$`);
-}
-function countChangedLines(diff) {
-  let header = false;
-  let count2 = 0;
-  for (const line2 of diff.split("\n")) {
-    if (line2.startsWith("diff --git ")) header = true;
-    else if (header && (line2.startsWith("+++ ") || line2.startsWith("@@"))) header = false;
-    else if (!header && (line2.startsWith("+") || line2.startsWith("-"))) count2 += 1;
-  }
-  return count2;
-}
-function readTriageAnswer(text) {
-  const word = text.trim().toLowerCase().replace(/^[\s*_`"']+|[\s*_`"'.!]+$/g, "");
-  return word === "yes" || word === "no" ? word : void 0;
-}
-function triageSummary(decision, signal, client) {
-  const model = `no risk rule fired, and the triage model (${client})`;
-  switch (signal.kind) {
-    case "risk-path":
-      return `Triage: risky: ${signal.path} matches the risk path ${signal.glob}.`;
-    case "size":
-      return `Triage: risky: ${String(signal.changed_lines)} changed lines, above the threshold of ${String(signal.threshold)}.`;
-    case "label":
-      return `Triage: risky: the ticket carries the label ${signal.label}.`;
-    case "model":
-      return decision === "risky" ? `Triage: risky: ${model} answered yes.` : `Triage: low-risk: ${model} answered no, so the review is skipped.`;
-    case "model-unavailable":
-      return `Triage: risky: ${model} could not answer: ${signal.detail}.`;
-  }
-}
-function triageLedgerLine(record) {
-  return {
-    type: record.status === "low-risk" ? "run" : "triage",
-    recorded_at: record.recorded_at,
-    repository: record.repository,
-    flow: record.flow,
-    run_id: record.run_id,
-    stage: "ticket-review",
-    status: record.status === "low-risk" ? "skipped-low-risk" : "risky",
-    ticket: record.ticket.reference,
-    triage_signal: ledgerSignal(record.signal),
-    risk_signals: record.signals.map(ledgerSignal),
-    changed_files: record.change.changed_files,
-    changed_lines: record.change.changed_lines,
-    changed_lines_threshold: record.change.changed_lines_threshold,
-    client: record.model?.client ?? null,
-    model: record.model?.model ?? null,
-    answer: record.model?.answer ?? null,
-    cost_usd: record.model?.cost_usd ?? null,
-    charged_usd: record.model?.charged_usd ?? 0,
-    prompt_hash: record.prompt_hash
-  };
-}
-function ledgerSignal(signal) {
-  if (signal.kind === "risk-path") return { glob: signal.glob, kind: signal.kind };
-  if (signal.kind === "model-unavailable") return { kind: signal.kind, reason: signal.reason };
-  return signal;
 }
 
 // src/contexts/critique/domain/repository-packet.ts
@@ -5359,6 +5140,1154 @@ function readArtifactSource(artifact) {
 }
 function compactTimestamp2(at) {
   return at.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+// src/contexts/critique/domain/decision-docs.ts
+var DOMAIN_DOC = "docs/agents/domain.md";
+var GLOSSARIES = ["GLOSSARY.md", "CONTEXT.md"];
+var ADR_DIRECTORY = "docs/adr";
+function isDecisionRecord(path) {
+  return path.endsWith(".md") && path.split("/").at(-2) === "adr";
+}
+var CONTEXT_MAP = "CONTEXT-MAP.md";
+function namedPaths2(markdown) {
+  const prose2 = withoutFences(markdown);
+  const candidates = [...prose2.matchAll(/`([^`\n]+)`|\]\(([^)\s]+)\)/g)].map((match) => match[1] ?? match[2] ?? "");
+  const paths = candidates.map((candidate) => candidate.trim().replace(/^\.\//, "").replace(/\/+$/, "")).filter((candidate) => /^[\w.-]+(\/[\w.-]+)*$/.test(candidate) && !candidate.split("/").includes(".."));
+  return [...new Set(paths)];
+}
+var NOT_RECORDS = [...GLOSSARIES, CONTEXT_MAP];
+var NOT_IN_FORCE = ["proposed", "rejected", "superseded", "deprecated"];
+function inForce(record) {
+  const status = recordStatus(record);
+  return status === void 0 || !NOT_IN_FORCE.includes(status);
+}
+function recordStatus(record) {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? "";
+  const prose2 = withoutFences(record);
+  const match = /^status[ \t]*:[ \t]*["']?([A-Za-z]+)/im.exec(frontmatter) ?? /^(?:[-*+][ \t]+)?(?:\*\*|__)?status(?:\*\*|__)?[ \t]*:[ \t]*(?:\*\*|__)?[ \t]*([A-Za-z]+)/im.exec(prose2) ?? /^#{1,6}[ \t]+status[ \t]*\r?\n\s*[^A-Za-z\n]*([A-Za-z]+)/im.exec(prose2);
+  return match?.[1]?.toLowerCase();
+}
+function withoutFences(markdown) {
+  return markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
+}
+function decisionDate(record) {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? "";
+  const prose2 = withoutFences(record);
+  return /^date[ \t]*:[ \t]*["']?(\d{4}-\d{2}-\d{2})/im.exec(frontmatter)?.[1] ?? /^[ \t]*(?:[-*+][ \t]+)?(?:\*\*|__)?date(?:[ \t]*:[ \t]*(?:\*\*|__)?|(?:\*\*|__)[ \t]*:?)[ \t]*(\d{4}-\d{2}-\d{2})/im.exec(prose2)?.[1];
+}
+
+// src/contexts/critique/domain/refactoring-plan.ts
+var PLAN_SECTIONS = ["Goal", "Target", "Safety net", "Steps", "Not doing", "Open decisions"];
+var PLAN_FIELDS = [
+  "Kind",
+  "Technique",
+  "Anchor",
+  "Touches",
+  "Safety net",
+  "Main stays green because",
+  "Rollback",
+  "Transitional element",
+  "Blocked by",
+  "Done when"
+];
+var PLAN_KINDS = ["characterize", "tidy", "structure", "behaviour", "expand", "migrate", "contract", "remove-transitional"];
+function planCheckStatus(check) {
+  return check.errors.length > 0 ? "failed" : "passed";
+}
+var STEP_HEADING = /^###[ \t]+(S\d+)[ \t]*:[ \t]*(.*?)[ \t]*$/;
+var FIELD_LINE = /^[-*][ \t]+\*\*([^*]+?)(:)?\*\*[ \t]*(:)?[ \t]*(.*)$/;
+var STEP_ID = /\bS\d+\b/g;
+var NONE = /^\W*(?:none|n\/a|nothing)\W*$/i;
+var UNTESTED = /^\W*none\b|\b(?:untested|not tested|no (?:existing )?tests?|nothing covers)\b/i;
+var STORED_DATA = /\b(?:tables?|columns?|migrations?|schemas?|databases?|stored data)\b/i;
+var URL2 = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi;
+var EXTENSIONS = "ts|tsx|js|mjs|cjs|jsx|py|kt|java|go|rs|rb|sh|md|json|ya?ml|toml|sql|css|html";
+var PATH_LIKE = new RegExp(
+  `(?:[\\w@.-]+/)+[\\w@-]+\\.[A-Za-z]\\w{0,5}\\b|(?:[\\w@.-]+/){2,}[\\w@.-]+|(?<![\\w.-])[a-z_][\\w-]*\\.(?:${EXTENSIONS})\\b`,
+  "g"
+);
+var FACT_ANCHOR = new RegExp(`\`([^\`]+)\``, "g");
+var ADR_ID = /\bADR[- ]?(\d{1,5})\b/gi;
+var PREREQUISITE = /\bprerequisite-of:[ \t]*(S\d+)\b/gi;
+function pathsIn(text) {
+  return text.replace(URL2, " ").match(PATH_LIKE) ?? [];
+}
+function sectionsOf(lines, errors) {
+  const sections = /* @__PURE__ */ new Map();
+  let current;
+  for (const line2 of lines) {
+    const heading = /^##[ \t]+(.*?)[ \t]*$/.exec(line2);
+    if (heading === null) {
+      current?.push(line2);
+      continue;
+    }
+    const name = PLAN_SECTIONS.find((section2) => section2.toLowerCase() === heading[1]?.toLowerCase());
+    if (name === void 0) {
+      errors.push({ message: `the plan has an unknown section "## ${heading[1] ?? ""}"; its content is not checked`, rule: "unknown-section" });
+      current = void 0;
+    } else if (sections.has(name)) {
+      errors.push({ message: `the plan has more than one "## ${name}" section; its second content is not checked`, rule: "duplicate-section" });
+      current = void 0;
+    } else {
+      current = [];
+      sections.set(name, current);
+    }
+  }
+  return sections;
+}
+function fieldsOf(lines) {
+  const fields = /* @__PURE__ */ new Map();
+  const duplicates = [];
+  const prose2 = [];
+  let current;
+  for (const line2 of lines) {
+    const field = FIELD_LINE.exec(line2);
+    const name = field === null ? void 0 : PLAN_FIELDS.find((known) => known.toLowerCase() === field[1]?.trim().toLowerCase());
+    if (line2.trim() === "") continue;
+    if (field !== null && name !== void 0 && (field[2] !== void 0 || field[3] !== void 0)) {
+      current = { items: [], text: [field[4] ?? ""] };
+      if (fields.has(name)) duplicates.push(name);
+      else fields.set(name, current);
+    } else if (current !== void 0 && /^[ \t]+\S/.test(line2)) {
+      const bullet = /^[ \t]+[-*][ \t]+(.*)$/.exec(line2);
+      if (bullet === null) current.text.push(line2.trim());
+      else current.items.push((bullet[1] ?? "").trim());
+    } else {
+      current = void 0;
+      prose2.push(line2);
+    }
+  }
+  return {
+    duplicates,
+    fields: new Map(
+      [...fields].map(([name, { text, items }]) => {
+        const joined2 = text.join(" ").trim();
+        return [name, { items, text: joined2, value: [joined2, ...items].join(" ").trim() }];
+      })
+    ),
+    prose: prose2
+  };
+}
+function parseSteps(lines, errors) {
+  const steps = [];
+  let current;
+  for (const line2 of lines) {
+    if (!line2.startsWith("###")) {
+      current?.lines.push(line2);
+      continue;
+    }
+    const heading = STEP_HEADING.exec(line2);
+    if (heading === null) {
+      errors.push({ message: `the heading "${line2.trim()}" is not "### S01: <title>"`, rule: "bad-step-heading" });
+      current = void 0;
+      continue;
+    }
+    const id = heading[1] ?? "";
+    if (steps.some((step) => step.id === id)) errors.push({ message: `step ${id} is defined twice`, rule: "duplicate-step", step: id });
+    current = { lines: [] };
+    steps.push({ id, lines: current.lines, title: heading[2] ?? "" });
+  }
+  return steps.map((step) => ({ ...fieldsOf(step.lines), id: step.id, title: step.title }));
+}
+function kindsIn(value) {
+  return value.split(/[\s,/|+&]+/).filter((kind) => kind !== "" && kind !== "and");
+}
+var idsIn = (text) => (text.match(STEP_ID) ?? []).map((id) => id.toUpperCase());
+function countOf(field, separator) {
+  if (field === void 0) return 0;
+  if (field.items.length > 0) return field.items.length;
+  return field.text.split(separator).filter((part) => part.trim() !== "").length;
+}
+function goalChangesBehaviour(goal) {
+  const says = /\bbehaviou?r\b[^.\n]*\b(?:chang\w*|differ\w*|alter\w*)|\b(?:chang\w*|alter\w*)\b[^.\n]*\bbehaviou?r\b/i;
+  const denied = /\b(?:no|not|never|without)\b(?:\W+\w+){0,3}?\W+behaviou?r\b|\bbehaviou?r\b(?:\W+\w+){0,2}?\W+(?:not|never)\W+(?:\w+\W+)?(?:chang|differ|alter)/i;
+  return goal.split(/(?<=[.!?])\s+|\n/).some((sentence) => says.test(sentence) && !denied.test(sentence));
+}
+function cyclesOf(edges) {
+  const index = /* @__PURE__ */ new Map();
+  const low = /* @__PURE__ */ new Map();
+  const stack = [];
+  const onStack = /* @__PURE__ */ new Set();
+  const cycles2 = [];
+  const visit = (node) => {
+    index.set(node, index.size);
+    low.set(node, index.get(node) ?? 0);
+    stack.push(node);
+    onStack.add(node);
+    for (const next of edges.get(node) ?? []) {
+      if (!index.has(next)) {
+        visit(next);
+        low.set(node, Math.min(low.get(node) ?? 0, low.get(next) ?? 0));
+      } else if (onStack.has(next)) low.set(node, Math.min(low.get(node) ?? 0, index.get(next) ?? 0));
+    }
+    if (low.get(node) === index.get(node)) {
+      const members = [];
+      for (let member = stack.pop(); member !== void 0; member = stack.pop()) {
+        onStack.delete(member);
+        members.push(member);
+        if (member === node) break;
+      }
+      if (members.length > 1 || (edges.get(node) ?? []).includes(node)) cycles2.push(members.sort());
+    }
+  };
+  for (const node of edges.keys()) if (!index.has(node)) visit(node);
+  return cycles2;
+}
+function checkPlan(text, size, adrs) {
+  const errors = [];
+  const notes = [];
+  const sections = sectionsOf(withoutFences(text).split(/\r?\n/), errors);
+  for (const name of PLAN_SECTIONS) {
+    if (!sections.has(name)) errors.push({ message: `the plan has no "## ${name}" section`, rule: "missing-section" });
+  }
+  const steps = parseSteps(sections.get("Steps") ?? [], errors);
+  if (sections.has("Steps") && steps.length === 0) errors.push({ message: "the plan has no steps", rule: "no-steps" });
+  const known = new Set(steps.map((step) => step.id));
+  const valueOf = (step, name) => step.fields.get(name)?.value ?? "";
+  const kindOf = (step) => valueOf(step, "Kind").toLowerCase();
+  const kindsOf = new Map(steps.map((step) => [step.id, kindOf(step)]));
+  const edges = new Map(steps.map((step) => [step.id, idsIn(valueOf(step, "Blocked by"))]));
+  const goal = (sections.get("Goal") ?? []).join("\n");
+  const behaviourGoal = goalChangesBehaviour(goal);
+  const stepKinds = new Set(steps.flatMap((step) => kindsIn(kindOf(step))));
+  for (const step of steps) {
+    const fail = (rule, message) => void errors.push({ message, rule, step: step.id });
+    for (const name of PLAN_FIELDS) if (valueOf(step, name) === "") fail("missing-field", `step ${step.id} has no "${name}" field`);
+    for (const name of new Set(step.duplicates)) fail("duplicate-field", `step ${step.id} gives "${name}" more than once`);
+    for (const path of pathsIn(step.prose.join(" "))) fail("path-outside-anchor", `step ${step.id} names the path ${path} outside its fields; paths belong only in fact anchors`);
+    const kinds = kindsIn(kindOf(step));
+    if (kinds.length > 1) fail("multiple-kinds", `step ${step.id} has ${String(kinds.length)} kinds (${kinds.join(", ")}); a step has exactly one`);
+    for (const kind of kinds) if (!PLAN_KINDS.includes(kind)) fail("unknown-kind", `step ${step.id} has the unknown kind "${kind}"`);
+    const blocked2 = valueOf(step, "Blocked by");
+    if (blocked2 !== "" && !NONE.test(blocked2) && idsIn(blocked2).length === 0) fail("blocked-by-unknown", `step ${step.id} is blocked by "${blocked2}", which names no step`);
+    for (const id of edges.get(step.id) ?? []) if (!known.has(id)) fail("blocked-by-unknown", `step ${step.id} is blocked by ${id}, which is no step of the plan`);
+    const transitional = valueOf(step, "Transitional element");
+    if (transitional !== "" && !NONE.test(transitional)) {
+      const removers = idsIn(transitional).filter((id) => kindsOf.get(id) === "remove-transitional");
+      if (removers.length === 0) fail("transitional-no-removal", `step ${step.id} adds a transitional element that no remove-transitional step removes`);
+    }
+    const anchor = valueOf(step, "Anchor");
+    if (anchor !== "") checkAnchor(step.id, anchor, known, adrs, errors);
+    if (kinds.includes("behaviour") && !behaviourGoal) fail("behaviour-not-in-goal", `step ${step.id} changes behaviour, but the Goal does not say behaviour changes`);
+    if (kinds.includes("structure") && UNTESTED.test(valueOf(step, "Safety net")) && !ancestorsOf(step.id, edges).some((id) => kindsOf.get(id) === "characterize")) {
+      fail("untested-structure", `step ${step.id} restructures untested code with no characterize step before it`);
+    }
+    for (const [name, field] of step.fields) {
+      if (name === "Anchor" || name === "Touches") continue;
+      for (const path of pathsIn([field.text, ...field.items].join(" "))) fail("path-outside-anchor", `step ${step.id} names the path ${path} in "${name}"; paths belong only in fact anchors`);
+    }
+    const touches = countOf(step.fields.get("Touches"), /[,;]/);
+    if (touches > size.max_modules) fail("too-many-touches", `step ${step.id} touches ${String(touches)} modules; the limit is ${String(size.max_modules)}`);
+    const criteria = countOf(step.fields.get("Done when"), /;/);
+    if (criteria > size.max_criteria) fail("too-many-criteria", `step ${step.id} has ${String(criteria)} done-when criteria; the limit is ${String(size.max_criteria)}`);
+    if (kinds.includes("expand") && !(stepKinds.has("migrate") && stepKinds.has("contract"))) {
+      const missing2 = ["migrate", "contract"].filter((kind) => !stepKinds.has(kind));
+      fail("expand-incomplete", `step ${step.id} expands, but the plan has no ${missing2.join(" or ")} step`);
+    }
+  }
+  for (const cycle of cyclesOf(edges)) {
+    const message = cycle.length === 1 ? `step ${cycle[0] ?? ""} blocks itself` : `steps ${cycle.join(", ")} block each other in a cycle`;
+    errors.push({ message, rule: "step-cycle" });
+  }
+  for (const [section2, lines] of sections) {
+    if (section2 === "Goal" || section2 === "Steps") continue;
+    for (const path of pathsIn(lines.join("\n"))) errors.push({ message: `the "${section2}" section names the path ${path}; paths belong only in fact anchors`, rule: "path-outside-anchor" });
+  }
+  if (adrs === void 0) notes.push("ADR ids were not checked against docs/adr: no repo was given");
+  const stored = steps.filter((step) => {
+    const kind = kindOf(step);
+    return (kind === "migrate" || kind === "contract") && STORED_DATA.test(`${valueOf(step, "Touches")} ${valueOf(step, "Technique")} ${step.fields.get("Touches")?.items.join(" ") ?? ""}`);
+  });
+  return {
+    errors,
+    notes,
+    steps: steps.map((step) => ({ blocked_by: edges.get(step.id) ?? [], id: step.id, kind: kindOf(step), title: step.title })),
+    stored_data_steps: stored.map((step) => step.id)
+  };
+}
+function ancestorsOf(id, edges) {
+  const seen = /* @__PURE__ */ new Set();
+  const queue = [...edges.get(id) ?? []];
+  for (let next = queue.shift(); next !== void 0; next = queue.shift()) {
+    if (seen.has(next)) continue;
+    seen.add(next);
+    queue.push(...edges.get(next) ?? []);
+  }
+  return [...seen];
+}
+function checkAnchor(step, anchor, known, adrs, errors) {
+  const fail = (rule, message) => void errors.push({ message, rule, step });
+  const prerequisites = [...anchor.matchAll(PREREQUISITE)].map((match) => (match[1] ?? "").toUpperCase());
+  const numbers = [...anchor.matchAll(ADR_ID)].map((match) => Number(match[1]));
+  const facts = [...anchor.matchAll(FACT_ANCHOR)].filter((match) => pathsIn((match[1] ?? "").split("#")[0] ?? "").length > 0);
+  if (prerequisites.length + numbers.length + facts.length === 0) fail("anchor-unresolved", `step ${step} is anchored to no fact row, ADR id or prerequisite-of:Sn`);
+  for (const id of prerequisites) if (!known.has(id)) fail("anchor-unknown-step", `step ${step} is anchored to prerequisite-of:${id}, which is no step of the plan`);
+  if (adrs === void 0) return;
+  for (const number of numbers) {
+    const id = `ADR-${String(number).padStart(4, "0")}`;
+    if (!adrs.present.has(number)) fail("adr-absent", `step ${step} is anchored to ${id}, which is not in docs/adr`);
+    else if (adrs.superseded.has(number)) fail("adr-superseded", `step ${step} is anchored to ${id}, which is superseded`);
+  }
+}
+var PLAN_RULES = [
+  "mixed-change",
+  "no-safety-net",
+  "big-bang-change",
+  "broken-main-order",
+  "no-rollback",
+  "scaffold-left",
+  "unanchored-step",
+  "stale-hotspot",
+  "adr-contradiction",
+  "closes-import-cycle",
+  "premature-service-split",
+  "single-adapter-seam",
+  "deletion-without-decision",
+  "plan-consequence",
+  // The deep roster's coupling and test-seams lenses.
+  "internals-dependence",
+  "decision-spread",
+  "unexplained-co-change",
+  "pass-through",
+  "wide-interface",
+  "needs-real-infrastructure",
+  "coupled-to-internals",
+  "no-assertion-or-pasted-value",
+  "no-fake"
+];
+var PLAN_CHECK_PATH = "check/plan.json";
+function planTarget(location, stepIds) {
+  const rule = PLAN_RULES.find((name) => new RegExp(`(?<![\\w-])${name}(?![\\w-])`, "i").test(location));
+  const step = stepIds.find((id) => new RegExp(`(?<![\\w#/])${id}(?!\\w)`, "i").test(location));
+  return { ...rule === void 0 ? {} : { rule }, ...step === void 0 ? {} : { step } };
+}
+function planStepIds(report2) {
+  try {
+    const parsed3 = JSON.parse(report2);
+    const steps = typeof parsed3 === "object" && parsed3 !== null ? parsed3.steps : void 0;
+    return Array.isArray(steps) ? steps.flatMap((step) => typeof step?.id === "string" ? [step.id] : []) : [];
+  } catch {
+    return [];
+  }
+}
+
+// src/contexts/critique/domain/evidence.ts
+function indexPacket(packet2, tickets = []) {
+  return {
+    files: packet2.map((file) => ({ ...file, normalised: normalise(file.text) })),
+    lines: new Map(packet2.map((file) => [file.path, lineCount(file.text)])),
+    shown: new Map(
+      packet2.flatMap((file) => file.kind === "diff" ? [...diffShownLines(file.text)].map(([path, ranges]) => [`${TREE_DIR}/${path}`, ranges]) : [])
+    ),
+    steps: planStepIds(packet2.find((file) => file.path === PLAN_CHECK_PATH)?.text ?? ""),
+    tickets,
+    tree: packet2.some((file) => file.kind === "tree"),
+    windows: new Map(packet2.flatMap((file) => file.window === void 0 ? [] : [[file.path, file.window]]))
+  };
+}
+var TREE_DIR = "tree";
+var DECISION_CATEGORIES = ["omission", "invention"];
+function checkEvidence(finding, stage, packet2, role) {
+  const found = evidenceFound(finding, packet2);
+  if (typeof found === "number") return fabricated(`evidence ${String(found + 1)} quotes text that is not in the packet`);
+  if (isCodeStage(stage) || packet2.tree) {
+    const missing2 = missingLine(finding, packet2);
+    if (missing2 !== void 0) return fabricated(missing2);
+  }
+  const rule = evidenceRule(stage, role);
+  if (rule === "recovery") return recoveryVerdict(finding, found, packet2);
+  const hint = found.items === 0 ? "no-evidence" : EVIDENCE_RULES[rule](finding, found, packet2);
+  return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
+}
+function evidenceFound(finding, packet2) {
+  const found = { decision: false, fact: false, history: false, items: finding.evidence.length, scenario: false, spec: false };
+  for (const [index, evidence] of finding.evidence.entries()) {
+    if (evidence.kind !== "quote") {
+      found.scenario = true;
+      continue;
+    }
+    const quote = normalise(evidence.value);
+    const holders = packet2.files.filter((file) => file.normalised.includes(quote));
+    if (holders.length === 0) return index;
+    found.spec ||= holders.some((file) => file.kind === "artifact");
+    found.decision ||= holders.some((file) => file.kind === "reference");
+    found.fact ||= holders.some((file) => file.kind === "fact");
+    found.history ||= holders.some((file) => file.kind === "history");
+  }
+  return found;
+}
+var EVIDENCE_RULES = {
+  adrs: adrRule,
+  architecture: architectureRule,
+  code: (finding) => codeRule(finding.evidence),
+  decisions: (finding, found) => decisionsRule(finding.category, found),
+  plan: (finding, found, packet2) => planRule(finding, found, packet2),
+  // A record finding quotes the record it is about, which is among the decisions under review.
+  records: (_finding, found) => found.spec ? void 0 : "no-record-quote",
+  spec: (finding, found) => specRule(finding.category, found),
+  tickets: (finding, _found, packet2) => ticketRule(finding.location, packet2.tickets)
+};
+function fabricated(reason) {
+  return { reason, reason_code: "fabricated-evidence", verdict: "rejected" };
+}
+function missingLine(finding, packet2) {
+  const sources = [
+    { text: finding.location, where: "the location" },
+    ...finding.evidence.flatMap(
+      (evidence, index) => evidence.kind === "trace" ? [{ text: evidence.value, where: `evidence ${String(index + 1)}` }] : []
+    )
+  ];
+  for (const { text, where } of sources) {
+    for (const reference of lineReferences(text)) {
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate) || packet2.shown.has(candidate));
+      if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
+      const lines = packet2.lines.get(path);
+      const window = packet2.windows.get(path);
+      const inTree = lines === void 0 ? [] : window === void 0 ? [{ first: 1, last: lines }] : heldRanges(window);
+      const held = mergeRanges([...inTree, ...packet2.shown.get(path) ?? []]);
+      const outside = firstUnheld(reference, held);
+      if (outside === void 0) continue;
+      return lines !== void 0 && window === void 0 ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines` : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (${held.map((range) => `${String(range.first)}-${String(range.last)}`).join(", ")}${window === void 0 ? "" : ` of ${String(window.lines)}`})`;
+    }
+  }
+  return void 0;
+}
+function firstUnheld(reference, held) {
+  const holding = (line2) => held.find((range) => range.first <= line2 && line2 <= range.last);
+  const first = holding(reference.first);
+  if (first === void 0) return reference.first;
+  const last = holding(reference.last);
+  if (last === void 0) return reference.last;
+  return first === last ? void 0 : first.last + 1;
+}
+var NO_RATIONALE = /\bno rationale found\b/i;
+function recoveryVerdict(finding, found, packet2) {
+  if (finding.category !== "undocumented-decision") return { reason: HINT_REASONS["not-a-candidate"], reason_code: "not-a-candidate", verdict: "hint" };
+  const sites = traceSites(finding.evidence, packet2);
+  if (sites.size === 0) return rejected("no-code-trace", "cites no file of tree/ in a trace: the decision is not traced to the code");
+  if (sites.size === 1) return rejected("single-site", `traces to one site only: one site may be an accident, so it needs two`);
+  if (!found.history && !NO_RATIONALE.test(finding.claim)) {
+    return rejected("invented-rationale", "gives no reason from history/ and does not say that no rationale was found");
+  }
+  return void 0;
+}
+function rejected(reasonCode, reason) {
+  return { reason, reason_code: reasonCode, verdict: "rejected" };
+}
+function traceSites(evidence, packet2) {
+  const sites = /* @__PURE__ */ new Set();
+  for (const item of evidence) {
+    if (item.kind !== "trace") continue;
+    for (const reference of lineReferences(item.value)) {
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate));
+      if (path?.startsWith(`${TREE_DIR}/`) === true) sites.add(path);
+    }
+  }
+  return sites;
+}
+function architectureRule(finding, found, packet2) {
+  const traced = codeRule(finding.evidence) === void 0 && finding.evidence.some((item) => item.kind === "trace");
+  if (finding.category === "unasked-question") return traced ? void 0 : "no-trace";
+  if (finding.check !== void 0 && DEPENDENCY_CHECKS.includes(finding.check) && !packet2.files.some((file) => isLayerConfigPath(file.path))) {
+    return "no-layer-config";
+  }
+  if (VERDICT_WORDS.test(finding.claim) && !found.fact && !found.decision) return "verdict-word";
+  if (!found.decision && !found.fact && !traced) return "no-rule-or-consequence";
+  return /\bobservable\b/i.test(finding.suggestion ?? "") ? void 0 : "no-observable";
+}
+function planRule(finding, found, packet2) {
+  const target = planTarget(finding.location, packet2.steps);
+  if (target.step === void 0) return "no-plan-step";
+  if (target.rule === void 0) return "no-plan-rule";
+  if (!found.spec) return "no-step-quote";
+  return found.decision || found.fact || finding.evidence.some((item) => item.kind === "trace") ? void 0 : "no-plan-anchor";
+}
+function codeRule(evidence) {
+  const checkable = evidence.some(
+    (item) => item.kind === "failing-test" || item.kind === "trace" && lineReferences(item.value).length > 0
+  );
+  return checkable ? void 0 : "no-test-or-trace";
+}
+function ticketRule(location, tickets) {
+  const target = ticketTarget(location, tickets);
+  if (target.rule === void 0) return "no-ticket-rule";
+  return target.rule === "uncovered-requirement" || target.ticket !== void 0 ? void 0 : "no-ticket-id";
+}
+function specRule(category, found) {
+  if (!found.spec) return "no-spec-quote";
+  if (DECISION_CATEGORIES.includes(category)) return found.decision ? void 0 : "no-decision-quote";
+  return found.decision || found.scenario ? void 0 : "no-decision-or-scenario";
+}
+var GAP_CATEGORIES = ["unasked-question", "contradiction"];
+function decisionsRule(category, found) {
+  if (!GAP_CATEGORIES.includes(category)) return "not-a-decision-gap";
+  if (!found.spec && !found.decision) return "no-decision-quote";
+  return found.scenario ? void 0 : "no-scenario";
+}
+var CODE_CATEGORIES = {
+  architecture: [],
+  adrs: [
+    { about: "a decision that names code, config or a command, checked against the code", category: "drift" },
+    { about: "an assumption, revisit condition or promised consequence, checked against the code", category: "stale" }
+  ],
+  code: [],
+  decisions: [],
+  plan: [],
+  records: [],
+  recovery: [],
+  spec: [],
+  tickets: []
+};
+function adrRule(finding, found, packet2) {
+  if (!packet2.tree && CODE_CATEGORIES.adrs.some((code) => code.category === finding.category)) return "needs-tree";
+  if (!found.spec) return "no-record-quote";
+  if (finding.category === "contradiction" && !quotesTwoFiles(finding.evidence, packet2)) return "one-file-contradiction";
+  return finding.category === "unasked-question" && !found.scenario ? "no-scenario" : void 0;
+}
+function quotesTwoFiles(evidence, packet2) {
+  const documents = packet2.files.filter((file) => file.kind === "artifact" || file.kind === "reference");
+  const holders = evidence.flatMap((item) => {
+    if (item.kind !== "quote") return [];
+    const quote = normalise(item.value);
+    return [documents.filter((file) => file.normalised.includes(quote)).map((file) => file.path)];
+  });
+  const apart = (first, second) => first.some((path) => !second.includes(path));
+  return holders.some((first, i) => holders.some((second, j) => i !== j && apart(first, second) && apart(second, first)));
+}
+function skippedChecks(stage, packet2, sources) {
+  if (packet2.tree) return [];
+  const categories = CODE_CATEGORIES[evidenceRule(stage, void 0)];
+  const skipped = categories.map(({ about, category }) => ({ about, check: category, from: "category" }));
+  for (const source of sources) {
+    for (const check of source.checks) {
+      const known = skipped.some((entry2) => entry2.check === check.id);
+      if (check.needsTree === true && !known) skipped.push({ check: check.id, from: source.from });
+    }
+  }
+  return skipped;
+}
+function readSkippedCheck(fields) {
+  const about = fields.optionalString("about");
+  return { check: fields.string("check"), from: fields.string("from"), ...about === void 0 ? {} : { about } };
+}
+var HINT_REASONS = {
+  "needs-tree": NEEDS_TREE.reason,
+  "no-record-quote": "no quote from a record under review",
+  "one-file-contradiction": "a contradiction quotes one file; it needs a quote from each of two files",
+  "no-decision-or-scenario": "no quote from a decision source and no concrete scenario",
+  "no-decision-quote": "no quote from a decision source",
+  "no-evidence": "no evidence to check",
+  "no-scenario": "no concrete scenario",
+  "no-spec-quote": "no quote from the spec",
+  "no-test-or-trace": "no failing test and no trace with a file and line",
+  "no-ticket-id": "the location names no ticket of the spec",
+  "no-ticket-rule": "the location names no ticket rule",
+  "no-layer-config": "the check assumes a layer rule and the packet holds no layer config: ask whether the layering is intended, as an unasked question with a trace",
+  "no-trace": "an unasked question needs a trace that cites a file and line",
+  "no-plan-step": "the location names no step of the plan",
+  "no-plan-rule": "the location names no plan rule",
+  "no-step-quote": "no quote of the step from the plan",
+  "no-plan-anchor": "beside the step quote, no ADR quote, no fact row and no trace",
+  "no-observable": "no observable named: say what would show a fix worked",
+  "no-rule-or-consequence": "taste: neither a declared rule, a fact nor a traced consequence backs it",
+  "verdict-word": "a verdict word with no fact and no quoted decision: state the number, or quote the decision that gives the threshold",
+  "not-a-candidate": "not an undocumented-decision candidate: this stage recovers decisions only",
+  "not-a-decision-gap": "neither an unasked question nor a contradiction"
+};
+function normalise(text) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+// src/contexts/critique/domain/refute.ts
+var REFUTE_ANSWERS = ["no-objection", "refute", "downgrade"];
+var OBJECTIONS = ["refute", "downgrade"];
+var REFUTE_OUTCOMES = [...REFUTE_ANSWERS, "stands", "skipped"];
+var REFUTE_REASONS = [
+  "no-eligible-client",
+  "no-review",
+  "invalid-answer",
+  ...MECHANICAL_REJECTIONS,
+  ...HINT_CODES,
+  ...CHECK_HINT_CODES
+];
+function refuterCandidates(routing, stage, work = false) {
+  const routes = stageRouting(routing, { stage });
+  const candidates = [];
+  for (const slot of work ? routes.work : [...routes.base, ...routes.deep]) {
+    for (const client of work ? [slot.client] : [slot.client, ...routing.fallbacks[slot.client] ?? []]) {
+      const config = routing.clients[client];
+      if (config === void 0) throw new CritiqueError("invalid-routing", `routing stage ${stage} names unknown client ${client}`);
+      if (!candidates.some((candidate) => candidate.client === client)) candidates.push({ client, client_config: config, slot });
+    }
+  }
+  return candidates;
+}
+function familyBar(family, rules, raisers) {
+  if (raisers.includes(family)) return `${family} raised the finding`;
+  if (family === rules.orchestratorFamily) return `${family} is the orchestrator's family`;
+  if (!rules.allowedFamilies.includes(family)) return `the allowlist does not permit ${family}`;
+  return void 0;
+}
+function chooseRefuter(finding, candidates, bars) {
+  const passed = [];
+  for (const candidate of candidates) {
+    const bar = bars.family(candidate.client_config.family) ?? bars.blocked(candidate.client);
+    if (bar !== void 0) {
+      passed.push(`${candidate.client}: ${bar}`);
+      continue;
+    }
+    return {
+      refuter: {
+        ...candidate.slot,
+        client: candidate.client,
+        client_config: candidate.client_config,
+        critic_id: `r-${finding.id}-${candidate.client}`,
+        fallbacks: [],
+        lenses: [],
+        role: "refuter"
+      }
+    };
+  }
+  return { skipped: `no routed client can refute it (${passed.length === 0 ? "the stage routes none" : passed.join("; ")})` };
+}
+function withFinding(prompt, finding) {
+  const body = {
+    category: finding.category,
+    ...finding.check === void 0 ? {} : { check: finding.check },
+    claim: finding.claim,
+    evidence: finding.evidence,
+    location: finding.location,
+    severity: finding.severity,
+    ...finding.suggestion === void 0 ? {} : { suggestion: finding.suggestion }
+  };
+  const section2 = [
+    "# The finding",
+    "",
+    "This is the finding you check, as its reviewer reported it. It is not one of the files: your evidence comes from the files.",
+    "",
+    "```json",
+    JSON.stringify(body, null, 2),
+    "```"
+  ].join("\n");
+  return { ...prompt, text: `${prompt.text}
+---
+
+${section2}
+` };
+}
+function judgeReply(finding, reply, context) {
+  const { run, findings } = reply;
+  if (run.status !== "ok") return { detail: run.detail ?? run.status, outcome: "stands", reason_code: "no-review" };
+  const [first] = findings;
+  if (first === void 0) {
+    return { answer: "no-objection", outcome: "no-objection", ...run.no_findings_reason === void 0 ? {} : { detail: run.no_findings_reason } };
+  }
+  const objection = first;
+  if (findings.length > 1) return invalid4(`answered with ${String(findings.length)} entries; a refuter gives one`);
+  const answer2 = objection.check;
+  if (!isOneOf(OBJECTIONS, answer2) || !context.declared.includes(answer2)) {
+    return invalid4(`names the check ${answer2 ?? "(none)"}; a refuter answers refute or downgrade`, objection);
+  }
+  if (answer2 === "downgrade" && objection.severity === "critical") return invalid4("a downgrade that leaves the finding critical", objection, answer2);
+  const pre = checkEvidence({ ...objection, category: finding.category, location: finding.location }, context.stage, context.packet, context.role);
+  if (pre !== void 0) return { answer: answer2, detail: pre.reason, outcome: "stands", reason_code: pre.reason_code, reply: objection };
+  return { answer: answer2, outcome: answer2, reply: objection, ...answer2 === "downgrade" ? { severity: objection.severity } : {} };
+}
+function invalid4(detail, reply, answer2) {
+  return {
+    ...answer2 === void 0 ? {} : { answer: answer2 },
+    detail,
+    outcome: "stands",
+    reason_code: "invalid-answer",
+    ...reply === void 0 ? {} : { reply }
+  };
+}
+function countOutcomes(results) {
+  const counts = { downgrade: 0, "no-objection": 0, refute: 0, skipped: 0, stands: 0 };
+  for (const result of results) counts[result.outcome] += 1;
+  return counts;
+}
+function refuteLedgerLine(result, finding, context) {
+  const refuter = result.refuter;
+  return JSON.stringify({
+    type: "refute",
+    ...context,
+    answer: result.answer ?? null,
+    charged_usd: refuter?.charged_usd ?? null,
+    check: isCheckId(finding.check) ? finding.check : null,
+    client: refuter?.client ?? null,
+    cost_usd: refuter?.cost_usd ?? null,
+    critic_id: refuter?.critic_id ?? null,
+    family: refuter?.family ?? null,
+    finding_id: result.finding_id,
+    model: refuter?.model ?? null,
+    outcome: result.outcome,
+    prompt_hashes: refuter?.prompt_hashes ?? null,
+    reason_code: result.reason_code ?? null,
+    role: "refuter",
+    severity: result.severity ?? null,
+    severity_before: finding.severity,
+    status: refuter?.status ?? null
+  });
+}
+function parseRefuteFile(text) {
+  const file = JsonFields.parse(text);
+  return {
+    counts: countOutcomes(file.list("results", readRefuteRecord)),
+    ...file.has("ledger_warnings") ? { ledger_warnings: file.strings("ledger_warnings") } : {},
+    refute_path: file.string("refute_path"),
+    results: file.list("results", readRefuteRecord),
+    run_id: file.string("run_id"),
+    stage: file.oneOf("stage", CRITIQUE_STAGES),
+    status: file.literal("status", "checked")
+  };
+}
+function readRefuteRecord(fields) {
+  const answer2 = fields.has("answer") ? fields.oneOf("answer", REFUTE_ANSWERS) : void 0;
+  const reason = fields.has("reason_code") ? fields.oneOf("reason_code", REFUTE_REASONS) : void 0;
+  const detail = fields.optionalString("detail");
+  const severity = fields.has("severity") ? fields.oneOf("severity", SEVERITIES) : void 0;
+  return {
+    finding_id: fields.string("finding_id"),
+    outcome: fields.oneOf("outcome", REFUTE_OUTCOMES),
+    ...answer2 === void 0 ? {} : { answer: answer2 },
+    ...reason === void 0 ? {} : { reason_code: reason },
+    ...detail === void 0 ? {} : { detail },
+    ...severity === void 0 ? {} : { severity },
+    ...fields.has("reply") ? { reply: readFindingBody(fields.object("reply")) } : {},
+    ...fields.has("refuter") ? { refuter: readCriticRun(fields.object("refuter")) } : {}
+  };
+}
+
+// src/contexts/critique/domain/verdicts.ts
+var VERDICTS = ["accepted", "rejected", "needs-human", "hint"];
+function countVerdicts(run) {
+  const counts = { accepted: 0, hint: 0, "needs-human": 0, rejected: 0 };
+  for (const finding of run.findings) counts[finding.verdict.verdict] += 1;
+  return counts;
+}
+function secondRoundDue(run) {
+  const critical = run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted");
+  return run.round === 1 && STAGE_TABLE[run.stage].secondRound && critical.length > SECOND_ROUND_AFTER_CRITICAL;
+}
+function stageVerdictError(stage, verdict, category) {
+  const id = verdict.finding_id;
+  const behaviour = STAGE_TABLE[stage];
+  const candidate = behaviour.candidateQuestions !== null && (behaviour.mixedCandidates !== true || category === "undocumented-decision");
+  if (candidate && verdict.verdict === "accepted") {
+    return `${id}: a recovered decision is never accepted: only the owner's answer writes a record, so give it needs-human, or rejected with the reason it fails`;
+  }
+  if (stage === "decisions") {
+    if (verdict.verdict === "needs-human") return `${id}: the decisions stage asks every accepted gap as a question; give it accepted, not needs-human`;
+    if (verdict.answered !== void 0 && verdict.verdict !== "accepted") return `${id}: only an accepted verdict can be answered at the decisions stage`;
+    return void 0;
+  }
+  return verdict.answered !== void 0 && verdict.verdict !== "needs-human" ? `${id}: only a needs-human verdict can be answered` : void 0;
+}
+function candidateQuestions(run) {
+  const cap = STAGE_TABLE[run.stage].candidateQuestions;
+  if (cap === null) return void 0;
+  const ranked = run.findings.map((finding, position) => ({ finding, position })).filter(({ finding }) => finding.verdict.verdict === "needs-human").sort((a, b) => SEVERITIES.indexOf(a.finding.severity) - SEVERITIES.indexOf(b.finding.severity) || a.position - b.position).map(({ finding }) => finding);
+  return { asked: ranked.slice(0, cap), deferred: ranked.slice(cap) };
+}
+function severityOverrideProblem(finding, verdict) {
+  const id = verdict.finding_id;
+  if (verdict.severity === void 0) {
+    return verdict.severity_reason === void 0 ? void 0 : `${id}: a severity_reason belongs to a severity override`;
+  }
+  if (finding.declared_severity === void 0) return `${id}: only a finding whose check fixes its severity can be overridden`;
+  if (verdict.severity === finding.declared_severity) return `${id}: the override repeats the declared severity ${verdict.severity}`;
+  return verdict.severity_reason === void 0 ? `${id}: a severity override needs a severity_reason` : void 0;
+}
+function openCriticalQuestions(run) {
+  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "needs-human" && f.verdict.answered !== true);
+}
+function familiesOf(run, finding) {
+  const families = run.critics.filter((critic) => finding.raised_by.includes(critic.critic_id)).map((c) => c.family);
+  return [...new Set(families)];
+}
+function isDissent(run, finding) {
+  return finding.verdict.verdict === "rejected" && !MECHANICAL_REJECTIONS.includes(finding.verdict.reason_code ?? "") && (finding.severity === "critical" || familiesOf(run, finding).length >= 2);
+}
+var FEATURE_ACCEPT_REASONS = ["test-fails", "cross-ticket-trace"];
+function verdictProblem(stage, verdict, packetFiles) {
+  return featureVerdictProblem(stage, verdict, packetFiles) ?? ticketVerdictProblem(stage, verdict);
+}
+function featureVerdictProblem(stage, verdict, packetFiles) {
+  const id = verdict.finding_id;
+  const extras = verdict.follow_up !== void 0 || verdict.trace_tickets !== void 0;
+  if (stage !== "feature-review") return extras ? `${id}: follow_up and trace_tickets belong to a feature-review verdict` : void 0;
+  if (verdict.verdict !== "accepted") return extras ? `${id}: only an accepted feature finding has a follow_up or trace_tickets` : void 0;
+  const reason = verdict.reason_code;
+  if (reason !== "test-fails" && reason !== "cross-ticket-trace") {
+    return `${id}: a feature finding is accepted only with reason_code ${FEATURE_ACCEPT_REASONS.join(" or ")}`;
+  }
+  if (reason === "cross-ticket-trace") {
+    const tickets = new Set(packetFiles.filter((file) => file.kind === "ticket").map((file) => file.path));
+    const crossed = new Set(verdict.trace_tickets ?? []);
+    if (crossed.size < 2 || [...crossed].some((path) => !tickets.has(path))) {
+      return `${id}: a cross-ticket-trace names at least two tickets of the packet in trace_tickets`;
+    }
+  } else if (verdict.trace_tickets !== void 0) {
+    return `${id}: trace_tickets belong to a cross-ticket-trace`;
+  }
+  return verdict.follow_up === void 0 ? `${id}: an accepted feature finding names its follow-up ticket in follow_up` : void 0;
+}
+var TICKET_ACCEPT_REASONS = ["test-fails", "trace-walked"];
+function ticketVerdictProblem(stage, verdict) {
+  const id = verdict.finding_id;
+  const extras = verdict.regression_test !== void 0 || verdict.fixed !== void 0;
+  if (stage !== "ticket-review") return extras ? `${id}: regression_test and fixed belong to a ticket-review verdict` : void 0;
+  if (verdict.verdict !== "accepted") return extras ? `${id}: only an accepted ticket finding has a regression_test or is fixed` : void 0;
+  const reason = verdict.reason_code;
+  if (reason !== "test-fails" && reason !== "trace-walked") {
+    return `${id}: a ticket finding is accepted only with reason_code ${TICKET_ACCEPT_REASONS.join(" or ")}`;
+  }
+  if (reason === "test-fails" && verdict.regression_test === void 0) {
+    return `${id}: a finding accepted by test-fails names the test kept in the ticket's change in regression_test`;
+  }
+  if (reason !== "test-fails" && verdict.regression_test !== void 0) return `${id}: regression_test belongs to a finding accepted by test-fails`;
+  return void 0;
+}
+function degradedTicketReview(run) {
+  return run.stage === "ticket-review" && run.degraded;
+}
+function unfixedCritical(run) {
+  if (run.stage !== "ticket-review") return [];
+  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted" && f.verdict.fixed !== true);
+}
+
+// src/contexts/critique/domain/ledger.ts
+function ledgerLines(run, recordedAt) {
+  const common = {
+    depth: run.depth,
+    flow: run.flow,
+    depth_chosen_by: run.depth_choice.chosen_by,
+    depth_measures: run.depth_choice.measures,
+    depth_signals: run.depth_choice.signals,
+    recorded_at: recordedAt.toISOString(),
+    repository: run.repository,
+    round: run.round,
+    run_id: run.run_id,
+    spec: run.spec,
+    stage: run.stage
+  };
+  const criticFields = (criticId) => {
+    const critic = run.critics.find((c) => c.critic_id === criticId);
+    return {
+      client: critic?.client,
+      critic_id: criticId,
+      family: critic?.family,
+      lens_hashes: critic?.lens_hashes,
+      lenses: critic?.lenses,
+      model: critic?.model,
+      prompt_hashes: critic?.prompt_hashes,
+      role: critic?.role
+    };
+  };
+  const runLines = run.critics.map((critic) => ({
+    type: "run",
+    ...common,
+    ...criticFields(critic.critic_id),
+    charged_usd: critic.charged_usd,
+    cost_usd: critic.cost_usd,
+    duration_ms: critic.duration_ms,
+    exit_code: critic.exit_code,
+    failure: critic.failure ?? null,
+    finding_count: critic.finding_count,
+    retry_of: critic.retry_of ?? null,
+    status: critic.status,
+    ...critic.vibe_cost_usd === void 0 ? {} : { vibe_cost_usd: critic.vibe_cost_usd }
+  }));
+  const findingLines = run.findings.map((finding) => ({
+    type: "finding",
+    ...common,
+    ...criticFields(finding.raised_by[0] ?? ""),
+    category: finding.category,
+    /** The lens check or role rule the finding names, so stats can count precision per check; free text stays out. */
+    check: isCheckId(finding.check) ? finding.check : null,
+    evidence_kinds: finding.evidence.map((e) => e.kind),
+    finding_id: finding.id,
+    /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */
+    pre_verdict: finding.pre_verdict?.reason_code ?? null,
+    /** Whether the owner answered a needs-human question before the run was recorded. */
+    answered: finding.verdict.answered === true,
+    raised_by: finding.raised_by,
+    raised_by_families: familiesOf(run, finding),
+    reason_code: finding.verdict.reason_code ?? null,
+    /** The severity as recorded: the check's, the critic's, or the orchestrator's override. */
+    severity: finding.severity,
+    /** The severity the finding's check fixed, so stats can measure how often the orchestrator overrides it. */
+    declared_severity: finding.declared_severity ?? null,
+    severity_override: finding.verdict.severity ?? null,
+    severity_reason: finding.verdict.severity_reason ?? null,
+    verdict: finding.verdict.verdict
+  }));
+  return [...runLines, ...findingLines].map((line2) => JSON.stringify(line2));
+}
+var SKIPPED_LOW_RISK = "skipped-low-risk";
+var FLOW_EVENTS = ["grilled", "no-critique", "landed", "answered", "draft"];
+function flowEventLine(event, context) {
+  return JSON.stringify({ type: "flow", ...context, ...event });
+}
+var EMPTY_LEDGER = { findings: [], flow_events: [], refutes: [], runs: [], skipped_reviews: [] };
+function parseLedger(text) {
+  const runs = [];
+  const findings = [];
+  const refutes = [];
+  const skipped = [];
+  const events = [];
+  text.split("\n").forEach((line2, index) => {
+    if (line2.trim() === "") return;
+    const fields = JsonFields.of(parseLine(line2, index + 1), `line ${String(index + 1)}`);
+    const type = fields.string("type");
+    if (type === "run" && fields.optionalString("status") === SKIPPED_LOW_RISK) skipped.push(readSkippedReview(fields));
+    else if (type === "run") runs.push(readCriticRunLine(fields));
+    if (type === "finding") findings.push(readFindingLine(fields));
+    if (type === "refute") refutes.push(readRefuteLine(fields));
+    if (type === "flow") events.push(readFlowEvent(fields));
+  });
+  return { findings, flow_events: events, refutes, runs, skipped_reviews: skipped };
+}
+function readSkippedReview(fields) {
+  return {
+    flow: fields.string("flow"),
+    recorded_at: fields.string("recorded_at"),
+    repository: fields.string("repository"),
+    run_id: fields.string("run_id"),
+    ticket: fields.string("ticket")
+  };
+}
+function readRefuteLine(fields) {
+  return {
+    ...readContext(fields),
+    client: fields.nullableString("client"),
+    finding_id: fields.string("finding_id"),
+    outcome: fields.oneOf("outcome", REFUTE_OUTCOMES)
+  };
+}
+function readFlowEvent(fields) {
+  const context = { flow: fields.string("flow"), recorded_at: fields.string("recorded_at"), repository: fields.string("repository") };
+  const event = fields.oneOf("event", FLOW_EVENTS);
+  if (event === "no-critique") return { ...context, event, value: fields.boolean("value") };
+  if (event === "landed") return { ...context, event, ticket: fields.string("ticket") };
+  if (event === "answered") return { ...context, event, finding_id: fields.string("finding_id"), run_id: fields.string("run_id") };
+  if (event === "draft") return { ...context, draft: fields.string("draft"), event };
+  return { ...context, event };
+}
+function parseLine(line2, number) {
+  try {
+    return JSON.parse(line2);
+  } catch {
+    throw new JsonShapeError(`line ${String(number)} is not JSON`);
+  }
+}
+function readContext(fields) {
+  return {
+    recorded_at: fields.string("recorded_at"),
+    repository: fields.string("repository"),
+    run_id: fields.string("run_id"),
+    spec: fields.optionalString("spec"),
+    flow: fields.optionalString("flow"),
+    round: fields.has("round") ? fields.number("round") : 1,
+    stage: fields.oneOf("stage", CRITIQUE_STAGES)
+  };
+}
+function readCriticRunLine(fields) {
+  const hashes = fields.object("prompt_hashes");
+  return {
+    ...readContext(fields),
+    client: fields.string("client"),
+    cost_usd: fields.nullableNumber("cost_usd"),
+    critic_id: fields.string("critic_id"),
+    failure: fields.nullableString("failure"),
+    finding_count: fields.has("finding_count") ? fields.number("finding_count") : 0,
+    lens_hashes: fields.stringMap("lens_hashes"),
+    lenses: fields.strings("lenses"),
+    model: fields.string("model"),
+    prompt_hashes: {
+      contract: hashes.string("contract"),
+      preamble: hashes.string("preamble"),
+      role: hashes.string("role"),
+      schema: hashes.string("schema")
+    },
+    role: fields.string("role"),
+    status: fields.oneOf("status", CRITIC_STATUSES)
+  };
+}
+function readFindingLine(fields) {
+  return {
+    ...readContext(fields),
+    answered: fields.has("answered") && fields.boolean("answered"),
+    check: fields.has("check") ? fields.nullableString("check") : null,
+    finding_id: fields.string("finding_id"),
+    pre_verdict: fields.nullableString("pre_verdict"),
+    severity: fields.oneOf("severity", SEVERITIES),
+    raised_by: fields.strings("raised_by"),
+    verdict: fields.oneOf("verdict", VERDICTS)
+  };
+}
+
+// src/contexts/critique/application/ledger-source.ts
+var LedgerSource = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async read() {
+    const own = await this.text(ledgerPath(this.deps.env));
+    const gateway = gatewayLedgerLines(await this.text(ledgerPath2(this.deps.env)));
+    const ledger = decoded("invalid-ledger", ledgerPath(this.deps.env), () => own === "" ? EMPTY_LEDGER : parseLedger(own));
+    return {
+      invocations: merge(invocationLines(own), gateway.invocations, (line2) => `${line2.run_id ?? ""} ${line2.critic_id} ${line2.kind}`),
+      ledger: {
+        findings: ledger.findings,
+        flow_events: ledger.flow_events,
+        refutes: ledger.refutes,
+        runs: merge(ledger.runs, gateway.runs, (run) => `${run.run_id} ${run.critic_id}`),
+        skipped_reviews: ledger.skipped_reviews
+      },
+      recorded_runs: ledger.runs
+    };
+  }
+  async text(path) {
+    return await this.deps.files.exists(path) ? this.deps.files.readText(path) : "";
+  }
+};
+function merge(own, gateway, key2) {
+  const seen = new Set(own.map(key2));
+  return [...own, ...gateway.filter((line2) => !seen.has(key2(line2)))];
+}
+
+// src/contexts/critique/application/budget.ts
+var FlowBudget = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.source = new LedgerSource(deps);
+  }
+  deps;
+  source;
+  /** What the Vibe critics were charged under each of a feature's flow keys. */
+  async vibeSpendByFlow(repository, flows) {
+    return spendByFlow(await this.lines(), repository, flows);
+  }
+  /** agy launches on this machine today. */
+  async agyInvocationsToday() {
+    return agyInvocationsOn(await this.lines(), this.deps.clock.now());
+  }
+  /**
+   * Records one launch: critique's own invocation line, and the gateway's
+   * record of the run, which carries the gateway's fields beside critique's.
+   * `spec` is the spec the run belongs to, where it has one. A gateway ledger
+   * that will not take the record is not the stage's failure — the critics
+   * have already run and spent money — so the message comes back for the
+   * stage's summary instead of throwing.
+   */
+  async logInvocation(manifest, run, client, spec) {
+    const at = this.deps.clock.now().toISOString();
+    const line2 = {
+      charged_usd: run.charged_usd,
+      client: run.client,
+      critic_id: run.critic_id,
+      family: run.family,
+      flow: manifest.flow,
+      kind: client.kind,
+      model: run.model,
+      recorded_at: at,
+      repository: manifest.repository,
+      round: manifest.round,
+      run_id: manifest.run_id,
+      stage: manifest.stage,
+      status: run.status,
+      type: "invocation",
+      ...run.vibe_cost_usd === void 0 ? {} : { vibe_cost_usd: run.vibe_cost_usd }
+    };
+    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line2)}
+`);
+    try {
+      await this.deps.ledger.append(
+        critiqueLedgerRecord(
+          {
+            flow: manifest.flow,
+            repository: manifest.repository,
+            round: manifest.round,
+            run_id: manifest.run_id,
+            stage: manifest.stage,
+            ...spec === void 0 ? {} : { spec }
+          },
+          run,
+          client,
+          at
+        )
+      );
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+    return void 0;
+  }
+  async lines() {
+    return (await this.source.read()).invocations;
+  }
+};
+
+// src/contexts/critique/application/flow-state.ts
+import { join as join12 } from "node:path";
+
+// src/contexts/critique/domain/feature-review.ts
+function gateLine(criticalOpen) {
+  return criticalOpen === 0 ? "GATE: PASS" : `GATE: FAIL (${String(criticalOpen)} critical)`;
+}
+function openCriticalFollowUps(runId2, current, earlier, isOpen2) {
+  const critical = [
+    ...current.map((followUp) => ({ followUp, from: runId2 })),
+    ...earlier.flatMap((record) => record.follow_ups.map((followUp) => ({ followUp, from: record.run_id })))
+  ].filter(({ followUp }) => followUp.severity === "critical");
+  const seen = /* @__PURE__ */ new Set();
+  const open2 = [];
+  for (const { followUp, from } of critical) {
+    if (seen.has(followUp.reference)) continue;
+    seen.add(followUp.reference);
+    if (isOpen2(followUp.reference)) {
+      open2.push({ finding_id: followUp.finding_id, reference: followUp.reference, run_id: from, ticket: followUp.ticket });
+    }
+  }
+  return open2;
+}
+function parseGateRecord(text) {
+  const file = JsonFields.parse(text);
+  return {
+    base_commit: file.string("base_commit"),
+    critical_open: file.number("critical_open"),
+    follow_ups: file.list("follow_ups", (followUp) => ({
+      finding_id: followUp.string("finding_id"),
+      open: followUp.boolean("open"),
+      reference: followUp.string("reference"),
+      severity: followUp.oneOf("severity", SEVERITIES),
+      ticket: followUp.string("ticket")
+    })),
+    gate: file.oneOf("gate", ["pass", "fail"]),
+    head_commit: file.string("head_commit"),
+    line: file.string("line"),
+    open_critical: file.list("open_critical", (followUp) => ({
+      finding_id: followUp.string("finding_id"),
+      reference: followUp.string("reference"),
+      run_id: followUp.string("run_id"),
+      ticket: followUp.string("ticket")
+    })),
+    recorded_at: file.string("recorded_at"),
+    repository: file.string("repository"),
+    run_id: file.string("run_id"),
+    spec: file.string("spec"),
+    stage: file.literal("stage", "feature-review"),
+    version: file.literal("version", 1)
+  };
+}
+var CLOSED_STATUSES = ["closed", "done", "resolved", "wontfix"];
+function localTicketOpen(text) {
+  const status = /^[ \t>]*\**Status\**[ \t]*:\**[ \t]*(.*)$/im.exec(text)?.[1];
+  const value = status?.replace(/[*_`]/g, "").trim().toLowerCase();
+  return value === void 0 || !CLOSED_STATUSES.includes(value);
 }
 
 // src/contexts/critique/domain/flow.ts
@@ -6304,41 +7233,6 @@ var BudgetCommand = class {
 // src/contexts/critique/application/check-adrs.ts
 import { join as join14 } from "node:path";
 
-// src/contexts/critique/domain/decision-docs.ts
-var DOMAIN_DOC = "docs/agents/domain.md";
-var GLOSSARIES = ["GLOSSARY.md", "CONTEXT.md"];
-var ADR_DIRECTORY = "docs/adr";
-function isDecisionRecord(path) {
-  return path.endsWith(".md") && path.split("/").at(-2) === "adr";
-}
-var CONTEXT_MAP = "CONTEXT-MAP.md";
-function namedPaths2(markdown) {
-  const prose2 = withoutFences(markdown);
-  const candidates = [...prose2.matchAll(/`([^`\n]+)`|\]\(([^)\s]+)\)/g)].map((match) => match[1] ?? match[2] ?? "");
-  const paths = candidates.map((candidate) => candidate.trim().replace(/^\.\//, "").replace(/\/+$/, "")).filter((candidate) => /^[\w.-]+(\/[\w.-]+)*$/.test(candidate) && !candidate.split("/").includes(".."));
-  return [...new Set(paths)];
-}
-var NOT_RECORDS = [...GLOSSARIES, CONTEXT_MAP];
-var NOT_IN_FORCE = ["proposed", "rejected", "superseded", "deprecated"];
-function inForce(record) {
-  const status = recordStatus(record);
-  return status === void 0 || !NOT_IN_FORCE.includes(status);
-}
-function recordStatus(record) {
-  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? "";
-  const prose2 = withoutFences(record);
-  const match = /^status[ \t]*:[ \t]*["']?([A-Za-z]+)/im.exec(frontmatter) ?? /^(?:[-*+][ \t]+)?(?:\*\*|__)?status(?:\*\*|__)?[ \t]*:[ \t]*(?:\*\*|__)?[ \t]*([A-Za-z]+)/im.exec(prose2) ?? /^#{1,6}[ \t]+status[ \t]*\r?\n\s*[^A-Za-z\n]*([A-Za-z]+)/im.exec(prose2);
-  return match?.[1]?.toLowerCase();
-}
-function withoutFences(markdown) {
-  return markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
-}
-function decisionDate(record) {
-  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? "";
-  const prose2 = withoutFences(record);
-  return /^date[ \t]*:[ \t]*["']?(\d{4}-\d{2}-\d{2})/im.exec(frontmatter)?.[1] ?? /^[ \t]*(?:[-*+][ \t]+)?(?:\*\*|__)?date(?:[ \t]*:[ \t]*(?:\*\*|__)?|(?:\*\*|__)[ \t]*:?)[ \t]*(\d{4}-\d{2}-\d{2})/im.exec(prose2)?.[1];
-}
-
 // src/contexts/critique/domain/adr-drift.ts
 var KNOWN_EXTENSION = /\.(?:ts|tsx|js|mjs|cjs|json|ya?ml|toml|md|py|sh|css|html|sql|lock|kt|java|go|rs)$/i;
 var PATH_SHAPE = /^[\w@.-]+(?:\/[\w@.-]+)*\/?$/;
@@ -6599,303 +7493,6 @@ var CheckAdrsCommand = class {
 
 // src/contexts/critique/application/check-plan.ts
 import { join as join15, resolve as resolve3 } from "node:path";
-
-// src/contexts/critique/domain/refactoring-plan.ts
-var PLAN_SECTIONS = ["Goal", "Target", "Safety net", "Steps", "Not doing", "Open decisions"];
-var PLAN_FIELDS = [
-  "Kind",
-  "Technique",
-  "Anchor",
-  "Touches",
-  "Safety net",
-  "Main stays green because",
-  "Rollback",
-  "Transitional element",
-  "Blocked by",
-  "Done when"
-];
-var PLAN_KINDS = ["characterize", "tidy", "structure", "behaviour", "expand", "migrate", "contract", "remove-transitional"];
-function planCheckStatus(check) {
-  return check.errors.length > 0 ? "failed" : "passed";
-}
-var STEP_HEADING = /^###[ \t]+(S\d+)[ \t]*:[ \t]*(.*?)[ \t]*$/;
-var FIELD_LINE = /^[-*][ \t]+\*\*([^*]+?)(:)?\*\*[ \t]*(:)?[ \t]*(.*)$/;
-var STEP_ID = /\bS\d+\b/g;
-var NONE = /^\W*(?:none|n\/a|nothing)\W*$/i;
-var UNTESTED = /^\W*none\b|\b(?:untested|not tested|no (?:existing )?tests?|nothing covers)\b/i;
-var STORED_DATA = /\b(?:tables?|columns?|migrations?|schemas?|databases?|stored data)\b/i;
-var URL2 = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi;
-var EXTENSIONS = "ts|tsx|js|mjs|cjs|jsx|py|kt|java|go|rs|rb|sh|md|json|ya?ml|toml|sql|css|html";
-var PATH_LIKE = new RegExp(
-  `(?:[\\w@.-]+/)+[\\w@-]+\\.[A-Za-z]\\w{0,5}\\b|(?:[\\w@.-]+/){2,}[\\w@.-]+|(?<![\\w.-])[a-z_][\\w-]*\\.(?:${EXTENSIONS})\\b`,
-  "g"
-);
-var FACT_ANCHOR = new RegExp(`\`([^\`]+)\``, "g");
-var ADR_ID = /\bADR[- ]?(\d{1,5})\b/gi;
-var PREREQUISITE = /\bprerequisite-of:[ \t]*(S\d+)\b/gi;
-function pathsIn(text) {
-  return text.replace(URL2, " ").match(PATH_LIKE) ?? [];
-}
-function sectionsOf(lines, errors) {
-  const sections = /* @__PURE__ */ new Map();
-  let current;
-  for (const line2 of lines) {
-    const heading = /^##[ \t]+(.*?)[ \t]*$/.exec(line2);
-    if (heading === null) {
-      current?.push(line2);
-      continue;
-    }
-    const name = PLAN_SECTIONS.find((section2) => section2.toLowerCase() === heading[1]?.toLowerCase());
-    if (name === void 0) {
-      errors.push({ message: `the plan has an unknown section "## ${heading[1] ?? ""}"; its content is not checked`, rule: "unknown-section" });
-      current = void 0;
-    } else if (sections.has(name)) {
-      errors.push({ message: `the plan has more than one "## ${name}" section; its second content is not checked`, rule: "duplicate-section" });
-      current = void 0;
-    } else {
-      current = [];
-      sections.set(name, current);
-    }
-  }
-  return sections;
-}
-function fieldsOf(lines) {
-  const fields = /* @__PURE__ */ new Map();
-  const duplicates = [];
-  const prose2 = [];
-  let current;
-  for (const line2 of lines) {
-    const field = FIELD_LINE.exec(line2);
-    const name = field === null ? void 0 : PLAN_FIELDS.find((known) => known.toLowerCase() === field[1]?.trim().toLowerCase());
-    if (line2.trim() === "") continue;
-    if (field !== null && name !== void 0 && (field[2] !== void 0 || field[3] !== void 0)) {
-      current = { items: [], text: [field[4] ?? ""] };
-      if (fields.has(name)) duplicates.push(name);
-      else fields.set(name, current);
-    } else if (current !== void 0 && /^[ \t]+\S/.test(line2)) {
-      const bullet = /^[ \t]+[-*][ \t]+(.*)$/.exec(line2);
-      if (bullet === null) current.text.push(line2.trim());
-      else current.items.push((bullet[1] ?? "").trim());
-    } else {
-      current = void 0;
-      prose2.push(line2);
-    }
-  }
-  return {
-    duplicates,
-    fields: new Map(
-      [...fields].map(([name, { text, items }]) => {
-        const joined2 = text.join(" ").trim();
-        return [name, { items, text: joined2, value: [joined2, ...items].join(" ").trim() }];
-      })
-    ),
-    prose: prose2
-  };
-}
-function parseSteps(lines, errors) {
-  const steps = [];
-  let current;
-  for (const line2 of lines) {
-    if (!line2.startsWith("###")) {
-      current?.lines.push(line2);
-      continue;
-    }
-    const heading = STEP_HEADING.exec(line2);
-    if (heading === null) {
-      errors.push({ message: `the heading "${line2.trim()}" is not "### S01: <title>"`, rule: "bad-step-heading" });
-      current = void 0;
-      continue;
-    }
-    const id = heading[1] ?? "";
-    if (steps.some((step) => step.id === id)) errors.push({ message: `step ${id} is defined twice`, rule: "duplicate-step", step: id });
-    current = { lines: [] };
-    steps.push({ id, lines: current.lines, title: heading[2] ?? "" });
-  }
-  return steps.map((step) => ({ ...fieldsOf(step.lines), id: step.id, title: step.title }));
-}
-function kindsIn(value) {
-  return value.split(/[\s,/|+&]+/).filter((kind) => kind !== "" && kind !== "and");
-}
-var idsIn = (text) => (text.match(STEP_ID) ?? []).map((id) => id.toUpperCase());
-function countOf(field, separator) {
-  if (field === void 0) return 0;
-  if (field.items.length > 0) return field.items.length;
-  return field.text.split(separator).filter((part) => part.trim() !== "").length;
-}
-function goalChangesBehaviour(goal) {
-  const says = /\bbehaviou?r\b[^.\n]*\b(?:chang\w*|differ\w*|alter\w*)|\b(?:chang\w*|alter\w*)\b[^.\n]*\bbehaviou?r\b/i;
-  const denied = /\b(?:no|not|never|without)\b(?:\W+\w+){0,3}?\W+behaviou?r\b|\bbehaviou?r\b(?:\W+\w+){0,2}?\W+(?:not|never)\W+(?:\w+\W+)?(?:chang|differ|alter)/i;
-  return goal.split(/(?<=[.!?])\s+|\n/).some((sentence) => says.test(sentence) && !denied.test(sentence));
-}
-function cyclesOf(edges) {
-  const index = /* @__PURE__ */ new Map();
-  const low = /* @__PURE__ */ new Map();
-  const stack = [];
-  const onStack = /* @__PURE__ */ new Set();
-  const cycles2 = [];
-  const visit = (node) => {
-    index.set(node, index.size);
-    low.set(node, index.get(node) ?? 0);
-    stack.push(node);
-    onStack.add(node);
-    for (const next of edges.get(node) ?? []) {
-      if (!index.has(next)) {
-        visit(next);
-        low.set(node, Math.min(low.get(node) ?? 0, low.get(next) ?? 0));
-      } else if (onStack.has(next)) low.set(node, Math.min(low.get(node) ?? 0, index.get(next) ?? 0));
-    }
-    if (low.get(node) === index.get(node)) {
-      const members = [];
-      for (let member = stack.pop(); member !== void 0; member = stack.pop()) {
-        onStack.delete(member);
-        members.push(member);
-        if (member === node) break;
-      }
-      if (members.length > 1 || (edges.get(node) ?? []).includes(node)) cycles2.push(members.sort());
-    }
-  };
-  for (const node of edges.keys()) if (!index.has(node)) visit(node);
-  return cycles2;
-}
-function checkPlan(text, size, adrs) {
-  const errors = [];
-  const notes = [];
-  const sections = sectionsOf(withoutFences(text).split(/\r?\n/), errors);
-  for (const name of PLAN_SECTIONS) {
-    if (!sections.has(name)) errors.push({ message: `the plan has no "## ${name}" section`, rule: "missing-section" });
-  }
-  const steps = parseSteps(sections.get("Steps") ?? [], errors);
-  if (sections.has("Steps") && steps.length === 0) errors.push({ message: "the plan has no steps", rule: "no-steps" });
-  const known = new Set(steps.map((step) => step.id));
-  const valueOf = (step, name) => step.fields.get(name)?.value ?? "";
-  const kindOf = (step) => valueOf(step, "Kind").toLowerCase();
-  const kindsOf = new Map(steps.map((step) => [step.id, kindOf(step)]));
-  const edges = new Map(steps.map((step) => [step.id, idsIn(valueOf(step, "Blocked by"))]));
-  const goal = (sections.get("Goal") ?? []).join("\n");
-  const behaviourGoal = goalChangesBehaviour(goal);
-  const stepKinds = new Set(steps.flatMap((step) => kindsIn(kindOf(step))));
-  for (const step of steps) {
-    const fail = (rule, message) => void errors.push({ message, rule, step: step.id });
-    for (const name of PLAN_FIELDS) if (valueOf(step, name) === "") fail("missing-field", `step ${step.id} has no "${name}" field`);
-    for (const name of new Set(step.duplicates)) fail("duplicate-field", `step ${step.id} gives "${name}" more than once`);
-    for (const path of pathsIn(step.prose.join(" "))) fail("path-outside-anchor", `step ${step.id} names the path ${path} outside its fields; paths belong only in fact anchors`);
-    const kinds = kindsIn(kindOf(step));
-    if (kinds.length > 1) fail("multiple-kinds", `step ${step.id} has ${String(kinds.length)} kinds (${kinds.join(", ")}); a step has exactly one`);
-    for (const kind of kinds) if (!PLAN_KINDS.includes(kind)) fail("unknown-kind", `step ${step.id} has the unknown kind "${kind}"`);
-    const blocked2 = valueOf(step, "Blocked by");
-    if (blocked2 !== "" && !NONE.test(blocked2) && idsIn(blocked2).length === 0) fail("blocked-by-unknown", `step ${step.id} is blocked by "${blocked2}", which names no step`);
-    for (const id of edges.get(step.id) ?? []) if (!known.has(id)) fail("blocked-by-unknown", `step ${step.id} is blocked by ${id}, which is no step of the plan`);
-    const transitional = valueOf(step, "Transitional element");
-    if (transitional !== "" && !NONE.test(transitional)) {
-      const removers = idsIn(transitional).filter((id) => kindsOf.get(id) === "remove-transitional");
-      if (removers.length === 0) fail("transitional-no-removal", `step ${step.id} adds a transitional element that no remove-transitional step removes`);
-    }
-    const anchor = valueOf(step, "Anchor");
-    if (anchor !== "") checkAnchor(step.id, anchor, known, adrs, errors);
-    if (kinds.includes("behaviour") && !behaviourGoal) fail("behaviour-not-in-goal", `step ${step.id} changes behaviour, but the Goal does not say behaviour changes`);
-    if (kinds.includes("structure") && UNTESTED.test(valueOf(step, "Safety net")) && !ancestorsOf(step.id, edges).some((id) => kindsOf.get(id) === "characterize")) {
-      fail("untested-structure", `step ${step.id} restructures untested code with no characterize step before it`);
-    }
-    for (const [name, field] of step.fields) {
-      if (name === "Anchor" || name === "Touches") continue;
-      for (const path of pathsIn([field.text, ...field.items].join(" "))) fail("path-outside-anchor", `step ${step.id} names the path ${path} in "${name}"; paths belong only in fact anchors`);
-    }
-    const touches = countOf(step.fields.get("Touches"), /[,;]/);
-    if (touches > size.max_modules) fail("too-many-touches", `step ${step.id} touches ${String(touches)} modules; the limit is ${String(size.max_modules)}`);
-    const criteria = countOf(step.fields.get("Done when"), /;/);
-    if (criteria > size.max_criteria) fail("too-many-criteria", `step ${step.id} has ${String(criteria)} done-when criteria; the limit is ${String(size.max_criteria)}`);
-    if (kinds.includes("expand") && !(stepKinds.has("migrate") && stepKinds.has("contract"))) {
-      const missing2 = ["migrate", "contract"].filter((kind) => !stepKinds.has(kind));
-      fail("expand-incomplete", `step ${step.id} expands, but the plan has no ${missing2.join(" or ")} step`);
-    }
-  }
-  for (const cycle of cyclesOf(edges)) {
-    const message = cycle.length === 1 ? `step ${cycle[0] ?? ""} blocks itself` : `steps ${cycle.join(", ")} block each other in a cycle`;
-    errors.push({ message, rule: "step-cycle" });
-  }
-  for (const [section2, lines] of sections) {
-    if (section2 === "Goal" || section2 === "Steps") continue;
-    for (const path of pathsIn(lines.join("\n"))) errors.push({ message: `the "${section2}" section names the path ${path}; paths belong only in fact anchors`, rule: "path-outside-anchor" });
-  }
-  if (adrs === void 0) notes.push("ADR ids were not checked against docs/adr: no repo was given");
-  const stored = steps.filter((step) => {
-    const kind = kindOf(step);
-    return (kind === "migrate" || kind === "contract") && STORED_DATA.test(`${valueOf(step, "Touches")} ${valueOf(step, "Technique")} ${step.fields.get("Touches")?.items.join(" ") ?? ""}`);
-  });
-  return {
-    errors,
-    notes,
-    steps: steps.map((step) => ({ blocked_by: edges.get(step.id) ?? [], id: step.id, kind: kindOf(step), title: step.title })),
-    stored_data_steps: stored.map((step) => step.id)
-  };
-}
-function ancestorsOf(id, edges) {
-  const seen = /* @__PURE__ */ new Set();
-  const queue = [...edges.get(id) ?? []];
-  for (let next = queue.shift(); next !== void 0; next = queue.shift()) {
-    if (seen.has(next)) continue;
-    seen.add(next);
-    queue.push(...edges.get(next) ?? []);
-  }
-  return [...seen];
-}
-function checkAnchor(step, anchor, known, adrs, errors) {
-  const fail = (rule, message) => void errors.push({ message, rule, step });
-  const prerequisites = [...anchor.matchAll(PREREQUISITE)].map((match) => (match[1] ?? "").toUpperCase());
-  const numbers = [...anchor.matchAll(ADR_ID)].map((match) => Number(match[1]));
-  const facts = [...anchor.matchAll(FACT_ANCHOR)].filter((match) => pathsIn((match[1] ?? "").split("#")[0] ?? "").length > 0);
-  if (prerequisites.length + numbers.length + facts.length === 0) fail("anchor-unresolved", `step ${step} is anchored to no fact row, ADR id or prerequisite-of:Sn`);
-  for (const id of prerequisites) if (!known.has(id)) fail("anchor-unknown-step", `step ${step} is anchored to prerequisite-of:${id}, which is no step of the plan`);
-  if (adrs === void 0) return;
-  for (const number of numbers) {
-    const id = `ADR-${String(number).padStart(4, "0")}`;
-    if (!adrs.present.has(number)) fail("adr-absent", `step ${step} is anchored to ${id}, which is not in docs/adr`);
-    else if (adrs.superseded.has(number)) fail("adr-superseded", `step ${step} is anchored to ${id}, which is superseded`);
-  }
-}
-var PLAN_RULES = [
-  "mixed-change",
-  "no-safety-net",
-  "big-bang-change",
-  "broken-main-order",
-  "no-rollback",
-  "scaffold-left",
-  "unanchored-step",
-  "stale-hotspot",
-  "adr-contradiction",
-  "closes-import-cycle",
-  "premature-service-split",
-  "single-adapter-seam",
-  "deletion-without-decision",
-  "plan-consequence",
-  // The deep roster's coupling and test-seams lenses.
-  "internals-dependence",
-  "decision-spread",
-  "unexplained-co-change",
-  "pass-through",
-  "wide-interface",
-  "needs-real-infrastructure",
-  "coupled-to-internals",
-  "no-assertion-or-pasted-value",
-  "no-fake"
-];
-var PLAN_CHECK_PATH = "check/plan.json";
-function planTarget(location, stepIds) {
-  const rule = PLAN_RULES.find((name) => new RegExp(`(?<![\\w-])${name}(?![\\w-])`, "i").test(location));
-  const step = stepIds.find((id) => new RegExp(`(?<![\\w#/])${id}(?!\\w)`, "i").test(location));
-  return { ...rule === void 0 ? {} : { rule }, ...step === void 0 ? {} : { step } };
-}
-function planStepIds(report2) {
-  try {
-    const parsed3 = JSON.parse(report2);
-    const steps = typeof parsed3 === "object" && parsed3 !== null ? parsed3.steps : void 0;
-    return Array.isArray(steps) ? steps.flatMap((step) => typeof step?.id === "string" ? [step.id] : []) : [];
-  } catch {
-    return [];
-  }
-}
-
-// src/contexts/critique/application/check-plan.ts
 var CheckPlanCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -7589,432 +8186,6 @@ var FactsCommand = class {
 
 // src/contexts/critique/application/fan-out.ts
 import { join as join21 } from "node:path";
-
-// src/contexts/critique/domain/architecture.ts
-var READMES = ["README.md", "readme.md", "README"];
-var LAYER_CONFIGS = [
-  /^\.?dependency-cruiser(\.config)?\.(c|m)?js$/,
-  /^\.?dependency-cruiser(\.config)?\.json$/,
-  /^\.importlinter$/,
-  /^tach\.toml$/,
-  /^\.?arch-?unit\.(json|ya?ml|properties)$/,
-  /^\.go-arch-lint\.ya?ml$/,
-  /^deptrac\.ya?ml$/
-];
-var BUILD_CONFIGS = [
-  /^package\.json$/,
-  /^tsconfig(\.[\w-]+)?\.json$/,
-  /^Cargo\.toml$/,
-  /^pyproject\.toml$/,
-  /^go\.mod$/,
-  /^pom\.xml$/,
-  /^build\.gradle(\.kts)?$/,
-  /^settings\.gradle(\.kts)?$/,
-  /^Makefile$/,
-  /^justfile$/,
-  /^docker-compose\.ya?ml$/
-];
-var BUILD_CONFIG_MAX_FILES = 12;
-var BUILD_CONFIG_MAX_BYTES = 8192;
-function isLayerConfig(name) {
-  return LAYER_CONFIGS.some((pattern) => pattern.test(name));
-}
-function buildConfigs(rootFiles) {
-  const layers = rootFiles.filter(isLayerConfig);
-  const others = rootFiles.filter((name) => !isLayerConfig(name) && BUILD_CONFIGS.some((pattern) => pattern.test(name)));
-  return [...layers, ...others].slice(0, BUILD_CONFIG_MAX_FILES);
-}
-function isLayerConfigPath(packetPath) {
-  return packetPath.startsWith("references/") && isLayerConfig(packetPath.split("/").at(-1) ?? "");
-}
-var DEPENDENCY_CHECKS = ["inward-import", "port-in-adapter", "infrastructure-type-in-domain", "rule-in-adapter"];
-var VERDICT_WORDS = /\b(cohesive|cohesion|leaky|leak(s|ing)?|anemic|tightly[- ]coupled|loosely[- ]coupled|clean|spaghetti|god[- ](class|object|module))\b/i;
-
-// src/contexts/critique/domain/diff-filter.ts
-var LEFT_OUT_PREFIX = "Left out of this diff: ";
-var HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
-function filterDiff(diff, leftOut) {
-  const kept2 = [];
-  const left = [];
-  for (const section2 of parseDiff(diff)) {
-    const reason = section2.path === void 0 ? void 0 : leftOut(section2.path);
-    if (section2.path === void 0 || reason === void 0) {
-      kept2.push(sectionText(section2));
-      continue;
-    }
-    const changed = countChangedLines(sectionText(section2));
-    left.push({ changed_lines: changed, path: section2.path, reason });
-    kept2.push(`${LEFT_OUT_PREFIX}${section2.path}, ${reason}; its ${String(changed)} changed lines are not shown.
-`);
-  }
-  return { diff: kept2.join(""), left_out: left };
-}
-function parseDiff(diff) {
-  const sections = [];
-  for (const line2 of diff.split(/(?<=\n)/)) {
-    const bare = line2.replace(/\n$/, "");
-    const current = sections.at(-1);
-    const hunk = HUNK_HEADER.exec(bare);
-    if (bare.startsWith("diff --git ") || bare.startsWith(LEFT_OUT_PREFIX) || current === void 0) {
-      sections.push({ header: line2, hunks: [], path: void 0 });
-    } else if (hunk !== null) {
-      current.hunks.push({ new: side(hunk[3], hunk[4]), old: side(hunk[1], hunk[2]), text: line2 });
-    } else {
-      const last = current.hunks.at(-1);
-      if (last === void 0) current.header += line2;
-      else current.hunks[current.hunks.length - 1] = { ...last, text: last.text + line2 };
-    }
-  }
-  return sections.map((section2) => ({ ...section2, path: section2.header.startsWith("diff --git ") ? headerPath(section2.header) : void 0 }));
-}
-function sectionText(section2) {
-  return section2.header + section2.hunks.map((hunk) => hunk.text).join("");
-}
-function side(start, count2) {
-  return { count: count2 === void 0 ? 1 : Number(count2), start: Number(start) };
-}
-function headerPath(header) {
-  const lines = header.replace(/\n$/, "").split("\n");
-  const field = (prefix, strip) => {
-    const line2 = lines.find((entry2) => entry2.startsWith(prefix));
-    if (line2 === void 0) return void 0;
-    const path = unquote(line2.slice(prefix.length).replace(/\t$/, ""));
-    return path === "/dev/null" || !path.startsWith(strip) ? void 0 : path.slice(strip.length);
-  };
-  return field("+++ ", "b/") ?? field("rename to ", "") ?? field("copy to ", "") ?? field("--- ", "a/") ?? gitLinePath(lines[0] ?? "");
-}
-function gitLinePath(line2) {
-  const rest = line2.slice("diff --git ".length);
-  if (rest.startsWith('"')) {
-    const second = rest.slice(quotedLength(rest) + 1);
-    const path2 = unquote(second);
-    return path2.startsWith("b/") ? path2.slice(2) : void 0;
-  }
-  const length = (rest.length - 5) / 2;
-  const path = rest.slice(2, 2 + length);
-  return rest === `a/${path} b/${path}` ? path : void 0;
-}
-function quotedLength(text) {
-  let i = 1;
-  while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
-  return i + 1;
-}
-var ESCAPES = { '"': 34, "\\": 92, a: 7, b: 8, f: 12, n: 10, r: 13, t: 9, v: 11 };
-function unquote(text) {
-  if (!text.startsWith('"') || !text.endsWith('"') || text.length < 2) return text;
-  const bytes2 = [];
-  const body = text.slice(1, -1);
-  for (let i = 0; i < body.length; i += 1) {
-    const char = body[i] ?? "";
-    if (char !== "\\") {
-      bytes2.push(...new TextEncoder().encode(char));
-      continue;
-    }
-    const octal = /^[0-7]{3}/.exec(body.slice(i + 1));
-    if (octal !== null) {
-      bytes2.push(parseInt(octal[0], 8));
-      i += 3;
-      continue;
-    }
-    const next = body[i + 1] ?? "";
-    bytes2.push(ESCAPES[next] ?? next.charCodeAt(0));
-    i += 1;
-  }
-  return new TextDecoder().decode(new Uint8Array(bytes2));
-}
-
-// src/contexts/critique/domain/diff-window.ts
-var FILE_KINDS = ["source", "test", "doc"];
-var TEST_PATH = /(^|\/)(tests?|__tests__|specs?)\/|[._-](test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$/;
-var DOC_PATH = /(^|\/)docs?\/|\.(md|mdx|markdown|rst|adoc|txt)$/i;
-function fileKind(path) {
-  if (TEST_PATH.test(path)) return "test";
-  return DOC_PATH.test(path) ? "doc" : "source";
-}
-var DIFF_WINDOW_NOTICE = "The packet cap left hunks out of this diff; facts/INDEX.md lists each one by file and line.\n";
-function windowDiff(diff, budget) {
-  const sections = parseDiff(diff);
-  const files = rankFiles(sections.filter((section2) => section2.path !== void 0));
-  const standing = sections.filter((section2) => section2.path === void 0).map(sectionText);
-  let remaining = budget;
-  const kept2 = [];
-  const dropped = [];
-  for (const file of files) {
-    const pieces = file.hunks.length === 0 ? [void 0] : file.hunks;
-    const sent = [];
-    const left = [];
-    for (const hunk of pieces) {
-      const cost = bytes(hunk?.text ?? "") + (sent.length === 0 ? bytes(file.header) : 0);
-      const fits2 = cost <= remaining;
-      if (fits2) remaining -= cost;
-      if (hunk === void 0) {
-        if (fits2) kept2.push(file.header);
-        else dropped.push({ hunks: [], path: file.path });
-        continue;
-      }
-      ;
-      (fits2 ? sent : left).push(hunk);
-    }
-    if (sent.length > 0) kept2.push(file.header + sent.map((hunk) => hunk.text).join(""));
-    if (left.length > 0) dropped.push({ hunks: left, path: file.path });
-  }
-  return { diff: [DIFF_WINDOW_NOTICE, ...kept2, ...standing].join(""), dropped };
-}
-function rankFiles(files) {
-  const changed = (file) => file.hunks.reduce((sum3, hunk) => sum3 + countChangedLines(hunk.text), 0);
-  return [...files].sort(
-    (a, b) => FILE_KINDS.indexOf(fileKind(a.path)) - FILE_KINDS.indexOf(fileKind(b.path)) || changed(b) - changed(a) || (a.path < b.path ? -1 : 1)
-  );
-}
-function diffDropLine(drop) {
-  if (drop.hunks.length === 0) return `- \`${drop.path}\`: its whole section, which has no hunks`;
-  const head = drop.hunks.filter((hunk) => hunk.new.count > 0).map((hunk) => span(hunk.new.start, hunk.new.count));
-  const base = drop.hunks.filter((hunk) => hunk.new.count === 0).map((hunk) => span(hunk.old.start, hunk.old.count));
-  const parts = [...head.length === 0 ? [] : [`lines ${head.join(", ")}`], ...base.length === 0 ? [] : [`base lines ${base.join(", ")}`]];
-  return `- \`${drop.path}\`: ${parts.join("; ")}`;
-}
-function span(start, count2) {
-  return count2 === 1 ? String(start) : `${String(start)}-${String(start + count2 - 1)}`;
-}
-function diffShownLines(diff) {
-  const shown = /* @__PURE__ */ new Map();
-  for (const section2 of parseDiff(diff)) {
-    if (section2.path === void 0) continue;
-    const ranges = section2.hunks.flatMap((hunk) => {
-      const side2 = hunk.new.count > 0 ? hunk.new : hunk.new.start === 0 ? hunk.old : void 0;
-      return side2 === void 0 || side2.count === 0 ? [] : [{ first: side2.start, last: side2.start + side2.count - 1 }];
-    });
-    shown.set(section2.path, [...shown.get(section2.path) ?? [], ...ranges]);
-  }
-  return new Map([...shown].map(([path, ranges]) => [path, mergeRanges(ranges)]));
-}
-
-// src/contexts/critique/domain/evidence.ts
-function indexPacket(packet2, tickets = []) {
-  return {
-    files: packet2.map((file) => ({ ...file, normalised: normalise(file.text) })),
-    lines: new Map(packet2.map((file) => [file.path, lineCount(file.text)])),
-    shown: new Map(
-      packet2.flatMap((file) => file.kind === "diff" ? [...diffShownLines(file.text)].map(([path, ranges]) => [`${TREE_DIR}/${path}`, ranges]) : [])
-    ),
-    steps: planStepIds(packet2.find((file) => file.path === PLAN_CHECK_PATH)?.text ?? ""),
-    tickets,
-    tree: packet2.some((file) => file.kind === "tree"),
-    windows: new Map(packet2.flatMap((file) => file.window === void 0 ? [] : [[file.path, file.window]]))
-  };
-}
-var TREE_DIR = "tree";
-var DECISION_CATEGORIES = ["omission", "invention"];
-function checkEvidence(finding, stage, packet2, role) {
-  const found = evidenceFound(finding, packet2);
-  if (typeof found === "number") return fabricated(`evidence ${String(found + 1)} quotes text that is not in the packet`);
-  if (isCodeStage(stage) || packet2.tree) {
-    const missing2 = missingLine(finding, packet2);
-    if (missing2 !== void 0) return fabricated(missing2);
-  }
-  const rule = evidenceRule(stage, role);
-  if (rule === "recovery") return recoveryVerdict(finding, found, packet2);
-  const hint = found.items === 0 ? "no-evidence" : EVIDENCE_RULES[rule](finding, found, packet2);
-  return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
-}
-function evidenceFound(finding, packet2) {
-  const found = { decision: false, fact: false, history: false, items: finding.evidence.length, scenario: false, spec: false };
-  for (const [index, evidence] of finding.evidence.entries()) {
-    if (evidence.kind !== "quote") {
-      found.scenario = true;
-      continue;
-    }
-    const quote = normalise(evidence.value);
-    const holders = packet2.files.filter((file) => file.normalised.includes(quote));
-    if (holders.length === 0) return index;
-    found.spec ||= holders.some((file) => file.kind === "artifact");
-    found.decision ||= holders.some((file) => file.kind === "reference");
-    found.fact ||= holders.some((file) => file.kind === "fact");
-    found.history ||= holders.some((file) => file.kind === "history");
-  }
-  return found;
-}
-var EVIDENCE_RULES = {
-  adrs: adrRule,
-  architecture: architectureRule,
-  code: (finding) => codeRule(finding.evidence),
-  decisions: (finding, found) => decisionsRule(finding.category, found),
-  plan: (finding, found, packet2) => planRule(finding, found, packet2),
-  // A record finding quotes the record it is about, which is among the decisions under review.
-  records: (_finding, found) => found.spec ? void 0 : "no-record-quote",
-  spec: (finding, found) => specRule(finding.category, found),
-  tickets: (finding, _found, packet2) => ticketRule(finding.location, packet2.tickets)
-};
-function fabricated(reason) {
-  return { reason, reason_code: "fabricated-evidence", verdict: "rejected" };
-}
-function missingLine(finding, packet2) {
-  const sources = [
-    { text: finding.location, where: "the location" },
-    ...finding.evidence.flatMap(
-      (evidence, index) => evidence.kind === "trace" ? [{ text: evidence.value, where: `evidence ${String(index + 1)}` }] : []
-    )
-  ];
-  for (const { text, where } of sources) {
-    for (const reference of lineReferences(text)) {
-      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate) || packet2.shown.has(candidate));
-      if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
-      const lines = packet2.lines.get(path);
-      const window = packet2.windows.get(path);
-      const inTree = lines === void 0 ? [] : window === void 0 ? [{ first: 1, last: lines }] : heldRanges(window);
-      const held = mergeRanges([...inTree, ...packet2.shown.get(path) ?? []]);
-      const outside = firstUnheld(reference, held);
-      if (outside === void 0) continue;
-      return lines !== void 0 && window === void 0 ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines` : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (${held.map((range) => `${String(range.first)}-${String(range.last)}`).join(", ")}${window === void 0 ? "" : ` of ${String(window.lines)}`})`;
-    }
-  }
-  return void 0;
-}
-function firstUnheld(reference, held) {
-  const holding = (line2) => held.find((range) => range.first <= line2 && line2 <= range.last);
-  const first = holding(reference.first);
-  if (first === void 0) return reference.first;
-  const last = holding(reference.last);
-  if (last === void 0) return reference.last;
-  return first === last ? void 0 : first.last + 1;
-}
-var NO_RATIONALE = /\bno rationale found\b/i;
-function recoveryVerdict(finding, found, packet2) {
-  if (finding.category !== "undocumented-decision") return { reason: HINT_REASONS["not-a-candidate"], reason_code: "not-a-candidate", verdict: "hint" };
-  const sites = traceSites(finding.evidence, packet2);
-  if (sites.size === 0) return rejected("no-code-trace", "cites no file of tree/ in a trace: the decision is not traced to the code");
-  if (sites.size === 1) return rejected("single-site", `traces to one site only: one site may be an accident, so it needs two`);
-  if (!found.history && !NO_RATIONALE.test(finding.claim)) {
-    return rejected("invented-rationale", "gives no reason from history/ and does not say that no rationale was found");
-  }
-  return void 0;
-}
-function rejected(reasonCode, reason) {
-  return { reason, reason_code: reasonCode, verdict: "rejected" };
-}
-function traceSites(evidence, packet2) {
-  const sites = /* @__PURE__ */ new Set();
-  for (const item of evidence) {
-    if (item.kind !== "trace") continue;
-    for (const reference of lineReferences(item.value)) {
-      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate));
-      if (path?.startsWith(`${TREE_DIR}/`) === true) sites.add(path);
-    }
-  }
-  return sites;
-}
-function architectureRule(finding, found, packet2) {
-  const traced = codeRule(finding.evidence) === void 0 && finding.evidence.some((item) => item.kind === "trace");
-  if (finding.category === "unasked-question") return traced ? void 0 : "no-trace";
-  if (finding.check !== void 0 && DEPENDENCY_CHECKS.includes(finding.check) && !packet2.files.some((file) => isLayerConfigPath(file.path))) {
-    return "no-layer-config";
-  }
-  if (VERDICT_WORDS.test(finding.claim) && !found.fact && !found.decision) return "verdict-word";
-  if (!found.decision && !found.fact && !traced) return "no-rule-or-consequence";
-  return /\bobservable\b/i.test(finding.suggestion ?? "") ? void 0 : "no-observable";
-}
-function planRule(finding, found, packet2) {
-  const target = planTarget(finding.location, packet2.steps);
-  if (target.step === void 0) return "no-plan-step";
-  if (target.rule === void 0) return "no-plan-rule";
-  if (!found.spec) return "no-step-quote";
-  return found.decision || found.fact || finding.evidence.some((item) => item.kind === "trace") ? void 0 : "no-plan-anchor";
-}
-function codeRule(evidence) {
-  const checkable = evidence.some(
-    (item) => item.kind === "failing-test" || item.kind === "trace" && lineReferences(item.value).length > 0
-  );
-  return checkable ? void 0 : "no-test-or-trace";
-}
-function ticketRule(location, tickets) {
-  const target = ticketTarget(location, tickets);
-  if (target.rule === void 0) return "no-ticket-rule";
-  return target.rule === "uncovered-requirement" || target.ticket !== void 0 ? void 0 : "no-ticket-id";
-}
-function specRule(category, found) {
-  if (!found.spec) return "no-spec-quote";
-  if (DECISION_CATEGORIES.includes(category)) return found.decision ? void 0 : "no-decision-quote";
-  return found.decision || found.scenario ? void 0 : "no-decision-or-scenario";
-}
-var GAP_CATEGORIES = ["unasked-question", "contradiction"];
-function decisionsRule(category, found) {
-  if (!GAP_CATEGORIES.includes(category)) return "not-a-decision-gap";
-  if (!found.spec && !found.decision) return "no-decision-quote";
-  return found.scenario ? void 0 : "no-scenario";
-}
-var CODE_CATEGORIES = {
-  architecture: [],
-  adrs: [
-    { about: "a decision that names code, config or a command, checked against the code", category: "drift" },
-    { about: "an assumption, revisit condition or promised consequence, checked against the code", category: "stale" }
-  ],
-  code: [],
-  decisions: [],
-  plan: [],
-  records: [],
-  recovery: [],
-  spec: [],
-  tickets: []
-};
-function adrRule(finding, found, packet2) {
-  if (!packet2.tree && CODE_CATEGORIES.adrs.some((code) => code.category === finding.category)) return "needs-tree";
-  if (!found.spec) return "no-record-quote";
-  if (finding.category === "contradiction" && !quotesTwoFiles(finding.evidence, packet2)) return "one-file-contradiction";
-  return finding.category === "unasked-question" && !found.scenario ? "no-scenario" : void 0;
-}
-function quotesTwoFiles(evidence, packet2) {
-  const documents = packet2.files.filter((file) => file.kind === "artifact" || file.kind === "reference");
-  const holders = evidence.flatMap((item) => {
-    if (item.kind !== "quote") return [];
-    const quote = normalise(item.value);
-    return [documents.filter((file) => file.normalised.includes(quote)).map((file) => file.path)];
-  });
-  const apart = (first, second) => first.some((path) => !second.includes(path));
-  return holders.some((first, i) => holders.some((second, j) => i !== j && apart(first, second) && apart(second, first)));
-}
-function skippedChecks(stage, packet2, sources) {
-  if (packet2.tree) return [];
-  const categories = CODE_CATEGORIES[evidenceRule(stage, void 0)];
-  const skipped = categories.map(({ about, category }) => ({ about, check: category, from: "category" }));
-  for (const source of sources) {
-    for (const check of source.checks) {
-      const known = skipped.some((entry2) => entry2.check === check.id);
-      if (check.needsTree === true && !known) skipped.push({ check: check.id, from: source.from });
-    }
-  }
-  return skipped;
-}
-function readSkippedCheck(fields) {
-  const about = fields.optionalString("about");
-  return { check: fields.string("check"), from: fields.string("from"), ...about === void 0 ? {} : { about } };
-}
-var HINT_REASONS = {
-  "needs-tree": NEEDS_TREE.reason,
-  "no-record-quote": "no quote from a record under review",
-  "one-file-contradiction": "a contradiction quotes one file; it needs a quote from each of two files",
-  "no-decision-or-scenario": "no quote from a decision source and no concrete scenario",
-  "no-decision-quote": "no quote from a decision source",
-  "no-evidence": "no evidence to check",
-  "no-scenario": "no concrete scenario",
-  "no-spec-quote": "no quote from the spec",
-  "no-test-or-trace": "no failing test and no trace with a file and line",
-  "no-ticket-id": "the location names no ticket of the spec",
-  "no-ticket-rule": "the location names no ticket rule",
-  "no-layer-config": "the check assumes a layer rule and the packet holds no layer config: ask whether the layering is intended, as an unasked question with a trace",
-  "no-trace": "an unasked question needs a trace that cites a file and line",
-  "no-plan-step": "the location names no step of the plan",
-  "no-plan-rule": "the location names no plan rule",
-  "no-step-quote": "no quote of the step from the plan",
-  "no-plan-anchor": "beside the step quote, no ADR quote, no fact row and no trace",
-  "no-observable": "no observable named: say what would show a fix worked",
-  "no-rule-or-consequence": "taste: neither a declared rule, a fact nor a traced consequence backs it",
-  "verdict-word": "a verdict word with no fact and no quoted decision: state the number, or quote the decision that gives the threshold",
-  "not-a-candidate": "not an undocumented-decision candidate: this stage recovers decisions only",
-  "not-a-decision-gap": "neither an unasked question nor a contradiction"
-};
-function normalise(text) {
-  return text.replace(/\s+/g, " ").trim();
-}
 
 // src/contexts/critique/domain/merge.ts
 function mergeFindings(perCritic) {
@@ -10793,167 +10964,6 @@ function preparedCode(code, texts, files, sample) {
 // src/contexts/critique/application/record.ts
 import { join as join31 } from "node:path";
 
-// src/contexts/critique/domain/refute.ts
-var REFUTE_ANSWERS = ["no-objection", "refute", "downgrade"];
-var OBJECTIONS = ["refute", "downgrade"];
-var REFUTE_OUTCOMES = [...REFUTE_ANSWERS, "stands", "skipped"];
-var REFUTE_REASONS = [
-  "no-eligible-client",
-  "no-review",
-  "invalid-answer",
-  ...MECHANICAL_REJECTIONS,
-  ...HINT_CODES,
-  ...CHECK_HINT_CODES
-];
-function refuterCandidates(routing, stage, work = false) {
-  const routes = stageRouting(routing, { stage });
-  const candidates = [];
-  for (const slot of work ? routes.work : [...routes.base, ...routes.deep]) {
-    for (const client of work ? [slot.client] : [slot.client, ...routing.fallbacks[slot.client] ?? []]) {
-      const config = routing.clients[client];
-      if (config === void 0) throw new CritiqueError("invalid-routing", `routing stage ${stage} names unknown client ${client}`);
-      if (!candidates.some((candidate) => candidate.client === client)) candidates.push({ client, client_config: config, slot });
-    }
-  }
-  return candidates;
-}
-function familyBar(family, rules, raisers) {
-  if (raisers.includes(family)) return `${family} raised the finding`;
-  if (family === rules.orchestratorFamily) return `${family} is the orchestrator's family`;
-  if (!rules.allowedFamilies.includes(family)) return `the allowlist does not permit ${family}`;
-  return void 0;
-}
-function chooseRefuter(finding, candidates, bars) {
-  const passed = [];
-  for (const candidate of candidates) {
-    const bar = bars.family(candidate.client_config.family) ?? bars.blocked(candidate.client);
-    if (bar !== void 0) {
-      passed.push(`${candidate.client}: ${bar}`);
-      continue;
-    }
-    return {
-      refuter: {
-        ...candidate.slot,
-        client: candidate.client,
-        client_config: candidate.client_config,
-        critic_id: `r-${finding.id}-${candidate.client}`,
-        fallbacks: [],
-        lenses: [],
-        role: "refuter"
-      }
-    };
-  }
-  return { skipped: `no routed client can refute it (${passed.length === 0 ? "the stage routes none" : passed.join("; ")})` };
-}
-function withFinding(prompt, finding) {
-  const body = {
-    category: finding.category,
-    ...finding.check === void 0 ? {} : { check: finding.check },
-    claim: finding.claim,
-    evidence: finding.evidence,
-    location: finding.location,
-    severity: finding.severity,
-    ...finding.suggestion === void 0 ? {} : { suggestion: finding.suggestion }
-  };
-  const section2 = [
-    "# The finding",
-    "",
-    "This is the finding you check, as its reviewer reported it. It is not one of the files: your evidence comes from the files.",
-    "",
-    "```json",
-    JSON.stringify(body, null, 2),
-    "```"
-  ].join("\n");
-  return { ...prompt, text: `${prompt.text}
----
-
-${section2}
-` };
-}
-function judgeReply(finding, reply, context) {
-  const { run, findings } = reply;
-  if (run.status !== "ok") return { detail: run.detail ?? run.status, outcome: "stands", reason_code: "no-review" };
-  const [first] = findings;
-  if (first === void 0) {
-    return { answer: "no-objection", outcome: "no-objection", ...run.no_findings_reason === void 0 ? {} : { detail: run.no_findings_reason } };
-  }
-  const objection = first;
-  if (findings.length > 1) return invalid4(`answered with ${String(findings.length)} entries; a refuter gives one`);
-  const answer2 = objection.check;
-  if (!isOneOf(OBJECTIONS, answer2) || !context.declared.includes(answer2)) {
-    return invalid4(`names the check ${answer2 ?? "(none)"}; a refuter answers refute or downgrade`, objection);
-  }
-  if (answer2 === "downgrade" && objection.severity === "critical") return invalid4("a downgrade that leaves the finding critical", objection, answer2);
-  const pre = checkEvidence({ ...objection, category: finding.category, location: finding.location }, context.stage, context.packet, context.role);
-  if (pre !== void 0) return { answer: answer2, detail: pre.reason, outcome: "stands", reason_code: pre.reason_code, reply: objection };
-  return { answer: answer2, outcome: answer2, reply: objection, ...answer2 === "downgrade" ? { severity: objection.severity } : {} };
-}
-function invalid4(detail, reply, answer2) {
-  return {
-    ...answer2 === void 0 ? {} : { answer: answer2 },
-    detail,
-    outcome: "stands",
-    reason_code: "invalid-answer",
-    ...reply === void 0 ? {} : { reply }
-  };
-}
-function countOutcomes(results) {
-  const counts = { downgrade: 0, "no-objection": 0, refute: 0, skipped: 0, stands: 0 };
-  for (const result of results) counts[result.outcome] += 1;
-  return counts;
-}
-function refuteLedgerLine(result, finding, context) {
-  const refuter = result.refuter;
-  return JSON.stringify({
-    type: "refute",
-    ...context,
-    answer: result.answer ?? null,
-    charged_usd: refuter?.charged_usd ?? null,
-    check: isCheckId(finding.check) ? finding.check : null,
-    client: refuter?.client ?? null,
-    cost_usd: refuter?.cost_usd ?? null,
-    critic_id: refuter?.critic_id ?? null,
-    family: refuter?.family ?? null,
-    finding_id: result.finding_id,
-    model: refuter?.model ?? null,
-    outcome: result.outcome,
-    prompt_hashes: refuter?.prompt_hashes ?? null,
-    reason_code: result.reason_code ?? null,
-    role: "refuter",
-    severity: result.severity ?? null,
-    severity_before: finding.severity,
-    status: refuter?.status ?? null
-  });
-}
-function parseRefuteFile(text) {
-  const file = JsonFields.parse(text);
-  return {
-    counts: countOutcomes(file.list("results", readRefuteRecord)),
-    ...file.has("ledger_warnings") ? { ledger_warnings: file.strings("ledger_warnings") } : {},
-    refute_path: file.string("refute_path"),
-    results: file.list("results", readRefuteRecord),
-    run_id: file.string("run_id"),
-    stage: file.oneOf("stage", CRITIQUE_STAGES),
-    status: file.literal("status", "checked")
-  };
-}
-function readRefuteRecord(fields) {
-  const answer2 = fields.has("answer") ? fields.oneOf("answer", REFUTE_ANSWERS) : void 0;
-  const reason = fields.has("reason_code") ? fields.oneOf("reason_code", REFUTE_REASONS) : void 0;
-  const detail = fields.optionalString("detail");
-  const severity = fields.has("severity") ? fields.oneOf("severity", SEVERITIES) : void 0;
-  return {
-    finding_id: fields.string("finding_id"),
-    outcome: fields.oneOf("outcome", REFUTE_OUTCOMES),
-    ...answer2 === void 0 ? {} : { answer: answer2 },
-    ...reason === void 0 ? {} : { reason_code: reason },
-    ...detail === void 0 ? {} : { detail },
-    ...severity === void 0 ? {} : { severity },
-    ...fields.has("reply") ? { reply: readFindingBody(fields.object("reply")) } : {},
-    ...fields.has("refuter") ? { refuter: readCriticRun(fields.object("refuter")) } : {}
-  };
-}
-
 // src/contexts/critique/domain/report.ts
 var SUMMARY_MAX_CHARS = 6e3;
 var CLAIM_MAX_CHARS = 160;
@@ -12515,9 +12525,56 @@ function critiqueStats(ledger, filter, thresholds, routed) {
   );
   return {
     cells,
+    checks: checkStats(ledger.findings.filter((line2) => kept(line2, filter))),
+    refutes: refuteStats(ledger.refutes.filter((line2) => kept(line2, filter))),
     removal_candidates: removalCandidates(runs, uniqueCatches, thresholds.removal_features),
     suggestions: suggestions(cells, routed)
   };
+}
+function byText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+function checkStats(findings) {
+  const byCheck = /* @__PURE__ */ new Map();
+  for (const finding of findings) {
+    if (finding.check === null) continue;
+    byCheck.set(finding.check, [...byCheck.get(finding.check) ?? [], finding]);
+  }
+  return [...byCheck].sort(([a], [b]) => byText(a, b)).map(([check, lines]) => {
+    const count2 = (verdict) => lines.filter((line2) => line2.verdict === verdict).length;
+    const accepted = count2("accepted");
+    const rejected2 = count2("rejected");
+    const adjudicated = accepted + rejected2;
+    return {
+      accepted,
+      adjudicated,
+      check,
+      findings: lines.length,
+      hints: count2("hint"),
+      needs_human: count2("needs-human"),
+      precision: adjudicated === 0 ? null : accepted / adjudicated,
+      rejected: rejected2
+    };
+  });
+}
+function refuteStats(refutes) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const refute of refutes) {
+    const key2 = `${refute.stage} ${refute.client ?? ""}`;
+    const group = groups.get(key2) ?? { lines: [], refuter: refute.client, stage: refute.stage };
+    group.lines.push(refute);
+    groups.set(key2, group);
+  }
+  return [...groups.values()].sort(
+    (a, b) => CRITIQUE_STAGES.indexOf(a.stage) - CRITIQUE_STAGES.indexOf(b.stage) || byText(a.refuter ?? "", b.refuter ?? "")
+  ).map(({ lines, refuter, stage }) => ({
+    outcomes: Object.fromEntries(
+      REFUTE_OUTCOMES.map((outcome) => [outcome, lines.filter((line2) => line2.outcome === outcome).length])
+    ),
+    refuter,
+    stage,
+    total: lines.length
+  }));
 }
 function kept(line2, filter) {
   const day = line2.recorded_at.slice(0, 10);
@@ -12637,6 +12694,7 @@ function renderStats(stats, scope) {
   }
   if (stats.cells.length > 0)
     lines.push(...calibrationLines(stats.cells, thresholds.min_adjudicated_findings));
+  lines.push(...checkLines(stats.checks), ...refuteLines(stats.refutes));
   lines.push("", "## Removal candidates", "");
   lines.push(
     ...stats.removal_candidates.length === 0 ? ["none"] : stats.removal_candidates.map(
@@ -12680,6 +12738,45 @@ function calibrationLines(cells, minimum) {
         share(calibration.by_severity.critical),
         share(calibration.by_severity.major),
         share(calibration.by_severity.minor)
+      ].join(" | ")} |`
+    )
+  ];
+}
+function checkLines(checks) {
+  if (checks.length === 0) return ["", "## Precision by check", "", "No finding names a check yet."];
+  return [
+    "",
+    "## Precision by check",
+    "",
+    "Accepted over accepted plus rejected findings, per check id. Hints and needs-human findings are left out.",
+    "",
+    "| check | findings | adjudicated | accepted | precision |",
+    "|---|---|---|---|---|",
+    ...checks.map(
+      (row) => `| ${[row.check, String(row.findings), String(row.adjudicated), String(row.accepted), row.precision === null ? "-" : row.precision.toFixed(2)].join(" | ")} |`
+    )
+  ];
+}
+function refuteLines(refutes) {
+  if (refutes.length === 0) return ["", "## Refute round", "", "No refute round has been recorded."];
+  return [
+    "",
+    "## Refute round",
+    "",
+    "Accepted critical findings the refute round checked, per stage and refuter client. Skipped means no client could refute the finding.",
+    "",
+    "| stage | refuter | checked | no objection | refuted | downgraded | stands | skipped |",
+    "|---|---|---|---|---|---|---|---|",
+    ...refutes.map(
+      (row) => `| ${[
+        row.stage,
+        row.refuter ?? "-",
+        String(row.total),
+        String(row.outcomes["no-objection"]),
+        String(row.outcomes.refute),
+        String(row.outcomes.downgrade),
+        String(row.outcomes.stands),
+        String(row.outcomes.skipped)
       ].join(" | ")} |`
     )
   ];

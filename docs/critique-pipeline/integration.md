@@ -3819,7 +3819,7 @@ Run on a Linux workstation with the runner built from this branch (`skills/works
   | tickets | vibe-deepseek-flash | 53084df1d5eb | 50 | 0.96 (25) | 1.00 (25) | +0.04 | 1.00 (3) | 0.98 (43) | 1.00 (4) |
 
   Every other cell stays `(too few)` and show no calibration. DeepSeek Flash's ticket-linter findings are accepted 98% of the time and its criticals are not less accurate than its minors, so it is calibrated by this reading; its precision is not getting worse. The report suggests no routing change and lists no removal candidate.
-- **Not covered by this ticket:** the replaced ticket #246 also asked for per-check precision and refute outcomes per stage and refuter client. The stats do not compute them yet.
+- **Not covered by this ticket:** the replaced ticket #246 also asked for per-check precision and refute outcomes per stage and refuter client. The stats do not compute them yet (#679 adds both: precision per check id from the ledger's finding lines, and the refute round's outcomes per stage and refuter client from its `refute` lines).
 
 ### #491: the remaining critique live checks
 

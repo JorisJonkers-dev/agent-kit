@@ -424,7 +424,7 @@ fn the_report_lists_every_stage_the_calibration_the_candidates_and_the_suggestio
 
 #[test]
 fn the_report_says_none_when_no_run_matches() {
-    let stats = CritiqueStats { cells: Vec::new(), removal_candidates: Vec::new(), suggestions: Vec::new() };
+    let stats = CritiqueStats { cells: Vec::new(), checks: Vec::new(), refutes: Vec::new(), removal_candidates: Vec::new(), suggestions: Vec::new() };
     let scope = StatsScope {
         ledger_path: "/l.jsonl".to_string(),
         filter: filter(Some("github.com/owner/repo"), Some("2026-01-01"), None),
@@ -481,7 +481,7 @@ fn the_figures_print_in_the_key_order_the_node_runner_builds() {
     let stats = stats_of(&runs, &findings, 1.0, 3.0);
     assert_eq!(
         keys(&stats.to_json()),
-        vec!["cells", "removal_candidates", "suggestions"]
+        vec!["cells", "checks", "refutes", "removal_candidates", "suggestions"]
     );
     assert_eq!(
         keys(&stats.cells[0].to_json()),
@@ -703,7 +703,7 @@ fn the_command_reports_the_figures() {
     let result = stats_run(&input(r#"{"since":"2026-01-01"}"#), &runtime).expect("a result");
     assert_eq!(
         keys(&result),
-        vec!["cells", "removal_candidates", "suggestions", "filter", "ledger_path", "report", "status", "thresholds"]
+        vec!["cells", "checks", "refutes", "removal_candidates", "suggestions", "filter", "ledger_path", "report", "status", "thresholds"]
     );
     assert_eq!(json::compact(&at(&result, "filter")), r#"{"since":"2026-01-01"}"#);
     assert_eq!(at(&result, "status"), Value::str("reported"));
@@ -831,4 +831,116 @@ fn a_stage_routing_lacks_routes_to_no_client() {
     let routing = crate::routing::parse_routing(&shipped).expect("routing");
     assert!(crate::stats_command::routed_clients(&routing, "no-such-stage").is_empty());
     assert!(!crate::stats_command::routed_clients(&routing, "spec").is_empty());
+}
+
+/// A ledger of finding and refute lines of one critic, each as its own run and line.
+fn per_check_ledger(lines: &[&str]) -> Ledger {
+    let run = Run::new("r1", "c1", "a", "spec", "2026-01-01T00:00:00.000Z").text();
+    parse_ledger(&format!("{run}\n{}", lines.join("\n"))).expect("a ledger")
+}
+
+fn finding_line(id: &str, day: &str, check: Option<&str>, verdict: &str) -> String {
+    let check = match check {
+        Some(check) => format!("\"check\":\"{check}\","),
+        None => "\"check\":null,".to_string(),
+    };
+    format!(
+        "{{\"type\":\"finding\",\"recorded_at\":\"{day}T10:00:00.000Z\",\"repository\":\"github.com/o/r\",\"stage\":\"spec\",\"run_id\":\"r1\",\"finding_id\":\"{id}\",{check}\"severity\":\"major\",\"raised_by\":[\"c1\"],\"verdict\":\"{verdict}\",\"pre_verdict\":null}}"
+    )
+}
+
+fn refute_line(stage: &str, day: &str, client: Option<&str>, outcome: &str) -> String {
+    let client = client.map_or("null".to_string(), |client| format!("\"{client}\""));
+    format!(
+        "{{\"type\":\"refute\",\"recorded_at\":\"{day}T10:00:00.000Z\",\"repository\":\"github.com/o/r\",\"stage\":\"{stage}\",\"run_id\":\"r1\",\"finding_id\":\"F1\",\"client\":{client},\"outcome\":\"{outcome}\"}}"
+    )
+}
+
+fn figures(ledger: &Ledger, filter: &StatsFilter) -> CritiqueStats {
+    critique_stats(ledger, filter, &thresholds(20.0, 3.0), &none_routed).expect("the figures")
+}
+
+#[test]
+fn precision_per_check_counts_each_finding_once_and_orders_by_id() {
+    let lines = [
+        finding_line("F1", "2026-01-01", Some("unstated-assumption"), "accepted"),
+        finding_line("F2", "2026-01-01", Some("unstated-assumption"), "accepted"),
+        finding_line("F3", "2026-01-01", Some("unstated-assumption"), "rejected"),
+        finding_line("F4", "2026-01-01", Some("unstated-assumption"), "hint"),
+        finding_line("F5", "2026-01-01", Some("unstated-assumption"), "needs-human"),
+        finding_line("F6", "2026-01-01", Some("contradiction"), "rejected"),
+        finding_line("F7", "2026-01-01", Some("hint-only"), "hint"),
+        finding_line("F8", "2026-01-01", None, "accepted"),
+        finding_line("F9", "2026-02-01", Some("late"), "accepted"),
+    ];
+    let ledger = per_check_ledger(&lines.iter().map(String::as_str).collect::<Vec<_>>());
+    let checks = figures(&ledger, &filter(None, None, Some("2026-01-31"))).checks;
+    let row = |check: &str, accepted: f64, rejected: f64, hints: f64, needs_human: f64, precision: Option<f64>| {
+        let findings = accepted + rejected + hints + needs_human;
+        super::super::stats::CheckStats { check: check.to_string(), findings, accepted, rejected, hints, needs_human, adjudicated: accepted + rejected, precision }
+    };
+    assert_eq!(
+        checks,
+        [
+            row("contradiction", 0.0, 1.0, 0.0, 0.0, Some(0.0)),
+            row("hint-only", 0.0, 0.0, 1.0, 0.0, None),
+            row("unstated-assumption", 2.0, 1.0, 1.0, 1.0, Some(2.0 / 3.0)),
+        ]
+    );
+    assert_eq!(keys(&checks[0].to_json()), ["accepted", "adjudicated", "check", "findings", "hints", "needs_human", "precision", "rejected"]);
+    assert_eq!(at(&checks[1].to_json(), "precision"), Value::Null);
+}
+
+#[test]
+fn the_refute_round_is_counted_per_stage_and_refuter_in_the_order_of_a_refute_file() {
+    let lines = [
+        refute_line("tickets", "2026-01-01", Some("glm"), "stands"),
+        refute_line("spec", "2026-01-01", Some("glm"), "refute"),
+        refute_line("spec", "2026-01-01", Some("glm"), "no-objection"),
+        refute_line("spec", "2026-01-01", Some("glm"), "no-objection"),
+        refute_line("spec", "2026-01-01", Some("agy"), "downgrade"),
+        refute_line("spec", "2026-01-01", None, "skipped"),
+        refute_line("spec", "2026-03-01", Some("glm"), "stands"),
+    ];
+    let ledger = per_check_ledger(&lines.iter().map(String::as_str).collect::<Vec<_>>());
+    let refutes = figures(&ledger, &filter(None, Some("2026-01-01"), Some("2026-02-01"))).refutes;
+    let seen: Vec<(&str, Option<&str>, f64, [f64; 5])> = refutes.iter().map(|row| (row.stage.as_str(), row.refuter.as_deref(), row.total, row.outcomes)).collect();
+    assert_eq!(
+        seen,
+        [
+            ("spec", None, 1.0, [0.0, 0.0, 0.0, 0.0, 1.0]),
+            ("spec", Some("agy"), 1.0, [0.0, 0.0, 1.0, 0.0, 0.0]),
+            ("spec", Some("glm"), 3.0, [2.0, 1.0, 0.0, 0.0, 0.0]),
+            ("tickets", Some("glm"), 1.0, [0.0, 0.0, 0.0, 1.0, 0.0]),
+        ]
+    );
+    let json = refutes[2].to_json();
+    assert_eq!(keys(&json), ["outcomes", "refuter", "stage", "total"]);
+    assert_eq!(keys(&at(&json, "outcomes")), ["no-objection", "refute", "downgrade", "stands", "skipped"]);
+    assert_eq!(at(&refutes[0].to_json(), "refuter"), Value::Null);
+}
+
+#[test]
+fn the_report_shows_the_check_and_refute_tables_or_says_there_are_none() {
+    let lines = [
+        finding_line("F1", "2026-01-01", Some("contradiction"), "accepted"),
+        finding_line("F2", "2026-01-01", Some("contradiction"), "hint"),
+        finding_line("F3", "2026-01-01", Some("empty-one"), "needs-human"),
+        refute_line("spec", "2026-01-01", Some("glm"), "stands"),
+        refute_line("spec", "2026-01-01", None, "skipped"),
+    ];
+    let ledger = per_check_ledger(&lines.iter().map(String::as_str).collect::<Vec<_>>());
+    let scope = StatsScope { ledger_path: "/l.jsonl".to_string(), filter: filter(None, None, None), thresholds: thresholds(20.0, 3.0) };
+    let report = render_stats(&figures(&ledger, &scope.filter), &scope);
+    assert!(report.contains("\n## Precision by check\n\nAccepted over accepted plus rejected findings, per check id. Hints and needs-human findings are left out.\n\n| check | findings | adjudicated | accepted | precision |\n|---|---|---|---|---|\n| contradiction | 2 | 1 | 1 | 1.00 |\n| empty-one | 1 | 0 | 0 | - |\n"), "{report}");
+    assert!(report.contains("\n## Refute round\n\nAccepted critical findings the refute round checked, per stage and refuter client. Skipped means no client could refute the finding.\n\n| stage | refuter | checked | no objection | refuted | downgraded | stands | skipped |\n|---|---|---|---|---|---|---|---|\n| spec | - | 1 | 0 | 0 | 0 | 0 | 1 |\n| spec | glm | 1 | 0 | 0 | 0 | 1 | 0 |\n"), "{report}");
+    let empty = render_stats(&figures(&per_check_ledger(&[]), &scope.filter), &scope);
+    assert!(empty.contains("\n## Precision by check\n\nNo finding names a check yet.\n"), "{empty}");
+    assert!(empty.contains("\n## Refute round\n\nNo refute round has been recorded.\n"), "{empty}");
+}
+
+#[test]
+fn a_refute_line_with_an_outcome_the_round_does_not_give_is_a_shape_error() {
+    let line = refute_line("spec", "2026-01-01", None, "maybe");
+    assert_eq!(parse_ledger(&line).err().map(|error| error.0), Some("line 1.outcome must be one of no-objection, refute, downgrade, stands, skipped".to_string()));
 }
