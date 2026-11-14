@@ -74,8 +74,11 @@ KIT_PATHS=(
   scripts/codex-add-url-mcp.py
   scripts/converge.py
   scripts/gold_band_instances.py
-  scripts/crates/gold-band-registry/Cargo.toml
-  scripts/crates/gold-band-registry/src
+  scripts/install-workspace-tools.sh
+  .cargo/config.toml
+  scripts/Cargo.toml
+  scripts/Cargo.lock
+  scripts/crates
   scripts/vibe-merge-mcp.py
   scripts/vibe-no-commit-signature.py
   scripts/antigravity-merge-mcp.py

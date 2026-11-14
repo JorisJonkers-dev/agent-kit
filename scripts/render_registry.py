@@ -139,6 +139,7 @@ print(published.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
 sys.exit(0 if published <= when(sys.argv[1]) else 1)"""
 
 RETIRED_SKILL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+WORKSPACE_TOOL_NAME = re.compile(r"[a-z][a-z0-9-]*")
 
 # An exact npm version: MAJOR.MINOR.PATCH with an optional -prerelease. A
 # range (`^1.5.0`, `>=1.0.0`), a tag (`latest`), an x-version (`1.x`) or a
@@ -676,6 +677,7 @@ def validate(data: dict[str, Any], reach_path: Path = REACH_PATH) -> None:
         if not isinstance(rname, str) or not RETIRED_SKILL_NAME.fullmatch(rname):
             raise RegistryError(f"retired_skills entry needs a plain `name` (letters, digits, . _ -): {rname!r}")
 
+    _validate_workspace_tools(data, known_surfaces)
     _validate_claude_profiles(data)
     _validate_container(data)
 
@@ -722,6 +724,26 @@ def _validate_pinned_npm_cli(cli: dict[str, Any], pin: dict[str, Any]) -> None:
             raise RegistryError(
                 f"cli {name} must pin an exact version of {entry.get('package')}, not {version!r}",
             )
+
+
+def _validate_workspace_tools(data: dict[str, Any], known_surfaces: set[str]) -> None:
+    """``workspace_tools:`` names crates of this kit's own cargo workspace, once each, on known surfaces."""
+    seen: set[str] = set()
+    for tool in _entries(data, "workspace_tools"):
+        name = tool.get("name")
+        if not isinstance(name, str) or not WORKSPACE_TOOL_NAME.fullmatch(name):
+            raise RegistryError(f"workspace_tools entry needs a plain `name` (lower-case letters, digits, -): {name!r}")
+        if name in seen:
+            raise RegistryError(f"workspace_tools names {name} twice")
+        seen.add(name)
+        if not (KIT_ROOT / "scripts" / "crates" / name / "Cargo.toml").is_file():
+            raise RegistryError(f"workspace_tools entry {name} is not a crate under scripts/crates")
+        surfaces = tool.get("surfaces")
+        if not isinstance(surfaces, list) or not surfaces:
+            raise RegistryError(f"workspace_tools entry {name} must declare surfaces")
+        unknown = set(surfaces) - known_surfaces
+        if unknown:
+            raise RegistryError(f"workspace_tools entry {name} names unknown surfaces {sorted(unknown)}")
 
 
 def on_surface(item: dict[str, Any], surface: str) -> bool:
@@ -2212,6 +2234,32 @@ def _gateway_pointer_fn(w: Any) -> None:
         w(line)
     w("BLOCK")
     w("}")
+    w("")
+
+
+def _workspace_tools_step(data: dict[str, Any], w: Any) -> None:
+    """Builds the registry's ``workspace_tools:`` from the kit's cargo workspace into ~/.local/bin."""
+    names = [str(t["name"]) for t in _entries(data, "workspace_tools") if on_surface(t, "workstation")]
+    if not names:
+        return
+    w("# The kit's own command-line tools (registry workspace_tools:), built from its pinned")
+    w("# cargo workspace behind the 7-day crate cooldown and installed into ~/.local/bin. A failed")
+    w("# build or smoke check leaves every installed tool as it was.")
+    w("workspace_tools_setup() {")
+    w("  local rc=0 mode=() out line")
+    w('  if [ "${CLOUD}" = 1 ]; then')
+    w('    log "workspace tools: not built in a cloud session"')
+    w("    return 0")
+    w("  fi")
+    w('  [ "${CHECK_ONLY}" = 1 ] && mode=(--check)')
+    w(
+        '  out=$(bash "${KIT_ROOT}/scripts/install-workspace-tools.sh" ${mode[@]+"${mode[@]}"} \\'
+    )
+    w(f"    {' '.join(names)} 2>&1) || rc=$?")
+    w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  [ "${rc}" = 0 ] || warn "workspace tools: not all installed (exit ${rc}); the installed ones are unchanged"')
+    w("}")
+    w("workspace_tools_setup")
     w("")
 
 
@@ -5614,6 +5662,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("}")
     w("critique_rust_setup")
     w("")
+    _workspace_tools_step(data, w)
     w('if [ "${CLOUD}" = 1 ]; then')
     w("  cloud_finish")
     w("fi")

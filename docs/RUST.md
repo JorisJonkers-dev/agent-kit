@@ -587,8 +587,10 @@ else the node bundle in the Claude Code home, as before. Setup runs
 `scripts/install-model-gateway-rust.sh`, which builds the crate from this workspace
 (`cargo build --release --locked -p model-gateway`, std only, so nothing in the lockfile
 has an age to question), checks that the new binary answers `--help`, and moves it into
-place atomically. A machine with no cargo, no workspace (a bundle install) or no clone
-skips the step and keeps running the node runner; a failed build or a binary that does
+place atomically. A machine with no cargo or no workspace skips the step and keeps
+running the node runner (a release's kit bundle ships the workspace, so a bundle
+install builds it too; SETUP.md's "The kit's own command-line tools" lists what
+else setup builds from it); a failed build or a binary that does
 not start leaves whatever was installed untouched, so a caller never sees a half
 installed gateway and nothing changes for it until the binary exists.
 

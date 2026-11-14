@@ -8741,6 +8741,23 @@ critique_rust_setup() {
 }
 critique_rust_setup
 
+# The kit's own command-line tools (registry workspace_tools:), built from its pinned
+# cargo workspace behind the 7-day crate cooldown and installed into ~/.local/bin. A failed
+# build or smoke check leaves every installed tool as it was.
+workspace_tools_setup() {
+  local rc=0 mode=() out line
+  if [ "${CLOUD}" = 1 ]; then
+    log "workspace tools: not built in a cloud session"
+    return 0
+  fi
+  [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
+  out=$(bash "${KIT_ROOT}/scripts/install-workspace-tools.sh" ${mode[@]+"${mode[@]}"} \
+    agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  [ "${rc}" = 0 ] || warn "workspace tools: not all installed (exit ${rc}); the installed ones are unchanged"
+}
+workspace_tools_setup
+
 if [ "${CLOUD}" = 1 ]; then
   cloud_finish
 fi
