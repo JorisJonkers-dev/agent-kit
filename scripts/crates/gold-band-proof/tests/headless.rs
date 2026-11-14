@@ -34,6 +34,10 @@ fn workflow_c_work() -> PathBuf {
     manifest_dir().join("../../../installer/gold-band/workflows/workflow-c-work.json")
 }
 
+fn research() -> PathBuf {
+    manifest_dir().join("../../../installer/gold-band/workflows/research.json")
+}
+
 fn fixture() -> PathBuf {
     manifest_dir().join("tests/fixtures/fails-closed.json")
 }
@@ -145,6 +149,38 @@ fn workflow_b_repairs_twice_then_escalates_to_a_manual_check_and_fails_closed_on
         assert!(
             stdout.contains(&format!(
                 "gate-fail-{gate}: expected exit 1, got 1 (completed/failure)"
+            )),
+            "{stdout}"
+        );
+    }
+    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
+#[test]
+fn research_runs_planning_fan_out_merge_verify_and_acceptance_and_a_failed_verify_ends_it() {
+    // Workflow A is one success chain whose only edge to `$end` leaves the
+    // acceptance node, so a clean run that completes in success ran the
+    // planning node, the fan-out, the merge, the verifier and the acceptance.
+    let Some(gold_band) = gold_band() else { return };
+    let records = scratch("research");
+    let output = prove(&research(), &records, &[], &gold_band);
+    let stdout = text(&output.stdout);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&output.stderr)
+    );
+    assert!(
+        stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+    // A verifier that refuses (a quote not on its fetched page) ends the run
+    // in failure before the acceptance; so does every other shim.
+    for gate in ["start", "papers", "fetch", "adopt", "index", "verify"] {
+        assert!(
+            stdout.contains(&format!(
+                "gate-fail-research-{gate}: expected exit 1, got 1 (completed/failure)"
             )),
             "{stdout}"
         );

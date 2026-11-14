@@ -680,6 +680,149 @@ fake `gh`; no real repository is named and no issue is created. The headless
 proof adds `grant-lapse-spec-verdicts` and `grant-lapse-tickets-verdicts`, each
 pausing (exit 2) at its grant manual check.
 
+## Workflow A in the personal instance
+
+`installer/gold-band/workflows/research.json` is Workflow A, deep research
+(spec #392, stories 82 to 85; issue #456), for the personal instance. Every
+run works in a directory of its own, `~/.local/state/agent-kit/gold-band/research/<run id>/`
+(below, `RUN`), and on a branch of its own of the private research repository.
+One success chain, no failure edge and no cycle:
+
+1. `gate-research-start`, the run-start shim. A refusal ends the run before any
+   model node.
+2. `gate-research-papers` and `copy-research-papers`: the gate shim around
+   `git -C <research repository> worktree add RUN/papers-worktree -b
+   research/<run id> origin/main`, so the merge writes onto the run's own branch,
+   never into the owner's checkout.
+3. `research-planning` (Claude, Opus): states the question, at most five
+   sub-questions, at most six public sources (`id`, https `url`), the theme
+   folder and the note's `min_tier`, as `RUN/plan.json`.
+4. `gate-research-fetch` and `copy-research-fetch`: the fetch shim,
+   `research-layout fetch --plan RUN/plan.json --out RUN/pages --max-sources 6`
+   ([RUST.md](RUST.md#research-layout)). It refuses a plan over the width limit
+   or naming a non-public url, and stores each page's text with its SHA-256 in
+   `RUN/pages/fetch-log.json`.
+5. `research-fetchers`, one `ai-dynamic` node: the fetchers, one per stored
+   page, each reading only its own page and the plan and writing one note of
+   verbatim quotes to `RUN/staging/<source id>.md`. Its limits are explicit:
+   `maxFanout` 6 (the width, the same number the fetch shim enforces),
+   `maxParallel` 3, `maxDepth` 2 and `maxGroupDepth` 1 (the depth: one fan-out
+   group, its workers, no deeper), `allowNestedDynamic` false,
+   `maxWorkflowInvocations` 1 and `maxDynamicNodes` 9 (the bootstrap, six
+   fetchers, the merge and the acceptance). A fetcher fetches nothing and
+   follows no link, so the depth of the web search is the plan's one level.
+6. `gate-research-adopt` and `copy-research-adopt`: `research-layout adopt`
+   copies every stored page byte for byte into the plan's theme folder on the
+   run's branch, as `<theme>/<id>.txt`. A model never retypes a page: in the
+   first live run (below) a merge worker without it kept two of six pages,
+   because copying a page through a write tool is slow and error-prone.
+7. `research-merge` (Claude, Sonnet): writes the result into
+   `RUN/papers-worktree/papers` in the papers layout: one catalog entry per
+   adopted page with its `url`, the theme's explainer when the folder is new,
+   and one note whose every claim quotes a page (`> ` lines, then
+   `-- <theme>/<id>.txt`). It never edits an adopted page.
+8. `gate-research-index` and `copy-research-index`: `research-layout index` over
+   the papers directory, so no model writes a generated index.
+9. `gate-research-verify` and `copy-research-verify`: the read-only verifier,
+   `research-layout verify --papers RUN/papers-worktree/papers --fetched RUN/pages
+   --base origin/main`. It fails when the layout breaks a rule, when a quote is
+   not on its page (`quote-not-found`), when a page differs from the page as
+   fetched (`page-not-as-fetched`), or when a note the run added quotes a page
+   the fetch did not store, quotes nothing, or quotes under 8 characters. So a
+   quote that is not on its fetched page fails verification and ends the run.
+10. `research-acceptance` (Claude, Opus): judges the plan against what the run
+   added on its branch, and answers `ok`; `false` ends the run in failure. The
+   only edge to `$end` leaves this node.
+
+The branch is left for the owner to review and push; no node holds a GitHub
+credential.
+
+### Which nodes may be Pi, and why
+
+The research repository is private, so a node that reads or writes it binds an
+Anthropic model; only nodes that see nothing but public material may run Pi
+over LiteLLM (agent-kit#737):
+
+* **The fetchers are Pi** (`pi`, `litellm-vibe-study/deepseek-v4.1-flash`; the
+  bootstrap and the node's own merge and acceptance `litellm-vibe/mistral-medium-3.5`).
+  They read the plan and the public pages in the run directory, which holds
+  nothing from the research repository, and write only `RUN/staging/`. Pi has
+  no web tool (`registry/reach-levels.yaml`: `read-web` is unsupported), which
+  is why a pinned wrapper fetches the pages and the fetchers only read them. The
+  plan is derived from the owner's question, so the question reaches Pi too: it
+  must be fit for a public model, and the research skill says so.
+* **The verifier is not a model.** It reads the private branch, so Pi is ruled
+  out, and a quote check is exact: a model asked whether a quote is on a page
+  can say yes when it is not. The verify gate's own agent and the copier only
+  run the wrapper and read its report.
+* **The merge is Claude.** It reads the research repository's layout and writes
+  into it.
+* **Planning and acceptance are Claude Opus**, the two judgment nodes the spec
+  gives Opus (their ids end in `-planning` and `-acceptance`, as the workflow
+  lint requires). Neither binds a memory-writing agent.
+* The gate and copier agent ids (`gate-research-*`, `copy-research-*`) are
+  bound when the workflow is wired live; Pi cannot hold the
+  `run-one-command` level they need, so they run on Claude.
+
+### What Gold Band does with the fan-out (verified headless, v0.19.1)
+
+* An ai-dynamic node may list an agent id once in `availableAgents`: a second
+  `pi` entry (to give the fetchers two models) is refused at load with
+  `available agent pi is duplicated`.
+* A dynamic fan-out must create at least two nodes: a bootstrap proposal with
+  one worker is rejected (`dynamic.fanout.nodes.too-few`) and the run pauses
+  as blocked. The proof's stub therefore fans a single worker agent out twice.
+* Whether Gold Band refuses a proposal over `maxFanout` was not proved here; the
+  fetch shim refuses a plan over six sources before the fan-out, so the width
+  holds either way.
+
+### What is proved and what is not
+
+The headless proof (`gold-band-proof prove`) passes on Linux against v0.19.1:
+`clean` ends completed and in success (exit 0), and each of
+`gate-fail-research-start`, `-papers`, `-fetch`, `-index` and `-verify` ends
+completed and in failure (exit 1), so a refused verifier never reaches the
+acceptance. Since the graph is one chain whose only edge to `$end` leaves the
+acceptance, a clean success ran every node in order.
+`tests/test_gold_band_research_workflow.py` checks the file itself (the order,
+the limits, the bindings and the privacy split). The verifier's rules are the
+`research-layout` unit tests, and `tests/verify_gate.rs` in that crate runs the
+built verifier through `gold-band-gate run` and `verify`: a quote on its fetched
+page passes both, a quote that is not fails the gate and the copier refuses its
+report. Not proved: that the gate agents run the pinned wrappers with these
+arguments (the live wiring), and that real fetchers quote well.
+
+### The first live run (Linux, 2026-11-14)
+
+The gate agents are not wired live yet, so the nodes were run in order by hand,
+each with the agent and reach level the workflow binds, on the public question
+"how should a client retry failed calls to a remote service (exponential
+backoff, jitter, retry limits)?":
+
+* planning: `claude -p --model opus` at the `read` level wrote a plan of five
+  sub-questions and six sources (Google SRE book, two chapters; AWS Builders'
+  Library; AWS Architecture Blog; RFC 9110; gRPC proposal A6);
+* `research-layout fetch` through `gold-band-gate run` stored all six pages
+  (12 to 453 KB of text each), and the copier accepted the report;
+* six Pi fetchers (`pi -p --provider litellm-vibe-study --model
+  deepseek-v4.1-flash`, read-only tools, three at a time) each wrote a note
+  from its own page;
+* the papers gate made `research/run-20261114` in a worktree of the research
+  repository, `adopt` copied the six pages, and `claude -p --model sonnet` at
+  the `write-scoped` level wrote six catalog entries, the theme explainer and a
+  note with 34 quotes;
+* `index`, then `verify` through the gate: `research-layout: ok`, copier exit 0.
+  The same note with one word inserted into one quote failed with
+  `quote-not-found` (exit 1);
+* acceptance: `claude -p --model opus` answered `ok: true`, naming three cut
+  quotes and the open points (no sourced base delay or multiplier, thin latency
+  trade-offs).
+
+A first merge without the adopt gate kept only two of the six pages, and the
+acceptance node refused it (`ok: false`, sources fetched but not used); the
+adopt gate was added for that reason. The result is committed on the local
+`research/run-20261114` branch of the research repository, not pushed.
+
 ## Wave 4: the human-gate workflows
 
 `grill-me`, `grill-with-docs`, `brainstorming`, `to-spec`, `to-tickets` and

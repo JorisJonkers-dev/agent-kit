@@ -28,31 +28,39 @@ report the refusal message given there.
 
 ## Check the instance
 
-The instance is available when the headless runner is on `PATH` and the Workflow
-A workflow file is present:
+The instance is available when the headless runner and the proof check are on
+`PATH` and the Workflow A workflow file is present:
 
 ```sh
 command -v gold-band
+command -v gold-band-proof
 test -f "${XDG_DATA_HOME:-$HOME/.local/share}/agent-kit/gold-band-personal/workflows/research.json"
 ```
 
-Both must succeed. When either fails, no instance is available: go to "Fall back
+All three must succeed. When any fails, no instance is available: go to "Fall back
 to direct delegation".
 
 ## Start the run
 
-Write the research question to a requirement file under the session scratch
-directory, never inside the repository, then run the headless runner from the
-repository root:
+Workflow A's fetchers are Pi over LiteLLM, not Anthropic models, and they read
+the plan Opus writes from the question. So the question must be fit for a
+public model: no private repository content, no employer material, no secrets.
+When it is not, do not start the run; delegate directly instead.
+
+The run never works in the current repository. Make a fresh, empty git
+repository with no remote under the session scratch directory, put the
+question in it as the requirement file, and start the run from there through
+the proof check, which refuses a workflow whose headless proof is missing,
+skipped, failed or stale:
 
 ```sh
-scratch="${TMPDIR:-/tmp}/agent-kit-session"
-mkdir -p "$scratch"
-printf '%s\n' "<research question>" > "$scratch/research-requirement.md"
+scratch="${TMPDIR:-/tmp}/agent-kit-session/research-$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$scratch" && git -C "$scratch" init -q
+printf '%s\n' "<research question>" > "$scratch/requirement.md"
 
-gold-band run \
+cd "$scratch" && gold-band-proof run \
   --workflow "${XDG_DATA_HOME:-$HOME/.local/share}/agent-kit/gold-band-personal/workflows/research.json" \
-  --requirement-file "$scratch/research-requirement.md"
+  -- --requirement-file requirement.md
 ```
 
 The run's own first node, the run-start shim, re-checks the repository rule and
@@ -60,6 +68,11 @@ the family allowlist before any model node runs, and may still refuse. When it
 refuses, report its refusal text as it stands (not the rule message below) and
 fall back to direct delegation. Do not start the work instance, and do not retry the run on another
 instance.
+
+The result lands on a branch of its own, `research/<run id>`, of the private
+research repository, in the papers layout; the verifier has checked that every
+quote it added is on its page as fetched. The branch is not pushed: say where
+it is and leave the review and the push to the owner.
 
 ## Fall back to direct delegation
 
@@ -75,7 +88,7 @@ does not permit.
 
 ## What to report
 
-Report which lane ran: the Gold Band run, with its run id and where its result
-landed, or direct delegation, with the delegations that answered. For a fallback,
+Report which lane ran: the Gold Band run, with its run id, its research branch
+and the acceptance node's judgment, or direct delegation, with the delegations that answered. For a fallback,
 quote the exact message above; for a refused run, quote the shim's refusal text.
 Then say what the research found and what remains unverified.

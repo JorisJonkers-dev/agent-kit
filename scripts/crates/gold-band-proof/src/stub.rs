@@ -526,6 +526,15 @@ impl Stub {
     /// cannot be written falls back to the plain answer, so the proof fails
     /// visibly instead of passing on a missing handoff.
     fn dynamic_answer(&self, prompt: &str, workers: &[String]) -> String {
+        // Gold Band refuses a fan-out of fewer than two nodes, and an agent id
+        // may be listed only once, so a strategy with one worker agent (Workflow
+        // A's Pi fetchers) fans out two workers of it.
+        let doubled = [workers, workers].concat();
+        let workers: &[String] = if workers.len() == 1 {
+            &doubled
+        } else {
+            workers
+        };
         let field = |label: &str| {
             prompt.lines().find_map(|line| {
                 // Gold Band lists the context as a markdown bullet list.

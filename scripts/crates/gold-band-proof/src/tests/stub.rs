@@ -855,6 +855,33 @@ fn the_dynamic_role_writes_the_bootstrap_handoff_and_answers_the_fanout() {
 }
 
 #[test]
+fn the_dynamic_role_fans_one_worker_agent_out_twice() {
+    let dir = temp_dir("dynamic-one-agent");
+    let root = dir.join("dynamic");
+    let mut stub = Stub::with_role(Role::Dynamic(vec!["pi".to_string()]), String::new());
+    let prompt = dynamic_prompt(
+        &root,
+        "bootstrap",
+        "nodes/bootstrap",
+        "attempt-1",
+        "attachments",
+    );
+    let answer = fenced_body(&prompt_answer(&mut stub, "", &prompt));
+    let nodes = answer["next"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let providers: Vec<&str> = nodes
+        .iter()
+        .filter_map(|n| n["provider"].as_str())
+        .collect();
+    assert_eq!(providers, vec!["pi", "pi"]);
+    let handoff = root.join("nodes/bootstrap/attempt-1/attachments/handoff");
+    assert!(handoff.join("critic-2.md").exists());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn the_dynamic_role_answers_the_end_completion_for_another_node() {
     let dir = temp_dir("dynamic-critic");
     let root = dir.join("dynamic");
