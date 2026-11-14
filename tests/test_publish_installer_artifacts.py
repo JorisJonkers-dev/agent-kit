@@ -64,6 +64,8 @@ KIT_FILES = (
     "scripts/opencode-merge-mcp.py",
     "scripts/opencode-plugin-skills.py",
     "registry/generated/opencode/opencode.json",
+    "installer/gold-band/workflows/flow.json",
+    "installer/gold-band/workflows/workflow-b.json",
 )
 
 FAKE_GH = """#!/usr/bin/env python3
