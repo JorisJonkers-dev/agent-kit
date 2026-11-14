@@ -53,7 +53,8 @@ built=$target/release/critique
 # up-to-date runner still gets its launcher.
 LAUNCHER_DIR=${XDG_BIN_HOME:-$HOME/.local/bin}
 launcher=$target/release/agent-launcher
-answer=$([ -x "$launcher" ] && "$launcher" 2>&1 || true)
+answer=""
+if [ -x "$launcher" ]; then answer=$("$launcher" 2>&1 || true); fi
 if [ ! -x "$launcher" ]; then
   say "the build left no $launcher; Pi critics stay unavailable"
 elif [ "${answer#usage: agent-launcher}" = "$answer" ]; then

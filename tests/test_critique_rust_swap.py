@@ -11,8 +11,8 @@ no real runner.
 from __future__ import annotations
 
 import os
-import shutil
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -134,7 +134,8 @@ class Kit:
         build = f"mkdir -p {self.root}/scripts/target/release\n"
         if launcher is not None:
             build += (
-                f"printf '#!/usr/bin/env bash\\n%s\\n' {shlex.quote(launcher)} > {self.root}/scripts/target/release/agent-launcher\n"
+                f"printf '#!/usr/bin/env bash\\n%s\\n' {shlex.quote(launcher)}"
+                f" > {self.root}/scripts/target/release/agent-launcher\n"
                 f"chmod 755 {self.root}/scripts/target/release/agent-launcher\n"
             )
         if binary_body is not None:
