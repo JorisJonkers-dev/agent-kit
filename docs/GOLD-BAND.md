@@ -861,6 +861,45 @@ The proof of each is segmented, as for Workflow C: it pauses (exit 2) at a round
 with an open question, at the check after it, and so on, and ends in its expected
 state in the segment after the last check (see [gold-band-proof.md](gold-band-proof.md)).
 
+## What a bare Gold Band node does not guarantee
+
+A Gold Band node that asks an agent to critique, with no runner behind it,
+gives up the guarantees below. The critique stage templates keep them by making
+the runner the executor of each stage (see
+[The critique stage templates](#the-critique-stage-templates)); `critique-spec-stage.json`
+sends the spec to critics directly and loses all of them, which is why it is
+for personal repositories only. Each row names what the runner does, the
+source that does it and the test that shows it, and what a bare node does
+instead.
+
+| Guarantee the runner enforces | Where | A bare node |
+| :- | :- | :- |
+| **A critic cannot write.** Three layers: the critic's tool configuration, a private copy of the packet per critic, and a tripwire that compares the packet, the run's frozen packet and the repository's working tree before and after, restores the packet, and voids the critic (and any critic running beside it, when the cause cannot be told apart) on a change | `application/tripwire.ts`, `tripwire.test.ts` | Has the agent's own permission prompt and the OS write limit of its reach level; nothing notices or voids a write, and nothing restores the files |
+| **The packet is frozen and verified.** `prepare` records each packet file's sha256 in the run manifest; a packet that no longer matches is `invalid-run` | `domain/manifest.ts`, `prepare.test.ts` | Reads whatever is on disk when the node starts |
+| **Search stays inside the packet.** The critic's search server answers from the packet only, with capped answers; a search outside it returns nothing | `critic-search.test.ts`, `search-server.test.ts` | Uses the agent's own search and read tools over the whole checkout |
+| **A critic is stopped at its time limit and price cap.** Each critic has its own limit, enforced by the CLI flag and an outer timeout; Antigravity's headless timeout exits 0 and reports success, so the runner counts an empty answer as a failure | `critique-cli/template-run.test.ts`, `docs/critique-pipeline/integration.md` | Runs until the node's own limits (`max_attempts`, `max_rounds`) stop it; a timed-out agent can read as a pass |
+| **A repository must have opted in.** `prepare` refuses a repository with no allowlist entry (`not-opted-in`), exit 4 under `--strict`; the run-start shim applies the personal default instead | `family-allowlist.test.ts`, `prepare.test.ts` | The run-start shim only; with no entry the personal default applies |
+| **Critics come from the allowed families, and the refuter is another family.** The roster is routed per stage with the family allowlist's code and history permissions | `cross-family.test.ts`, `family-allowlist.test.ts` | Binds the agent id the workflow names, checked once at run start |
+| **Every finding is checked against the packet.** A finding must quote evidence that is in the frozen packet, at the line it cites; findings that fail the mechanical check are rejected and counted, duplicates are merged, severities can be fixed by a declared check | `domain/evidence.ts`, `finding-format.test.ts`, `fixed-severity.test.ts` | Takes the agent's text as it comes |
+| **Findings are refuted before they are recorded.** `refute` asks another critic to object or downgrade; `record` writes the report only from what survived | `refute.test.ts`, `record.test.ts` | No second look; the node's answer is the result |
+| **Depth follows the change.** Risk and size signals from the artifact decide how deep the stage goes | `depth.test.ts` | One fixed shape per workflow |
+| **Daily quotas are counted.** Antigravity's launches per day are counted by the runner (it reports no quota headless) and past the reserve only the reserved stages may use it | `budget.test.ts`, `flow-budget.test.ts` | Not counted; the per-key EUR budgets in LiteLLM are the only cap, and Antigravity's quota is unwatched |
+| **A refusal ends the run.** `--strict` turns `"status": "refused"` into exit 4, which the gate shim turns into a failed node | `critique-cli/strict.test.ts` | A refusal is text in an answer, which reads as a pass |
+| **Spend is in the gateway ledger.** Critique runs through the model gateway, so its per-workflow and per-day caps count it | `gateway-ledger.test.ts` | Gold Band runs outside the gateway (ADR-0014); the ledger never sees it, and only the per-key budgets and, for Codex, a grant (counted in node starts) hold |
+
+What a bare node keeps, because the run-start shim checks it on every run, and
+the instance enforces it: the repository rule, the family allowlist and code
+permission of every agent id the workflow binds, and in the work instance a
+live grant for each Codex node (ADR-0011, ADR-0014).
+
+Proof status: the runner's behaviours above are proved by the TypeScript tests
+named in the table, and the templates' use of them by
+`critique-cli/template-run.test.ts`, which drives the same `--strict` command
+line a gate node runs. The headless proof (`gold-band-proof prove`) checks each
+template's sequencing against stub agents only. That a live Gold Band run wires
+its gate agents to the pinned wrappers is not yet proved (see
+[What is proved and what is not](#what-is-proved-and-what-is-not)).
+
 ## The generated roles
 
 Gold Band reads a role as a **profile**: a Markdown file with YAML front

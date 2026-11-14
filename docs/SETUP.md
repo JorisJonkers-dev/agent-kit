@@ -736,6 +736,107 @@ Two entries: the profiles are independent. One: the logins overwrite each
 other and a switch means logging in again — use a separate macOS user account
 for the personal profile instead.
 
+## Gold Band instances on each OS
+
+There are two Gold Band instances ([ADR-0011](adr/0011-two-gold-band-instances.md)):
+`gold-band` (work: `claude-work` and `codex`, `nedap` remotes only, the work Mac
+only) and `gold-band-personal` (every other agent, never a `nedap` remote).
+Each section below says what a setup run does for one instance on one OS, the
+command that does it, and what it leaves for you. Every command in a fenced
+block is one the setup harness runs itself
+(`tests/test_setup_guide_gold_band.py` checks that each appears in
+`installer/setup-workstation.sh`); there is no manual step that bypasses it.
+The per-step detail is in [GOLD-BAND.md](GOLD-BAND.md).
+
+All four cases start the same way, and `--check` changes nothing:
+
+```bash
+./installer/setup-workstation.sh --check
+./installer/setup-workstation.sh
+```
+
+Setup never writes either instance's `settings.json` while the Gold Band app
+runs; it stops with `Gold Band is running` (exit 1), and you quit the app and
+re-run.
+
+### Personal instance, Linux workstation
+
+The only machine where setup builds Gold Band. It needs a clone at
+`~/Projects/diodeme/Gold-Band` (setup never clones; without one it logs
+`gold band: skipped, no clone` and succeeds). Setup then builds the pinned
+v0.19.1 and converges the instance's `agents` map and its context profiles:
+
+```bash
+bash "${KIT_ROOT}/scripts/gold-band/build-linux.sh"
+python "${KIT_ROOT}/scripts/converge.py" gold-band
+python "${KIT_ROOT}/scripts/converge.py" gold-band-roles
+```
+
+The result is `~/.local/bin/gold-band`, `~/.local/bin/gold-band-desktop`, and
+`${GOLD_BAND_HOME:-~}/.gold-band/settings.json` holding exactly the declared
+agents plus the keep file's, with the personal instance's MCP servers as
+`contextServers`. The Linux machine holds no employer clones, so it needs no
+read limit and never runs the work instance.
+
+### Personal instance, work Mac (second macOS user)
+
+On the work Mac the personal instance runs under a **second macOS user
+account**, never in the work account (ADR-0011). That account has its own data
+directory, keychain, keep file and overlay, so you run setup once in each
+account. Setup does not build Gold Band or converge the personal instance on
+macOS (it logs `only the Linux personal instance is converged here, skipped`);
+the Mac build is a separate ticket. What setup does do in this account is
+check that the launcher can apply the operating-system read limit on the
+employer roots the account's overlay lists under
+`instances.gold-band-personal.employer_roots`:
+
+```bash
+agent-launcher read-limit-check
+```
+
+No overlay, no check (the account is not the work Mac). With an overlay and a
+launcher that cannot apply the limit, setup fails and says the personal
+instance must not be started on this machine; the launcher also refuses each
+launch it cannot limit.
+
+### Work instance, work Mac
+
+The work instance is converged on macOS only, and only where the overlay
+(`~/.config/agent-kit/overlay.yaml`) names it under `instances.gold-band`. No
+overlay, or one that names only the personal instance, leaves it alone. The
+overlay is checked by the `gold-band-registry` crate first (so `cargo` or
+`GOLD_BAND_REGISTRY_BIN` is needed) and refused whole when it fails:
+
+```bash
+python "${KIT_ROOT}/scripts/gold_band_instances.py" names-work-instance
+python "${KIT_ROOT}/scripts/converge.py" gold-band --instance gold-band
+```
+
+The instance's `agents` map ends as exactly `claude-work` and `codex`; the
+overlay's `settings` and `mcp_servers` are applied to
+`${GOLD_BAND_HOME:-~}/.gold-band/settings.json` of the work account. The overlay
+is the only place an employer value (the Nedap bank's endpoint, work code-nav
+roots, work servers) may live; the public registry never holds one.
+
+### Work instance, Linux
+
+None. The registry refuses the work instance on any host but `mac`, and setup
+logs `only the work Mac is converged here, skipped` on Linux.
+
+### What is proved, and how
+
+| Claim | Proved by |
+| :- | :- |
+| A declaration that crosses an instance boundary, or holds a literal secret, is refused | the `gold-band-registry` crate's unit tests and `tests/test_gold_band_instances.py` (tests) |
+| The work instance's Hindsight server reaches the Nedap bank only | the crate's overlay rule and its tests (tests) |
+| Setup converges each instance onto the registry and a second run changes nothing | `tests/test_gold_band_converge.py`, `tests/test_gold_band_work_instance.py` (tests; the setup-level cases need `/bin/bash`, so they run in CI, not on NixOS) |
+| The read limit stops a personal-instance agent reading an employer root | `tests/personal_read_limit.rs` on the `Rust Tests (macos)` CI job (tests) |
+| The second macOS user holds its own keychain, data directory and overlay | the account boundary itself; not tested by this repository (live check on the work Mac, #396) |
+| The Gold Band app reads the converged `settings.json` and starts each agent | the app; checked by launching it, not by a test here (live check) |
+
+[What the critique runner enforces that a bare Gold Band node does not](GOLD-BAND.md#what-a-bare-gold-band-node-does-not-guarantee)
+lists what these instances give up where a workflow does not run the runner.
+
 ## Antigravity
 
 Google Antigravity is another agent surface beside Claude Code, Codex and
