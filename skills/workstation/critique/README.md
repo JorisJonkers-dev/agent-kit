@@ -522,11 +522,27 @@ with the prompt on stdin, confined by the operating system:
 
 ```sh
 agent-launcher confine --read <packet copy> --run-from pi [--run ~/.pi/agent/bin] \
-  --write <critic>/pi-agent --net-connect 443 -- \
+  --write <critic>/pi-agent --net-connect 443 --env PI_CODING_AGENT_DIR -- \
   pi -p --mode json --no-session --offline --provider litellm-vibe-study --model glm-5-3 \
   --tools read,grep,find,ls --no-extensions --no-skills --no-prompt-templates --no-themes \
   --no-context-files --no-mcp --no-approve --system-prompt '<read-only reviewer>'
 ```
+
+The confined Pi gets only `PATH`, `HOME`, the locale, `TERM`, `TZ`, `TMPDIR`,
+the certificate-store variables and `PI_CODING_AGENT_DIR` of the runner's
+environment, and none of the runner's open descriptors; UDP reaches port 53
+alone where the kernel can limit it (Landlock ABI 10).
+
+When the runner has its search server and it proves it cannot see past the
+packet (the same proof a Vibe critic waits for), a Pi critic gets that server
+too. Pi reads MCP servers from configuration only, so the launch's own
+`<critic>/pi-agent/mcp.json` names the server `packet` (`exposure: direct`),
+the launch adds `-e builtin:mcp` (MCP is a built-in extension, which
+`--no-extensions` also switches off) and `--tools` names
+`mcp__packet__*` in place of `--no-mcp`, and the confinement runs the server
+from its program (`--run-from`). The critic calls `mcp__packet__grep`,
+`mcp__packet__list` and `mcp__packet__symbol`; any other tool still voids the
+review. `CRITIQUE_SEARCH_OFF=1` gives no critic a search server.
 
 Pi's `read`, `grep`, `find` and `ls` run inside the Pi process itself, so a
 sandbox around Pi's bash tool would not hold them. `agent-launcher confine`

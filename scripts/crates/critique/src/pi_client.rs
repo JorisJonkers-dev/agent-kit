@@ -10,7 +10,7 @@
 //! path outside the packet, voids the review, and the tripwire catches a write. The node runner's `adapters/pi/index.ts`.
 
 use crate::clients::{ClientReadiness, CriticLaunch, CriticOutcome, CriticReport, CriticTokens};
-use crate::critic_tools::PI_TOOLS;
+use crate::critic_tools::{pi_search_tool, CriticToolset, SearchServerLaunch, PI_TOOLS, VIBE_SEARCH_SERVER};
 use crate::error::CritiqueError;
 use crate::findings::{parse_findings, FindingsParse};
 use crate::paths::join;
@@ -59,7 +59,7 @@ pub fn pi_readiness(runtime: &Runtime, config: &PiCriticClient) -> Result<Client
         return Ok(ClientReadiness { ready: false, detail: Some(NO_LAUNCHER.to_string()) });
     };
     let mut args = vec!["confine".to_string(), "--check".to_string()];
-    args.extend(grants(runtime, config, &route, None));
+    args.extend(grants(runtime, config, &route, None, None));
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     Ok(confine_readiness(&runtime.gateway.process.exec(&launcher, &args, Some(STATUS_TIMEOUT_MS))))
 }
@@ -187,12 +187,20 @@ pub(crate) fn key(runtime: &Runtime, config: &PiCriticClient, api_key: &str) -> 
 
 /// The grants of a confined launch: the packet and the agent directory when there is a launch, Pi, its tools and the
 /// proxy's port.
-pub(crate) fn grants(runtime: &Runtime, config: &PiCriticClient, route: &PiRoute, launch: Option<(&str, &str)>) -> Vec<String> {
+pub(crate) fn grants(runtime: &Runtime, config: &PiCriticClient, route: &PiRoute, launch: Option<(&str, &str)>, server: Option<&SearchServerLaunch>) -> Vec<String> {
     let mut grants = Vec::new();
     if let Some((packet_dir, _)) = launch {
         grants.extend(["--read".to_string(), packet_dir.to_string()]);
     }
     grants.extend(["--run-from".to_string(), config.binary.clone()]);
+    if let Some(server) = server {
+        // Pi starts the search server itself, inside the confinement: it runs from its own program, and reads the
+        // files its arguments name (a script it is started with), the packet being granted already.
+        grants.extend(["--run-from".to_string(), server.command.clone()]);
+        for argument in server.args.iter().filter(|argument| argument.starts_with('/') && runtime.files.exists(argument).unwrap_or(false)) {
+            grants.extend(["--read".to_string(), argument.clone()]);
+        }
+    }
     if let Some(bin) = home_bin(runtime) {
         grants.extend(["--run".to_string(), bin]);
     }
@@ -200,12 +208,14 @@ pub(crate) fn grants(runtime: &Runtime, config: &PiCriticClient, route: &PiRoute
         grants.extend(["--write".to_string(), agent_dir.to_string()]);
     }
     grants.extend(["--net-connect".to_string(), route.port.to_string()]);
+    // The launcher hands the command no more than its own few variables; Pi's agent directory is the one it names.
+    grants.extend(["--env".to_string(), "PI_CODING_AGENT_DIR".to_string()]);
     grants
 }
 
 /// The launch's own agent directory: a `models.json` holding only the route's provider, its key read from the secret
 /// store just now and written in plain (mode 0600), and an empty `settings.json`; the launcher and route, or why not.
-pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str) -> Result<Result<(String, PiRoute), String>, CritiqueError> {
+pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, server: Option<&SearchServerLaunch>) -> Result<Result<(String, PiRoute), String>, CritiqueError> {
     let route = match route(runtime, config) {
         Ok(route) => route,
         Err(detail) => return Ok(Err(detail)),
@@ -226,8 +236,24 @@ pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &st
     let models = json::object(vec![("providers", json::object(vec![(config.provider.as_str(), provider)]))]);
     // The key goes in last, so a write that fails leaves no key behind.
     runtime.files.write_private(&join(&[agent_dir, "settings.json"]), "{}\n").map_err(CritiqueError::from_fs)?;
+    if let Some(server) = server {
+        runtime.files.write_private(&join(&[agent_dir, "mcp.json"]), &format!("{}\n", json::pretty(&mcp_servers(server)))).map_err(CritiqueError::from_fs)?;
+    }
     runtime.files.write_private(&join(&[agent_dir, "models.json"]), &format!("{}\n", json::pretty(&models))).map_err(CritiqueError::from_fs)?;
     Ok(Ok((launcher, route)))
+}
+
+/// The launch's `mcp.json`: the runner's search server as the only MCP server, its tools called directly by name. Pi
+/// reads MCP servers from its configuration alone, and the launch's agent directory is the one it reads.
+pub fn mcp_servers(server: &SearchServerLaunch) -> Value {
+    let args = server.args.iter().map(|argument| Value::str(argument)).collect();
+    let entry = json::object(vec![
+        ("command", Value::str(&server.command)),
+        ("args", Value::Arr(args)),
+        ("exposure", Value::str("direct")),
+        ("description", Value::str("Search the files of your working directory")),
+    ]);
+    json::object(vec![("mcpServers", json::object(vec![(VIBE_SEARCH_SERVER, entry)]))])
 }
 
 /// The Pi launch run through the launcher, confined: the launcher's grants, then `--` and Pi's own command line. Pi
@@ -270,29 +296,20 @@ pub(crate) fn unconfined_report(launch: &CriticLaunch<'_>, detail: String) -> Cr
 /// One Pi critic's launch: print mode, the JSON stream, the read tools alone, and nothing of the home's or the packet's
 /// own. Pi has no time limit of its own, so the outer timer is the limit.
 pub fn pi_command(config: &PiCriticClient, launch: &CriticLaunch<'_>, prompt: String) -> ProcessCommand {
-    let tools = PI_TOOLS.join(",");
-    let args = [
-        "-p",
-        "--mode",
-        "json",
-        "--no-session",
-        "--offline",
-        "--provider",
-        &config.provider,
-        "--model",
-        &config.model,
-        "--tools",
-        &tools,
-        "--no-extensions",
-        "--no-skills",
-        "--no-prompt-templates",
-        "--no-themes",
-        "--no-context-files",
-        "--no-mcp",
-        "--no-approve",
-        "--system-prompt",
-        PI_SYSTEM_PROMPT,
-    ];
+    let searching = matches!(launch.toolset, CriticToolset::PiSearch { .. });
+    // With the search server on, `--tools` names its tools too (an `mcp__` entry filters MCP tools as well). MCP is a
+    // built-in extension, which `--no-extensions` switches off, so it is named back in; without the server MCP is off.
+    let tools = if searching { format!("{},mcp__{VIBE_SEARCH_SERVER}__*", PI_TOOLS.join(",")) } else { PI_TOOLS.join(",") };
+    let mcp: &[&str] = if searching { &["-e", "builtin:mcp"] } else { &["--no-mcp"] };
+    let args: Vec<&str> = [
+        &["-p", "--mode", "json", "--no-session", "--offline", "--provider", &config.provider, "--model", &config.model, "--tools", &tools][..],
+        &["--no-extensions"],
+        if searching { mcp } else { &[] },
+        &["--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files"],
+        if searching { &[] } else { mcp },
+        &["--no-approve", "--system-prompt", PI_SYSTEM_PROMPT],
+    ]
+    .concat();
     ProcessCommand {
         command: config.binary.clone(),
         args: args.iter().map(|arg| (*arg).to_string()).collect(),
@@ -307,11 +324,15 @@ pub fn pi_command(config: &PiCriticClient, launch: &CriticLaunch<'_>, prompt: St
 pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient) -> Result<CriticReport, CritiqueError> {
     let prompt = runtime.files.read_text(&launch.prompt_path).map_err(CritiqueError::from_fs)?;
     let agent_dir = join(&[&launch.critic_dir, "pi-agent"]);
-    let (launcher, route) = match prepare(runtime, config, &agent_dir)? {
+    let server = match &launch.toolset {
+        CriticToolset::PiSearch { server, .. } => Some(server),
+        _ => None,
+    };
+    let (launcher, route) = match prepare(runtime, config, &agent_dir, server)? {
         Ok(prepared) => prepared,
         Err(detail) => return Ok(unconfined_report(launch, detail)),
     };
-    let grants = grants(runtime, config, &route, Some((&launch.packet_dir, &agent_dir)));
+    let grants = grants(runtime, config, &route, Some((&launch.packet_dir, &agent_dir)), server);
     let bin = home_bin(runtime);
     let command = confined_command(&launcher, grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), &agent_dir, bin.as_deref());
     let ran = runtime.gateway.process.run(&command);
@@ -326,7 +347,7 @@ pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCritic
         ("tokens", stream.tokens.as_ref().map_or(Value::Null, |tokens| json::object(vec![("cached", number(tokens.cached)), ("input", number(tokens.input)), ("output", number(tokens.output))]))),
     ]);
     runtime.files.write_text(&export_path, &format!("{}\n", json::pretty(&saved))).map_err(CritiqueError::from_fs)?;
-    let outcome = classify_pi_run(&result, &stream, &launch.packet_dir, launch.critic.time_limit_s);
+    let outcome = classify_pi_run(&result, &stream, &launch.packet_dir, launch.critic.time_limit_s, &allowed_tools(&launch.toolset));
     Ok(CriticReport {
         exit_code: result.exit_code,
         stdout: result.stdout,
@@ -531,10 +552,19 @@ pub fn outside_calls(calls: &[PiToolCall], packet_dir: &str) -> Vec<String> {
     outside
 }
 
+/// The tools a Pi critic may call: the read tools, and the search server's when it has them.
+pub fn allowed_tools(toolset: &CriticToolset) -> Vec<String> {
+    let mut allowed: Vec<String> = PI_TOOLS.iter().map(|tool| (*tool).to_string()).collect();
+    if let CriticToolset::PiSearch { search, .. } = toolset {
+        allowed.extend(search.iter().map(|tool| pi_search_tool(*tool)));
+    }
+    allowed
+}
+
 /// Pi exits 0 after a provider error too, so the stream decides: the run must end in an assistant message that stopped
 /// normally, its tools must be the read tools alone, every path they took must stay in the packet, and its text's last
 /// ```json block must match the output contract.
-pub fn classify_pi_run(result: &ProcessResult, stream: &PiStream, packet_dir: &str, time_limit_s: f64) -> CriticOutcome {
+pub fn classify_pi_run(result: &ProcessResult, stream: &PiStream, packet_dir: &str, time_limit_s: f64, allowed: &[String]) -> CriticOutcome {
     let cost = stream.cost_usd;
     let failed = |failure: &str, detail: String| CriticOutcome::Failed { failure: failure.to_string(), detail, cost_usd: cost };
     if result.timed_out {
@@ -555,7 +585,7 @@ pub fn classify_pi_run(result: &ProcessResult, stream: &PiStream, packet_dir: &s
         return failed("unparseable-output", "stdout is not a Pi JSON event stream".to_string());
     }
     let mut unsafe_tools: Vec<&str> = Vec::new();
-    for call in stream.calls.iter().filter(|call| !PI_TOOLS.contains(&call.tool.as_str())) {
+    for call in stream.calls.iter().filter(|call| !allowed.contains(&call.tool)) {
         if !unsafe_tools.contains(&call.tool.as_str()) {
             unsafe_tools.push(&call.tool);
         }

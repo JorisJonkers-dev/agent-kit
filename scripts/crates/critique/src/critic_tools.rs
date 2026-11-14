@@ -28,6 +28,9 @@ pub enum CriticToolset {
     Agy { search: bool },
     /// A Pi critic, with Pi's own read and search tools.
     Pi,
+    /// A Pi critic that also searches through the runner's search server, which Pi starts from the launch's own
+    /// `mcp.json` and whose tools it names `mcp__packet__<tool>`.
+    PiSearch { search: Vec<SearchToolName>, limits: SearchLimits, server: SearchServerLaunch },
 }
 
 /// The tools of a critic that reads alone.
@@ -44,6 +47,11 @@ pub struct ToolCall {
 /// The name the runner's search server goes by in Vibe; its tools are `tools.mcp_packet.<tool>` there.
 pub const VIBE_SEARCH_SERVER: &str = "packet";
 
+/// The name Pi gives one of the search server's tools: `mcp__<server>__<tool>`.
+pub fn pi_search_tool(tool: SearchToolName) -> String {
+    format!("mcp__{VIBE_SEARCH_SERVER}__{}", tool.name())
+}
+
 /// agy's own read-only tools a critic is told about: one to read and three to list and search.
 pub const AGY_TOOLS: [&str; 4] = ["view_file", "list_dir", "grep_search", "find_by_name"];
 
@@ -54,6 +62,7 @@ pub const PI_TOOLS: [&str; 4] = ["read", "grep", "find", "ls"];
 pub fn tool_names(toolset: &CriticToolset) -> Vec<String> {
     match toolset {
         CriticToolset::Pi => PI_TOOLS.iter().map(|tool| (*tool).to_string()).collect(),
+        CriticToolset::PiSearch { search, .. } => PI_TOOLS.iter().map(|tool| (*tool).to_string()).chain(search.iter().map(|tool| pi_search_tool(*tool))).collect(),
         CriticToolset::Agy { search: true } => AGY_TOOLS.iter().map(|tool| (*tool).to_string()).collect(),
         CriticToolset::Agy { search: false } => vec!["view_file".to_string()],
         CriticToolset::VibeRead => vec!["read_file".to_string()],
@@ -70,7 +79,7 @@ pub fn read_tool(toolset: &CriticToolset) -> &'static str {
     match toolset {
         CriticToolset::VibeRead | CriticToolset::VibeSearch { .. } => "read_file",
         CriticToolset::Agy { .. } => "view_file",
-        CriticToolset::Pi => "read",
+        CriticToolset::Pi | CriticToolset::PiSearch { .. } => "read",
     }
 }
 
@@ -103,6 +112,15 @@ pub fn tools_section(toolset: &CriticToolset) -> String {
         CriticToolset::Pi => format!(
             "# Tools\n\nYour tools read and search your working directory: `read` reads one file, `ls` lists a directory, `grep` searches the contents of files and `find` finds files by a glob. Give every path relative to your working directory: a call that reaches outside it voids your review. {SEARCH_FIRST}\n\n{SWITCHED_OFF}"
         ),
+        CriticToolset::PiSearch { search, limits, .. } => {
+            let names: Vec<String> = search.iter().map(|tool| format!("`{}`", pi_search_tool(*tool))).collect();
+            format!(
+                "# Tools\n\nYour tools read and search your working directory: `read` reads one file, `ls` lists a directory, `grep` searches the contents of files and `find` finds files by a glob. Give every path relative to your working directory: a call that reaches outside it voids your review. The runner's search tools see only your working directory too, and are called by name: {}. An answer holds at most {} matches and {} bytes; past that it ends by saying how many were left out, so search narrower rather than wider. {SEARCH_FIRST}\n\n{SWITCHED_OFF}",
+                names.join(", "),
+                number_text(limits.max_matches),
+                number_text(limits.max_bytes)
+            )
+        }
         CriticToolset::VibeSearch { search, limits, .. } => {
             let server = format!("mcp_{VIBE_SEARCH_SERVER}");
             let signatures: Vec<&str> = search.iter().map(|tool| signature(*tool)).collect();

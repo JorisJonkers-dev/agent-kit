@@ -51,6 +51,7 @@ fn every_option_is_read_and_the_command_follows_the_dashes() {
             run_from: vec![],
             write: vec!["/w".into()],
             ports: Some(vec![443, 8443]),
+            env: vec![],
             command: args(&["pi", "--read", "x"]),
         }
     );
@@ -64,6 +65,8 @@ fn a_bad_command_line_is_refused_with_the_reason() {
         (&["--bogus", "--", "x"][..], "unknown confine option \"--bogus\""),
         (&["--net-connect", "0", "--", "x"][..], "not \"0\""),
         (&["--net-connect", "https", "--", "x"][..], "not \"https\""),
+        (&["--env", "A=b", "--", "x"][..], "--env takes a variable name"),
+        (&["--env", "", "--", "x"][..], "--env takes a variable name"),
         (&["--read", "/p"][..], "needs a command after --"),
         (&["--", ][..], "needs a command after --"),
         (&["--check", "--", "x"][..], "or --check and no command"),
@@ -109,7 +112,8 @@ fn the_summary_names_the_grants_and_the_network() {
 #[test]
 fn a_command_that_cannot_be_started_or_armed_is_refused() {
     // exec only returns on failure, so this process is never replaced here.
-    assert_eq!(confine(&args(&["--", "/nonexistent/agent-launcher-cmd"]), &Fake::Fine), REFUSED);
+    // The hook closes descriptors from the one given up, so a far one keeps this process's own.
+    assert_eq!(confine_from(&args(&["--", "/nonexistent/agent-launcher-cmd"]), &Fake::Fine, 1 << 20), REFUSED);
     assert_eq!(confine(&args(&["--", "/bin/sh", "-c", "exit 0"]), &Fake::ArmFails), REFUSED);
 }
 
@@ -214,4 +218,40 @@ fn the_grant_list_names_every_path_by_kind() {
     let listed = grants(&policy(&spec, &Env::default()).unwrap());
     assert!(listed.contains("read /p\n") && listed.contains("run /r\n") && listed.contains("write /w\n") && listed.contains("write /dev/null\n"), "{listed}");
     assert_eq!(grants(&Policy::default()), "");
+}
+
+fn vars(items: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
+    items.iter().map(|(k, v)| (OsString::from(k), OsString::from(v))).collect()
+}
+
+#[test]
+fn the_command_keeps_the_plain_variables_the_locale_and_the_ones_it_is_named() {
+    let spec = parse(&args(&["--env", "PI_CODING_AGENT_DIR", "--env", "UNSET", "--", "x"])).unwrap();
+    assert_eq!(spec.env, args(&["PI_CODING_AGENT_DIR", "UNSET"]));
+    let held = kept_env(
+        vars(&[("PATH", "/bin"), ("LC_ALL", "C"), ("LITELLM_KEY", "k"), ("GH_TOKEN", "t"), ("PI_CODING_AGENT_DIR", "/a"), ("HTTPS_PROXY", "p")]).into_iter(),
+        &spec.env,
+    );
+    assert_eq!(held, vars(&[("PATH", "/bin"), ("LC_ALL", "C"), ("PI_CODING_AGENT_DIR", "/a")]));
+    assert!(kept_env(vars(&[("SECRET", "x")]).into_iter(), &[]).is_empty());
+}
+
+#[test]
+fn descriptors_from_the_given_one_up_are_closed_after_the_confinement_is_on() {
+    let own = |fd: libc::c_int| unsafe { libc::fcntl(fd, libc::F_GETFD) } != -1;
+    // SAFETY: duplicates a standard descriptor to one far above any the test runner holds.
+    let high = unsafe { libc::fcntl(0, libc::F_DUPFD, 900) };
+    assert!(high >= 900 && own(high));
+    assert!(confine_hook(Box::new(Armer(false)), 900)().is_ok());
+    assert!(!own(high));
+    assert!(own(0) && own(1) && own(2));
+    // An arming that fails closes nothing and says so.
+    // SAFETY: as above.
+    let kept = unsafe { libc::fcntl(0, libc::F_DUPFD, 900) };
+    assert!(confine_hook(Box::new(Armer(true)), 900)().is_err());
+    assert!(own(kept));
+    // SAFETY: closes the descriptor made above.
+    unsafe { libc::close(kept) };
+    #[cfg(target_os = "linux")]
+    assert_eq!(close_range(5, 3).unwrap_err().raw_os_error(), Some(libc::EINVAL));
 }

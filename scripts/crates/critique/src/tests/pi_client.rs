@@ -43,7 +43,7 @@ fn a_stream_counts_no_tokens_a_message_does_not_report_and_reads_only_text_parts
 
 #[test]
 fn a_run_the_timer_killed_printed_nothing_or_ended_in_no_assistant_message_is_no_review() {
-    let classify = |stdout: &str, timed_out: bool| failure(classify_pi_run(&result(stdout, timed_out), &read_pi_stream(stdout), "/p", 600.0));
+    let classify = |stdout: &str, timed_out: bool| failure(classify_pi_run(&result(stdout, timed_out), &read_pi_stream(stdout), "/p", 600.0, &allowed_tools(&READ_ONLY_TOOLSET)));
     assert_eq!(classify("", true), ("timeout".to_string(), "pi did not return within 600s, so the outer timer killed it".to_string()));
     assert_eq!(classify(" \n", false), ("empty-output".to_string(), "pi exited 0 with empty stdout".to_string()));
     assert_eq!(classify(r#"{"type":"agent_start"}"#, false), ("unparseable-output".to_string(), "stdout is not a Pi event stream with an assistant message".to_string()));
@@ -70,8 +70,10 @@ fn every_call_that_left_the_packet_is_named_once() {
 // The confinement: the home's route, the key, the launcher and its check, as the node runner's `adapters/pi` reads them.
 
 use super::vibe_client::{runtime_with, FakeFiles};
+use crate::critic_tools::{CriticToolset, SearchServerLaunch, READ_ONLY_TOOLSET};
+use crate::packet_search::{default_search_limits, SearchToolName};
+use crate::pi_client::{allowed_tools, mcp_servers};
 use crate::clients::{CriticLaunch, CriticReport};
-use crate::critic_tools::READ_ONLY_TOOLSET;
 use crate::pi_client::{
     confine_readiness, confined_command, grants, home_agent_dir, key, launcher, pi_command, pi_readiness, pi_review, prepare, route, route_of, url_port, PiRoute,
 };
@@ -212,11 +214,11 @@ fn the_home_pi_directory_and_the_launcher_follow_their_variables() {
 #[test]
 fn the_grants_add_the_homes_pi_bin_and_a_launchs_packet_and_agent_directory() {
     let (files, runtime) = machine(None, Scripted::default(), &[]);
-    assert_eq!(grants(&runtime, &config(), &route_for(443), None), ["--run-from", "pi", "--net-connect", "443"].map(String::from));
+    assert_eq!(grants(&runtime, &config(), &route_for(443), None, None), ["--run-from", "pi", "--net-connect", "443", "--env", "PI_CODING_AGENT_DIR"].map(String::from));
     files.put("/h/.pi/agent/bin", "");
     assert_eq!(
-        grants(&runtime, &config(), &route_for(8443), Some(("/p", "/a"))),
-        ["--read", "/p", "--run-from", "pi", "--run", "/h/.pi/agent/bin", "--write", "/a", "--net-connect", "8443"].map(String::from)
+        grants(&runtime, &config(), &route_for(8443), Some(("/p", "/a")), None),
+        ["--read", "/p", "--run-from", "pi", "--run", "/h/.pi/agent/bin", "--write", "/a", "--net-connect", "8443", "--env", "PI_CODING_AGENT_DIR"].map(String::from)
     );
 }
 
@@ -250,7 +252,7 @@ fn readiness_needs_the_route_the_launcher_and_a_check_that_passes() {
     let models = home_models(SECRET);
     let checked = Scripted::default();
     assert!(ready(Some(&models), checked.clone(), false).ready);
-    assert!(checked.seen().contains(&"agent-launcher confine --check --run-from pi --net-connect 443".to_string()), "{:?}", checked.seen());
+    assert!(checked.seen().contains(&"agent-launcher confine --check --run-from pi --net-connect 443 --env PI_CODING_AGENT_DIR".to_string()), "{:?}", checked.seen());
     assert!(ready(None, Scripted::default(), false).detail.unwrap().contains("has no litellm-vibe-study provider"));
     assert!(ready(Some("not json"), Scripted::default(), false).detail.unwrap().contains("has no litellm-vibe-study provider"));
     assert!(ready(Some(&models), Scripted::default(), true).detail.unwrap().starts_with("pi: agent-launcher is not on PATH"));
@@ -263,18 +265,18 @@ fn readiness_needs_the_route_the_launcher_and_a_check_that_passes() {
 #[test]
 fn prepare_writes_only_the_routes_provider_with_its_key_and_says_why_it_cannot() {
     let (files, runtime) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
-    let (launcher, prepared) = prepare(&runtime, &config(), "/c/pi-agent").unwrap().unwrap();
+    let (launcher, prepared) = prepare(&runtime, &config(), "/c/pi-agent", None).unwrap().unwrap();
     assert_eq!((launcher.as_str(), prepared.port), ("agent-launcher", 443));
     let written = parse(&files.read_text("/c/pi-agent/models.json").unwrap()).unwrap();
     let expected = parse(r#"{"providers":{"litellm-vibe-study":{"api":"openai-completions","apiKey":"sk-route","baseUrl":"https://litellm.example.test/v1","models":[{"cost":{"input":0.5},"id":"glm-5-3"}]}}}"#).unwrap();
     assert_eq!((written, files.read_text("/c/pi-agent/settings.json").unwrap()), (expected, "{}\n".to_string()));
     let (_, no_route) = machine(None, Scripted::default(), &[]);
-    assert!(prepare(&no_route, &config(), "/c/pi-agent").unwrap().unwrap_err().contains("has no litellm-vibe-study provider"));
+    assert!(prepare(&no_route, &config(), "/c/pi-agent", None).unwrap().unwrap_err().contains("has no litellm-vibe-study provider"));
     let (files, no_launcher) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
     let _ = files.remove_file("/bin/agent-launcher");
-    assert!(prepare(&no_launcher, &config(), "/c/pi-agent").unwrap().unwrap_err().starts_with("pi: agent-launcher is not on PATH"));
+    assert!(prepare(&no_launcher, &config(), "/c/pi-agent", None).unwrap().unwrap_err().starts_with("pi: agent-launcher is not on PATH"));
     let (_, bad_key) = machine(Some(&home_models("!sh -c x")), Scripted::default(), &[]);
-    assert!(prepare(&bad_key, &config(), "/c/pi-agent").unwrap().unwrap_err().contains("a shell command"));
+    assert!(prepare(&bad_key, &config(), "/c/pi-agent", None).unwrap().unwrap_err().contains("a shell command"));
     assert!(route(&bad_key, &config()).is_ok());
 }
 
@@ -293,7 +295,87 @@ fn a_critic_that_cannot_be_confined_never_starts_and_its_report_says_why() {
 
 #[test]
 fn a_launch_the_launcher_refused_reads_as_unconfined() {
-    let refused = |stderr: &str| failure(classify_pi_run(&failing(125, stderr, ""), &read_pi_stream(""), "/p", 1.0));
+    let refused = |stderr: &str| failure(classify_pi_run(&failing(125, stderr, ""), &read_pi_stream(""), "/p", 1.0, &allowed_tools(&READ_ONLY_TOOLSET)));
     assert_eq!(refused("agent-launcher: confine: no Landlock; nothing started\n"), ("unconfined".to_string(), "the operating system could not confine pi to its packet, so it did not start: agent-launcher: confine: no Landlock; nothing started".to_string()));
     assert!(refused("").1.ends_with("did not start: exit 125"));
+}
+
+fn searching_launch<'a>(roster: &'a RosterCritic, server: &SearchServerLaunch) -> CriticLaunch<'a> {
+    let toolset = CriticToolset::PiSearch { search: vec![SearchToolName::Grep, SearchToolName::List], limits: default_search_limits(), server: server.clone() };
+    CriticLaunch { critic: roster, packet_dir: "/c/packet".to_string(), prompt_path: "/c/prompt.md".to_string(), critic_dir: "/c".to_string(), schema_path: String::new(), toolset }
+}
+
+fn roster_critic() -> RosterCritic {
+    RosterCritic { client: "c".to_string(), role: "r".to_string(), lenses: vec![], max_price_usd: 1.0, time_limit_s: 1.0, critic_id: "c1".to_string(), client_config: CriticClient::Pi(config()), fallbacks: vec![] }
+}
+
+#[test]
+fn a_searching_pi_launch_names_the_servers_tools_back_in_and_keeps_mcp_on_through_the_builtin_extension() {
+    let roster = roster_critic();
+    let server = SearchServerLaunch { command: "/opt/critique".to_string(), args: vec!["search-server".to_string(), "--root".to_string(), "/c/packet".to_string()] };
+    let args = pi_command(&config(), &searching_launch(&roster, &server), "p".to_string()).args;
+    let after = |flag: &str| args[args.iter().position(|arg| arg == flag).unwrap() + 1].clone();
+    assert_eq!(after("--tools"), "read,grep,find,ls,mcp__packet__*");
+    assert_eq!(after("-e"), "builtin:mcp");
+    assert!(!args.contains(&"--no-mcp".to_string()));
+    assert!(args.iter().position(|arg| arg == "--no-extensions") < args.iter().position(|arg| arg == "-e"));
+    // Without the server MCP is off, as before.
+    let plain = pi_command(&config(), &CriticLaunch { toolset: READ_ONLY_TOOLSET, ..searching_launch(&roster, &server) }, "p".to_string()).args;
+    assert!(plain.contains(&"--no-mcp".to_string()) && !plain.contains(&"-e".to_string()));
+    assert_eq!(plain[plain.iter().position(|arg| arg == "--tools").unwrap() + 1], "read,grep,find,ls");
+}
+
+#[test]
+fn the_launchs_mcp_json_holds_the_search_server_alone_and_the_grants_let_pi_run_it() {
+    let server = SearchServerLaunch { command: "/opt/critique".to_string(), args: vec!["/opt/critique.mjs".to_string(), "search-server".to_string(), "--root".to_string(), "/c/packet".to_string()] };
+    let written = mcp_servers(&server);
+    let expected = parse(r#"{"mcpServers":{"packet":{"command":"/opt/critique","args":["/opt/critique.mjs","search-server","--root","/c/packet"],"exposure":"direct","description":"Search the files of your working directory"}}}"#).unwrap();
+    assert_eq!(written, expected);
+    let (files, runtime) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
+    files.put("/opt/critique.mjs", "");
+    let grants = grants(&runtime, &config(), &route_for(443), Some(("/p", "/a")), Some(&server));
+    assert_eq!(
+        grants,
+        ["--read", "/p", "--run-from", "pi", "--run-from", "/opt/critique", "--read", "/opt/critique.mjs", "--write", "/a", "--net-connect", "443", "--env", "PI_CODING_AGENT_DIR"].map(String::from)
+    );
+    prepare(&runtime, &config(), "/c/pi-agent", Some(&server)).unwrap().unwrap();
+    assert_eq!(parse(&files.read_text("/c/pi-agent/mcp.json").unwrap()).unwrap(), expected);
+    let (plain_files, plain) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
+    prepare(&plain, &config(), "/c/pi-agent", None).unwrap().unwrap();
+    assert!(plain_files.read_text("/c/pi-agent/mcp.json").is_err());
+}
+
+#[test]
+fn a_searching_critic_may_call_the_servers_tools_and_nothing_else_beyond_the_read_tools() {
+    let roster = roster_critic();
+    let server = SearchServerLaunch { command: "critique".to_string(), args: vec![] };
+    let toolset = searching_launch(&roster, &server).toolset;
+    assert_eq!(allowed_tools(&toolset), ["read", "grep", "find", "ls", "mcp__packet__grep", "mcp__packet__list"].map(String::from));
+    assert_eq!(allowed_tools(&CriticToolset::Pi), ["read", "grep", "find", "ls"].map(String::from));
+    let stdout = [
+        r#"{"type":"tool_execution_start","toolName":"mcp__packet__grep","args":{"pattern":"x"}}"#,
+        r#"{"type":"tool_execution_start","toolName":"mcp__other__grep","args":{"pattern":"x"}}"#,
+        r#"{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"x"}]}}"#,
+    ]
+    .join("\n");
+    let stream = read_pi_stream(&stdout);
+    let allowed = classify_pi_run(&result(&stdout, false), &stream, "/p", 1.0, &allowed_tools(&toolset));
+    assert_eq!(failure(allowed).1, "the critic used tools beyond reading its packet: mcp__other__grep");
+    let plain = classify_pi_run(&result(&stdout, false), &stream, "/p", 1.0, &allowed_tools(&CriticToolset::Pi));
+    assert_eq!(failure(plain).1, "the critic used tools beyond reading its packet: mcp__packet__grep, mcp__other__grep");
+}
+
+#[test]
+fn a_searching_critic_is_launched_with_the_server_granted_to_the_confinement() {
+    let process = Scripted::default().on("agent-launcher confine", Ok(ok(r#"{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"x"}]}}"#)));
+    let (files, runtime) = machine(Some(&home_models(SECRET)), process.clone(), &[]);
+    files.put("/c/prompt.md", "prompt");
+    let roster = roster_critic();
+    let server = SearchServerLaunch { command: "/opt/critique".to_string(), args: vec!["search-server".to_string(), "--root".to_string(), "/c/packet".to_string()] };
+    let report = pi_review(&runtime, &searching_launch(&roster, &server), &config()).unwrap();
+    assert_eq!(report.exit_code, 0);
+    let seen = process.seen();
+    let launched = seen.iter().find(|line| line.starts_with("agent-launcher confine")).expect("a confined launch");
+    assert!(launched.contains("--run-from pi --run-from /opt/critique --write /c/pi-agent --net-connect 443 --env PI_CODING_AGENT_DIR -- pi -p"), "{launched}");
+    assert!(launched.contains("--tools read,grep,find,ls,mcp__packet__* --no-extensions -e builtin:mcp"), "{launched}");
 }

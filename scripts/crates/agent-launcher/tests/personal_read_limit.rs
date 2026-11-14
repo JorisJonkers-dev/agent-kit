@@ -213,7 +213,7 @@ fn linux_refuses_a_declared_employer_root_instead_of_starting_without_the_limit(
     let f = fixture("linux", OVERLAY);
     let secret = format!("r:{}", f.employer.join("secret.txt").display());
     for level in ["read", "full"] {
-        let out = run(&f, &format!("personal-stub-{level}"), &[secret.clone()]);
+        let out = run(&f, &format!("personal-stub-{level}"), std::slice::from_ref(&secret));
         assert_eq!(out.status.code(), Some(1), "{level}: {}", say(&out));
         assert!(say(&out).contains("cannot deny reads"), "{}", say(&out));
         assert!(outcomes(&out).is_empty(), "the agent must not start: {}", say(&out));

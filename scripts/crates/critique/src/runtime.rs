@@ -24,7 +24,7 @@ pub struct Runtime {
     pub gateway: model_gateway::ports::Runtime,
     /// What a command reads when it is given neither `--input` nor `--json`.
     pub stdin: Box<dyn Fn() -> String + Send + Sync>,
-    /// How the runner starts its own search server for a Vibe critic; without it every Vibe critic reads alone.
+    /// How the runner starts its own search server for a Vibe or Pi critic; without it every critic reads alone.
     pub search: Option<SearchCommand>,
 }
 
@@ -36,6 +36,14 @@ pub fn assets_root(env: &HashMap<String, String>, exe: Option<std::path::PathBuf
         Some(dir) => dir.clone(),
         None => exe.as_deref().and_then(std::path::Path::parent).map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_default(),
     }
+}
+
+/// How the runner starts its own search server: as itself, unless `CRITIQUE_SEARCH_OFF=1` gives no critic one.
+pub fn search_command(env: &HashMap<String, String>, exe: Option<std::path::PathBuf>) -> Option<SearchCommand> {
+    if env.get("CRITIQUE_SEARCH_OFF").map(String::as_str) == Some("1") {
+        return None;
+    }
+    exe.map(|exe| SearchCommand { command: exe.to_string_lossy().into_owned(), args: Vec::new() })
 }
 
 /// The real runtime: the system's clock and files, the environment, the working directory and standard input.
@@ -51,7 +59,7 @@ pub fn default_runtime() -> Runtime {
         git: Box::new(SystemGit { env: env.clone() }),
         gh: Box::new(SystemGh { env: env.clone() }),
         assets_root: assets_root(&env, std::env::current_exe().ok()),
-        search: std::env::current_exe().ok().map(|exe| SearchCommand { command: exe.to_string_lossy().into_owned(), args: Vec::new() }),
+        search: search_command(&env, std::env::current_exe().ok()),
         env,
         stdin: Box::new(|| {
             let mut bytes = Vec::new();

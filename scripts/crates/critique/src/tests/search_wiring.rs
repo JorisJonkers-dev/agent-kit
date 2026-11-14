@@ -10,7 +10,7 @@ use crate::critic_tools::{CriticToolset, ToolCall, READ_ONLY_TOOLSET};
 use crate::packet_search::{default_search_limits, reach_problems, reach_proof_calls, SearchToolName};
 use crate::prompt::{assemble_prompt, PromptSources};
 use crate::roster::RosterCritic;
-use crate::routing::CriticClient;
+use crate::routing::{CriticClient, PiCriticClient};
 use crate::search_client::{prove_search_reach, server_launch, session, stop, SearchCommand, SearchSession};
 use crate::tripwire::ReadOnlyTripwire;
 use crate::vibe_search::{agent_file_search_problem, home_config_problem, search_failure, tool_calls, vibe_extras};
@@ -534,4 +534,46 @@ fn a_critic_that_searched_without_a_failure_records_none_and_one_that_could_not_
     assert!(record.search_failure.as_deref().is_some_and(|failure| failure.starts_with("agent-file-disables-mcp: ")));
     assert_eq!(record.tools.as_deref(), Some(&["read_file".to_string()][..]));
     assert!(kills.lock().expect("kills").is_empty());
+}
+
+fn pi_critic() -> RosterCritic {
+    let config = PiCriticClient { binary: "pi".to_string(), provider: "litellm-vibe-study".to_string(), model: "glm-5-3".to_string(), family: "zhipu".to_string(), data_scope: "any".to_string() };
+    RosterCritic { client: "pi-vibe-study-glm".to_string(), client_config: CriticClient::Pi(config), ..vibe_critic() }
+}
+
+#[test]
+fn a_pi_critic_searches_through_the_server_once_the_proof_and_the_server_allow_it_and_needs_no_agent_file() {
+    // No agent file is installed in this home: that is a Vibe critic's gate, not Pi's.
+    let (run, runs, _) = searching(honest());
+    std::fs::remove_dir_all(format!("{}/home/.vibe", run.sandbox.text())).expect("remove");
+    let packet = format!("{}/run/critics/c1/packet", run.sandbox.text());
+    let choice = tools_of(&run).choose(&run.runtime, &pi_critic(), &packet).expect("a choice");
+    let CriticToolset::PiSearch { search, limits, server } = &choice.toolset else { panic!("a searching toolset: {choice:?}") };
+    assert_eq!((search.len(), limits, choice.search_failure.as_ref()), (3, &default_search_limits(), None));
+    assert_eq!(server, &server_launch(&own(), &packet, &default_search_limits()));
+    assert_eq!(proven_servers(&runs), 1);
+}
+
+#[test]
+fn a_pi_critic_reads_with_its_own_tools_alone_and_says_why_the_server_is_not_used() {
+    let pi_alone = |run: &Run, why: &str| {
+        let choice = tools_of(run).choose(&run.runtime, &pi_critic(), "/packet").expect("a choice");
+        choice.toolset == CriticToolset::Pi && choice.search_failure.as_deref().is_some_and(|failure| failure.starts_with(why))
+    };
+    let (leaky, _, _) = searching(Box::new(|command| {
+        let leak = if stdin_of(command).contains("tools/call") { Some(2) } else { None };
+        Ok(ok(&serve(stdin_of(command), leak)))
+    }));
+    assert!(pi_alone(&leaky, "search is not proven to stay inside the packet: "));
+    let (down, _, _) = searching(Box::new(|command| {
+        if command.args.contains(&"/packet".to_string()) {
+            Ok(ProcessResult { exit_code: 1, stderr: "no root\n".to_string(), ..ok("") })
+        } else {
+            Ok(ok(&serve(stdin_of(command), None)))
+        }
+    }));
+    assert!(pi_alone(&down, "the search server exited 1: no root"));
+    // Without a server it reads alone, silently.
+    let bare = run_in(scripted(honest()).0, vec![], &[]);
+    assert_eq!(tools_of(&bare).choose(&bare.runtime, &pi_critic(), "/p"), Ok(ToolChoice { toolset: CriticToolset::Pi, search_failure: None }));
 }

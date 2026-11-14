@@ -201,8 +201,10 @@ export function defaultCritiqueRuntime(
       plan: new GatewayPlanLimit(env, clock, join(assetsRoot, '..', 'model-gateway', 'defaults.json')),
       // The tree sample is ordered by code-nav's repository map when code-nav is installed.
       repoMap: new CodeNavRepoMap(processPort),
-      // Vibe starts the search server as `node critique.mjs search-server ...`.
-      search: new ProcessSearchClient(processPort, { args: [join(assetsRoot, 'critique.mjs')], command: process.execPath }),
+      // Vibe and Pi start the search server as `node critique.mjs search-server ...`; CRITIQUE_SEARCH_OFF=1 gives no critic one.
+      ...(environment.CRITIQUE_SEARCH_OFF === '1'
+        ? {}
+        : { search: new ProcessSearchClient(processPort, { args: [join(assetsRoot, 'critique.mjs')], command: process.execPath }) }),
     }),
     readFile: (path) => files.readText(path),
     readStdin,
