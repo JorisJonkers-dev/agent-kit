@@ -263,8 +263,8 @@ def test_only_the_short_results_are_read() -> None:
 
 
 def test_the_example_models_are_ones_the_shipped_catalogue_declares() -> None:
-    models = json.loads((KIT_ROOT / "skills" / "workstation" / "model-gateway" / "defaults.json").read_text())["models"]
-    clients = json.loads((KIT_ROOT / "skills" / "workstation" / "model-gateway" / "defaults.json").read_text())["clients"]
+    shipped = json.loads((KIT_ROOT / "skills" / "workstation" / "model-gateway" / "defaults.json").read_text())
+    models, clients = shipped["models"], shipped["clients"]
     declared = {(m["client"], m["model"]) for m in models}
     # An entry for client "pi" describes the model for every pi-<route> client.
     declared |= {(c, m["model"]) for m in models if m["client"] == "pi" for c in clients if c.startswith("pi-")}
