@@ -187,3 +187,24 @@ def test_a_real_terminal_is_asked_with_the_passphrase_hidden(tmp_path: Path) -> 
         os.close(fd)
     assert TOKEN.encode() in out
     assert b"correct horse" not in out, "the passphrase was echoed"
+
+
+def test_echo_is_already_off_when_the_prompt_appears(tmp_path: Path) -> None:
+    import pty
+    import termios
+    import time
+
+    _store(tmp_path)
+    env = {k: v for k, v in os.environ.items() if k not in ("MEMORY_PRIVATE_TOKEN", "AGENT_KIT_TTY")}
+    env["HOME"] = str(tmp_path / "home")
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.execve(sys.executable, [sys.executable, str(GATE), "exec", *SHOW], env)
+    out = b""
+    end = time.time() + 15
+    while b"private bank: " not in out and time.time() < end:
+        out += os.read(fd, 1024)
+    # Keystrokes typed the moment the prompt shows must not be echoed.
+    assert not termios.tcgetattr(fd)[3] & termios.ECHO, "the prompt appeared while echo was still on"
+    os.write(fd, b"correct horse\n")
+    os.waitpid(pid, 0)
