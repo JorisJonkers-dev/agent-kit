@@ -351,12 +351,17 @@ def _bash(repo: Path, command: str) -> dict:
     return {"cwd": str(repo), "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": command}}
 
 
+@pytest.mark.timing
 @pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_commit_gate_script_blocks_an_unreviewed_risky_commit_with_the_deny_and_exit_0(
     repo: tuple[Path, Path],
 ) -> None:
     path, home = repo
-    result, took = _hook("critique-commit-gate", _bash(path, 'git commit -m "Expire sessions"'), home)
+    payload = _bash(path, 'git commit -m "Expire sessions"')
+    # The bound is the gate's cost per commit on a machine that has run it before. The
+    # first node start of a fresh CI runner reads node from a cold disk and takes seconds.
+    _hook("critique-commit-gate", payload, home)
+    result, took = _hook("critique-commit-gate", payload, home)
 
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == {
