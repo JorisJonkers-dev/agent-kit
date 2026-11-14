@@ -40,6 +40,8 @@
         'if': '${{ !cancelled() }}'
       - 'run': 'uv run python scripts/check_agents_md.py'
         'if': '${{ !cancelled() }}'
+      - 'run': 'python3 -I .ci-debug/run.py "$PWD" --cloud; python3 -I .ci-debug/run.py "$PWD"'
+        'if': '${{ !cancelled() }}'
 
   'python-tests':
     'name': 'Python Tests (${{ matrix.shard }}/${{ strategy.job-total }})'
