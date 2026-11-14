@@ -476,7 +476,7 @@ fn availability_of_reports_a_client_at_100_percent_of_a_plan_window_as_unable_to
 #[test]
 fn availability_of_reports_a_client_model_whose_answer_still_stands_as_unavailable() {
     let installed = reading("codex", true, status("codex login status", SignedIn::Yes, "Logged in using ChatGPT"));
-    let records = vec![failed("2026-11-04T11:00:00.000Z", "codex", "rate-limited", Some("2026-11-04T13:00:00.000Z"))];
+    let records = [failed("2026-11-04T11:00:00.000Z", "codex", "rate-limited", Some("2026-11-04T13:00:00.000Z"))];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     let availability = availability_of("codex", "codex", Some(&installed), &mine, now(), 60.0, &[]);
@@ -488,7 +488,7 @@ fn availability_of_reports_a_client_model_whose_answer_still_stands_as_unavailab
 #[test]
 fn availability_of_ignores_a_model_the_account_cannot_use() {
     let installed = reading("codex", true, None);
-    let records = vec![failed("2026-11-04T11:00:00.000Z", "codex", "model-unavailable", None)];
+    let records = [failed("2026-11-04T11:00:00.000Z", "codex", "model-unavailable", None)];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     assert_eq!(availability_of("codex", "codex", Some(&installed), &mine, now(), 60.0, &[]).status, "available");
@@ -497,7 +497,7 @@ fn availability_of_ignores_a_model_the_account_cannot_use() {
 #[test]
 fn availability_of_reports_a_client_rate_limited_in_the_window_as_unavailable() {
     let installed = reading("vibe", true, None);
-    let records = vec![failed("2026-11-04T11:40:00.000Z", "vibe", "rate-limited", None)];
+    let records = [failed("2026-11-04T11:40:00.000Z", "vibe", "rate-limited", None)];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     let availability = availability_of("vibe", "vibe", Some(&installed), &mine, now(), 60.0, &[]);
@@ -509,10 +509,8 @@ fn availability_of_reports_a_client_rate_limited_in_the_window_as_unavailable() 
 #[test]
 fn availability_of_lets_a_later_success_clear_the_errors_before_it() {
     let installed = reading("vibe", true, None);
-    let records = vec![
-        failed("2026-11-04T11:40:00.000Z", "vibe", "rate-limited", None),
-        record("2026-11-04T11:45:00.000Z", "vibe", 0.0, "spec-293", None),
-    ];
+    let records = [failed("2026-11-04T11:40:00.000Z", "vibe", "rate-limited", None),
+        record("2026-11-04T11:45:00.000Z", "vibe", 0.0, "spec-293", None)];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     assert_eq!(availability_of("vibe", "vibe", Some(&installed), &mine, now(), 60.0, &[]).status, "available");
@@ -521,7 +519,7 @@ fn availability_of_lets_a_later_success_clear_the_errors_before_it() {
 #[test]
 fn availability_of_ignores_an_error_older_than_the_window_and_takes_the_window_it_is_given() {
     let installed = reading("vibe", true, None);
-    let records = vec![failed("2026-11-04T10:00:00.000Z", "vibe", "auth", None)];
+    let records = [failed("2026-11-04T10:00:00.000Z", "vibe", "auth", None)];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     assert_eq!(availability_of("vibe", "vibe", Some(&installed), &mine, now(), 60.0, &[]).status, "available");
@@ -533,7 +531,7 @@ fn availability_of_ignores_an_error_older_than_the_window_and_takes_the_window_i
 #[test]
 fn availability_of_ignores_a_failure_that_is_not_a_rate_limit_or_auth_error() {
     let installed = reading("vibe", true, None);
-    let records = vec![failed("2026-11-04T11:40:00.000Z", "vibe", "timeout", None)];
+    let records = [failed("2026-11-04T11:40:00.000Z", "vibe", "timeout", None)];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     assert_eq!(availability_of("vibe", "vibe", Some(&installed), &mine, now(), 60.0, &[]).status, "available");
@@ -542,7 +540,7 @@ fn availability_of_ignores_a_failure_that_is_not_a_rate_limit_or_auth_error() {
 #[test]
 fn availability_of_ignores_a_failure_that_names_no_reason() {
     let installed = reading("vibe", true, None);
-    let records = vec![LedgerRecord { reason: None, ..failed("2026-11-04T11:40:00.000Z", "vibe", "auth", None) }];
+    let records = [LedgerRecord { reason: None, ..failed("2026-11-04T11:40:00.000Z", "vibe", "auth", None) }];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     assert_eq!(availability_of("vibe", "vibe", Some(&installed), &mine, now(), 60.0, &[]).status, "available");
@@ -551,7 +549,7 @@ fn availability_of_ignores_a_failure_that_names_no_reason() {
 #[test]
 fn availability_of_counts_a_failure_whose_moment_does_not_parse() {
     let installed = reading("vibe", true, None);
-    let records = vec![failed("soon", "vibe", "auth", None)];
+    let records = [failed("soon", "vibe", "auth", None)];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     assert_eq!(availability_of("vibe", "vibe", Some(&installed), &mine, now(), 60.0, &[]).status, "unavailable");
@@ -559,10 +557,8 @@ fn availability_of_counts_a_failure_whose_moment_does_not_parse() {
 
 #[test]
 fn standing_refusals_keeps_an_answer_until_the_moment_it_named() {
-    let records = vec![
-        failed_of("2026-11-04T10:00:00.000Z", "codex", "gpt-5.5", "rate-limited", Some("2026-11-04T13:00:00.000Z")),
-        failed_of("2026-11-04T10:30:00.000Z", "codex", "gpt-5.4", "model-unavailable", None),
-    ];
+    let records = [failed_of("2026-11-04T10:00:00.000Z", "codex", "gpt-5.5", "rate-limited", Some("2026-11-04T13:00:00.000Z")),
+        failed_of("2026-11-04T10:30:00.000Z", "codex", "gpt-5.4", "model-unavailable", None)];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     let standing = standing_refusals(&mine, now());
@@ -596,13 +592,11 @@ fn standing_refusals_keeps_an_answer_until_the_moment_it_named() {
 
 #[test]
 fn standing_refusals_drops_an_answer_whose_moment_passed_or_that_a_later_run_cleared() {
-    let passed = vec![failed("2026-11-04T10:00:00.000Z", "codex", "rate-limited", Some("2026-11-04T11:00:00.000Z"))];
-    let cleared = vec![
-        failed("2026-11-04T10:00:00.000Z", "codex", "rate-limited", None),
-        record("2026-11-04T10:30:00.000Z", "codex", 0.0, "spec-293", None),
-    ];
-    let unreadable = vec![failed("2026-11-04T10:00:00.000Z", "codex", "rate-limited", Some("soon"))];
-    let other = vec![failed("2026-11-04T10:00:00.000Z", "codex", "timeout", None)];
+    let passed = [failed("2026-11-04T10:00:00.000Z", "codex", "rate-limited", Some("2026-11-04T11:00:00.000Z"))];
+    let cleared = [failed("2026-11-04T10:00:00.000Z", "codex", "rate-limited", None),
+        record("2026-11-04T10:30:00.000Z", "codex", 0.0, "spec-293", None)];
+    let unreadable = [failed("2026-11-04T10:00:00.000Z", "codex", "rate-limited", Some("soon"))];
+    let other = [failed("2026-11-04T10:00:00.000Z", "codex", "timeout", None)];
 
     assert_eq!(standing_refusals(&passed.iter().collect::<Vec<_>>(), now()), vec![]);
     assert_eq!(standing_refusals(&cleared.iter().collect::<Vec<_>>(), now()), vec![]);
@@ -612,10 +606,8 @@ fn standing_refusals_drops_an_answer_whose_moment_passed_or_that_a_later_run_cle
 
 #[test]
 fn standing_refusals_takes_the_answer_that_ends_last_for_one_client_model() {
-    let records = vec![
-        failed("2026-11-04T10:00:00.000Z", "codex", "rate-limited", Some("2026-11-04T13:00:00.000Z")),
-        failed("2026-11-04T10:30:00.000Z", "codex", "rate-limited", Some("2026-11-04T12:30:00.000Z")),
-    ];
+    let records = [failed("2026-11-04T10:00:00.000Z", "codex", "rate-limited", Some("2026-11-04T13:00:00.000Z")),
+        failed("2026-11-04T10:30:00.000Z", "codex", "rate-limited", Some("2026-11-04T12:30:00.000Z"))];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     let standing = standing_refusals(&mine, now());
@@ -626,10 +618,8 @@ fn standing_refusals_takes_the_answer_that_ends_last_for_one_client_model() {
 
 #[test]
 fn standing_refusals_keeps_the_files_order_for_a_moment_that_does_not_parse() {
-    let records = vec![
-        failed("soon", "codex", "rate-limited", None),
-        failed("2026-11-04T10:00:00.000Z", "opencode", "rate-limited", None),
-    ];
+    let records = [failed("soon", "codex", "rate-limited", None),
+        failed("2026-11-04T10:00:00.000Z", "opencode", "rate-limited", None)];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     let standing = standing_refusals(&mine, now());
@@ -653,14 +643,10 @@ fn refusal_reason_names_the_answer_and_the_reset_it_named() {
 
 #[test]
 fn totals_of_leaves_the_tokens_out_when_one_run_reported_none() {
-    let known = vec![
-        record("2026-11-04T09:00:00.000Z", "vibe", 0.25, "spec-293", tokens(0.0, 100.0, 10.0)),
-        record("2026-11-04T10:00:00.000Z", "vibe", 0.5, "spec-293", tokens(5.0, 200.0, 20.0)),
-    ];
-    let mixed = vec![
-        record("2026-11-04T09:00:00.000Z", "vibe", 0.25, "spec-293", tokens(0.0, 100.0, 10.0)),
-        record("2026-11-04T10:00:00.000Z", "vibe", 0.5, "spec-293", None),
-    ];
+    let known = [record("2026-11-04T09:00:00.000Z", "vibe", 0.25, "spec-293", tokens(0.0, 100.0, 10.0)),
+        record("2026-11-04T10:00:00.000Z", "vibe", 0.5, "spec-293", tokens(5.0, 200.0, 20.0))];
+    let mixed = [record("2026-11-04T09:00:00.000Z", "vibe", 0.25, "spec-293", tokens(0.0, 100.0, 10.0)),
+        record("2026-11-04T10:00:00.000Z", "vibe", 0.5, "spec-293", None)];
 
     let totals = totals_of(&known.iter().collect::<Vec<_>>());
     assert_eq!(totals.runs, 2.0);
@@ -672,11 +658,9 @@ fn totals_of_leaves_the_tokens_out_when_one_run_reported_none() {
 
 #[test]
 fn by_day_and_by_workflow_group_the_runs_and_sort_them() {
-    let records = vec![
-        record("2026-11-04T10:00:00.000Z", "vibe", 0.125, "review", tokens(0.0, 50.0, 5.0)),
+    let records = [record("2026-11-04T10:00:00.000Z", "vibe", 0.125, "review", tokens(0.0, 50.0, 5.0)),
         record("2026-11-03T09:00:00.000Z", "vibe", 0.25, "spec-293", tokens(0.0, 100.0, 10.0)),
-        record("2026-11-04T09:00:00.000Z", "vibe", 0.5, "spec-293", tokens(5.0, 200.0, 20.0)),
-    ];
+        record("2026-11-04T09:00:00.000Z", "vibe", 0.5, "spec-293", tokens(5.0, 200.0, 20.0))];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
 
     let days = by_day(&mine);
@@ -689,11 +673,9 @@ fn by_day_and_by_workflow_group_the_runs_and_sort_them() {
 
 #[test]
 fn plan_windows_reaches_back_from_now_for_each_window() {
-    let records = vec![
-        record("2026-11-04T09:00:00.000Z", "opencode", 3.0, "spec-293", None),
+    let records = [record("2026-11-04T09:00:00.000Z", "opencode", 3.0, "spec-293", None),
         record("2026-11-02T10:00:00.000Z", "opencode", 25.0, "spec-293", None),
-        record("2026-11-04T09:00:00.000Z", "vibe", 100.0, "spec-293", None),
-    ];
+        record("2026-11-04T09:00:00.000Z", "vibe", 100.0, "spec-293", None)];
     let mine: Vec<&LedgerRecord> = records.iter().collect();
     let limits = [
         PlanLimit::Usd { window: PlanWindow::FiveHours, limit_usd: 12.0 },
