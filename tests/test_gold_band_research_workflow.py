@@ -15,6 +15,7 @@ crate's own tests.
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 from pathlib import Path
@@ -90,8 +91,8 @@ def test_the_run_goes_through_planning_fan_out_merge_verify_and_acceptance_in_th
     edges: list[tuple[str, str, str]],
 ) -> None:
     """One success chain, no branch: every stage runs once, in order, and nothing else does."""
-    chain = ORDER + ["$end"]
-    assert edges == [(a, b, "success") for a, b in zip(chain, chain[1:])]
+    chain = [*ORDER, "$end"]
+    assert edges == [(a, b, "success") for a, b in itertools.pairwise(chain)]
 
 
 def test_no_model_node_runs_before_the_rule_check(edges: list[tuple[str, str, str]]) -> None:
