@@ -1,17 +1,10 @@
-# Every cargo command in this repository resolves through the crate-gate, the
-# local filtering mirror of crates.io that hides any version younger than 7
-# days (docs/RUST.md). The gate listens on 127.0.0.1:17342; scripts/gate/
-# install-linux.sh runs it as a systemd user service (the Mac runs it under
-# launchd). With the gate down cargo fails with connection refused and never
-# falls back to crates.io.
-#
-# The replacement is split on purpose. `replace-with` below names the source;
-# the source's address is `[source.crate-gate]`. Remove that table and cargo
-# refuses to resolve ("could not find a configured source with the name
-# `crate-gate`") instead of quietly using crates.io.
+# The 7-day crate cooldown (the standards repo's ADR-0014; docs/RUST.md).
+# From Rust 1.100 cargo's resolver skips any version published less than 7 days
+# ago unless Cargo.lock already holds it. Setup writes the same setting into
+# ~/.cargo/config.toml, and the packages proxy (packages.jorisjonkers.dev/cargo),
+# which every workstation and CI job resolves through, hides those versions too.
+# crate-age is the after-the-fact check of Cargo.lock in the pre-commit hook and
+# the Crate Cooldown workflow.
 
-[source.crates-io]
-replace-with = "crate-gate"
-
-[source.crate-gate]
-registry = "sparse+http://127.0.0.1:17342/"
+[registry]
+global-min-publish-age = "7 days"

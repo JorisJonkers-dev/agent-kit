@@ -2930,7 +2930,7 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
 
 def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     """The Gold Band step: on Linux, build the pinned commit from an existing
-    clone through the crate gate and install it (scripts/gold-band/build-linux.sh).
+    clone through the packages proxy and install it (scripts/gold-band/build-linux.sh).
 
     A machine without the clone skips the surface and says so; a skipped
     surface never fails setup. A too-young or unprovable crate stops the build
@@ -2949,7 +2949,7 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     clone = gold_band["clone"]
     w("# -----------------------------------------------------------------")
     w(f"# Gold Band {gold_band['tag']} ({gold_band['commit'][:7]}): built from an existing")
-    w("# clone through the crate gate, Linux only. No clone: skipped, said so.")
+    w("# clone through the packages proxy, Linux only. No clone: skipped, said so.")
     w("# -----------------------------------------------------------------")
     w("gold_band_setup() {")
     w("  local rc=0 mode=()")
@@ -3500,6 +3500,60 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    ok "rustup: default toolchain stable with clippy, rustfmt and rust-src"')
     w("  else")
     w('    warn "rustup: setting the default toolchain failed; run rustup default stable"')
+    w("  fi")
+    w("  return 0")
+    w("}")
+    w("")
+    w("# Cargo honours registry.global-min-publish-age (the 7-day crate cooldown")
+    w("# setup writes into ~/.cargo/config.toml) from Rust 1.100; an older cargo")
+    w("# ignores it with a warning. A default on the stable channel is updated to")
+    w("# reach it; a default pinned to an older release is reported, not moved.")
+    w("# --- rust cooldown toolchain")
+    w("rust_cooldown_toolchain() {")
+    w("  command -v rustup >/dev/null 2>&1 || return 0")
+    w("  local version minor default")
+    w("  version=$(rustc --version 2>/dev/null) || version=")
+    w('  minor=$(printf \'%s\\n\' "${version}" | sed -n \'s/^rustc 1\\.\\([0-9][0-9]*\\)\\..*/\\1/p\')')
+    w(f'  if [ -n "${{minor}}" ] && [ "${{minor}}" -ge {RUST_COOLDOWN_MINOR} ]; then')
+    w('    ok "rust: ${version%% (*} honours the 7-day crate cooldown"')
+    w("    return 0")
+    w("  fi")
+    w("  default=$(rustup default 2>/dev/null) || default=")
+    w('  case "${default%% *}" in')
+    w("    stable-*) ;;")
+    w("    # No default yet: on NixOS rustup_default_toolchain sets stable just before;")
+    w("    # elsewhere there is nothing to update.")
+    w('    "")')
+    w('      [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ] && [ -z "${version}" ] || {')
+    w('        log "rust: no default toolchain; the crate cooldown needs Rust 1.100 or newer"')
+    w("        return 0")
+    w("      }")
+    w("      ;;")
+    w("    *)")
+    w(
+        f'      fail "rust: ${{version:-no rustc}} is older than 1.{RUST_COOLDOWN_MINOR} and the default toolchain '
+        'is ${default%% *}, not stable; cargo ignores the crate cooldown (rustup default stable)"'
+    )
+    w("      return 0")
+    w("      ;;")
+    w("  esac")
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w(
+        f'    log "would run: rustup update stable (${{version:-no rustc}} is older than '
+        f'1.{RUST_COOLDOWN_MINOR}, which the crate cooldown needs)"'
+    )
+    w("    return 0")
+    w("  fi")
+    w("  run rustup update stable >/dev/null 2>&1 || true")
+    w("  version=$(rustc --version 2>/dev/null) || version=")
+    w('  minor=$(printf \'%s\\n\' "${version}" | sed -n \'s/^rustc 1\\.\\([0-9][0-9]*\\)\\..*/\\1/p\')')
+    w(f'  if [ -n "${{minor}}" ] && [ "${{minor}}" -ge {RUST_COOLDOWN_MINOR} ]; then')
+    w('    ok "rust: updated stable to ${version%% (*}; cargo honours the 7-day crate cooldown"')
+    w("  else")
+    w(
+        f'    fail "rust: rustup update stable left ${{version:-no rustc}}, older than '
+        f'1.{RUST_COOLDOWN_MINOR}; cargo ignores the crate cooldown"'
+    )
     w("  fi")
     w("  return 0")
     w("}")
@@ -4691,6 +4745,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# On NixOS rustup arrives from Nix with no default toolchain: cargo fails")
     w("# until it is set, with or without Claude Code on this machine.")
     w("rustup_default_toolchain")
+    w("rust_cooldown_toolchain")
     w("")
     w("# Before anything touches a Vibe home (MCP merge, converge, skills), and")
     w("# whether or not vibe is on PATH yet.")
@@ -5753,6 +5808,9 @@ def _has_plugin_pins(data: dict[str, Any]) -> bool:
     """Plugins are pinned through their marketplaces, so drift is checked when there are any."""
     return bool(_entries(data, "marketplaces") and _entries(data, "plugins"))
 
+
+# The Rust minor release from which cargo honours registry.global-min-publish-age.
+RUST_COOLDOWN_MINOR = 100
 
 LITELLM_ENV = re.compile(r"[A-Z][A-Z0-9_]*")
 LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "budget_duration", "data_scope", "models"}

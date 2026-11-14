@@ -13,7 +13,8 @@
 #   GOLD_BAND_STATE    the build record (default
 #                      ~/.local/state/agent-kit/gold-band/build.json).
 #   CRATE_AGE          the crate-age executable (default: crate-age on PATH).
-#   CRATE_GATE_PORT    the gate's port (default 17342).
+#   PACKAGES_CARGO_INDEX  the packages proxy's cargo index (default
+#                      sparse+https://packages.jorisjonkers.dev/cargo/).
 #   GOLD_BAND_FORCE=1  rebuild even when the record already matches the pin.
 #   --check            report what would happen; build nothing.
 #
@@ -24,8 +25,9 @@
 #
 # The clone is read with `git archive`, never touched. The build copy has
 # Gold Band's own `.cargo/config.toml` replaced (it points crates.io at a
-# third-party mirror, which would bypass the crate gate) by one that resolves
-# only through the gate, the way this repository's `.cargo/config.toml` does.
+# third-party mirror, which would bypass the cooldown) by one that resolves
+# only through the packages proxy, which hides versions younger than 7 days,
+# with cargo's own 7-day cooldown on top (docs/RUST.md).
 # The web UI is built with npm through the packages proxy. On NixOS the system
 # libraries a Tauri app links against come from `shell.nix` beside this file.
 # docs/GOLD-BAND.md has the details.
@@ -40,7 +42,8 @@ BIN_DIR=${GOLD_BAND_BIN_DIR:-$HOME/.local/bin}
 CACHE=${GOLD_BAND_CACHE:-$HOME/.cache/agent-kit/gold-band}
 STATE=${GOLD_BAND_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/agent-kit/gold-band/build.json}
 CRATE_AGE=${CRATE_AGE:-crate-age}
-PORT=${CRATE_GATE_PORT:-17342}
+INDEX=${PACKAGES_CARGO_INDEX:-sparse+https://packages.jorisjonkers.dev/cargo/}
+CREDENTIALS=${CARGO_HOME:-$HOME/.cargo}/credentials.toml
 CHECK=0
 [ "${1:-}" = "--check" ] && CHECK=1
 
@@ -66,13 +69,13 @@ if [ "${GOLD_BAND_FORCE:-0}" != 1 ] && recorded; then
   exit 0
 fi
 if [ "$CHECK" = 1 ]; then
-  say "would build $commit ($PIN_TAG) from $CLONE: crate-age over its Cargo.lock, then the desktop app and gold-band through the crate gate, into $BIN_DIR"
+  say "would build $commit ($PIN_TAG) from $CLONE: crate-age over its Cargo.lock, then the desktop app and gold-band through the packages proxy, into $BIN_DIR"
   exit 0
 fi
 
-command -v "$CRATE_AGE" >/dev/null 2>&1 || die "no crate-age ($CRATE_AGE); scripts/gate/install-linux.sh installs it"
-curl -fsS -m 3 "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 \
-  || die "the crate gate does not answer on 127.0.0.1:$PORT; scripts/gate/install-linux.sh installs it"
+command -v "$CRATE_AGE" >/dev/null 2>&1 || die "no crate-age ($CRATE_AGE); scripts/install-crate-age.sh installs it"
+grep -q '^\[registries\.jorisjonkers-packages\]' "$CREDENTIALS" 2>/dev/null \
+  || die "no packages proxy token in $CREDENTIALS; run setup, which writes it"
 
 work="$CACHE/$commit"
 src="$work/src"
@@ -123,14 +126,22 @@ case $age in
 esac
 say "age check: $age_result"
 
-# 2. The gate replaces Gold Band's mirror config in the build copy only.
+# 2. The packages proxy replaces Gold Band's mirror config in the build copy
+# only. The token comes from the credentials setup wrote.
 mkdir -p "$src/.cargo"
 cat > "$src/.cargo/config.toml" <<TOML
 [source.crates-io]
-replace-with = "crate-gate"
+replace-with = "jorisjonkers-packages"
 
-[source.crate-gate]
-registry = "sparse+http://127.0.0.1:$PORT/"
+[source.jorisjonkers-packages]
+registry = "$INDEX"
+
+[registries.jorisjonkers-packages]
+index = "$INDEX"
+
+[registry]
+global-credential-providers = ["cargo:token"]
+global-min-publish-age = "7 days"
 TOML
 
 # 3. Build inside the system-library shell on NixOS; plain PATH elsewhere.

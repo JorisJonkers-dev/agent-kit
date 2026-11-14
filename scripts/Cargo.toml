@@ -5,9 +5,10 @@
 # to question. A member that takes a registry dependency pins it exactly, at a
 # version at least 7 days old, and crate-age checks every transitive version.
 # No member has a git or path dependency outside this workspace. cargo resolves
-# through the crate-gate (127.0.0.1:17342, set in .cargo/config.toml), which
-# hides any version younger than 7 days; crate-age is the after-the-fact check
-# in the pre-commit hook and the pull-request workflow.
+# through the packages proxy, which hides any version younger than 7 days, and
+# skips such versions itself (registry.global-min-publish-age in
+# .cargo/config.toml, Rust 1.100 and later); crate-age is the after-the-fact
+# check in the pre-commit hook and the pull-request workflow.
 
 [workspace]
 resolver = "2"

@@ -11,7 +11,7 @@
 # component, read them. A mismatched LLVM is refused here, since its error
 # otherwise is a profile-format version mismatch. src/main.rs files (the one exit-wrapper
 # line each crate documents) and test code are excluded. Resolution goes through the
-# crate-gate as for every cargo command here (.cargo/config.toml).
+# packages proxy, with the cooldown in .cargo/config.toml, as for every cargo command here.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)

@@ -1,7 +1,7 @@
 """Setup builds the pinned Gold Band on Linux (scripts/gold-band/build-linux.sh).
 
 Each test runs the real script against a scratch git repository that stands in
-for the Gold Band clone, with crate-age, the gate's health check, npm, cargo and
+for the Gold Band clone, with crate-age, npm, cargo and
 pkg-config replaced by stubs. What is asserted is what the host holds afterwards:
 which binaries are installed, what the build record says, whether cargo was ever
 called, and what the build copy's cargo config points at. The age check's own
@@ -14,6 +14,7 @@ import json
 import os
 import platform
 import subprocess
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -80,10 +81,21 @@ class Host:
 
 
 def make_host(
-    tmp_path: Path, *, age_status: int = 0, age_output: str = "", gate_up: bool = True, cargo_lock: str | None = None
+    tmp_path: Path,
+    *,
+    age_status: int = 0,
+    age_output: str = "",
+    proxy_token: bool = True,
+    cargo_lock: str | None = None,
 ) -> Host:
     root = tmp_path
     (root / "home").mkdir()
+    if proxy_token:
+        # What setup writes for the packages proxy; the value is never read here.
+        (root / "home" / ".cargo").mkdir()
+        (root / "home" / ".cargo" / "credentials.toml").write_text(
+            '[registries.jorisjonkers-packages]\ntoken = "Bearer test"\n'
+        )
     clone = root / "clone"
     clone.mkdir()
     git(clone, "init", "-q")
@@ -102,7 +114,6 @@ def make_host(
     stubs.mkdir()
     calls = root / "calls.log"
     stub(stubs, "crate-age", f'echo "crate-age $*" >> "{calls}"\ncat <<\'OUT\'\n{age_output}\nOUT\nexit {age_status}')
-    stub(stubs, "curl", "exit 0" if gate_up else "exit 7")
     stub(stubs, "npm", f'echo "npm $*" >> "{calls}"')
     stub(stubs, "node", "exit 0")
     stub(stubs, "pkg-config", "exit 0")
@@ -150,11 +161,17 @@ def test_it_builds_both_binaries_from_the_pin_and_reports_version_and_commit(tmp
     assert cargo == ["cargo build --release -p gold-band --bin gold-band", "cargo build --release -p gold-band-desktop"]
 
 
-def test_cargo_resolves_through_the_gate_not_gold_bands_mirror(tmp_path: Path) -> None:
+def test_cargo_resolves_through_the_packages_proxy_not_gold_bands_mirror(tmp_path: Path) -> None:
     host = make_host(tmp_path)
     assert host.run().returncode == 0
-    config = (tmp_path / "build-cargo-config.toml").read_text()
-    assert 'registry = "sparse+http://127.0.0.1:17342/"' in config
+    config = tomllib.loads((tmp_path / "build-cargo-config.toml").read_text())
+    proxy = "sparse+https://packages.jorisjonkers.dev/cargo/"
+    assert config["source"]["crates-io"]["replace-with"] == "jorisjonkers-packages"
+    assert config["source"]["jorisjonkers-packages"]["registry"] == proxy
+    assert config["registries"]["jorisjonkers-packages"]["index"] == proxy
+    assert config["registry"]["global-min-publish-age"] == "7 days"
+    assert "127.0.0.1" not in str(config)
+    config = str(config)
     assert "rsproxy" not in config
     # The clone itself is untouched.
     assert (host.clone / ".cargo" / "config.toml").read_text() == RSPROXY
@@ -234,11 +251,11 @@ def test_tao_at_another_git_revision_stops_the_build(tmp_path: Path) -> None:
     assert not host.bin_dir.exists()
 
 
-def test_a_down_gate_stops_the_build_before_anything_is_fetched(tmp_path: Path) -> None:
-    host = make_host(tmp_path, gate_up=False)
+def test_no_packages_proxy_token_stops_the_build_before_anything_is_fetched(tmp_path: Path) -> None:
+    host = make_host(tmp_path, proxy_token=False)
     done = host.run()
     assert done.returncode == 1
-    assert "crate gate does not answer" in done.stderr
+    assert "no packages proxy token" in done.stderr
     assert [c for c in calls_of(host) if c.startswith(("cargo", "npm"))] == []
 
 

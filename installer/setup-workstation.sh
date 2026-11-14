@@ -750,6 +750,51 @@ rustup_default_toolchain() {
   return 0
 }
 
+# Cargo honours registry.global-min-publish-age (the 7-day crate cooldown
+# setup writes into ~/.cargo/config.toml) from Rust 1.100; an older cargo
+# ignores it with a warning. A default on the stable channel is updated to
+# reach it; a default pinned to an older release is reported, not moved.
+# --- rust cooldown toolchain
+rust_cooldown_toolchain() {
+  command -v rustup >/dev/null 2>&1 || return 0
+  local version minor default
+  version=$(rustc --version 2>/dev/null) || version=
+  minor=$(printf '%s\n' "${version}" | sed -n 's/^rustc 1\.\([0-9][0-9]*\)\..*/\1/p')
+  if [ -n "${minor}" ] && [ "${minor}" -ge 100 ]; then
+    ok "rust: ${version%% (*} honours the 7-day crate cooldown"
+    return 0
+  fi
+  default=$(rustup default 2>/dev/null) || default=
+  case "${default%% *}" in
+    stable-*) ;;
+    # No default yet: on NixOS rustup_default_toolchain sets stable just before;
+    # elsewhere there is nothing to update.
+    "")
+      [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ] && [ -z "${version}" ] || {
+        log "rust: no default toolchain; the crate cooldown needs Rust 1.100 or newer"
+        return 0
+      }
+      ;;
+    *)
+      fail "rust: ${version:-no rustc} is older than 1.100 and the default toolchain is ${default%% *}, not stable; cargo ignores the crate cooldown (rustup default stable)"
+      return 0
+      ;;
+  esac
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would run: rustup update stable (${version:-no rustc} is older than 1.100, which the crate cooldown needs)"
+    return 0
+  fi
+  run rustup update stable >/dev/null 2>&1 || true
+  version=$(rustc --version 2>/dev/null) || version=
+  minor=$(printf '%s\n' "${version}" | sed -n 's/^rustc 1\.\([0-9][0-9]*\)\..*/\1/p')
+  if [ -n "${minor}" ] && [ "${minor}" -ge 100 ]; then
+    ok "rust: updated stable to ${version%% (*}; cargo honours the 7-day crate cooldown"
+  else
+    fail "rust: rustup update stable left ${version:-no rustc}, older than 1.100; cargo ignores the crate cooldown"
+  fi
+  return 0
+}
+
 # Sets the given top-level keys in a JSON config under $HOME, keeping
 # every other key. Used for plugins that read a user config file.
 _merge_user_config() {
@@ -2657,7 +2702,7 @@ report_antigravity_signin
 
 # -----------------------------------------------------------------
 # Gold Band v0.19.1 (987fc3e): built from an existing
-# clone through the crate gate, Linux only. No clone: skipped, said so.
+# clone through the packages proxy, Linux only. No clone: skipped, said so.
 # -----------------------------------------------------------------
 gold_band_setup() {
   local rc=0 mode=()
@@ -2905,6 +2950,7 @@ claude_no_attribution
 # On NixOS rustup arrives from Nix with no default toolchain: cargo fails
 # until it is set, with or without Claude Code on this machine.
 rustup_default_toolchain
+rust_cooldown_toolchain
 
 # Before anything touches a Vibe home (MCP merge, converge, skills), and
 # whether or not vibe is on PATH yet.

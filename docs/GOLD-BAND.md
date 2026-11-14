@@ -26,13 +26,15 @@ ticket.
    nature: Gold Band's own path crates, and the `tao` git patch, accepted only
    while the lockfile pins it to rev `c704261c`. An HTTP 429 from crates.io is
    reported as a rate limit to retry, never as a pass.
-4. **Through the crate gate.** Gold Band ships a `.cargo/config.toml` that
+4. **Through the packages proxy.** Gold Band ships a `.cargo/config.toml` that
    points crates.io at a third-party mirror (rsproxy.cn), which would bypass
-   the gate. In the build copy only, it is replaced by a config that resolves
-   through the gate at `127.0.0.1:17342` (`scripts/gate/install-linux.sh`
-   installs the gate and crate-age; see [RUST.md](RUST.md)). One exception, stated rather than hidden: Gold Band's
+   the cooldown. In the build copy only, it is replaced by a config that
+   resolves through the packages proxy (which hides versions younger than 7
+   days) with cargo's own `global-min-publish-age = "7 days"`, using the token
+   setup wrote to `~/.cargo/credentials.toml` (`scripts/install-crate-age.sh`
+   installs crate-age; see [RUST.md](RUST.md)). One exception, stated rather than hidden: Gold Band's
    `[patch.crates-io] tao` is a git dependency at rev `c704261c`, which cargo
-   fetches from github.com directly (the gate only mirrors crates.io); the
+   fetches from github.com directly (the proxy only serves crates.io); the
    builder refuses any other tao source. The web UI's npm
    packages come through the packages proxy that setup already configures.
 5. **Build** `npm ci`, `npm run web:build` (the UI the desktop app embeds),
