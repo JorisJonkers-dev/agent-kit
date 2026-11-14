@@ -57,6 +57,16 @@ pub fn vibe_available_cache_path(env: &HashMap<String, String>) -> Result<String
     Ok(join(&[&root, "model-gateway", "vibe-available.json"]))
 }
 
+/// The live LiteLLM model catalogue setup fetches: `$XDG_CACHE_HOME/agent-kit/litellm-catalogue.json`, or
+/// `~/.cache/agent-kit/litellm-catalogue.json` when XDG_CACHE_HOME is unset or not an absolute path.
+pub fn litellm_catalogue_path(env: &HashMap<String, String>) -> Result<String, GatewayError> {
+    let root = match env.get("XDG_CACHE_HOME") {
+        Some(xdg) if xdg.starts_with('/') => xdg.clone(),
+        _ => join(&[require_home(env)?, ".cache"]),
+    };
+    Ok(join(&[&root, "agent-kit", "litellm-catalogue.json"]))
+}
+
 /// The machine-wide ledger: one JSON line per run, whichever repository it ran in.
 pub fn ledger_path(env: &HashMap<String, String>) -> Result<String, GatewayError> {
     Ok(join(&[&state_dir(env)?, "ledger.jsonl"]))

@@ -40,6 +40,7 @@ fn client(binary: &str, cost_class: CostClass) -> ClientConfig {
         provider_cost_classes: None,
         providers: None,
         plan_limits: None,
+        litellm_route: None,
     }
 }
 

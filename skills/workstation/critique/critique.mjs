@@ -1576,7 +1576,8 @@ var CLIENT_FIELDS = [
   "families",
   "provider_cost_classes",
   "providers",
-  "plan_limits"
+  "plan_limits",
+  "litellm_route"
 ];
 var OVERRIDE_KEYS = ["version", "clients", "disabled", "models", "settings"];
 var ModelGatewayError = class extends Error {
@@ -1646,6 +1647,7 @@ function parseClient(id, raw, base) {
   };
   const providers = raw.providers === void 0 ? base?.providers : requireStrings(raw.providers, `${where}.providers`);
   const planLimits = raw.plan_limits === void 0 ? base?.plan_limits : parsePlanLimits(raw.plan_limits, `${where}.plan_limits`);
+  const litellmRoute = raw.litellm_route === void 0 ? base?.litellm_route : requireString(raw.litellm_route, `${where}.litellm_route`);
   if (binary === void 0 || costClass === void 0 || modelSource === void 0) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`);
   }
@@ -1656,7 +1658,8 @@ function parseClient(id, raw, base) {
     model_source: modelSource,
     provider_cost_classes: providerCostClasses,
     providers,
-    ...planLimits === void 0 ? {} : { plan_limits: planLimits }
+    ...planLimits === void 0 ? {} : { plan_limits: planLimits },
+    ...litellmRoute === void 0 ? {} : { litellm_route: litellmRoute }
   };
 }
 function parsePlanLimits(raw, where) {
@@ -3214,6 +3217,9 @@ var GrantGuard = class {
 
 // src/contexts/model-gateway/application/engine-guard.ts
 var ENGINE_TIME_LIMIT_S = 4 * 60 * 60;
+
+// src/contexts/model-gateway/domain/litellm-catalogue.ts
+var CATALOGUE_STALE_AFTER_MS = 48 * 60 * 60 * 1e3;
 
 // src/contexts/model-gateway/application/plan.ts
 async function readPlanLimit(deps, client) {
