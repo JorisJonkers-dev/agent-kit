@@ -166,14 +166,24 @@ environment or the secret store:
 python3 scripts/measure_litellm_budget.py --agent vibe
 ```
 
-A key made before this change was made without `budget_duration` and is a lifetime cap until it
-is regenerated (or updated with `/key/update`, `budget_duration: 30d`). The result of the
-measurement, to be pasted here by the owner (`_pending_`): the request line, the four fields,
-the date it was run, and whether `budget_duration` is `30d`.
+A minted key draws on its route's team, so the window and reset are the team's. Measured on the
+real proxy on 2026-11-14 at 12:45 UTC, with this host's `vibe@enschede-rx7900xtx-1` key:
 
 ```text
-_pending_
+request:
+  GET https://litellm.jorisjonkers.dev/key/info
+  Authorization: Bearer <LITELLM_VIBE_KEY, redacted>
+GET https://litellm.jorisjonkers.dev/team/info?team_id=f1551bd0-f418-4f6e-b194-9d97414d07d6
+  Authorization: Bearer <LITELLM_VIBE_KEY, redacted>
+budget:
+  max_budget: 255.0
+  budget_duration: "30d"
+  budget_reset_at: "2026-12-01T00:00:00Z"
+  spend: 0.0001643
 ```
+
+The cap is 255 (LiteLLM's unit), the window is `30d`, and LiteLLM resets the spend on
+2026-12-01, then every 30 days. Every host's `vibe` key counts against this one team budget.
 
 ## What the owner adds
 
