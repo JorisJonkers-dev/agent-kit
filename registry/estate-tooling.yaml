@@ -1093,6 +1093,36 @@ retired_skills:
   - name: prepare-rollback
   - name: run-tests
 
+# Workspace tools: command-line tools built from this kit's own cargo workspace
+# (scripts/Cargo.toml, `--locked`, behind the 7-day crate cooldown) and installed
+# into ~/.local/bin by scripts/install-workspace-tools.sh, so the Gold Band
+# workflows, the pre-commit hooks and the CI helpers find them by name. Each
+# `name` is a workspace crate under scripts/crates whose binary has the same
+# name. A build or smoke check that fails leaves every installed tool as it was.
+workspace_tools:
+  - name: agent-launcher
+    surfaces: [workstation]
+  - name: gold-band-gate
+    surfaces: [workstation]
+  - name: gold-band-run-start
+    surfaces: [workstation]
+  - name: gold-band-findings
+    surfaces: [workstation]
+  - name: gold-band-proof
+    surfaces: [workstation]
+  - name: research-layout
+    surfaces: [workstation]
+  - name: ticket-publish
+    surfaces: [workstation]
+  - name: workflow-lint
+    surfaces: [workstation]
+  - name: coverage-gate
+    surfaces: [workstation]
+  - name: ci-wait
+    surfaces: [workstation]
+  - name: litellm-gate
+    surfaces: [workstation]
+
 # -------------------------------------------------------------------
 # Hindsight Coding Agents: Hindsight's own plugin for Claude Code and
 # Codex, pinned and locked down. One npx install wires both agents' hooks
