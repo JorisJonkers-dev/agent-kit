@@ -1,12 +1,24 @@
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readFile, rm, stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { fenced, finding, harness, piStream, type Harness, type PiCli } from '../../../test/critique/harness.js'
+import { fenced, finding, harness, homePiModels, piStream, PI_TEST_KEY, type Harness, type PiCli } from '../../../test/critique/harness.js'
 import type { CriticLaunch } from './application/ports.js'
 import { clientReadiness, clientSignIn, clientVersion, reviewWith } from './application/ports.js'
-import { authReadiness, classifyPiRun, modelsReadiness, outsidePacket, readPiStream, PI_SYSTEM_PROMPT } from './adapters/pi/index.js'
+import {
+  authReadiness,
+  classifyPiRun,
+  confineReadiness,
+  confinedCommand,
+  modelsReadiness,
+  outsidePacket,
+  piCommand,
+  readPiStream,
+  routeOf,
+  urlPort,
+  PI_SYSTEM_PROMPT,
+} from './adapters/pi/index.js'
 import { readCriticClient, type PiCriticClient } from './domain/routing.js'
 import { JsonFields } from './domain/json.js'
 import type { FanOutResult, PrepareResult } from './index.js'
@@ -34,8 +46,8 @@ async function piOnly(cli: PiCli, client?: Record<string, unknown>): Promise<{ h
   return { h, run }
 }
 
-async function piReview(stdout: string): Promise<{ h: Harness; run: PrepareResult; result: FanOutResult }> {
-  const { h, run } = await piOnly({ scripts: [{ stdout }] })
+async function piReview(stdout: string, cli: PiCli = {}): Promise<{ h: Harness; run: PrepareResult; result: FanOutResult }> {
+  const { h, run } = await piOnly({ scripts: [{ stdout }], ...cli })
   const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
   return { h, result, run }
 }
@@ -114,6 +126,129 @@ describe('the Pi critic', () => {
   it('drops the critic in prepare when its provider is not ready', async () => {
     const { run } = await piOnly({ auth: 'not_ready' })
     expect(JSON.stringify(run)).toContain('the litellm-vibe-study provider is not_ready (provider_not_found)')
+  })
+})
+
+describe('the confined Pi critic', () => {
+  const ok = piStream(`Review.\n${fenced({ findings: [] })}`)
+
+  it('runs pi through agent-launcher confine: the packet readable, pi and its tools runnable, its own agent directory writable, the proxy port alone', async () => {
+    const { h, run } = await piReview(ok)
+    const criticDir = join(run.run_dir, 'critics', 'c1-pi-vibe-study-glm')
+    const agentDir = join(criticDir, 'pi-agent')
+    const [confined] = h.pi?.confined ?? []
+    expect(confined?.command).toBe('agent-launcher')
+    expect(confined?.args.slice(0, confined.args.indexOf('--'))).toEqual(['confine', '--read', join(criticDir, 'packet'), '--run-from', 'pi', '--write', agentDir, '--net-connect', '443'])
+    expect(confined?.env).toEqual({ PATH: expect.stringContaining('bin') as string, PI_CODING_AGENT_DIR: agentDir, TMPDIR: agentDir })
+    const [seen] = h.pi?.agents ?? []
+    expect(JSON.parse(seen?.models ?? '')).toEqual({
+      providers: { 'litellm-vibe-study': { api: 'openai-completions', apiKey: PI_TEST_KEY, baseUrl: 'https://litellm.example.test/v1', models: [{ cost: { input: 0.5, output: 1 }, id: 'glm-5-3' }] } },
+    })
+    expect([seen?.modelsMode, seen?.dirMode, seen?.settings]).toEqual([0o600, 0o700, '{}\n'])
+    // The key was read from the secret store by name, and the directory is gone with it.
+    const secret = h.pi?.commands.find((command) => command.args[0] === 'get')
+    expect(secret?.args).toEqual(['get', 'LITELLM_VIBE_STUDY_KEY'])
+    await expect(stat(agentDir)).rejects.toThrow()
+  })
+
+  it("grants the home's Pi bin, where fd lives, and puts it first on PATH", async () => {
+    const { h } = await piReview(ok, { homeBin: true })
+    const [confined] = h.pi?.confined ?? []
+    const bin = join(h.home, '.pi', 'agent', 'bin')
+    expect(confined?.args).toEqual(expect.arrayContaining(['--run', bin]))
+    expect(confined?.env?.PATH?.startsWith(`${bin}:`)).toBe(true)
+  })
+
+  it('refuses the critic, starting nothing, when the key cannot be read', async () => {
+    for (const [secret, said] of [
+      [{ exitCode: 1, stderr: 'no such secret\n', stdout: 'not-a-key' }, 'pi: the litellm-vibe-study key could not be read from the secret store (LITELLM_VIBE_STUDY_KEY): no such secret'],
+      [{ exitCode: 0, stderr: '', stdout: '  \n' }, '(LITELLM_VIBE_STUDY_KEY): exit 0'],
+      ['spawn-error', 'ENOENT'],
+    ] as const) {
+      const { h, result } = await piReview(ok, { secret })
+      expect(result.critics[0]).toMatchObject({ detail: expect.stringContaining(said) as string, failure: 'unconfined', status: 'failed' })
+      expect(h.pi?.confined).toEqual([])
+    }
+  })
+
+  it('takes a literal key as it is, and refuses a key command it would need a shell for', async () => {
+    const literal = homePiModels('x').replace(/"!x get LITELLM_VIBE_STUDY_KEY"/, '"sk-literal"')
+    const { h } = await piReview(ok, { homeModels: literal })
+    expect(JSON.parse(h.pi?.agents[0]?.models ?? '')).toMatchObject({ providers: { 'litellm-vibe-study': { apiKey: 'sk-literal' } } })
+    const shell = homePiModels('x').replace(/"!x get LITELLM_VIBE_STUDY_KEY"/, '"!cat /run/key | tr -d x"')
+    const refused = await piReview(ok, { homeModels: shell })
+    expect(refused.result.critics[0]).toMatchObject({ detail: expect.stringContaining('a shell command the runner does not run') as string, failure: 'unconfined' })
+  })
+
+  it('refuses at launch a critic whose route or launcher went away after prepare', async () => {
+    const gone = await piOnly({ scripts: [] })
+    await rm(join(gone.h.home, '.pi', 'agent', 'models.json'))
+    const noRoute = await gone.h.commands.fanOut.run({ run_dir: gone.run.run_dir })
+    expect(noRoute.critics[0]).toMatchObject({ detail: expect.stringContaining('has no litellm-vibe-study provider') as string, failure: 'unconfined' })
+    const moved = await piOnly({ scripts: [] })
+    const path = moved.h.pi?.commands.find((command) => command.args.includes('--check'))
+    expect(path?.command).toBe('agent-launcher')
+    await rm(join(dirname(moved.h.repo), 'bin', 'agent-launcher'))
+    const noLauncher = await moved.h.commands.fanOut.run({ run_dir: moved.run.run_dir })
+    expect(noLauncher.critics[0]).toMatchObject({ detail: expect.stringContaining('agent-launcher is not on PATH') as string, failure: 'unconfined' })
+  })
+
+  it('reads a launch the launcher refused (exit 125) as unconfined', async () => {
+    const { result } = await piReview('', { scripts: [{ exitCode: 125, stderr: 'agent-launcher: confine: no Landlock; nothing started\n', stdout: '' }] })
+    expect(result.critics[0]).toMatchObject({
+      detail: 'the operating system could not confine pi to its packet, so it did not start: agent-launcher: confine: no Landlock; nothing started',
+      failure: 'unconfined',
+    })
+    expect(classifyPiRun({ exitCode: 125, stderr: '', stdout: '' }, readPiStream(''), '/p', 1)).toMatchObject({ detail: expect.stringContaining('start: exit 125') as string })
+  })
+
+  it('drops the critic in prepare when it cannot be confined: no launcher, a check that fails, no route', async () => {
+    const noLauncher = await piOnly({ launcher: false })
+    expect(JSON.stringify(noLauncher.run)).toContain('pi: agent-launcher is not on PATH, and a Pi critic only runs confined to its packet')
+    const refused = await piOnly({ confine: { exitCode: 125, stderr: 'agent-launcher: confine: the confinement cannot be applied here: Landlock ABI 3 cannot limit the network\n', stdout: '' } })
+    expect(JSON.stringify(refused.run)).toContain('pi: the operating system cannot confine a Pi critic to its packet here, so it does not run: agent-launcher: confine:')
+    const noModels = await piOnly({ homeModels: null })
+    expect(JSON.stringify(noModels.run)).toContain('has no litellm-vibe-study provider')
+    const h = noModels.h
+    expect(h.pi?.commands.some((command) => command.args.includes('--check'))).toBe(false)
+  })
+
+  it('uses PI_CODING_AGENT_DIR as the home Pi directory, and AGENT_KIT_LAUNCHER_BIN as the launcher', async () => {
+    const h = await harness({ env: { AGENT_KIT_LAUNCHER_BIN: '/opt/agent-launcher', PI_CODING_AGENT_DIR: '/nowhere/pi-agent' }, piCli: { launcher: false }, routingOverride: piRouting() })
+    open.push(h)
+    await h.commands.allow.run({ families: ['zhipu'], repo: h.repo })
+    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
+    expect(JSON.stringify(run)).toContain('pi: /nowhere/pi-agent/models.json has no litellm-vibe-study provider')
+    const viaEnv = await harness({ env: { AGENT_KIT_LAUNCHER_BIN: '/opt/agent-launcher' }, piCli: { launcher: false, scripts: [{ stdout: ok }] }, routingOverride: piRouting() })
+    open.push(viaEnv)
+    await viaEnv.commands.allow.run({ families: ['zhipu'], repo: viaEnv.repo })
+    const prepared = (await viaEnv.commands.prepare.run({ orchestrator_family: 'anthropic', repo: viaEnv.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })) as PrepareResult
+    await viaEnv.commands.fanOut.run({ run_dir: prepared.run_dir })
+    expect(viaEnv.pi?.confined[0]?.command).toBe('/opt/agent-launcher')
+  })
+
+  it("reads the route from the home's provider: its URL's port, the routed model's entry, or why not", () => {
+    const at = '/h/models.json'
+    const provider = { api: 'a', apiKey: 'k', baseUrl: 'https://p.test:8443/v1', models: [{ id: 'other' }, 'x'] }
+    expect(routeOf(provider, CONFIG, at)).toEqual({ api: 'a', apiKey: 'k', baseUrl: 'https://p.test:8443/v1', model: { id: 'glm-5-3' }, port: 8443 })
+    expect(routeOf({ ...provider, models: undefined }, CONFIG, at)).toMatchObject({ model: { id: 'glm-5-3' } })
+    expect(routeOf(undefined, CONFIG, at)).toContain('/h/models.json has no litellm-vibe-study provider')
+    expect(routeOf({ ...provider, apiKey: 5 }, CONFIG, at)).toContain('lacks a baseUrl, api or apiKey')
+    expect(routeOf({ ...provider, baseUrl: 'ftp://p' }, CONFIG, at)).toContain('is not an http or https URL')
+    expect([urlPort('https://p'), urlPort('http://p/v1'), urlPort('http://p:8080'), urlPort('https://p:0/'), urlPort('https://p:x'), urlPort('https://p:99999'), urlPort('p')]).toEqual([
+      443, 80, 8080, undefined, undefined, undefined, undefined,
+    ])
+  })
+
+  it('reads the launcher check, and builds the confined command line with or without a PATH', () => {
+    expect(confineReadiness({ exitCode: 0, stderr: '', stdout: 'confine: ok' })).toEqual({ ready: true })
+    expect(confineReadiness({ exitCode: 0, stderr: '', stdout: '', timedOut: true })).toMatchObject({ detail: expect.stringContaining('no answer within 20s') as string })
+    expect(confineReadiness('spawn agent-launcher EACCES')).toMatchObject({ ready: false })
+    const launch = { critic: { time_limit_s: 1 }, packetDir: '/p' } as unknown as CriticLaunch
+    const pi = piCommand(CONFIG, launch, 'prompt')
+    expect(confinedCommand('L', ['--read', '/p'], pi, undefined, '/a', undefined).env).toEqual({ PATH: '', PI_CODING_AGENT_DIR: '/a', TMPDIR: '/a' })
+    expect(confinedCommand('L', [], pi, '', '/a', '/b').env.PATH).toBe('/b')
+    expect(confinedCommand('L', [], pi, '/usr/bin', '/a', '/b')).toMatchObject({ args: ['confine', '--', 'pi', ...pi.args], command: 'L', cwd: '/p', env: { PATH: '/b:/usr/bin' }, stdin: 'prompt' })
   })
 })
 

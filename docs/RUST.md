@@ -647,18 +647,32 @@ takes no registry dependency: it reuses the ordered JSON, the ports and the adap
   proof against a real packet) cover the rest.
 * **Pi critics.** A routing client of kind `pi` (`provider` `litellm-<route>`, `model`, `family`, `binary` defaulting to
   `pi`) runs a critic or refuter through Pi on a LiteLLM route (`pi_client.rs`, node's `adapters/pi/index.ts`). It is
-  started directly, not through the gateway, which has no Pi client: `pi -p --mode json --no-session --offline
+  not started through the gateway, which has no Pi client: `pi -p --mode json --no-session --offline
   --provider <provider> --model <model> --tools read,grep,find,ls` with extensions, skills, prompt templates, themes,
   context files, MCP and trust-gated project files switched off and the runner's own system prompt, in the critic's
-  packet copy with the prompt on stdin, under the slot's time limit as the outer timer. Pi has no sandbox, so the JSON
-  event stream is checked afterwards: another tool, or a `path`, `glob` or find `pattern` that reaches past the packet
-  (absolute, `~`, or a `..` that climbs out, resolved lexically), voids the review as `unsafe-tool`; a last assistant
-  message that stopped on an error or was aborted fails it although Pi exits 0. Readiness is `pi auth check
-  --provider <provider> --json` and `pi --offline --list-models <model>`, neither of which calls a model, and the
-  ledger lines carry kind `pi`, charged Pi's own `usage.cost.total`. The runner's search server is not attached: Pi
-  takes MCP servers only from its config files, and its own `grep`, `find` and `ls` search the packet. `fan-out-pi`,
-  `refute-pi` and `setup-pi` replay the launches byte for byte, the fake `pi` keeping its argv and stdin beside the
-  packet.
+  packet copy with the prompt on stdin, under the slot's time limit as the outer timer. Pi's read tools run inside the
+  Pi process, so the whole process runs confined (`agent-launcher confine`, above): `agent-launcher confine --read
+  <packet copy> --run-from <binary> [--run ~/.pi/agent/bin] --write <critic>/pi-agent --net-connect <proxy port> --
+  pi ...`, with `PI_CODING_AGENT_DIR` and `TMPDIR` set to `<critic>/pi-agent` and the home's Pi `bin` (Pi's `fd`) first
+  on `PATH`. The launcher is `AGENT_KIT_LAUNCHER_BIN`, else `agent-launcher` on `PATH` (setup installs it as
+  `~/.local/bin/agent-launcher`, `scripts/install-critique-rust.sh`). `<critic>/pi-agent` is made for the one launch
+  (mode 0700): a `settings.json` of `{}` and a `models.json` (mode 0600) holding only the route's provider from the
+  home's `models.json` (`PI_CODING_AGENT_DIR`, else `~/.pi/agent`), its `baseUrl`, `api`, the routed model's entry and
+  the key as a literal, read just before the launch by running the home's `!<program> get <NAME>` without a shell (a
+  literal key is taken as it is; any other command is refused). The directory is removed when Pi ends. So the critic
+  can read nothing secret but that route's own budgeted key; a hostile model could have Pi send that key back to the
+  proxy, and nothing else. A Pi critic that cannot be confined never starts: readiness (prepare, refute) also needs the
+  home's provider with an `http(s)` `baseUrl`, the launcher and a passing `agent-launcher confine --check`, else the
+  client is unavailable with the reason; at launch, a missing route, launcher or key, or the launcher's exit 125, fails
+  the critic as `unconfined`. The JSON event stream is still checked afterwards as a second layer: another tool, or a
+  `path`, `glob` or find `pattern` that reaches past the packet (absolute, `~`, or a `..` that climbs out, resolved
+  lexically), voids the review as `unsafe-tool`; a last assistant message that stopped on an error or was aborted fails
+  it although Pi exits 0. Readiness also reads `pi auth check --provider <provider> --json` and `pi --offline
+  --list-models <model>`, neither of which calls a model, and the ledger lines carry kind `pi`, charged Pi's own
+  `usage.cost.total`. The runner's search server is not attached: Pi takes MCP servers only from its config files, and
+  its own `grep`, `find` and `ls` search the packet. `fan-out-pi`, `refute-pi` and `setup-pi` replay the launches byte
+  for byte through a fake `agent-launcher` and secret store (`tests/pi-confine-fixture.mjs`): the launcher keeps its
+  grants beside the packet (`launcher.txt`) and the fake `pi` its argv, stdin and what its agent directory held.
 * **Setup goldens.** `tests/gen-scenarios-setup.mjs` covers every setup action with fake `vibe` and `agy` programs in the sandbox's `bin/`. A Vibe client's read-only proof is not among them, for the reason the search wiring's goldens are not: its launch carries the search server's command line. The harness reads the hash of the bundled runner as `@RUNNER@`, since it changes with every build.
 * **Goldens.** `tests/gen-scenarios.mjs` writes the scenario inputs and
   `tests/regenerate-fixtures.mjs` runs the node runner over each with fake programs in a

@@ -21,7 +21,7 @@ const INITIAL: [u32; 8] = [
 pub fn hex(data: &[u8]) -> String {
     let mut state = INITIAL;
     let whole = data.len() - data.len() % 64;
-    for block in data[..whole].chunks_exact(64) {
+    for block in data[..whole].as_chunks::<64>().0 {
         compress(&mut state, block);
     }
     let rest = &data[whole..];
@@ -31,7 +31,7 @@ pub fn hex(data: &[u8]) -> String {
     let tail_len = if rest.len() < 56 { 64 } else { 128 };
     let bits = (data.len() as u64).wrapping_mul(8);
     tail[tail_len - 8..tail_len].copy_from_slice(&bits.to_be_bytes());
-    for block in tail[..tail_len].chunks_exact(64) {
+    for block in tail[..tail_len].as_chunks::<64>().0 {
         compress(&mut state, block);
     }
     let mut out = String::with_capacity(64);
@@ -44,7 +44,7 @@ pub fn hex(data: &[u8]) -> String {
 /// Folds one 64-byte block into the hash state.
 fn compress(state: &mut [u32; 8], block: &[u8]) {
     let mut w = [0u32; 64];
-    for (i, word) in block.chunks_exact(4).enumerate() {
+    for (i, word) in block.as_chunks::<4>().0.iter().enumerate() {
         w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
     }
     for i in 16..64 {

@@ -304,7 +304,7 @@ fn cache_entry_models(entry: &Value, key: &VibeProbeKey, now: i64) -> Option<Vec
         _ => return None,
     };
     let age = now as f64 - written_at;
-    if !(age >= 0.0 && age < PROBE_CACHE_TTL_MS) {
+    if !(0.0..PROBE_CACHE_TTL_MS).contains(&age) {
         return None;
     }
     match record.get("models") {

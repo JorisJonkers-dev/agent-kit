@@ -515,17 +515,38 @@ optional and defaults to `pi`. Its routing name is `pi-<route>-<model>`:
 
 The provider must be `litellm-<route>`. That is the provider setup writes
 into `~/.pi/agent/models.json`, with the route's key read from the secret
-store at request time. The runner starts Pi directly (the gateway has no Pi
-client), in the critic's packet copy, with the prompt on stdin:
+store at request time. The runner starts Pi in the critic's packet copy,
+with the prompt on stdin, confined by the operating system:
 
 ```sh
-pi -p --mode json --no-session --offline --provider litellm-vibe-study --model glm-5-3 \
+agent-launcher confine --read <packet copy> --run-from pi [--run ~/.pi/agent/bin] \
+  --write <critic>/pi-agent --net-connect 443 -- \
+  pi -p --mode json --no-session --offline --provider litellm-vibe-study --model glm-5-3 \
   --tools read,grep,find,ls --no-extensions --no-skills --no-prompt-templates --no-themes \
   --no-context-files --no-mcp --no-approve --system-prompt '<read-only reviewer>'
 ```
 
-Pi has no sandbox of its own, so its JSON event stream is checked after the
-run. The review is void (`unsafe-tool`) if the run used any tool other than
+Pi's `read`, `grep`, `find` and `ls` run inside the Pi process itself, so a
+sandbox around Pi's bash tool would not hold them. `agent-launcher confine`
+(Landlock, docs/RUST.md) confines the whole process instead. It can read
+only its packet copy, the Pi and node installs, the system runtime and its
+own agent directory. It can write only that directory, and it can open a
+TCP connection only to the proxy's port. `<critic>/pi-agent` is made for
+the one launch, with `PI_CODING_AGENT_DIR` pointing at it. Its
+`models.json` (mode 0600) holds only the route's provider, with that
+route's key written in as a literal. The runner reads the key from the
+secret store just before the launch and deletes the directory when Pi ends.
+The key is the route's own budgeted key: a hostile model could have Pi send
+it back to the proxy, and nothing else secret is readable.
+
+A critic that cannot be confined never starts. That covers no Landlock, a
+launcher that is not installed (setup installs `~/.local/bin/agent-launcher`),
+macOS, where the confinement is not built yet, and a key that cannot be
+read. The client is then unavailable with the reason, or the critic fails as
+`unconfined`.
+
+The JSON event stream is still checked after the run as a second layer.
+The review is void (`unsafe-tool`) if the run used any tool other than
 `read`, `grep`, `find` and `ls`, or gave one of them a path or glob that
 reaches past the packet (absolute, `~`, or a `..` that climbs out). The
 tripwire catches writes as it does for every critic. A provider error or an
@@ -535,11 +556,12 @@ logged in both ledgers with kind `pi`, charged what Pi priced it at
 (`usage.cost.total`, 0 when the provider's models carry no price). That
 spend comes from the route's team budget, never from the flow's Vibe cap.
 A Pi client is ready when `pi auth check --provider <provider>` answers
-`ready` and `pi --offline --list-models <model>` lists the model under that
-provider. Neither call reaches a model. A Pi client that is not ready falls
+`ready`, `pi --offline --list-models <model>` lists the model under that
+provider and `agent-launcher confine --check` passes. None of these calls
+reaches a model. A Pi client that is not ready falls
 back like any other. `/flow setup` lists `pi-signed-in` (free), one
 `critic:<client>` trivial prompt per Pi client (cost `pi`), and a read-only
-item that is not available, since there is no Pi sandbox to prove.
+item that is not available, since no read-only proof is wired for Pi yet.
 
 The shipped `routing.json` names no Pi client yet.
 

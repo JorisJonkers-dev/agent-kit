@@ -11,7 +11,7 @@ use crate::flow_budget::PromptHashes;
 pub const CRITIC_STATUSES: [&str; 4] = ["ok", "failed", "violated-readonly", "budget-skip"];
 
 /// Why a critic's run counts as no review, besides `exit-<code>`: the findings failures, then the run's own.
-const RUN_FAILURES: [&str; 16] = [
+const RUN_FAILURES: [&str; 17] = [
     "no-findings-block",
     "unparseable-findings",
     "invalid-findings",
@@ -27,6 +27,7 @@ const RUN_FAILURES: [&str; 16] = [
     "denied-action",
     "missing-structured-output",
     "unsafe-tool",
+    "unconfined",
     "timeout",
 ];
 

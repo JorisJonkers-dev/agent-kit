@@ -154,7 +154,7 @@ struct Broken;
 
 impl Write for Broken {
     fn write(&mut self, _: &[u8]) -> io::Result<usize> {
-        Err(io::Error::new(io::ErrorKind::Other, "broken pipe"))
+        Err(io::Error::other("broken pipe"))
     }
 
     fn flush(&mut self) -> io::Result<()> {

@@ -110,7 +110,7 @@ impl TomlReader {
     }
 
     fn string(&mut self, quote: char) -> Result<String, String> {
-        let triple: String = std::iter::repeat(quote).take(3).collect();
+        let triple: String = std::iter::repeat_n(quote, 3).collect();
         let multi = self.starts_with(&triple);
         let close = if multi { triple } else { quote.to_string() };
         self.at += close.chars().count();
@@ -258,12 +258,10 @@ impl TomlReader {
     }
 
     fn starts_with(&self, text: &str) -> bool {
-        let mut at = self.at;
-        for char in text.chars() {
+        for (at, char) in (self.at..).zip(text.chars()) {
             if self.chars.get(at) != Some(&char) {
                 return false;
             }
-            at += 1;
         }
         true
     }

@@ -27,6 +27,8 @@ const RUN_FAILURES = [
   'denied-action',
   'missing-structured-output',
   'unsafe-tool',
+  /** The operating system could not confine the critic to its packet, so it never started. */
+  'unconfined',
   /** The CLI outlived its outer timeout and was killed. */
   'timeout',
 ] as const

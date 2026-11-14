@@ -64,9 +64,10 @@ def ask(prompt: str) -> str:
     old = termios.tcgetattr(_tty)
     new = termios.tcgetattr(_tty)
     new[3] &= ~termios.ECHO
-    os.write(_tty, prompt.encode())
     try:
+        # Echo goes off before the prompt shows, so a fast typist loses nothing.
         termios.tcsetattr(_tty, termios.TCSAFLUSH, new)
+        os.write(_tty, prompt.encode())
         answer = _readline(_tty)
     finally:
         termios.tcsetattr(_tty, termios.TCSAFLUSH, old)

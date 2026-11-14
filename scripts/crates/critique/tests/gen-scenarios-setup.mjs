@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { AGENT, CONFINE_EXEC, confineWrite, refusingLauncher } from './pi-confine-fixture.mjs'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const SB = '@SANDBOX@'
@@ -165,10 +166,10 @@ const piEvents = (text, stopReason = 'stop') =>
 const PI_READY = `printf '%s\\n' '{"status":"ready","provider":"x","authType":"api_key"}'\nexit 0`
 const PI_MODELS = `printf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0`
 const fakePi = ({ auth = PI_READY, models = PI_MODELS, cases = {} } = {}) =>
-  `#!/bin/sh\nif [ "$1" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ "$1" = auth ]; then\n${auth}\nfi\nif [ "$1" = --offline ]; then\n${models}\nfi\nprintf '%s\\n' "$@" > "$PWD/../argv.txt"\ncat > "$PWD/../stdin.txt"\ncase "$PWD" in\n${Object.entries(cases)
+  `#!/bin/sh\nif [ "$1" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ "$1" = auth ]; then\n${auth}\nfi\nif [ "$1" = --offline ]; then\n${models}\nfi\nprintf '%s\\n' "$@" > "$PWD/../argv.txt"\ncat > "$PWD/../stdin.txt"\n${AGENT}case "$PWD" in\n${Object.entries(cases)
     .map(([where, body]) => `*${where}/packet)\n${body}\n;;`)
     .join('\n')}\n*)\nexit 9\n;;\nesac\n`
-const withPi = (options, write = {}) => ({ write: { 'bin/pi': fakePi(options), ...write }, exec: ['bin/pi'], shims: ['cat'] })
+const withPi = (options, write = {}) => ({ write: { 'bin/pi': fakePi(options), ...confineWrite(), ...write }, exec: ['bin/pi', ...CONFINE_EXEC], shims: ['cat'] })
 const GLM = '/setup-checks/pi-vibe-study-glm'
 const DEEPSEEK = '/setup-checks/pi-opencode-go-deepseek'
 const says = (text, stopReason) => `printf '%s\\n' ${q(piEvents(text, stopReason))}\nexit 0`
@@ -189,6 +190,8 @@ scenarios['setup-pi'] = [
   check('pi-signed-in', withPi({ auth: 'exit 1' }), { force: true }),
   check('critic:pi-opencode-go-deepseek', withPi({ models: `printf '%s\\n' 'litellm-opencode-go other-model 128K'\nexit 0` }), { confirmed: true, force: true }),
   check('critic:pi-opencode-go-deepseek', withPi({ models: `printf '%s\\n' 'boom' >&2\nexit 1` }), { confirmed: true, force: true }),
+  // The machine cannot confine a Pi critic: the trivial prompt is not launched.
+  check('critic:pi-vibe-study-glm', withPi({}, { 'bin/agent-launcher': refusingLauncher }), { confirmed: true, force: true }),
   setup({}, { roots: DATA }),
   // A Pi client whose provider is not a LiteLLM route's, or whose family is not a model family, is refused.
   setup({ action: 'list' }, { write: { [OVERRIDE]: `${JSON.stringify({ clients: { 'pi-x': { ...PI_A, provider: 'openai' } } })}\n` } }),

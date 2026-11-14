@@ -782,7 +782,7 @@ fn an_update_writes_the_grants_it_holds_and_reports_the_one_it_added() {
         .expect("the grant is written");
     assert_eq!(changed, written);
     assert_eq!(files.made(), vec![CONFIG_DIR.to_string()]);
-    assert_eq!(files.written(), vec![(GRANTS.to_string(), grant_file_text(&[written.clone()]))]);
+    assert_eq!(files.written(), vec![(GRANTS.to_string(), grant_file_text(std::slice::from_ref(&written)))]);
     assert_eq!(files.released(), 1);
     assert_eq!(store.read(), Ok(vec![written]));
 }

@@ -32,7 +32,10 @@
 //! file), instances limited to [`INSTANCES`]:
 //! * `agents.N`, held to the same agent rules as the registry's;
 //! * `mcp_servers.<name>.{command|url, args.N, env.NAME}` and
-//!   `settings.<path>`, which only the work instance may take;
+//!   `settings.<path>`, which only the work instance may take. A server `url`
+//!   of a Hindsight single-bank endpoint (`/mcp/<bank>/`) must name the
+//!   `nedap` bank, and a server called `hindsight` must be one, so the work
+//!   instance's memory server reaches its own bank only;
 //! * `employer_roots.N`: the absolute
 //!   (or `~/`) directories of the employer's clones on this machine, which
 //!   the launcher keeps the personal instance from reading (ADR-0013), in the
@@ -56,6 +59,9 @@ use secrets::{env_name, secret_problem};
 
 /// The crate's name, which prefixes every message line.
 pub const NAME: &str = env!("CARGO_PKG_NAME");
+
+/// The overlay's Hindsight server, which must reach the Nedap bank alone.
+const HINDSIGHT: &str = "hindsight";
 
 /// The work instance's id.
 pub const WORK: &str = "gold-band";
@@ -254,7 +260,7 @@ fn overlay_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
                     ));
                 }
             }
-            "mcp_servers" if work => mcp_field(place, path, rest, &mut servers, out),
+            "mcp_servers" if work => mcp_field(place, path, rest, value, &mut servers, out),
             "settings" if work => {
                 if rest.is_empty() || rest.split('.').any(|s| !setting_segment(s)) {
                     out.push(format!("{place}: bad settings path {}", shown(path)));
@@ -265,6 +271,11 @@ fn overlay_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
     }
     agent_problems(id, place, &agents, out);
     for (name, has_command, has_url) in servers {
+        if name == HINDSIGHT && has_command {
+            out.push(format!(
+                "{place}: mcp server {HINDSIGHT} must be a single-bank endpoint of the nedap bank (/mcp/nedap/)"
+            ));
+        }
         if has_command == has_url {
             out.push(format!(
                 "{place}: mcp server {} needs exactly one of command or url",
@@ -279,6 +290,7 @@ fn mcp_field<'a>(
     place: &str,
     path: &str,
     rest: &'a str,
+    value: &str,
     servers: &mut Vec<(&'a str, bool, bool)>,
     out: &mut Vec<String>,
 ) {
@@ -295,10 +307,34 @@ fn mcp_field<'a>(
     let entry = servers.iter_mut().find(|s| s.0 == name).expect("just added");
     match field.split_once('.') {
         None if field == "command" => entry.1 = true,
-        None if field == "url" => entry.2 = true,
+        None if field == "url" => {
+            entry.2 = true;
+            bank_problem(place, name, value, out);
+        }
         Some(("args", n)) if decimal(n) => {}
         Some(("env", var)) if env_name(var) => {}
         _ => out.push(format!("{place}: unknown field {}", shown(path))),
+    }
+}
+
+/// The work instance reaches the `nedap` bank only: a Hindsight single-bank
+/// endpoint (`/mcp/<bank>/`) in its overlay names that bank, and the server
+/// called `hindsight` must be one.
+fn bank_problem(place: &str, name: &str, url: &str, out: &mut Vec<String>) {
+    let bank = url
+        .split_once("/mcp/")
+        .map(|(_, tail)| tail.split(['/', '?', '#']).next().unwrap_or_default());
+    match bank {
+        Some("nedap") => {}
+        Some(other) => out.push(format!(
+            "{place}: mcp server {} reaches the {} bank (the work instance reaches the nedap bank only)",
+            shown(name),
+            shown(other)
+        )),
+        None if name == HINDSIGHT => out.push(format!(
+            "{place}: mcp server {HINDSIGHT} must be a single-bank endpoint of the nedap bank (/mcp/nedap/)"
+        )),
+        None => {}
     }
 }
 
