@@ -137,13 +137,14 @@ _ON_TERMINAL = (
 def test_a_real_terminal_is_asked_with_the_passphrase_hidden(tmp_path: Path) -> None:
     import pty
     import select
+    import termios
     import time
 
     _store(tmp_path)
     env = {k: v for k, v in os.environ.items() if k not in ("MEMORY_PRIVATE_TOKEN", "AGENT_KIT_TTY")}
     env["HOME"] = str(tmp_path / "home")
-    # Not pty.fork(): forking a process that runs other threads, as a pytest-xdist worker
-    # does, can deadlock the child before it execs. subprocess starts it without that risk.
+    # Not pty.fork(): a pytest-xdist worker runs other threads, and forking a threaded
+    # process can deadlock the child before it execs. subprocess starts it without that risk.
     fd, terminal = pty.openpty()
     child = subprocess.Popen(
         [sys.executable, "-c", _ON_TERMINAL, os.ttyname(terminal), sys.executable, str(GATE), "exec", *SHOW],
@@ -169,6 +170,12 @@ def test_a_real_terminal_is_asked_with_the_passphrase_hidden(tmp_path: Path) -> 
     try:
         pump(b"Passphrase")
         assert b"Passphrase for the private bank" in out, out
+        # The gate prints the prompt, then turns echo off with TCSAFLUSH, which drops
+        # input typed before it. Type only once echo is off, as a person would after the prompt.
+        end = time.monotonic() + 15
+        while termios.tcgetattr(terminal)[3] & termios.ECHO and time.monotonic() < end:
+            time.sleep(0.01)
+        assert not termios.tcgetattr(terminal)[3] & termios.ECHO, "the gate never turned echo off"
         os.write(fd, b"correct horse\n")
         pump(TOKEN.encode())
         assert child.wait(timeout=15) == 0, out
