@@ -504,6 +504,11 @@ gold-band-proof run --workflow installer/gold-band/workflows/workflow-b.json \
   hold, a shim id the instance already declares, a shim the pins file names no
   command for, and a grant check (the work instance's) each refuse the run
   (exit 5) before Gold Band starts.
+* **A wall-clock limit.** `--timeout SECS` with `--pins` kills the live run's
+  process group when the limit passes and exits 6, so no agent outlives it.
+  Gold Band has no per-node time limit, and the pins file's `timeout_secs` bounds
+  one gate command only; without `--timeout` a live run is unbounded. Always pass
+  it, and kill by pid (`pgrep`, then `kill`) if it must stop earlier.
 * **The pinned shim agent** (`gold-band-proof pinned-acp`) is deterministic: it
   never calls a model. Its role and its one command are fixed in the adapter's
   environment, so nothing in a prompt can change what it runs. A gate runs
@@ -544,6 +549,35 @@ model-aware family file is a follow-up. The report directory is writable by the
 model agents of the run (the operating-system write limit of ticket #432 is not
 applied to Gold Band's adapters yet), so a gate is only as trustworthy as the
 agents beside it.
+
+### Live runs of Workflow B (personal instance, Linux, 2026-11-14)
+
+Both runs used `litellm-vibe/mistral-large-4-0` (Pi, the test author) and
+`litellm-vibe-study/deepseek-v4.1-flash` (Pi, the writer); the pinned shims ran
+the Rust gates. Pi does not report usage to Gold Band, so
+`acp.prompt-usage.jsonl` holds null token totals and a token figure is not
+recorded. The `litellm-vibe-study` route answers a one-token request in 0.6
+seconds (HTTP 200), so the route and its key are not the cause of the first run.
+
+* **Run `workflow-b-1794683412334736133`, ticket #695 (Rust JSON parser limits),
+  killed by hand after about 30 minutes.** The test author finished in five
+  minutes. The writer never hung: it made 401 tool calls over 1829 seconds
+  (cargo test, scripted file rewrites, cargo test again) on a ticket whose
+  requirement is open-ended, and never answered, so the node stayed `paused`
+  with no outcome. Nothing bounded it: Gold Band has no per-node time limit and
+  the run had no wall-clock limit. The run is now bounded by `--timeout` (above),
+  and a ticket for a live run should be small and have one acceptance
+  criterion per test.
+* **Run `workflow-b-1794686077997506440`, ticket #699 (triage of a change that
+  touches a git submodule, Rust port only), limit 2700 seconds, ended
+  `completed` with `failure` after 1004 seconds.** The test author took 691
+  seconds, the writer 237 seconds, the build gate passed and the test gate failed
+  (`cargo test`, exit 101): 392 tests passed and the test author's own
+  `a_change_that_updates_a_submodule_pointer_is_read_instead_of_failing` failed
+  (`left: 1, right: 2` on the changed-file count of a gitlink). Workflow B runs
+  with `max_attempts` 1, so a failed gate ends the run before the critics; the
+  repair rounds and the critics have not yet run live. The ticket was public data
+  only, so the `litellm-vibe` routes were permitted.
 
 ## Workflow B in the work instance
 
