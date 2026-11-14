@@ -109,6 +109,21 @@ describe("setup's machine checklist", () => {
       'agy-signed-in',
       'critic:agy-gemini-flash-high',
       'agy-quota',
+      'pi-signed-in',
+      'critic:pi-vibe-mistral-large',
+      'critic:pi-vibe-glm',
+      'critic:pi-vibe-deepseek-flash',
+      'critic:pi-opencode-go-mistral-large',
+      'critic:pi-opencode-go-glm',
+      'critic:pi-opencode-go-deepseek-flash',
+      'critic:pi-public-gemini-flash',
+      'read-only:pi-vibe-mistral-large',
+      'read-only:pi-vibe-glm',
+      'read-only:pi-vibe-deepseek-flash',
+      'read-only:pi-opencode-go-mistral-large',
+      'read-only:pi-opencode-go-glm',
+      'read-only:pi-opencode-go-deepseek-flash',
+      'read-only:pi-public-gemini-flash',
       'read-only:vibe-mistral-large',
       'read-only:agy-gemini-flash-high',
       'read-only:vibe-glm',
@@ -172,7 +187,7 @@ describe("setup's machine checklist", () => {
     const checks = (await list(h)).filter((entry) => entry.kind !== 'read-only')
 
     expect(checks.map((entry) => [entry.status, entry.due_because])).toEqual(
-      Array.from({ length: 10 }, () => ['due', 'never-checked']),
+      Array.from({ length: 18 }, () => ['due', 'never-checked']),
     )
   })
 
@@ -356,6 +371,13 @@ describe('the read-only proof', () => {
     const proofs = (await list(h)).filter((entry) => entry.kind === 'read-only')
 
     expect(proofs.map((entry) => [entry.id, entry.status, entry.cost, entry.detail ?? entry.due_because])).toEqual([
+      ['read-only:pi-vibe-mistral-large', 'not-available', 'free', expect.stringContaining('Pi has no sandbox of its own to prove') as unknown],
+      ['read-only:pi-vibe-glm', 'not-available', 'free', expect.stringContaining('Pi has no sandbox of its own to prove') as unknown],
+      ['read-only:pi-vibe-deepseek-flash', 'not-available', 'free', expect.stringContaining('Pi has no sandbox of its own to prove') as unknown],
+      ['read-only:pi-opencode-go-mistral-large', 'not-available', 'free', expect.stringContaining('Pi has no sandbox of its own to prove') as unknown],
+      ['read-only:pi-opencode-go-glm', 'not-available', 'free', expect.stringContaining('Pi has no sandbox of its own to prove') as unknown],
+      ['read-only:pi-opencode-go-deepseek-flash', 'not-available', 'free', expect.stringContaining('Pi has no sandbox of its own to prove') as unknown],
+      ['read-only:pi-public-gemini-flash', 'not-available', 'free', expect.stringContaining('Pi has no sandbox of its own to prove') as unknown],
       ['read-only:vibe-mistral-large', 'due', 'vibe', 'never-checked'],
       ['read-only:agy-gemini-flash-high', 'not-available', 'agy', expect.stringContaining('not available until agent-kit#178 lands') as unknown],
       ['read-only:vibe-glm', 'due', 'vibe', 'never-checked'],
@@ -915,7 +937,7 @@ describe("the repository's opt-in", () => {
       families: [],
       history: false,
       key: 'github.com/jorisjonkers-dev/agent-kit',
-      routed_families: ['mistral', 'google', 'zhipu', 'deepseek'],
+      routed_families: ['mistral', 'zhipu', 'deepseek', 'google'],
       status: 'not-opted-in',
     })
   })

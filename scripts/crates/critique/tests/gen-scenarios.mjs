@@ -49,6 +49,10 @@ scenarios['allow-basic'] = [
   allow({ repo: at('r1'), families: ['google', 'anthropic', 'openai', 'google'] }),
   allow({ repo: at('r2'), families: ['zhipu'], code: true, history: true }, git('r2', [['origin', 'https://github.com/JorisJonkers-dev/second.git']])),
   allow({ repo: at('r2'), families: ['zhipu'], extra: 'ignored' }),
+  allow({ repo: at('r1'), families: ['mistral'], public: true }),
+  allow({ repo: at('r1'), families: ['mistral', 'zhipu'] }),
+  allow({ repo: at('r1'), families: ['mistral'], public: false }),
+  allow({ repo: at('r1'), families: ['mistral'], public: 'yes' }),
 ]
 
 scenarios['allow-remotes'] = [

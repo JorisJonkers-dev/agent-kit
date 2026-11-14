@@ -182,6 +182,9 @@ pub struct RunManifest {
     pub run_dir: String,
     pub packet_dir: String,
     pub allowed_families: Vec<String>,
+    /// Whether the repository's allowlist entry said it was public when the run was prepared. Without it the
+    /// repository is private, so no client on a public-only LiteLLM route runs for it, refuters included.
+    pub public_repository: bool,
     pub artifact: ArtifactSource,
     /// The flow this run belongs to: the spend of every run of one flow of one repository counts against one Vibe
     /// cap.
@@ -253,6 +256,7 @@ fn read_manifest(file: &Fields<'_>) -> Result<RunManifest, ShapeError> {
     let limits = read_limits(&file.object("limits")?)?;
     let orchestrator_family = file.one_of("orchestrator_family", &ORCHESTRATOR_FAMILIES)?;
     let packet_dir = file.string("packet_dir")?;
+    let public_repository = file.has("public_repository") && file.boolean("public_repository")?;
     let code = if file.has("code") { Some(read_code_source(&file.object("code")?)?) } else { None };
     let work = if file.has("work") { Some(read_work_roster(&file.object("work")?)?) } else { None };
     let plan_warnings = if file.has("plan_warnings") { Some(file.strings("plan_warnings")?) } else { None };
@@ -280,6 +284,7 @@ fn read_manifest(file: &Fields<'_>) -> Result<RunManifest, ShapeError> {
         run_dir,
         packet_dir,
         allowed_families,
+        public_repository,
         artifact,
         flow,
         limits,

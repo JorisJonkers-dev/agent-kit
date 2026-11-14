@@ -205,6 +205,10 @@ def test_every_critic_client_names_a_gateway_client_model() -> None:
     assert routing, "routing has no critic client, so this test proves nothing"
     for name, client in routing.items():
         known, kind = name, client["kind"]
+        if kind == "pi":
+            # Pi is launched directly over a LiteLLM route, not through the gateway, so it names no gateway model.
+            assert "gateway" not in client, f"{name} is a Pi client and names a gateway model"
+            continue
         assert kind in defaults["clients"], f"{known} runs on a client the gateway does not know: {kind}"
         gateway = client.get("gateway")
         if gateway is None:

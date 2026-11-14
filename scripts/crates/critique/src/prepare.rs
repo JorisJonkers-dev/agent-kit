@@ -283,7 +283,7 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     let allowed: Vec<String> = entry.families.clone();
     let roster = match &grant {
         Some(grant) => work_roster(runtime, &routing, &input, &stage, grant)?,
-        None => open_roster(runtime, &routing, &RosterRequest { stage: &stage, depth: &depth, allowed_families: &allowed, orchestrator_family: &input.orchestrator_family, adr: contents.holds_adr })?,
+        None => open_roster(runtime, &routing, &RosterRequest { stage: &stage, depth: &depth, allowed_families: &allowed, orchestrator_family: &input.orchestrator_family, adr: contents.holds_adr, public_repository: entry.public })?,
     };
     let plan_warnings = if roster.critics.iter().any(|critic| matches!(critic.client_config, CriticClient::Vibe(_))) { plan_limit(runtime, "vibe")?.warnings } else { Vec::new() };
     let run_id = fresh_run_id(runtime, &repository, &stage);
@@ -321,6 +321,9 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     manifest.set("orchestrator_family", Value::str(&input.orchestrator_family));
     manifest.set("packet_dir", Value::str(&packet_dir));
     manifest.set("packet_files", Value::Arr(packet_files.iter().map(|file| file.value.clone()).collect()));
+    if entry.public {
+        manifest.set("public_repository", Value::Bool(true));
+    }
     if !plan_warnings.is_empty() {
         manifest.set("plan_warnings", strings_value(&plan_warnings));
     }

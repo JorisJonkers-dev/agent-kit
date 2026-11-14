@@ -239,19 +239,19 @@ pub fn verdict_document(round: u32, verdict: &str) -> Value {
 }
 
 /// A JSON value as one fenced json block.
-fn fenced(value: &Value) -> String {
+pub(crate) fn fenced(value: &Value) -> String {
     // A document built from literals always serialises.
     fenced_text(&serde_json::to_string_pretty(value).unwrap_or_default())
 }
 
 /// Text as one fenced json block.
-fn fenced_text(body: &str) -> String {
+pub(crate) fn fenced_text(body: &str) -> String {
     format!("```json\n{}\n```", body)
 }
 
 /// A report-shaped refusal: the fields a copier's success condition reads,
 /// carrying the exit code the verify earned.
-fn report_document(exit_code: i32) -> Value {
+pub(crate) fn report_document(exit_code: i32) -> Value {
     json!({
         "run_id": "",
         "attempt": 0,
@@ -313,9 +313,9 @@ pub fn model_option(models: &str, current: Option<&str>) -> Vec<Value> {
 /// A host that runs commands for real but keeps what the wrapper prints,
 /// because stdout is the ACP stream.
 #[derive(Default)]
-struct CapturingHost {
+pub(crate) struct CapturingHost {
     /// The text the wrapper printed on stdout; stderr is discarded.
-    out: RefCell<String>,
+    pub(crate) out: RefCell<String>,
 }
 
 impl Clock for CapturingHost {
@@ -663,13 +663,13 @@ pub fn serve_with_role<R: BufRead, W: Write>(
 }
 
 /// The string value of `key` in the request's params, when it is a string.
-fn param_str<'a>(params: Option<&'a Value>, key: &str) -> Option<&'a str> {
+pub(crate) fn param_str<'a>(params: Option<&'a Value>, key: &str) -> Option<&'a str> {
     params?.get(key)?.as_str()
 }
 
 /// The text of every `params.prompt` entry that carries one, joined with
 /// newlines; empty when the prompt has no text.
-fn prompt_text(params: Option<&Value>) -> String {
+pub(crate) fn prompt_text(params: Option<&Value>) -> String {
     let Some(entries) = params
         .and_then(|params| params.get("prompt"))
         .and_then(Value::as_array)
@@ -684,18 +684,18 @@ fn prompt_text(params: Option<&Value>) -> String {
 }
 
 /// A JSON-RPC result frame for the request's id.
-fn reply(request: &Value, result: Value) -> Value {
+pub(crate) fn reply(request: &Value, result: Value) -> Value {
     let id = request.get("id").cloned().unwrap_or(Value::Null);
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
 
 /// A JSON-RPC error frame for the request's id.
-fn error(request: &Value, code: i64, message: &str) -> Value {
+pub(crate) fn error(request: &Value, code: i64, message: &str) -> Value {
     let id = request.get("id").cloned().unwrap_or(Value::Null);
     json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
 }
 
 /// A JSON-RPC notification frame.
-fn notify(method: &str, params: Value) -> Value {
+pub(crate) fn notify(method: &str, params: Value) -> Value {
     json!({ "jsonrpc": "2.0", "method": method, "params": params })
 }

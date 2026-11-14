@@ -3,6 +3,8 @@
 
 pub mod cli;
 pub mod harness;
+pub mod live;
+pub mod pinned;
 pub mod record;
 pub mod refuse;
 pub mod sha256;

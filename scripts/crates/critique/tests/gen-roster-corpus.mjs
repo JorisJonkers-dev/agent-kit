@@ -94,7 +94,7 @@ for (let i = 0; i < Number(N); i += 1) {
   const stage = pick(...STAGES)
   const text_ = routing(rnd() < 0.9 ? [stage, pick(...STAGES)] : [pick(...STAGES)])
   const parsed = attempt(() => f.parseRouting(text_))
-  const request = { stage, depth: pick('base', 'deep'), allowedFamilies: FAMILIES.filter(() => rnd() < 0.7), orchestratorFamily: pick(...ORCHESTRATORS), ...(rnd() < 0.5 ? { adr: true } : {}) }
+  const request = { stage, depth: pick('base', 'deep'), allowedFamilies: FAMILIES.filter(() => rnd() < 0.7), orchestratorFamily: pick(...ORCHESTRATORS), ...(rnd() < 0.5 ? { adr: true } : {}), ...(rnd() < 0.5 ? { publicRepository: true } : {}) }
   const readiness = availability([...OPEN, ...WORK, 'unknown'])
   const grant = pick({ live: true, workflow: 'wf-1' }, { live: false, detail: 'no live grant covers workflow wf for codex' })
   const work = { stage, orchestratorFamily: request.orchestratorFamily, grant }

@@ -68,6 +68,21 @@ pub struct PiCriticClient {
     pub provider: String,
     pub model: String,
     pub family: String,
+    /// The route's data scope, as `routes.json` has it: `public` for a route whose key is for public work only,
+    /// `any` for the rest. A `public` client never reviews a private repository.
+    pub data_scope: String,
+}
+
+/// The data scopes a Pi client's route can have.
+pub const DATA_SCOPES: [&str; 2] = ["any", "public"];
+
+/// Why a public-scope client is not routed to a repository that is not recorded as public.
+pub const DATA_SCOPE_REASON: &str = "its LiteLLM route is public-only and this repository is not recorded as public";
+
+/// Whether a client may not see a repository because of its route's data scope: a client on a `public` route is
+/// routed to a repository only when its allowlist entry says the repository is public. Only a Pi client names a route.
+pub fn data_scope_bar(client: &CriticClient, public_repository: bool) -> bool {
+    matches!(client, CriticClient::Pi(pi) if pi.data_scope == "public") && !public_repository
 }
 
 /// The work Claude agent. Only the work roster of a `nedap` repository names it.
@@ -323,6 +338,7 @@ pub fn read_critic_client(fields: &Fields<'_>) -> Result<CriticClient, ShapeErro
     if kind == "pi" {
         return Ok(CriticClient::Pi(PiCriticClient {
             binary: if fields.has("binary") { fields.string("binary")? } else { "pi".to_string() },
+            data_scope: fields.one_of("data_scope", &DATA_SCOPES)?,
             family: fields.one_of("family", &MODEL_FAMILIES)?,
             model: fields.string("model")?,
             provider: fields.matching("provider", is_litellm_provider, "a LiteLLM route's Pi provider, litellm-<route>")?,

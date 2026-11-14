@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "timeout_secs": 5400,
+  "shims": {
+    "build": [
+      "cargo",
+      "build",
+      "--locked",
+      "--manifest-path",
+      "{repo}/scripts/Cargo.toml",
+      "--all-targets"
+    ],
+    "test": [
+      "cargo",
+      "test",
+      "--locked",
+      "--manifest-path",
+      "{repo}/scripts/Cargo.toml"
+    ],
+    "lint": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--manifest-path",
+      "{repo}/scripts/Cargo.toml",
+      "--all-targets"
+    ],
+    "coverage": [
+      "{tools}/coverage-gate",
+      "--repo-dir",
+      "{repo}",
+      "--base",
+      "{base}",
+      "--ignore",
+      "/tests/"
+    ],
+    "findings": [
+      "sh",
+      "-c",
+      "set -eu\nrepo=$1 dir=$2 ticket=$3 run=$4 attempt=$5 tools=$6 base=$7\nindex=\"$dir/change.index\"\nrm -f \"$index\"\nGIT_INDEX_FILE=\"$index\" git -C \"$repo\" read-tree HEAD\nGIT_INDEX_FILE=\"$index\" git -C \"$repo\" add -A -- . ':(exclude)findings'\nGIT_INDEX_FILE=\"$index\" git -C \"$repo\" diff --cached \"$base\" -- . ':(exclude)findings' > \"$dir/change.diff\"\nrm -f \"$index\"\nset -- \"$repo\"/findings/*.json\n[ -e \"$1\" ] || { echo \"no critic findings under $repo/findings\" >&2; exit 1; }\nexec \"$tools/gold-band-findings\" check --run-id \"$run\" --attempt \"$attempt\" --diff \"$dir/change.diff\" --ticket \"$ticket\" --report-dir \"$dir\" \"$@\"",
+      "findings",
+      "{repo}",
+      "{report_dir}",
+      "{requirement}",
+      "{run_id}",
+      "{attempt}",
+      "{tools}",
+      "{base}"
+    ]
+  }
+}

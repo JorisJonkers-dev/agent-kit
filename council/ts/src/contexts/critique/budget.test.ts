@@ -1,11 +1,10 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   agyFindings,
-  ASSETS_ROOT,
   fenced,
   finding,
   harness,
@@ -16,6 +15,7 @@ import {
   type Harness,
   type VibeScript,
   type VibeSignIn,
+  vibeRosterRouting,
 } from '../../../test/critique/harness.js'
 import type { OrchestratorFamily, PrepareResult } from './index.js'
 
@@ -585,7 +585,7 @@ interface ShippedRouting {
 }
 
 async function shippedRouting(): Promise<ShippedRouting> {
-  return JSON.parse(await readFile(join(ASSETS_ROOT, 'routing.json'), 'utf8')) as ShippedRouting
+  return (await vibeRosterRouting()) as unknown as ShippedRouting
 }
 
 /** The shipped routing with no prices on its Vibe clients, so the runner has only Vibe's own figure. */

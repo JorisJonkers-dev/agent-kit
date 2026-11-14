@@ -188,13 +188,58 @@ def test_setup_installs_check_tickets_beside_the_shared_skill_in_every_agent_hom
 def test_shipped_routing_defines_the_tickets_stage() -> None:
     tickets = json.loads(ROUTING.read_text())["stages"]["tickets"]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["base"]] == [
-        ("vibe-deepseek-flash", "ticket-linter", ["testability"], 1, 600)
+        ("pi-vibe-deepseek-flash", "ticket-linter", ["testability"], 1, 600)
     ]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["deep"]] == [
-        ("vibe-mistral-large", "ticket-linter", ["simplicity"], 1, 600)
+        ("pi-vibe-mistral-large", "ticket-linter", ["simplicity"], 1, 600)
     ]
     assert tickets["ticket_size"] == {"max_modules": 5, "max_criteria": 8}
     assert (KIT_ROOT / "skills" / "workstation" / "critique" / "roles" / "ticket-linter.md").is_file()
+
+
+def _slots(stage: dict) -> list[str]:
+    return [slot["client"] for roster in ("base", "deep") for slot in stage.get(roster, [])]
+
+
+def test_shipped_routing_puts_pi_critics_over_litellm_in_every_base_and_deep_slot() -> None:
+    """#737: every stage's base and deep critics are Pi clients on a LiteLLM route (or agy), spread over at
+    least three model families, with the Vibe-login clients kept behind them as fallbacks."""
+    routing = json.loads(ROUTING.read_text())
+    clients = routing["clients"]
+    for name, stage in routing["stages"].items():
+        slots = _slots(stage)
+        assert slots, name
+        assert {clients[c]["kind"] for c in slots} <= {"pi", "agy"}, f"{name} routes a Vibe login first: {slots}"
+        families = [clients[c]["family"] for c in slots]
+        assert len(set(families)) == len(families), f"{name} repeats a family: {families}"
+        assert stage["distinct_families"] is True, name
+    pi = {name: c for name, c in clients.items() if c["kind"] == "pi"}
+    assert len({c["family"] for c in pi.values()}) >= 3
+    assert all(c["provider"].startswith("litellm-") for c in pi.values())
+    for name in ("pi-vibe-mistral-large", "pi-vibe-glm", "pi-vibe-deepseek-flash"):
+        behind = routing["fallbacks"][name]
+        assert any(clients[c]["kind"] == "vibe" for c in behind), f"{name} keeps no Vibe login behind it"
+    assert any(clients[c]["kind"] == "agy" for stage in routing["stages"].values() for c in _slots(stage))
+
+
+def test_every_pi_client_names_its_routes_data_scope_and_no_public_one_leads_a_slot() -> None:
+    """A client on a `data_scope: public` route (public, openrouter) never reviews a private repository, so the
+    runner needs the scope in routing; it has to be the one routes.json gives the route, and a public client
+    only ever sits behind another client as a fallback."""
+    routing = json.loads(ROUTING.read_text())
+    routes = json.loads((KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json").read_text())["routes"]
+    scope = {f"litellm-{route['agent']}": "public" if route["data_scope"] == "public" else "any" for route in routes}
+    leading = {c for stage in routing["stages"].values() for c in _slots(stage)}
+    public = []
+    for name, client in routing["clients"].items():
+        if client["kind"] != "pi":
+            continue
+        expected = scope[client["provider"]]
+        assert client["data_scope"] == expected, f"{name}: {client['provider']} is {expected}"
+        if client["data_scope"] == "public":
+            public.append(name)
+            assert name not in leading, f"{name} is public-only and leads a slot"
+    assert public, "no public-scope client is routed, so the data-scope bar has nothing to hold back"
 
 
 def test_review_feature_is_declared_for_every_agent() -> None:
@@ -228,9 +273,9 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
     routing = json.loads(ROUTING.read_text())
     review = routing["stages"]["adr-review"]
     assert [(s["client"], s["max_price_usd"]) for s in review["base"]] == [
-        ("vibe-mistral-large", 0.5), ("agy-gemini-flash-high", 0.5)
+        ("pi-vibe-mistral-large", 0.5), ("agy-gemini-flash-high", 0.5)
     ]
-    assert [s["client"] for s in review["deep"]] == ["vibe-glm"]
+    assert [s["client"] for s in review["deep"]] == ["pi-vibe-glm"]
     assert review["depth_signals"]["thresholds"] == {"adrs": 10}
     assert review["depth_signals"]["risk_terms"] == routing["stages"]["spec"]["depth_signals"]["risk_terms"]
     assert "adr-review" not in routing["antigravity_quota"]["reserved_stages"]
@@ -478,7 +523,7 @@ def test_shipped_routing_defines_the_ticket_review_stage() -> None:
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in review["base"]] == [
         ("agy-gemini-flash-high", "diff-reviewer", ["failure-modes", "security"], 0.5, 480)
     ]
-    assert [(s["client"], s["role"]) for s in review["deep"]] == [("vibe-mistral-large", "diff-reviewer")]
+    assert [(s["client"], s["role"]) for s in review["deep"]] == [("pi-vibe-mistral-large", "diff-reviewer")]
     assert review["depth_signals"]["thresholds"] == {"changed_lines": 600, "risk_path_hits": 3}
     assert (KIT_ROOT / "skills" / "workstation" / "critique" / "roles" / "diff-reviewer.md").is_file()
 

@@ -286,7 +286,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     const grant = repository.work ? await this.workGrant(input, workGrantClient(routing, stage)) : undefined
     const roster = grant !== undefined
       ? await this.workRoster(routing, { grant, orchestratorFamily, stage })
-      : await this.openRoster(routing, { adr: contents.holdsAdr === true, allowedFamilies: entry.families, depth, orchestratorFamily, stage })
+      : await this.openRoster(routing, { adr: contents.holdsAdr === true, allowedFamilies: entry.families, depth, orchestratorFamily, publicRepository: entry.public === true, stage })
     const planWarnings = roster.critics.some((critic) => critic.client_config.kind === 'vibe')
       ? (await this.deps.plan.read('vibe')).warnings
       : []
@@ -316,6 +316,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
       packet_files: packetFiles,
+      ...(entry.public === true ? { public_repository: true as const } : {}),
       ...(planWarnings.length === 0 ? {} : { plan_warnings: planWarnings }),
       repo_root: repository.root,
       repository: repository.key,
