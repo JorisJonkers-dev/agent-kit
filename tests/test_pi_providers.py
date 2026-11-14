@@ -20,6 +20,7 @@ import pytest
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
+import litellm_catalogue  # noqa: E402
 import render_registry  # noqa: E402
 
 SCRIPT = KIT_ROOT / "scripts" / "pi-merge-providers.py"
@@ -70,6 +71,10 @@ def _models_json(tmp_path: Path) -> dict[str, Any]:
 # --- rendering --------------------------------------------------------------
 
 
+def _ids(models: list[dict[str, Any]]) -> list[str]:
+    return [model["id"] for model in models]
+
+
 def test_every_route_renders_one_provider_with_its_models() -> None:
     data = render_registry.load_registry()
     table = json.loads(render_registry.render_pi_providers(data))
@@ -80,25 +85,57 @@ def test_every_route_renders_one_provider_with_its_models() -> None:
     assert [p["key_env"] for p in table["providers"]] == [r["key_env"] for r in routes]
     for provider in table["providers"]:
         assert provider["models"], provider["name"]
-        assert provider["models"] == sorted(set(provider["models"]))
+        assert _ids(provider["models"]) == sorted(set(_ids(provider["models"])))
 
 
-def test_route_models_are_the_union_of_its_access_groups() -> None:
-    groups = json.loads((KIT_ROOT / render_registry.LITELLM_ACCESS_GROUPS).read_text())["groups"]
-    public = render_registry.litellm_route_models(["google-free-public", "canonical"])
-    assert public == sorted(set(groups["google-free-public"]) | set(groups["canonical"]))
-    assert render_registry.litellm_route_models(["canonical"]) == sorted(
-        groups["canonical"]
-    )
+def _snapshot() -> Any:
+    return litellm_catalogue.load_catalogue(live_path=KIT_ROOT / "no-such-live-copy.json")
 
 
-def test_only_the_public_route_reaches_the_free_tier_models() -> None:
+def test_route_models_are_the_canonical_chat_groups_with_their_context_window() -> None:
+    catalogue = _snapshot()
+    groups = catalogue.data["groups"]
+    models = render_registry.litellm_route_models(["canonical"])
+    assert _ids(models) == sorted(n for n, g in groups.items() if g["modality"] == "chat" and not g["public"])
+    by_id = {model["id"]: model for model in models}
+    reached = litellm_catalogue.canonical_groups(catalogue, ["canonical"], [])
+    expected = {g.name: g.context_length for g in reached if g.modality == "chat"}
+    for name, length in expected.items():
+        assert by_id[name].get("contextWindow") == length
+    assert any("contextWindow" in model for model in models)
+    assert all("cost" not in model for model in models), "a paid model carries no price: the catalogue has none"
+
+
+def test_free_groups_carry_zero_cost_and_only_the_matching_public_route_reaches_them() -> None:
     table = json.loads(render_registry.render_pi_providers(render_registry.load_registry()))
-    groups = json.loads((KIT_ROOT / render_registry.LITELLM_ACCESS_GROUPS).read_text())["groups"]
-    free = set(groups["google-free-public"])
-    for provider in table["providers"]:
-        reaches_free = bool(free & set(provider["models"]))
-        assert reaches_free == (provider["name"] == "litellm-public"), provider["name"]
+    providers = {p["name"]: p["models"] for p in table["providers"]}
+    zero = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
+    free_openrouter = [m for m in providers["litellm-openrouter"] if m["id"].startswith("openrouter/")]
+    assert free_openrouter and all(m["cost"] == zero for m in free_openrouter)
+    assert not [m for m in providers["litellm-openrouter"] if m["id"].startswith("public/")]
+    assert [m for m in providers["litellm-public"] if m["id"].startswith("public/")]
+    assert not [m for m in providers["litellm-public"] if m["id"].startswith("openrouter/")]
+    assert not [m for m in providers["litellm-vibe"] if "/" in m["id"]]
+
+
+def test_rendering_ignores_the_live_cache_and_never_fetches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    before = render_registry.render_pi_providers(render_registry.load_registry())
+    live = tmp_path / "agent-kit" / "litellm-catalogue.json"
+    live.parent.mkdir()
+    live.write_text(json.dumps({"updated_at": "2099-01-01T00:00:00Z", "providers": {}, "groups": {}}))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+
+    def refuse(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("rendering must not run a process")
+
+    monkeypatch.setattr(render_registry.litellm_catalogue.subprocess, "run", refuse)
+    assert render_registry.render_pi_providers(render_registry.load_registry()) == before
+
+
+def test_a_catalogue_that_cannot_be_read_stops_the_render(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(render_registry.litellm_catalogue, "SNAPSHOT", tmp_path / "missing.json")
+    with pytest.raises(render_registry.RegistryError, match="snapshot cannot be read"):
+        render_registry.litellm_route_models(["canonical"])
 
 
 def test_an_unknown_access_group_is_refused() -> None:
@@ -121,6 +158,17 @@ def test_the_rendered_table_is_checked_in() -> None:
 
 
 # --- merging ------------------------------------------------------------------
+
+
+def test_a_model_entry_keeps_its_context_window_and_cost(tmp_path: Path) -> None:
+    zero = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
+    entry = {"id": "free-one", "contextWindow": 128000, "cost": zero}
+    desired = merge.desired_providers(
+        {"base_url": "https://x/v1", "api": "openai-completions", "providers": [
+            {"name": "litellm-a", "key_env": "K", "models": [entry, "plain"]}]},
+        HELPER,
+    )
+    assert desired["litellm-a"]["models"] == [entry, {"id": "plain"}]
 
 
 def test_a_fresh_models_json_gets_every_route(tmp_path: Path) -> None:

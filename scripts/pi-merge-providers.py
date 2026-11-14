@@ -8,7 +8,8 @@
 ``--providers`` is the rendered table (``scripts/render_registry.py``): the proxy URL,
 the API kind and, per route, the provider name (``litellm-<agent>``), the route's key
 variable and its models. Each becomes a ``providers`` entry with that ``baseUrl`` and
-``api``, one ``models`` entry per model id, and an ``apiKey`` of
+``api``, one ``models`` entry per model (an id string, or an object with ``id`` and, when the
+catalogue knows them, ``contextWindow`` and ``cost``), and an ``apiKey`` of
 ``!<secret-helper> get <KEY_ENV>``: Pi runs that command when it sends a request, so
 the key is never in models.json, argv or the environment.
 
@@ -45,7 +46,7 @@ def desired_providers(table: dict[str, Any], secret_helper: str) -> dict[str, di
             "baseUrl": table["base_url"],
             "api": table["api"],
             "apiKey": command,
-            "models": [{"id": model} for model in provider["models"]],
+            "models": [{"id": model} if isinstance(model, str) else dict(model) for model in provider["models"]],
         }
     return out
 

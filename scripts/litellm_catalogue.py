@@ -66,6 +66,7 @@ class CatalogueModel:
     reason: str
     free: bool
     modality: str
+    context_length: int | None = None
 
     @property
     def usable(self) -> bool:
@@ -81,6 +82,8 @@ class CanonicalGroup:
     free: bool
     public: bool
     routes: tuple[str, ...]
+    # The smallest context window among the deployments tried first; None when none is known.
+    context_length: int | None = None
 
 
 @dataclass(frozen=True)
@@ -175,6 +178,10 @@ def load_catalogue(
     return Catalogue(snapshot, "snapshot", tuple(warnings))
 
 
+def _positive_int(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
 def provider_models(catalogue: Catalogue, provider: str) -> list[CatalogueModel]:
     """Every model one provider route lists, in the catalogue's order; an unknown provider lists none."""
     entry = catalogue.data.get("providers", {}).get(provider)
@@ -194,6 +201,7 @@ def provider_models(catalogue: Catalogue, provider: str) -> list[CatalogueModel]
                 reason=str(meta.get("reason", "")),
                 free=meta.get("free") is True,
                 modality=str(meta.get("modality", "")),
+                context_length=_positive_int(meta.get("context_length")),
             )
         )
     return models
@@ -231,6 +239,21 @@ def _group_free(catalogue: Catalogue, deployments: Sequence[Mapping[str, Any]]) 
         if model is None or not model.free:
             return False
     return True
+
+
+def _group_context_length(catalogue: Catalogue, deployments: Sequence[Mapping[str, Any]]) -> int | None:
+    """The smallest context window among a group's first-tried deployments, None when any is unknown."""
+    first = [d for d in deployments if d.get("order") == min((x.get("order", 0) for x in deployments), default=0)]
+    lengths = []
+    for deployment in first:
+        route = str(deployment.get("route", ""))
+        upstream = str(deployment.get("upstream_id", ""))
+        known = {model.id: model for model in provider_models(catalogue, route)}
+        model = known.get(upstream.removeprefix(f"{route}/"))
+        if model is None or model.context_length is None:
+            return None
+        lengths.append(model.context_length)
+    return min(lengths) if lengths else None
 
 
 def canonical_groups(
@@ -271,6 +294,7 @@ def canonical_groups(
                 free=public or _group_free(catalogue, deployments),
                 public=public,
                 routes=tuple(dict.fromkeys(str(d.get("route", "")) for d in deployments)),
+                context_length=_group_context_length(catalogue, deployments),
             )
         )
     return reached
