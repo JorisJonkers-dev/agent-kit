@@ -351,6 +351,7 @@ def _bash(repo: Path, command: str) -> dict:
     return {"cwd": str(repo), "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": command}}
 
 
+@pytest.mark.timing
 @pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_commit_gate_script_blocks_an_unreviewed_risky_commit_with_the_deny_and_exit_0(
     repo: tuple[Path, Path],

@@ -29,6 +29,10 @@ required-version = ">=0.9.17"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+  # CI runs these alone, outside pytest-xdist: other workers' load would make the wall time a lie.
+  "timing: asserts a wall-clock bound",
+]
 
 [tool.setuptools]
 py-modules = []

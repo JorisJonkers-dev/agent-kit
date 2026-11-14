@@ -15,15 +15,15 @@
   'contents': 'read'
 
 'jobs':
-  # The Python checks are three jobs: lint and type check in one, the tests
-  # split across a matrix of shards (each on every core of its runner with
-  # pytest-xdist), and the aggregate below that carries the historic check
-  # name. A setup-script test runs the whole installer in a temp HOME, so the
-  # suite is CPU-bound; the repository is public, so the extra runners are not
-  # billed. tests/ci_shard.py does the split: together the shards run every
-  # test exactly once.
+  # The Python checks are three jobs: lint, type check and the wall-time tests
+  # in one; the rest of the tests split across a matrix of shards, each on
+  # every core of its runner with pytest-xdist; and the aggregate below, which
+  # carries the check name earlier runs reported. A setup-script test runs the
+  # whole installer in a temp HOME, so the suite is CPU-bound; the repository
+  # is public, so the extra runners are not billed. tests/ci_shard.py does the
+  # split: together the shards run every test exactly once.
   'python-lint':
-    'name': 'Python Lint / Typecheck'
+    'name': 'Python Lint / Typecheck / Timing Tests'
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 'actions/checkout@v6'
@@ -40,7 +40,9 @@
         'if': '${{ !cancelled() }}'
       - 'run': 'uv run python scripts/check_agents_md.py'
         'if': '${{ !cancelled() }}'
-      - 'run': 'python3 -I .ci-debug/run.py "$PWD" --cloud; python3 -I .ci-debug/run.py "$PWD"'
+      # A test that asserts wall time runs here, on an otherwise idle runner;
+      # the shards leave it out.
+      - 'run': 'uv run pytest -m timing'
         'if': '${{ !cancelled() }}'
 
   'python-tests':
@@ -58,7 +60,7 @@
           'require-package-proxy': 'true'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
       - 'run': 'uv sync --frozen'
-      - 'run': 'uv run pytest -n auto --durations=20'
+      - 'run': 'uv run pytest -n auto -m "not timing" --durations=20'
         'env':
           'PYTEST_SHARD': '${{ matrix.shard }}/${{ strategy.job-total }}'
 
