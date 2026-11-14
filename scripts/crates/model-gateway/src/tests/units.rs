@@ -137,6 +137,48 @@ fn json_syntax_errors_read_as_v8_words_them() {
 }
 
 #[test]
+fn json_deep_nesting_is_refused_with_an_error_not_a_stack_overflow() {
+    // Deeper than any fixed limit: an error, not a crash.
+    let hostile = format!("{}1{}", "[".repeat(1_000_000), "]".repeat(1_000_000));
+    assert!(parse(&hostile).is_err(), "a million nested brackets must be refused with an error");
+    // At least as deep as anything the node runners write: accepted.
+    let depth = 1_000;
+    let deep = format!("{}1{}", "[".repeat(depth), "]".repeat(depth));
+    let value = parse(&deep).expect("deep enough nesting parses");
+    let mut seen = 0;
+    let mut walk = &value;
+    while let Value::Arr(items) = walk {
+        seen += 1;
+        walk = &items[0];
+    }
+    assert_eq!((seen, walk), (depth, &Value::Num(1.0)));
+}
+
+#[test]
+fn json_lone_surrogates_round_trip_as_the_node_runners_need() {
+    // V8 keeps a lone surrogate as its own code unit and JSON.stringify writes it back escaped,
+    // so a line carrying one must parse and print unchanged.
+    for line in [r#""\ud800""#, r#""\ud83d""#, r#""\udc00""#, r#""a\ud800b""#, r#""\ud800\ud800""#] {
+        let value = parse(line).expect(line);
+        assert_eq!(compact(&value), line, "{line}");
+    }
+    // A real pair still becomes the scalar value.
+    assert_eq!(parse(r#""\ud83d\ude00""#), Ok(Value::str("\u{1f600}")));
+}
+
+#[test]
+fn json_wide_objects_stay_fast_to_look_up() {
+    let line = format!("{{{}}}", (0..100_000).map(|n| format!("\"k{n}\":{n}")).collect::<Vec<_>>().join(","));
+    let started = std::time::Instant::now();
+    let value = parse(&line).expect("a wide object parses");
+    let object = value.as_object().expect("it is an object");
+    assert_eq!(object.get("k0"), Some(&Value::Num(0.0)));
+    assert_eq!(object.get("k99999"), Some(&Value::Num(99_999.0)));
+    assert_eq!(object.get("nope"), None);
+    assert!(started.elapsed().as_secs_f64() < 1.0, "a 10^5-key object reads in well under a second, took {:?}", started.elapsed());
+}
+
+#[test]
 fn text_helpers_follow_javascript() {
     assert_eq!(normalize("/a//b/./c/../d/.."), "/a/b");
     assert_eq!(normalize("/.."), "/");
