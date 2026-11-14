@@ -8,10 +8,12 @@ documents its tooling); this page is how agent-kit follows it, on the Mac and
 on the Linux workstation.
 
 * **The cooldown.** No crate version younger than **7 days** may be used.
-  Cargo resolves through **crate-gate**, a loopback mirror of the crates.io
-  index at `127.0.0.1:17342` that hides every too-young version, so a normal
-  `cargo build` cannot pick one up even by accident. **crate-age** is the
-  check for after the fact: it exits `1` for a version proven younger than 7
+  Two things hold it at resolve time, so a normal `cargo build` cannot pick a
+  young version up even by accident: cargo's own cooldown
+  (`registry.global-min-publish-age = "7 days"`, honoured from Rust 1.100), and
+  the packages proxy every workstation and CI job resolves through
+  (`packages.jorisjonkers.dev/cargo`), which hides those versions from its
+  index. **crate-age** is the check for after the fact: it exits `1` for a version proven younger than 7
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
@@ -653,64 +655,48 @@ Do not use the nixpkgs `rustc`/`cargo-llvm-cov`: the latter fails its own tests
 and the former's instrumented binaries segfault while writing the profile
 (checked with rustc 1.99.0 / LLVM 21.1.8), and nixpkgs LLVM tools reject the
 profiles of other rustc builds. CI runs the same script as the last step of the
-workspace workflow, after `rustup component add llvm-tools`.
+workspace workflow, on rustc 1.99.1 with its `llvm-tools` for now: rustc 1.100
+counts 49 more lines in 28 files as uncovered, and the workspace reaches 100
+percent there first. Until then measure locally with
+`RUSTUP_TOOLCHAIN=1.99.1 scripts/coverage.sh` (after
+`rustup toolchain install 1.99.1 --profile minimal -c llvm-tools`).
 
-## Cargo resolves through the gate
+## The cooldown at resolve time
 
-`.cargo/config.toml` at the repository root replaces crates.io with the gate
-for every cargo command run in the repository, whatever the user's own
-`~/.cargo/config.toml` says (the nearest config wins):
+`.cargo/config.toml` at the repository root sets the cooldown for every cargo
+command run in the repository:
 
 ```toml
-[source.crates-io]
-replace-with = "crate-gate"
-
-[source.crate-gate]
-registry = "sparse+http://127.0.0.1:17342/"
+[registry]
+global-min-publish-age = "7 days"
 ```
 
-* With the `[source.crate-gate]` table removed, cargo refuses to resolve
-  (`could not find a configured source with the name crate-gate`); it does not
-  fall back to crates.io.
-* With the gate down, cargo fails with connection refused; it never reaches
-  crates.io.
-* With both present, the build resolves only through the gate.
+From Rust 1.100 the resolver then skips any version published less than 7 days
+ago unless `Cargo.lock` already holds it, and says what it held back. Setup
+writes the same key into `~/.cargo/config.toml` with the packages-proxy block,
+and makes sure a stable toolchain is at least 1.100 (`rustup update stable`
+when it is older; a default pinned to an older release is a failure). An older
+cargo ignores the key with a warning.
 
-`scripts/gate/verify-gate.sh` proves all three on the machine it runs on, with
-a throwaway crate and a private `CARGO_HOME`. Run it after installing the gate.
+The packages proxy is the second floor: its cargo index leaves out every
+version younger than 7 days and keeps each entry's `pubtime`, so cargo's own
+check works through it. Resolution goes through it wherever setup or
+`setup-package-proxy` configured `~/.cargo/config.toml`. `cargo install` skips
+cargo's cooldown, so the proxy is what holds it there.
 
-### Linux workstation
+The loopback crate-gate (`127.0.0.1:17342`) that used to replace crates.io here
+is retired: the proxy and the cargo setting replace it. Stop a gate a machine
+still runs with `systemctl --user disable --now crate-gate` (launchd on the
+Mac) and delete `~/.config/systemd/user/crate-gate.service`.
 
-The gate runs as a **systemd user service**. One command installs it:
+### crate-age on a workstation
 
-```bash
-scripts/gate/install-linux.sh
-```
-
-It reads the crate-gate and crate-age sources from your standards clone
+`scripts/install-crate-age.sh` builds crate-age from your standards clone
 (`~/Projects/JorisJonkers-dev/standards`, or `STANDARDS_DIR`) with `git archive`
 at the pinned commit `STANDARDS_REF` — the clone's working tree is never
-touched — builds both (borrowing cargo from `nix shell` on NixOS when none is on
-`PATH`), installs `crate-gate` and `crate-age` to `~/.local/bin`, writes
-`~/.config/systemd/user/crate-gate.service` (127.0.0.1:17342, floor 7 days,
-`Restart=always`) and starts it. Check it with:
-
-```bash
-curl -s http://127.0.0.1:17342/health
-systemctl --user status crate-gate
-scripts/gate/verify-gate.sh
-```
-
-Building the gate needs a registry once, before the gate exists; that is the
-packages proxy block setup already writes to `~/.cargo/config.toml`. The gate
-is not part of `installer/setup-workstation.sh`: it is installed once per
-machine, by hand or by the machine's own configuration.
-
-### Mac
-
-The Mac runs the same binary under launchd, installed by the standards repo's
-`scripts/gate/install-macos.sh`, listening on the same `127.0.0.1:17342`. This
-repository's `.cargo/config.toml` needs nothing more there.
+touched — borrowing cargo from `nix shell` on NixOS when none is on `PATH`, and
+installs it to `~/.local/bin`. The Mac installs it from the standards repo the
+same way.
 
 ## The pre-commit hook
 
@@ -725,7 +711,7 @@ git config core.hooksPath .githooks
 bit). How the hook obtains crate-age — it never copies it in:
 
 1. `$CRATE_AGE` — a full path to the crate-age executable;
-2. `crate-age` on `PATH` — what `scripts/gate/install-linux.sh` installs;
+2. `crate-age` on `PATH` — what `scripts/install-crate-age.sh` installs;
 3. neither — no age can be proven, so the commit is **refused (exit 2)** with
    the reason printed.
 
@@ -740,11 +726,11 @@ pass.
 pushes to `main`), so every `Cargo.toml` or `Cargo.lock` change is checked. It
 checks out this repository and the standards repo at a pinned commit (the
 standards repo is private, so the job mints a release-app token for it; the app
-must be installed on that repository), builds crate-gate and crate-age, runs
-crate-age over the checkout, starts the gate on the runner and builds and tests
-the workspace with cargo resolving only through it. A too-young or unprovable
+must be installed on that repository), builds crate-age, runs it over the
+checkout, and builds and tests the workspace with cargo resolving through the
+packages proxy and the cooldown setting. A too-young or unprovable
 version fails the job, so the same change a contributor cannot commit cannot
-merge either. Move the pinned commit here and in `scripts/gate/install-linux.sh`
+merge either. Move the pinned commit here and in `scripts/install-crate-age.sh`
 together when the standards repo tags a release.
 
 ## The security-fix waiver

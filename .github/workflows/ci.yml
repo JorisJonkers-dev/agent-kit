@@ -166,10 +166,9 @@
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
-      # Cargo reads .cargo/config.toml from the working directory upward, and
-      # the repository's points at a crate-gate that is not running here, so
-      # the build runs from the runner's temp directory: resolution goes
-      # through the packages proxy that setup-package-proxy configured.
+      # The build runs from the runner's temp directory and resolves through
+      # the packages proxy that setup-package-proxy configured, which hides
+      # crate versions younger than 7 days.
       - 'name': 'Build the harness'
         'working-directory': '${{ runner.temp }}'
         'env':
@@ -222,9 +221,8 @@
 
   # The macOS write limit (ADR-0013, issue #434) can only be proven on macOS:
   # the launcher's enforcement tests start a stub agent under the real
-  # sandbox-exec. Built from the runner's temp directory for the same reason
-  # as the headless proof above (the repository's .cargo/config.toml names a
-  # crate-gate that is not running here).
+  # sandbox-exec. Built from the runner's temp directory through the packages
+  # proxy, like the headless proof above.
   'rust-macos':
     'name': 'Rust Tests (macos)'
     'runs-on': 'macos-latest'

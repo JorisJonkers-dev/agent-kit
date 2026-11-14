@@ -266,7 +266,7 @@ package_proxy:
 # Gold Band (github.com/diodeme/Gold-Band, AGPL, third party).
 #
 # On Linux, setup builds the pinned commit from an EXISTING clone (never
-# cloned or touched by setup) through the crate gate, after crate-age has
+# cloned or touched by setup) through the packages proxy, after crate-age has
 # checked its Cargo.lock, and installs the desktop app and the headless
 # `gold-band` binary into ~/.local/bin. No clone: the surface is skipped and
 # setup says so. The pin is a commit, not a tag. See docs/GOLD-BAND.md.
