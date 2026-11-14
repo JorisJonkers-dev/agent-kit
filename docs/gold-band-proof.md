@@ -110,7 +110,11 @@ refuses, with exit **5** and the reason on stderr, when:
 6. the record claims a pass but holds no scenarios or a failing one.
 
 Otherwise it runs `gold-band run --workflow <FILE> <arguments>` and returns
-Gold Band's own exit code. `gold-band-proof check --workflow <FILE>` is the same
+Gold Band's own exit code. With `--pins FILE [--instance-home DIR]` it first
+builds a live run home that adds a pinned shim agent for every gate, copier and
+verdict id to the instance's agents, and runs Gold Band in it (see "Workflow B
+live in the personal instance" in [GOLD-BAND.md](GOLD-BAND.md)); a run that
+cannot be bound is refused with exit 5 before Gold Band starts. `gold-band-proof check --workflow <FILE>` is the same
 check without starting a run (exit 0 or 5).
 
 ## CI

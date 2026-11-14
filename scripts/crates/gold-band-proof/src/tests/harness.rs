@@ -268,11 +268,11 @@ fn inspect_gives_every_agent_of_workflow_b_its_role() {
         expected.push((format!("verdict-{}", round), Role::Verdict(round)));
     }
     // The two critics' agents also serve the plain nodes (the test author, the
-    // escalation judge and the manual check), which they answer as an answer.
-    let critics = vec!["vibe".to_string(), "claude".to_string()];
+    // writer, the repairs, the escalation judge and the manual check), which
+    // they answer as an answer.
+    let critics = vec!["pi".to_string(), "claude".to_string()];
     expected.push(("claude".to_string(), Role::Dynamic(critics.clone())));
-    expected.push(("vibe".to_string(), Role::Dynamic(critics)));
-    expected.push(("vibe-study".to_string(), Role::Answer));
+    expected.push(("pi".to_string(), Role::Dynamic(critics)));
     expected.sort_by(|left, right| left.0.cmp(&right.0));
     let roles: Vec<(String, Role)> = info
         .roles

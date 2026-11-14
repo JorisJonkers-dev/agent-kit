@@ -1,6 +1,6 @@
 {
   "workflow": {
-    "description": "Workflow B for the personal instance, proven headless with stubs (issues #448 and #451): a test author from one family writes failing tests from the ticket, one writer from another family implements until they pass, then build, tests, lint and the coverage gate each run through the gate shim. Two critics from other families (Vibe GLM and Claude) then review the change in parallel in one ai-dynamic node, and the finding check keeps only findings with a checkable quote. A round with an actionable finding sends the ticket back to the writer, at most twice, in fixed nodes (repair-1, repair-2, each followed by every gate and a new critics round), so no loop exists. After the second failed repair an Opus escalation node judges the ticket and a manual check pauses the run for the owner. No gate node has a failure edge, so a failing gate ends the run in failure; the CI wait is added by a later ticket.",
+    "description": "Workflow B for the personal instance, proven headless with stubs (issues #448, #451 and #455): a test author from one family (Mistral, on Pi over LiteLLM) writes failing tests from the ticket, one writer from another family (DeepSeek, on Pi over LiteLLM) implements until they pass, then build, tests, lint and the coverage gate each run through the gate shim; in a live run every gate, copier and verdict id is a pinned shim agent (gold-band-proof run --pins). Two critics from other families (GLM on Pi over LiteLLM, and Claude) then review the change in parallel in one ai-dynamic node, and the finding check keeps only findings with a checkable quote. A round with an actionable finding sends the ticket back to the writer, at most twice, in fixed nodes (repair-1, repair-2, each followed by every gate and a new critics round), so no loop exists. After the second failed repair an Opus escalation node judges the ticket and a manual check pauses the run for the owner. No gate node has a failure edge, so a failing gate ends the run in failure; the CI wait is added by a later ticket.",
     "version": "0.1",
     "id": "workflow-b",
     "entry": "test-author",
@@ -13,8 +13,8 @@
         "type": "worker",
         "id": "test-author",
         "executionSlotId": "slot-test-author",
-        "provider": "vibe",
-        "model": "mistral-large-4-0",
+        "provider": "pi",
+        "model": "litellm-vibe/mistral-large-4-0",
         "profile": "pf-builtin-dev",
         "goal": "You are the test author, from a different family than the writer. Read the ticket's acceptance criteria in the requirement document and write failing tests for them, one test per criterion, in the repository's own test style. Write tests only: no implementation, no change to any non-test file. Answer with one fenced json block holding ok and nothing else.",
         "output": {
@@ -29,8 +29,8 @@
         "type": "worker",
         "id": "writer",
         "executionSlotId": "slot-writer",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-vibe-study/deepseek-v4.1-flash",
         "profile": "pf-builtin-dev",
         "goal": "You are the one writer. Implement the ticket until the tests the test author wrote pass: change non-test files only, never edit or delete a test, and add nothing the tests and the requirement do not ask for. Answer with one fenced json block holding ok and nothing else.",
         "output": {
@@ -46,7 +46,7 @@
         "id": "gate-build",
         "executionSlotId": "slot-gate-build",
         "provider": "gate-build",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the build and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -66,7 +66,7 @@
         "id": "copy-build",
         "executionSlotId": "slot-copy-build",
         "provider": "copy-build",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the build and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -91,7 +91,7 @@
         "id": "gate-test",
         "executionSlotId": "slot-gate-test",
         "provider": "gate-test",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the tests and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -111,7 +111,7 @@
         "id": "copy-test",
         "executionSlotId": "slot-copy-test",
         "provider": "copy-test",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the tests and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -136,7 +136,7 @@
         "id": "gate-lint",
         "executionSlotId": "slot-gate-lint",
         "provider": "gate-lint",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the linter and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -156,7 +156,7 @@
         "id": "copy-lint",
         "executionSlotId": "slot-copy-lint",
         "provider": "copy-lint",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the linter and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -181,7 +181,7 @@
         "id": "gate-coverage",
         "executionSlotId": "slot-gate-coverage",
         "provider": "gate-coverage",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the coverage gate and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -201,7 +201,7 @@
         "id": "copy-coverage",
         "executionSlotId": "slot-copy-coverage",
         "provider": "copy-coverage",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the coverage gate and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -226,20 +226,20 @@
         "id": "critics-1",
         "agentStrategy": {
           "mode": "dynamic",
-          "bootstrapProvider": "vibe",
-          "bootstrapModel": "glm-5-3",
-          "acceptanceModel": "glm-5-3",
+          "bootstrapProvider": "pi",
+          "bootstrapModel": "litellm-vibe/glm-5.3",
+          "acceptanceModel": "litellm-vibe/glm-5.3",
           "availableAgents": [
             {
-              "provider": "vibe",
-              "model": "glm-5-3"
+              "provider": "pi",
+              "model": "litellm-vibe/glm-5.3"
             },
             {
               "provider": "claude",
               "model": "sonnet"
             }
           ],
-          "routingPrompt": "Fan out exactly two worker nodes and nothing else: one for provider `vibe` and one for provider `claude`, in parallel, and use the profile pf-diff-reviewer for both. Each critic reads the ticket's requirement document and the writer's change (git diff against the base branch) and writes its whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the diff or the ticket, and a no_findings_reason when the array is empty), to findings/<its node id>.json in its own worktree, committed. A critic changes no other file. Do not plan any other node."
+          "routingPrompt": "Fan out exactly two worker nodes and nothing else: one for provider `pi` (model `litellm-vibe/glm-5.3`) and one for provider `claude`, in parallel, and use the profile pf-diff-reviewer for both. Each critic reads the ticket's requirement document and the writer's change (git diff against the base branch) and writes its whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the diff or the ticket, and a no_findings_reason when the array is empty), to findings/<its node id>.json in its own worktree, committed. A critic changes no other file. Do not plan any other node."
         },
         "control": {
           "maxDynamicNodes": 5,
@@ -257,7 +257,7 @@
         "id": "gate-findings-1",
         "executionSlotId": "slot-gate-findings-1",
         "provider": "gate-findings-1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -277,7 +277,7 @@
         "id": "copy-findings-1",
         "executionSlotId": "slot-copy-findings-1",
         "provider": "copy-findings-1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -302,7 +302,7 @@
         "id": "verdict-1",
         "executionSlotId": "slot-verdict-1",
         "provider": "verdict-1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Read findings-check.json, the report the finding check wrote into the gate report directory, and answer with its actionable count as one fenced json block and nothing else. A hint is never actionable.",
         "output": {
@@ -321,8 +321,8 @@
         "type": "worker",
         "id": "repair-1",
         "executionSlotId": "slot-repair-1",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-vibe-study/deepseek-v4.1-flash",
         "profile": "pf-builtin-dev",
         "goal": "You are the writer, back for repair 1 of 2. Read findings-check.json: fix only the findings under kept, which each name a quote that exists in the diff or the ticket, and never act on a hint. Change non-test files only, never edit or delete a test, and add nothing the findings do not ask for. Answer with one fenced json block holding ok and nothing else.",
         "output": {
@@ -338,7 +338,7 @@
         "id": "gate-build-r1",
         "executionSlotId": "slot-gate-build-r1",
         "provider": "gate-build-r1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the build after repair 1 and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -358,7 +358,7 @@
         "id": "copy-build-r1",
         "executionSlotId": "slot-copy-build-r1",
         "provider": "copy-build-r1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the build after repair 1 and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -383,7 +383,7 @@
         "id": "gate-test-r1",
         "executionSlotId": "slot-gate-test-r1",
         "provider": "gate-test-r1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the tests after repair 1 and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -403,7 +403,7 @@
         "id": "copy-test-r1",
         "executionSlotId": "slot-copy-test-r1",
         "provider": "copy-test-r1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the tests after repair 1 and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -428,7 +428,7 @@
         "id": "gate-lint-r1",
         "executionSlotId": "slot-gate-lint-r1",
         "provider": "gate-lint-r1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the linter after repair 1 and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -448,7 +448,7 @@
         "id": "copy-lint-r1",
         "executionSlotId": "slot-copy-lint-r1",
         "provider": "copy-lint-r1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the linter after repair 1 and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -473,7 +473,7 @@
         "id": "gate-coverage-r1",
         "executionSlotId": "slot-gate-coverage-r1",
         "provider": "gate-coverage-r1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the coverage gate after repair 1 and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -493,7 +493,7 @@
         "id": "copy-coverage-r1",
         "executionSlotId": "slot-copy-coverage-r1",
         "provider": "copy-coverage-r1",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the coverage gate after repair 1 and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -518,20 +518,20 @@
         "id": "critics-2",
         "agentStrategy": {
           "mode": "dynamic",
-          "bootstrapProvider": "vibe",
-          "bootstrapModel": "glm-5-3",
-          "acceptanceModel": "glm-5-3",
+          "bootstrapProvider": "pi",
+          "bootstrapModel": "litellm-vibe/glm-5.3",
+          "acceptanceModel": "litellm-vibe/glm-5.3",
           "availableAgents": [
             {
-              "provider": "vibe",
-              "model": "glm-5-3"
+              "provider": "pi",
+              "model": "litellm-vibe/glm-5.3"
             },
             {
               "provider": "claude",
               "model": "sonnet"
             }
           ],
-          "routingPrompt": "Fan out exactly two worker nodes and nothing else: one for provider `vibe` and one for provider `claude`, in parallel, and use the profile pf-diff-reviewer for both. Each critic reads the ticket's requirement document and the writer's change (git diff against the base branch) and writes its whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the diff or the ticket, and a no_findings_reason when the array is empty), to findings/<its node id>.json in its own worktree, committed. A critic changes no other file. Do not plan any other node."
+          "routingPrompt": "Fan out exactly two worker nodes and nothing else: one for provider `pi` (model `litellm-vibe/glm-5.3`) and one for provider `claude`, in parallel, and use the profile pf-diff-reviewer for both. Each critic reads the ticket's requirement document and the writer's change (git diff against the base branch) and writes its whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the diff or the ticket, and a no_findings_reason when the array is empty), to findings/<its node id>.json in its own worktree, committed. A critic changes no other file. Do not plan any other node."
         },
         "control": {
           "maxDynamicNodes": 5,
@@ -549,7 +549,7 @@
         "id": "gate-findings-2",
         "executionSlotId": "slot-gate-findings-2",
         "provider": "gate-findings-2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -569,7 +569,7 @@
         "id": "copy-findings-2",
         "executionSlotId": "slot-copy-findings-2",
         "provider": "copy-findings-2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -594,7 +594,7 @@
         "id": "verdict-2",
         "executionSlotId": "slot-verdict-2",
         "provider": "verdict-2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Read findings-check.json, the report the finding check wrote into the gate report directory, and answer with its actionable count as one fenced json block and nothing else. A hint is never actionable.",
         "output": {
@@ -613,8 +613,8 @@
         "type": "worker",
         "id": "repair-2",
         "executionSlotId": "slot-repair-2",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-vibe-study/deepseek-v4.1-flash",
         "profile": "pf-builtin-dev",
         "goal": "You are the writer, back for repair 2 of 2. Read findings-check.json: fix only the findings under kept, which each name a quote that exists in the diff or the ticket, and never act on a hint. Change non-test files only, never edit or delete a test, and add nothing the findings do not ask for. Answer with one fenced json block holding ok and nothing else.",
         "output": {
@@ -630,7 +630,7 @@
         "id": "gate-build-r2",
         "executionSlotId": "slot-gate-build-r2",
         "provider": "gate-build-r2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the build after repair 2 and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -650,7 +650,7 @@
         "id": "copy-build-r2",
         "executionSlotId": "slot-copy-build-r2",
         "provider": "copy-build-r2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the build after repair 2 and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -675,7 +675,7 @@
         "id": "gate-test-r2",
         "executionSlotId": "slot-gate-test-r2",
         "provider": "gate-test-r2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the tests after repair 2 and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -695,7 +695,7 @@
         "id": "copy-test-r2",
         "executionSlotId": "slot-copy-test-r2",
         "provider": "copy-test-r2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the tests after repair 2 and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -720,7 +720,7 @@
         "id": "gate-lint-r2",
         "executionSlotId": "slot-gate-lint-r2",
         "provider": "gate-lint-r2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the linter after repair 2 and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -740,7 +740,7 @@
         "id": "copy-lint-r2",
         "executionSlotId": "slot-copy-lint-r2",
         "provider": "copy-lint-r2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the linter after repair 2 and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -765,7 +765,7 @@
         "id": "gate-coverage-r2",
         "executionSlotId": "slot-gate-coverage-r2",
         "provider": "gate-coverage-r2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the coverage gate after repair 2 and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -785,7 +785,7 @@
         "id": "copy-coverage-r2",
         "executionSlotId": "slot-copy-coverage-r2",
         "provider": "copy-coverage-r2",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the coverage gate after repair 2 and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -810,20 +810,20 @@
         "id": "critics-3",
         "agentStrategy": {
           "mode": "dynamic",
-          "bootstrapProvider": "vibe",
-          "bootstrapModel": "glm-5-3",
-          "acceptanceModel": "glm-5-3",
+          "bootstrapProvider": "pi",
+          "bootstrapModel": "litellm-vibe/glm-5.3",
+          "acceptanceModel": "litellm-vibe/glm-5.3",
           "availableAgents": [
             {
-              "provider": "vibe",
-              "model": "glm-5-3"
+              "provider": "pi",
+              "model": "litellm-vibe/glm-5.3"
             },
             {
               "provider": "claude",
               "model": "sonnet"
             }
           ],
-          "routingPrompt": "Fan out exactly two worker nodes and nothing else: one for provider `vibe` and one for provider `claude`, in parallel, and use the profile pf-diff-reviewer for both. Each critic reads the ticket's requirement document and the writer's change (git diff against the base branch) and writes its whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the diff or the ticket, and a no_findings_reason when the array is empty), to findings/<its node id>.json in its own worktree, committed. A critic changes no other file. Do not plan any other node."
+          "routingPrompt": "Fan out exactly two worker nodes and nothing else: one for provider `pi` (model `litellm-vibe/glm-5.3`) and one for provider `claude`, in parallel, and use the profile pf-diff-reviewer for both. Each critic reads the ticket's requirement document and the writer's change (git diff against the base branch) and writes its whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the diff or the ticket, and a no_findings_reason when the array is empty), to findings/<its node id>.json in its own worktree, committed. A critic changes no other file. Do not plan any other node."
         },
         "control": {
           "maxDynamicNodes": 5,
@@ -841,7 +841,7 @@
         "id": "gate-findings-3",
         "executionSlotId": "slot-gate-findings-3",
         "provider": "gate-findings-3",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate wrapper for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with its exit status as one fenced json block and nothing else.",
         "output": {
@@ -861,7 +861,7 @@
         "id": "copy-findings-3",
         "executionSlotId": "slot-copy-findings-3",
         "provider": "copy-findings-3",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Run the pinned gold-band-gate verify copier for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
@@ -886,7 +886,7 @@
         "id": "verdict-3",
         "executionSlotId": "slot-verdict-3",
         "provider": "verdict-3",
-        "model": "stub-model",
+        "model": "pinned-command",
         "profile": "pf-builtin-dev",
         "goal": "Read findings-check.json, the report the finding check wrote into the gate report directory, and answer with its actionable count as one fenced json block and nothing else. A hint is never actionable.",
         "output": {
@@ -921,8 +921,8 @@
         "type": "worker",
         "id": "escalation-check",
         "executionSlotId": "slot-escalation-check",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-vibe/glm-5.3",
         "profile": "pf-builtin-dev",
         "goal": "The owner reads the escalation judgment and the last findings and rules on the ticket.",
         "manual_check": true
@@ -1165,188 +1165,188 @@
     "bindings": [
       {
         "executionSlotId": "slot-test-author",
-        "agentId": "vibe",
-        "modelId": "mistral-large-4-0"
+        "agentId": "pi",
+        "modelId": "litellm-vibe/mistral-large-4-0"
       },
       {
         "executionSlotId": "slot-writer",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-vibe-study/deepseek-v4.1-flash"
       },
       {
         "executionSlotId": "slot-gate-build",
         "agentId": "gate-build",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-build",
         "agentId": "copy-build",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-test",
         "agentId": "gate-test",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-test",
         "agentId": "copy-test",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-lint",
         "agentId": "gate-lint",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-lint",
         "agentId": "copy-lint",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-coverage",
         "agentId": "gate-coverage",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-coverage",
         "agentId": "copy-coverage",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-findings-1",
         "agentId": "gate-findings-1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-findings-1",
         "agentId": "copy-findings-1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-verdict-1",
         "agentId": "verdict-1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-repair-1",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-vibe-study/deepseek-v4.1-flash"
       },
       {
         "executionSlotId": "slot-gate-build-r1",
         "agentId": "gate-build-r1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-build-r1",
         "agentId": "copy-build-r1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-test-r1",
         "agentId": "gate-test-r1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-test-r1",
         "agentId": "copy-test-r1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-lint-r1",
         "agentId": "gate-lint-r1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-lint-r1",
         "agentId": "copy-lint-r1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-coverage-r1",
         "agentId": "gate-coverage-r1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-coverage-r1",
         "agentId": "copy-coverage-r1",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-findings-2",
         "agentId": "gate-findings-2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-findings-2",
         "agentId": "copy-findings-2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-verdict-2",
         "agentId": "verdict-2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-repair-2",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-vibe-study/deepseek-v4.1-flash"
       },
       {
         "executionSlotId": "slot-gate-build-r2",
         "agentId": "gate-build-r2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-build-r2",
         "agentId": "copy-build-r2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-test-r2",
         "agentId": "gate-test-r2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-test-r2",
         "agentId": "copy-test-r2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-lint-r2",
         "agentId": "gate-lint-r2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-lint-r2",
         "agentId": "copy-lint-r2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-coverage-r2",
         "agentId": "gate-coverage-r2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-coverage-r2",
         "agentId": "copy-coverage-r2",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-gate-findings-3",
         "agentId": "gate-findings-3",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-copy-findings-3",
         "agentId": "copy-findings-3",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-verdict-3",
         "agentId": "verdict-3",
-        "modelId": "stub-model"
+        "modelId": "pinned-command"
       },
       {
         "executionSlotId": "slot-workflow-b-escalation",
@@ -1355,8 +1355,8 @@
       },
       {
         "executionSlotId": "slot-escalation-check",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-vibe/glm-5.3"
       }
     ]
   }
