@@ -263,6 +263,42 @@
         "work/": null,
         "tmp/": null
       }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"model-not-usable\",\"message\":\"vibe:glm-5-3 cannot run: blocked by the provider on LiteLLM route vibe: Model zai-glm-5-3 is a Labs model.\"}\n",
+      "stderr": "model-gateway run: vibe:glm-5-3 cannot run: blocked by the provider on LiteLLM route vibe: Model zai-glm-5-3 is a Labs model.\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"stale\",\"started_at\":\"2026-11-01T08:00:00Z\"}]}",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"model-not-usable\",\"message\":\"opencode:opencode-go/kimi-k2.7-code cannot run: the LiteLLM catalogue marks it error on route opencode-go\"}\n",
+      "stderr": "model-gateway run: opencode:opencode-go/kimi-k2.7-code cannot run: the LiteLLM catalogue marks it error on route opencode-go\n",
+      "files": {
+        "state/": null,
+        "state/agent-kit/": null,
+        "state/agent-kit/model-gateway/": null,
+        "state/agent-kit/model-gateway/workflows.json": "{\"version\":1,\"workflows\":[{\"name\":\"stale\",\"started_at\":\"2026-11-01T08:00:00Z\"}]}",
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
+        "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
+        "work/": null,
+        "tmp/": null
+      }
     }
   ]
 }

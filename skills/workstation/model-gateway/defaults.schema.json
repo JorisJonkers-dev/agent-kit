@@ -70,6 +70,11 @@
           "type": "array",
           "items": { "$ref": "#/$defs/plan_limit" },
           "description": "What the client's plan allows, window by window. The shipped defaults carry none: the owner's own plans go in the machine file, which replaces this list whole."
+        },
+        "litellm_route": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The provider route of the live LiteLLM catalogue (setup fetches it to ~/.cache/agent-kit/litellm-catalogue.json) whose probes judge this client's models: only a usable one is listed, a blocked one is skipped and refused with the provider's reason, and a free one is marked free. A model the catalogue does not know is listed as before."
         }
       }
     },

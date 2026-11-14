@@ -19,6 +19,8 @@ pub struct ListedModel {
     pub tier: Option<Tier>,
     pub notes: String,
     pub source: ModelSource,
+    /// Set when the LiteLLM catalogue marks the model free on its route.
+    pub free: bool,
 }
 
 /// A client the gateway knows but cannot use on this machine.
@@ -448,6 +450,7 @@ fn listed_entry(id: &str, client: &ClientConfig, entry: &ModelEntry) -> ListedMo
         tier: Some(entry.tier),
         notes: entry.notes.clone(),
         source: ModelSource::Declared,
+        free: false,
     }
 }
 
@@ -532,6 +535,7 @@ fn listed_models(config: &GatewayConfig, id: &str, client: &ClientConfig, listed
             tier: entry.map(|(_, entry)| entry.tier),
             notes: entry.map(|(_, entry)| entry.notes.clone()).unwrap_or_default(),
             source: client.model_source,
+            free: false,
         });
     }
     Listed { models, skipped, matched }

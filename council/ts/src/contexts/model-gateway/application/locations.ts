@@ -60,6 +60,18 @@ export function vibeAvailableCachePath(env: EnvPort): string {
 }
 
 /**
+ * The live LiteLLM model catalogue setup fetches (scripts/litellm_catalogue.py):
+ * `$XDG_CACHE_HOME/agent-kit/litellm-catalogue.json`, or
+ * `~/.cache/agent-kit/litellm-catalogue.json` when XDG_CACHE_HOME is unset or
+ * not an absolute path.
+ */
+export function liteLLMCataloguePath(env: EnvPort): string {
+  const xdg = env.get('XDG_CACHE_HOME')
+  const root = xdg !== undefined && isAbsolute(xdg) ? xdg : join(env.require('HOME'), '.cache')
+  return join(root, 'agent-kit', 'litellm-catalogue.json')
+}
+
+/**
  * This machine's routing override, applied client by client over the routing
  * critique ships. It is resolved the way critique resolves it, so the gateway
  * reads the routing critique really runs.

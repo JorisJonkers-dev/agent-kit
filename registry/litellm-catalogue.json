@@ -1,56 +1,5006 @@
 {
-  "comment": "A snapshot of the model ids the LiteLLM catalogue (JorisJonkers-dev/litellm-model-catalog, model-catalog.json) lists as usable per route, without the route prefix. tests/test_litellm_models.py checks the gateway defaults against it. Refresh: gh api repos/JorisJonkers-dev/litellm-model-catalog/contents/model-catalog.json -q .content | base64 -d | jq '{as_of: .updated_at, routes: (.providers | map_values([.models[] | select(.metadata.status == \"usable\") | .id | sub(\"^[^/]*/\"; \"\")]))}'",
-  "as_of": "2026-11-12T12:17:00Z",
-  "routes": {
-    "vibe": [
-      "codestral-2508",
-      "codestral-latest",
-      "deepseek-v4-1-flash-1017",
-      "glm-5-2",
-      "magistral-medium-latest",
-      "magistral-small-latest",
-      "ministral-14b-2512",
-      "ministral-14b-latest",
-      "ministral-3b-2512",
-      "ministral-3b-latest",
-      "ministral-8b-2512",
-      "ministral-8b-latest",
-      "mistral-code-fim-latest",
-      "mistral-code-latest",
-      "mistral-large-2512",
-      "mistral-large-4",
-      "mistral-large-4-0",
-      "mistral-large-latest",
-      "mistral-medium",
-      "mistral-medium-2604",
-      "mistral-medium-3",
-      "mistral-medium-3-5",
-      "mistral-medium-3.5",
-      "mistral-medium-latest",
-      "mistral-small-2603",
-      "mistral-small-latest",
-      "mistral-vibe-cli-fast",
-      "mistral-vibe-cli-latest",
-      "mistral-vibe-cli-with-tools",
-      "voxtral-small-2507",
-      "voxtral-small-latest",
-      "zai-glm-5",
-      "zai-glm-5-2",
-      "zai-glm-5-3",
-      "zai-glm-5-3-flash",
-      "zai-glm-latest"
-    ],
-    "opencode-go": [
-      "beam-free",
-      "hy3",
-      "hy4-preview",
-      "kimi-k2.7-code",
-      "longcat-2.0",
-      "mimo-v2.6-flash",
-      "mimo-v2.6-pro",
-      "minimax-m3.1-flash",
-      "qwen3.8-flash",
-      "step-5-preview"
-    ]
+  "comment": "A trimmed snapshot of the live LiteLLM catalogue (JorisJonkers-dev/litellm-model-catalog, model-catalog.json), in its own shape: every probed model per provider route with its status, reason, free mark and modality (unprobed ones left out), and the canonical groups. scripts/litellm_catalogue.py reads it when setup has fetched no live copy, and tests/test_litellm_models.py checks the gateway defaults against it. Refresh: gh api -H \"Accept: application/vnd.github.raw\" repos/JorisJonkers-dev/litellm-model-catalog/contents/model-catalog.json | jq --arg comment \"$(jq -r .comment registry/litellm-catalogue.json)\" '{comment: $comment, version, updated_at, providers: (.providers | map_values({models: [.models[] | select(.metadata.status != \"unprobed\") | {id, metadata: (.metadata | {status, reason, free, modality})}]})), groups}' > registry/litellm-catalogue.json.new && mv registry/litellm-catalogue.json.new registry/litellm-catalogue.json",
+  "version": 1,
+  "updated_at": "2026-11-14T12:17:01Z",
+  "providers": {
+    "vibe": {
+      "models": [
+        {
+          "id": "vibe/codestral-2508",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/codestral-embed",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe/codestral-embed-2505",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe/codestral-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/deepseek-v4-1-flash-1017",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/glm-5-2",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/labs-leanstral-1-5",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Model labs-leanstral-1-5 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/labs-leanstral-1-5-1",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Model labs-leanstral-1-5-1 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/magistral-medium-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/magistral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/ministral-14b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/ministral-14b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/ministral-3b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/ministral-3b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/ministral-8b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/ministral-8b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-code-fim-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-code-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-embed",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe/mistral-embed-2312",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe/mistral-large-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-large-4",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-large-4-0",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-large-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-medium",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-medium-2604",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-medium-3",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-medium-3-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-medium-3.5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-medium-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-moderation-2603",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe/mistral-ocr-2512",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe/mistral-ocr-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe/mistral-ocr-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe/mistral-ocr-4",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe/mistral-ocr-4-1",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe/mistral-ocr-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe/mistral-small-2603",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-vibe-cli-fast",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-vibe-cli-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/mistral-vibe-cli-with-tools",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-realtime-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-realtime-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-transcribe-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-transcribe-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-transcribe-realtime-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-transcribe-realtime-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-transcribe-realtime-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-tts-2603",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-tts-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-tts-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/voxtral-mini-tts-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/voxtral-small-2507",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/voxtral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/voxtral-small-transcribe-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe/voxtral-small-transcribe-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe/zai-glm-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/zai-glm-5-2",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/zai-glm-5-3",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/zai-glm-5-3-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe/zai-glm-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        }
+      ]
+    },
+    "vibe-study": {
+      "models": [
+        {
+          "id": "vibe-study/codestral-2508",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/codestral-embed",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study/codestral-embed-2505",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study/codestral-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/deepseek-v4-1-flash-1017",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/glm-5-2",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/labs-leanstral-1-5",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Model labs-leanstral-1-5 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/labs-leanstral-1-5-1",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Model labs-leanstral-1-5-1 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/magistral-medium-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/magistral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/ministral-14b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/ministral-14b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/ministral-3b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/ministral-3b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/ministral-8b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/ministral-8b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-code-fim-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-code-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-embed",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-embed-2312",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-large-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-large-4",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-large-4-0",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-large-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-medium",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-medium-2604",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-medium-3",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-medium-3-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-medium-3.5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-medium-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-moderation-2603",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-ocr-2512",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-ocr-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-ocr-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-ocr-4",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-ocr-4-1",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-ocr-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-small-2603",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-vibe-cli-fast",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-vibe-cli-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/mistral-vibe-cli-with-tools",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-realtime-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-realtime-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-transcribe-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-transcribe-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-transcribe-realtime-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-transcribe-realtime-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-transcribe-realtime-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-tts-2603",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-tts-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-tts-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-mini-tts-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-small-2507",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-small-transcribe-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study/voxtral-small-transcribe-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study/zai-glm-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/zai-glm-5-2",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/zai-glm-5-3",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/zai-glm-5-3-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study/zai-glm-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        }
+      ]
+    },
+    "vibe-api": {
+      "models": [
+        {
+          "id": "vibe-api/codestral-2508",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/codestral-embed",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-api/codestral-embed-2505",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-api/codestral-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/deepseek-v4-1-flash-1017",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/glm-5-2",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/labs-leanstral-1-5",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Model labs-leanstral-1-5 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/labs-leanstral-1-5-1",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Model labs-leanstral-1-5-1 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/magistral-medium-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/magistral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/ministral-14b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/ministral-14b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/ministral-3b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/ministral-3b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/ministral-8b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/ministral-8b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-code-fim-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-code-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-embed",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-embed-2312",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-large-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-large-4",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-large-4-0",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-large-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-medium",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-medium-2604",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-medium-3",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-medium-3-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-medium-3.5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-medium-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-moderation-2603",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-ocr-2512",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-ocr-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-ocr-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-ocr-4",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-ocr-4-1",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-ocr-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-small-2603",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-vibe-cli-fast",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-vibe-cli-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/mistral-vibe-cli-with-tools",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-realtime-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-realtime-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-transcribe-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-transcribe-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-transcribe-realtime-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-transcribe-realtime-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-transcribe-realtime-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-tts-2603",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-tts-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-tts-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-mini-tts-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-small-2507",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-small-transcribe-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-api/voxtral-small-transcribe-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-api/zai-glm-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/zai-glm-5-2",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/zai-glm-5-3",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/zai-glm-5-3-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-api/zai-glm-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        }
+      ]
+    },
+    "vibe-study-api": {
+      "models": [
+        {
+          "id": "vibe-study-api/codestral-2508",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/codestral-embed",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study-api/codestral-embed-2505",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study-api/codestral-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/deepseek-v4-1-flash-1017",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/glm-5-2",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/labs-leanstral-1-5",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Model labs-leanstral-1-5 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/labs-leanstral-1-5-1",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Model labs-leanstral-1-5-1 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/magistral-medium-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/magistral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/ministral-14b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/ministral-14b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/ministral-3b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/ministral-3b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/ministral-8b-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/ministral-8b-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-code-fim-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-code-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-embed",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-embed-2312",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-large-2512",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-large-4",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-large-4-0",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-large-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-medium",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-medium-2604",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-medium-3",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-medium-3-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-medium-3.5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-medium-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-moderation-2603",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-ocr-2512",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-ocr-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-ocr-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-ocr-4",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-ocr-4-1",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-ocr-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "ocr"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-small-2603",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-vibe-cli-fast",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-vibe-cli-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/mistral-vibe-cli-with-tools",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-realtime-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-realtime-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-transcribe-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-transcribe-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-transcribe-realtime-2602",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-transcribe-realtime-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-transcribe-realtime-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-tts-2603",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-tts-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-tts-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-mini-tts-latest",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-small-2507",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-small-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-small-transcribe-3",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study-api/voxtral-small-transcribe-3-0",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "transcription"
+          }
+        },
+        {
+          "id": "vibe-study-api/zai-glm-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/zai-glm-5-2",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/zai-glm-5-3",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/zai-glm-5-3-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "vibe-study-api/zai-glm-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        }
+      ]
+    },
+    "opencode-go": {
+      "models": [
+        {
+          "id": "opencode-go/beam-free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/gpt-6-luna",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/hy3",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/hy4-preview",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/iceman-contributor-free",
+          "metadata": {
+            "status": "blocked",
+            "reason": "invalid_request_error This OpenCode Go model trains on request data. Turn on \"Allow paid endpoints that train on request data\" at https://opencode.ai/console/org_01M6K4QA9F3FF8C4SK8MWV0K5F/settings/privacy#training to use it.",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/kimi-k2.7-code",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/longcat-2.0",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/mimo-v2.6-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/mimo-v2.6-pro",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/minimax-m3.1-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/qwen3.8-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "opencode-go/step-5-preview",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        }
+      ]
+    },
+    "openrouter": {
+      "models": [
+        {
+          "id": "openrouter/baidu/ernie-5.5-flash-preview:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/cohere/north-mini-code:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/dots-studio/dots-3-note-preview:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/google/gemma-4-26b-a4b-it:free",
+          "metadata": {
+            "status": "error",
+            "reason": "Provider returned error",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/google/gemma-4-31b-it:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/google/lyria-3-clip-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "Provider returned error",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/google/lyria-3-pro-preview",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/inclusionai/ling-3.2-flash:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/liquid/lfm-3-1.7b:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/nvidia/nemotron-3.5-lightning:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/nvidia/nemotron-3.5-super-vl:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/openrouter/free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/particle-ai/particle-1:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/recursive/flint-v1.0:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "openrouter/thinkingmachines/inkling-2-small:free",
+          "metadata": {
+            "status": "blocked",
+            "reason": "This model is not available in your region.",
+            "free": true,
+            "modality": "chat"
+          }
+        }
+      ]
+    },
+    "google": {
+      "models": [
+        {
+          "id": "google/antigravity-preview-05-2026",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/antigravity-preview-09-2026",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/antigravity-preview-latest",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/aqa",
+          "metadata": {
+            "status": "unknown",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/deep-research-max-preview-04-2026",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/deep-research-preview-04-2026",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/deep-research-pro-preview-12-2025",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-computer-use-preview-10-2025",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-flash",
+          "metadata": {
+            "status": "unknown",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-flash-image",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-flash-lite",
+          "metadata": {
+            "status": "unknown",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-flash-native-audio-latest",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-flash-native-audio-preview-09-2025",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-flash-native-audio-preview-12-2025",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-flash-preview-tts",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-pro",
+          "metadata": {
+            "status": "unknown",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-2.5-pro-preview-tts",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3-flash-preview",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3-pro-image",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3-pro-image-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.1-flash-image",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.1-flash-image-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.1-flash-lite",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.1-flash-lite-image",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.1-flash-lite-preview",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.1-flash-live-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.1-flash-tts-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.1-pro-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.1-pro-preview-customtools",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.5-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.5-flash-lite",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.5-live-translate-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.5-transcribe",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.5-transcribe-live",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.6-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.7-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.8-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.8-flash-lite-tts",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.8-flash-tts",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.8-live",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-3.8-live-extended-thinking",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-4-argon",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-4-carbon",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-4-hydrogen",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-decision-1",
+          "metadata": {
+            "status": "unknown",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-embedding-001",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "google/gemini-embedding-2",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "google/gemini-embedding-2-preview",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding"
+          }
+        },
+        {
+          "id": "google/gemini-flash-latest",
+          "metadata": {
+            "status": "error",
+            "reason": "The read operation timed out",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-flash-lite-latest",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-nano-banana-2.1",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-omni-1.1-flash",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-omni-1.2-flash",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-omni-flash-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-pro-latest",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-robotics-er-2-preview",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemini-robotics-er-2-streaming-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemma-4-26b-a4b-it",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/gemma-4-31b-it",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/lyria-3-clip-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/lyria-3-pro-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/lyria-3.5",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/lyria-realtime-exp",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "google/nano-banana-pro-preview",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        }
+      ]
+    },
+    "anthropic": {
+      "models": [
+        {
+          "id": "anthropic/claude-fable-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-fable-5-1",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-fable-5-2",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-haiku-4-5-20251001",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-haiku-5-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-opus-4-5-20251101",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-opus-4-6",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-opus-4-7",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-opus-4-8",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-opus-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-opus-5-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-sonnet-4-6",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-sonnet-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        },
+        {
+          "id": "anthropic/claude-sonnet-5-5",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat"
+          }
+        }
+      ]
+    }
+  },
+  "groups": {
+    "beam-1.0-501b-a23b": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "beam-free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-fable-5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-fable-5",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-fable-5-1": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-fable-5-1",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-fable-5-2": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-fable-5-2",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-haiku-4-5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-haiku-4-5-20251001",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-haiku-5-5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-haiku-5-5",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-opus-4-5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-opus-4-5-20251101",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-opus-4-6": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-opus-4-6",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-opus-4-7": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-opus-4-7",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-opus-4-8": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-opus-4-8",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-opus-5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-opus-5",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-opus-5-5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-opus-5-5",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-sonnet-4-6": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-sonnet-4-6",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-sonnet-5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-sonnet-5",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "claude-sonnet-5-5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "anthropic",
+          "upstream_id": "claude-sonnet-5-5",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "codestral": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "codestral-2508",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "codestral-2508",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "codestral-2508",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "codestral-2508",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "codestral-embed": {
+      "modality": "embedding",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "codestral-embed",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "codestral-embed",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "deepseek-v4.1-flash": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "deepseek-v4-1-flash-1017",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "deepseek-v4-1-flash-1017",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "deepseek-v4-1-flash-1017",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "deepseek-v4-1-flash-1017",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "dots-3-note-preview": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "dots-studio/dots-3-note-preview:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "ernie-5.5-flash-preview": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "baidu/ernie-5.5-flash-preview:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "flint-v1.0": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "recursive/flint-v1.0:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "free": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "openrouter/free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "gemma-4-26b-a4b-it": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "google/gemma-4-26b-a4b-it:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "gemma-4-31b-it": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "google/gemma-4-31b-it:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "glm-5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "zai-glm-5",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "zai-glm-5",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "zai-glm-5",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "zai-glm-5",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "glm-5.2": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "glm-5-2",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "glm-5-2",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "glm-5-2",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "glm-5-2",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "glm-5.3": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "zai-glm-5-3",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "zai-glm-5-3",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "zai-glm-5-3",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "zai-glm-5-3",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "glm-5.3-flash": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "zai-glm-5-3-flash",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "zai-glm-5-3-flash",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "zai-glm-5-3-flash",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "zai-glm-5-3-flash",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "gpt-6-luna": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "gpt-6-luna",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "hy3": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "hy3",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "hy4-preview": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "hy4-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "kimi-k2.7-code": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "kimi-k2.7-code",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "lfm-3-1.7b": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "liquid/lfm-3-1.7b:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "ling-3.2-flash": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "inclusionai/ling-3.2-flash:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "longcat-2.0": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "longcat-2.0",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "lyria-3-pro-preview": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "google/lyria-3-pro-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "magistral-medium": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "magistral-medium-latest",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "magistral-medium-latest",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "magistral-medium-latest",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "magistral-medium-latest",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "magistral-small": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "magistral-small-latest",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "magistral-small-latest",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "magistral-small-latest",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "magistral-small-latest",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mimo-v2.6-flash": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "mimo-v2.6-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "mimo-v2.6-pro": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "mimo-v2.6-pro",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "minimax-m3.1-flash": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "minimax-m3.1-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "ministral-14b": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "ministral-14b-2512",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "ministral-14b-2512",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "ministral-14b-2512",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "ministral-14b-2512",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "ministral-3b": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "ministral-3b-2512",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "ministral-3b-2512",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "ministral-3b-2512",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "ministral-3b-2512",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "ministral-8b": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "ministral-8b-2512",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "ministral-8b-2512",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "ministral-8b-2512",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "ministral-8b-2512",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-code": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-code-latest",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-code-latest",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-code-latest",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-code-latest",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-code-fim": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-code-fim-latest",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-code-fim-latest",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-code-fim-latest",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-code-fim-latest",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-embed": {
+      "modality": "embedding",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-embed",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-embed",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-large": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-large-2512",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-large-2512",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-large-2512",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-large-2512",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-large-4": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-large-4",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-large-4",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-large-4",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-large-4",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-large-4-0": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-large-4-0",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-large-4-0",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-large-4-0",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-large-4-0",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-medium": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-medium",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-medium",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-medium",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-medium",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-medium-3": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-medium-3",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-medium-3",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-medium-3",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-medium-3",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-medium-3.5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-medium-3-5",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-medium-3-5",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-medium-3-5",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-medium-3-5",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-moderation": {
+      "modality": "embedding",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-moderation-2603",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-moderation-2603",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-ocr": {
+      "modality": "ocr",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-ocr-2512",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-ocr-2512",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-ocr-3": {
+      "modality": "ocr",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-ocr-3",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-ocr-3",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-ocr-3-0": {
+      "modality": "ocr",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-ocr-3-0",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-ocr-3-0",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-ocr-4": {
+      "modality": "ocr",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-ocr-4",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-ocr-4",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-ocr-4-1": {
+      "modality": "ocr",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-ocr-4-1",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-ocr-4-1",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-small": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-small-2603",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-small-2603",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-small-2603",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-small-2603",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-vibe-cli": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-vibe-cli-latest",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-vibe-cli-latest",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-vibe-cli-latest",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-vibe-cli-latest",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-vibe-cli-fast": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-vibe-cli-fast",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-vibe-cli-fast",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-vibe-cli-fast",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-vibe-cli-fast",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "mistral-vibe-cli-with-tools": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-vibe-cli-with-tools",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "mistral-vibe-cli-with-tools",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "mistral-vibe-cli-with-tools",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "mistral-vibe-cli-with-tools",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "nemotron-3-nano-omni-30b-a3b-reasoning": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "nemotron-3-ultra-550b-a55b": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "nemotron-3.5-lightning": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "nvidia/nemotron-3.5-lightning:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "nemotron-3.5-super-vl": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "nvidia/nemotron-3.5-super-vl:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "north-mini-code": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "cohere/north-mini-code:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "particle-1": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "particle-ai/particle-1:free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-3-flash-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3-flash-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-3.1-flash-lite": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.1-flash-lite",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-3.1-flash-lite-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.1-flash-lite-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-3.5-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.5-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-3.5-flash-lite": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.5-flash-lite",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-3.5-transcribe": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.5-transcribe",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-3.6-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.6-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-3.7-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.7-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-3.8-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.8-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-4-hydrogen": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-4-hydrogen",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-flash-lite": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-flash-lite-latest",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemini-robotics-er-2-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-robotics-er-2-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemma-4-26b-a4b-it": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemma-4-26b-a4b-it",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "openrouter",
+          "upstream_id": "google/gemma-4-26b-a4b-it:free",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "public/gemma-4-31b-it": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemma-4-31b-it",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "openrouter",
+          "upstream_id": "google/gemma-4-31b-it:free",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "qwen3.8-flash": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "qwen3.8-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "step-5-preview": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "step-5-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "voxtral-mini": {
+      "modality": "transcription",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "voxtral-mini-2602",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "voxtral-mini-2602",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "voxtral-mini-transcribe-3": {
+      "modality": "transcription",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "voxtral-mini-transcribe-3",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "voxtral-mini-transcribe-3",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "voxtral-mini-transcribe-3-0": {
+      "modality": "transcription",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "voxtral-mini-transcribe-3-0",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "voxtral-mini-transcribe-3-0",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "voxtral-mini-transcribe-realtime": {
+      "modality": "transcription",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "voxtral-mini-transcribe-realtime-2602",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "voxtral-mini-transcribe-realtime-2602",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "voxtral-mini-transcribe-realtime-3": {
+      "modality": "transcription",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "voxtral-mini-transcribe-realtime-3",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "voxtral-mini-transcribe-realtime-3",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "voxtral-mini-transcribe-realtime-3-0": {
+      "modality": "transcription",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "voxtral-mini-transcribe-realtime-3-0",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "voxtral-mini-transcribe-realtime-3-0",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "voxtral-small": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "voxtral-small-2507",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "voxtral-small-2507",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "voxtral-small-2507",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "voxtral-small-2507",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    },
+    "voxtral-small-transcribe-3": {
+      "modality": "transcription",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "voxtral-small-transcribe-3",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "voxtral-small-transcribe-3",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "voxtral-small-transcribe-3-0": {
+      "modality": "transcription",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe-api",
+          "upstream_id": "voxtral-small-transcribe-3-0",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "voxtral-small-transcribe-3-0",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "zai-glm": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "zai-glm-latest",
+          "order": 1,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study",
+          "upstream_id": "zai-glm-latest",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "vibe-api",
+          "upstream_id": "zai-glm-latest",
+          "order": 2,
+          "weight": 2
+        },
+        {
+          "route": "vibe-study-api",
+          "upstream_id": "zai-glm-latest",
+          "order": 2,
+          "weight": 1
+        }
+      ]
+    }
   }
 }

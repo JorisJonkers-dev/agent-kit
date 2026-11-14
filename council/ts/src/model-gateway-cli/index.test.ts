@@ -700,10 +700,11 @@ describe('the shipped defaults', () => {
         opencode: {
           binary: 'opencode',
           cost_class: 'metered-personal',
+          litellm_route: 'opencode-go',
           model_source: 'live',
           provider_cost_classes: { 'opencode-go': 'subsidised' },
         },
-        vibe: { binary: 'vibe', cost_class: 'subsidised', model_source: 'live' },
+        vibe: { binary: 'vibe', cost_class: 'subsidised', litellm_route: 'vibe', model_source: 'live' },
       },
       models: [
         {
@@ -7410,5 +7411,165 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     expect(printed(result)).toMatchObject({ client: 'codex', model: 'gpt-5.6', status: 'ok' })
     expect(attemptedModels(result)).toEqual(['codex:gpt-5.5', 'codex:gpt-5.6'])
     expect(codex.commands).toHaveLength(2)
+  })
+})
+
+/** A live LiteLLM catalogue as setup fetches it: the OpenCode Go plan probed, one model blocked, one free. */
+function liteLLMCatalogue(updatedAt = '2026-11-04T09:17:01Z'): unknown {
+  const probe = (id: string, status: string, extra: Record<string, unknown> = {}): unknown => ({
+    id,
+    metadata: { free: false, reason: '', status, ...extra },
+  })
+  return {
+    groups: {},
+    providers: {
+      'opencode-go': {
+        models: [
+          probe('opencode-go/beam-free', 'usable', { free: true }),
+          probe('opencode-go/iceman-contributor-free', 'blocked', {
+            reason: 'This OpenCode Go model trains on request data. Turn on "Allow paid endpoints that train on data".',
+          }),
+          probe('opencode-go/kimi-k2.7-code', 'usable'),
+          probe('opencode-go/mimo-v2.6-pro', 'budget-exhausted'),
+        ],
+      },
+      vibe: { models: [probe('vibe/zai-glm-5-3', 'blocked', { reason: 'Model zai-glm-5-3 is a Labs model.' })] },
+    },
+    updated_at: updatedAt,
+    version: 1,
+  }
+}
+
+describe('models: the live LiteLLM catalogue', () => {
+  const PLAN_ONLY = { installed: ['opencode'], listings: { opencode: OPENCODE_GO_PLAN_LISTING } }
+
+  async function withCatalogue(text: string): Promise<Workspace> {
+    const w = await workspace(PLAN_ONLY)
+    await mkdir(join(w.dir, 'cache', 'agent-kit'), { recursive: true })
+    await writeFile(join(w.dir, 'cache', 'agent-kit', 'litellm-catalogue.json'), text)
+    return w
+  }
+
+  it('offers only the usable models, skips a blocked one with the provider’s reason, and marks a free one', async () => {
+    const w = await withCatalogue(JSON.stringify(liteLLMCatalogue()))
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(result.exitCode).toBe(0)
+    expect(listed(result)).not.toContain('opencode:opencode-go/mimo-v2.6-pro')
+    expect(model(result, 'opencode:opencode-go/kimi-k2.7-code').free).toBeUndefined()
+    expect(printed(result).skipped).toContainEqual({
+      client: 'opencode',
+      model: 'opencode-go/iceman-contributor-free',
+      reason:
+        'blocked by the provider on LiteLLM route opencode-go: This OpenCode Go model trains on request data. Turn on "Allow paid endpoints that train on data".',
+    })
+    expect(printed(result).skipped).toContainEqual({
+      client: 'opencode',
+      model: 'opencode-go/mimo-v2.6-pro',
+      reason: 'the LiteLLM catalogue marks it budget-exhausted on route opencode-go',
+    })
+    expect(printed(result).warnings).toBeUndefined()
+  })
+
+  it('marks a free model that the gateway can place', async () => {
+    const w = await withCatalogue(JSON.stringify(liteLLMCatalogue()))
+    await w.writeOverride({ models: [{ client: 'opencode', family: 'beam', model: 'opencode-go/beam-free', notes: 'free', tier: 'trivial' }] })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(model(result, 'opencode:opencode-go/beam-free')).toMatchObject({ free: true, tier: 'trivial' })
+  })
+
+  it('lists the models unchecked, with a warning, when setup fetched no catalogue', async () => {
+    const w = await workspace(PLAN_ONLY)
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(result.exitCode).toBe(0)
+    expect(listed(result)).toContain('opencode:opencode-go/mimo-v2.6-pro')
+    expect(printed(result).warnings).toEqual([
+      `no LiteLLM catalogue at ${join(w.dir, 'cache', 'agent-kit', 'litellm-catalogue.json')}: setup fetches it, so the models are listed unchecked`,
+    ])
+  })
+
+  it('still judges by a stale catalogue, and warns that it is stale', async () => {
+    const w = await withCatalogue(JSON.stringify(liteLLMCatalogue('2026-11-01T09:17:01Z')))
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(result.exitCode).toBe(0)
+    expect(skippedModels(result)).toContain('opencode-go/iceman-contributor-free')
+    expect(printed(result).warnings).toEqual([
+      `the LiteLLM catalogue at ${join(w.dir, 'cache', 'agent-kit', 'litellm-catalogue.json')} is stale: updated 2026-11-01T09:17:01Z, 73 hours ago; setup refreshes it`,
+    ])
+  })
+
+  it('warns, and lists unchecked, when the catalogue is not JSON or not a catalogue', async () => {
+    const path = (w: Workspace): string => join(w.dir, 'cache', 'agent-kit', 'litellm-catalogue.json')
+    const notJson = await withCatalogue('<html>')
+    const notCatalogue = await withCatalogue('{"providers": {}}')
+
+    const first = await notJson.run('models', '--json', '{}')
+    const second = await notCatalogue.run('models', '--json', '{}')
+
+    expect(printed(first).warnings).toEqual([`the LiteLLM catalogue at ${path(notJson)} is not JSON, so the models are listed unchecked`])
+    expect(printed(second).warnings).toEqual([
+      `the LiteLLM catalogue at ${path(notCatalogue)} is not a catalogue (no updated_at), so the models are listed unchecked`,
+    ])
+    expect(listed(second)).toContain('opencode:opencode-go/mimo-v2.6-pro')
+  })
+
+  it('warns when the catalogue cannot be read', async () => {
+    const w = await workspace(PLAN_ONLY)
+    await mkdir(join(w.dir, 'cache', 'agent-kit', 'litellm-catalogue.json'), { recursive: true })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result).warnings).toEqual([
+      `the LiteLLM catalogue at ${join(w.dir, 'cache', 'agent-kit', 'litellm-catalogue.json')} cannot be read, so the models are listed unchecked`,
+    ])
+  })
+
+  it('says nothing of the catalogue when no client it judges is installed', async () => {
+    const w = await workspace()
+
+    expect(printed(await w.run('models', '--json', '{}')).warnings).toBeUndefined()
+  })
+
+  it('reads no catalogue when there is no home to find it in', async () => {
+    const w = await workspace({ ...PLAN_ONLY, env: { XDG_CONFIG_HOME: '/nonexistent-config', XDG_STATE_HOME: '/nonexistent-state' }, withoutHome: true })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result).warnings).toBeUndefined()
+  })
+})
+
+describe('model-gateway run: the live LiteLLM catalogue', () => {
+  it('refuses a model the catalogue says is blocked, with the provider’s reason, before anything is launched', async () => {
+    const w = await readyRun()
+    await mkdir(join(w.home, '.cache', 'agent-kit'), { recursive: true })
+    await writeFile(join(w.home, '.cache', 'agent-kit', 'litellm-catalogue.json'), JSON.stringify(liteLLMCatalogue('2026-11-03T09:17:01Z')))
+
+    const result = await w.run(w.input())
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toEqual({
+      code: 'model-not-usable',
+      message: 'vibe:glm-5-3 cannot run: blocked by the provider on LiteLLM route vibe: Model zai-glm-5-3 is a Labs model.',
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('runs a model the catalogue does not know, and runs anyway when there is no catalogue', async () => {
+    const w = await readyRun()
+    await mkdir(join(w.home, '.cache', 'agent-kit'), { recursive: true })
+    await writeFile(join(w.home, '.cache', 'agent-kit', 'litellm-catalogue.json'), '{"providers": {}, "updated_at": "2026-11-03T09:17:01Z"}')
+
+    expect(printed(await w.run(w.input())).status).toBe('ok')
   })
 })

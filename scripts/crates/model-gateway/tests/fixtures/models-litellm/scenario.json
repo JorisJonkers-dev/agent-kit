@@ -1,0 +1,222 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/vibe": "#!/bin/sh\necho \"$@\" >> \"$HOME/../work/vibe-calls\"\necho \"warning: could not reach the telemetry host\" >&2\necho \"Error: unknown model 'model-gateway-probe'. Available: deepseek-v4-1-flash-1017, glm-5-3, mistral-small-latest, zai-glm-5-3-flash, brand-new-id.\" >&2\nexit 1\n",
+        "bin/agy": "#!/bin/sh\nprintf 'Fetching available models...\\n'\nprintf 'gemini-3.8-flash-high\\tGemini 3.8 Flash High\\n'\nprintf 'gemini-3.8-flash-low\\tGemini Low\\n'\nprintf 'gemini-9-ultra\\tNew one\\n'\nprintf 'claude-sonnet-x\\tOther family\\n'\nprintf 'a line without a tab\\n'\nprintf '\\tno id\\n'\n",
+        "bin/opencode": "#!/bin/sh\ncase \"$1\" in\n  models)\n    printf 'opencode-go/glm-5.3\\nopencode-go/glm-5.3-flash\\nopencode-go/kimi-k3.1-pro\\nopencode/gpt-5-nano\\n  anthropic/claude-sonnet-4.6  \\nopencode-go/brand-new\\nopencode-go/glm-5.3\\nnoslash\\n/leading\\ntrailing/\\n\\n' ;;\n  auth) printf 'opencode-go  api key\\n' ;;\nesac\n",
+        "bin/hermes": "#!/bin/sh\ncase \"$1\" in\n  config) echo '{\"default\":\"anthropic/claude-sonnet-4.6\",\"provider\":\"openrouter\"}' ;;\n  auth) echo 'openrouter  api key' ;;\nesac\n",
+        "bin/codex": "#!/bin/sh\ncase \"$1\" in\n  login) echo 'Logged in using ChatGPT' ;;\nesac\n",
+        "bin/claude": "#!/bin/sh\nexit 0\n",
+        "cache/agent-kit/litellm-catalogue.json": "{\"version\":1,\"updated_at\":\"2026-11-03T11:17:01Z\",\"providers\":{\"vibe\":{\"models\":[{\"id\":\"vibe/zai-glm-5-3\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":false}},{\"id\":\"vibe/glm-5-3\",\"metadata\":{\"status\":\"error\",\"reason\":\"timeout\",\"free\":false}},{\"id\":\"vibe/mistral-small-latest\",\"metadata\":{\"status\":\"blocked\",\"reason\":\"Model mistral-small-latest is not available on your plan.\",\"free\":false}},{\"id\":\"vibe/zai-glm-5-3-flash\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":true}},{\"id\":\"vibe/zai-glm-5-3-flash\",\"metadata\":{\"status\":\"usable\",\"reason\":\"listed twice\",\"free\":true}},{\"id\":7},\"not a model\",{\"id\":\"vibe/no-metadata\",\"metadata\":\"x\"}]},\"opencode-go\":{\"models\":[{\"id\":\"opencode-go/kimi-k3.1-pro\",\"metadata\":{\"status\":\"unprobed\",\"reason\":\"\",\"free\":false}},{\"id\":\"opencode-go/brand-new\",\"metadata\":{\"status\":\"blocked\",\"reason\":\"This OpenCode Go model trains on request data.\",\"free\":false}},{\"id\":\"glm-5.3\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":true}}]}},\"groups\":{}}"
+      },
+      "exec": [
+        "bin/vibe",
+        "bin/agy",
+        "bin/opencode",
+        "bin/hermes",
+        "bin/codex",
+        "bin/claude"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-05T11:17:01Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "now": "2026-11-05T12:17:02Z",
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/agent-kit/litellm-catalogue.json": "{\"version\":1,\"updated_at\":\"yesterday\",\"providers\":{\"vibe\":{\"models\":[{\"id\":\"vibe/zai-glm-5-3\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":false}},{\"id\":\"vibe/glm-5-3\",\"metadata\":{\"status\":\"error\",\"reason\":\"timeout\",\"free\":false}},{\"id\":\"vibe/mistral-small-latest\",\"metadata\":{\"status\":\"blocked\",\"reason\":\"Model mistral-small-latest is not available on your plan.\",\"free\":false}},{\"id\":\"vibe/zai-glm-5-3-flash\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":true}},{\"id\":\"vibe/zai-glm-5-3-flash\",\"metadata\":{\"status\":\"usable\",\"reason\":\"listed twice\",\"free\":true}},{\"id\":7},\"not a model\",{\"id\":\"vibe/no-metadata\",\"metadata\":\"x\"}]},\"opencode-go\":{\"models\":[{\"id\":\"opencode-go/kimi-k3.1-pro\",\"metadata\":{\"status\":\"unprobed\",\"reason\":\"\",\"free\":false}},{\"id\":\"opencode-go/brand-new\",\"metadata\":{\"status\":\"blocked\",\"reason\":\"This OpenCode Go model trains on request data.\",\"free\":false}},{\"id\":\"glm-5.3\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":true}}]}},\"groups\":{}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/agent-kit/litellm-catalogue.json": "<html>"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/agent-kit/litellm-catalogue.json": "[]"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/agent-kit/litellm-catalogue.json": "{\"providers\": {}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/agent-kit/litellm-catalogue.json": "{\"updated_at\": \"2026-11-03T11:17:01Z\", \"providers\": []}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/agent-kit/litellm-catalogue.json": "{\"updated_at\": \"2026-11-03T11:17:01Z\", \"providers\": {\"vibe\": {}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/agent-kit/litellm-catalogue.json": "{\"updated_at\": \"2026-11-03T11:17:01Z\", \"providers\": {\"vibe\": 3}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "cache/agent-kit/litellm-catalogue.json"
+      ],
+      "mkdir": [
+        "cache/agent-kit/litellm-catalogue.json"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "relative-cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "cache/agent-kit/litellm-catalogue.json"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

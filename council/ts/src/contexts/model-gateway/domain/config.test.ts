@@ -333,7 +333,7 @@ describe('applyOverride', () => {
 
   it('refuses a client field it does not know, rather than quietly ignoring it', () => {
     expect(messageOf(() => applyOverride(shipped(), { clients: { vibe: { read_only_proof: 'trusted' } } }))).toBe(
-      'clients.vibe.read_only_proof is not a field a client has; choose from binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits',
+      'clients.vibe.read_only_proof is not a field a client has; choose from binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits, litellm_route',
     )
   })
 

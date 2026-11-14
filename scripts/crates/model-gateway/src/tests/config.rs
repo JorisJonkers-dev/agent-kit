@@ -888,7 +888,7 @@ fn an_override_adds_a_client_the_defaults_do_not_name() {
 fn an_override_refuses_a_client_field_it_does_not_know() {
     assert_eq!(
         message_of(apply_override(&shipped(), &json(r#"{"clients": {"vibe": {"read_only_proof": "trusted"}}}"#))),
-        "clients.vibe.read_only_proof is not a field a client has; choose from binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits"
+        "clients.vibe.read_only_proof is not a field a client has; choose from binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits, litellm_route"
     );
 }
 

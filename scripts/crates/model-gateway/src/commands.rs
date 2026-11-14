@@ -114,7 +114,13 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
         .collect();
     let now = runtime.clock.now_ms();
     let unavailable = standing_refusals(runtime, now);
-    let listing = models::list_models(&config, &installed, &listings, &unavailable);
+    let judges = config.clients.iter().any(|(id, client)| installed.contains(id) && client.litellm_route.is_some());
+    let reading = if judges { crate::litellm_catalogue::read_catalogue(runtime) } else { Default::default() };
+    let listing = crate::litellm_catalogue::judge_listing(
+        &config,
+        models::list_models(&config, &installed, &listings, &unavailable),
+        reading.catalogue.as_ref(),
+    );
     let scope = policy::resolve_scope(runtime, repo.as_deref())?;
     let subjects: Vec<PolicySubject> = listing
         .models
@@ -122,7 +128,7 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
         .map(|model| PolicySubject { client: model.client.clone(), model: model.model.clone(), family: model.family.clone() })
         .collect();
     let decision = policy::decide_policy(&config, &scope, &subjects);
-    Ok(policy::models_result_json(&decision.reason, &policy::permitted_models(listing, &decision)))
+    Ok(policy::models_result_json(&decision.reason, &policy::permitted_models(listing, &decision), reading.warning.as_deref()))
 }
 
 /// `models` takes the path of the repository the caller works in, when it has one.

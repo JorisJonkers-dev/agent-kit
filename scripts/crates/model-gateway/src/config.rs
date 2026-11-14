@@ -139,6 +139,8 @@ pub struct ClientConfig {
     pub providers: Option<Vec<String>>,
     /// What the client's plan allows, window by window; `None` when the owner has set none.
     pub plan_limits: Option<Vec<PlanLimit>>,
+    /// The provider route of the LiteLLM catalogue whose probes judge this client's models; `None` when it covers none.
+    pub litellm_route: Option<String>,
 }
 
 /// What one model costs, in USD per million tokens.

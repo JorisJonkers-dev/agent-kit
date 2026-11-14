@@ -37,6 +37,7 @@ import { GrantGuard } from './grants.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
 import { DELEGATION_MARK, READ_ONLY_AGENT, type LaunchPaths } from './launchers.js'
+import { requireUsable } from './litellm-catalogue.js'
 import { resolveScope } from './policy.js'
 import type { ClientConfig } from '../domain/config.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
@@ -390,6 +391,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     if (input.client === 'opencode') requireAllowedProvider(input.model, client.providers)
     this.requireProvider(input, client)
     const entry = catalogueEntry(config, input.client, input.model)
+    await requireUsable(this.deps, config, input.client, input.model)
     const family = entry?.family ?? familyOfModelId(input.model)
     if (family === undefined) {
       throw new ModelGatewayError(

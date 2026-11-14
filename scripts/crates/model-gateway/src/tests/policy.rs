@@ -74,6 +74,7 @@ fn listed(client: &str, model: &str, family: &str, cost_class: CostClass, tier: 
         tier,
         notes: notes.to_string(),
         source,
+        free: false,
     }
 }
 
@@ -278,7 +279,7 @@ fn the_models_result_prints_the_policy_the_status_and_the_listing() {
         missing: vec![MissingClient { client: "hermes".to_string(), reason: "not installed: hermes is not on PATH".to_string() }],
         skipped: vec![SkippedModel { client: "vibe".to_string(), model: "mystery".to_string(), reason: "no family".to_string() }],
     };
-    let printed = models_result_json("a nedap repository: only Codex and Claude Code, with code and history", &listing);
+    let printed = models_result_json("a nedap repository: only Codex and Claude Code, with code and history", &listing, None);
     let keys: Vec<&str> = printed.as_object().expect("an object").entries().into_iter().map(|(key, _)| key).collect();
     assert_eq!(keys, vec!["policy", "status", "missing", "models", "skipped"]);
     assert_eq!(
