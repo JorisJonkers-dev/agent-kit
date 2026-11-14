@@ -77,6 +77,11 @@ fn a_correct_record_is_clean() {
 }
 
 #[test]
+fn an_id_the_record_does_not_hold_has_no_rule_problems() {
+    assert_eq!(id_rule_problems(&record(GOOD), "not-in-the-record"), Vec::<String>::new());
+}
+
+#[test]
 fn a_malformed_record_is_not_parsed() {
     assert!(parse("ids: [").is_err());
     assert!(parse("surprise: 1").is_err());

@@ -174,9 +174,8 @@ fn md_stems(dir: &Path) -> BTreeSet<String> {
         for e in entries.flatten() {
             let path = e.path();
             if path.extension().is_some_and(|x| x == "md") {
-                if let Some(stem) = path.file_stem() {
-                    out.insert(stem.to_string_lossy().into_owned());
-                }
+                // A path with an extension has a stem.
+                out.extend(path.file_stem().map(|stem| stem.to_string_lossy().into_owned()));
             }
         }
     }

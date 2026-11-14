@@ -738,9 +738,8 @@ fn held_to(input: &RunInput, reservation: Option<&Reservation>) -> RunInput {
         return input.clone();
     };
     let mut held = input.clone();
-    if held.max_price_usd.is_none() {
-        held.tail.push("max_price_usd");
-    }
+    // A price the run did not send is written after the members it did.
+    held.tail.extend(input.max_price_usd.is_none().then_some("max_price_usd"));
     held.max_price_usd = Some(reservation.estimate.usd);
     held.time_limit_s = input.time_limit_s.min(reservation.time_limit_s);
     held

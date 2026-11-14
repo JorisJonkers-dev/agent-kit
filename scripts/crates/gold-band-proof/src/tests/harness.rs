@@ -351,7 +351,7 @@ fn inspect_ignores_nodes_that_are_not_an_array() {
 
 #[test]
 fn inspect_skips_entries_that_are_not_objects() {
-    let text = r#"{"id":"odd","nodes":[5,{"provider":"vibe","manual_check":false}],"modelBindings":{"bindings":[7,{"agentId":"agy"}]}}"#;
+    let text = r#"{"id":"odd","nodes":[5,{"provider":"vibe","manual_check":false}],"modelBindings":{"bindings":[7,{"modelId":"unbound"},{"agentId":"agy"}]}}"#;
     let info = inspect(text).expect("inspected");
     let agents: Vec<String> = info.agent_ids.iter().cloned().collect();
     assert_eq!(agents, vec!["agy".to_string(), "vibe".to_string()]);
@@ -1123,6 +1123,13 @@ fn prune_keeps_only_what_the_entry_reaches() {
         .map(|binding| binding["executionSlotId"].as_str().expect("slot"))
         .collect();
     assert_eq!(slots, vec!["slot-a", "slot-b"]);
+}
+
+#[test]
+fn prune_follows_no_edge_that_names_no_target() {
+    let text = r#"{"id":"bare","entry":"a","nodes":[{"id":"a"},{"id":"b"},{"id":"c"}],"edges":[{"from":"a","on":"failure"},{"from":"a","to":"b","on":"success"}]}"#;
+    let pruned: Value = serde_json::from_str(&prune(text, "a").expect("pruned")).expect("json");
+    assert_eq!(pruned["nodes"], json!([{"id": "a"}, {"id": "b"}]));
 }
 
 #[test]
@@ -2018,7 +2025,7 @@ const DYNAMIC_WORKFLOW: &str = r#"{"id":"dynamic","nodes":[
     {"id":"critics-1","type":"ai-dynamic","agentStrategy":{
         "mode":"dynamic","bootstrapProvider":"vibe","bootstrapModel":"glm-5-3",
         "acceptanceModel":"glm-5-3",
-        "availableAgents":[{"provider":"vibe","model":"glm-5-3"},{"provider":"claude","model":"sonnet"}],
+        "availableAgents":[{"provider":"vibe","model":"glm-5-3"},{"provider":"claude","model":"sonnet"},{"provider":"vibe"}],
         "routingPrompt":"route"
     },"control":{"max_rounds":3}}
 ]}"#;

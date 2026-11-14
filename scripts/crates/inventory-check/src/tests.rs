@@ -94,6 +94,15 @@ fn clean_inventory_passes() {
 }
 
 #[test]
+fn a_loose_file_among_the_skills_is_not_a_skill() {
+    let root = fixture("loose", GOOD);
+    fs::write(root.join("skills/workstation/README.md"), "notes").unwrap();
+    let p = check(&root);
+    let _ = fs::remove_dir_all(&root);
+    assert_eq!(p, Vec::<String>::new());
+}
+
+#[test]
 fn missing_role_and_skill_directories_count_as_empty() {
     let root = fixture("nodirs", GOOD);
     fs::remove_dir_all(root.join("skills/workstation/critique/roles")).unwrap();

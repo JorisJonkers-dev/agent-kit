@@ -150,15 +150,10 @@ pub fn read_code_packet(runtime: &Runtime, repository: &Resolved, tracker: &Trac
         _ => render_repo_map(&build_repo_map(&graph), &head_commit, repo_map_cap),
     };
     let slices = context_slices(&graph, &changed_files);
-    let mut importers: Vec<String> = Vec::new();
-    for path in &changed {
-        for importer in graph.importers(path) {
-            if !importers.contains(&importer) && !changed.contains(&importer) {
-                importers.push(importer);
-            }
-        }
-    }
+    // Each importer of a changed file once, unless it is changed itself.
+    let mut importers: Vec<String> = changed.iter().flat_map(|path| graph.importers(path)).filter(|importer| !changed.contains(importer)).collect();
     importers.sort_by(|a, b| crate::code_facts::code_unit_order(a, b));
+    importers.dedup();
     let named_text = documents.iter().map(|file| file.text.as_str()).collect::<Vec<_>>().join("\n");
     let ranked = ranked_paths(Some(&ranking));
     let map_note = if repo_map.source == "code-nav" { format!("`{REPO_MAP_PATH}` is built from that map.") } else { format!("`{REPO_MAP_PATH}` comes from the runner's own scan.") };

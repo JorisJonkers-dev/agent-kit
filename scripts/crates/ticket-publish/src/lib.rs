@@ -95,23 +95,16 @@ impl Tracker for GhCli {
         // fill a pipe buffer and deadlock the wait below.
         let out_reader = child.stdout.take().map(reader);
         let err_reader = child.stderr.take().map(reader);
-        if let Some(mut stdin) = child.stdin.take() {
-            // A child that exits before reading the body closes the pipe; its
-            // exit status is the answer that matters.
-            let _ = stdin.write_all(body.as_bytes());
-        }
+        // A child that exits before reading the body closes the pipe; its
+        // exit status is the answer that matters.
+        let _ = child.stdin.take().map(|mut stdin| stdin.write_all(body.as_bytes()));
         let status = match wait(&mut child, self.timeout) {
             Ok(status) => status,
             Err(message) => return Err(format!("gh issue create --repo {repo}: {message}")),
         };
-        let mut out = String::new();
-        if let Some(handle) = out_reader {
-            out = handle.join().unwrap_or_default();
-        }
-        let mut err = String::new();
-        if let Some(handle) = err_reader {
-            err = handle.join().unwrap_or_default();
-        }
+        // Both pipes were asked for, so both readers are there.
+        let out = out_reader.map(|handle| handle.join().unwrap_or_default()).unwrap_or_default();
+        let err = err_reader.map(|handle| handle.join().unwrap_or_default()).unwrap_or_default();
         if !status.success() {
             let message = err.trim();
             return Err(format!("gh issue create --repo {repo}: {message}"));

@@ -27,9 +27,15 @@ pub enum CheckedRead {
 impl CheckedTickets {
     /// The check as `check-tickets` prints it: `failed` while the tickets hold a dependency cycle, and the spec it read.
     pub fn result(&self) -> Value {
+        self.result_with(Vec::new())
+    }
+
+    /// [`Self::result`] with `extra` fields after the check's own; a field the check already has is replaced in place.
+    pub fn result_with(&self, extra: Vec<(&str, Value)>) -> Value {
         let spec = json::object(vec![("reference", Value::str(&self.spec.reference)), ("tracker", Value::str(self.spec.tracker))]);
         let mut pairs = vec![("status", Value::str(ticket_check_status(&self.check))), ("spec", spec)];
         pairs.extend(check_json(&self.check));
+        pairs.extend(extra);
         json::object(pairs)
     }
 }

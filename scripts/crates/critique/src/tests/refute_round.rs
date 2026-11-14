@@ -133,6 +133,15 @@ fn a_reply_is_judged_by_the_refuters_run_and_its_answer() {
     let unproven = judged(ok, vec![objection(Some("refute"), "major")]);
     assert_eq!((unproven.outcome.as_str(), unproven.reason_code.as_deref()), ("stands", Some("fabricated-evidence")));
     assert_eq!(compact(&record_json(&unproven)).matches("\"reply\"").count(), 1);
+    assert!(compact(&record_json(&unproven)).contains("\"id\":\"o1\""));
+    // A record read back from refute.json keeps no id for its reply, so none is written.
+    let read_back = RefuteRecord { reply_id: None, ..unproven };
+    assert!(!compact(&record_json(&read_back)).contains("\"id\""));
+}
+
+#[test]
+fn a_refute_file_that_is_not_an_object_is_refused() {
+    assert_eq!(crate::refute::parse_refute_file("[]"), Err("the value must be a JSON object".to_string()));
 }
 
 #[test]
@@ -171,6 +180,17 @@ impl Process for Reviewing {
 
 #[test]
 fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
+    ledger_refusing_round("");
+}
+
+#[test]
+fn a_manifest_with_a_ticket_check_runs_the_round_the_same_way() {
+    ledger_refusing_round(&format!(r#""ticket_check":{},"#, super::fan_out::TICKET_CHECK));
+}
+
+/// One refute round over a manifest with `extra` fields before its version, through a gateway ledger that refuses
+/// every record.
+fn ledger_refusing_round(extra: &str) {
     let sandbox = Sandbox::new();
     let root = sandbox.text();
     let write = |path: &str, text: &str| {
@@ -181,7 +201,7 @@ fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
     write("bin/agy", "");
     write("repo/README.md", "# r\n");
     let manifest = format!(
-        r#"{{"allowed_families":["google"],"artifact":{{"labels":[],"reference":"o/r#1","tracker":"github"}},"created_at":"2026-10-30T12:00:00.000Z","critics":[],"depth":"base","depth_choice":{{"chosen_by":"argument","measures":{{}},"signals":[]}},"distinct_families":true,"dropped":[],"flow":"f","limits":{{"antigravity_quota":{{"daily_cap":20,"reserve_threshold":10,"reserved_stages":["spec"]}},"search":{{"max_bytes":8192,"max_matches":50}}}},"orchestrator_family":"anthropic","packet_dir":"{root}/run/packet","packet_files":[],"repo_root":"{root}/repo","repository":"o/r","run_dir":"{root}/run","run_id":"r1","stage":"spec","version":1}}"#
+        r#"{{"allowed_families":["google"],"artifact":{{"labels":[],"reference":"o/r#1","tracker":"github"}},"created_at":"2026-10-30T12:00:00.000Z","critics":[],"depth":"base","depth_choice":{{"chosen_by":"argument","measures":{{}},"signals":[]}},"distinct_families":true,"dropped":[],"flow":"f","limits":{{"antigravity_quota":{{"daily_cap":20,"reserve_threshold":10,"reserved_stages":["spec"]}},"search":{{"max_bytes":8192,"max_matches":50}}}},"orchestrator_family":"anthropic","packet_dir":"{root}/run/packet","packet_files":[],"repo_root":"{root}/repo","repository":"o/r","run_dir":"{root}/run","run_id":"r1","stage":"spec",{extra}"version":1}}"#
     );
     let critic = r#"{"charged_usd":0,"client":"c","cost_usd":null,"critic_id":"c1","duration_ms":0,"exit_code":0,"family":"mistral","finding_count":1,"lens_hashes":{},"lenses":[],"model":"m","prompt_hashes":{"contract":"c","preamble":"p","role":"r","schema":"s"},"prompt_path":"/p","role":"spec-redteam","status":"ok"}"#;
     let finding = r#"{"category":"bug","claim":"c","critic_finding_id":"x","evidence":[],"id":"f1","location":"l","raised_by":["c1"],"severity":"critical"}"#;

@@ -96,6 +96,19 @@ impl Process for Reviewing {
 
 #[test]
 fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
+    ledger_refusing_fan_out(&[]);
+}
+
+#[test]
+fn a_manifest_with_a_ticket_check_fans_out_the_same_way() {
+    ledger_refusing_fan_out(&[("ticket_check", TICKET_CHECK)]);
+}
+
+/// The ticket check a tickets-stage manifest carries.
+pub const TICKET_CHECK: &str = r#"{"cycles":[],"dangling_blockers":[],"status":"passed","ticket_ids":["T1"],"uncited_stories":[]}"#;
+
+/// One fan-out over a manifest with `extra` fields, through a gateway ledger that refuses every record.
+fn ledger_refusing_fan_out(extra: &[(&str, &str)]) {
     let sandbox = Sandbox::new();
     let root = sandbox.text();
     let write = |path: &str, text: &str| {
@@ -107,7 +120,10 @@ fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
         r#"[{{"client":"agy-main","role":"spec-redteam","lenses":[],"max_price_usd":1,"time_limit_s":60,"critic_id":"c1","client_config":{},"fallbacks":[]}}]"#,
         client("agy")
     );
-    let text = manifest_text(&[("critics", &critic), ("packet_dir", &format!("\"{root}/run/packet\"")), ("repo_root", &format!("\"{root}/repo\"")), ("run_dir", &format!("\"{root}/run\""))]);
+    let (packet_dir, repo_root, run_dir) = (format!("\"{root}/run/packet\""), format!("\"{root}/repo\""), format!("\"{root}/run\""));
+    let mut fields = vec![("critics", critic.as_str()), ("packet_dir", packet_dir.as_str()), ("repo_root", repo_root.as_str()), ("run_dir", run_dir.as_str())];
+    fields.extend_from_slice(extra);
+    let text = manifest_text(&fields);
     write("run/manifest.json", &text);
     let mut runtime: Runtime = super::cli::runtime("");
     runtime.env = HashMap::from([("HOME".to_string(), format!("{root}/home")), ("PATH".to_string(), format!("{root}/bin")), ("XDG_STATE_HOME".to_string(), format!("{root}/state"))]);

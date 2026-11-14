@@ -212,6 +212,21 @@ fn a_released_settlement_is_written_with_its_reason_last_as_the_node_runner_spre
 }
 
 #[test]
+fn a_workflow_record_writes_its_end_only_when_it_has_one() {
+    let record = |ended_at: Option<&str>, ended_last: bool| WorkflowRecord {
+        name: "w".to_string(),
+        started_at: "2026-11-04T00:00:00.000Z".to_string(),
+        ended_at: ended_at.map(str::to_string),
+        ended_last,
+    };
+    let written = |record: WorkflowRecord| crate::json::compact(&record.to_json());
+    assert_eq!(written(record(None, true)), r#"{"name":"w","started_at":"2026-11-04T00:00:00.000Z"}"#);
+    assert_eq!(written(record(None, false)), r#"{"name":"w","started_at":"2026-11-04T00:00:00.000Z"}"#);
+    assert_eq!(written(record(Some("e"), true)), r#"{"name":"w","started_at":"2026-11-04T00:00:00.000Z","ended_at":"e"}"#);
+    assert_eq!(written(record(Some("e"), false)), r#"{"ended_at":"e","name":"w","started_at":"2026-11-04T00:00:00.000Z"}"#);
+}
+
+#[test]
 fn a_workflow_stops_taking_runs_when_someone_ends_it_or_its_24_hours_run_out_whichever_comes_first() {
     let record = |ended_at: Option<&str>| WorkflowRecord {
         name: "w".to_string(),

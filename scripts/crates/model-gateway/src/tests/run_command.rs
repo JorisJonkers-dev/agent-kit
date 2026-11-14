@@ -9,7 +9,7 @@ use crate::adapters::git::{SystemGit, TIMEOUT_MS};
 use crate::error::GatewayError;
 use crate::escalation_run::{AttemptError, AttemptedRun};
 use crate::json::{parse, Value};
-use crate::ports::{Clock, Files, Git, GitRemote, LockTimings, ProcessResult};
+use crate::ports::{Clock, FileStamp, Files, FsError, Git, GitRemote, LockTimings, ProcessResult};
 use crate::run_command::{RunCommand, RunResult};
 use crate::run::{RunMode, RunTokens};
 use std::collections::HashMap;
@@ -111,6 +111,73 @@ fn a_client_the_configuration_does_not_declare_is_refused() {
     let machine = machine();
     let error = run(&machine, r#"{"workflow":"w","client":"agy","mode":"read-only","model":"m","prompt":"p","escalate":false}"#).expect_err("unknown");
     assert_eq!((error.code.as_str(), error.message.as_str()), ("unknown-model", "the gateway knows no client agy"));
+}
+
+#[test]
+fn a_provider_client_with_no_provider_configured_is_refused_whichever_provider_it_names() {
+    let machine = machine();
+    let hermes = |extra: &str| format!(r#"{{"workflow":"w","client":"hermes","mode":"read-only","model":"hermes-hard","prompt":"p","escalate":false{extra}}}"#);
+    let error = run(&machine, &hermes("")).expect_err("no provider named");
+    assert_eq!((error.code.as_str(), error.message.as_str()), ("provider-not-allowed", "a hermes run must name its provider: this machine allows no provider"));
+    machine.write_override(r#"{"clients":{"hermes":{"providers":[]}}}"#);
+    let error = run(&machine, &hermes(r#","provider":"anthropic""#)).expect_err("no provider allowed");
+    assert_eq!((error.code.as_str(), error.message.as_str()), ("provider-not-allowed", "hermes may not run on anthropic: this machine allows no provider"));
+}
+
+/// The real files, except that nothing can be removed.
+struct Unremovable(SystemFiles);
+
+impl Files for Unremovable {
+    fn read_text(&self, path: &str) -> Result<String, FsError> {
+        self.0.read_text(path)
+    }
+    fn write_atomic(&self, path: &str, content: &str) -> Result<(), FsError> {
+        self.0.write_atomic(path, content)
+    }
+    fn mkdir_all(&self, path: &str) -> Result<(), FsError> {
+        self.0.mkdir_all(path)
+    }
+    fn create_exclusive(&self, path: &str) -> Result<bool, FsError> {
+        self.0.create_exclusive(path)
+    }
+    fn remove_file(&self, path: &str) -> Result<(), FsError> {
+        self.0.remove_file(path)
+    }
+    fn modified_ms(&self, path: &str) -> Option<i64> {
+        self.0.modified_ms(path)
+    }
+    fn exists(&self, path: &str) -> Result<bool, FsError> {
+        self.0.exists(path)
+    }
+    fn append(&self, path: &str, content: &str) -> Result<(), FsError> {
+        self.0.append(path, content)
+    }
+    fn stamp(&self, path: &str) -> Option<FileStamp> {
+        self.0.stamp(path)
+    }
+    fn write_private(&self, path: &str, content: &str) -> Result<(), FsError> {
+        self.0.write_private(path, content)
+    }
+    fn write_text(&self, path: &str, content: &str) -> Result<(), FsError> {
+        self.0.write_text(path, content)
+    }
+    fn temp_dir(&self, parent: &str, prefix: &str) -> Result<String, FsError> {
+        self.0.temp_dir(parent, prefix)
+    }
+    fn remove(&self, _path: &str) -> Result<(), FsError> {
+        Err(FsError { code: "EBUSY".into(), message: "EBUSY: resource busy or locked".into() })
+    }
+}
+
+#[test]
+fn a_throwaway_directory_that_cannot_be_removed_is_a_warning_on_a_run_that_finished() {
+    let mut machine = with_tmp(machine());
+    machine.runtime.files = Box::new(Unremovable(SystemFiles { cwd: machine.sandbox.text() }));
+    let result = run(&machine, r#"{"workflow":"w","client":"claude","mode":"read-only","model":"claude-sonnet-5-5","prompt":"p","escalate":false}"#).expect("the run finishes");
+    assert_eq!(text(&result, "status"), "ok", "{result:?}");
+    let warning = text(&result, "cleanup_warning");
+    assert!(warning.starts_with(&format!("cannot remove the throwaway worktree {}/tmp/", machine.sandbox.text())), "{warning}");
+    assert!(warning.ends_with(": EBUSY: resource busy or locked"), "{warning}");
 }
 
 #[test]

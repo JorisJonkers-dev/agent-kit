@@ -444,9 +444,8 @@ fn start(
             command.env("AGENT_KIT_SKILL_SET", name);
             let gold_band_home = std::env::var("GOLD_BAND_HOME").ok();
             let home = std::env::var("HOME").ok();
-            if let Some(dir) = skills_dir(gold_band_home.as_deref(), home.as_deref(), &plan.id) {
-                command.env("AGENT_KIT_SKILLS_DIR", dir);
-            }
+            // Without a home to put it under, no directory is exported.
+            command.envs(skills_dir(gold_band_home.as_deref(), home.as_deref(), &plan.id).map(|dir| ("AGENT_KIT_SKILLS_DIR", dir)));
         }
         None => {
             command.env_remove("AGENT_KIT_SKILL_SET");

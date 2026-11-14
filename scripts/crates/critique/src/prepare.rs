@@ -547,10 +547,7 @@ fn tickets_contents(runtime: &Runtime, tracker: &Tracker, input: &PrepareInput, 
 
 /// The checker's report as the ticket linter reads it, with the size limits routing sets.
 fn check_report_file(check: &CheckedTickets, size: &TicketSize) -> UnfrozenFile {
-    let mut report = check.result();
-    if let Value::Obj(object) = &mut report {
-        object.set("size", size_report(&check.check, size));
-    }
+    let report = check.result_with(vec![("size", size_report(&check.check, size))]);
     UnfrozenFile::new("check", "check/tickets.json", &format!("check-tickets {}", check.spec.reference), &format!("{}\n", json::pretty(&report)))
 }
 
