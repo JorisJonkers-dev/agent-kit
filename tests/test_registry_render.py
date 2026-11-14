@@ -1186,16 +1186,16 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
     """One route per agent id with its cap, rendered without any key value."""
     table = _litellm_table()
     caps = {route["agent"]: route["budget_eur"] for route in table["routes"]}
-    # openrouter is capped at 5, local (the GPU workstation's server) is free: no cap; public is small.
+    # The free routes (openrouter, local) reach nothing paid: no cap; public is small.
     assert caps == {
-        "vibe": 255, "vibe-study": 127.5, "opencode-go": 60, "openrouter": 5, "local": None, "public": 5,
+        "vibe": 255, "vibe-study": 127.5, "opencode-go": 60, "openrouter": None, "local": None, "public": 5,
     }
     # A key holds access groups of canonical models, not a provider wildcard each.
     assert {route["agent"]: route["models"] for route in table["routes"]} == {
         "vibe": ["canonical"],
         "vibe-study": ["canonical"],
         "opencode-go": ["canonical"],
-        "openrouter": ["canonical"],
+        "openrouter": ["openrouter-free-public"],
         "local": ["canonical"],
         "public": ["google-free-public", "canonical"],
     }
@@ -1230,12 +1230,37 @@ def test_only_the_public_key_reaches_the_google_free_tier_deployments() -> None:
     routes = _litellm_table()["routes"]
     google = {"google-free-public"}
     assert [r["agent"] for r in routes if _can_reach(routes, r["agent"], google)] == ["public"]
-    for agent in ("vibe", "vibe-study", "opencode-go", "openrouter", "local"):
+    for agent in ("vibe", "vibe-study", "opencode-go", "local"):
         assert not _can_reach(routes, agent, google), agent
         assert _can_reach(routes, agent, {"canonical"}), agent
     secrets = json.loads((KIT_ROOT / "registry" / "generated" / "workstation-secrets.json").read_text())
     teams = [e["litellm"]["team"] for e in secrets if e.get("mint") == "litellm"]
     assert [t["team_alias"] for t in teams if "google-free-public" in t["models"]] == ["public"]
+
+
+def test_the_free_route_reaches_its_own_free_group_and_nothing_paid() -> None:
+    """openrouter is public work only: its own group, never `canonical`."""
+    routes = _litellm_table()["routes"]
+    for agent, group in (("openrouter", "openrouter-free-public"),):
+        assert [r["agent"] for r in routes if _can_reach(routes, r["agent"], {group})] == [agent]
+        route = next(r for r in routes if r["agent"] == agent)
+        assert route["data_scope"] == "public"
+        assert not _can_reach(routes, agent, {"canonical"}), agent
+        assert not _can_reach(routes, agent, {"google-free-public"}), agent
+
+
+def test_every_public_only_group_is_held_by_public_keys_only() -> None:
+    routes = _litellm_table()["routes"]
+    for route in routes:
+        holds_public = bool(set(route["models"]) & set(render_registry.LITELLM_PUBLIC_GROUPS))
+        assert holds_public == (route["data_scope"] == "public"), route["agent"]
+    assert sorted(r["agent"] for r in routes if r["data_scope"] == "public") == ["openrouter", "public"]
+
+
+def test_the_free_route_key_is_minted_unexported() -> None:
+    secrets = {e["env"]: e for e in _registry()["workstation_secrets"]}
+    assert secrets["LITELLM_OPENROUTER_KEY"]["export"] is False
+    assert secrets["LITELLM_OPENROUTER_KEY"]["mint"] == "litellm"
 
 
 def test_the_public_key_is_stored_unexported_and_says_what_it_is_for() -> None:
@@ -1279,11 +1304,16 @@ def test_the_admin_token_script_makes_a_one_hour_management_key_and_no_agent_key
         (lambda d: d["litellm"]["routes"][0].update(models=["canonical", "canonical"]), "must not repeat"),
         (lambda d: d["litellm"]["routes"][0].update(data_scope="private"), "data_scope must be"),
         (lambda d: d["litellm"]["routes"][0].update(models=["google-free-public"]), "only a data_scope: public key"),
-        (lambda d: d["litellm"]["routes"][5].update(models=["canonical"]), "only a data_scope: public key"),
         (
-            lambda d: d["litellm"]["routes"][0].update(data_scope="public", models=["google-free-public"]),
-            "only one public",
+            lambda d: d["litellm"]["routes"][0].update(models=["canonical", "openrouter-free-public"]),
+            "only a data_scope: public key",
         ),
+        (
+            lambda d: d["litellm"]["routes"][1].update(models=["openrouter-free-public"]),
+            "only a data_scope: public key",
+        ),
+        (lambda d: d["litellm"]["routes"][5].update(models=["canonical"]), "must hold a public-only group"),
+        (lambda d: d["litellm"]["routes"][0].update(data_scope="public"), "must hold a public-only group"),
         (lambda d: d["litellm"]["routes"][4].update(budget_eur=-1), "positive number"),
         (lambda d: d["litellm"]["routes"][1].update(agent="vibe"), "unique lower-case agent id"),
         (lambda d: d["litellm"]["routes"][1].update(key_env="LITELLM_VIBE_KEY"), "unique variable name"),

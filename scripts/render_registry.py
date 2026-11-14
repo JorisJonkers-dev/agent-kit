@@ -5817,8 +5817,11 @@ RUST_COOLDOWN_MINOR = 100
 
 LITELLM_ENV = re.compile(r"[A-Z][A-Z0-9_]*")
 LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "budget_duration", "data_scope", "models"}
-# The access group only the public key may hold: Google may train on free-tier prompts.
-LITELLM_PUBLIC_GROUP = "google-free-public"
+# The public-only access groups: the free-tier deployments, whose provider may train on the
+# prompts (the Google free tier, OpenRouter's free models). Only a `data_scope: public` key may
+# hold one, and a public key holds at least one; several public keys are allowed. The litellm
+# repository puts each free provider's deployments in its own group (litellm catalog/sync.py).
+LITELLM_PUBLIC_GROUPS = ("google-free-public", "openrouter-free-public")
 LITELLM_BUDGET_DURATION = "30d"
 
 
@@ -5899,12 +5902,17 @@ def _validate_litellm(data: dict[str, Any]) -> None:
             raise RegistryError(f"litellm route {agent}: models must be access group names, never a wildcard")
         if len(set(groups)) != len(groups):
             raise RegistryError(f"litellm route {agent}: models must not repeat an access group")
-        if (LITELLM_PUBLIC_GROUP in groups) != (scope == "public"):
+        public_groups = sorted(set(groups) & set(LITELLM_PUBLIC_GROUPS))
+        if public_groups and scope != "public":
             raise RegistryError(
-                f"litellm route {agent}: only a data_scope: public key holds {LITELLM_PUBLIC_GROUP}, and it must",
+                f"litellm route {agent}: only a data_scope: public key holds a public-only group "
+                f"({', '.join(public_groups)}): a free-tier provider may train on the prompts",
             )
-    if sum(1 for r in routes if r["data_scope"] == "public") > 1:
-        raise RegistryError("litellm.routes may hold only one public key")
+        if scope == "public" and not public_groups:
+            raise RegistryError(
+                f"litellm route {agent}: a data_scope: public key must hold a public-only group "
+                f"({', '.join(LITELLM_PUBLIC_GROUPS)})",
+            )
 
 
 def litellm_team_requests(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
