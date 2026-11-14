@@ -8,6 +8,7 @@ against a temp HOME (tests/setup_harness.py).
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -73,3 +74,24 @@ def test_claude_calls_for_the_work_profile_run_without_a_config_root(tmp_path: P
     assert work_calls, seen
     assert (run.home / ".claude.json").exists()
     assert not (run.home / ".claude" / ".claude.json").exists()
+
+
+def test_a_personal_settings_copy_is_folded_back_and_linked(tmp_path: Path) -> None:
+    """A settings.json Claude Code wrote into the personal root before setup linked it is replaced by the link."""
+
+    def stray(home: Path) -> None:
+        # The primary already has its settings.json; only the personal root holds a stray copy.
+        (home / ".claude").mkdir(exist_ok=True)
+        (home / ".claude" / "settings.json").write_text('{"enabledPlugins": {"tdd@kit": true}}\n')
+        (home / ".claude-personal").mkdir()
+        (home / ".claude-personal" / "settings.json").write_text('{"theme": "dark"}\n')
+
+    run = setup_run(tmp_path / "stray", "Linux", prepare_home=stray)
+    personal = run.home / ".claude-personal" / "settings.json"
+    assert personal.is_symlink(), run.stdout
+    assert personal.resolve() == (run.home / ".claude" / "settings.json").resolve()
+    assert list((run.home / ".claude-personal").glob("settings.json.bak-*"))
+    assert "folded" in run.stdout
+    shared = json.loads((run.home / ".claude" / "settings.json").read_text())
+    assert shared["theme"] == "dark"
+    assert shared["enabledPlugins"]["tdd@kit"] is True
