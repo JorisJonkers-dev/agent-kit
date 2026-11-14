@@ -85,6 +85,11 @@ RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
 LITELLM_ROUTES = Path("registry/generated/litellm/routes.json")
 LITELLM_ADMIN_TOKEN_SCRIPT = Path("registry/generated/litellm/make-admin-token.sh")
+# The chat models each LiteLLM access group serves, by canonical name (a snapshot).
+LITELLM_ACCESS_GROUPS = Path("registry/litellm-access-groups.json")
+# One Pi provider per LiteLLM route; scripts/pi-merge-providers.py merges it into Pi's models.json.
+PI_PROVIDERS = Path("registry/generated/pi/providers.json")
+PI_MERGE_PROVIDERS = Path("scripts/pi-merge-providers.py")
 NIXOS_PACKAGES = Path("registry/generated/nixos/packages.nix")
 # The devWorkstation groups a NixOS package can belong to: core is always
 # installed, the others are optional. This order is the rendered order.
@@ -4548,7 +4553,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
         if pin_block:
             # The whole step is generated from the pin block, so a pinned
             # npm CLI takes no install:/update:/version_command: of its own.
-            out.extend(_cloud_guard(_pinned_npm_cli_block(cli, pin_block), cli, ""))
+            block = _pinned_npm_cli_block(cli, pin_block)
+            if name == "pi" and data.get("litellm"):
+                block = [*block, *_pi_providers_block()]
+            out.extend(_cloud_guard(block, cli, ""))
             continue
         block: list[str] = []
         b = block.append
@@ -5985,6 +5993,75 @@ def render_litellm_admin_token_script(data: dict[str, Any]) -> str:
     ])
 
 
+def litellm_route_models(access_groups: list[str]) -> list[str]:
+    """The chat models a key holding these access groups reaches, by canonical name.
+
+    A route reaches every model of each access group its key holds. This reads the
+    snapshot in ``registry/litellm-access-groups.json``; it is the one place to swap for
+    the live catalogue's ``canonical_groups()`` (#568), which takes the same groups.
+    """
+    groups = json.loads((KIT_ROOT / LITELLM_ACCESS_GROUPS).read_text())["groups"]
+    models: set[str] = set()
+    for group in access_groups:
+        if group not in groups:
+            raise RegistryError(f"litellm access group {group!r} is not in {LITELLM_ACCESS_GROUPS}")
+        models.update(groups[group])
+    return sorted(models)
+
+
+def pi_provider_name(route: dict[str, Any]) -> str:
+    """The Pi provider a LiteLLM route is, by the estate's naming: ``litellm-<agent>``."""
+    return f"litellm-{route['agent']}"
+
+
+def render_pi_providers(data: dict[str, Any]) -> str:
+    """One Pi provider per LiteLLM route: the proxy URL, the route's key variable and its models.
+
+    No key is in here: setup turns ``key_env`` into an ``apiKey`` command that reads the
+    key from the secret store when Pi sends a request.
+    """
+    section = data.get("litellm") or {}
+    table = {
+        "generated_from": "registry/estate-tooling.yaml",
+        "base_url": section.get("base_url"),
+        "api": "openai-completions",
+        "providers": [
+            {
+                "name": pi_provider_name(route),
+                "key_env": route["key_env"],
+                "models": litellm_route_models(route["models"]),
+            }
+            for route in section.get("routes") or []
+        ],
+    }
+    return json.dumps(table, indent=2) + "\n"
+
+
+def _pi_providers_block() -> list[str]:
+    """Setup's step that writes one Pi provider per LiteLLM route into Pi's models.json.
+
+    Each provider's ``apiKey`` is a ``!command`` that runs agent-kit-secret when Pi sends
+    a request, so no key reaches models.json, argv or the environment. Entries the
+    owner added are kept; a provider setup wrote for a route that is gone is removed.
+    """
+    return [
+        "# One Pi provider per LiteLLM route (litellm-<agent>) in Pi's models.json; each",
+        "# reads its route key from the secret store at request time.",
+        'pi_providers_args=(--providers "${KIT_ROOT}/' + str(PI_PROVIDERS) + '"',
+        '  --models-json "${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}/models.json"',
+        '  --state "${HOME}/.config/agent-kit/pi-providers.json"',
+        '  --secret-helper "${HOME}/.local/bin/agent-kit-secret")',
+        'if [ "${CHECK_ONLY}" = 1 ]; then',
+        "  pi_providers_args+=(--check)",
+        "fi",
+        f'if pi_providers_said="$(python3 "${{KIT_ROOT}}/{PI_MERGE_PROVIDERS}" "${{pi_providers_args[@]}}")"; then',
+        '  ok "pi: LiteLLM providers ${pi_providers_said}"',
+        "else",
+        '  fail "pi: could not merge the LiteLLM providers into Pi\'s models.json"',
+        "fi",
+    ]
+
+
 def render_litellm_routes(data: dict[str, Any]) -> str:
     """The route table the launchers and litellm-gate read: names and caps, never a key."""
     section = data.get("litellm")
@@ -6081,6 +6158,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         NIXOS_PACKAGES: (render_nixos_packages(data), 0o644),
         LITELLM_ROUTES: (render_litellm_routes(data), 0o644),
         LITELLM_ADMIN_TOKEN_SCRIPT: (render_litellm_admin_token_script(data), 0o755),
+        PI_PROVIDERS: (render_pi_providers(data), 0o644),
         **{
             VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)
             for agent in vibe_critic_agents(data)
