@@ -1,0 +1,1204 @@
+{
+  "generated_from": "registry/estate-tooling.yaml",
+  "base_url": "https://litellm.jorisjonkers.dev/v1",
+  "routes": [
+    {
+      "agent": "vibe",
+      "provider": "litellm-vibe",
+      "key_env": "LITELLM_VIBE_KEY",
+      "data_scope": "any",
+      "models": [
+        {
+          "id": "beam-1.0-501b-a23b"
+        },
+        {
+          "id": "claude-fable-5"
+        },
+        {
+          "id": "claude-fable-5-1"
+        },
+        {
+          "id": "claude-fable-5-2"
+        },
+        {
+          "id": "claude-haiku-4-5"
+        },
+        {
+          "id": "claude-haiku-5-5"
+        },
+        {
+          "id": "claude-opus-4-5"
+        },
+        {
+          "id": "claude-opus-4-6"
+        },
+        {
+          "id": "claude-opus-4-7"
+        },
+        {
+          "id": "claude-opus-4-8"
+        },
+        {
+          "id": "claude-opus-5"
+        },
+        {
+          "id": "claude-opus-5-5"
+        },
+        {
+          "id": "claude-sonnet-4-6"
+        },
+        {
+          "id": "claude-sonnet-5"
+        },
+        {
+          "id": "claude-sonnet-5-5"
+        },
+        {
+          "id": "codestral",
+          "contextWindow": 256000
+        },
+        {
+          "id": "deepseek-v4.1-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.2",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "gpt-6-luna"
+        },
+        {
+          "id": "hy3"
+        },
+        {
+          "id": "hy4-preview"
+        },
+        {
+          "id": "kimi-k2.7-code"
+        },
+        {
+          "id": "longcat-2.0"
+        },
+        {
+          "id": "magistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "magistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mimo-v2.6-flash"
+        },
+        {
+          "id": "mimo-v2.6-pro"
+        },
+        {
+          "id": "minimax-m3.1-flash"
+        },
+        {
+          "id": "ministral-14b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "ministral-3b",
+          "contextWindow": 131072
+        },
+        {
+          "id": "ministral-8b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-code",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-code-fim",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-large",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-large-4",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-large-4-0",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3.5",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-fast",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-with-tools",
+          "contextWindow": 262144
+        },
+        {
+          "id": "qwen3.8-flash"
+        },
+        {
+          "id": "step-5-preview"
+        },
+        {
+          "id": "voxtral-small",
+          "contextWindow": 32768
+        },
+        {
+          "id": "zai-glm",
+          "contextWindow": 1048576
+        }
+      ]
+    },
+    {
+      "agent": "vibe-study",
+      "provider": "litellm-vibe-study",
+      "key_env": "LITELLM_VIBE_STUDY_KEY",
+      "data_scope": "any",
+      "models": [
+        {
+          "id": "beam-1.0-501b-a23b"
+        },
+        {
+          "id": "claude-fable-5"
+        },
+        {
+          "id": "claude-fable-5-1"
+        },
+        {
+          "id": "claude-fable-5-2"
+        },
+        {
+          "id": "claude-haiku-4-5"
+        },
+        {
+          "id": "claude-haiku-5-5"
+        },
+        {
+          "id": "claude-opus-4-5"
+        },
+        {
+          "id": "claude-opus-4-6"
+        },
+        {
+          "id": "claude-opus-4-7"
+        },
+        {
+          "id": "claude-opus-4-8"
+        },
+        {
+          "id": "claude-opus-5"
+        },
+        {
+          "id": "claude-opus-5-5"
+        },
+        {
+          "id": "claude-sonnet-4-6"
+        },
+        {
+          "id": "claude-sonnet-5"
+        },
+        {
+          "id": "claude-sonnet-5-5"
+        },
+        {
+          "id": "codestral",
+          "contextWindow": 256000
+        },
+        {
+          "id": "deepseek-v4.1-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.2",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "gpt-6-luna"
+        },
+        {
+          "id": "hy3"
+        },
+        {
+          "id": "hy4-preview"
+        },
+        {
+          "id": "kimi-k2.7-code"
+        },
+        {
+          "id": "longcat-2.0"
+        },
+        {
+          "id": "magistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "magistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mimo-v2.6-flash"
+        },
+        {
+          "id": "mimo-v2.6-pro"
+        },
+        {
+          "id": "minimax-m3.1-flash"
+        },
+        {
+          "id": "ministral-14b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "ministral-3b",
+          "contextWindow": 131072
+        },
+        {
+          "id": "ministral-8b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-code",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-code-fim",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-large",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-large-4",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-large-4-0",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3.5",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-fast",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-with-tools",
+          "contextWindow": 262144
+        },
+        {
+          "id": "qwen3.8-flash"
+        },
+        {
+          "id": "step-5-preview"
+        },
+        {
+          "id": "voxtral-small",
+          "contextWindow": 32768
+        },
+        {
+          "id": "zai-glm",
+          "contextWindow": 1048576
+        }
+      ]
+    },
+    {
+      "agent": "opencode-go",
+      "provider": "litellm-opencode-go",
+      "key_env": "LITELLM_OPENCODE_GO_KEY",
+      "data_scope": "any",
+      "models": [
+        {
+          "id": "beam-1.0-501b-a23b"
+        },
+        {
+          "id": "claude-fable-5"
+        },
+        {
+          "id": "claude-fable-5-1"
+        },
+        {
+          "id": "claude-fable-5-2"
+        },
+        {
+          "id": "claude-haiku-4-5"
+        },
+        {
+          "id": "claude-haiku-5-5"
+        },
+        {
+          "id": "claude-opus-4-5"
+        },
+        {
+          "id": "claude-opus-4-6"
+        },
+        {
+          "id": "claude-opus-4-7"
+        },
+        {
+          "id": "claude-opus-4-8"
+        },
+        {
+          "id": "claude-opus-5"
+        },
+        {
+          "id": "claude-opus-5-5"
+        },
+        {
+          "id": "claude-sonnet-4-6"
+        },
+        {
+          "id": "claude-sonnet-5"
+        },
+        {
+          "id": "claude-sonnet-5-5"
+        },
+        {
+          "id": "codestral",
+          "contextWindow": 256000
+        },
+        {
+          "id": "deepseek-v4.1-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.2",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "gpt-6-luna"
+        },
+        {
+          "id": "hy3"
+        },
+        {
+          "id": "hy4-preview"
+        },
+        {
+          "id": "kimi-k2.7-code"
+        },
+        {
+          "id": "longcat-2.0"
+        },
+        {
+          "id": "magistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "magistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mimo-v2.6-flash"
+        },
+        {
+          "id": "mimo-v2.6-pro"
+        },
+        {
+          "id": "minimax-m3.1-flash"
+        },
+        {
+          "id": "ministral-14b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "ministral-3b",
+          "contextWindow": 131072
+        },
+        {
+          "id": "ministral-8b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-code",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-code-fim",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-large",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-large-4",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-large-4-0",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3.5",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-fast",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-with-tools",
+          "contextWindow": 262144
+        },
+        {
+          "id": "qwen3.8-flash"
+        },
+        {
+          "id": "step-5-preview"
+        },
+        {
+          "id": "voxtral-small",
+          "contextWindow": 32768
+        },
+        {
+          "id": "zai-glm",
+          "contextWindow": 1048576
+        }
+      ]
+    },
+    {
+      "agent": "openrouter",
+      "provider": "litellm-openrouter",
+      "key_env": "LITELLM_OPENROUTER_KEY",
+      "data_scope": "public",
+      "models": [
+        {
+          "id": "openrouter/dots-3-note-preview",
+          "contextWindow": 512000,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/ernie-5.5-flash-preview",
+          "contextWindow": 1024000,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/flint-v1.0",
+          "contextWindow": 262144,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/free",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/gemma-4-26b-a4b-it",
+          "contextWindow": 262144,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/gemma-4-31b-it",
+          "contextWindow": 262144,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/lfm-3-1.7b",
+          "contextWindow": 262144,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/ling-3.2-flash",
+          "contextWindow": 1048576,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/lyria-3-pro-preview",
+          "contextWindow": 1048576,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/nemotron-3-nano-omni-30b-a3b-reasoning",
+          "contextWindow": 256000,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/nemotron-3-ultra-550b-a55b",
+          "contextWindow": 1000000,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/nemotron-3.5-lightning",
+          "contextWindow": 1000000,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/nemotron-3.5-super-vl",
+          "contextWindow": 1000000,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/north-mini-code",
+          "contextWindow": 256000,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "openrouter/particle-1",
+          "contextWindow": 1048576,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        }
+      ]
+    },
+    {
+      "agent": "local",
+      "provider": "litellm-local",
+      "key_env": "LITELLM_LOCAL_KEY",
+      "data_scope": "any",
+      "models": [
+        {
+          "id": "beam-1.0-501b-a23b"
+        },
+        {
+          "id": "claude-fable-5"
+        },
+        {
+          "id": "claude-fable-5-1"
+        },
+        {
+          "id": "claude-fable-5-2"
+        },
+        {
+          "id": "claude-haiku-4-5"
+        },
+        {
+          "id": "claude-haiku-5-5"
+        },
+        {
+          "id": "claude-opus-4-5"
+        },
+        {
+          "id": "claude-opus-4-6"
+        },
+        {
+          "id": "claude-opus-4-7"
+        },
+        {
+          "id": "claude-opus-4-8"
+        },
+        {
+          "id": "claude-opus-5"
+        },
+        {
+          "id": "claude-opus-5-5"
+        },
+        {
+          "id": "claude-sonnet-4-6"
+        },
+        {
+          "id": "claude-sonnet-5"
+        },
+        {
+          "id": "claude-sonnet-5-5"
+        },
+        {
+          "id": "codestral",
+          "contextWindow": 256000
+        },
+        {
+          "id": "deepseek-v4.1-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.2",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "gpt-6-luna"
+        },
+        {
+          "id": "hy3"
+        },
+        {
+          "id": "hy4-preview"
+        },
+        {
+          "id": "kimi-k2.7-code"
+        },
+        {
+          "id": "longcat-2.0"
+        },
+        {
+          "id": "magistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "magistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mimo-v2.6-flash"
+        },
+        {
+          "id": "mimo-v2.6-pro"
+        },
+        {
+          "id": "minimax-m3.1-flash"
+        },
+        {
+          "id": "ministral-14b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "ministral-3b",
+          "contextWindow": 131072
+        },
+        {
+          "id": "ministral-8b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-code",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-code-fim",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-large",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-large-4",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-large-4-0",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3.5",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-fast",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-with-tools",
+          "contextWindow": 262144
+        },
+        {
+          "id": "qwen3.8-flash"
+        },
+        {
+          "id": "step-5-preview"
+        },
+        {
+          "id": "voxtral-small",
+          "contextWindow": 32768
+        },
+        {
+          "id": "zai-glm",
+          "contextWindow": 1048576
+        }
+      ]
+    },
+    {
+      "agent": "public",
+      "provider": "litellm-public",
+      "key_env": "LITELLM_PUBLIC_KEY",
+      "data_scope": "public",
+      "models": [
+        {
+          "id": "beam-1.0-501b-a23b"
+        },
+        {
+          "id": "claude-fable-5"
+        },
+        {
+          "id": "claude-fable-5-1"
+        },
+        {
+          "id": "claude-fable-5-2"
+        },
+        {
+          "id": "claude-haiku-4-5"
+        },
+        {
+          "id": "claude-haiku-5-5"
+        },
+        {
+          "id": "claude-opus-4-5"
+        },
+        {
+          "id": "claude-opus-4-6"
+        },
+        {
+          "id": "claude-opus-4-7"
+        },
+        {
+          "id": "claude-opus-4-8"
+        },
+        {
+          "id": "claude-opus-5"
+        },
+        {
+          "id": "claude-opus-5-5"
+        },
+        {
+          "id": "claude-sonnet-4-6"
+        },
+        {
+          "id": "claude-sonnet-5"
+        },
+        {
+          "id": "claude-sonnet-5-5"
+        },
+        {
+          "id": "codestral",
+          "contextWindow": 256000
+        },
+        {
+          "id": "deepseek-v4.1-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.2",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "glm-5.3-flash",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "gpt-6-luna"
+        },
+        {
+          "id": "hy3"
+        },
+        {
+          "id": "hy4-preview"
+        },
+        {
+          "id": "kimi-k2.7-code"
+        },
+        {
+          "id": "longcat-2.0"
+        },
+        {
+          "id": "magistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "magistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mimo-v2.6-flash"
+        },
+        {
+          "id": "mimo-v2.6-pro"
+        },
+        {
+          "id": "minimax-m3.1-flash"
+        },
+        {
+          "id": "ministral-14b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "ministral-3b",
+          "contextWindow": 131072
+        },
+        {
+          "id": "ministral-8b",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-code",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-code-fim",
+          "contextWindow": 256000
+        },
+        {
+          "id": "mistral-large",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-large-4",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-large-4-0",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "mistral-medium",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-medium-3.5",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-small",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-fast",
+          "contextWindow": 262144
+        },
+        {
+          "id": "mistral-vibe-cli-with-tools",
+          "contextWindow": 262144
+        },
+        {
+          "id": "public/gemini-3-flash-preview",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-3.1-flash-lite",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-3.1-flash-lite-preview",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-3.5-flash",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-3.5-flash-lite",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-3.5-transcribe",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-3.6-flash",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-3.7-flash",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-3.8-flash",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-4-hydrogen",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-flash-lite",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemini-robotics-er-2-preview",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemma-4-26b-a4b-it",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "public/gemma-4-31b-it",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "qwen3.8-flash"
+        },
+        {
+          "id": "step-5-preview"
+        },
+        {
+          "id": "voxtral-small",
+          "contextWindow": 32768
+        },
+        {
+          "id": "zai-glm",
+          "contextWindow": 1048576
+        }
+      ]
+    }
+  ]
+}

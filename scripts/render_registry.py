@@ -89,6 +89,9 @@ LITELLM_ADMIN_TOKEN_SCRIPT = Path("registry/generated/litellm/make-admin-token.s
 # One Pi provider per LiteLLM route; scripts/pi-merge-providers.py merges it into Pi's models.json.
 PI_PROVIDERS = Path("registry/generated/pi/providers.json")
 PI_MERGE_PROVIDERS = Path("scripts/pi-merge-providers.py")
+# The other harnesses' LiteLLM provider entries and launcher (scripts/litellm-harness.py).
+LITELLM_HARNESSES = Path("registry/generated/litellm/harnesses.json")
+LITELLM_HARNESS_SCRIPT = Path("scripts/litellm-harness.py")
 NIXOS_PACKAGES = Path("registry/generated/nixos/packages.nix")
 # The devWorkstation groups a NixOS package can belong to: core is always
 # installed, the others are optional. This order is the rendered order.
@@ -5359,6 +5362,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      _agents_pointer "${OPENCODE_HOME}/AGENTS.md" shared')
     w('      attribution_rule "${OPENCODE_HOME}/AGENTS.md"')
     w("    fi")
+    if data.get("litellm"):
+        for line in _litellm_harness_block():
+            w(line)
     w("    converge_mcp")
     w("    # Verify the VALUE, not the exit codes: ask Claude what it")
     w("    # actually has, and check every expected server is present.")
@@ -6130,6 +6136,82 @@ def _pi_providers_block() -> list[str]:
     ]
 
 
+def render_litellm_harnesses(data: dict[str, Any]) -> str:
+    """The route table scripts/litellm-harness.py reads: proxy URL, and per route its provider,
+    key variable, data scope and models. Never a key."""
+    section = data.get("litellm") or {}
+    table = {
+        "generated_from": "registry/estate-tooling.yaml",
+        "base_url": section.get("base_url"),
+        "routes": [
+            {
+                "agent": route["agent"],
+                "provider": pi_provider_name(route),
+                "key_env": route["key_env"],
+                "data_scope": route["data_scope"],
+                "models": litellm_route_models(route["models"]),
+            }
+            for route in section.get("routes") or []
+        ],
+    }
+    return json.dumps(table, indent=2) + "\n"
+
+
+def _litellm_harness_block() -> list[str]:
+    """Setup's step that gives Codex, Hermes, OpenCode and Vibe a provider per LiteLLM route.
+
+    Each entry names the route's key variable, never the key. Vibe's entries go in a home of
+    their own, never ~/.vibe or ~/.vibe-private. The launcher (agent-kit-litellm) is installed
+    beside the table it reads, and is replaced only when setup wrote it.
+    """
+    table = f'"${{KIT_ROOT}}/{LITELLM_HARNESSES}"'
+    script = f'"${{KIT_ROOT}}/{LITELLM_HARNESS_SCRIPT}"'
+    out = [
+        "    # One LiteLLM provider per route (litellm-<agent>) in each harness's own config, and the",
+        "    # agent-kit-litellm launcher that runs a harness on a route with its key from the secret store.",
+        '    litellm_check=""',
+        '    [ "${CHECK_ONLY}" = 1 ] && litellm_check="--check"',
+        '    litellm_state="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit"',
+        '    litellm_launcher="${HOME}/.local/bin/agent-kit-litellm"',
+        '    litellm_marker="# managed by agent-kit setup-workstation.sh"',
+        '    if [ "${CHECK_ONLY}" = 1 ]; then',
+        '      log "would install ${litellm_launcher}"',
+        '    elif [ -e "${litellm_launcher}" ] && ! grep -qxF "${litellm_marker}" "${litellm_launcher}"; then',
+        '      warn "${litellm_launcher} exists and was not written by setup; left alone"',
+        "    else",
+        '      mkdir -p "${HOME}/.local/bin" "${litellm_state}" \\',
+        f'        && install -m 0644 {table} "${{litellm_state}}/litellm-harnesses.json" \\',
+        f'        && install -m 0755 {script} "${{litellm_launcher}}" \\',
+        '        && ok "agent-kit-litellm -> ${litellm_launcher}" \\',
+        '        || fail "agent-kit-litellm: could not install ${litellm_launcher}"',
+        "    fi",
+    ]
+    targets = (
+        ("codex", "codex", '"${CODEX_HOME}/config.toml"'),
+        ("hermes", "hermes", '"${HERMES_HOME:-${HOME}/.hermes}/config.yaml"'),
+        ("opencode", "opencode", '"${OPENCODE_HOME}/opencode.json"'),
+        ("vibe", "vibe", '"${litellm_state}/vibe-litellm/config.toml"'),
+    )
+    for harness, binary, config in targets:
+        guard = f"command -v {binary} >/dev/null 2>&1"
+        if harness == "opencode":
+            guard += ' && [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ]'
+        else:
+            guard += ' && [ "${CLOUD}" != 1 ]'
+        out += [
+            f"    if {guard}; then",
+            '      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit'
+            " --with pyyaml python \\",
+            f"        {script} --table {table} configure {harness} --config {config} ${{litellm_check}})\"; then",
+            f'        ok "{harness}: ${{litellm_said}}"',
+            "      else",
+            f'        fail "{harness}: could not write the LiteLLM providers"',
+            "      fi",
+            "    fi",
+        ]
+    return out
+
+
 def render_litellm_routes(data: dict[str, Any]) -> str:
     """The route table the launchers and litellm-gate read: names and caps, never a key."""
     section = data.get("litellm")
@@ -6227,6 +6309,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         LITELLM_ROUTES: (render_litellm_routes(data), 0o644),
         LITELLM_ADMIN_TOKEN_SCRIPT: (render_litellm_admin_token_script(data), 0o755),
         PI_PROVIDERS: (render_pi_providers(data), 0o644),
+        LITELLM_HARNESSES: (render_litellm_harnesses(data), 0o644),
         **{
             VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)
             for agent in vibe_critic_agents(data)
