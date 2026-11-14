@@ -5752,17 +5752,15 @@ def _validate_litellm(data: dict[str, Any]) -> None:
     base = str(section.get("base_url") or "")
     if not re.fullmatch(r"https://[A-Za-z0-9.-]+(/[A-Za-z0-9._-]+)*", base):
         raise RegistryError("litellm.base_url must be an https URL with no trailing slash")
-    if not re.fullmatch(r"[a-z][a-z0-9-]*", str(section.get("key_header") or "")):
-        raise RegistryError("litellm.key_header must be a lower-case header name")
-    edge = str(section.get("edge_token_env") or "")
-    if not LITELLM_ENV.fullmatch(edge):
-        raise RegistryError("litellm.edge_token_env must be an environment variable name")
+    # The sign-in edge is gone (litellm#17): a key is a plain bearer, so neither its second header
+    # nor the edge token has a place in the table.
+    for gone in ("key_header", "edge_token_env"):
+        if gone in section:
+            raise RegistryError(f"litellm.{gone} is retired: the proxy is anonymous at the edge, a key is a bearer")
     routes = section.get("routes") or []
     if not routes:
         raise RegistryError("litellm.routes must name at least one agent id")
     secrets_by_env = {str(e["env"]): e for e in _entries(data, "workstation_secrets") if not e.get("retired")}
-    if secrets_by_env.get(edge, {}).get("export") is not False:
-        raise RegistryError(f"litellm.edge_token_env {edge} must be a workstation secret with export: false")
     seen_agents: set[str] = set()
     seen_envs: set[str] = set()
     for route in routes:
@@ -5783,7 +5781,7 @@ def _validate_litellm(data: dict[str, Any]) -> None:
             raise RegistryError(f"litellm route agent {agent!r} must be a unique lower-case agent id")
         seen_agents.add(agent)
         key_env = str(route["key_env"])
-        if not LITELLM_ENV.fullmatch(key_env) or key_env in seen_envs or key_env == edge:
+        if not LITELLM_ENV.fullmatch(key_env) or key_env in seen_envs:
             raise RegistryError(f"litellm route {agent}: key_env {key_env!r} must be a unique variable name")
         seen_envs.add(key_env)
         secret = secrets_by_env.get(key_env)
@@ -5874,8 +5872,6 @@ def render_litellm_routes(data: dict[str, Any]) -> str:
     table = {
         "generated_from": "registry/estate-tooling.yaml",
         "base_url": section["base_url"],
-        "key_header": section["key_header"],
-        "edge_token_env": section["edge_token_env"],
         "routes": section["routes"],
     } if section else {"routes": []}
     return json.dumps(table, indent=2) + "\n"

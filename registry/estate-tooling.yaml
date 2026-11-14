@@ -104,14 +104,11 @@ workstation_secrets:
   # The LiteLLM virtual keys, one per cheap agent id (the `litellm` section).
   # The owner makes each on the proxy with its max budget and pastes it here.
   # No check: litellm-gate is what proves a key works and has budget left.
-  # LEGACY, optional: the auth-api service token the sign-in edge wanted as the bearer
-  # in front of the proxy. The proxy is anonymous at the edge now (litellm#17), so a key is a
-  # plain `Authorization: Bearer`; leave this empty. While it is stored the tools still send
-  # the old two-header form (token as the bearer, key in `key_header`), which works either way.
+  # The auth-api service token the old sign-in edge wanted in front of the proxy. The proxy
+  # is anonymous at the edge (litellm#17) and LiteLLM checks each key itself, so nothing sends
+  # it any more. Removed from the secret store.
   - env: LITELLM_EDGE_TOKEN
-    paste: "LEGACY, leave empty: an auth-api service token for litellm.jorisjonkers.dev, only while the edge still signs callers in"
-    unchecked: the proxy is not tried with the token on its own; litellm-gate checks the key
-    export: false
+    retired: true
   - env: LITELLM_VIBE_KEY
     paste: "the LiteLLM virtual key for the vibe agent id, made on the proxy with a max budget of 255 per 30 days"
     unchecked: the key is not tried on its own; litellm-gate checks it
@@ -174,17 +171,12 @@ workstation_secrets:
 # budget_exceeded) and the node fails: litellm-gate turns that into exit 1.
 #
 # The proxy is anonymous at the edge (litellm#17): LiteLLM authenticates every
-# request itself, so the virtual key is a plain `Authorization: Bearer`. Only
-# while `edge_token_env` is stored (the old sign-in edge) do the tools send the
-# two-header form: the auth-api service token as the bearer and the key in
-# `key_header`, which LiteLLM always reads and prefers to Authorization. The
+# request itself, so the virtual key is a plain `Authorization: Bearer`. The
 # keys are pasted once into the one secret store
 # (workstation_secrets below), never written to a file in any repository.
 # -------------------------------------------------------------------
 litellm:
   base_url: "https://litellm.jorisjonkers.dev/v1"
-  key_header: x-litellm-api-key
-  edge_token_env: LITELLM_EDGE_TOKEN
   # Each route is one virtual key. `models` are ACCESS GROUP names, not wildcards: a key reaches
   # the canonical models (one name per model, routed across the provider accounts by priority,
   # litellm#20) that carry one of its groups. litellm#19 puts every deployment but a Google free-tier one, the

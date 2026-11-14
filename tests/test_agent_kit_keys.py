@@ -581,14 +581,14 @@ def test_requests_do_not_use_the_python_urllib_agent(home: dict, auth: tuple[Aut
 
 
 def test_an_entry_without_a_check_url_is_unchecked_and_asks_no_host() -> None:
-    """A key whose host cannot be asked on its own (LiteLLM behind the sign-in edge) is stored as pasted."""
+    """A key whose host cannot be asked on its own (a LiteLLM key: litellm-gate checks it) is stored as pasted."""
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("agent_kit_keys_under_test", KEYS)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    entry = {"env": "LITELLM_VIBE_KEY", "paste": "x", "unchecked": "behind the edge", "export": False}
+    entry = {"env": "LITELLM_VIBE_KEY", "paste": "x", "unchecked": "litellm-gate checks it", "export": False}
     assert module.check(entry, "sk-anything") == "unchecked"
 
 

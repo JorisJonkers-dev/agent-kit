@@ -5,8 +5,8 @@
 //! exit code 1 when the proxy refuses it because the key's budget is
 //! exhausted, or when the proxy cannot be asked at all. The key is read from the
 //! environment and handed to `curl` through a config on its stdin, so no
-//! secret is ever in an argv, and neither the key, the edge token nor the
-//! response body is ever printed.
+//! secret is ever in an argv, and neither the key nor the response body is
+//! ever printed.
 //!
 //! std only, like agent-kit-setup: the probe spawns `curl`.
 
@@ -16,11 +16,7 @@ use std::process::{Command, Stdio};
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 
-/// The header the key travels in when an edge token holds `Authorization` (the proxy
-/// always accepts it, and it wins over `Authorization`).
-const LEGACY_HEADER: &str = "x-litellm-api-key";
-
-/// The standard header: with no edge token the key is `Authorization: Bearer <key>`.
+/// The standard header: by default the key is `Authorization: Bearer <key>`.
 const STANDARD_HEADER: &str = "Authorization";
 
 /// The fixed curl arguments; everything else, secrets included, goes on stdin.
@@ -65,14 +61,13 @@ struct Options {
     key_env: String,
     model: String,
     header: Option<String>,
-    edge_token_env: Option<String>,
 }
 
 /// The usage text a bad command line prints.
 fn usage() -> String {
     format!(
         "usage: {NAME} --version\n       {NAME} check --node <name> --url <base-url> \
-         --key-env <ENV> --model <model> [--header <name>] [--edge-token-env <ENV>]"
+         --key-env <ENV> --model <model> [--header <name>]"
     )
 }
 
@@ -83,7 +78,7 @@ fn parse(args: Vec<OsString>) -> Result<Options, String> {
         return Err("expected the command `check`".into());
     }
     let (mut node, mut url, mut key_env, mut model) = (None, None, None, None);
-    let (mut header, mut edge) = (None, None);
+    let mut header = None;
     while let Some(flag) = args.next() {
         let flag = flag.map_err(|_| "non-UTF-8 argument")?;
         let slot = match flag.as_str() {
@@ -92,7 +87,6 @@ fn parse(args: Vec<OsString>) -> Result<Options, String> {
             "--key-env" => &mut key_env,
             "--model" => &mut model,
             "--header" => &mut header,
-            "--edge-token-env" => &mut edge,
             _ => return Err("unknown argument".into()),
         };
         let value = args.next().ok_or(format!("{flag} needs a value"))?;
@@ -111,7 +105,6 @@ fn parse(args: Vec<OsString>) -> Result<Options, String> {
         key_env: need(key_env, "--key-env")?,
         model: need(model, "--model")?,
         header,
-        edge_token_env: edge,
     })
 }
 
@@ -179,16 +172,9 @@ fn config_quote(value: &str) -> String {
 }
 
 /// Builds the curl config written to curl's stdin. It carries the URL, the
-/// key header and the optional edge bearer, so none of them is in an argv.
-/// When the key header is `Authorization` the key is the bearer and there is
-/// no edge token (the one header cannot carry both).
-pub fn curl_config(
-    base_url: &str,
-    header: &str,
-    key: &str,
-    edge_token: Option<&str>,
-    model: &str,
-) -> String {
+/// key header, so neither is in an argv. When the key header is
+/// `Authorization` the key is the bearer.
+pub fn curl_config(base_url: &str, header: &str, key: &str, model: &str) -> String {
     let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
     let mut config = format!("url = {}\nrequest = \"POST\"\n", config_quote(&url));
     if header.eq_ignore_ascii_case(STANDARD_HEADER) {
@@ -198,10 +184,6 @@ pub fn curl_config(
         );
     } else {
         config += &format!("header = {}\n", config_quote(&format!("{header}: {key}")));
-    }
-    if let Some(token) = edge_token.filter(|_| !header.eq_ignore_ascii_case(STANDARD_HEADER)) {
-        let bearer = format!("Authorization: Bearer {token}");
-        config += &format!("header = {}\n", config_quote(&bearer));
     }
     config += "header = \"Content-Type: application/json\"\n";
     config += &format!("data = {}\n", config_quote(&probe_body(model)));
@@ -277,21 +259,9 @@ where
         );
     }
     let key = read_secret(env, &options.key_env)?;
-    let edge = match &options.edge_token_env {
-        Some(var) => Some(read_secret(env, var)?),
-        None => None,
-    };
-    // An edge token holds Authorization, so the key rides in the legacy header; without one the
-    // key is a standard bearer. An explicit --header wins.
-    let header = options.header.clone().unwrap_or_else(|| {
-        if edge.is_some() {
-            LEGACY_HEADER
-        } else {
-            STANDARD_HEADER
-        }
-        .to_string()
-    });
-    let config = curl_config(&options.url, &header, &key, edge.as_deref(), &options.model);
+    // The key is a standard bearer unless an explicit --header names another one.
+    let header = options.header.as_deref().unwrap_or(STANDARD_HEADER);
+    let config = curl_config(&options.url, header, &key, &options.model);
     Ok(verdict_of(fetch_with(program, &config)))
 }
 

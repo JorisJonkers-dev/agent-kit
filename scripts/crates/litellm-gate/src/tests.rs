@@ -61,7 +61,6 @@ fn stub(status: u16, body: &'static str) -> (String, JoinHandle<String>) {
 fn env(var: &str) -> Option<String> {
     match var {
         "LITELLM_KEY" => Some(KEY.to_string()),
-        "EDGE_TOKEN" => Some("edge.tok-1".to_string()),
         "EMPTY" => Some(String::new()),
         "BAD" => Some("sk bad\"key".to_string()),
         _ => None,
@@ -89,7 +88,7 @@ fn below_cap_exits_zero_and_sends_the_key_only_in_the_header() {
     assert_eq!(run_with(check_args(&url, &[]), env), 0);
     let request = server.join().unwrap();
     assert!(request.starts_with("POST /v1/chat/completions HTTP/1.1"));
-    // No edge token: the key is a standard bearer, and nothing else carries it.
+    // The key is a standard bearer, and nothing else carries it.
     assert!(request.contains(&format!("Authorization: Bearer {KEY}")));
     assert!(!request.to_ascii_lowercase().contains("x-litellm-api-key"));
     assert!(request.contains(r#""model":"gpt-4o""#));
@@ -245,8 +244,6 @@ fn missing_or_empty_env_names_the_variable() {
     assert!(why.contains("NOPE"));
     a = args(&["--url", "http://127.0.0.1:1/v1", "--key-env", "EMPTY"]);
     assert_eq!(run_with(a, env), 1);
-    let a = check_args("http://127.0.0.1:1/v1", &["--edge-token-env", "NOPE2"]);
-    assert_eq!(run_with(a, env), 1);
 }
 
 #[test]
@@ -280,40 +277,19 @@ fn unsafe_model_or_url_fails() {
 }
 
 #[test]
-fn edge_token_and_custom_header_are_sent() {
+fn a_custom_header_carries_the_key_and_no_authorization_is_sent() {
     let (url, server) = stub(200, "{}");
-    let a = check_args(
-        &url,
-        &["--header", "X-Custom-Key", "--edge-token-env", "EDGE_TOKEN"],
-    );
+    let a = check_args(&url, &["--header", "X-Custom-Key"]);
     assert_eq!(run_with(a, env), 0);
     let request = server.join().unwrap().to_ascii_lowercase();
     assert!(request.contains(&format!("x-custom-key: {}", KEY.to_ascii_lowercase())));
-    assert!(request.contains("authorization: bearer edge.tok-1"));
-    assert!(!request.contains("x-litellm-api-key"));
+    assert!(!request.contains("authorization:"));
 }
 
 #[test]
-fn an_edge_token_keeps_the_key_in_the_legacy_header() {
-    let (url, server) = stub(200, "{}");
-    let a = check_args(&url, &["--edge-token-env", "EDGE_TOKEN"]);
-    assert_eq!(run_with(a, env), 0);
-    let request = server.join().unwrap().to_ascii_lowercase();
-    assert!(request.contains(&format!("x-litellm-api-key: {}", KEY.to_ascii_lowercase())));
-    assert!(request.contains("authorization: bearer edge.tok-1"));
-}
-
-#[test]
-fn an_explicit_authorization_header_never_carries_the_edge_token_too() {
-    let config = curl_config(
-        "https://l.example/v1",
-        "authorization",
-        KEY,
-        Some("edge-sentinel"),
-        "m",
-    );
+fn an_explicit_authorization_header_makes_the_key_the_bearer() {
+    let config = curl_config("https://l.example/v1", "authorization", KEY, "m");
     assert!(config.contains(&format!("header = \"Authorization: Bearer {KEY}\"")));
-    assert!(!config.contains("edge-sentinel"));
 }
 
 #[test]
@@ -344,10 +320,11 @@ fn unknown_flags_and_invalid_names_are_never_echoed() {
     let (message, code) = execute(a, env, "curl");
     assert_eq!(code, 1);
     assert!(message.contains("<invalid name>") && !message.contains("sk-secret"));
-    let a = check_args("https://h/v1", &["--edge-token-env", "bad-name"]);
+    // The edge token is gone with the sign-in edge (litellm#17): its old flag is an unknown argument.
+    let a = check_args("https://h/v1", &["--edge-token-env", "EDGE_TOKEN"]);
     let (message, code) = execute(a, env, "curl");
-    assert_eq!(code, 1);
-    assert!(!message.contains("bad-name"));
+    assert_eq!(code, 2);
+    assert!(message.contains("unknown argument"));
     assert!(name_is_valid("A1_B") && !name_is_valid("1A") && !name_is_valid("a"));
 }
 
@@ -416,14 +393,14 @@ fn secrets_reach_curl_on_stdin_and_never_in_argv() {
     );
     let held = fake_exe::lock();
     fake_exe::write_executable(&held, &fake, &script);
-    let a = check_args("https://l.example/v1", &["--edge-token-env", "EDGE_TOKEN"]);
+    let a = check_args("https://l.example/v1", &[]);
     let (message, code) = super::execute(a, env, fake.to_str().unwrap());
     assert_eq!((code, message.contains("within")), (0, true));
     let argv = std::fs::read_to_string(&argv).unwrap();
     assert!(argv.contains("--config") && argv.contains("--max-time"));
-    assert!(!argv.contains(KEY) && !argv.contains("edge.tok-1"));
+    assert!(!argv.contains(KEY));
     let stdin = std::fs::read_to_string(&stdin).unwrap();
-    assert!(stdin.contains(KEY) && stdin.contains("edge.tok-1"));
+    assert!(stdin.contains(KEY));
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
@@ -484,20 +461,13 @@ fn verdict_of_parses_the_last_line() {
 
 #[test]
 fn curl_config_carries_secrets_and_escapes() {
-    let config = curl_config(
-        "https://l.example/v1/",
-        "x-litellm-api-key",
-        KEY,
-        Some("tok"),
-        "m/1",
-    );
+    let config = curl_config("https://l.example/v1/", "x-litellm-api-key", KEY, "m/1");
     assert!(config.contains("url = \"https://l.example/v1/chat/completions\""));
     assert!(config.contains("request = \"POST\""));
     assert!(config.contains(&format!("header = \"x-litellm-api-key: {KEY}\"")));
-    assert!(config.contains("header = \"Authorization: Bearer tok\""));
     assert!(config.contains("data = \"{\\\"model\\\":\\\"m/1\\\""));
     assert!(config.ends_with("write-out = \"\\n%{http_code}\"\n"));
-    let plain = curl_config("http://h/v1", "h", "k", None, "m");
+    let plain = curl_config("http://h/v1", "h", "k", "m");
     assert!(!plain.contains("Authorization"));
     assert_eq!(config_quote("a\\b\"c"), "\"a\\\\b\\\"c\"");
 }

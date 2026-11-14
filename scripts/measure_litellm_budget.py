@@ -4,14 +4,13 @@
 One GET /key/info with the agent id's key: LiteLLM answers with the key's
 ``max_budget``, ``budget_duration``, ``budget_reset_at`` and ``spend``. It is
 not a model call, so it costs nothing. The output is those four fields and the
-request that asked, with both credentials redacted; nothing else of the reply
+request that asked, with the key redacted; nothing else of the reply
 and no key value is ever printed.
 
-The key (and the edge token, if one is stored) come from the environment or, when unset, from
-the one secret store (``installer/agent-kit-secret get``), the place setup put them. The key is
-sent as ``Authorization: Bearer``. While an edge token is stored, that header carries the token
-instead (the edge still signs callers in) and the key goes in ``x-litellm-api-key``, the
-proxy's own header, which it always accepts (see docs/LITELLM.md).
+The key comes from the environment or, when unset, from the one secret store
+(``installer/agent-kit-secret get``), the place setup put it. It is sent as
+``Authorization: Bearer``: the proxy is anonymous at the edge and LiteLLM checks the key itself
+(see docs/LITELLM.md).
 
 Usage::
 
@@ -64,17 +63,13 @@ def route_for(agent: str, routes: Path = ROUTES) -> dict[str, object]:
         if route["agent"] == agent:
             return {
                 "key_env": route["key_env"],
-                "edge_env": table["edge_token_env"],
-                "header": table["key_header"],
                 "base_url": table["base_url"],
             }
     raise Failure(f"no route for agent {agent!r}; known: {', '.join(r['agent'] for r in table['routes'])}", 2)
 
 
-def credential(name: str, env: Mapping[str, str], secret: Path = SECRET, *, required: bool = True) -> str:
-    """The value from the environment, else the secret store; never printed.
-
-    A value that is not set is a failure, or an empty string when `required` is false."""
+def credential(name: str, env: Mapping[str, str], secret: Path = SECRET) -> str:
+    """The value from the environment, else the secret store; never printed. A value that is not set is a failure."""
     value = env.get(name, "")
     if not value:
         try:
@@ -89,8 +84,6 @@ def credential(name: str, env: Mapping[str, str], secret: Path = SECRET, *, requ
             value = done.stdout.strip() if done.returncode == 0 else ""
         except subprocess.TimeoutExpired:
             value = ""
-    if not value and not required:
-        return ""
     if not value:
         raise Failure(f"{name} is not set and not in the secret store; run setup and paste it", 2)
     if not SAFE.fullmatch(value):
@@ -117,18 +110,8 @@ def measure(
     route = route_for(agent, routes)
     target = endpoint(url or str(route["base_url"]))
     key = credential(str(route["key_env"]), env, secret)
-    # An edge token holds Authorization (the proxy still behind the sign-in edge), so the key rides
-    # in the legacy header, which the proxy always accepts. With none set the key is the bearer.
-    edge = credential(str(route["edge_env"]), env, secret, required=False)
-    if edge:
-        headers = {"Authorization": f"Bearer {edge}", str(route["header"]): f"Bearer {key}"}
-        shown = (
-            f"GET {target}\n  Authorization: Bearer <{route['edge_env']}, redacted>\n"
-            f"  {route['header']}: Bearer <{route['key_env']}, redacted>"
-        )
-    else:
-        headers = {"Authorization": f"Bearer {key}"}
-        shown = f"GET {target}\n  Authorization: Bearer <{route['key_env']}, redacted>"
+    headers = {"Authorization": f"Bearer {key}"}
+    shown = f"GET {target}\n  Authorization: Bearer <{route['key_env']}, redacted>"
     request = urllib.request.Request(target, method="GET", headers={**headers, "User-Agent": AGENT})
     try:
         with urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect).open(

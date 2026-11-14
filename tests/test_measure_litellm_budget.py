@@ -18,7 +18,6 @@ measure = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(measure)
 
 KEY = "sk-virtual-key-1234"
-EDGE = "smt_edge_token_5678"
 INFO = {
     "info": {
         "max_budget": 255.0,
@@ -58,7 +57,7 @@ def proxy() -> Iterator[tuple[str, list[dict[str, str]]]]:
     yield from stub(200, json.dumps(INFO).encode())
 
 
-ENV = {"LITELLM_VIBE_KEY": KEY, "LITELLM_EDGE_TOKEN": EDGE}
+ENV = {"LITELLM_VIBE_KEY": KEY}
 
 
 def test_prints_only_the_budget_fields_and_a_redacted_request(proxy, capsys) -> None:
@@ -66,21 +65,19 @@ def test_prints_only_the_budget_fields_and_a_redacted_request(proxy, capsys) -> 
     assert measure.main(["--url", url], ENV) == 0
     out = capsys.readouterr()
     assert seen[0]["path"] == "/key/info"
-    assert seen[0]["authorization"] == f"Bearer {EDGE}"
-    assert seen[0]["x-litellm-api-key"] == f"Bearer {KEY}"
+    assert seen[0]["authorization"] == f"Bearer {KEY}"
+    assert "x-litellm-api-key" not in seen[0]
     assert '"30d"' in out.out and "255.0" in out.out and "2026-12-01T00:00:00Z" in out.out and "1.5" in out.out
     assert "GET " in out.out and "/key/info" in out.out and "redacted" in out.out
-    for secret in (KEY, EDGE, "hashed-secret-field", "key_name"):
+    for secret in (KEY, "hashed-secret-field", "key_name"):
         assert secret not in out.out + out.err
 
 
-def test_without_an_edge_token_the_key_is_the_standard_bearer(proxy, capsys, tmp_path) -> None:
+def test_a_stored_legacy_edge_token_is_never_sent(proxy) -> None:
     url, seen = proxy
-    empty = tmp_path / "secret"
-    empty.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(1)\n")
-    shown, _ = measure.measure("vibe", url, {"LITELLM_VIBE_KEY": KEY}, secret=empty)
-    assert seen[0]["authorization"] == f"Bearer {KEY}" and "x-litellm-api-key" not in seen[0]
-    assert KEY not in shown and EDGE not in shown
+    shown, _ = measure.measure("vibe", url, {"LITELLM_VIBE_KEY": KEY, "LITELLM_EDGE_TOKEN": "smt_old_edge"})
+    assert seen[0]["authorization"] == f"Bearer {KEY}"
+    assert "smt_old_edge" not in str(seen[0]) and KEY not in shown
 
 
 def test_an_unset_budget_prints_null(capsys) -> None:
@@ -93,7 +90,7 @@ def test_a_refusal_fails_with_the_status_and_no_secret(capsys) -> None:
     for url, _ in stub(401, b'{"error": "bad key sk-virtual-key-1234"}'):
         assert measure.main(["--url", url], ENV) == 1
     err = capsys.readouterr().err
-    assert "HTTP 401" in err and KEY not in err and EDGE not in err
+    assert "HTTP 401" in err and KEY not in err
 
 
 @pytest.mark.parametrize("body", [b"not json", b"[]", b'{"info": 3}'])
