@@ -1,5 +1,38 @@
 # Changelog
 
+## [6.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.1.0...v6.2.0) (2026-11-14)
+
+
+### Features
+
+* **agent-launcher:** confine a whole process to a read allowlist with Landlock ([#744](https://github.com/JorisJonkers-dev/agent-kit/issues/744)) ([fdb73bf](https://github.com/JorisJonkers-dev/agent-kit/commit/fdb73bf802d09903a8c1a0e9733b68b9d93d82bb))
+* **critique:** add a pi critic client kind for critics and refuters on LiteLLM routes ([#743](https://github.com/JorisJonkers-dev/agent-kit/issues/743)) ([bbe07ba](https://github.com/JorisJonkers-dev/agent-kit/commit/bbe07ba19966ef0ccf5adeae37090e3150c53542))
+* **critique:** make Pi over LiteLLM the default critic and keep public-route clients off private repositories ([#760](https://github.com/JorisJonkers-dev/agent-kit/issues/760)) ([d0aa1b6](https://github.com/JorisJonkers-dev/agent-kit/commit/d0aa1b6e1490e9b6e8f7db87b6279457db1c48ed))
+* **critique:** run every Pi critic confined to its packet by agent-launcher ([#747](https://github.com/JorisJonkers-dev/agent-kit/issues/747)) ([c44759b](https://github.com/JorisJonkers-dev/agent-kit/commit/c44759b62836467adade3c1007f1e3f1c0fb6b91))
+* **critique:** stats report precision per check and the refute round's outcomes ([#754](https://github.com/JorisJonkers-dev/agent-kit/issues/754)) ([762329e](https://github.com/JorisJonkers-dev/agent-kit/commit/762329eeef81d47c2167f9223f3fea4d64a9854b)), closes [#679](https://github.com/JorisJonkers-dev/agent-kit/issues/679)
+* **gold-band:** bind Workflow B to Pi and Claude and run it live with pinned shim agents ([#755](https://github.com/JorisJonkers-dev/agent-kit/issues/755)) ([6abc214](https://github.com/JorisJonkers-dev/agent-kit/commit/6abc21483254c2ad516cfb8850510fd741f16667))
+* **gold-band:** hold the work instance's Hindsight server to the Nedap bank ([#749](https://github.com/JorisJonkers-dev/agent-kit/issues/749)) ([7371c20](https://github.com/JorisJonkers-dev/agent-kit/commit/7371c20cd8c5b6039aa7e781412b44e2dc05262b))
+* **gold-band:** Workflow A, deep research, in the personal instance ([#456](https://github.com/JorisJonkers-dev/agent-kit/issues/456)) ([#746](https://github.com/JorisJonkers-dev/agent-kit/issues/746)) ([54a2b60](https://github.com/JorisJonkers-dev/agent-kit/commit/54a2b60473c9785874f5fcedd67d2afc555453c8))
+* **launcher:** confine Pi critics harder and give them the search server ([#762](https://github.com/JorisJonkers-dev/agent-kit/issues/762)) ([97443b6](https://github.com/JorisJonkers-dev/agent-kit/commit/97443b6095715a4e97a8f7f6e2da18545d298f5b))
+* **litellm:** make the free OpenRouter route public-only, and keys follow their team's models ([#739](https://github.com/JorisJonkers-dev/agent-kit/issues/739)) ([3dcdf2f](https://github.com/JorisJonkers-dev/agent-kit/commit/3dcdf2fd022d71780b2b3a5ed9f5c4304781f62d))
+* **litellm:** Pi provider models come from the live catalogue's canonical groups ([#568](https://github.com/JorisJonkers-dev/agent-kit/issues/568)) ([#750](https://github.com/JorisJonkers-dev/agent-kit/issues/750)) ([7f3f8e0](https://github.com/JorisJonkers-dev/agent-kit/commit/7f3f8e02a53a2b7fe03954d5b163e94eefe769ff))
+* **litellm:** run Claude Code, Codex, Hermes, OpenCode and Vibe on a LiteLLM route with its key from the secret store ([#737](https://github.com/JorisJonkers-dev/agent-kit/issues/737)) ([#757](https://github.com/JorisJonkers-dev/agent-kit/issues/757)) ([2ff3d53](https://github.com/JorisJonkers-dev/agent-kit/commit/2ff3d537ec1e870cb2a7e515e0c6bb74ff8add61))
+* **litellm:** setup mints each host's agent keys into per-route teams ([#734](https://github.com/JorisJonkers-dev/agent-kit/issues/734)) ([3fc6f12](https://github.com/JorisJonkers-dev/agent-kit/commit/3fc6f122d2138a2a5566f2b64e7cffd61e2ddbb8))
+* **litellm:** the local key also holds local/*, so local/&lt;id&gt; answers ([#745](https://github.com/JorisJonkers-dev/agent-kit/issues/745)) ([5de7b08](https://github.com/JorisJonkers-dev/agent-kit/commit/5de7b082f83ef08e31a2b1c82b24cf4edafd62cd)), closes [#569](https://github.com/JorisJonkers-dev/agent-kit/issues/569)
+* **model-gateway:** one Pi client per LiteLLM route, started through agent-launcher confine ([#737](https://github.com/JorisJonkers-dev/agent-kit/issues/737)) ([#763](https://github.com/JorisJonkers-dev/agent-kit/issues/763)) ([c1cccf2](https://github.com/JorisJonkers-dev/agent-kit/commit/c1cccf217c60641d66c10b88a1c3edf2b1ba036a))
+* **model-gateway:** read the live LiteLLM catalogue for usable, blocked and free models ([#740](https://github.com/JorisJonkers-dev/agent-kit/issues/740)) ([b03c591](https://github.com/JorisJonkers-dev/agent-kit/commit/b03c591b86f341793f3a1f992e0ea6b6f58186c0))
+* **pi:** setup writes one Pi provider per LiteLLM route into models.json ([#738](https://github.com/JorisJonkers-dev/agent-kit/issues/738)) ([7b90249](https://github.com/JorisJonkers-dev/agent-kit/commit/7b90249e673b8f3b75036e91c9c985f8a28e704f))
+* **rust:** retire the crate gate for the packages proxy and cargo's own 7-day cooldown ([#733](https://github.com/JorisJonkers-dev/agent-kit/issues/733)) ([7691eed](https://github.com/JorisJonkers-dev/agent-kit/commit/7691eed7a4c1bdadaaf999f09461026f682b2c7f))
+* **setup:** build the kit's command-line tools from the pinned workspace into ~/.local/bin ([#759](https://github.com/JorisJonkers-dev/agent-kit/issues/759)) ([2c80375](https://github.com/JorisJonkers-dev/agent-kit/commit/2c803751d434c138bb613ebcd763eff566057d51))
+* **setup:** converge the kit's workflow templates into the personal Gold Band instance ([#758](https://github.com/JorisJonkers-dev/agent-kit/issues/758)) ([12d372d](https://github.com/JorisJonkers-dev/agent-kit/commit/12d372de81cc59cec6506b00be7e02e689e6e479))
+
+
+### Bug Fixes
+
+* **critique:** the gates judge commands whose directory is unclear and find git when PATH lacks it ([#753](https://github.com/JorisJonkers-dev/agent-kit/issues/753)) ([d7a05c4](https://github.com/JorisJonkers-dev/agent-kit/commit/d7a05c46dd06c1d35f80ca174c01c1af1ff8a4a9)), closes [#678](https://github.com/JorisJonkers-dev/agent-kit/issues/678)
+* **private:** turn echo off before the passphrase prompt is shown ([#748](https://github.com/JorisJonkers-dev/agent-kit/issues/748)) ([0da8add](https://github.com/JorisJonkers-dev/agent-kit/commit/0da8addc67225afaf01292c014c9e1d365720aa8))
+* **setup:** fold a secondary Claude profile's own settings.json back into the shared one ([#730](https://github.com/JorisJonkers-dev/agent-kit/issues/730)) ([d01a74d](https://github.com/JorisJonkers-dev/agent-kit/commit/d01a74d3db6761b611a9e69fe42c6d356d835877))
+
 ## [6.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.0.0...v6.1.0) (2026-11-13)
 
 
