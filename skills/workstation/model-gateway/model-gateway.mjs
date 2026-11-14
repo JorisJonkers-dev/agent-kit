@@ -59,7 +59,8 @@ var CLIENT_FIELDS = [
   "families",
   "provider_cost_classes",
   "providers",
-  "plan_limits"
+  "plan_limits",
+  "litellm_route"
 ];
 var OVERRIDE_KEYS = ["version", "clients", "disabled", "models", "settings"];
 var ModelGatewayError = class extends Error {
@@ -129,6 +130,7 @@ function parseClient(id, raw, base) {
   };
   const providers = raw.providers === void 0 ? base?.providers : requireStrings(raw.providers, `${where}.providers`);
   const planLimits = raw.plan_limits === void 0 ? base?.plan_limits : parsePlanLimits(raw.plan_limits, `${where}.plan_limits`);
+  const litellmRoute = raw.litellm_route === void 0 ? base?.litellm_route : requireString(raw.litellm_route, `${where}.litellm_route`);
   if (binary === void 0 || costClass === void 0 || modelSource === void 0) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`);
   }
@@ -139,7 +141,8 @@ function parseClient(id, raw, base) {
     model_source: modelSource,
     provider_cost_classes: providerCostClasses,
     providers,
-    ...planLimits === void 0 ? {} : { plan_limits: planLimits }
+    ...planLimits === void 0 ? {} : { plan_limits: planLimits },
+    ...litellmRoute === void 0 ? {} : { litellm_route: litellmRoute }
   };
 }
 function parsePlanLimits(raw, where) {
@@ -1997,6 +2000,11 @@ function vibeAvailableCachePath(env) {
   const root = xdg !== void 0 && isAbsolute(xdg) ? xdg : join2(env.require("HOME"), ".cache");
   return join2(root, "model-gateway", "vibe-available.json");
 }
+function liteLLMCataloguePath(env) {
+  const xdg = env.get("XDG_CACHE_HOME");
+  const root = xdg !== void 0 && isAbsolute(xdg) ? xdg : join2(env.require("HOME"), ".cache");
+  return join2(root, "agent-kit", "litellm-catalogue.json");
+}
 function routingOverridePath(env) {
   return join2(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
 }
@@ -3385,6 +3393,126 @@ async function loadAllowlist(files, path) {
 // src/contexts/model-gateway/application/engine-guard.ts
 var ENGINE_TIME_LIMIT_S = 4 * 60 * 60;
 
+// src/contexts/model-gateway/domain/litellm-catalogue.ts
+var CATALOGUE_STALE_AFTER_MS = 48 * 60 * 60 * 1e3;
+function parseLiteLLMCatalogue(raw) {
+  if (!isObject(raw)) return { problem: "not a JSON object" };
+  if (typeof raw.updated_at !== "string") return { problem: "no updated_at" };
+  if (!isObject(raw.providers)) return { problem: "no providers object" };
+  const routes = /* @__PURE__ */ new Map();
+  for (const [route, provider] of Object.entries(raw.providers)) {
+    if (!isObject(provider) || !Array.isArray(provider.models)) return { problem: `provider ${route} has no models list` };
+    const models = /* @__PURE__ */ new Map();
+    for (const model of provider.models) {
+      if (!isObject(model) || typeof model.id !== "string") continue;
+      const meta = isObject(model.metadata) ? model.metadata : {};
+      const id = model.id.startsWith(`${route}/`) ? model.id.slice(route.length + 1) : model.id;
+      models.set(id, {
+        free: meta.free === true,
+        reason: typeof meta.reason === "string" ? meta.reason : "",
+        status: typeof meta.status === "string" ? meta.status : "unknown"
+      });
+    }
+    routes.set(route, models);
+  }
+  return { routes, updated_at: raw.updated_at };
+}
+function catalogueStaleness(catalogue, path, nowMs) {
+  const at = Date.parse(catalogue.updated_at);
+  if (Number.isNaN(at)) return `the LiteLLM catalogue at ${path} names no updated_at instant, so its age is unknown`;
+  if (nowMs - at <= CATALOGUE_STALE_AFTER_MS) return void 0;
+  const hours = Math.floor((nowMs - at) / 36e5);
+  return `the LiteLLM catalogue at ${path} is stale: updated ${catalogue.updated_at}, ${String(hours)} hours ago; setup refreshes it`;
+}
+function probeFor(catalogue, route, names) {
+  const models = catalogue.routes.get(route);
+  if (models === void 0) return void 0;
+  const probes = names.flatMap((name) => {
+    const bare = name.startsWith(`${route}/`) ? name.slice(route.length + 1) : name.includes("/") ? void 0 : name;
+    const probe = bare === void 0 ? void 0 : models.get(bare);
+    return probe === void 0 ? [] : [probe];
+  });
+  return probes.find((probe) => probe.status === "usable") ?? probes[0];
+}
+function notUsableReason(route, probe) {
+  if (probe.status === "blocked") return `blocked by the provider on LiteLLM route ${route}: ${probe.reason}`;
+  const reason = probe.reason === "" ? "" : `: ${probe.reason}`;
+  return `the LiteLLM catalogue marks it ${probe.status} on route ${route}${reason}`;
+}
+function namesOf2(config, client, model) {
+  const entry = config.models.find(
+    (candidate) => candidate.client === client && [candidate.model, ...candidate.names ?? []].includes(model)
+  );
+  return entry === void 0 ? [model] : [.../* @__PURE__ */ new Set([model, entry.model, ...entry.names ?? []])];
+}
+function judgeListing(config, listing, catalogue) {
+  if (catalogue === void 0) return listing;
+  const notUsable = (client, id) => {
+    const route = config.clients[client]?.litellm_route;
+    const probe = route === void 0 ? void 0 : probeFor(catalogue, route, namesOf2(config, client, id));
+    return route === void 0 || probe === void 0 || probe.status === "usable" ? void 0 : notUsableReason(route, probe);
+  };
+  const models = [];
+  const skipped = listing.skipped.map((entry) => {
+    const reason = notUsable(entry.client, entry.model);
+    return reason === void 0 ? entry : { ...entry, reason };
+  });
+  for (const model of listing.models) {
+    const reason = notUsable(model.client, model.model);
+    if (reason !== void 0) {
+      skipped.push({ client: model.client, model: model.model, reason });
+      continue;
+    }
+    const route = config.clients[model.client]?.litellm_route;
+    const free = route !== void 0 && probeFor(catalogue, route, namesOf2(config, model.client, model.model))?.free === true;
+    models.push(free ? { ...model, free: true } : model);
+  }
+  skipped.sort((left, right) => compare2(left.client, right.client) || compare2(left.model, right.model));
+  return { missing: listing.missing, models, skipped };
+}
+function compare2(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+// src/contexts/model-gateway/application/litellm-catalogue.ts
+async function readLiteLLMCatalogue(deps) {
+  let path;
+  try {
+    path = liteLLMCataloguePath(deps.env);
+  } catch {
+    return {};
+  }
+  const unchecked = "so the models are listed unchecked";
+  let text;
+  try {
+    if (!await deps.files.exists(path)) {
+      return { warning: `no LiteLLM catalogue at ${path}: setup fetches it, ${unchecked}` };
+    }
+    text = await deps.files.readText(path);
+  } catch {
+    return { warning: `the LiteLLM catalogue at ${path} cannot be read, ${unchecked}` };
+  }
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { warning: `the LiteLLM catalogue at ${path} is not JSON, ${unchecked}` };
+  }
+  const parsed = parseLiteLLMCatalogue(raw);
+  if ("problem" in parsed) return { warning: `the LiteLLM catalogue at ${path} is not a catalogue (${parsed.problem}), ${unchecked}` };
+  const stale = catalogueStaleness(parsed, path, deps.clock.now().getTime());
+  return stale === void 0 ? { catalogue: parsed } : { catalogue: parsed, warning: stale };
+}
+async function requireUsable(deps, config, client, model) {
+  const route = config.clients[client]?.litellm_route;
+  if (route === void 0) return;
+  const { catalogue } = await readLiteLLMCatalogue(deps);
+  if (catalogue === void 0) return;
+  const probe = probeFor(catalogue, route, namesOf2(config, client, model));
+  if (probe === void 0 || probe.status === "usable") return;
+  throw new ModelGatewayError("model-not-usable", `${client}:${model} cannot run: ${notUsableReason(route, probe)}`);
+}
+
 // src/contexts/model-gateway/application/models.ts
 var ModelsCommand = class {
   constructor(deps) {
@@ -3404,9 +3532,16 @@ var ModelsCommand = class {
       if (source === void 0 || !installed.has(id) || client.model_source === "declared") continue;
       listings.set(id, await source.list());
     }
-    const listing = listModels(config, installed, listings, await this.unavailable());
+    const judged = sortedClients(config).some(([id, client]) => installed.has(id) && client.litellm_route !== void 0);
+    const reading = judged ? await readLiteLLMCatalogue(this.deps) : {};
+    const listing = judgeListing(config, listModels(config, installed, listings, await this.unavailable()), reading.catalogue);
     const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models);
-    return { policy: decision.reason, status: "ok", ...permittedModels(listing, decision) };
+    return {
+      policy: decision.reason,
+      status: "ok",
+      ...permittedModels(listing, decision),
+      ...reading.warning === void 0 ? {} : { warnings: [reading.warning] }
+    };
   }
   /**
    * The client models this machine cannot run now, as their own answers said:
@@ -3798,6 +3933,7 @@ var RunCommand = class {
     if (input.client === "opencode") requireAllowedProvider(input.model, client.providers);
     this.requireProvider(input, client);
     const entry = catalogueEntry(config, input.client, input.model);
+    await requireUsable(this.deps, config, input.client, input.model);
     const family = entry?.family ?? familyOfModelId(input.model);
     if (family === void 0) {
       throw new ModelGatewayError(

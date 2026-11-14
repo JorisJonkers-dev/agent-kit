@@ -4,13 +4,16 @@ The gateway's vibe and opencode clients reach their models through the LiteLLM p
 default must be an id the catalogue lists as usable on its route (a Vibe default also by one of
 its `names`). A default the catalogue does not list fails here, so a stale id is found before
 a delegation is refused. The catalogue is private, so `registry/litellm-catalogue.json` is a
-snapshot of its usable ids per route; its `comment` says how to refresh it.
+trimmed snapshot of it in its own shape, read through `scripts/litellm_catalogue.py`; its
+`comment` says how to refresh it.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
+import sys
 from pathlib import Path
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
@@ -23,8 +26,17 @@ ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 NOT_VIA_LITELLM = {"claude", "codex", "agy", "hermes"}
 
 
+_spec = importlib.util.spec_from_file_location("litellm_catalogue", KIT_ROOT / "scripts" / "litellm_catalogue.py")
+assert _spec and _spec.loader
+litellm_catalogue = importlib.util.module_from_spec(_spec)
+sys.modules["litellm_catalogue"] = litellm_catalogue
+_spec.loader.exec_module(litellm_catalogue)
+
+
 def _routes() -> dict[str, set[str]]:
-    return {route: set(ids) for route, ids in json.loads(CATALOGUE.read_text())["routes"].items()}
+    """The usable ids per provider route the snapshot lists (never the machine's live copy: tests stay fixed)."""
+    snapshot = litellm_catalogue.Catalogue(json.loads(CATALOGUE.read_text()), "snapshot")
+    return {provider: set(litellm_catalogue.usable_ids(snapshot, provider)) for provider in snapshot.data["providers"]}
 
 
 def unresolved(models: list[dict], routes: dict[str, set[str]]) -> list[str]:

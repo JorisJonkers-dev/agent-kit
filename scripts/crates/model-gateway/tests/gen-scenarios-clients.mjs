@@ -83,6 +83,53 @@ esac`)
     modelsStep({}, { write: { 'cache/model-gateway/vibe-available.json': '[]' } }),
   ]
 
+  // The live LiteLLM catalogue setup fetches: it judges the vibe and opencode models on their routes.
+  const CATALOGUE_PATH = 'cache/agent-kit/litellm-catalogue.json'
+  const probe = (id, status, extra = {}) => ({ id, metadata: { status, reason: '', free: false, ...extra } })
+  const catalogue = (updatedAt = '2026-11-03T11:17:01Z', providers = undefined) =>
+    JSON.stringify({
+      version: 1,
+      updated_at: updatedAt,
+      providers: providers ?? {
+        vibe: {
+          models: [
+            probe('vibe/zai-glm-5-3', 'usable'),
+            probe('vibe/glm-5-3', 'error', { reason: 'timeout' }),
+            probe('vibe/mistral-small-latest', 'blocked', { reason: 'Model mistral-small-latest is not available on your plan.' }),
+            probe('vibe/zai-glm-5-3-flash', 'usable', { free: true }),
+            probe('vibe/zai-glm-5-3-flash', 'usable', { free: true, reason: 'listed twice' }),
+            { id: 7 },
+            'not a model',
+            { id: 'vibe/no-metadata', metadata: 'x' },
+          ],
+        },
+        'opencode-go': {
+          models: [
+            probe('opencode-go/kimi-k3.1-pro', 'unprobed'),
+            probe('opencode-go/brand-new', 'blocked', { reason: 'This OpenCode Go model trains on request data.' }),
+            probe('glm-5.3', 'usable', { free: true }),
+          ],
+        },
+      },
+      groups: {},
+    })
+  const catalogueAt = (body) => ({ write: { [CATALOGUE_PATH]: body } })
+  scenarios['models-litellm'] = [
+    modelsStep({}, { write: { ...ALL_CLIENTS, [CATALOGUE_PATH]: catalogue() }, exec: ALL_EXEC }),
+    modelsStep({}, { now: '2026-11-05T11:17:01Z' }),
+    modelsStep({}, { now: '2026-11-05T12:17:02Z' }),
+    modelsStep({}, catalogueAt(catalogue('yesterday'))),
+    modelsStep({}, catalogueAt('<html>')),
+    modelsStep({}, catalogueAt('[]')),
+    modelsStep({}, catalogueAt('{"providers": {}}')),
+    modelsStep({}, catalogueAt('{"updated_at": "2026-11-03T11:17:01Z", "providers": []}')),
+    modelsStep({}, catalogueAt('{"updated_at": "2026-11-03T11:17:01Z", "providers": {"vibe": {}}}')),
+    modelsStep({}, catalogueAt('{"updated_at": "2026-11-03T11:17:01Z", "providers": {"vibe": 3}}')),
+    modelsStep({}, { remove: [CATALOGUE_PATH], mkdir: [CATALOGUE_PATH] }),
+    modelsStep({}, { env: { XDG_CACHE_HOME: 'relative-cache' } }),
+    modelsStep({}, { remove: [CATALOGUE_PATH] }),
+  ]
+
   const LEDGER = 'state/agent-kit/model-gateway/ledger.jsonl'
   const run = (o) =>
     JSON.stringify({

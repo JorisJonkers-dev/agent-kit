@@ -428,6 +428,45 @@
         "tmp",
         "repo/.git/model-gateway"
       ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"vibe\",\"model\":\"glm-5-3\",\"mode\":\"read-only\",\"prompt\":\"Blocked by the provider.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "cache/agent-kit/litellm-catalogue.json": "{\"updated_at\":\"2026-11-03T11:17:01Z\",\"providers\":{\"vibe\":{\"models\":[{\"id\":\"vibe/zai-glm-5-3\",\"metadata\":{\"status\":\"blocked\",\"reason\":\"Model zai-glm-5-3 is a Labs model.\",\"free\":false}}]},\"opencode-go\":{\"models\":[{\"id\":\"opencode-go/kimi-k2.7-code\",\"metadata\":{\"status\":\"error\",\"reason\":\"\"}}]}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"opencode\",\"model\":\"opencode-go/kimi-k2.7-code\",\"mode\":\"read-only\",\"prompt\":\"Probe failed.\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
     }
   ]
 }

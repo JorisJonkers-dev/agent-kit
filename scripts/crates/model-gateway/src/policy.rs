@@ -190,7 +190,9 @@ fn git_or_fail<T>(repo: &str, result: Result<T, String>) -> Result<T, GatewayErr
 
 /// One permitted model as the `models` command prints it.
 pub fn permitted_model_json(model: &PermittedModel) -> Value {
-    object(vec![
+    let free = if model.listed.free { vec![("free", Value::Bool(true))] } else { Vec::new() };
+    object([
+
         ("client", Value::str(&model.listed.client)),
         ("cost_class", Value::str(model.listed.cost_class.as_str())),
         ("family", Value::str(&model.listed.family)),
@@ -198,13 +200,18 @@ pub fn permitted_model_json(model: &PermittedModel) -> Value {
         ("notes", Value::str(&model.listed.notes)),
         ("source", Value::str(model.listed.source.as_str())),
         ("tier", model.listed.tier.map_or(Value::Null, |tier| Value::str(tier.as_str()))),
+    ]
+    .into_iter()
+    .chain(free)
+    .chain([
         ("inline_only", Value::Bool(model.inline_only)),
         ("may_send", object(vec![("code", Value::Bool(model.may_send.code)), ("history", Value::Bool(model.may_send.history))])),
     ])
+    .collect())
 }
 
 /// The `models` command's result: the policy line, the status, and the listing.
-pub fn models_result_json(policy_reason: &str, listing: &PolicyListing) -> Value {
+pub fn models_result_json(policy_reason: &str, listing: &PolicyListing, warning: Option<&str>) -> Value {
     let missing = listing
         .missing
         .iter()
@@ -221,11 +228,15 @@ pub fn models_result_json(policy_reason: &str, listing: &PolicyListing) -> Value
             ])
         })
         .collect();
-    object(vec![
+    object(
+        [
         ("policy", Value::str(policy_reason)),
         ("status", Value::str("ok")),
         ("missing", Value::Arr(missing)),
         ("models", Value::Arr(listing.models.iter().map(permitted_model_json).collect())),
         ("skipped", Value::Arr(skipped)),
-    ])
+    ]
+    .into_iter()
+    .chain(warning.map(|warning| ("warnings", Value::Arr(vec![Value::str(warning)]))))
+    .collect())
 }

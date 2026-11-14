@@ -59,6 +59,12 @@ export interface ClientConfig {
    * has set none, which leaves the client unwatched.
    */
   readonly plan_limits?: readonly PlanLimit[]
+  /**
+   * The provider route of the LiteLLM catalogue whose probes judge this
+   * client's models (`vibe`, `opencode-go`); undefined when the catalogue
+   * does not cover the client.
+   */
+  readonly litellm_route?: string
 }
 
 /** The fields a client has; a machine file that names another is refused, not quietly ignored. */
@@ -70,6 +76,7 @@ const CLIENT_FIELDS = [
   'provider_cost_classes',
   'providers',
   'plan_limits',
+  'litellm_route',
 ] as const
 
 /** The top-level keys a machine file may name; one it does not is refused, not quietly dropped. */
@@ -176,6 +183,8 @@ export type ModelGatewayErrorCode =
   | 'unknown-client'
   /** The run named a client model the gateway cannot list now. */
   | 'unknown-model'
+  /** The LiteLLM catalogue says the model cannot be used on its route: blocked, or not probed usable. */
+  | 'model-not-usable'
   /** A writing run names no repository, and a change needs one. */
   | 'write-needs-repository'
   /** git could not add the throwaway worktree a run without a read-only proof works in, or create a writing run's worktree off its base. */
@@ -309,6 +318,8 @@ function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined
         }
   const providers = raw.providers === undefined ? base?.providers : requireStrings(raw.providers, `${where}.providers`)
   const planLimits = raw.plan_limits === undefined ? base?.plan_limits : parsePlanLimits(raw.plan_limits, `${where}.plan_limits`)
+  const litellmRoute =
+    raw.litellm_route === undefined ? base?.litellm_route : requireString(raw.litellm_route, `${where}.litellm_route`)
   if (binary === undefined || costClass === undefined || modelSource === undefined) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`)
   }
@@ -320,6 +331,7 @@ function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined
     provider_cost_classes: providerCostClasses,
     providers,
     ...(planLimits === undefined ? {} : { plan_limits: planLimits }),
+    ...(litellmRoute === undefined ? {} : { litellm_route: litellmRoute }),
   }
 }
 

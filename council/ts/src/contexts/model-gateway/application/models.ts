@@ -1,9 +1,11 @@
 import { isObject, ModelGatewayError } from '../domain/config.js'
 import { runRecords } from '../domain/ledger.js'
 import { listModels, sortedClients, type ClientListing, type SkippedModel } from '../domain/models.js'
+import { judgeListing } from '../domain/litellm-catalogue.js'
 import { decidePolicy, permittedModels, type PolicyListing } from '../domain/policy.js'
 import { standingRefusals } from '../domain/usage.js'
 import { loadConfig } from './config.js'
+import { readLiteLLMCatalogue } from './litellm-catalogue.js'
 import { overridePath } from './locations.js'
 import { resolveScope } from './policy.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
@@ -17,6 +19,11 @@ export interface ModelsResult extends PolicyListing {
   readonly status: 'ok'
   /** One line saying why the data policy listed what it did. */
   readonly policy: string
+  /**
+   * What is wrong with the LiteLLM catalogue, when a client it judges is
+   * installed: missing, unreadable or stale. Absent when nothing is.
+   */
+  readonly warnings?: readonly string[]
 }
 
 /**
@@ -42,9 +49,16 @@ export class ModelsCommand implements ModelGatewayCommand<ModelsInput, ModelsRes
       if (source === undefined || !installed.has(id) || client.model_source === 'declared') continue
       listings.set(id, await source.list())
     }
-    const listing = listModels(config, installed, listings, await this.unavailable())
+    const judged = sortedClients(config).some(([id, client]) => installed.has(id) && client.litellm_route !== undefined)
+    const reading = judged ? await readLiteLLMCatalogue(this.deps) : {}
+    const listing = judgeListing(config, listModels(config, installed, listings, await this.unavailable()), reading.catalogue)
     const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models)
-    return { policy: decision.reason, status: 'ok', ...permittedModels(listing, decision) }
+    return {
+      policy: decision.reason,
+      status: 'ok',
+      ...permittedModels(listing, decision),
+      ...(reading.warning === undefined ? {} : { warnings: [reading.warning] }),
+    }
   }
 
   /**
