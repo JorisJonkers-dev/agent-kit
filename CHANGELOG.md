@@ -1,5 +1,18 @@
 # Changelog
 
+## [6.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.1.0...v6.2.0) (2026-11-14)
+
+
+### Features
+
+* **litellm:** setup mints each host's agent keys into per-route teams ([#734](https://github.com/JorisJonkers-dev/agent-kit/issues/734)) ([3fc6f12](https://github.com/JorisJonkers-dev/agent-kit/commit/3fc6f122d2138a2a5566f2b64e7cffd61e2ddbb8))
+* **rust:** retire the crate gate for the packages proxy and cargo's own 7-day cooldown ([#733](https://github.com/JorisJonkers-dev/agent-kit/issues/733)) ([7691eed](https://github.com/JorisJonkers-dev/agent-kit/commit/7691eed7a4c1bdadaaf999f09461026f682b2c7f))
+
+
+### Bug Fixes
+
+* **setup:** fold a secondary Claude profile's own settings.json back into the shared one ([#730](https://github.com/JorisJonkers-dev/agent-kit/issues/730)) ([d01a74d](https://github.com/JorisJonkers-dev/agent-kit/commit/d01a74d3db6761b611a9e69fe42c6d356d835877))
+
 ## [6.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.0.0...v6.1.0) (2026-11-13)
 
 
