@@ -23,7 +23,7 @@ a temporary directory:
   | `findings` | anything else | the findings document for the verdict |
   | `questions` | a node whose `output.schema` has an `open_questions` key | `{"open_questions": []}`, or one open question under the verdict `open-questions` |
   | `answer` | a node whose `output.schema` is an object without a `findings` key | `{"ok": true}` |
-  | `dynamic:<agent ids>` | an agent id an `ai-dynamic` node's `agentStrategy` names | for an AI-DYNAMIC internal prompt, the node's `dynamic-node-completion`: the bootstrap fans out to one worker per listed agent id and every other internal node ends; any other prompt gets `{"ok": true}` |
+  | `dynamic:<agent ids>` | an agent id an `ai-dynamic` node's `agentStrategy` names | for an AI-DYNAMIC internal prompt, the node's `dynamic-node-completion`: the bootstrap fans out to one worker per listed agent id (two when it lists one) and every other internal node ends; any other prompt gets `{"ok": true}` |
   | `verdict:<n>` | `verdict-<n>` | `{"actionable": 1}` under the verdict `actionable=K` when `n <= K`, else `{"actionable": 0}` |
   | `gate:<name>` | `gate-<name>` | `{"exit_code": N}`, the exit code `gold-band-gate run` earned |
   | `copy:<name>` | `copy-<name>` | the gate report `gold-band-gate verify` printed, or a report-shaped refusal carrying its exit code |
@@ -131,7 +131,10 @@ fixed answer covers. The harness declares every agent id of its `agentStrategy`
 context in the prompt; the bootstrap writes the handoff files Gold Band requires
 (`handoff/summary.md` and one task file per worker, the merge and the acceptance
 under the node's attachments directory) and answers a fan-out with one worker per
-listed agent id, and every other internal node ends. An ai-dynamic node never fails
+listed agent id, and every other internal node ends. Gold Band refuses a fan-out
+of fewer than two nodes (`dynamic.fanout.nodes.too-few`) and an agent id listed
+twice in `availableAgents`, so a strategy with one worker agent (Workflow A's
+Pi fetchers) is fanned out to two workers of it. An ai-dynamic node never fails
 in the walk. What a fanned-out critic writes, and what the finding check reads, is
 not proved: the gate shim runs `true`, so the proof checks the node's limits,
 sequencing and routing only.

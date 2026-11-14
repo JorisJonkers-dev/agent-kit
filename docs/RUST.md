@@ -56,6 +56,9 @@ on the Linux workstation.
   gold-band-report. `crates/coverage-gate` is the coverage gate (below), std
   only. `crates/gold-band-findings` is the finding check node (below): it sorts
   critic findings into kept and hints and takes only serde_json.
+  `crates/research-layout` is the papers layout validator and Workflow A's
+  fetch shim and verifier (below); it takes serde and serde_json, each pinned
+  exactly, and the workspace's own gold-band-report for its SHA-256.
   `crates/ci-wait` is the CI-wait gate (below); it takes
   serde_json and serde_yaml, each pinned exactly. New Rust joins this
   workspace as a new member, never as its own Cargo project.
@@ -940,3 +943,58 @@ ci-wait --repo-dir DIR --sha SHA [--repo OWNER/NAME] [--timeout-secs N] [--poll-
   the verdict is red. A failed job not listed is red at once and never rerun.
 * **Tests.** The GitHub seam and the clock are traits faked in the unit tests;
   the real `gh` bridge is driven through a fake program, with no live call.
+
+## research-layout
+
+`crates/research-layout` checks and indexes the `papers/` directory of the
+private research repository (#356) and runs Workflow A's two deterministic
+steps (#456); what the workflow does with them is in
+[GOLD-BAND.md](GOLD-BAND.md#workflow-a-in-the-personal-instance).
+
+```bash
+research-layout check <PAPERS_DIR>
+research-layout index <PAPERS_DIR>
+research-layout fetch --plan FILE --out DIR [--max-sources N] [--max-bytes N] \
+    [--timeout-secs N] [--curl PROG]
+research-layout adopt --plan FILE --fetched DIR --papers DIR
+research-layout verify --papers DIR --fetched DIR [--base REF]
+```
+
+* **`check`** refuses an unlisted file, a listed file that is missing, a theme
+  folder without its `README.md`, a stale `INDEX.md`, a top-level name outside
+  the layout, a broken catalog entry or tier, a note citing an unknown id or an
+  entry below its `min_tier`, a quote not found in its stored page, and any
+  path that leaves the papers directory, each as `research-layout: <path>:
+  <rule>` on stderr. **`index`** rewrites every `INDEX.md` from `catalog.json`;
+  a second run changes nothing.
+* **`fetch`** reads a plan (`{"sources": [{"id", "url"}, ...]}`) and refuses it
+  whole, fetching nothing, when it lists more than `--max-sources` sources
+  (default 8, at most 32), an id that is not `[a-z0-9][a-z0-9-]*`, a duplicate
+  id, or a url that is not https on a public host name (no IP literal,
+  `localhost`, `.local`, `.internal`, dotless host or user info). Each source is
+  fetched with `curl` (https only, also on redirects, at most five,
+  `--max-time` and `--max-filesize` from the flags), its text extracted (tags,
+  scripts, styles and comments dropped, block tags as line breaks, entities
+  decoded, whitespace collapsed per line) and stored as `<out>/<id>.txt`.
+  `<out>/fetch-log.json` records each source with `file`, `sha256` and `bytes`,
+  or its `error`; a failed source does not stop the others. Exit 0 when at
+  least one page is stored, 1 when the plan is refused or none was, 2 for an
+  unreadable plan or output directory.
+* **`adopt`** copies every page the fetch log lists as stored, byte for byte,
+  into the plan's `theme` folder (one or two `[a-z0-9-]` parts) as
+  `<theme>/<id>.txt`. A file already there with the same bytes counts as
+  copied; one with other bytes is refused (`exists`), never overwritten. Exit 0,
+  1 for a bad theme, a bad log entry, a missing page or a refused file, 2 for an
+  unreadable plan or log.
+* **`verify`** runs `check` and adds: `<id>: page-not-as-fetched` for an entry
+  whose `url` the log fetched but none of whose files is the stored page byte
+  for byte; for each note under `notes/` that differs from `--base` (default
+  `origin/main`) or is untracked, `no-quote`, `quote-too-short` (under 8
+  characters) and `quote-page-not-fetched: <page>` (the page is not one the
+  fetch stored); and `notes: no-run-note` when the run added no note. It only
+  reads; git is asked for the changed notes. Exit 0 ok, 1 a rule failed, 2 an
+  unreadable fetch log or a git failure.
+
+The unit tests drive `fetch` through a stub `curl` script and `verify` through
+the real `git` over a fixture repository; they cover every line except
+`src/main.rs`.

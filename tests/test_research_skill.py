@@ -91,10 +91,19 @@ def test_setup_installs_the_skill_into_every_agent_home(macos_run: Run) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_run_command_is_the_headless_runner_with_a_requirement_file() -> None:
+def test_the_run_command_is_the_proof_checked_runner_with_a_requirement_file() -> None:
+    """A real run goes through `gold-band-proof run`, which refuses an unproven workflow."""
     text = _flat()
-    assert re.search(r"gold-band run( \\)? --workflow", text)
-    assert "--requirement-file" in text
+    assert re.search(r"gold-band-proof run( \\)? --workflow", text)
+    assert "-- --requirement-file" in text
+    assert "command -v gold-band-proof" in text
+
+
+def test_the_run_works_in_a_fresh_repository_and_the_question_must_suit_a_public_model() -> None:
+    text = _flat()
+    assert "git -C \"$scratch\" init -q" in text
+    assert "never works in the current repository" in text
+    assert "fit for a public model" in text
 
 
 def test_the_workflow_file_is_the_personal_instances_research_workflow() -> None:
@@ -136,7 +145,7 @@ def test_the_skill_is_short_and_carries_no_assistant_attribution() -> None:
 def test_the_rule_is_checked_before_the_instance_and_the_instance_before_the_run() -> None:
     text = _text()
     assert text.index("## Check the repository rule") < text.index("## Check the instance")
-    assert text.index("command -v gold-band") < text.index("gold-band run")
+    assert text.index("command -v gold-band") < text.index("gold-band-proof run")
 
 
 def test_a_nedap_remote_in_any_form_is_refused_and_no_remote_is_allowed() -> None:

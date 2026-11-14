@@ -1,0 +1,489 @@
+{
+  "workflow": {
+    "description": "Workflow A, deep research, for the personal instance (issue #456). A run-start gate refuses the run when the repository rule or the family allowlist forbids a bound agent, and a gate gives the run its own branch of the private research repository. An Opus planning node states the plan: the question, its sub-questions and at most six public sources. The fetch shim (research-layout fetch) downloads those sources and stores their text, refusing a plan over the width limit or naming a non-public url. One ai-dynamic node fans the fetchers out, one per stored page, Pi over LiteLLM routes, with its width and depth limits set explicitly; each reads only its own public page and writes a note of verbatim quotes. The adopt gate copies every stored page byte for byte into the research repository branch, a Claude merge worker writes the result into the research repository branch in the papers layout, the index gate regenerates the indexes, and the read-only verifier (research-layout verify) fails the run when a quote is not on its page as fetched. An Opus acceptance node ends the run. No shim node has a failure edge, and the graph has no cycle.",
+    "version": "0.1",
+    "id": "research",
+    "entry": "gate-research-start",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate-research-start",
+        "executionSlotId": "slot-gate-research-start",
+        "provider": "gate-research-start",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start wrapper for Workflow A (research), which checks the repository rule and the family allowlist (including its code permission) for every agent id this workflow binds, and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-start-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-research-papers",
+        "executionSlotId": "slot-gate-research-papers",
+        "provider": "gate-research-papers",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `git -C <research repository> worktree add ~/.local/state/agent-kit/gold-band/research/<run id>/papers-worktree -b research/<run id> origin/main`, which gives this run its own branch of the private research repository for the merge to write into, and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-papers-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-research-papers",
+        "executionSlotId": "slot-copy-research-papers",
+        "provider": "copy-research-papers",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the research repository branch of Workflow A and answer with the report it prints as one fenced json block and nothing else. You only read: change no file.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-papers-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "research-planning",
+        "executionSlotId": "slot-research-planning",
+        "provider": "claude",
+        "model": "opus",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the research planner. Read the research question in the requirement document and state the plan: the question in one sentence, at most five sub-questions, and at most six public web sources (an id of lowercase letters, digits and dashes, and an https url each) that are most likely to answer them, preferring tier A and B sources (peer-reviewed papers, standards, preprints, books) over vendor documentation and blogs. Pick the theme folder of the papers layout (`<group>/<topic>`) the result belongs in and the lowest tier the note may cite (`min_tier`). Write the plan as ~/.local/state/agent-kit/gold-band/research/<run id>/plan.json with the keys question, sub_questions, sources, theme and min_tier, and nothing else. Never name a private, internal or signed-in page: the fetchers that read these pages are not Anthropic models. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "research-plan",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-research-fetch",
+        "executionSlotId": "slot-gate-research-fetch",
+        "provider": "gate-research-fetch",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `research-layout fetch --plan ~/.local/state/agent-kit/gold-band/research/<run id>/plan.json --out ~/.local/state/agent-kit/gold-band/research/<run id>/pages --max-sources 6`, which refuses a plan over the width limit or naming a non-public url and stores each source's text with its SHA-256 in fetch-log.json, and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-fetch-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-research-fetch",
+        "executionSlotId": "slot-copy-research-fetch",
+        "provider": "copy-research-fetch",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the fetch of Workflow A and answer with the report it prints as one fenced json block and nothing else. You only read: change no file.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-fetch-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "ai-dynamic",
+        "id": "research-fetchers",
+        "agentStrategy": {
+          "mode": "dynamic",
+          "bootstrapProvider": "pi",
+          "bootstrapModel": "litellm-vibe/mistral-medium-3.5",
+          "acceptanceModel": "litellm-vibe/mistral-medium-3.5",
+          "availableAgents": [
+            {
+              "provider": "pi",
+              "model": "litellm-vibe-study/deepseek-v4.1-flash"
+            }
+          ],
+          "routingPrompt": "Fan out one worker node per source in ~/.local/state/agent-kit/gold-band/research/<run id>/pages/fetch-log.json that has a file (a source with an error gets none), and nothing else, at most six, all for provider `pi`, and use the profile pf-builtin-dev for each. Each fetcher reads only its own stored page, ~/.local/state/agent-kit/gold-band/research/<run id>/pages/<source id>.txt, and the plan, ~/.local/state/agent-kit/gold-band/research/<run id>/plan.json, and writes one note, ~/.local/state/agent-kit/gold-band/research/<run id>/staging/<source id>.md: what the page says about the plan's sub-questions in a few sentences, then every passage it relies on as a quote, each quote being one or more lines starting with `> ` copied verbatim from the stored page (at least eight characters, never paraphrased) followed by a line `-- <source id>.txt`. A fetcher fetches nothing, follows no link and writes no other file; a page that says nothing relevant gets a note that says so. Do not plan any other node."
+        },
+        "control": {
+          "maxDynamicNodes": 9,
+          "maxFanout": 6,
+          "maxDepth": 2,
+          "maxParallel": 3,
+          "maxGroupDepth": 1,
+          "maxWorkflowInvocations": 1,
+          "allowNestedDynamic": false
+        },
+        "allowedWorkflows": []
+      },
+      {
+        "type": "worker",
+        "id": "gate-research-adopt",
+        "executionSlotId": "slot-gate-research-adopt",
+        "provider": "gate-research-adopt",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `research-layout adopt --plan ~/.local/state/agent-kit/gold-band/research/<run id>/plan.json --fetched ~/.local/state/agent-kit/gold-band/research/<run id>/pages --papers ~/.local/state/agent-kit/gold-band/research/<run id>/papers-worktree/papers`, which copies every stored page byte for byte into the plan's theme folder of the research repository branch, so no model retypes a page, and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-adopt-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-research-adopt",
+        "executionSlotId": "slot-copy-research-adopt",
+        "provider": "copy-research-adopt",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the page copy of Workflow A and answer with the report it prints as one fenced json block and nothing else. You only read: change no file.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-adopt-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "research-merge",
+        "executionSlotId": "slot-research-merge",
+        "provider": "claude",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the merge worker. Merge the fetchers' notes in ~/.local/state/agent-kit/gold-band/research/<run id>/staging into the private research repository's papers directory on this run's branch, ~/.local/state/agent-kit/gold-band/research/<run id>/papers-worktree/papers, in the papers layout its README.md describes. Every fetched page is already in the plan's theme folder as `<theme>/<source id>.txt`, copied byte for byte by the adopt gate: never edit, move or delete one. Add one catalog.json entry for every one of those pages, with its id, title, theme, tier, files (that page), url (the url ~/.local/state/agent-kit/gold-band/research/<run id>/pages/fetch-log.json records for it), year when known and summary; write the theme's README.md explainer if the folder is new; and write one note, notes/<date>-<short question>.md, with front matter min_tier (the plan's) and cites (the entries it uses), that answers the question and quotes each claim from a kept page as `> ` lines copied verbatim from the page followed by `-- <theme>/<source id>.txt`, each quote its own block with its own `--` line, using every page that bears on a sub-question. Keep only quotes that are on their page. Never touch other entries, notes or themes, and never write outside the papers directory. Do not write INDEX.md: the index gate generates it. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "research-merged",
+          "schema": {
+            "ok": true
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-research-index",
+        "executionSlotId": "slot-gate-research-index",
+        "provider": "gate-research-index",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `research-layout index ~/.local/state/agent-kit/gold-band/research/<run id>/papers-worktree/papers`, which regenerates every INDEX.md from catalog.json, and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-index-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-research-index",
+        "executionSlotId": "slot-copy-research-index",
+        "provider": "copy-research-index",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the index of Workflow A and answer with the report it prints as one fenced json block and nothing else. You only read: change no file.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-index-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-research-verify",
+        "executionSlotId": "slot-gate-research-verify",
+        "provider": "gate-research-verify",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `research-layout verify --papers ~/.local/state/agent-kit/gold-band/research/<run id>/papers-worktree/papers --fetched ~/.local/state/agent-kit/gold-band/research/<run id>/pages --base origin/main`, the read-only verifier: it fails when the papers layout breaks a rule, when a quote is not on its page, when a page differs from the page as fetched, or when a note this run added quotes a page the fetch did not store. Answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-verify-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-research-verify",
+        "executionSlotId": "slot-copy-research-verify",
+        "provider": "copy-research-verify",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the verifier of Workflow A and answer with the report it prints as one fenced json block and nothing else. You only read: change no file.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-research-verify-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "research-acceptance",
+        "executionSlotId": "slot-research-acceptance",
+        "provider": "claude",
+        "model": "opus",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the acceptance judge for this research run. The verifier passed, so every quote the run added is on its page as fetched. Read the plan, ~/.local/state/agent-kit/gold-band/research/<run id>/plan.json, and what the run added on its branch of the research repository, ~/.local/state/agent-kit/gold-band/research/<run id>/papers-worktree/papers (the note it added under notes/, the catalog.json entries whose url fetch-log.json lists, and their theme folder), and judge whether the note answers the question and its sub-questions, whether each claim is carried by its quote, whether the cited tiers suit the question, and what is still open. State the judgment in plain words. Change no file. Answer with one fenced json block holding ok: true when the result answers the question, false when it does not, and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "research-accepted",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate-research-start",
+        "to": "gate-research-papers",
+        "on": "success"
+      },
+      {
+        "from": "gate-research-papers",
+        "to": "copy-research-papers",
+        "on": "success"
+      },
+      {
+        "from": "copy-research-papers",
+        "to": "research-planning",
+        "on": "success"
+      },
+      {
+        "from": "research-planning",
+        "to": "gate-research-fetch",
+        "on": "success"
+      },
+      {
+        "from": "gate-research-fetch",
+        "to": "copy-research-fetch",
+        "on": "success"
+      },
+      {
+        "from": "copy-research-fetch",
+        "to": "research-fetchers",
+        "on": "success"
+      },
+      {
+        "from": "research-fetchers",
+        "to": "gate-research-adopt",
+        "on": "success"
+      },
+      {
+        "from": "gate-research-adopt",
+        "to": "copy-research-adopt",
+        "on": "success"
+      },
+      {
+        "from": "copy-research-adopt",
+        "to": "research-merge",
+        "on": "success"
+      },
+      {
+        "from": "research-merge",
+        "to": "gate-research-index",
+        "on": "success"
+      },
+      {
+        "from": "gate-research-index",
+        "to": "copy-research-index",
+        "on": "success"
+      },
+      {
+        "from": "copy-research-index",
+        "to": "gate-research-verify",
+        "on": "success"
+      },
+      {
+        "from": "gate-research-verify",
+        "to": "copy-research-verify",
+        "on": "success"
+      },
+      {
+        "from": "copy-research-verify",
+        "to": "research-acceptance",
+        "on": "success"
+      },
+      {
+        "from": "research-acceptance",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-gate-research-start",
+        "agentId": "gate-research-start",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-research-papers",
+        "agentId": "gate-research-papers",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-research-papers",
+        "agentId": "copy-research-papers",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-research-planning",
+        "agentId": "claude",
+        "modelId": "opus"
+      },
+      {
+        "executionSlotId": "slot-gate-research-fetch",
+        "agentId": "gate-research-fetch",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-research-fetch",
+        "agentId": "copy-research-fetch",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-research-adopt",
+        "agentId": "gate-research-adopt",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-research-adopt",
+        "agentId": "copy-research-adopt",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-research-merge",
+        "agentId": "claude",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-gate-research-index",
+        "agentId": "gate-research-index",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-research-index",
+        "agentId": "copy-research-index",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-research-verify",
+        "agentId": "gate-research-verify",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-research-verify",
+        "agentId": "copy-research-verify",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-research-acceptance",
+        "agentId": "claude",
+        "modelId": "opus"
+      }
+    ]
+  }
+}
