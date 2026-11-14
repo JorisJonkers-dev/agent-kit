@@ -6,7 +6,8 @@ use crate::allow;
 use crate::allowlist::{parse_allowlist, Allowlist, Entry};
 use crate::error::{CritiqueError, ShapeError};
 use crate::fields::Fields;
-use crate::git::{failure_words, parse_remote_line, Git, SystemGit};
+use crate::git::{failure_words, git_search_dirs, locate_git, parse_remote_line, Git, SystemGit};
+use std::os::unix::fs::PermissionsExt;
 use crate::repository::{read_allowlist, resolve, Resolution};
 use crate::Runtime;
 use model_gateway::json::{parse, Value};
@@ -143,12 +144,51 @@ fn the_system_git_reads_a_repository_and_words_its_failures_as_the_node_adapter_
     let plain = sandbox.text();
     let error = git.root(&plain).expect_err("not a repository");
     assert!(error.starts_with(&format!("git rev-parse --show-toplevel failed in {plain}: fatal: not a git repository")), "{error}");
-    assert_eq!(git.root(&format!("{plain}/missing")), Err("spawn git ENOENT".to_string()));
-    // A program named git that may not be run: the platform's own code.
+    let missing = format!("{plain}/missing");
+    assert_eq!(git.root(&missing), Err(format!("git cannot run in {missing}: the directory does not exist")));
+    // A program named git that is executable but cannot be run: the platform's own code.
     let bin = format!("{plain}/bin");
     std::fs::create_dir_all(&bin).expect("bin");
-    std::fs::write(format!("{bin}/git"), "").expect("file");
-    assert_eq!(system_git(&sandbox, &bin).root(&plain), Err("spawn git EACCES".to_string()));
+    let broken = format!("{bin}/git");
+    std::fs::write(&broken, "").expect("file");
+    std::fs::set_permissions(&broken, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    let error = system_git(&sandbox, &bin).root(&plain).expect_err("not runnable");
+    assert!(error.starts_with("spawn git "), "{error}");
+}
+
+#[test]
+fn git_is_found_on_path_then_in_the_usual_places_and_a_miss_says_where_it_looked() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.text();
+    let make = |dir: &str, mode: u32| {
+        std::fs::create_dir_all(format!("{root}/{dir}")).expect("dir");
+        std::fs::write(format!("{root}/{dir}/git"), "#!/bin/sh\n").expect("file");
+        std::fs::set_permissions(format!("{root}/{dir}/git"), std::fs::Permissions::from_mode(mode)).expect("chmod");
+    };
+    make("plain", 0o644);
+    make("bin", 0o755);
+    make("profile", 0o755);
+    std::fs::create_dir_all(format!("{root}/git/git")).expect("a directory named git");
+    let env = |path: Option<String>| -> HashMap<String, String> { path.map(|path| ("PATH".to_string(), path)).into_iter().collect() };
+    let fallback = vec![format!("{root}/nowhere"), format!("{root}/profile")];
+    // PATH wins, skipping what is not executable and empty entries.
+    assert_eq!(locate_git(&env(Some(format!("::{root}/git:{root}/plain:{root}/bin"))), &fallback), Ok(format!("{root}/bin/git")));
+    // No PATH at all: the usual places.
+    assert_eq!(locate_git(&env(None), &fallback), Ok(format!("{root}/profile/git")));
+    assert_eq!(
+        locate_git(&env(Some(format!("{root}/plain"))), &fallback[..1]),
+        Err(format!("git was not found on PATH ({root}/plain) or in {root}/nowhere"))
+    );
+}
+
+#[test]
+fn the_usual_places_for_git_follow_the_user_and_home() {
+    let with = |pairs: &[(&str, &str)]| git_search_dirs(&pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect());
+    assert_eq!(
+        with(&[("HOME", "/home/a"), ("USER", "a")]),
+        ["/run/current-system/sw/bin", "/etc/profiles/per-user/a/bin", "/home/a/.nix-profile/bin", "/nix/var/nix/profiles/default/bin", "/usr/local/bin", "/usr/bin", "/bin", "/opt/homebrew/bin"]
+    );
+    assert_eq!(with(&[]), ["/run/current-system/sw/bin", "/nix/var/nix/profiles/default/bin", "/usr/local/bin", "/usr/bin", "/bin", "/opt/homebrew/bin"]);
 }
 
 struct Scripted {

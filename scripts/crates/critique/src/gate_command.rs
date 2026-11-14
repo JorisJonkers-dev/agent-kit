@@ -339,7 +339,7 @@ impl Gate<'_> {
         if invocations.is_empty() {
             return Ok(allowed(None, "not-gated"));
         }
-        let results: Vec<Value> = invocations.iter().map(|invocation| self.check(invocation).unwrap_or_else(|error| failure(Some(gate_of(invocation)), error))).collect();
+        let results: Vec<Value> = invocations.iter().map(|invocation| self.check(invocation, &cwd).unwrap_or_else(|error| failure(Some(gate_of(invocation)), error))).collect();
         let pick = results
             .iter()
             .find(|result| field(result, "status") == Some("blocked"))
@@ -348,11 +348,10 @@ impl Gate<'_> {
         Ok(pick.clone())
     }
 
-    fn check(&mut self, invocation: &GatedInvocation) -> Decided {
+    /// One invocation, judged in the directory it runs in; when the command line does not say which, where the session is.
+    fn check(&mut self, invocation: &GatedInvocation, session_cwd: &str) -> Decided {
         let gate = gate_of(invocation);
-        let Some(cwd) = invocation.cwd() else {
-            return Err(Failure::Error("the command line does not say which directory the command runs in".to_string()));
-        };
+        let cwd = invocation.cwd().unwrap_or(session_cwd);
         let repository = match resolve(self.runtime, cwd)? {
             Resolution::Refused(refusal) => {
                 let nedap = refusal.as_object().and_then(|object| object.get("reason")).and_then(Value::as_str) == Some("nedap");
@@ -739,10 +738,37 @@ fn gate_fail_line(target: &Sent, record: &GateRecord, head: &str) -> String {
 }
 
 /// Appends one line to the gate log; a log that cannot be written is left alone, so logging never blocks.
+/// The most characters of the command line the gate log keeps.
+const LOGGED_COMMAND_CHARS: usize = 300;
+
+/// The command line a failed-open line is about: the payload's command with the credentials of any
+/// `scheme://user:secret@host` removed, cut to a few hundred characters; none when the payload has none.
+fn logged_command(raw: &Value) -> Option<String> {
+    let command = raw.as_object()?.get("tool_input")?.as_object()?.get("command")?.as_str()?;
+    Some(hide_credentials(command).chars().take(LOGGED_COMMAND_CHARS).collect())
+}
+
+fn hide_credentials(command: &str) -> String {
+    let mut out = String::new();
+    let mut rest = command;
+    while let Some(at) = rest.find("://") {
+        out.push_str(&rest[..at + 3]);
+        rest = &rest[at + 3..];
+        if rest.find(|c: char| c.is_whitespace() || c == '/' || c == '@').is_some_and(|end| rest[end..].starts_with('@')) {
+            let end = rest.find('@').unwrap_or_default();
+            out.push_str("***");
+            rest = &rest[end..];
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 fn log(raw: &Value, runtime: &Runtime, result: &Value) {
     let value = |key: &str| result.as_object().and_then(|object| object.get(key)).cloned().unwrap_or(Value::Null);
     let cwd = raw.as_object().and_then(|object| object.get("cwd")).filter(|cwd| cwd.as_str().is_some()).cloned().unwrap_or(Value::Null);
-    let line = json::object(vec![("cwd", cwd), ("detail", value("detail")), ("failure", value("failure")), ("gate", value("gate")), ("recorded_at", Value::Str(to_iso(runtime.clock.now_ms())))]);
+    let command = logged_command(raw).map_or(Value::Null, Value::Str);
+    let line = json::object(vec![("command", command), ("cwd", cwd), ("detail", value("detail")), ("failure", value("failure")), ("gate", value("gate")), ("recorded_at", Value::Str(to_iso(runtime.clock.now_ms())))]);
     if let Ok(path) = gate_log_path(&runtime.env) {
         let _ = runtime.files.mkdir_all(dirname(&path)).and_then(|()| runtime.files.append(&path, &format!("{}\n", json::compact(&line))));
     }
