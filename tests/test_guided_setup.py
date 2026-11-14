@@ -48,7 +48,10 @@ def _helpers(script: str) -> str:
 def test_the_table_is_generated_from_the_registry_and_shipped() -> None:
     data = _registry()
     rendered = json.loads(render_registry.artifacts(data)[TABLE][0])
-    assert rendered == data["workstation_secrets"]
+    # The registry's entries, with each minted LiteLLM key carrying its proxy and team.
+    assert [{k: v for k, v in e.items() if k != "litellm"} for e in rendered] == data["workstation_secrets"]
+    minted = [e for e in rendered if e.get("mint") == "litellm"]
+    assert minted and all(set(e["litellm"]) == {"proxy", "team"} for e in minted)
     names = {e["env"] for e in rendered}
     assert {"HINDSIGHT_API_URL", "HINDSIGHT_API_TOKEN", "MEMORY_MCP_TOKEN", "MEMORY_PRIVATE_TOKEN"} <= names
     # Vibe signs in with your Mistral account; setup no longer keeps a key of its own.

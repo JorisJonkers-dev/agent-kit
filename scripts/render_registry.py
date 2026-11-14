@@ -84,7 +84,7 @@ VIBE_NO_SIGNATURE = Path("scripts/vibe-no-commit-signature.py")
 RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
 LITELLM_ROUTES = Path("registry/generated/litellm/routes.json")
-LITELLM_KEY_SCRIPT = Path("registry/generated/litellm/make-keys.sh")
+LITELLM_ADMIN_TOKEN_SCRIPT = Path("registry/generated/litellm/make-admin-token.sh")
 NIXOS_PACKAGES = Path("registry/generated/nixos/packages.nix")
 # The devWorkstation groups a NixOS package can belong to: core is always
 # installed, the others are optional. This order is the rendered order.
@@ -509,11 +509,14 @@ def validate(data: dict[str, Any], reach_path: Path = REACH_PATH) -> None:
             if set(secret) != {"env", "retired"}:
                 raise RegistryError(f"retired workstation secret {secret.get('env')} takes only env and retired")
             continue
-        kinds = [k for k in ("value", "grant", "paste", "login") if k in secret]
+        kinds = [k for k in ("value", "grant", "paste", "login", "mint") if k in secret]
         if not secret.get("env") or len(kinds) != 1:
             raise RegistryError(
-                f"workstation secret {secret.get('env')} needs an env and one of value, grant, paste, login",
+                f"workstation secret {secret.get('env')} needs an env and one of value, grant, paste, login, mint",
             )
+        # Setup mints these itself; the litellm section says which route each one belongs to.
+        if "mint" in secret and secret["mint"] != "litellm":
+            raise RegistryError(f"workstation secret {secret['env']}: mint must be litellm")
         # Rendered into a double-quoted shell string: plain words only.
         if "login" in secret and not (
             isinstance(secret["login"], str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._/=-]*", secret["login"])
@@ -5862,10 +5865,14 @@ def _validate_litellm(data: dict[str, Any]) -> None:
             raise RegistryError(f"litellm route {agent}: key_env {key_env!r} must be a unique variable name")
         seen_envs.add(key_env)
         secret = secrets_by_env.get(key_env)
-        if secret is None or secret.get("export") is not False:
+        if secret is None or secret.get("export") is not False or secret.get("mint") != "litellm":
             raise RegistryError(
-                f"litellm route {agent}: {key_env} must be a workstation secret with export: false, "
-                "so no shell holds the key",
+                f"litellm route {agent}: {key_env} must be a workstation secret with mint: litellm and "
+                "export: false, so setup mints it and no shell holds the key",
+            )
+        if secret.get("check") != base.removesuffix("/v1") + "/key/info" or secret.get("check_method") != "GET":
+            raise RegistryError(
+                f"litellm route {agent}: {key_env} must be checked with GET {base.removesuffix('/v1')}/key/info",
             )
         budget = route["budget_eur"]
         if budget is not None and (
@@ -5900,47 +5907,82 @@ def _validate_litellm(data: dict[str, Any]) -> None:
         raise RegistryError("litellm.routes may hold only one public key")
 
 
-def litellm_key_requests(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """The `/key/generate` body per route: alias, access groups, and a budget that resets."""
+def litellm_team_requests(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """The team per route, by key variable: its alias, access groups, and a budget that resets.
+
+    The team holds the budget, so every host's key for the route draws on the one allowance."""
     section = data.get("litellm") or {}
-    requests = []
+    teams: dict[str, dict[str, Any]] = {}
     for route in section.get("routes") or []:
-        body: dict[str, Any] = {"key_alias": route["agent"], "models": list(route["models"])}
+        body: dict[str, Any] = {"team_alias": route["agent"], "models": list(route["models"])}
         if route["budget_eur"] is not None:
             body["max_budget"] = route["budget_eur"]
             body["budget_duration"] = route["budget_duration"]
-        requests.append(body)
-    return requests
+        teams[str(route["key_env"])] = body
+    return teams
 
 
-def render_litellm_key_script(data: dict[str, Any]) -> str:
-    """The owner's `/key/generate` calls, one per route: no key inside, the master key from the environment."""
+def render_workstation_secrets(data: dict[str, Any]) -> str:
+    """The secrets table agent-kit-keys reads; a minted LiteLLM key carries its proxy and team."""
+    section = data.get("litellm") or {}
+    proxy = str(section.get("base_url") or "").removesuffix("/v1")
+    teams = litellm_team_requests(data)
+    table = []
+    for entry in _entries(data, "workstation_secrets"):
+        if entry.get("mint") == "litellm":
+            entry = {**entry, "litellm": {"proxy": proxy, "team": teams[str(entry["env"])]}}
+        table.append(entry)
+    return json.dumps(table, indent=2) + "\n"
+
+
+# The proxy-admin user the short-lived management key belongs to. LiteLLM lets a key call the
+# team and key routes only when its owner holds the proxy_admin role; a key with no owner is refused.
+LITELLM_SETUP_USER = "agent-kit-setup"
+
+
+def render_litellm_admin_token_script(data: dict[str, Any]) -> str:
+    """The owner's calls that make the short-lived management key setup mints the agent keys with."""
     section = data.get("litellm")
     if not section:
         return "#!/usr/bin/env bash\n"
     base = section["base_url"].removesuffix("/v1")
-    lines = [
+    user = {"user_id": LITELLM_SETUP_USER, "user_role": "proxy_admin", "auto_create_key": False}
+    body = {
+        "user_id": LITELLM_SETUP_USER,
+        "key_type": "management",
+        "duration": "1h",
+        "metadata": {"purpose": "agent-kit setup mints agent keys"},
+    }
+    return "\n".join([
         "#!/usr/bin/env bash",
-        "# GENERATED from registry/estate-tooling.yaml (litellm.routes); do not edit.",
-        "# The owner runs this once the proxy is deployed, with the proxy's master key in",
-        "# LITELLM_MASTER_KEY. The key goes in a curl config on stdin, so it reaches no argv. Each",
-        "# response is a new virtual key: paste it into setup when it asks, and nowhere else.",
-        f"# `{LITELLM_PUBLIC_GROUP}` is on the public key only (Google may train on free-tier prompts).",
+        "# GENERATED from registry/estate-tooling.yaml (litellm); do not edit.",
+        "# Makes a LiteLLM management key that expires in one hour, for setup to mint this host's",
+        "# agent keys and their teams with. It can call the management routes only (no model call).",
+        "# LiteLLM lets such a key manage teams and keys only when its owner is a proxy admin, so the",
+        f"# key belongs to the user {LITELLM_SETUP_USER} (role proxy_admin, no key of its own), made here",
+        "# the first time. Run it with the proxy's master key in LITELLM_MASTER_KEY; the key goes in a",
+        "# curl config on stdin, so it reaches no argv. The new key is printed for setup",
+        "# (LITELLM_ADMIN_TOKEN, or paste it when setup asks); setup never stores it.",
         "set -euo pipefail",
         ': "${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY to the proxy master key}"',
         "",
-        "make_key() {",
-        "  curl -sS --config - --data-binary \"$1\" " + f"{base}/key/generate" + " <<CFG",
+        "proxy() {",
+        '  curl -sS --config - "$@" <<CFG',
         'header = "Authorization: Bearer ${LITELLM_MASTER_KEY}"',
         'header = "Content-Type: application/json"',
         "CFG",
-        "  echo",
         "}",
         "",
-    ]
-    for body in litellm_key_requests(data):
-        lines.append(f"make_key '{json.dumps(body, separators=(',', ':'))}'")
-    return "\n".join(lines) + "\n"
+        f"if ! proxy -o /dev/null --fail '{base}/user/info?user_id={LITELLM_SETUP_USER}' 2>/dev/null; then",
+        "  made=$(proxy --fail-with-body --data-binary "
+        + f"'{json.dumps(user, separators=(',', ':'))}' {base}/user/new)"
+        + ' || { printf \'%s\\n\' "$made" >&2; exit 1; }',
+        "fi",
+        "proxy --fail-with-body --data-binary "
+        + f"'{json.dumps(body, separators=(',', ':'))}' {base}/key/generate"
+        + " | python3 -c 'import json, sys; print(json.load(sys.stdin)[\"key\"])'",
+        "",
+    ])
 
 
 def render_litellm_routes(data: dict[str, Any]) -> str:
@@ -6035,10 +6077,10 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         VIBE_PRIVATE_MCP: (render_vibe_private_mcp(data), 0o644),
         ANTIGRAVITY_MCP: (render_antigravity_mcp(data), 0o644),
         OPENCODE_MCP: (render_opencode_mcp(data), 0o644),
-        SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
+        SECRETS_TABLE: (render_workstation_secrets(data), 0o644),
         NIXOS_PACKAGES: (render_nixos_packages(data), 0o644),
         LITELLM_ROUTES: (render_litellm_routes(data), 0o644),
-        LITELLM_KEY_SCRIPT: (render_litellm_key_script(data), 0o755),
+        LITELLM_ADMIN_TOKEN_SCRIPT: (render_litellm_admin_token_script(data), 0o755),
         **{
             VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)
             for agent in vibe_critic_agents(data)

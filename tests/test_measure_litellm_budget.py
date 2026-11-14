@@ -181,3 +181,38 @@ def test_a_missing_route_table_is_a_usage_failure_not_a_traceback(monkeypatch, c
 def test_a_trailing_newline_is_not_safe() -> None:
     with pytest.raises(measure.Failure):
         measure.credential("NAME", {"NAME": "abc\n"})
+
+
+def test_a_team_key_reports_its_team_budget(capsys) -> None:
+    team = {
+        "team_info": {
+            "max_budget": 255.0,
+            "budget_duration": "30d",
+            "budget_reset_at": "2026-12-01T00:00:00Z",
+            "spend": 4.0,
+        }
+    }
+    key = {"info": {"max_budget": None, "budget_duration": None, "spend": 0.5, "team_id": "team-vibe"}}
+    seen: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            seen.append(self.path)
+            body = team if self.path.startswith("/team/info?team_id=team-vibe") else key
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(json.dumps(body).encode())
+
+        def log_message(self, *args: object) -> None:
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        assert measure.main(["--url", f"http://127.0.0.1:{server.server_port}/v1"], ENV) == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+    out = capsys.readouterr().out
+    assert seen == ["/key/info", "/team/info?team_id=team-vibe"]
+    assert "255.0" in out and '"30d"' in out and "4.0" in out and KEY not in out

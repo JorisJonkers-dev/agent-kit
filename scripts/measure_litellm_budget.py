@@ -3,7 +3,9 @@
 
 One GET /key/info with the agent id's key: LiteLLM answers with the key's
 ``max_budget``, ``budget_duration``, ``budget_reset_at`` and ``spend``. It is
-not a model call, so it costs nothing. The output is those four fields and the
+not a model call, so it costs nothing. A key setup minted into its route's team
+has no budget of its own, so then a GET /team/info with the same key reads the
+team's four fields instead. The output is those four fields and the
 request that asked, with the key redacted; nothing else of the reply
 and no key value is ever printed.
 
@@ -110,22 +112,36 @@ def measure(
     route = route_for(agent, routes)
     target = endpoint(url or str(route["base_url"]))
     key = credential(str(route["key_env"]), env, secret)
-    headers = {"Authorization": f"Bearer {key}"}
     shown = f"GET {target}\n  Authorization: Bearer <{route['key_env']}, redacted>"
-    request = urllib.request.Request(target, method="GET", headers={**headers, "User-Agent": AGENT})
+    body = _get(target, key, shown)
+    info = body.get("info") if isinstance(body, dict) else None
+    if not isinstance(info, dict):
+        raise Failure(f"{shown}\nthe proxy's reply has no key info", 1)
+    team_id = info.get("team_id")
+    if info.get("max_budget") is None and isinstance(team_id, str) and team_id:
+        # A minted key draws on its route's team, which holds the budget and its reset.
+        team_url = target.removesuffix("/key/info") + "/team/info?" + urllib.parse.urlencode({"team_id": team_id})
+        shown += f"\nGET {team_url}\n  Authorization: Bearer <{route['key_env']}, redacted>"
+        reply = _get(team_url, key, shown)
+        team = reply.get("team_info") if isinstance(reply, dict) else None
+        if not isinstance(team, dict):
+            raise Failure(f"{shown}\nthe proxy's reply has no team info", 1)
+        return shown, {name: team.get(name) for name in FIELDS}
+    return shown, {name: info.get(name) for name in FIELDS}
+
+
+def _get(url: str, key: str, shown: str) -> object:
+    """One GET with the key as the bearer; a refusal or an unusable reply fails with the redacted request."""
+    request = urllib.request.Request(url, method="GET", headers={"Authorization": f"Bearer {key}", "User-Agent": AGENT})
     try:
         with urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect).open(
             request, timeout=TIMEOUT_S
         ) as response:
-            body = json.loads(response.read())
+            return json.loads(response.read())
     except urllib.error.HTTPError as e:
         raise Failure(f"{shown}\nthe proxy answered HTTP {e.code}", 1) from None
     except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as e:
         raise Failure(f"{shown}\nno usable answer from the proxy ({type(e).__name__})", 1) from None
-    info = body.get("info") if isinstance(body, dict) else None
-    if not isinstance(info, dict):
-        raise Failure(f"{shown}\nthe proxy's reply has no key info", 1)
-    return shown, {name: info.get(name) for name in FIELDS}
 
 
 def main(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None) -> int:
