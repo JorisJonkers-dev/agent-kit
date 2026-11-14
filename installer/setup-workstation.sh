@@ -2906,6 +2906,46 @@ gold_band_roles() {
 }
 gold_band_roles
 
+# Installs the kit's workflow templates (installer/gold-band/workflows/*.json) into the
+# personal instance's context/workflows.json: a missing one is added, a drifted one is
+# replaced in place, one the keep file names is never touched, and one bound to a
+# work-instance agent is not installed. Where Gold Band is installed, Linux only.
+gold_band_workflows() {
+  local out rc=0 line bin
+  if [ "$(uname -s)" != Linux ]; then
+    log "gold band workflows: only the Linux personal instance is converged here, skipped"
+    return 0
+  fi
+  if [ "${CLOUD}" = 1 ]; then
+    log "gold band workflows: not converged in a cloud session"
+    return 0
+  fi
+  bin="${GOLD_BAND_BIN_DIR:-${HOME}/.local/bin}/gold-band"
+  if [ ! -x "${bin}" ]; then
+    log "gold band workflows: Gold Band is not installed, its workflow templates are left alone"
+    return 0
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; the Gold Band workflow templates are not converged"
+    return 0
+  fi
+  local band_home="${GOLD_BAND_HOME:-}"
+  [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"
+  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"
+    --store "${band_home}/.gold-band/context/workflows.json"
+    --workflows "${KIT_ROOT}/installer/gold-band/workflows")
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-workflows \
+    "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" = 4 ]; then
+    fail "Gold Band is running: setup stopped before its remaining write groups; quit it and re-run setup"
+    exit 1
+  fi
+  [ "${rc}" = 0 ] || fail "the Gold Band workflow templates did not converge (see above)"
+}
+gold_band_workflows
+
 # -----------------------------------------------------------------
 # 2. Claude Code profiles.
 #

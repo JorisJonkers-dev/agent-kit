@@ -85,6 +85,7 @@ KIT_PATHS=(
   scripts/vibe-sync-models.py
   scripts/agent-kit-keys.py
   registry/generated/workstation-secrets.json
+  installer/gold-band/workflows
 )
 SKILLS_CHECKSUM="${SKILLS_TARBALL}.sha256"
 RETIRED_NAMES=(install.sh install-agents.sh)

@@ -224,6 +224,48 @@ byte-identical to the workstation sources a set copies, so both groups are
 covered; setup writes only under the instance's `skill-sets/` directory and
 never touches the direct-lane copies.
 
+## The personal instance's workflow templates
+
+Gold Band keeps its workflow templates in one user-level file,
+`${GOLD_BAND_HOME:-~}/.gold-band/context/workflows.json` (a `templates` list, each
+entry a `workflow` with its `modelBindings`, shared by every workspace). The
+checked-in workflows under `installer/gold-band/workflows/*.json` are installed
+into that file on the Linux workstation by a setup run
+(`scripts/converge.py gold-band-workflows`), after the agent map and the roles:
+
+* **Personal instance only.** The file is the personal instance's. A workflow
+  whose bindings (or a worker's `provider`) name an agent of the work instance
+  (`gold_band_instances.gold-band.agents` in the registry: `claude-work`,
+  `codex`) is not installed and is reported as `skipped <id> (bound to the work
+  instance's ...)`; today that is `workflow-b-work` and `workflow-c-work`. Setup
+  does not touch the work instance's store, on the Mac or anywhere else.
+* **One template per file.** A file's name is its workflow's `id` and becomes the
+  template's `id` and `name`. A template the store lacks is added at the end
+  (`added <id>`). One whose `workflow` or `modelBindings` differ from the file is
+  replaced in place (`changed <id>`), keeping its position, its name and
+  `createdAt`; the comparison ignores `null` fields, which the app drops when it
+  re-saves. An up-to-date store prints `workflows unchanged` and is not written.
+* **The keep file wins.** A workflow whose id (or `<id>.json`) is in
+  `~/.config/agent-kit/keep.yaml` is never added or overwritten
+  (`kept <id> (keep file)`), so a template you edited in the app stays yours.
+  Nothing is ever removed: the app's two built-in templates, templates you made
+  and every other key of the file keep their place and value. A built-in under a
+  shipped id stops the run before anything is written.
+* **Atomic.** The new store is written beside the old one (`0600`, fsynced) and
+  renamed over it, with one `workflows.json.bak` holding what it replaced, so the
+  app never reads half a file. A file that is not a template store, or a source
+  file that is malformed, is refused and nothing is written. A missing store is
+  created (the app then adds its built-ins when it loads it).
+* **Never while the app runs.** Setup stops with `Gold Band is running` (exit 1)
+  and writes nothing, as for the agent map; a machine without Gold Band gets no
+  file. `setup-workstation.sh --check` (or `converge.py gold-band-workflows
+  --check`) prints `would add <id>` and `would change <id>` and writes nothing.
+
+The installer bundle ships `installer/gold-band/workflows`, so a setup run from a
+release bundle installs the same templates (`tests/test_publish_installer_artifacts.py`).
+`tests/test_gold_band_workflows_converge.py` proves each rule against throw-away
+stores.
+
 ## The run-start shim
 
 Every Gold Band workflow opens with a cheap, read-only node that runs one

@@ -778,12 +778,16 @@ v0.19.1 and converges the instance's `agents` map and its context profiles:
 bash "${KIT_ROOT}/scripts/gold-band/build-linux.sh"
 python "${KIT_ROOT}/scripts/converge.py" gold-band
 python "${KIT_ROOT}/scripts/converge.py" gold-band-roles
+python "${KIT_ROOT}/scripts/converge.py" gold-band-workflows
 ```
 
 The result is `~/.local/bin/gold-band`, `~/.local/bin/gold-band-desktop`, and
 `${GOLD_BAND_HOME:-~}/.gold-band/settings.json` holding exactly the declared
 agents plus the keep file's, with the personal instance's MCP servers as
-`contextServers`. The Linux machine holds no employer clones, so it needs no
+`contextServers`, and the kit's workflow templates
+(`installer/gold-band/workflows/*.json`) in
+`${GOLD_BAND_HOME:-~}/.gold-band/context/workflows.json`
+([GOLD-BAND.md](GOLD-BAND.md#the-personal-instances-workflow-templates)). The Linux machine holds no employer clones, so it needs no
 read limit and never runs the work instance.
 
 ### Personal instance, work Mac (second macOS user)
