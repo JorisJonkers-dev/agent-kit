@@ -55,6 +55,18 @@ const findings = () => {
       type: 'finding', recorded_at: rnd() < 0.8 ? run.recorded_at : at(), repository: run.repository, run_id: G(run.run_id, 'r99'), stage: run.stage, ...(run.spec ? { spec: run.spec } : {}),
       finding_id: `f${i}`, pre_verdict: pick(null, null, 'fabricated-evidence'), raised_by: G(raisers(run), ['nobody']),
       severity: pick('critical', 'major', 'minor'), verdict: pick('accepted', 'accepted', 'rejected', 'rejected', 'hint', 'needs-human'),
+      ...(rnd() < 0.2 ? {} : { check: pick(null, 'unstated-assumption', 'contradiction', 'a-b', 'a1', 'hint-only', 'Zeta', 'z') }),
+    }
+  })
+}
+// The refute round's own lines, which the node runner appends before record: an outcome, and the refuter's client.
+const refutes = () => {
+  if (runs.length === 0) return []
+  return Array.from({ length: Math.floor(rnd() * 12) }, (_, i) => {
+    const run = pick(...runs)
+    return {
+      type: 'refute', recorded_at: rnd() < 0.8 ? run.recorded_at : at(), repository: run.repository, run_id: run.run_id, stage: pick(run.stage, 'spec', 'tickets', 'adr-review'), ...(run.spec ? { spec: run.spec } : {}),
+      finding_id: `f${i}`, client: pick(null, 'vibe-glm', 'agy-Z', 'vibe-mistral-large', 'claude-work'), outcome: pick('no-objection', 'refute', 'downgrade', 'stands', 'skipped'),
     }
   })
 }
@@ -75,7 +87,7 @@ for (let i = 0; i < Number(N); ) {
   const where = runs.map(() => pick('own', 'own', 'gateway', 'both'))
   const ownRuns = runs.filter((_, i) => where[i] !== 'gateway')
   const gatewayRuns = runs.filter((_, i) => where[i] !== 'own')
-  const own = rnd() < 0.1 ? null : lines([...ownRuns, ...findings()])
+  const own = rnd() < 0.1 ? null : lines([...ownRuns, ...findings(), ...refutes()])
   const gateway = rnd() < 0.15 ? null : lines([...gatewayRuns.map(gatewayLine), ...(rnd() < 0.3 ? [{ ...gatewayLine(runs[0] ?? { recorded_at: at(), run_id: 'r1', repository: KEY, stage: 'spec', critic_id: 'c1', client: 'vibe-glm', model: 'm', status: 'ok', finding_count: 0, role: 'r', lenses: [], lens_hashes: {}, cost_usd: 0.1 }), prompt_hashes: undefined }, '{"type":"invocation"'] : [])])
   const override = pick(null, { stats: { min_adjudicated_findings: 1, removal_features: 1 } }, { stats: { min_adjudicated_findings: 2, removal_features: 2 } }, { stats: { min_adjudicated_findings: 3, removal_features: 1 } }, { stats: null })
   const record = { input, own, gateway, override: override === null ? null : JSON.stringify(override), remotes: pick([['origin', 'git@github.com:JorisJonkers-dev/example.git']], [['origin', 'git@github.com:JorisJonkers-dev/example.git']], []) }

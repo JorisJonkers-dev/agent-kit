@@ -1656,6 +1656,10 @@ export interface SyntheticFinding {
   readonly pre_verdict?: string
   /** The severity the finding was recorded with; major by default. */
   readonly severity?: 'critical' | 'major' | 'minor'
+  /** The check the finding names; left out of the line when not given, as on lines recorded before the ledger kept it. */
+  readonly check?: string | null
+  /** What the refute round did to the finding; no `refute` line when not given. */
+  readonly refute?: { readonly outcome: string; /** The refuter's client; null when no client could refute it. */ readonly client: string | null }
 }
 
 export interface SyntheticRun {
@@ -1739,6 +1743,7 @@ export class SyntheticLedger {
         ...common,
         ...identity(Math.max(raisers[0] ?? 0, 0)),
         category: 'contradiction',
+        ...(finding.check === undefined ? {} : { check: finding.check }),
         evidence_kinds: ['quote'],
         finding_id: `F${String(index + 1)}`,
         pre_verdict: finding.pre_verdict ?? null,
@@ -1748,6 +1753,17 @@ export class SyntheticLedger {
         severity: finding.severity ?? 'major',
         verdict: finding.verdict,
       })
+      if (finding.refute !== undefined) {
+        // The refute round's own line, as refute appends it before record.
+        this.lines.push({
+          type: 'refute',
+          ...common,
+          client: finding.refute.client,
+          finding_id: `F${String(index + 1)}`,
+          outcome: finding.refute.outcome,
+          role: 'refuter',
+        })
+      }
     })
     return this
   }

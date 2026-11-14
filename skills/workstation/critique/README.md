@@ -573,4 +573,6 @@ findings, flags a stage with no unique catch across its last three features,
 and never edits routing. Once a cell has those 20 adjudicated findings
 (routing's `stats.min_adjudicated_findings`) the report adds its calibration:
 precision over the older and the newer half of its findings, the drift
-between them, and precision per severity.
+between them, and precision per severity. Two more tables follow: precision per
+check id (accepted over accepted plus rejected, over every critic), and the
+refute round's outcomes per stage and refuter client.

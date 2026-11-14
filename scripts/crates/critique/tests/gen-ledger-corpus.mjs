@@ -63,7 +63,15 @@ function findingLine() {
   maybe(o, 'recorded_at', at()); maybe(o, 'repository', 'acme/w'); maybe(o, 'run_id', pick('r1', 'r2')); maybe(o, 'stage', pick(...STAGES), .99)
   if (rnd() < .5) o.spec = 's.md'; if (rnd() < .5) o.flow = 'f1'; if (rnd() < .5) o.round = pick(1, 2)
   maybe(o, 'finding_id', G(pick('f-1', 'f-2'), 5), .99); maybe(o, 'severity', G(pick('critical', 'major', 'minor'), 'zzz'), .985); maybe(o, 'raised_by', G(pick(['c1'], ['c1', 'c2'], []), [1]), .99)
-  maybe(o, 'verdict', G(pick('accepted', 'rejected', 'needs-human', 'hint'), 'zzz'), .985); if (rnd() < .5) o.pre_verdict = pick(null, 'x', 5); if (rnd() < .5) o.answered = G(pick(true, false), 'x')
+  maybe(o, 'verdict', G(pick('accepted', 'rejected', 'needs-human', 'hint'), 'zzz'), .985); if (rnd() < .5) o.pre_verdict = pick(null, 'x', 5); if (rnd() < .5) o.answered = G(pick(true, false), 'x'); if (rnd() < .5) o.check = pick(null, 'a-b', 'c', 5)
+  return o
+}
+function refuteLine() {
+  const o = { type: 'refute' }
+  maybe(o, 'recorded_at', at()); maybe(o, 'repository', 'acme/w'); maybe(o, 'run_id', pick('r1', 'r2')); maybe(o, 'stage', pick(...STAGES), .99)
+  if (rnd() < .5) o.spec = 's.md'; if (rnd() < .5) o.flow = 'f1'; if (rnd() < .5) o.round = pick(1, 2)
+  maybe(o, 'finding_id', G(pick('f-1', 'f-2'), 5), .99); maybe(o, 'client', G(pick(null, 'vibe-glm', 'agy'), 5), .99)
+  maybe(o, 'outcome', G(pick('no-objection', 'refute', 'downgrade', 'stands', 'skipped'), 'zzz'), .985)
   return o
 }
 function flowLine() {
@@ -78,7 +86,7 @@ function text(kind) {
   const lines = []
   const n = Math.floor(rnd() * 8)
   for (let i = 0; i < n; i++) {
-    let o = kind === 'gw' ? (rnd() < .9 ? gw() : pick(runLine(), { type: 'delegation', at: at() })) : pick(inv, inv, runLine, runLine, findingLine, flowLine)()
+    let o = kind === 'gw' ? (rnd() < .9 ? gw() : pick(runLine(), { type: 'delegation', at: at() })) : pick(inv, inv, runLine, runLine, findingLine, refuteLine, flowLine)()
     let t = JSON.stringify(o)
     if (rnd() < .04) t = pick(...MUT)(t)
     lines.push(t)

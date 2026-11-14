@@ -1,7 +1,8 @@
-import type { Ledger, LedgerCriticRun, LedgerFinding, LedgerRunContext } from './ledger.js'
+import type { Ledger, LedgerCriticRun, LedgerFinding, LedgerRefute, LedgerRunContext } from './ledger.js'
 import { sha256 } from './manifest.js'
 import { SEVERITIES, type Severity } from './findings.js'
 import { CritiqueError } from './outcomes.js'
+import { REFUTE_OUTCOMES, type RefuteOutcome } from './refute.js'
 import type { StatsThresholds } from './routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from './stage.js'
 import { STAGE_TABLE, type RemovalRule } from './stage-table.js'
@@ -109,8 +110,41 @@ export type RemovalCandidate =
       readonly runs: readonly string[]
     }
 
+/**
+ * Precision of one check id: the lens check or role rule findings name,
+ * whichever critic raised them, counted once per finding.
+ */
+export interface CheckStats {
+  readonly check: string
+  /** Every finding that names the check. */
+  readonly findings: number
+  readonly accepted: number
+  readonly rejected: number
+  readonly hints: number
+  readonly needs_human: number
+  /** Accepted plus rejected: the findings precision is measured on. */
+  readonly adjudicated: number
+  /** Accepted over adjudicated; null with nothing adjudicated. */
+  readonly precision: number | null
+}
+
+/**
+ * What the refute round did to the accepted critical findings of one stage
+ * that one refuter client was asked about. A skipped round has no refuter.
+ */
+export interface RefuteStats {
+  readonly stage: CritiqueStage
+  /** The refuter's client; null when no client could refute the finding. */
+  readonly refuter: string | null
+  /** Findings the round was run on. */
+  readonly total: number
+  readonly outcomes: Readonly<Record<RefuteOutcome, number>>
+}
+
 export interface CritiqueStats {
   readonly cells: readonly StatsCell[]
+  readonly checks: readonly CheckStats[]
+  readonly refutes: readonly RefuteStats[]
   readonly removal_candidates: readonly RemovalCandidate[]
   /** Plain sentences for the owner. Nothing applies them. */
   readonly suggestions: readonly string[]
@@ -306,9 +340,68 @@ export function critiqueStats(
     )
   return {
     cells,
+    checks: checkStats(ledger.findings.filter((line) => kept(line, filter))),
+    refutes: refuteStats(ledger.refutes.filter((line) => kept(line, filter))),
     removal_candidates: removalCandidates(runs, uniqueCatches, thresholds.removal_features),
     suggestions: suggestions(cells, routed),
   }
+}
+
+/** Code-point order, so the two runners sort ids alike. */
+function byText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+/** Precision per check id, over the findings that name one, ordered by id. */
+function checkStats(findings: readonly LedgerFinding[]): readonly CheckStats[] {
+  const byCheck = new Map<string, LedgerFinding[]>()
+  for (const finding of findings) {
+    if (finding.check === null) continue
+    byCheck.set(finding.check, [...(byCheck.get(finding.check) ?? []), finding])
+  }
+  return [...byCheck]
+    .sort(([a], [b]) => byText(a, b))
+    .map(([check, lines]) => {
+      const count = (verdict: string): number => lines.filter((line) => line.verdict === verdict).length
+      const accepted = count('accepted')
+      const rejected = count('rejected')
+      const adjudicated = accepted + rejected
+      return {
+        accepted,
+        adjudicated,
+        check,
+        findings: lines.length,
+        hints: count('hint'),
+        needs_human: count('needs-human'),
+        precision: adjudicated === 0 ? null : accepted / adjudicated,
+        rejected,
+      }
+    })
+}
+
+/** The refute round's outcomes per stage and refuter client, over the findings the round ran on, ordered by stage and refuter. */
+function refuteStats(refutes: readonly LedgerRefute[]): readonly RefuteStats[] {
+  const groups = new Map<string, { stage: CritiqueStage; refuter: string | null; lines: LedgerRefute[] }>()
+  for (const refute of refutes) {
+    const key = `${refute.stage} ${refute.client ?? ''}`
+    const group = groups.get(key) ?? { lines: [], refuter: refute.client, stage: refute.stage }
+    group.lines.push(refute)
+    groups.set(key, group)
+  }
+  return [...groups.values()]
+    .sort(
+      (a, b) =>
+        CRITIQUE_STAGES.indexOf(a.stage) - CRITIQUE_STAGES.indexOf(b.stage) ||
+        byText(a.refuter ?? '', b.refuter ?? ''),
+    )
+    .map(({ lines, refuter, stage }) => ({
+      outcomes: Object.fromEntries(
+        REFUTE_OUTCOMES.map((outcome) => [outcome, lines.filter((line) => line.outcome === outcome).length]),
+      ) as Record<RefuteOutcome, number>,
+      refuter,
+      stage,
+      total: lines.length,
+    }))
 }
 
 function kept(line: LedgerRunContext, filter: StatsFilter): boolean {
@@ -494,6 +587,7 @@ export function renderStats(stats: CritiqueStats, scope: StatsScope): string {
   }
   if (stats.cells.length > 0)
     lines.push(...calibrationLines(stats.cells, thresholds.min_adjudicated_findings))
+  lines.push(...checkLines(stats.checks), ...refuteLines(stats.refutes))
   lines.push('', '## Removal candidates', '')
   lines.push(
     ...(stats.removal_candidates.length === 0
@@ -542,6 +636,51 @@ function calibrationLines(cells: readonly StatsCell[], minimum: number): readonl
         share(calibration.by_severity.major),
         share(calibration.by_severity.minor),
       ].join(' | ')} |`,
+    ),
+  ]
+}
+
+/** The per-check table, or the sentence saying no finding names a check. */
+function checkLines(checks: readonly CheckStats[]): readonly string[] {
+  if (checks.length === 0) return ['', '## Precision by check', '', 'No finding names a check yet.']
+  return [
+    '',
+    '## Precision by check',
+    '',
+    'Accepted over accepted plus rejected findings, per check id. Hints and needs-human findings are left out.',
+    '',
+    '| check | findings | adjudicated | accepted | precision |',
+    '|---|---|---|---|---|',
+    ...checks.map(
+      (row) =>
+        `| ${[row.check, String(row.findings), String(row.adjudicated), String(row.accepted), row.precision === null ? '-' : row.precision.toFixed(2)].join(' | ')} |`,
+    ),
+  ]
+}
+
+/** The refute round's table, or the sentence saying none was recorded. */
+function refuteLines(refutes: readonly RefuteStats[]): readonly string[] {
+  if (refutes.length === 0) return ['', '## Refute round', '', 'No refute round has been recorded.']
+  return [
+    '',
+    '## Refute round',
+    '',
+    'Accepted critical findings the refute round checked, per stage and refuter client. Skipped means no client could refute the finding.',
+    '',
+    '| stage | refuter | checked | no objection | refuted | downgraded | stands | skipped |',
+    '|---|---|---|---|---|---|---|---|',
+    ...refutes.map(
+      (row) =>
+        `| ${[
+          row.stage,
+          row.refuter ?? '-',
+          String(row.total),
+          String(row.outcomes['no-objection']),
+          String(row.outcomes.refute),
+          String(row.outcomes.downgrade),
+          String(row.outcomes.stands),
+          String(row.outcomes.skipped),
+        ].join(' | ')} |`,
     ),
   ]
 }

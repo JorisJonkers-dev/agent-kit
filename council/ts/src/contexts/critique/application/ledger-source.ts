@@ -37,6 +37,7 @@ export class LedgerSource {
       ledger: {
         findings: ledger.findings,
         flow_events: ledger.flow_events,
+        refutes: ledger.refutes,
         runs: merge(ledger.runs, gateway.runs, (run) => `${run.run_id} ${run.critic_id}`),
         skipped_reviews: ledger.skipped_reviews,
       },

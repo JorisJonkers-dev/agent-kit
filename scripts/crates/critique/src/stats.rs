@@ -3,7 +3,7 @@
 
 use crate::collate::locale_compare;
 use crate::error::CritiqueError;
-use crate::ledger::{Ledger, LedgerCriticRun, LedgerFinding, LedgerRunContext, SEVERITIES};
+use crate::ledger::{Ledger, LedgerCriticRun, LedgerFinding, LedgerRefute, LedgerRunContext, REFUTE_OUTCOMES, SEVERITIES};
 use crate::routing::StatsThresholds;
 use crate::stage::CRITIQUE_STAGES;
 use crate::stage_table::{removal_rule, RemovalRule};
@@ -108,10 +108,42 @@ pub enum RemovalCandidate {
     Runs { stage: String, runs: Vec<String> },
 }
 
+/// Precision of one check id: the lens check or role rule findings name, whichever critic raised them, counted once
+/// per finding.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckStats {
+    pub check: String,
+    /// Every finding that names the check.
+    pub findings: f64,
+    pub accepted: f64,
+    pub rejected: f64,
+    pub hints: f64,
+    pub needs_human: f64,
+    /// Accepted plus rejected: the findings precision is measured on.
+    pub adjudicated: f64,
+    /// Accepted over adjudicated; none with nothing adjudicated.
+    pub precision: Option<f64>,
+}
+
+/// What the refute round did to the accepted critical findings of one stage that one refuter client was asked about.
+/// A skipped round has no refuter.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RefuteStats {
+    pub stage: String,
+    /// The refuter's client; none when no client could refute the finding.
+    pub refuter: Option<String>,
+    /// Findings the round was run on.
+    pub total: f64,
+    /// The count of each outcome, in the order of `REFUTE_OUTCOMES`.
+    pub outcomes: [f64; 5],
+}
+
 /// The figures per cell, the stages that are candidates for removal, and the routing suggestions.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CritiqueStats {
     pub cells: Vec<StatsCell>,
+    pub checks: Vec<CheckStats>,
+    pub refutes: Vec<RefuteStats>,
     pub removal_candidates: Vec<RemovalCandidate>,
     /// Plain sentences for the owner. Nothing applies them.
     pub suggestions: Vec<String>,
@@ -206,6 +238,36 @@ impl StatsCell {
     }
 }
 
+impl CheckStats {
+    pub fn to_json(&self) -> Value {
+        object(vec![
+            ("accepted", Value::Num(self.accepted)),
+            ("adjudicated", Value::Num(self.adjudicated)),
+            ("check", Value::str(&self.check)),
+            ("findings", Value::Num(self.findings)),
+            ("hints", Value::Num(self.hints)),
+            ("needs_human", Value::Num(self.needs_human)),
+            ("precision", number_or_null(self.precision)),
+            ("rejected", Value::Num(self.rejected)),
+        ])
+    }
+}
+
+impl RefuteStats {
+    pub fn to_json(&self) -> Value {
+        let mut outcomes = Object::new();
+        for (name, count) in REFUTE_OUTCOMES.iter().zip(&self.outcomes) {
+            outcomes.set(name, Value::Num(*count));
+        }
+        object(vec![
+            ("outcomes", Value::Obj(outcomes)),
+            ("refuter", self.refuter.as_ref().map_or(Value::Null, |client| Value::str(client))),
+            ("stage", Value::str(&self.stage)),
+            ("total", Value::Num(self.total)),
+        ])
+    }
+}
+
 impl RemovalCandidate {
     pub fn to_json(&self) -> Value {
         match self {
@@ -226,6 +288,8 @@ impl CritiqueStats {
     pub fn to_object(&self) -> Object {
         let mut result = Object::new();
         result.set("cells", Value::Arr(self.cells.iter().map(StatsCell::to_json).collect()));
+        result.set("checks", Value::Arr(self.checks.iter().map(CheckStats::to_json).collect()));
+        result.set("refutes", Value::Arr(self.refutes.iter().map(RefuteStats::to_json).collect()));
         result.set("removal_candidates", Value::Arr(self.removal_candidates.iter().map(RemovalCandidate::to_json).collect()));
         result.set("suggestions", strings(&self.suggestions));
         result
@@ -495,7 +559,68 @@ pub fn critique_stats(
     });
     let removal_candidates = removal_candidates(&runs, &unique_catches, thresholds.removal_features);
     let suggestions = suggestions(&cells, routed);
-    Ok(CritiqueStats { cells, removal_candidates, suggestions })
+    let findings: Vec<&LedgerFinding> = ledger.findings.iter().filter(|finding| kept(&finding.context, filter)).collect();
+    let refutes: Vec<&LedgerRefute> = ledger.refutes.iter().filter(|refute| kept(&refute.context, filter)).collect();
+    Ok(CritiqueStats { cells, checks: check_stats(&findings), refutes: refute_stats(&refutes), removal_candidates, suggestions })
+}
+
+/// Precision per check id, over the findings that name one, ordered by id (code-point order, as the node runner sorts).
+fn check_stats(findings: &[&LedgerFinding]) -> Vec<CheckStats> {
+    let mut by_check: Vec<(&str, Vec<&LedgerFinding>)> = Vec::new();
+    for finding in findings {
+        let Some(check) = finding.check.as_deref() else { continue };
+        match by_check.iter_mut().find(|(name, _)| *name == check) {
+            Some((_, lines)) => lines.push(finding),
+            None => by_check.push((check, vec![finding])),
+        }
+    }
+    by_check.sort_by(|a, b| text_order(a.0, b.0));
+    by_check
+        .into_iter()
+        .map(|(check, lines)| {
+            let count = |verdict: &str| lines.iter().filter(|line| line.verdict == verdict).count() as f64;
+            let (accepted, rejected) = (count("accepted"), count("rejected"));
+            let adjudicated = accepted + rejected;
+            CheckStats {
+                accepted,
+                adjudicated,
+                check: check.to_string(),
+                findings: lines.len() as f64,
+                hints: count("hint"),
+                needs_human: count("needs-human"),
+                precision: if adjudicated == 0.0 { None } else { Some(accepted / adjudicated) },
+                rejected,
+            }
+        })
+        .collect()
+}
+
+/// The refute round's outcomes per stage and refuter client, over the findings the round ran on, ordered by stage and
+/// refuter.
+fn refute_stats(refutes: &[&LedgerRefute]) -> Vec<RefuteStats> {
+    let mut groups: Vec<(&str, Option<&str>, Vec<&LedgerRefute>)> = Vec::new();
+    for refute in refutes {
+        let (stage, client) = (refute.context.stage.as_str(), refute.client.as_deref());
+        match groups.iter_mut().find(|(name, refuter, _)| *name == stage && *refuter == client) {
+            Some((_, _, lines)) => lines.push(refute),
+            None => groups.push((stage, client, vec![refute])),
+        }
+    }
+    groups.sort_by(|a, b| stage_index(a.0).cmp(&stage_index(b.0)).then_with(|| text_order(a.1.unwrap_or(""), b.1.unwrap_or(""))));
+    groups
+        .into_iter()
+        .map(|(stage, refuter, lines)| RefuteStats {
+            outcomes: std::array::from_fn(|at| lines.iter().filter(|line| line.outcome == REFUTE_OUTCOMES[at]).count() as f64),
+            refuter: refuter.map(str::to_string),
+            stage: stage.to_string(),
+            total: lines.len() as f64,
+        })
+        .collect()
+}
+
+/// Code-point order, so the two runners sort ids alike.
+fn text_order(a: &str, b: &str) -> Ordering {
+    a.cmp(b)
 }
 
 /// A stage's place in `CRITIQUE_STAGES`, which is the order the report lists stages in.
@@ -738,6 +863,8 @@ pub fn render_stats(stats: &CritiqueStats, scope: &StatsScope) -> String {
     if !stats.cells.is_empty() {
         lines.extend(calibration_lines(&stats.cells, scope.thresholds.min_adjudicated_findings));
     }
+    lines.extend(check_lines(&stats.checks));
+    lines.extend(refute_lines(&stats.refutes));
     lines.push(String::new());
     lines.push("## Removal candidates".to_string());
     lines.push(String::new());
@@ -811,6 +938,59 @@ fn calibration_lines(cells: &[StatsCell], minimum: f64) -> Vec<String> {
         ]
         .join(" | ");
         lines.push(format!("| {row} |"));
+    }
+    lines
+}
+
+/// The per-check table, or the sentence saying no finding names a check.
+fn check_lines(checks: &[CheckStats]) -> Vec<String> {
+    if checks.is_empty() {
+        return vec![String::new(), "## Precision by check".to_string(), String::new(), "No finding names a check yet.".to_string()];
+    }
+    let mut lines = vec![
+        String::new(),
+        "## Precision by check".to_string(),
+        String::new(),
+        "Accepted over accepted plus rejected findings, per check id. Hints and needs-human findings are left out.".to_string(),
+        String::new(),
+        "| check | findings | adjudicated | accepted | precision |".to_string(),
+        "|---|---|---|---|---|".to_string(),
+    ];
+    for row in checks {
+        let precision = row.precision.map_or("-".to_string(), |precision| to_fixed(precision, 2));
+        let cells = [row.check.clone(), number_text(row.findings), number_text(row.adjudicated), number_text(row.accepted), precision];
+        lines.push(format!("| {} |", cells.join(" | ")));
+    }
+    lines
+}
+
+/// The refute round's table, or the sentence saying none was recorded.
+fn refute_lines(refutes: &[RefuteStats]) -> Vec<String> {
+    if refutes.is_empty() {
+        return vec![String::new(), "## Refute round".to_string(), String::new(), "No refute round has been recorded.".to_string()];
+    }
+    let mut lines = vec![
+        String::new(),
+        "## Refute round".to_string(),
+        String::new(),
+        "Accepted critical findings the refute round checked, per stage and refuter client. Skipped means no client could refute the finding.".to_string(),
+        String::new(),
+        "| stage | refuter | checked | no objection | refuted | downgraded | stands | skipped |".to_string(),
+        "|---|---|---|---|---|---|---|---|".to_string(),
+    ];
+    for row in refutes {
+        let [none, refuted, downgraded, stands, skipped] = row.outcomes;
+        let cells = [
+            row.stage.clone(),
+            row.refuter.clone().unwrap_or_else(|| "-".to_string()),
+            number_text(row.total),
+            number_text(none),
+            number_text(refuted),
+            number_text(downgraded),
+            number_text(stands),
+            number_text(skipped),
+        ];
+        lines.push(format!("| {} |", cells.join(" | ")));
     }
     lines
 }
