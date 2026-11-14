@@ -152,9 +152,9 @@
       }
     },
     {
-      "exit": 1,
-      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
-      "stderr": "critique allow: spawn git ENOENT\n",
+      "exit": 0,
+      "stdout": "{\n  \"allowlist_path\": \"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json\",\n  \"code\": false,\n  \"families\": [\n    \"zhipu\"\n  ],\n  \"history\": false,\n  \"repository\": \"github.com/jorisjonkers-dev/example\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
       "files": {
         "home/": null,
         "home/.config/": null,

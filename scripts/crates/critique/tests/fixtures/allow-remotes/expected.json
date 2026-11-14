@@ -354,8 +354,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"unexpected\",\"message\":\"spawn git ENOENT\",\"status\":\"error\"}\n",
-      "stderr": "critique allow: spawn git ENOENT\n",
+      "stdout": "{\"code\":\"unexpected\",\"message\":\"git cannot run in @SANDBOX@/work/missing: the directory does not exist\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: git cannot run in @SANDBOX@/work/missing: the directory does not exist\n",
       "files": {
         "home/": null,
         "home/.config/": null,

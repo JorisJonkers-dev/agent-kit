@@ -102,7 +102,7 @@ export class GateCommand implements CritiqueCommand<GateResult> {
     if (invocations.length === 0) return allowed(null, 'not-gated')
     const results: GateResult[] = []
     for (const invocation of invocations) {
-      results.push(await this.check(invocation).catch((error: unknown) => failure(gateOf(invocation), error)))
+      results.push(await this.check(invocation, input.cwd).catch((error: unknown) => failure(gateOf(invocation), error)))
     }
     return (
       results.find((result) => result.status === 'blocked') ??
@@ -112,10 +112,15 @@ export class GateCommand implements CritiqueCommand<GateResult> {
     )
   }
 
-  private async check(invocation: GatedInvocation): Promise<GateResult> {
+  /**
+   * One invocation, judged in the directory it runs in. When the command line
+   * does not say which (`cd -`, `cd "$DIR"`, `git -C $DIR`), the gate judges it
+   * where the session is: the likeliest place, and one that checks the
+   * command rather than letting it through unseen.
+   */
+  private async check(invocation: GatedInvocation, sessionCwd: string): Promise<GateResult> {
     const gate = gateOf(invocation)
-    if (invocation.cwd === null) throw new Error('the command line does not say which directory the command runs in')
-    const repository = await this.repositories.resolve(invocation.cwd)
+    const repository = await this.repositories.resolve(invocation.cwd ?? sessionCwd)
     if (repository.status === 'refused') return allowed(gate, repository.reason === 'nedap' ? 'nedap' : 'no-remote')
     const allowlist = await this.repositories.allowlist().catch((error: unknown) => {
       throw new UnreadableState(error instanceof Error ? error.message : String(error))
@@ -346,13 +351,41 @@ export class GateCommand implements CritiqueCommand<GateResult> {
   /** Appends one line to the gate log; a log that cannot be written is left alone, so logging never blocks. */
   private async log(raw: unknown, result: Extract<GateResult, { status: 'allowed' }>): Promise<void> {
     const cwd = isJsonObject(raw) && typeof raw.cwd === 'string' ? raw.cwd : null
-    const line = { cwd, detail: result.detail, failure: result.failure, gate: result.gate, recorded_at: this.deps.clock.now().toISOString() }
+    const line = { command: loggedCommand(raw), cwd, detail: result.detail, failure: result.failure, gate: result.gate, recorded_at: this.deps.clock.now().toISOString() }
     try {
       await this.deps.files.appendText(gateLogPath(this.deps.env), `${JSON.stringify(line)}\n`)
     } catch {
       // Nowhere to log; the command is allowed all the same.
     }
   }
+}
+
+/** The most characters of the command line the gate log keeps. */
+const LOGGED_COMMAND_CHARS = 300
+
+/**
+ * The command line a failed-open line is about, so the log says which command
+ * the gate did not look at: the payload's command, with the credentials of any
+ * `scheme://user:secret@host` removed, cut to a few hundred characters; null
+ * when the payload has none.
+ */
+function loggedCommand(raw: unknown): string | null {
+  const input = isJsonObject(raw) ? raw.tool_input : undefined
+  const command = isJsonObject(input) ? input.command : undefined
+  if (typeof command !== 'string') return null
+  return Array.from(hideCredentials(command)).slice(0, LOGGED_COMMAND_CHARS).join('')
+}
+
+function hideCredentials(command: string): string {
+  let out = ''
+  let rest = command
+  for (let at = rest.indexOf('://'); at !== -1; at = rest.indexOf('://')) {
+    out += rest.slice(0, at + 3)
+    rest = rest.slice(at + 3)
+    const end = rest.search(/[\s/@]/)
+    if (end !== -1 && rest.charAt(end) === '@') rest = `***${rest.slice(end)}`
+  }
+  return out + rest
 }
 
 interface GatePayload {

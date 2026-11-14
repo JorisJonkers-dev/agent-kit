@@ -11,6 +11,7 @@ import {
   CritiqueError,
   GatewayGrants,
   GatewayPlanLimit,
+  GitLocatingProcess,
   NodeCritiqueFiles,
   CodeNavRepoMap,
   PiCriticClient,
@@ -189,7 +190,8 @@ export function defaultCritiqueRuntime(
       env,
       files,
       gh: new GhCliAdapter(processPort),
-      git: new GitCliAdapter(processPort),
+      // A hook's PATH may lack git; the gate must find it rather than fail open on `spawn git ENOENT`.
+      git: new GitCliAdapter(new GitLocatingProcess(processPort, env)),
       // Every critic run is recorded in the gateway's ledger, and Vibe's plan
       // limit is read the way the gateway reads it, from its shipped defaults
       // beside this bundle.

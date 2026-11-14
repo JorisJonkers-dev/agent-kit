@@ -6,7 +6,7 @@ import { dirname as dirname11 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/critique-cli/index.ts
-import { join as join44 } from "node:path";
+import { join as join45 } from "node:path";
 
 // src/adapters/clock/index.ts
 import { performance } from "node:perf_hooks";
@@ -9423,14 +9423,19 @@ var GateCommand = class {
     if (invocations.length === 0) return allowed(null, "not-gated");
     const results = [];
     for (const invocation of invocations) {
-      results.push(await this.check(invocation).catch((error) => failure(gateOf(invocation), error)));
+      results.push(await this.check(invocation, input.cwd).catch((error) => failure(gateOf(invocation), error)));
     }
     return results.find((result) => result.status === "blocked") ?? results.find((result) => result.reason === "failed-open") ?? results[0] ?? allowed(null, "not-gated");
   }
-  async check(invocation) {
+  /**
+   * One invocation, judged in the directory it runs in. When the command line
+   * does not say which (`cd -`, `cd "$DIR"`, `git -C $DIR`), the gate judges it
+   * where the session is: the likeliest place, and one that checks the
+   * command rather than letting it through unseen.
+   */
+  async check(invocation, sessionCwd) {
     const gate = gateOf(invocation);
-    if (invocation.cwd === null) throw new Error("the command line does not say which directory the command runs in");
-    const repository = await this.repositories.resolve(invocation.cwd);
+    const repository = await this.repositories.resolve(invocation.cwd ?? sessionCwd);
     if (repository.status === "refused") return allowed(gate, repository.reason === "nedap" ? "nedap" : "no-remote");
     const allowlist = await this.repositories.allowlist().catch((error) => {
       throw new UnreadableState(error instanceof Error ? error.message : String(error));
@@ -9648,7 +9653,7 @@ var GateCommand = class {
   /** Appends one line to the gate log; a log that cannot be written is left alone, so logging never blocks. */
   async log(raw, result) {
     const cwd = isJsonObject(raw) && typeof raw.cwd === "string" ? raw.cwd : null;
-    const line2 = { cwd, detail: result.detail, failure: result.failure, gate: result.gate, recorded_at: this.deps.clock.now().toISOString() };
+    const line2 = { command: loggedCommand(raw), cwd, detail: result.detail, failure: result.failure, gate: result.gate, recorded_at: this.deps.clock.now().toISOString() };
     try {
       await this.deps.files.appendText(gateLogPath(this.deps.env), `${JSON.stringify(line2)}
 `);
@@ -9656,6 +9661,24 @@ var GateCommand = class {
     }
   }
 };
+var LOGGED_COMMAND_CHARS = 300;
+function loggedCommand(raw) {
+  const input = isJsonObject(raw) ? raw.tool_input : void 0;
+  const command2 = isJsonObject(input) ? input.command : void 0;
+  if (typeof command2 !== "string") return null;
+  return Array.from(hideCredentials(command2)).slice(0, LOGGED_COMMAND_CHARS).join("");
+}
+function hideCredentials(command2) {
+  let out = "";
+  let rest = command2;
+  for (let at = rest.indexOf("://"); at !== -1; at = rest.indexOf("://")) {
+    out += rest.slice(0, at + 3);
+    rest = rest.slice(at + 3);
+    const end = rest.search(/[\s/@]/);
+    if (end !== -1 && rest.charAt(end) === "@") rest = `***${rest.slice(end)}`;
+  }
+  return out + rest;
+}
 function readPayload(raw) {
   const fields = JsonFields.of(raw, "");
   return {
@@ -13648,8 +13671,61 @@ function classifyPiRun(result, stream, packetDir, timeLimitS) {
   };
 }
 
+// src/contexts/critique/adapters/git/index.ts
+import { constants } from "node:fs";
+import { access as access3, stat as stat3 } from "node:fs/promises";
+import { join as join40 } from "node:path";
+function gitSearchDirs(env) {
+  const user = env.get("USER");
+  const home = env.get("HOME");
+  return [
+    "/run/current-system/sw/bin",
+    ...user === void 0 ? [] : [`/etc/profiles/per-user/${user}/bin`],
+    ...home === void 0 ? [] : [join40(home, ".nix-profile", "bin")],
+    "/nix/var/nix/profiles/default/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+    "/opt/homebrew/bin"
+  ];
+}
+var GitLocatingProcess = class {
+  constructor(inner, env, fallbackDirs = gitSearchDirs(env)) {
+    this.inner = inner;
+    this.env = env;
+    this.fallbackDirs = fallbackDirs;
+  }
+  inner;
+  env;
+  fallbackDirs;
+  async exec(command2) {
+    if (command2.command !== "git") return this.inner.exec(command2);
+    if (command2.cwd !== void 0 && !await isDirectory(command2.cwd)) {
+      throw new Error(`git cannot run in ${command2.cwd}: the directory does not exist`);
+    }
+    const path = (this.env.get("PATH") ?? "").split(":").filter((entry2) => entry2.length > 0);
+    for (const dir of [...path, ...this.fallbackDirs]) {
+      const git = join40(dir, "git");
+      if (await isExecutable(git)) return this.inner.exec({ ...command2, command: git });
+    }
+    throw new Error(`git was not found on PATH (${path.join(":")}) or in ${this.fallbackDirs.join(":")}`);
+  }
+};
+async function isDirectory(path) {
+  return stat3(path).then(
+    (found) => found.isDirectory(),
+    () => false
+  );
+}
+async function isExecutable(path) {
+  return access3(path, constants.X_OK).then(
+    () => true,
+    () => false
+  );
+}
+
 // src/contexts/critique/adapters/vibe/index.ts
-import { isAbsolute as isAbsolute8, join as join40 } from "node:path";
+import { isAbsolute as isAbsolute8, join as join41 } from "node:path";
 var VibeCriticClient = class {
   constructor(process2, files, env, platform) {
     this.process = process2;
@@ -13675,8 +13751,8 @@ var VibeCriticClient = class {
   async readiness(config) {
     const signIn = await this.signIn(config);
     if (!signIn.ready) return signIn;
-    const home = join40(this.env.require("HOME"), ".vibe");
-    if (!await this.files.exists(join40(home, "agents", `${config.agent}.toml`))) {
+    const home = join41(this.env.require("HOME"), ".vibe");
+    if (!await this.files.exists(join41(home, "agents", `${config.agent}.toml`))) {
       return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false };
     }
     return { ready: true };
@@ -13691,18 +13767,18 @@ var VibeCriticClient = class {
    * being launched to search and voided once it has spent.
    */
   async searchBlocked(config) {
-    const home = join40(this.env.require("HOME"), ".vibe");
-    const path = join40(home, "agents", `${config.agent}.toml`);
+    const home = join41(this.env.require("HOME"), ".vibe");
+    const path = join41(home, "agents", `${config.agent}.toml`);
     if (!await this.files.exists(path)) return `agent-file-missing: ~/.vibe/agents/${config.agent}.toml is not installed; re-run agent-kit setup`;
     const agentProblem = agentFileSearchProblem(await this.files.readText(path), config.agent);
     if (agentProblem !== void 0) return agentProblem;
-    const homeConfig = join40(home, "config.toml");
+    const homeConfig = join41(home, "config.toml");
     return await this.files.exists(homeConfig) ? homeConfigProblem(await this.files.readText(homeConfig)) : void 0;
   }
   /** `vibe` on `PATH` and the personal home signed in, whatever critic agents are installed. */
   async signIn(config) {
     if (!await this.onPath(config.binary)) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false };
-    return await this.signedIn(join40(this.env.require("HOME"), ".vibe")) ? { ready: true } : { detail: SIGN_IN2, ready: false };
+    return await this.signedIn(join41(this.env.require("HOME"), ".vibe")) ? { ready: true } : { detail: SIGN_IN2, ready: false };
   }
   async version(config) {
     return cliVersion(this.process, config.binary);
@@ -13713,13 +13789,13 @@ var VibeCriticClient = class {
   async onPath(binary) {
     if (isAbsolute8(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry2) => entry2.length > 0)) {
-      if (await this.files.exists(join40(dir, binary))) return true;
+      if (await this.files.exists(join41(dir, binary))) return true;
     }
     return false;
   }
   async review(launch, config) {
-    const exportDir = join40(launch.criticDir, "export");
-    const exportPath = join40(exportDir, "export.json");
+    const exportDir = join41(launch.criticDir, "export");
+    const exportPath = join41(exportDir, "export.json");
     const toolset = launch.toolset ?? READ_ONLY_TOOLSET;
     const search = toolset.kind === "vibe-search" ? toolset : void 0;
     const paths = { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir };
@@ -13743,7 +13819,7 @@ var VibeCriticClient = class {
    * returns its final message as plain text.
    */
   async ask(question, config) {
-    const exportDir = join40(question.outputDir, "export");
+    const exportDir = join41(question.outputDir, "export");
     const { result, run } = await this.launch(question, config, { exportDir, promptPath: question.promptPath, workDir: question.workDir });
     const message = vibeMessage(run);
     const answer2 = message.status === "failed" ? message : { cost_usd: message.cost_usd, status: "answered", text: message.text };
@@ -13975,7 +14051,7 @@ function finalAssistantText(stdout) {
 }
 
 // src/contexts/critique/adapters/work/index.ts
-import { isAbsolute as isAbsolute9, join as join41 } from "node:path";
+import { isAbsolute as isAbsolute9, join as join42 } from "node:path";
 var STATUS_TIMEOUT_MS2 = 2e4;
 function missing(client, binary) {
   return { detail: `${client}: ${binary} is not on PATH`, ready: false };
@@ -13983,7 +14059,7 @@ function missing(client, binary) {
 async function onPath(files, env, binary) {
   if (isAbsolute9(binary)) return files.exists(binary);
   for (const dir of (env.get("PATH") ?? "").split(":").filter((entry2) => entry2.length > 0)) {
-    if (await files.exists(join41(dir, binary))) return true;
+    if (await files.exists(join42(dir, binary))) return true;
   }
   return false;
 }
@@ -14026,7 +14102,7 @@ function classify(client, launch, run) {
   };
 }
 async function report(files, client, launch, run) {
-  const exportPath = join41(launch.criticDir, "result.json");
+  const exportPath = join42(launch.criticDir, "result.json");
   const { output, result } = run;
   await files.writeText(
     exportPath,
@@ -14071,7 +14147,7 @@ var CodexCriticClient = class {
       extras: {},
       mode: "read-only",
       model: config.gateway?.model ?? config.model,
-      paths: { exportDir: join41(launch.criticDir, "export"), promptPath: launch.promptPath, workDir: launch.packetDir },
+      paths: { exportDir: join42(launch.criticDir, "export"), promptPath: launch.promptPath, workDir: launch.packetDir },
       prompt: await this.files.readText(launch.promptPath),
       time_limit_s: limitOf(launch)
     });
@@ -14116,7 +14192,7 @@ var ClaudeCriticClient = class {
       extras: { env: this.profile() },
       mode: "read-only",
       model: config.gateway?.model ?? config.model,
-      paths: { exportDir: join41(launch.criticDir, "export"), promptPath: launch.promptPath, workDir: launch.packetDir },
+      paths: { exportDir: join42(launch.criticDir, "export"), promptPath: launch.promptPath, workDir: launch.packetDir },
       prompt: await this.files.readText(launch.promptPath),
       time_limit_s: limitOf(launch)
     });
@@ -14124,7 +14200,7 @@ var ClaudeCriticClient = class {
   }
   /** The work profile's directory, set explicitly so an ambient `CLAUDE_CONFIG_DIR` cannot pick another. */
   profile() {
-    return { CLAUDE_CONFIG_DIR: join41(this.env.require("HOME"), ".claude") };
+    return { CLAUDE_CONFIG_DIR: join42(this.env.require("HOME"), ".claude") };
   }
 };
 
@@ -14242,7 +14318,7 @@ function answerText(reply) {
 
 // src/contexts/critique/adapters/code-nav/client.ts
 import { realpath as realpath2 } from "node:fs/promises";
-import { isAbsolute as isAbsolute10, join as join42, relative as relative5 } from "node:path";
+import { isAbsolute as isAbsolute10, join as join43, relative as relative5 } from "node:path";
 var MAP_TIMEOUT_MS = 3e4;
 var MAP_LIMIT = 200;
 var REQUESTS = [
@@ -14322,7 +14398,7 @@ function mapOf(text, root) {
   return { files, symbols };
 }
 function inside(root, path) {
-  const repository = relative5(root, isAbsolute10(path) ? path : join42(root, path));
+  const repository = relative5(root, isAbsolute10(path) ? path : join43(root, path));
   return repository === "" || repository === ".." || repository.startsWith("../") || repository.startsWith("..\\") ? void 0 : repository.split("\\").join("/");
 }
 
@@ -14331,7 +14407,7 @@ import { createInterface } from "node:readline";
 
 // src/contexts/critique/adapters/search/engine.ts
 import { lstat, readdir as readdir2, readFile as readFile6, realpath as realpath3 } from "node:fs/promises";
-import { isAbsolute as isAbsolute11, join as join43, relative as relative6, sep } from "node:path";
+import { isAbsolute as isAbsolute11, join as join44, relative as relative6, sep } from "node:path";
 var OUTSIDE = "Nothing: that path is outside the packet, or is not in it.";
 var PacketSearchEngine = class _PacketSearchEngine {
   constructor(root, limits, tools) {
@@ -14346,7 +14422,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
   static async open(root, limits) {
     const real = await realpath3(root);
     if (!(await lstat(real)).isDirectory()) throw new Error(`${root} is not a directory`);
-    const map = await lstat(join43(real, REPO_MAP_PATH)).catch(() => void 0);
+    const map = await lstat(join44(real, REPO_MAP_PATH)).catch(() => void 0);
     return new _PacketSearchEngine(real, limits, offeredSearchTools(map?.isFile() === true));
   }
   async call(tool, args) {
@@ -14369,7 +14445,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
     const hits = [];
     for (const path of await this.files(start)) {
       if (glob !== void 0 && !matchesGlob(path, glob)) continue;
-      const lines = (await readFile6(join43(this.root, path), "utf8")).split("\n");
+      const lines = (await readFile6(join44(this.root, path), "utf8")).split("\n");
       lines.forEach((line2, index) => {
         if (pattern.test(line2)) hits.push(`${path}:${String(index + 1)}: ${clipLine(line2)}`);
       });
@@ -14382,7 +14458,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
     return cappedAnswer(paths, this.limits, "paths", "No paths match.");
   }
   async symbol(args) {
-    const map = await readFile6(join43(this.root, REPO_MAP_PATH), "utf8");
+    const map = await readFile6(join44(this.root, REPO_MAP_PATH), "utf8");
     return cappedAnswer(symbolMatches(map, requiredString(args, "name")), this.limits, "matches", "No symbol of that name.");
   }
   /**
@@ -14391,7 +14467,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
    */
   async inside(path) {
     if (isAbsolute11(path)) return void 0;
-    const target = join43(this.root, path);
+    const target = join44(this.root, path);
     if (!within2(this.root, target)) return void 0;
     const real = await realpath3(target).catch(() => void 0);
     if (real !== target) return void 0;
@@ -14399,11 +14475,11 @@ var PacketSearchEngine = class _PacketSearchEngine {
   }
   /** Every plain file under `dir`, relative to the root, sorted; symlinks are skipped, never followed. */
   async files(dir) {
-    const stat3 = await lstat(dir);
-    if (stat3.isFile()) return [relative6(this.root, dir)];
+    const stat4 = await lstat(dir);
+    if (stat4.isFile()) return [relative6(this.root, dir)];
     const found = [];
     for (const entry2 of await readdir2(dir, { withFileTypes: true })) {
-      const path = join43(dir, entry2.name);
+      const path = join44(dir, entry2.name);
       if (entry2.isDirectory()) found.push(...await this.files(path));
       else if (entry2.isFile()) found.push(relative6(this.root, path));
     }
@@ -15061,18 +15137,19 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
       env,
       files,
       gh: new GhCliAdapter(processPort),
-      git: new GitCliAdapter(processPort),
+      // A hook's PATH may lack git; the gate must find it rather than fail open on `spawn git ENOENT`.
+      git: new GitCliAdapter(new GitLocatingProcess(processPort, env)),
       // Every critic run is recorded in the gateway's ledger, and Vibe's plan
       // limit is read the way the gateway reads it, from its shipped defaults
       // beside this bundle.
       // Codex critics of a nedap repository run under the gateway's grants.
       grants: new GatewayGrants(env, clock),
       ledger: new NodeModelGatewayLedger(env),
-      plan: new GatewayPlanLimit(env, clock, join44(assetsRoot, "..", "model-gateway", "defaults.json")),
+      plan: new GatewayPlanLimit(env, clock, join45(assetsRoot, "..", "model-gateway", "defaults.json")),
       // The tree sample is ordered by code-nav's repository map when code-nav is installed.
       repoMap: new CodeNavRepoMap(processPort),
       // Vibe starts the search server as `node critique.mjs search-server ...`.
-      search: new ProcessSearchClient(processPort, { args: [join44(assetsRoot, "critique.mjs")], command: process.execPath })
+      search: new ProcessSearchClient(processPort, { args: [join45(assetsRoot, "critique.mjs")], command: process.execPath })
     }),
     readFile: (path) => files.readText(path),
     readStdin: readStdin2
