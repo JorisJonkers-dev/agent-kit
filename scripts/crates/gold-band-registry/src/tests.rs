@@ -199,6 +199,24 @@ fn overlay_shape_is_checked() {
 }
 
 #[test]
+fn overlay_hindsight_reaches_the_nedap_bank_only() {
+    let ok = "instance\tgold-band\nfield\tmcp_servers.hindsight.url\thttps://h.example/mcp/nedap/\n\
+        field\tmcp_servers.other.url\thttps://h.example/mcp/nedap?x=1\n";
+    assert_eq!(found(&overlay(ok)), Vec::<String>::new());
+    for bank in ["default", "private", ""] {
+        let body = format!("instance\tgold-band\nfield\tmcp_servers.hindsight.url\thttps://h.example/mcp/{bank}/\n");
+        has(&overlay(&body), "reaches the");
+        has(&overlay(&body), "nedap bank only");
+    }
+    let other = "instance\tgold-band\nfield\tmcp_servers.notes.url\thttps://h.example/mcp/default/\n";
+    has(&overlay(other), "mcp server notes reaches the default bank");
+    let root = "instance\tgold-band\nfield\tmcp_servers.hindsight.url\thttps://h.example/mcp\n";
+    has(&overlay(root), "single-bank endpoint of the nedap bank");
+    let command = "instance\tgold-band\nfield\tmcp_servers.hindsight.command\thindsight-mcp\n";
+    has(&overlay(command), "single-bank endpoint of the nedap bank");
+}
+
+#[test]
 fn overlay_literal_secrets_are_refused() {
     let body = "instance\tgold-band\nfield\tmcp_servers.a.command\tx\nfield\tmcp_servers.a.env.API_TOKEN\thunter2\n\
         field\tsettings.endpoint\tBearer abcdefghijklmnopqrstuv\n";
