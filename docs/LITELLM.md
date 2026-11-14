@@ -27,11 +27,11 @@ can still be refused.
 `registry/estate-tooling.yaml` (`litellm:`) is the source. The render writes
 `registry/generated/litellm/routes.json` (base URL, header, one route per agent id with its
 key variable, cap (`null` is no cap), `budget_duration`, `data_scope` and access groups, never a
-key value) and `registry/generated/litellm/make-keys.sh` (the owner's `/key/generate` calls,
-below). LiteLLM counts `max_budget` in its own cost unit (USD): the number is entered as the
+key value), the team each key goes into (in `registry/generated/workstation-secrets.json`) and
+`registry/generated/litellm/make-admin-token.sh` (the owner's one-hour management key, below). LiteLLM counts `max_budget` in its own cost unit (USD): the number is entered as the
 cap, and it is the owner's to rescale if the exchange rate matters.
 
-**The budget resets.** Every capped key carries `budget_duration: 30d`, so a cap is a monthly
+**The budget resets.** Every capped route's team carries `budget_duration: 30d`, so a cap is a monthly
 allowance that LiteLLM resets, not a lifetime cap that runs out for good. The render refuses a
 capped route without it. The caps on the keys are a safety net; the provider accounts' own
 monthly pools (vibe 255, vibe-study 127.50, vibe-api 25.50, vibe-study-api 12.75) are
@@ -49,7 +49,7 @@ public, non-sensitive work only.** Use it for open-source code, public documenta
 questions you would post publicly. Never send it a private repository, employer code
 (`nedap`), a secret, a transcript, a customer's data or anything under an NDA. When unsure, use
 another key: the Gemini model is served by the others too, through the paid deployments.
-Setup prompts for it like the other LiteLLM keys (`LITELLM_PUBLIC_KEY`, unexported).
+Setup mints it like the other LiteLLM keys (`LITELLM_PUBLIC_KEY`, unexported).
 
 ### Provider priority (what the keys route to)
 
@@ -121,40 +121,45 @@ litellm-gate check --node research-fetch --url https://litellm.jorisjonkers.dev/
   --key-env LITELLM_VIBE_KEY --model glm-5.3-flash
 ```
 
-## Making the keys (owner, once the proxy is deployed)
+## Making the keys (setup mints them)
 
-`registry/generated/litellm/make-keys.sh` makes one key per route, with its access groups and,
-for a capped key, `max_budget` and `budget_duration: 30d`. It reads the proxy's master key from
-`LITELLM_MASTER_KEY` (never stored in this repository) and puts it in a curl config on stdin, so
-no key reaches argv:
+Each route is a LiteLLM **team** that holds the route's access groups and budget, and each host
+has its **own key** in that team, named `<agent>@<host>` (for example `vibe@enschede-rx7900xtx-1`).
+Every host's key draws on the one team budget, and a lost machine's key is deleted alone.
+
+Setup mints them itself (`mint: litellm` in the registry, done by `scripts/agent-kit-keys.py`).
+When a key is missing from the secret store, or LiteLLM's `GET /key/info` refuses it, setup asks
+once for a **LiteLLM admin token**: a management key that expires in one hour, which the owner
+makes with the proxy's master key:
 
 ```bash
 read -rs LITELLM_MASTER_KEY && export LITELLM_MASTER_KEY
-registry/generated/litellm/make-keys.sh
+registry/generated/litellm/make-admin-token.sh
 ```
 
-Each response is a new virtual key: paste it into setup when it asks. The calls it makes are,
-for example:
+The script calls `/key/generate` with `key_type: management` (management routes only, no model
+call) and `duration: 1h`, the master key in a curl config on stdin so it reaches no argv, and
+prints the new key. Paste it when setup asks; setup never stores it. To skip the prompt, put it
+in `LITELLM_ADMIN_TOKEN` for the run instead. With the token, setup:
 
-```bash
-curl -sS --config - --data-binary \
-  '{"key_alias":"vibe","models":["canonical"],"max_budget":255,"budget_duration":"30d"}' \
-  https://litellm.jorisjonkers.dev/key/generate <<CFG
-header = "Authorization: Bearer $LITELLM_MASTER_KEY"
-header = "Content-Type: application/json"
-CFG
-```
+1. makes each route's team (`/team/new`, `team_alias` = the agent id) or brings an existing one
+   to the registry's `max_budget`, `budget_duration` and access groups (`/team/update`), so a
+   budget change is one registry edit and a setup run with the token;
+2. deletes the route's old shared key (alias = the agent id), which both machines once used;
+   the other machine's next setup run mints its own;
+3. mints each missing key into its team (`/key/generate`, `key_alias` `<agent>@<host>`),
+   replacing a key under the same alias that this host's store lost, checks it against
+   `/key/info` and stores it.
 
-`key_alias` must be the agent id: the dashboards and alerts group by it. Run setup in a
-terminal and paste each key when asked, including `LITELLM_PUBLIC_KEY` (say it is for public
-work only).
+Without a token setup says which keys it skipped and changes nothing on the proxy.
 
 ## The window and reset
 
-Every capped key is made with `budget_duration: 30d`, so LiteLLM resets its spend every 30
-days. `scripts/measure_litellm_budget.py` confirms it on the real proxy: one `GET /key/info` with
+Every capped route's team is made with `budget_duration: 30d`, so LiteLLM resets its spend
+every 30 days. `scripts/measure_litellm_budget.py` confirms it on the real proxy: one `GET /key/info` with
 the agent id's key (no model call, no spend), printing only `max_budget`, `budget_duration`,
-`budget_reset_at` and `spend`, and the request with the key redacted. It reads the key from the
+`budget_reset_at` and `spend` (a minted key's team's, read with a second `GET /team/info`), and
+the request with the key redacted. It reads the key from the
 environment or the secret store:
 
 ```bash

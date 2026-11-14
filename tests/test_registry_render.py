@@ -1210,12 +1210,13 @@ def test_every_capped_agent_key_resets_its_budget_every_30_days() -> None:
     routes = _litellm_table()["routes"]
     assert all(route["budget_duration"] == "30d" for route in routes if route["budget_eur"] is not None)
     assert all(route["budget_duration"] is None for route in routes if route["budget_eur"] is None)
-    script = (KIT_ROOT / "registry" / "generated" / "litellm" / "make-keys.sh").read_text()
+    secrets = json.loads((KIT_ROOT / "registry" / "generated" / "workstation-secrets.json").read_text())
     for route in routes:
-        request = next(line for line in script.splitlines() if f'"key_alias":"{route["agent"]}"' in line)
-        body = json.loads(request.removeprefix("make_key '").removesuffix("'"))
-        assert body.get("budget_duration") == route["budget_duration"]
-        assert ("max_budget" in body) == (route["budget_eur"] is not None)
+        team = next(e for e in secrets if e["env"] == route["key_env"])["litellm"]["team"]
+        assert team["team_alias"] == route["agent"]
+        assert team.get("budget_duration") == route["budget_duration"]
+        assert team.get("max_budget") == route["budget_eur"]
+        assert ("max_budget" in team) == (route["budget_eur"] is not None)
 
 
 def _can_reach(routes: list[dict], agent: str, groups_of_deployment: set[str]) -> bool:
@@ -1232,22 +1233,31 @@ def test_only_the_public_key_reaches_the_google_free_tier_deployments() -> None:
     for agent in ("vibe", "vibe-study", "opencode-go", "openrouter", "local"):
         assert not _can_reach(routes, agent, google), agent
         assert _can_reach(routes, agent, {"canonical"}), agent
-    script = (KIT_ROOT / "registry" / "generated" / "litellm" / "make-keys.sh").read_text()
-    assert [line for line in script.splitlines() if "google-free-public" in line and "make_key" in line] == [
-        line for line in script.splitlines() if '"key_alias":"public"' in line
-    ]
+    secrets = json.loads((KIT_ROOT / "registry" / "generated" / "workstation-secrets.json").read_text())
+    teams = [e["litellm"]["team"] for e in secrets if e.get("mint") == "litellm"]
+    assert [t["team_alias"] for t in teams if "google-free-public" in t["models"]] == ["public"]
 
 
 def test_the_public_key_is_stored_unexported_and_says_what_it_is_for() -> None:
     entry = next(e for e in _registry()["workstation_secrets"] if e["env"] == "LITELLM_PUBLIC_KEY")
-    assert entry["export"] is False and "PUBLIC, NON-SENSITIVE" in entry["paste"]
+    assert entry["export"] is False and entry["mint"] == "litellm"
+    route = next(r for r in _registry()["litellm"]["routes"] if r["key_env"] == "LITELLM_PUBLIC_KEY")
+    assert route["data_scope"] == "public"
 
 
-def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
+def test_litellm_keys_are_minted_unexported_and_checked_by_the_proxy() -> None:
     secrets = {e["env"]: e for e in _registry()["workstation_secrets"]}
     for route in _registry()["litellm"]["routes"]:
         entry = secrets[route["key_env"]]
-        assert entry["export"] is False and "check" not in entry and entry["unchecked"]
+        assert entry["export"] is False and entry["mint"] == "litellm" and "paste" not in entry
+        assert entry["check"] == "https://litellm.jorisjonkers.dev/key/info" and entry["check_method"] == "GET"
+
+
+def test_the_admin_token_script_makes_a_one_hour_management_key_and_no_agent_key() -> None:
+    script = (KIT_ROOT / "registry" / "generated" / "litellm" / "make-admin-token.sh").read_text()
+    body = json.loads(script.split("--data-binary '", 1)[1].split("'", 1)[0])
+    assert body["key_type"] == "management" and body["duration"] == "1h"
+    assert "key_alias" not in body and "LITELLM_MASTER_KEY}" in script
 
 
 @pytest.mark.parametrize(
@@ -1274,6 +1284,12 @@ def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
         (lambda d: d["litellm"]["routes"][1].update(agent="vibe"), "unique lower-case agent id"),
         (lambda d: d["litellm"]["routes"][1].update(key_env="LITELLM_VIBE_KEY"), "unique variable name"),
         (lambda d: d["litellm"]["routes"][0].update(key_env="NOT_A_SECRET"), "workstation secret"),
+        (
+            lambda d: next(e for e in d["workstation_secrets"] if e["env"] == "LITELLM_VIBE_KEY").update(
+                check="https://elsewhere.example/key/info"
+            ),
+            "must be checked with GET",
+        ),
         (lambda d: d["litellm"]["routes"][0].pop("models"), "takes exactly"),
         (lambda d: d["litellm"].update(base_url="http://litellm.example/v1"), "https URL"),
         (lambda d: d["litellm"].update(routes=[]), "at least one agent id"),
@@ -1292,8 +1308,8 @@ def test_a_bad_litellm_section_is_refused(mutate, message: str) -> None:
 
 def test_an_unchecked_secret_may_not_also_name_a_check() -> None:
     data = copy.deepcopy(_registry())
-    entry = next(e for e in data["workstation_secrets"] if e["env"] == "LITELLM_VIBE_KEY")
-    entry["check"] = "https://litellm.jorisjonkers.dev/key/info"
+    entry = next(e for e in data["workstation_secrets"] if e["env"] == "OPENROUTER_API_KEY")
+    entry["unchecked"] = "no host to ask"
     with pytest.raises(render_registry.RegistryError, match="either checked or unchecked"):
         render_registry.validate(data)
 
@@ -1357,3 +1373,12 @@ def test_the_nixos_package_list_covers_the_language_servers() -> None:
     assert re.findall(r"^  (\w+) = \[$", rendered, re.MULTILINE) == [
         "core", "kubernetes", "latex", "polyglot", "android",
     ]
+
+
+def test_a_secret_minted_by_anything_but_litellm_is_refused() -> None:
+    data = copy.deepcopy(_registry())
+    entry = next(e for e in data["workstation_secrets"] if e["env"] == "OPENROUTER_API_KEY")
+    del entry["paste"]
+    entry["mint"] = "vault"
+    with pytest.raises(render_registry.RegistryError, match="mint must be litellm"):
+        render_registry.validate(data)

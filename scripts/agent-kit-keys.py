@@ -10,6 +10,11 @@ on Linux. There is no plain-file store: a missing store stops the run.
 ``write-env`` renders ~/.config/agent-kit/env.sh, which reads them back in
 every shell; the Private Memory token is opened only by ``vibe-private``, and the Study
 account key is read only by ``vibe-study``.
+The LiteLLM agent keys (``mint: litellm``) are minted on the proxy itself: given a
+short-lived management key (``LITELLM_ADMIN_TOKEN``, or asked for once when a key is
+missing; never stored), it makes or updates each route's team, which holds the budget,
+deletes the old shared key of the route, and mints this host's own key as
+``<agent>@<host>`` into the team.
 ``status`` reports without asking anything. ``revoke NAME`` signs in and revokes this
 host's token for NAME (its recorded id), so the host refuses it from then on; the next
 ``ensure`` sees the stored value refused and mints a fresh one.
@@ -37,6 +42,7 @@ import ssl
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -343,6 +349,139 @@ def replaced(auth: Auth, ids: dict[str, str], var: str, new_id: str) -> None:
 SOURCE_LINE = '[ -f "$HOME/.config/agent-kit/env.sh" ] && . "$HOME/.config/agent-kit/env.sh"  # agent-kit'
 
 
+# --- LiteLLM ---------------------------------------------------------------
+
+
+class LiteLLM:
+    """The proxy's management API, called with a short-lived management key that is never stored."""
+
+    def __init__(self, proxy: str, token: str) -> None:
+        self.proxy = proxy.rstrip("/")
+        self.token = token
+
+    def call(self, method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, Any]:
+        request = urllib.request.Request(
+            self.proxy + path, data=None if body is None else json.dumps(body).encode(), method=method,
+            headers={"Authorization": f"Bearer {self.token}", "User-Agent": AGENT, "Content-Type": "application/json"},
+        )
+        try:
+            with _CHECK.open(request, timeout=30) as response:
+                raw = response.read()
+                return response.status, json.loads(raw) if raw else None
+        except urllib.error.HTTPError as e:
+            return e.code, _json(e.read())
+        except ValueError:
+            return 0, None
+        except (urllib.error.URLError, OSError) as e:
+            raise Unreachable(str(e)) from None
+
+    def team(self, want: dict[str, Any]) -> str | None:
+        """The id of the team ``want`` names, made or brought to ``want``'s budget and access groups."""
+        alias = want["team_alias"]
+        code, reply = self.call("GET", "/team/list")
+        teams = reply.get("teams") if isinstance(reply, dict) else reply
+        if code != 200 or not isinstance(teams, list):
+            say(f"litellm: could not list the teams (HTTP {code}); is the admin token a management key?")
+            return None
+        found = next((t for t in teams if isinstance(t, dict) and t.get("team_alias") == alias), None)
+        if found is None:
+            code, made = self.call("POST", "/team/new", want)
+            if code != 200 or not isinstance(made, dict) or not made.get("team_id"):
+                say(f"litellm: team {alias} could not be made (HTTP {code})")
+                return None
+            say(f"litellm: made team {alias}")
+            return str(made["team_id"])
+        # A route without a cap is a team without one: an old cap is cleared, not kept.
+        wanted = {"max_budget": None, "budget_duration": None, **want}
+        drift = {k: v for k, v in wanted.items() if k != "team_alias" and found.get(k) != v}
+        if drift:
+            code, _ = self.call("POST", "/team/update", {"team_id": found["team_id"], **drift})
+            if code != 200:
+                say(f"litellm: team {alias} could not be updated (HTTP {code}); it keeps its old settings")
+            else:
+                say(f"litellm: set {', '.join(sorted(drift))} on team {alias}")
+        return str(found["team_id"])
+
+    def holds(self, alias: str) -> bool:
+        code, reply = self.call("GET", "/key/list?" + urllib.parse.urlencode({"key_alias": alias}))
+        return code == 200 and isinstance(reply, dict) and bool(reply.get("keys"))
+
+    def delete(self, alias: str) -> bool:
+        code, _ = self.call("POST", "/key/delete", {"key_aliases": [alias]})
+        return code == 200
+
+    def mint(self, team_id: str, alias: str, models: list[str]) -> str:
+        body = {"key_alias": alias, "team_id": team_id, "models": models, "metadata": {"minted_by": "agent-kit setup"}}
+        code, reply = self.call("POST", "/key/generate", body)
+        key = reply.get("key") if isinstance(reply, dict) else None
+        return str(key) if code == 200 and isinstance(key, str) else ""
+
+
+def host_name() -> str:
+    return socket.gethostname().split(".")[0].lower() or "host"
+
+
+def mint_litellm(entries: list[dict[str, Any]], wanted: set[str], token: str, keys: Store, host: str) -> None:
+    """Converge every route's team; delete each route's old shared key; mint the keys in ``wanted``."""
+    for entry in entries:
+        spec = entry["litellm"]
+        api = LiteLLM(spec["proxy"], token)
+        team = spec["team"]
+        agent = team["team_alias"]
+        try:
+            team_id = api.team(team)
+            if team_id is None:
+                continue
+            # The key both machines once shared, by the route's own name: each host has its own now.
+            if api.holds(agent):
+                if api.delete(agent):
+                    say(f"litellm: deleted the shared key {agent}; each host has its own key now")
+                else:
+                    say(f"litellm: the shared key {agent} could not be deleted")
+            if entry["env"] not in wanted:
+                continue
+            alias = f"{agent}@{host}"
+            # A key under this host's name that this store lost is useless: replace it.
+            if api.holds(alias) and not api.delete(alias):
+                say(f"{entry['env']}: the old key {alias} could not be deleted; nothing minted")
+                continue
+            key = api.mint(team_id, alias, list(team["models"]))
+            if not key or not SAFE.match(key):
+                say(f"{entry['env']}: the proxy did not mint a usable key for {alias}")
+                continue
+            if check(entry, key) == "invalid":
+                say(f"{entry['env']}: the new key {alias} is refused by the proxy; not stored")
+                api.delete(alias)
+                continue
+            keys.put(entry["env"], key)
+            say(f"{entry['env']}: minted {alias} in team {agent}, checked and stored in the {keys.name}")
+        except Unreachable as e:
+            say(f"could not reach the LiteLLM proxy ({e}); the remaining keys were not minted")
+            return
+
+
+def ensure_litellm(table: list[dict[str, Any]], todo: set[str], keys: Store) -> None:
+    """Mint the missing LiteLLM keys, and converge the teams whenever an admin token is at hand."""
+    entries = [e for e in secrets(table) if e.get("mint") == "litellm"]
+    wanted = {e["env"] for e in entries if e["env"] in todo}
+    token = os.environ.get("LITELLM_ADMIN_TOKEN", "").strip()
+    if wanted and not token:
+        token = ask(
+            "Paste a LiteLLM admin token to mint " + ", ".join(sorted(wanted))
+            + " (a one-hour management key: registry/generated/litellm/make-admin-token.sh makes one;"
+            " it is not stored), or Enter to skip: ",
+            secret=True,
+        )
+    if not token:
+        for env in sorted(wanted):
+            say(f"{env}: skipped (no LiteLLM admin token)")
+        return
+    if not SAFE.match(token):
+        say("the LiteLLM admin token has unexpected characters; nothing minted")
+        return
+    mint_litellm(entries, wanted, token, keys, host_name())
+
+
 def write_env(table: list[dict[str, Any]], keys: Store) -> Path:
     lines = [
         "# managed by agent-kit setup-workstation.sh; rewritten on every run.",
@@ -457,8 +596,9 @@ def ensure(table: list[dict[str, Any]]) -> int:
             finally:
                 with contextlib.suppress(Unreachable):
                     auth.sign_out()
+    ensure_litellm(table, set(todo), keys)
     for entry in secrets(table):
-        if entry["env"] not in todo or entry.get("grant"):
+        if entry["env"] not in todo or entry.get("grant") or entry.get("mint"):
             continue
         if entry.get("login"):
             # A sign-in this tool cannot do for you (a browser login): say which command does.

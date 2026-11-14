@@ -101,40 +101,48 @@ workstation_secrets:
     check: "https://api.mistral.ai/v1/models"
     check_method: GET
     export: false
-  # The LiteLLM virtual keys, one per cheap agent id (the `litellm` section).
-  # The owner makes each on the proxy with its max budget and pastes it here.
-  # No check: litellm-gate is what proves a key works and has budget left.
   # The auth-api service token the old sign-in edge wanted in front of the proxy. The proxy
   # is anonymous at the edge (litellm#17) and LiteLLM checks each key itself, so nothing sends
   # it any more. Removed from the secret store.
   - env: LITELLM_EDGE_TOKEN
     retired: true
+  # The LiteLLM virtual keys, one per cheap agent id (the `litellm` section) and per host.
+  # Setup mints each one itself (`mint: litellm`): with a one-hour management key the owner
+  # makes (registry/generated/litellm/make-admin-token.sh), it creates the route's team, which
+  # holds the budget, and mints this host's key into it as `<agent>@<host>`. The check is
+  # LiteLLM's own /key/info: a revoked or deleted key reads as invalid and is minted again.
   - env: LITELLM_VIBE_KEY
-    paste: "the LiteLLM virtual key for the vibe agent id, made on the proxy with a max budget of 255 per 30 days"
-    unchecked: the key is not tried on its own; litellm-gate checks it
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
     export: false
   - env: LITELLM_VIBE_STUDY_KEY
-    paste: "the LiteLLM virtual key for the vibe-study agent id, made on the proxy with a max budget of 127.5 per 30 days"
-    unchecked: the key is not tried on its own; litellm-gate checks it
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
     export: false
   - env: LITELLM_OPENCODE_GO_KEY
-    paste: "the LiteLLM virtual key for the opencode-go agent id, made on the proxy with a max budget of 60 per 30 days"
-    unchecked: the key is not tried on its own; litellm-gate checks it
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
     export: false
   - env: LITELLM_OPENROUTER_KEY
-    paste: "the LiteLLM virtual key for the openrouter agent id, made on the proxy with a max budget of 5 per 30 days"
-    unchecked: the key is not tried on its own; litellm-gate checks it
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
     export: false
   - env: LITELLM_LOCAL_KEY
-    paste: "the LiteLLM virtual key for the local agent id (the GPU workstation's model server), made on the proxy with no max budget"
-    unchecked: the key is not tried on its own; litellm-gate checks it
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
     export: false
   # The one key that reaches the free-tier Google deployments (access group
   # `google-free-public`). Google may train on free-tier prompts, so this key is for public,
   # non-sensitive work only: never private repositories, never employer code, never secrets.
   - env: LITELLM_PUBLIC_KEY
-    paste: "the LiteLLM virtual key for the public agent id (the only key with the google-free-public access group; PUBLIC, NON-SENSITIVE work only, because Google may train on free-tier prompts), made on the proxy with a max budget of 5 per 30 days"
-    unchecked: the key is not tried on its own; litellm-gate checks it
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
     export: false
   # This host's own OpenRouter key: one key per machine, made on openrouter.ai
   # and named for the host, so a lost machine's key is revoked alone. It lives

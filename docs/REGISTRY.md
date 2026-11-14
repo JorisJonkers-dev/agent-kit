@@ -24,7 +24,7 @@ uv run pytest tests/test_registry_render.py
 | `registry/generated/opencode/opencode.json` | a workstation's `~/.config/opencode/opencode.json`, via `scripts/opencode-merge-mcp.py` |
 | `registry/generated/workstation-secrets.json` | `scripts/agent-kit-keys.py`, as the table of tokens and keys to get |
 | `registry/generated/litellm/routes.json` | the LiteLLM route table: agent ids, key variable names, caps and their 30-day reset, access groups (none for a free route) ([LITELLM.md](LITELLM.md)) |
-| `registry/generated/litellm/make-keys.sh` | the owner's `/key/generate` calls, one per route, from the same table ([LITELLM.md](LITELLM.md)) |
+| `registry/generated/litellm/make-admin-token.sh` | the owner's one-hour LiteLLM management key setup mints the agent keys with ([LITELLM.md](LITELLM.md)) |
 
 A hand edit to any of them fails `--check`, and so does a registry change that
 was never rendered. Both are one test.
