@@ -123,22 +123,42 @@ def test_the_gate_installs_like_the_other_kit_commands(line: str) -> None:
     assert line in GATE.read_text().splitlines()
 
 
+# Opens the terminal named in argv[1] as the controlling terminal of the new session
+# subprocess started it in, puts it on stdin, stdout and stderr, and execs the rest of argv.
+_ON_TERMINAL = (
+    "import os, sys\n"
+    "fd = os.open(sys.argv[1], os.O_RDWR)\n"
+    "for n in (0, 1, 2):\n"
+    "    os.dup2(fd, n)\n"
+    "os.execv(sys.argv[2], sys.argv[2:])\n"
+)
+
+
 def test_a_real_terminal_is_asked_with_the_passphrase_hidden(tmp_path: Path) -> None:
     import pty
+    import select
+    import termios
     import time
 
     _store(tmp_path)
     env = {k: v for k, v in os.environ.items() if k not in ("MEMORY_PRIVATE_TOKEN", "AGENT_KIT_TTY")}
     env["HOME"] = str(tmp_path / "home")
-    pid, fd = pty.fork()
-    if pid == 0:  # the child gets the pty as its controlling terminal
-        os.execve(sys.executable, [sys.executable, str(GATE), "exec", *SHOW], env)
+    # Not pty.fork(): a pytest-xdist worker runs other threads, and forking a threaded
+    # process can deadlock the child before it execs. subprocess starts it without that risk.
+    fd, terminal = pty.openpty()
+    child = subprocess.Popen(
+        [sys.executable, "-c", _ON_TERMINAL, os.ttyname(terminal), sys.executable, str(GATE), "exec", *SHOW],
+        env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
     out = b""
 
     def pump(marker: bytes) -> None:
         nonlocal out
-        end = time.time() + 15
-        while marker not in out and time.time() < end:
+        end = time.monotonic() + 15
+        while marker not in out and (left := end - time.monotonic()) > 0:
+            if not select.select([fd], [], [], left)[0]:
+                return
             try:
                 chunk = os.read(fd, 1024)
             except OSError:
@@ -147,10 +167,23 @@ def test_a_real_terminal_is_asked_with_the_passphrase_hidden(tmp_path: Path) -> 
                 return
             out += chunk
 
-    pump(b"Passphrase")
-    assert b"Passphrase for the private bank" in out, out
-    os.write(fd, b"correct horse\n")
-    pump(TOKEN.encode())
-    os.waitpid(pid, 0)
+    try:
+        pump(b"Passphrase")
+        assert b"Passphrase for the private bank" in out, out
+        # The gate prints the prompt, then turns echo off with TCSAFLUSH, which drops
+        # input typed before it. Type only once echo is off, as a person would after the prompt.
+        end = time.monotonic() + 15
+        while termios.tcgetattr(terminal)[3] & termios.ECHO and time.monotonic() < end:
+            time.sleep(0.01)
+        assert not termios.tcgetattr(terminal)[3] & termios.ECHO, "the gate never turned echo off"
+        os.write(fd, b"correct horse\n")
+        pump(TOKEN.encode())
+        assert child.wait(timeout=15) == 0, out
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+        os.close(terminal)
+        os.close(fd)
     assert TOKEN.encode() in out
     assert b"correct horse" not in out, "the passphrase was echoed"

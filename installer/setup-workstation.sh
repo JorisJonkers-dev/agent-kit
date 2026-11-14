@@ -1705,8 +1705,11 @@ if [ -n "${AGENT_KIT_BUNDLE_STAGE:-}" ]; then
 fi
 
 # Where install_linux commands install: system-wide when writable, as on a cloud VM.
-if [ -w /usr/local/bin ]; then
-  AK_BIN_DIR=/usr/local/bin AK_OPT_DIR=/usr/local/lib/agent-kit
+# AK_SYSTEM_PREFIX stands in for /usr/local; the tests point it into their temp dir, so a
+# runner whose /usr/local/bin is writable neither installs there nor puts its tools on PATH.
+AK_SYSTEM_PREFIX="${AK_SYSTEM_PREFIX:-/usr/local}"
+if [ -w "${AK_SYSTEM_PREFIX}/bin" ]; then
+  AK_BIN_DIR="${AK_SYSTEM_PREFIX}/bin" AK_OPT_DIR="${AK_SYSTEM_PREFIX}/lib/agent-kit"
 else
   AK_BIN_DIR="$HOME/.local/bin" AK_OPT_DIR="$HOME/.local/lib/agent-kit"
 fi
