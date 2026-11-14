@@ -6,7 +6,7 @@ use model_gateway::json;
 use model_gateway::timestamps::to_iso;
 
 /// The clients a launch can go through.
-pub const KINDS: [&str; 4] = ["vibe", "agy", "codex", "claude"];
+pub const KINDS: [&str; 5] = ["vibe", "agy", "codex", "claude", "pi"];
 
 /// What the budget reads back from one invocation line, and the run it was
 /// launched for; setup's checks launch for no run.

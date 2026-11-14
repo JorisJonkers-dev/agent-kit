@@ -13,6 +13,7 @@ import {
   GatewayPlanLimit,
   NodeCritiqueFiles,
   CodeNavRepoMap,
+  PiCriticClient,
   ProcessSearchClient,
   VibeCriticClient,
   type CritiqueCommands,
@@ -181,6 +182,7 @@ export function defaultCritiqueRuntime(
         // Only a nedap repository's work roster names these two.
         claude: new WorkClaudeCriticClient(processPort, files, env),
         codex: new WorkCodexCriticClient(processPort, files, env),
+        pi: new PiCriticClient(processPort, files, env),
         vibe: new VibeCriticClient(processPort, files, env, platform),
       },
       clock,

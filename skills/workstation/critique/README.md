@@ -349,7 +349,8 @@ Results go to `refute.json` in the run directory, a `## Refute round`
 section of the report, and one `refute` line each in the ledger (the
 finding, its check, the outcome and answer, and the refuter's client, model
 and cost). A refuter's launch is logged like any critic's, so its spend
-counts against the flow's Vibe cap, and agy's against the day's quota. A run
+counts against the flow's Vibe cap, agy's against the day's quota, and a Pi
+refuter's against its LiteLLM route's budget. A run
 is refuted once, and only before it is recorded.
 
 The stage skills run refute right after their verdicts, before any fix,
@@ -498,6 +499,49 @@ and `setup` says so.
 
 A default for every machine is a change to agent-kit's
 `skills/workstation/critique/routing.json`.
+
+**Pi critics over LiteLLM.** A client of kind `pi` runs one critic or
+refuter through Pi on a LiteLLM route. It names the route's Pi provider,
+the model id that route reaches, and the model's family; `binary` is
+optional and defaults to `pi`. Its routing name is `pi-<route>-<model>`:
+
+```json
+{
+  "clients": {
+    "pi-vibe-study-glm": { "kind": "pi", "provider": "litellm-vibe-study", "model": "glm-5-3", "family": "zhipu" }
+  }
+}
+```
+
+The provider must be `litellm-<route>`. That is the provider setup writes
+into `~/.pi/agent/models.json`, with the route's key read from the secret
+store at request time. The runner starts Pi directly (the gateway has no Pi
+client), in the critic's packet copy, with the prompt on stdin:
+
+```sh
+pi -p --mode json --no-session --offline --provider litellm-vibe-study --model glm-5-3 \
+  --tools read,grep,find,ls --no-extensions --no-skills --no-prompt-templates --no-themes \
+  --no-context-files --no-mcp --no-approve --system-prompt '<read-only reviewer>'
+```
+
+Pi has no sandbox of its own, so its JSON event stream is checked after the
+run. The review is void (`unsafe-tool`) if the run used any tool other than
+`read`, `grep`, `find` and `ls`, or gave one of them a path or glob that
+reaches past the packet (absolute, `~`, or a `..` that climbs out). The
+tripwire catches writes as it does for every critic. A provider error or an
+aborted run fails the critic even though Pi exits 0. Pi has no time limit of
+its own, so the outer timer is the slot's `time_limit_s`. The launch is
+logged in both ledgers with kind `pi`, charged what Pi priced it at
+(`usage.cost.total`, 0 when the provider's models carry no price). That
+spend comes from the route's team budget, never from the flow's Vibe cap.
+A Pi client is ready when `pi auth check --provider <provider>` answers
+`ready` and `pi --offline --list-models <model>` lists the model under that
+provider. Neither call reaches a model. A Pi client that is not ready falls
+back like any other. `/flow setup` lists `pi-signed-in` (free), one
+`critic:<client>` trivial prompt per Pi client (cost `pi`), and a read-only
+item that is not available, since there is no Pi sandbox to prove.
+
+The shipped `routing.json` names no Pi client yet.
 
 **Decide what to change** with `/critique-stats`: from the ledger
 (`~/.local/share/agent-kit/critique/ledger.jsonl`, metadata only) it reports

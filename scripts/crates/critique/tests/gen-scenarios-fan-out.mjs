@@ -150,6 +150,53 @@ scenarios['fan-out-work'] = [
   }),
 ]
 
+// Pi critics over LiteLLM routes: Pi is started directly with the prompt on stdin, and its JSON event stream decides
+// the outcome. The fake `pi` keeps its argv and stdin beside the packet, so both runners must launch it the same way.
+const PI = { binary: 'pi', family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
+const PI_B = { binary: 'pi', family: 'deepseek', kind: 'pi', model: 'deepseek-v4-flash', provider: 'litellm-opencode-go' }
+const piCritic = (id, extra = {}) => critic(id, { client: 'pi-vibe-study-glm', client_config: PI, fallbacks: [{ client: 'pi-opencode-go-deepseek', client_config: PI_B }], ...extra })
+const piEvents = (text, { calls = [], stopReason = 'stop', errorMessage, usage = { cacheRead: 30, cost: { total: 0.0021 }, input: 100, output: 20 } } = {}) =>
+  [
+    { cwd: '/p', id: 's', type: 'session', version: 3 },
+    { type: 'agent_start' },
+    ...calls.map(([tool, args], index) => ({ args, toolCallId: `c${index}`, toolName: tool, type: 'tool_execution_start' })),
+    { message: { content: [{ text: 'thinking', type: 'thinking' }, { text, type: 'text' }], role: 'assistant', stopReason, usage, ...(errorMessage === undefined ? {} : { errorMessage }) }, type: 'message_end' },
+    { aborted: false, type: 'agent_settled' },
+  ].map((event) => JSON.stringify(event)).join('\n')
+const piSays = (text, options) => `printf '%s\\n' ${q(piEvents(text, options))}\nexit 0`
+const block = (structured) => `Review.\n\`\`\`json\n${JSON.stringify(structured)}\n\`\`\``
+const fakePi = (cases) =>
+  `#!/bin/sh\nprintf '%s\\n' "$@" > "$PWD/../argv.txt"\ncat > "$PWD/../stdin.txt"\ncase "$PWD" in\n${Object.entries(cases)
+    .map(([id, body]) => `*/critics/${id}/packet)\n${body}\n;;`)
+    .join('\n')}\n*)\nexit 9\n;;\nesac\n`
+const PI_FAMILIES = { allowed_families: ['zhipu', 'deepseek'] }
+scenarios['fan-out-pi'] = [
+  go('p1', {
+    write: {
+      ...run('p1', [piCritic('p1c')], { extra: PI_FAMILIES }),
+      ...run('p2', [piCritic('p2a', { fallbacks: [] }), piCritic('p2b', { fallbacks: [] }), piCritic('p2c', { fallbacks: [] })], { extra: { ...PI_FAMILIES, distinct_families: false } }),
+      ...run('p3', [piCritic('p3a', { fallbacks: [] }), piCritic('p3b', { fallbacks: [] }), piCritic('p3c', { fallbacks: [] })], { extra: { ...PI_FAMILIES, distinct_families: false } }),
+      ...run('p4', [piCritic('p4c')], { extra: PI_FAMILIES }),
+      'bin/pi': fakePi({
+        p1c: piSays(block({ findings: [found('a')] }), { calls: [['read', { path: 'artifact/spec.md' }], ['grep', { pattern: 'retry', path: 'references' }], ['ls', {}]] }),
+        p2a: piSays(block({ findings: [found('a')] }), { calls: [['bash', { command: 'ls' }], ['edit', { path: 'x' }], ['bash', { command: 'pwd' }]] }),
+        p2b: 'sleep 1\n' + piSays(block({ findings: [] }), { calls: [['read', { path: '/etc/hostname' }], ['find', { pattern: '../**' }], ['grep', { glob: '/etc/*', pattern: 'x' }], ['read', { path: '~/.ssh/id' }]] }),
+        p2c: 'sleep 2\n' + piSays('', { errorMessage: 'Connection error.', stopReason: 'error', usage: { input: 0, output: 0 } }),
+        p3a: "printf '%s\\n' 'not json'\nexit 0",
+        p3b: "sleep 1\nprintf '%s' 'bad flag\\n' >&2\nexit 3",
+        p3c: 'sleep 2\n' + piSays(block({ findings: [], no_findings_reason: 'nothing found' }), { stopReason: 'aborted' }),
+        p4c: piSays('no block'),
+        'p4c-retry-pi-opencode-go-deepseek': piSays(block({ findings: [], no_findings_reason: 'nothing found' }), { usage: { cacheRead: 0, input: 50, output: 5 } }),
+      }),
+      'repos/r/README.md': '# r\n',
+    },
+    exec: ['bin/pi'], shims: ['env', 'git', 'cat', 'sleep'], path: ['bin'], git: GIT, roots: ['runs'],
+  }),
+  go('p2', stateless({ roots: ['runs'] })),
+  go('p3', stateless({ roots: ['runs'] })),
+  go('p4', stateless({ roots: ['runs'] })),
+]
+
 // What a run must be before it is fanned out, and the input errors, in the order the command meets them.
 const WORK = { client: 'codex-work', client_config: { binary: 'codex', family: 'openai', kind: 'codex', model: 'gpt-5.5' }, fallbacks: [] }
 scenarios['fan-out-errors'] = [

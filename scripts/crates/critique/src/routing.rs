@@ -15,7 +15,7 @@ use crate::triage::read_triage_rules;
 use model_gateway::json::Value;
 
 /// The client kinds routing may name, in the order its reader accepts them.
-pub const CLIENT_KINDS: [&str; 4] = ["vibe", "agy", "codex", "claude"];
+pub const CLIENT_KINDS: [&str; 5] = ["vibe", "agy", "codex", "claude", "pi"];
 
 /// The gateway client model a critic client is pinned to: the client the gateway
 /// runs the critic on, and the alias the gateway lists that model by.
@@ -57,6 +57,19 @@ pub struct CodexCriticClient {
     pub gateway: Option<GatewayModel>,
 }
 
+/// Pi over one LiteLLM route: the route's Pi provider, `litellm-<route>`, which setup writes into
+/// `~/.pi/agent/models.json`, and a model that route reaches. Pi reads the route's key itself at request time, and is
+/// launched directly, not through the gateway, so it names no gateway model.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PiCriticClient {
+    /// The Pi command; `pi` when routing names none.
+    pub binary: String,
+    /// The LiteLLM route's Pi provider, `litellm-<route>`.
+    pub provider: String,
+    pub model: String,
+    pub family: String,
+}
+
 /// The work Claude agent. Only the work roster of a `nedap` repository names it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClaudeCriticClient {
@@ -73,6 +86,7 @@ pub enum CriticClient {
     Agy(AgyCriticClient),
     Codex(CodexCriticClient),
     Claude(ClaudeCriticClient),
+    Pi(PiCriticClient),
 }
 
 impl CriticClient {
@@ -83,6 +97,7 @@ impl CriticClient {
             CriticClient::Agy(_) => "agy",
             CriticClient::Codex(_) => "codex",
             CriticClient::Claude(_) => "claude",
+            CriticClient::Pi(_) => "pi",
         }
     }
 
@@ -93,6 +108,7 @@ impl CriticClient {
             CriticClient::Agy(client) => &client.family,
             CriticClient::Codex(client) => &client.family,
             CriticClient::Claude(client) => &client.family,
+            CriticClient::Pi(client) => &client.family,
         }
     }
 
@@ -103,6 +119,7 @@ impl CriticClient {
             CriticClient::Agy(client) => client.gateway.as_ref(),
             CriticClient::Codex(client) => client.gateway.as_ref(),
             CriticClient::Claude(client) => client.gateway.as_ref(),
+            CriticClient::Pi(_) => None,
         }
     }
 
@@ -113,6 +130,7 @@ impl CriticClient {
             CriticClient::Agy(client) => &client.model,
             CriticClient::Codex(client) => &client.model,
             CriticClient::Claude(client) => &client.model,
+            CriticClient::Pi(client) => &client.model,
         }
     }
 }
@@ -302,6 +320,14 @@ fn read_stats_thresholds(fields: &Fields<'_>) -> Result<StatsThresholds, ShapeEr
 /// One critic client: its kind, the binary it launches, the model it pins and the gateway model it may be pinned to.
 pub fn read_critic_client(fields: &Fields<'_>) -> Result<CriticClient, ShapeError> {
     let kind = fields.one_of("kind", &CLIENT_KINDS)?;
+    if kind == "pi" {
+        return Ok(CriticClient::Pi(PiCriticClient {
+            binary: if fields.has("binary") { fields.string("binary")? } else { "pi".to_string() },
+            family: fields.one_of("family", &MODEL_FAMILIES)?,
+            model: fields.string("model")?,
+            provider: fields.matching("provider", is_litellm_provider, "a LiteLLM route's Pi provider, litellm-<route>")?,
+        }));
+    }
     let gateway = if fields.has("gateway") { Some(read_gateway_model(&fields.object("gateway")?, &kind)?) } else { None };
     match kind.as_str() {
         "codex" => Ok(CriticClient::Codex(CodexCriticClient {
@@ -339,6 +365,12 @@ fn read_gateway_model(fields: &Fields<'_>, kind: &str) -> Result<GatewayModel, S
         client: fields.matching("client", |value| value == kind, &format!("{kind}, the kind of the critic client"))?,
         model: fields.string("model")?,
     })
+}
+
+/// Whether a Pi provider is a LiteLLM route's: `litellm-` and the route, in lower-case letters, digits and dashes.
+pub fn is_litellm_provider(provider: &str) -> bool {
+    let route = provider.strip_prefix("litellm-").unwrap_or("");
+    !route.is_empty() && !route.starts_with('-') && route.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
 /// Whether a model is a Gemini one: agy's Claude and GPT-OSS models are never critics.

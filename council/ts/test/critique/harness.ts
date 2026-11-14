@@ -24,6 +24,7 @@ import type {
 } from '../../src/ports/index.js'
 import {
   AgyCriticClient,
+  PiCriticClient,
   createCritiqueCommands,
   GatewayGrants,
   GatewayPlanLimit,
@@ -1033,6 +1034,97 @@ export class FakeWorkProcess implements ProcessPort {
   }
 }
 
+/** How the stubbed `pi` behaves on this machine; on PATH, ready and offering every model unless named. */
+export interface PiCli {
+  readonly onPath?: boolean
+  /** What `pi auth check --json` answers: a status Pi prints, a spawn error, or a result as it is. */
+  readonly auth?: 'ready' | 'not_ready' | 'invalid' | 'spawn-error' | ProcessResult
+  /** The `provider model` rows `pi --list-models` prints; every model asked for under every provider unless named. */
+  readonly models?: readonly (readonly [string, string])[] | ProcessResult
+  readonly version?: string
+  readonly scripts?: WorkScript[]
+}
+
+/** What `pi --mode json` prints for a run whose last assistant message is `text`, after the tool calls named. */
+export function piStream(
+  text: string,
+  options: {
+    readonly calls?: readonly { readonly tool: string; readonly args: Record<string, unknown> }[]
+    readonly stopReason?: string
+    readonly errorMessage?: string
+    readonly usage?: Record<string, unknown>
+  } = {},
+): string {
+  const usage = options.usage ?? { cacheRead: 30, cost: { total: 0.002 }, input: 100, output: 20 }
+  const calls = (options.calls ?? []).map((call, index) => ({ args: call.args, toolCallId: `call${String(index)}`, toolName: call.tool, type: 'tool_execution_start' }))
+  return [
+    { cwd: '/packet', id: 's1', type: 'session', version: 3 },
+    { type: 'agent_start' },
+    { message: { content: 'review', role: 'user' }, type: 'message_end' },
+    ...calls,
+    {
+      message: {
+        content: [{ text, type: 'text' }],
+        role: 'assistant',
+        stopReason: options.stopReason ?? 'stop',
+        usage,
+        ...(options.errorMessage === undefined ? {} : { errorMessage: options.errorMessage }),
+      },
+      type: 'message_end',
+    },
+    { type: 'agent_settled' },
+  ]
+    .map((event) => JSON.stringify(event))
+    .join('\n')
+}
+
+/**
+ * Plays canned Pi runs, and answers the commands its readiness reads:
+ * `pi auth check`, `pi --offline --list-models` and `pi --version`. Nothing
+ * here reaches a LiteLLM route.
+ */
+export class FakePiProcess implements ProcessPort {
+  readonly commands: ProcessCommand[] = []
+
+  constructor(
+    private readonly repo: string,
+    private readonly cli: PiCli,
+    private readonly log: LaunchLog,
+  ) {}
+
+  /** The critic launches only. */
+  get launches(): readonly ProcessCommand[] {
+    return this.commands.filter((command) => command.args[0] === '-p')
+  }
+
+  async exec(command: ProcessCommand): Promise<ProcessResult> {
+    this.commands.push(command)
+    const [first] = command.args
+    if (first === '--version') return { exitCode: 0, stderr: '', stdout: `${this.cli.version ?? '1.5.0'}\n` }
+    if (first === 'auth') {
+      const auth = this.cli.auth ?? 'ready'
+      if (auth === 'spawn-error') throw new Error(`spawn ${command.command} EACCES`)
+      if (typeof auth !== 'string') return auth
+      const provider = command.args[3] ?? ''
+      const answer = auth === 'ready' ? { authType: 'api_key', provider, status: auth } : { provider, reason: 'provider_not_found', status: auth }
+      return { exitCode: auth === 'ready' ? 0 : auth === 'not_ready' ? 1 : 2, stderr: '', stdout: `${JSON.stringify(answer)}\n` }
+    }
+    if (first === '--offline') {
+      const models = this.cli.models
+      if (models !== undefined && !Array.isArray(models)) return models as ProcessResult
+      const asked = command.args[2] ?? ''
+      const rows = (models as readonly (readonly [string, string])[] | undefined) ?? [['litellm-vibe-study', asked], ['litellm-opencode-go', asked]]
+      return { exitCode: 0, stderr: '', stdout: ['provider  model  context', ...rows.map(([provider, model]) => `${provider}  ${model}  128K`)].join('\n') }
+    }
+    const script = this.cli.scripts?.shift()
+    if (script === undefined) throw new Error('unexpected pi launch')
+    await this.log.play('pi')
+    await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
+    return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
+  }
+}
+
 /** What `codex exec --json` prints for a run whose final message is `text`. */
 export function codexStream(text: string, usage: { input_tokens: number; cached_input_tokens: number; output_tokens: number } = { cached_input_tokens: 40, input_tokens: 100, output_tokens: 20 }): string {
   return [
@@ -1196,6 +1288,8 @@ export interface Harness {
   readonly agy: FakeAgyProcess
   /** The stubbed work CLIs, present for the ones `workCli` named. */
   readonly workCli: { readonly codex?: FakeWorkProcess; readonly claude?: FakeWorkProcess }
+  /** The stubbed `pi`, present when `piCli` named it. */
+  readonly pi?: FakePiProcess
   readonly launches: LaunchLog
   readonly clock: FixedClock
   readonly commands: CritiqueCommands
@@ -1319,6 +1413,8 @@ export async function harness(
     readonly workCli?: { readonly codex?: WorkCli; readonly claude?: WorkCli }
     /** The grants the owner gave, in `~/.config/agent-kit/model-gateway-grants.json`. */
     readonly grants?: readonly Record<string, unknown>[]
+    /** Wires the Pi critic client over a stubbed `pi`; no Pi client is wired unless named. */
+    readonly piCli?: PiCli
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -1393,6 +1489,8 @@ export async function harness(
     if (cli.onPath ?? true) await writeFile(join(bin, name), '#!/bin/sh\n')
     workProcesses[name] = new FakeWorkProcess(name, repo, cli, launches)
   }
+  const pi = options.piCli === undefined ? undefined : new FakePiProcess(repo, options.piCli, launches)
+  if (options.piCli !== undefined && (options.piCli.onPath ?? true)) await writeFile(join(bin, 'pi'), '#!/bin/sh\n')
   const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':'), ...options.env })
   const clock = new FixedClock('2026-10-30T12:00:00.000Z')
   const commands = createCritiqueCommands({
@@ -1403,6 +1501,7 @@ export async function harness(
       ...workClients(options.workClients),
       ...(workProcesses.codex === undefined ? {} : { codex: new WorkCodexCriticClient(workProcesses.codex, files, env) }),
       ...(workProcesses.claude === undefined ? {} : { claude: new WorkClaudeCriticClient(workProcesses.claude, files, env) }),
+      ...(pi === undefined ? {} : { pi: new PiCriticClient(pi, files, env) }),
     },
     clock,
     env,
@@ -1421,6 +1520,7 @@ export async function harness(
     agy,
     assetsRoot,
     workCli: workProcesses,
+    ...(pi === undefined ? {} : { pi }),
     cleanup: () => rm(base, { force: true, recursive: true }),
     clock,
     commands,

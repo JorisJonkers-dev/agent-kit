@@ -39,6 +39,10 @@ pub fn client_value(client: &CriticClient) -> Value {
             pairs.extend([("binary", Value::str(&claude.binary)), ("family", Value::str(&claude.family)), ("kind", Value::str("claude")), ("model", Value::str(&claude.model))]);
             claude.gateway.as_ref()
         }
+        CriticClient::Pi(pi) => {
+            pairs.extend([("binary", Value::str(&pi.binary)), ("family", Value::str(&pi.family)), ("kind", Value::str("pi")), ("model", Value::str(&pi.model)), ("provider", Value::str(&pi.provider))]);
+            None
+        }
     };
     if let Some(gateway) = gateway {
         pairs.push(("gateway", gateway_value(gateway)));

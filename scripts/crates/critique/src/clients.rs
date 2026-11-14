@@ -112,6 +112,7 @@ pub fn client_readiness(runtime: &Runtime, config: &CriticClient) -> Result<Clie
         CriticClient::Agy(agy) => crate::agy_client::agy_readiness(runtime, agy),
         CriticClient::Codex(codex) => crate::work_client::codex_sign_in(runtime, codex),
         CriticClient::Claude(claude) => crate::work_client::claude_sign_in(runtime, claude),
+        CriticClient::Pi(pi) => crate::pi_client::pi_readiness(runtime, pi),
     }
 }
 
@@ -122,6 +123,7 @@ pub fn review_with(runtime: &Runtime, launch: &CriticLaunch<'_>) -> Result<Criti
         CriticClient::Agy(agy) => crate::agy_client::agy_review(runtime, launch, agy),
         CriticClient::Codex(codex) => crate::work_client::codex_review(runtime, launch, codex),
         CriticClient::Claude(claude) => crate::work_client::claude_review(runtime, launch, claude),
+        CriticClient::Pi(pi) => crate::pi_client::pi_review(runtime, launch, pi),
     }
 }
 
@@ -133,6 +135,7 @@ pub fn client_sign_in(runtime: &Runtime, config: &CriticClient) -> Result<Client
         CriticClient::Agy(agy) => crate::agy_client::agy_readiness(runtime, agy),
         CriticClient::Codex(codex) => crate::work_client::codex_sign_in(runtime, codex),
         CriticClient::Claude(claude) => crate::work_client::claude_sign_in(runtime, claude),
+        CriticClient::Pi(pi) => crate::pi_client::pi_sign_in(runtime, pi),
     }
 }
 
@@ -143,6 +146,7 @@ pub fn client_binary(config: &CriticClient) -> &str {
         CriticClient::Agy(client) => &client.binary,
         CriticClient::Codex(client) => &client.binary,
         CriticClient::Claude(client) => &client.binary,
+        CriticClient::Pi(client) => &client.binary,
     }
 }
 

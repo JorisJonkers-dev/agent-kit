@@ -3,9 +3,10 @@ import { isWorkClient, type CriticClient } from './routing.js'
 
 /**
  * What running a check spends: nothing, Vibe money on the personal
- * account, or one Antigravity invocation of today's quota.
+ * account, one Antigravity invocation of today's quota, or one trivial
+ * prompt on a LiteLLM route's budget through Pi.
  */
-export type SetupCost = 'free' | 'vibe' | 'agy'
+export type SetupCost = 'free' | 'vibe' | 'agy' | 'pi'
 
 /**
  * What a check's result depends on. A result stays good while these are
@@ -55,7 +56,7 @@ export interface SetupResults {
 export const EMPTY_SETUP_RESULTS: SetupResults = { checks: {}, version: 1 }
 
 /** The checks about a critic client's CLI, and the two about the critique hooks on this machine. */
-export type ClientCheckKind = 'vibe-signed-in' | 'agy-signed-in' | 'critic' | 'agy-quota' | 'read-only'
+export type ClientCheckKind = 'vibe-signed-in' | 'agy-signed-in' | 'pi-signed-in' | 'critic' | 'agy-quota' | 'read-only'
 export type MachineCheckKind = 'hooks' | 'kill-switch'
 export type SetupCheckKind = ClientCheckKind | MachineCheckKind
 
@@ -158,14 +159,22 @@ export interface SetupItem {
 export const READ_ONLY_PENDING =
   'not available until agent-kit#178 lands: the read-only proof reuses its live smoke check'
 
+/**
+ * Pi has no read-only mode to prove: a Pi critic is launched with the read
+ * tools alone, and its stream is checked after every run.
+ */
+export const PI_READ_ONLY_PENDING =
+  'not available: Pi has no sandbox of its own to prove, so every Pi critic is launched with read, grep, find and ls alone, and a run that used another tool or reached past its packet is voided'
+
 /** What a passed Vibe read-only proof leaves to #178. */
 export const WRITE_PROOF_PENDING = "agent-kit#178's live smoke check adds the rest of the read-only proof"
 
 /**
  * The machine checklist, in the order setup walks it: Vibe's sign-in and each
- * Vibe critic, Antigravity's sign-in, its critic and its quota, the
- * read-only proof per critic client, then the hooks (installed, and the kill
- * switch). Clients come from routing, in its order.
+ * Vibe critic, Antigravity's sign-in, its critic and its quota, Pi's
+ * provider and each Pi critic, the read-only proof per critic client, then
+ * the hooks (installed, and the kill switch). Clients come from routing, in
+ * its order.
  */
 export function setupChecklist(
   clients: Readonly<Record<string, CriticClient>>,
@@ -174,8 +183,10 @@ export function setupChecklist(
   const entries = Object.entries(clients).filter((entry): entry is [string, SetupClient] => !isWorkClient(entry[1]))
   const vibe = entries.filter(([, config]) => config.kind === 'vibe')
   const agy = entries.filter(([, config]) => config.kind === 'agy')
+  const pi = entries.filter(([, config]) => config.kind === 'pi')
   const [firstVibe] = vibe
   const [firstAgy] = agy
+  const [firstPi] = pi
   return [
     ...(firstVibe === undefined
       ? []
@@ -190,6 +201,9 @@ export function setupChecklist(
           ...agy.map(([client, config]) => criticCheck(client, config)),
           { ...AGY_QUOTA, client_config: firstAgy[1] },
         ]),
+    ...(firstPi === undefined
+      ? []
+      : [{ ...PI_SIGNED_IN, client_config: firstPi[1] }, ...pi.map(([client, config]) => criticCheck(client, config))]),
     ...entries.map(([client, config]) => readOnlyCheck(client, config)),
     ...UNPROVEN_READ_ONLY_CLIENTS.map(unprovenReadOnlyCheck),
     HOOKS_INSTALLED,
@@ -242,11 +256,20 @@ const AGY_QUOTA: Omit<ClientCheck, 'client_config'> = {
   why: 'agy reports no quota, so the runner counts its own launches against a daily cap, which should be your plan’s real limit.',
 }
 
+const PI_SIGNED_IN: Omit<ClientCheck, 'client_config'> = {
+  cost: 'free',
+  fix: 'Install pi, then re-run agent-kit setup so it writes the LiteLLM providers and their keys, then check again.',
+  id: 'pi-signed-in',
+  kind: 'pi-signed-in',
+  title: 'Pi is installed and its LiteLLM provider resolves a key',
+  why: 'Every Pi critic runs through a LiteLLM route, so while pi is missing or its provider has no key each one drops out of a run.',
+}
+
 /** A critic client setup checks: the work clients are not among them. */
 type SetupClient = Exclude<CriticClient, { readonly kind: 'codex' | 'claude' }>
 
 function criticCheck(client: string, config: SetupClient): ClientCheck {
-  const through = config.kind === 'vibe' ? `the ${config.agent} agent` : 'agy'
+  const through = config.kind === 'vibe' ? `the ${config.agent} agent` : config.kind === 'pi' ? `pi on ${config.provider}` : 'agy'
   return {
     client,
     client_config: config,
@@ -254,7 +277,9 @@ function criticCheck(client: string, config: SetupClient): ClientCheck {
     fix:
       config.kind === 'vibe'
         ? `Re-run agent-kit setup to reinstall ${config.agent}, then check again; if it still fails, read the detail.`
-        : 'Check that agy runs and offers the model, then check again; if it still fails, read the detail.',
+        : config.kind === 'pi'
+          ? `Check that ${config.provider} offers ${config.model} in ~/.pi/agent/models.json and its route key works, then check again; if it still fails, read the detail.`
+          : 'Check that agy runs and offers the model, then check again; if it still fails, read the detail.',
     id: `critic:${client}`,
     kind: 'critic',
     title: `${client} answers a trivial prompt`,
@@ -280,11 +305,13 @@ function readOnlyCheck(client: string, config: SetupClient): ClientCheck {
   return {
     client,
     client_config: config,
-    // A Vibe client's proof is one trivial prompt, after a search-reach check that calls no model.
-    cost: config.kind,
+    // A Vibe client's proof is one trivial prompt, after a search-reach check that calls no model; a Pi client's runs nothing.
+    cost: config.kind === 'pi' ? 'free' : config.kind,
     fix: vibe
       ? 'Re-run agent-kit setup so the critique runner is current, then check again; until it passes, this client reads its packet without searching.'
-      : 'Wait for agent-kit#178.',
+      : config.kind === 'pi'
+        ? 'Nothing to fix: every Pi critic run is checked against its packet instead.'
+        : 'Wait for agent-kit#178.',
     id: `read-only:${client}`,
     kind: 'read-only',
     title: `${client} is proven read-only`,
@@ -306,6 +333,8 @@ export function setupItem(
   const shown = shownCheck(check)
   if (check.kind === 'read-only' && check.client_config?.kind === 'agy')
     return { ...shown, detail: READ_ONLY_PENDING, status: 'not-available' }
+  if (check.kind === 'read-only' && check.client_config?.kind === 'pi')
+    return { ...shown, detail: PI_READ_ONLY_PENDING, status: 'not-available' }
   const base = { ...shown, inputs, ...(last === undefined ? {} : { last }) }
   if (last === undefined) return { ...base, due_because: 'never-checked', status: 'due' }
   const changed = SETUP_INPUTS.filter((key) => last.inputs[key] !== inputs[key])

@@ -78,14 +78,15 @@ pub fn parse_setup_results(text: &str) -> Result<Vec<(String, SetupCheckResult)>
     Ok(checks)
 }
 
-/// What running a check spends: nothing (`free`), Vibe money on the personal account, or one Antigravity invocation.
+/// What running a check spends: nothing (`free`), Vibe money on the personal account, one Antigravity invocation, or
+/// one trivial prompt on a LiteLLM route's budget through Pi (`pi`).
 pub type SetupCost = &'static str;
 
 /// One item of the checklist, before anything is checked.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SetupCheck {
     pub id: String,
-    /// `vibe-signed-in`, `agy-signed-in`, `critic`, `agy-quota`, `read-only`, `hooks` or `kill-switch`.
+    /// `vibe-signed-in`, `agy-signed-in`, `pi-signed-in`, `critic`, `agy-quota`, `read-only`, `hooks` or `kill-switch`.
     pub kind: &'static str,
     pub title: String,
     /// One sentence on why the item matters.
@@ -112,6 +113,10 @@ const UNPROVEN_READ_ONLY_CLIENTS: [(&str, &str); 4] = [
 
 /// agy's read-only proof is #178's live smoke check, which does not exist yet.
 pub const READ_ONLY_PENDING: &str = "not available until agent-kit#178 lands: the read-only proof reuses its live smoke check";
+
+/// Pi has no read-only mode to prove: a Pi critic is launched with the read tools alone, and its stream is checked after
+/// every run.
+pub const PI_READ_ONLY_PENDING: &str = "not available: Pi has no sandbox of its own to prove, so every Pi critic is launched with read, grep, find and ls alone, and a run that used another tool or reached past its packet is voided";
 
 /// What a passed Vibe read-only proof leaves to #178.
 pub const WRITE_PROOF_PENDING: &str = "agent-kit#178's live smoke check adds the rest of the read-only proof";
@@ -156,13 +161,17 @@ fn with_config(mut check: SetupCheck, config: &CriticClient) -> SetupCheck {
 }
 
 fn critic_check(client: &str, config: &CriticClient) -> SetupCheck {
-    let vibe = config.kind() == "vibe";
     let through = match config {
         CriticClient::Vibe(vibe) => format!("the {} agent", vibe.agent),
+        CriticClient::Pi(pi) => format!("pi on {}", pi.provider),
         _ => "agy".to_string(),
     };
     let fix = match config {
         CriticClient::Vibe(vibe) => format!("Re-run agent-kit setup to reinstall {}, then check again; if it still fails, read the detail.", vibe.agent),
+        CriticClient::Pi(pi) => format!(
+            "Check that {} offers {} in ~/.pi/agent/models.json and its route key works, then check again; if it still fails, read the detail.",
+            pi.provider, pi.model
+        ),
         _ => "Check that agy runs and offers the model, then check again; if it still fails, read the detail.".to_string(),
     };
     let mut check = base(
@@ -173,7 +182,7 @@ fn critic_check(client: &str, config: &CriticClient) -> SetupCheck {
         &fix,
     );
     check.client = Some(client.to_string());
-    check.cost = if vibe { "vibe" } else { "agy" };
+    check.cost = config.kind();
     with_config(check, config)
 }
 
@@ -188,15 +197,15 @@ fn read_only_check(client: &str, config: &CriticClient) -> SetupCheck {
         } else {
             "A critic may only read and search its packet; this proves the client refuses to change files and its search tools cannot reach past the packet on this machine."
         },
-        if vibe {
-            "Re-run agent-kit setup so the critique runner is current, then check again; until it passes, this client reads its packet without searching."
-        } else {
-            "Wait for agent-kit#178."
+        match config {
+            CriticClient::Vibe(_) => "Re-run agent-kit setup so the critique runner is current, then check again; until it passes, this client reads its packet without searching.",
+            CriticClient::Pi(_) => "Nothing to fix: every Pi critic run is checked against its packet instead.",
+            _ => "Wait for agent-kit#178.",
         },
     );
     check.client = Some(client.to_string());
-    // A Vibe client's proof is one trivial prompt, after a search-reach check that calls no model.
-    check.cost = if vibe { "vibe" } else { "agy" };
+    // A Vibe client's proof is one trivial prompt, after a search-reach check that calls no model; a Pi client's runs nothing.
+    check.cost = if config.kind() == "pi" { "free" } else { config.kind() };
     with_config(check, config)
 }
 
@@ -214,13 +223,13 @@ fn unproven_read_only_check(client: &str, reason: &str) -> SetupCheck {
 }
 
 /// The machine checklist, in the order setup walks it: Vibe's sign-in and each Vibe critic, Antigravity's sign-in, its
-/// critic and its quota, the read-only proof per critic client, then the hooks (installed, and the kill switch).
+/// critic and its quota, Pi's provider and each Pi critic, the read-only proof per critic client, then the hooks (installed, and the kill switch).
 /// Clients come from routing, in its order. The work clients have no setup check yet: only a nedap repository's roster
 /// names them.
 pub fn setup_checklist(clients: &[(String, CriticClient)]) -> Vec<SetupCheck> {
     let entries: Vec<&(String, CriticClient)> = clients.iter().filter(|(_, config)| !matches!(config, CriticClient::Codex(_) | CriticClient::Claude(_))).collect();
     let of = |kind: &str| entries.iter().filter(|(_, config)| config.kind() == kind).copied().collect::<Vec<_>>();
-    let (vibe, agy) = (of("vibe"), of("agy"));
+    let (vibe, agy, pi) = (of("vibe"), of("agy"), of("pi"));
     let mut checks = Vec::new();
     if let Some((_, first)) = vibe.first() {
         let mut sign_in = base(
@@ -253,6 +262,17 @@ pub fn setup_checklist(clients: &[(String, CriticClient)]) -> Vec<SetupCheck> {
         );
         checks.push(with_config(quota, first));
     }
+    if let Some((_, first)) = pi.first() {
+        let sign_in = base(
+            "pi-signed-in",
+            "pi-signed-in",
+            "Pi is installed and its LiteLLM provider resolves a key",
+            "Every Pi critic runs through a LiteLLM route, so while pi is missing or its provider has no key each one drops out of a run.",
+            "Install pi, then re-run agent-kit setup so it writes the LiteLLM providers and their keys, then check again.",
+        );
+        checks.push(with_config(sign_in, first));
+        checks.extend(pi.iter().map(|(client, config)| critic_check(client, config)));
+    }
     checks.extend(entries.iter().map(|(client, config)| read_only_check(client, config)));
     checks.extend(UNPROVEN_READ_ONLY_CLIENTS.iter().map(|(client, reason)| unproven_read_only_check(client, reason)));
     checks.push(hooks_installed());
@@ -280,6 +300,9 @@ pub fn setup_item(check: &SetupCheck, inputs: SetupInputs, last: Option<&SetupCh
     let item = |status, due_because, changed, detail, inputs, last| SetupItem { check: check.clone(), status, due_because, changed, detail, inputs, last };
     if check.kind == "read-only" && matches!(check.client_config, Some(CriticClient::Agy(_))) {
         return item("not-available", None, None, Some(READ_ONLY_PENDING), None, None);
+    }
+    if check.kind == "read-only" && matches!(check.client_config, Some(CriticClient::Pi(_))) {
+        return item("not-available", None, None, Some(PI_READ_ONLY_PENDING), None, None);
     }
     let shown = last.cloned();
     let Some(last) = last else {

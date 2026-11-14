@@ -268,7 +268,9 @@ Take the items in the runner's order, skipping the `current` ones. For each:
    sentence.
 2. **Check.** Run `check` with the item's `id`.
    - `not-available`: give the item's `detail`. The Antigravity read-only
-     proof answers this way until agent-kit#178 lands.
+     proof answers this way until agent-kit#178 lands, and a Pi client's
+     always does: Pi has no sandbox to prove, so every Pi run is checked
+     against its packet instead.
    - Claude Code, Codex, Hermes and OpenCode each have a read-only item
      with no critic behind it. It is recorded as `unproven` with its reason,
      at no cost and without launching anything. Report it as unproven, never
@@ -281,7 +283,8 @@ Take the items in the runner's order, skipping the `current` ones. For each:
      process starts while a search still completes.
    - `needs-confirmation`: the item costs money or quota. Its `cost` says
      which: `vibe` is one trivial prompt on the personal Mistral account
-     (capped at $0.05), `agy` is one of today's Antigravity invocations. The
+     (capped at $0.05), `agy` is one of today's Antigravity invocations,
+     `pi` is one trivial prompt through Pi on a LiteLLM route's budget. The
      first time each cost comes up in this session, ask the owner before
      spending it; on yes, run `check` again with `"confirmed": true`, and
      pass `"confirmed": true` for later items of that cost without asking

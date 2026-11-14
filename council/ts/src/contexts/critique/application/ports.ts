@@ -4,7 +4,16 @@ import type { CriticFailure, CriticOutcome, CriticTokens } from '../domain/criti
 import type { CriticToolset, SearchServerLaunch, ToolCall } from '../domain/critic-tools.js'
 import type { RepoRanking } from '../domain/ranking.js'
 import type { SearchCall, SearchLimits, SearchToolName } from '../domain/packet-search.js'
-import type { AgyCriticClient, ClaudeCriticClient, ClientReadiness, CodexCriticClient, CriticClient, RosterCritic, VibeCriticClient } from '../domain/routing.js'
+import type {
+  AgyCriticClient,
+  ClaudeCriticClient,
+  ClientReadiness,
+  CodexCriticClient,
+  CriticClient,
+  PiCriticClient,
+  RosterCritic,
+  VibeCriticClient,
+} from '../domain/routing.js'
 
 /**
  * The repository facts the critique needs: council's git port, narrowed to
@@ -152,6 +161,8 @@ export interface CriticClients {
   readonly vibe: CriticClientPort<VibeCriticClient> & QuestionClientPort<VibeCriticClient> & SearchingClientPort<VibeCriticClient>
   readonly codex?: CriticClientPort<CodexCriticClient>
   readonly claude?: CriticClientPort<ClaudeCriticClient>
+  /** Pi over a LiteLLM route; a machine that wires none drops every Pi critic as unavailable. */
+  readonly pi?: CriticClientPort<PiCriticClient>
 }
 
 /** Why a work critic cannot run on a machine that wires no client for its kind. */
@@ -170,6 +181,8 @@ export function clientReadiness(clients: CriticClients, config: CriticClient): P
       return clients.codex?.readiness(config) ?? Promise.resolve(unwired('codex'))
     case 'claude':
       return clients.claude?.readiness(config) ?? Promise.resolve(unwired('claude'))
+    case 'pi':
+      return clients.pi?.readiness(config) ?? Promise.resolve(unwired('pi'))
   }
 }
 
@@ -184,6 +197,8 @@ export function clientSignIn(clients: CriticClients, config: CriticClient): Prom
       return clients.codex?.signIn(config) ?? Promise.resolve(unwired('codex'))
     case 'claude':
       return clients.claude?.signIn(config) ?? Promise.resolve(unwired('claude'))
+    case 'pi':
+      return clients.pi?.signIn(config) ?? Promise.resolve(unwired('pi'))
   }
 }
 
@@ -198,6 +213,8 @@ export function clientVersion(clients: CriticClients, config: CriticClient): Pro
       return clients.codex?.version(config) ?? Promise.resolve(null)
     case 'claude':
       return clients.claude?.version(config) ?? Promise.resolve(null)
+    case 'pi':
+      return clients.pi?.version(config) ?? Promise.resolve(null)
   }
 }
 
@@ -213,6 +230,8 @@ export function reviewWith(clients: CriticClients, launch: CriticLaunch): Promis
       return reviewThrough(clients.codex, launch, config)
     case 'claude':
       return reviewThrough(clients.claude, launch, config)
+    case 'pi':
+      return reviewThrough(clients.pi, launch, config)
   }
 }
 
