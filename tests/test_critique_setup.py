@@ -234,7 +234,8 @@ def test_every_pi_client_names_its_routes_data_scope_and_no_public_one_leads_a_s
     for name, client in routing["clients"].items():
         if client["kind"] != "pi":
             continue
-        assert client["data_scope"] == scope[client["provider"]], f"{name}: {client['provider']} is {scope[client['provider']]}"
+        expected = scope[client["provider"]]
+        assert client["data_scope"] == expected, f"{name}: {client['provider']} is {expected}"
         if client["data_scope"] == "public":
             public.append(name)
             assert name not in leading, f"{name} is public-only and leads a slot"
