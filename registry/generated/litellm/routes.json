@@ -35,11 +35,11 @@
     {
       "agent": "openrouter",
       "key_env": "LITELLM_OPENROUTER_KEY",
-      "budget_eur": 5,
-      "budget_duration": "30d",
-      "data_scope": "any",
+      "budget_eur": null,
+      "budget_duration": null,
+      "data_scope": "public",
       "models": [
-        "canonical"
+        "openrouter-free-public"
       ]
     },
     {
