@@ -5,17 +5,19 @@
 //! ports and bind none.
 //!
 //! ```text
-//! agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--write PATH]...
-//!                        [--net-connect PORT]... -- COMMAND [ARGS...]
+//! agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]...
+//!                        [--write PATH]... [--net-connect PORT]... -- COMMAND [ARGS...]
 //! ```
 //!
 //! * `--read`: readable (files read, directories listed), never executable.
 //! * `--run`: readable and executable (an interpreter and its program).
+//! * `--run-from`: what it takes to run PROGRAM (a path, or a name looked up
+//!   on `PATH`), readable and executable: see [`program_grants`].
 //! * `--write`: a directory that may be read, written and changed beneath.
 //! * `--net-connect`: a TCP port a connect may reach; given once or more, no
 //!   other port can be reached and no TCP port can be bound.
 //! * `--check`: build the confinement and say whether this machine can hold
-//!   it, starting nothing.
+//!   it, and list every grant, starting nothing.
 //!
 //! Every confinement also holds the system runtime ([`SYSTEM_RUN`], read and
 //! run), the files name resolution and certificate checks read
@@ -31,6 +33,9 @@
 //! runs the command with less than it was asked to hold.
 
 use std::ffi::{OsStr, OsString};
+use std::fs;
+use std::io::Read;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -73,6 +78,7 @@ pub struct Spec {
     pub check: bool,
     pub read: Vec<PathBuf>,
     pub run: Vec<PathBuf>,
+    pub run_from: Vec<OsString>,
     pub write: Vec<PathBuf>,
     pub ports: Option<Vec<u16>>,
     pub command: Vec<OsString>,
@@ -93,12 +99,13 @@ pub fn parse(args: &[OsString]) -> Result<Spec, String> {
             continue;
         }
         let value = match flag.as_ref() {
-            "--read" | "--run" | "--write" | "--net-connect" => rest.next().ok_or(format!("{flag} needs a value"))?,
+            "--read" | "--run" | "--run-from" | "--write" | "--net-connect" => rest.next().ok_or(format!("{flag} needs a value"))?,
             _ => return Err(format!("unknown confine option {flag:?}")),
         };
         match flag.as_ref() {
             "--read" => spec.read.push(PathBuf::from(value)),
             "--run" => spec.run.push(PathBuf::from(value)),
+            "--run-from" => spec.run_from.push(value.clone()),
             "--write" => spec.write.push(PathBuf::from(value)),
             _ => spec.ports.get_or_insert_with(Vec::new).push(port(value)?),
         }
@@ -121,19 +128,110 @@ fn existing(system: &[&str]) -> Vec<PathBuf> {
     system.iter().map(PathBuf::from).filter(|p| p.exists()).collect()
 }
 
-/// The policy for `spec`: its own grants and the system's.
-pub fn policy(spec: &Spec) -> Policy {
+/// Where programs are looked up and whose home must never be granted whole.
+#[derive(Debug, Default)]
+pub struct Env {
+    pub path: Option<OsString>,
+    pub home: Option<PathBuf>,
+}
+
+impl Env {
+    fn from_process() -> Env {
+        Env {
+            path: std::env::var_os("PATH"),
+            home: std::env::var_os("HOME").filter(|h| !h.is_empty()).map(PathBuf::from),
+        }
+    }
+}
+
+/// The policy for `spec`: its own grants and the system's, or why a
+/// `--run-from` program cannot be granted.
+pub fn policy(spec: &Spec, env: &Env) -> Result<Policy, String> {
     let mut read = existing(&SYSTEM_READ);
     read.extend(spec.read.iter().cloned());
     let mut run = existing(&SYSTEM_RUN);
     run.extend(spec.run.iter().cloned());
-    Policy {
+    for program in &spec.run_from {
+        run.extend(program_grants(program, env)?);
+    }
+    Ok(Policy {
         dirs: spec.write.clone(),
         files: existing(&DEVICES),
         reads: Some(Reads { read, run }),
         connect_ports: spec.ports.clone(),
         ..Policy::default()
+    })
+}
+
+/// A file anyone may execute.
+fn executable(path: &Path) -> bool {
+    fs::metadata(path).map_or(false, |m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+}
+
+/// `program` itself when it names a path, else the first executable file of
+/// that name in a directory of `PATH`.
+fn which(program: &OsStr, env: &Env) -> Option<PathBuf> {
+    if program.to_string_lossy().contains('/') {
+        return Some(PathBuf::from(program)).filter(|p| executable(p));
     }
+    let path = env.path.clone().unwrap_or_default();
+    std::env::split_paths(&path).map(|dir| dir.join(program)).find(|p| executable(p))
+}
+
+/// Whether granting `dir` whole would grant the home directory (or `/`).
+fn holds_home(dir: &Path, env: &Env) -> bool {
+    dir.parent().is_none() || env.home.as_deref().is_some_and(|home| home.starts_with(dir))
+}
+
+/// `dir` when granting it whole keeps the home directory out, else `file` alone.
+fn bounded(dir: &Path, file: &Path, env: &Env) -> PathBuf {
+    if holds_home(dir, env) { file.to_path_buf() } else { dir.to_path_buf() }
+}
+
+/// What running `program` reads and executes, with links resolved:
+///
+/// * the package it belongs to, the directory right under a `node_modules`
+///   (or `node_modules/@scope`), else the directory it is in;
+/// * for a script, its interpreter (`#!/path` or `#!/usr/bin/env NAME`, the
+///   name looked up on `PATH`) with its install: the directory above its
+///   `bin`, else the directory it is in.
+///
+/// A directory that would hold the home directory, or be `/`, is narrowed to
+/// the file itself.
+pub fn program_grants(program: &OsStr, env: &Env) -> Result<Vec<PathBuf>, String> {
+    let name = program.to_string_lossy();
+    let found = which(program, env).ok_or(format!("--run-from {name}: no executable file of that name on PATH"))?;
+    // `which` found an executable file, so it resolves.
+    let real = fs::canonicalize(&found).unwrap_or(found);
+    let dir = real.parent().unwrap_or(&real);
+    let package = real.ancestors().skip(1).find(|d| {
+        let parent = |p: &Path| p.parent().and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned());
+        let above = parent(d).unwrap_or_default();
+        above == "node_modules" || (above.starts_with('@') && d.parent().and_then(parent).as_deref() == Some("node_modules"))
+    });
+    let mut grants = vec![bounded(package.unwrap_or(dir), &real, env)];
+    if let Some(interpreter) = interpreter(&real, env) {
+        let real_interpreter = fs::canonicalize(&interpreter).unwrap_or(interpreter);
+        let bin = real_interpreter.parent().unwrap_or(&real_interpreter);
+        let install = if bin.file_name().is_some_and(|n| n == "bin") { bin.parent().unwrap_or(bin) } else { bin };
+        grants.push(bounded(install, &real_interpreter, env));
+    }
+    Ok(grants)
+}
+
+/// The interpreter a script's `#!` line names, as found here; none for a
+/// file that is not a script or names one that cannot be found.
+fn interpreter(script: &Path, env: &Env) -> Option<PathBuf> {
+    let mut head = Vec::new();
+    fs::File::open(script).ok()?.take(256).read_to_end(&mut head).ok()?;
+    let line = String::from_utf8_lossy(&head).lines().next()?.strip_prefix("#!")?.to_string();
+    let mut words = line.split_whitespace();
+    let first = words.next()?;
+    if !first.ends_with("/env") {
+        return which(OsStr::new(first), env);
+    }
+    let name = words.find(|w| !w.starts_with('-'))?;
+    which(OsStr::new(name), env)
 }
 
 /// Runs one `confine` command line: exit 2 for bad usage, [`REFUSED`] when
@@ -144,20 +242,21 @@ pub fn confine(args: &[OsString], limit: &dyn WriteLimit) -> i32 {
         Ok(spec) => spec,
         Err(message) => {
             eprintln!("{NAME}: {message}");
-            eprintln!("usage: {NAME} confine [--check] [--read PATH]... [--run PATH]... [--write PATH]... [--net-connect PORT]... -- COMMAND [ARGS...]");
+            eprintln!("usage: {NAME} confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... [--write PATH]... [--net-connect PORT]... -- COMMAND [ARGS...]");
             return 2;
         }
     };
-    let policy = policy(&spec);
-    let armed = match limit.prepare(&policy) {
+    let armed = match policy(&spec, &Env::from_process()).and_then(|policy| limit.prepare(&policy).map(|armed| (armed, policy))) {
         Ok(armed) => armed,
         Err(message) => {
             eprintln!("{NAME}: confine: the confinement cannot be applied here: {message}; nothing started");
             return REFUSED;
         }
     };
+    let (armed, policy) = armed;
     if spec.check {
         println!("confine: ok, {}", summary(&policy));
+        print!("{}", grants(&policy));
         return 0;
     }
     let mut command = Command::new(&spec.command[0]);
@@ -168,6 +267,16 @@ pub fn confine(args: &[OsString], limit: &dyn WriteLimit) -> i32 {
     let error = command.exec();
     eprintln!("{NAME}: confine: cannot start {} under the confinement: {error}; nothing started", Path::new(&spec.command[0]).display());
     REFUSED
+}
+
+/// Each grant on its own line: `read`, `run` or `write`, then the path.
+fn grants(policy: &Policy) -> String {
+    let none = Reads::default();
+    let reads = policy.reads.as_ref().unwrap_or(&none);
+    let line = |kind: &str, path: &PathBuf| format!("{kind} {}\n", path.display());
+    let mut text: String = reads.read.iter().map(|p| line("read", p)).collect();
+    text += &reads.run.iter().map(|p| line("run", p)).collect::<String>();
+    text + &policy.dirs.iter().chain(&policy.files).map(|p| line("write", p)).collect::<String>()
 }
 
 /// What a confinement grants, in one line.

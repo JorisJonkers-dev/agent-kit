@@ -387,8 +387,8 @@ reads and keeps `/` readable; `confine` limits the whole process instead, and
 everything it starts:
 
 ```bash
-agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--write PATH]... \
-    [--net-connect PORT]... -- COMMAND [ARGS...]
+agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... \
+    [--write PATH]... [--net-connect PORT]... -- COMMAND [ARGS...]
 ```
 
 The launcher puts a Landlock ruleset on itself and then becomes the command
@@ -400,7 +400,8 @@ only these can be read:
 | Grant | Rights | Paths |
 | :- | :- | :- |
 | `--read` | read, list | each path given (the critic's packet copy) |
-| `--run` | read, list, execute | each path given (the Pi package) |
+| `--run` | read, list, execute | each path given (Pi's own `bin`, which holds `fd`) |
+| `--run-from` | read, list, execute | what running PROGRAM takes (`pi`): its package (the directory right under `node_modules` or `node_modules/@scope`, else its own directory) and, for a script, its `#!` interpreter (`/usr/bin/env NAME` looked up on `PATH`) with that interpreter's install (the directory above its `bin`), links resolved; a directory that would hold the home directory or be `/` is narrowed to the file itself |
 | `--write` | read, list, write, create, remove | each directory given (the run's agent directory, its `TMPDIR`) |
 | system runtime | read, list, execute | `/nix/store`, `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, those that exist (`/nix/store` holds no secret by design; NixOS's `/etc` files and `/run/current-system` resolve into it) |
 | system files | read | `/etc/ssl`, `/etc/pki`, `/etc/ca-certificates`, `/etc/resolv.conf`, `/etc/hosts`, `/etc/host.conf`, `/etc/nsswitch.conf`, `/etc/gai.conf`, `/etc/services`, `/etc/protocols`, `/etc/localtime`, `/etc/zoneinfo`, `/dev/urandom`, `/dev/random`, those that exist |
@@ -421,15 +422,18 @@ the confined processes (ABI 6). UDP is not limited (DNS uses it).
 Fail closed: when the backend cannot apply the confinement in full (no
 Landlock, an ABI too old for `--net-connect`, a path that cannot be granted,
 macOS), `confine` exits **125** and starts nothing. `--check` builds the same
-ruleset, applies nothing and exits 0 (`confine: ok, ...`) or 125 with the
-reason, so a caller can refuse a critic before it launches one.
+ruleset, applies nothing and exits 0 (`confine: ok, ...`, then one `read`,
+`run` or `write` line per grant) or 125 with the reason, so a caller can
+refuse a critic before it launches one.
 `tests/confine.rs` proves it on the Linux runners under the real kernel: the
 granted directory reads and a file elsewhere (and one under `~/.ssh` when the
 home has one) fails with `EACCES`, nothing outside is listed, another
 process's and its own `/proc/<pid>/environ` are unreadable, only the
 `--write` directory is writable, a connect to a port not listed and a bind
 fail with `EACCES` while the listed port connects, the exit code is the
-command's, and a grant that cannot be made exits 125 without running it.
+command's, a grant that cannot be made exits 125 without running it, and
+`--run-from` lets a packaged script read its package while, without it, the
+script cannot even be executed.
 
 On macOS `sandbox-exec` refuses a confinement: a read allowlist there needs
 the system paths node reads on macOS traced and proven on the `macos` runner,

@@ -189,3 +189,22 @@ fn a_confinement_that_cannot_be_applied_starts_nothing() {
     assert!(check.status.success() && text(&check).starts_with("confine: ok,"), "{}", text(&check));
     fs::remove_dir_all(&root).unwrap();
 }
+
+#[test]
+fn run_from_grants_what_a_packaged_script_needs_and_nothing_else_does() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch("run-from");
+    let package = root.join("lib/node_modules/tool");
+    fs::create_dir_all(package.join("bin")).unwrap();
+    fs::write(package.join("data.txt"), "packaged").unwrap();
+    let script = package.join("bin/tool");
+    fs::write(&script, format!("#!/bin/sh\ncat '{}'\n", package.join("data.txt").display())).unwrap();
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+    let granted = confine(&["--run-from", script.to_str().unwrap()], &[script.to_str().unwrap()]);
+    assert_eq!((granted.status.code(), String::from_utf8_lossy(&granted.stdout).as_ref()), (Some(0), "packaged"), "{}", text(&granted));
+    // Without the grant the script cannot even be executed, and the launcher says so.
+    let refused = confine(&[], &[script.to_str().unwrap()]);
+    assert_eq!(refused.status.code(), Some(125), "{}", text(&refused));
+    assert!(text(&refused).contains("Permission denied"), "{}", text(&refused));
+    fs::remove_dir_all(&root).unwrap();
+}
