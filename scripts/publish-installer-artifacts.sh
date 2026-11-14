@@ -61,6 +61,7 @@ KIT_PATHS=(
   scripts/fold-profile-settings.py
   scripts/pi-merge-providers.py
   registry/generated/pi/providers.json
+  scripts/litellm_catalogue.py
   scripts/instruction-block.py
   scripts/package-proxy-merge.py
   scripts/gold-band/build-linux.sh
