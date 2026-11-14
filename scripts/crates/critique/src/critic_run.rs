@@ -109,6 +109,8 @@ impl CriticTools {
     pub fn choose(&self, runtime: &Runtime, critic: &RosterCritic, packet_dir: &str) -> Result<ToolChoice, CritiqueError> {
         let config = match &critic.client_config {
             CriticClient::Agy(_) => return CriticTools::agy(runtime, critic),
+            // Pi searches with its own read-only tools, checked against the packet after the run.
+            CriticClient::Pi(_) => return Ok(ToolChoice { toolset: CriticToolset::Pi, search_failure: None }),
             CriticClient::Vibe(config) => config,
             // Codex and the work Claude agent read the packet alone: the runner's search server is a Vibe client's.
             _ => return Ok(ToolChoice { toolset: READ_ONLY_TOOLSET, search_failure: None }),

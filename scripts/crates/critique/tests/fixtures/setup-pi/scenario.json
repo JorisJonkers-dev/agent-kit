@@ -1,0 +1,346 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"list\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-vibe-study-glm\":{\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"pi-opencode-go-deepseek\":{\"binary\":\"pi\",\"family\":\"deepseek\",\"kind\":\"pi\",\"model\":\"deepseek-v4-flash\",\"provider\":\"litellm-opencode-go\"}}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"pi-signed-in\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:pi-vibe-study-glm\",\"confirmed\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"pi-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"ready\",\"provider\":\"x\",\"authType\":\"api_key\"}'\nexit 0\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncase \"$PWD\" in\n*/setup-checks/pi-vibe-study-glm/packet)\nprintf '%s\\n' '{\"type\":\"session\"}\n{\"message\":{\"content\":[{\"text\":\"```json\\n{\\\"findings\\\": [], \\\"no_findings_reason\\\": \\\"setup check: nothing to review\\\"}\\n```\\n\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"stop\",\"usage\":{\"cacheRead\":0,\"cost\":{\"total\":0.0004},\"input\":900,\"output\":30}},\"type\":\"message_end\"}'\nexit 0\n;;\n*/setup-checks/pi-opencode-go-deepseek/packet)\nprintf '%s\\n' '{\"type\":\"session\"}\n{\"message\":{\"content\":[{\"text\":\"\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"error\",\"usage\":{\"cacheRead\":0,\"cost\":{\"total\":0.0004},\"input\":900,\"output\":30}},\"type\":\"message_end\"}'\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "shims": [
+        "cat"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:pi-vibe-study-glm\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:pi-vibe-study-glm\",\"confirmed\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:pi-vibe-study-glm\",\"confirmed\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:pi-opencode-go-deepseek\",\"confirmed\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"read-only:pi-vibe-study-glm\",\"confirmed\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"pi-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"not_ready\",\"provider\":\"x\",\"reason\":\"provider_not_found\"}'\nexit 1\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "shims": [
+        "cat"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"pi-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"invalid\"}'\nexit 2\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "shims": [
+        "cat"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"pi-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' 'Error: unknown command' >&2\nexit 1\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "shims": [
+        "cat"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"pi-signed-in\",\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nexit 1\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "shims": [
+        "cat"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:pi-opencode-go-deepseek\",\"confirmed\":true,\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"ready\",\"provider\":\"x\",\"authType\":\"api_key\"}'\nexit 0\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'litellm-opencode-go other-model 128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "shims": [
+        "cat"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"check\",\"check\":\"critic:pi-opencode-go-deepseek\",\"confirmed\":true,\"force\":true}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"ready\",\"provider\":\"x\",\"authType\":\"api_key\"}'\nexit 0\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'boom' >&2\nexit 1\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "shims": [
+        "cat"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "home/.local/share/agent-kit/critique"
+      ]
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"list\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"openai\"}}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"list\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm--x\"}}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"list\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"family\":\"nobody\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"}}}\n"
+      }
+    },
+    {
+      "argv": [
+        "setup",
+        "--json",
+        "{\"action\":\"list\"}"
+      ],
+      "mkdir": [
+        "bin"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\",\"binary\":5}}}\n"
+      }
+    }
+  ]
+}

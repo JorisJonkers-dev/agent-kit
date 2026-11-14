@@ -152,6 +152,51 @@ scenarios['setup-read-only'] = [
   setup({ action: 'list' }),
 ]
 
+// Pi clients over LiteLLM routes, named by this machine's routing override: the provider check reads `pi auth check`
+// and `pi --list-models` for free, the trivial prompt spends on the route once confirmed, and the read-only item is not
+// available. The fake `pi` keeps a launch's argv and stdin beside its packet.
+const PI_A = { family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
+const PI_B = { binary: 'pi', family: 'deepseek', kind: 'pi', model: 'deepseek-v4-flash', provider: 'litellm-opencode-go' }
+const PI_OVERRIDE = { [OVERRIDE]: `${JSON.stringify({ clients: { 'pi-vibe-study-glm': PI_A, 'pi-opencode-go-deepseek': PI_B } })}\n` }
+const piEvents = (text, stopReason = 'stop') =>
+  [{ type: 'session' }, { message: { content: [{ text, type: 'text' }], role: 'assistant', stopReason, usage: { cacheRead: 0, cost: { total: 0.0004 }, input: 900, output: 30 } }, type: 'message_end' }]
+    .map((event) => JSON.stringify(event))
+    .join('\n')
+const PI_READY = `printf '%s\\n' '{"status":"ready","provider":"x","authType":"api_key"}'\nexit 0`
+const PI_MODELS = `printf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0`
+const fakePi = ({ auth = PI_READY, models = PI_MODELS, cases = {} } = {}) =>
+  `#!/bin/sh\nif [ "$1" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ "$1" = auth ]; then\n${auth}\nfi\nif [ "$1" = --offline ]; then\n${models}\nfi\nprintf '%s\\n' "$@" > "$PWD/../argv.txt"\ncat > "$PWD/../stdin.txt"\ncase "$PWD" in\n${Object.entries(cases)
+    .map(([where, body]) => `*${where}/packet)\n${body}\n;;`)
+    .join('\n')}\n*)\nexit 9\n;;\nesac\n`
+const withPi = (options, write = {}) => ({ write: { 'bin/pi': fakePi(options), ...write }, exec: ['bin/pi'], shims: ['cat'] })
+const GLM = '/setup-checks/pi-vibe-study-glm'
+const DEEPSEEK = '/setup-checks/pi-opencode-go-deepseek'
+const says = (text, stopReason) => `printf '%s\\n' ${q(piEvents(text, stopReason))}\nexit 0`
+scenarios['setup-pi'] = [
+  setup({ action: 'list' }, { write: PI_OVERRIDE }),
+  check('pi-signed-in'),
+  check('critic:pi-vibe-study-glm', {}, { confirmed: true }),
+  check('pi-signed-in', withPi({ cases: { [GLM]: says(EMPTY), [DEEPSEEK]: says('', 'error') } }), { force: true }),
+  check('critic:pi-vibe-study-glm'),
+  check('critic:pi-vibe-study-glm', {}, { confirmed: true }),
+  check('critic:pi-vibe-study-glm', {}, { confirmed: true }),
+  check('critic:pi-opencode-go-deepseek', {}, { confirmed: true }),
+  check('read-only:pi-vibe-study-glm', {}, { confirmed: true }),
+  // The provider is not ready, or its answer does not read, or the model is not offered.
+  check('pi-signed-in', withPi({ auth: `printf '%s\\n' '{"status":"not_ready","provider":"x","reason":"provider_not_found"}'\nexit 1` }), { force: true }),
+  check('pi-signed-in', withPi({ auth: `printf '%s\\n' '{"status":"invalid"}'\nexit 2` }), { force: true }),
+  check('pi-signed-in', withPi({ auth: `printf '%s\\n' 'Error: unknown command' >&2\nexit 1` }), { force: true }),
+  check('pi-signed-in', withPi({ auth: 'exit 1' }), { force: true }),
+  check('critic:pi-opencode-go-deepseek', withPi({ models: `printf '%s\\n' 'litellm-opencode-go other-model 128K'\nexit 0` }), { confirmed: true, force: true }),
+  check('critic:pi-opencode-go-deepseek', withPi({ models: `printf '%s\\n' 'boom' >&2\nexit 1` }), { confirmed: true, force: true }),
+  setup({}, { roots: DATA }),
+  // A Pi client whose provider is not a LiteLLM route's, or whose family is not a model family, is refused.
+  setup({ action: 'list' }, { write: { [OVERRIDE]: `${JSON.stringify({ clients: { 'pi-x': { ...PI_A, provider: 'openai' } } })}\n` } }),
+  setup({ action: 'list' }, { write: { [OVERRIDE]: `${JSON.stringify({ clients: { 'pi-x': { ...PI_A, provider: 'litellm--x' } } })}\n` } }),
+  setup({ action: 'list' }, { write: { [OVERRIDE]: `${JSON.stringify({ clients: { 'pi-x': { ...PI_A, family: 'nobody' } } })}\n` } }),
+  setup({ action: 'list' }, { write: { [OVERRIDE]: `${JSON.stringify({ clients: { 'pi-x': { ...PI_A, binary: 5 } } })}\n` } }),
+]
+
 // The quota alone, before and after a launch, and a limit that routing does not read.
 scenarios['setup-quota'] = [
   check('agy-quota'),

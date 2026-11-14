@@ -50,21 +50,11 @@ pub struct WorkRosterRequest<'a> {
 }
 
 pub fn client_family(client: &CriticClient) -> &str {
-    match client {
-        CriticClient::Vibe(client) => &client.family,
-        CriticClient::Agy(client) => &client.family,
-        CriticClient::Codex(client) => &client.family,
-        CriticClient::Claude(client) => &client.family,
-    }
+    client.family()
 }
 
 pub fn client_model(client: &CriticClient) -> &str {
-    match client {
-        CriticClient::Vibe(client) => &client.model,
-        CriticClient::Agy(client) => &client.model,
-        CriticClient::Codex(client) => &client.model,
-        CriticClient::Claude(client) => &client.model,
-    }
+    client.model()
 }
 
 fn client_named<'a>(routing: &'a Routing, stage: &str, name: &str) -> Result<&'a CriticClient, CritiqueError> {

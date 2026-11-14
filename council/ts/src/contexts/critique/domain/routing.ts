@@ -17,9 +17,12 @@ import { readTriageRules, type TriageModel, type TriageRules } from './triage.js
  * name; this is what the gateway is asked for.
  */
 export interface GatewayModel {
-  readonly client: CriticClient['kind']
+  readonly client: GatewayCriticKind
   readonly model: string
 }
+
+/** The critic client kinds the gateway also runs: every kind but Pi, which the runner launches itself. */
+export type GatewayCriticKind = 'vibe' | 'agy' | 'codex' | 'claude'
 
 /** One CLI pinned to one model. Model names live here and in the critic agent files only. */
 export interface VibeCriticClient {
@@ -65,6 +68,24 @@ export interface CodexCriticClient {
   readonly gateway?: GatewayModel
 }
 
+/**
+ * Pi over one LiteLLM route: the route's Pi provider, `litellm-<route>`,
+ * which setup writes into `~/.pi/agent/models.json`, and a model that route
+ * reaches. The route's key is read by Pi itself at request time, so the
+ * runner never holds it. Pi is launched directly, not through the gateway,
+ * so a Pi client names no gateway model.
+ */
+export interface PiCriticClient {
+  readonly kind: 'pi'
+  /** The Pi command; `pi` when routing names none. */
+  readonly binary: string
+  /** The LiteLLM route's Pi provider, `litellm-<route>`. */
+  readonly provider: string
+  /** The LiteLLM model id the route reaches. */
+  readonly model: string
+  readonly family: ModelFamily
+}
+
 /** The work Claude agent. Only the work roster of a `nedap` repository names it. */
 export interface ClaudeCriticClient {
   readonly kind: 'claude'
@@ -75,9 +96,9 @@ export interface ClaudeCriticClient {
   readonly gateway?: GatewayModel
 }
 
-export type CriticClient = VibeCriticClient | AgyCriticClient | CodexCriticClient | ClaudeCriticClient
+export type CriticClient = VibeCriticClient | AgyCriticClient | CodexCriticClient | ClaudeCriticClient | PiCriticClient
 
-export const CLIENT_KINDS = ['vibe', 'agy', 'codex', 'claude'] as const satisfies readonly CriticClient['kind'][]
+export const CLIENT_KINDS = ['vibe', 'agy', 'codex', 'claude', 'pi'] as const satisfies readonly CriticClient['kind'][]
 
 /** The client kinds only a `nedap` repository's work roster may use. */
 export const WORK_CLIENT_KINDS = ['codex', 'claude'] as const satisfies readonly CriticClient['kind'][]
@@ -311,6 +332,15 @@ function readTicketSize(fields: JsonFields): TicketSize {
 
 export function readCriticClient(fields: JsonFields): CriticClient {
   const kind = fields.oneOf('kind', CLIENT_KINDS)
+  if (kind === 'pi') {
+    return {
+      binary: fields.has('binary') ? fields.string('binary') : 'pi',
+      family: fields.oneOf('family', MODEL_FAMILIES),
+      kind,
+      model: fields.string('model'),
+      provider: fields.matching('provider', isLiteLlmProvider, 'a LiteLLM route\'s Pi provider, litellm-<route>'),
+    }
+  }
   const gateway = fields.has('gateway') ? { gateway: readGatewayModel(fields.object('gateway'), kind) } : {}
   if (kind === 'codex') {
     return { binary: fields.string('binary'), family: fields.literal('family', 'openai'), kind, model: fields.string('model'), ...gateway }
@@ -344,11 +374,16 @@ export function readCriticClient(fields: JsonFields): CriticClient {
  * and reads its output by its own kind, so a critic pinned to a gateway client
  * of another kind is refused rather than launched and misread.
  */
-function readGatewayModel(fields: JsonFields, kind: CriticClient['kind']): GatewayModel {
+function readGatewayModel(fields: JsonFields, kind: GatewayCriticKind): GatewayModel {
   return {
-    client: fields.matching('client', (value): value is CriticClient['kind'] => value === kind, `${kind}, the kind of the critic client`),
+    client: fields.matching('client', (value): value is GatewayCriticKind => value === kind, `${kind}, the kind of the critic client`),
     model: fields.string('model'),
   }
+}
+
+/** Whether a Pi provider is a LiteLLM route's: `litellm-` and the route, in lower-case letters, digits and dashes. */
+export function isLiteLlmProvider(provider: string): provider is string {
+  return /^litellm-[a-z0-9][a-z0-9-]*$/.test(provider)
 }
 
 function isGeminiModel(model: string): model is string {

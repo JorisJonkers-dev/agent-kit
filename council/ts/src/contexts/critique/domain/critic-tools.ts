@@ -13,7 +13,9 @@ export interface SearchServerLaunch {
  * started on this critic's copy; otherwise it reads alone. An agy critic
  * reads with `view_file`, and searches with agy's own `list_dir`,
  * `grep_search` and `find_by_name` only once setup has proven agy
- * read-only on this machine (#178); until then it reads alone.
+ * read-only on this machine (#178); until then it reads alone. A Pi critic
+ * reads and searches with Pi's own `read`, `grep`, `find` and `ls`, and any
+ * call that reaches past the packet voids its review.
  */
 export type CriticToolset =
   | { readonly kind: 'vibe-read' }
@@ -24,6 +26,7 @@ export type CriticToolset =
       readonly server: SearchServerLaunch
     }
   | { readonly kind: 'agy'; readonly search: boolean }
+  | { readonly kind: 'pi' }
 
 export const READ_ONLY_TOOLSET: CriticToolset = { kind: 'vibe-read' }
 
@@ -40,8 +43,12 @@ export const VIBE_SEARCH_SERVER = 'packet'
 /** agy's own read-only tools a critic is told about: one to read and three to list and search. */
 export const AGY_TOOLS = ['view_file', 'list_dir', 'grep_search', 'find_by_name'] as const
 
+/** Pi's own read-only tools, the only ones a Pi critic is launched with: one to read and three to list and search. */
+export const PI_TOOLS = ['read', 'grep', 'find', 'ls'] as const
+
 /** The tool names the critic's prompt gives, in that order. */
 export function toolNames(toolset: CriticToolset): readonly string[] {
+  if (toolset.kind === 'pi') return PI_TOOLS
   if (toolset.kind === 'agy') return toolset.search ? AGY_TOOLS : ['view_file']
   if (toolset.kind === 'vibe-read') return ['read_file']
   return ['read_file', 'run_typescript', ...toolset.search.map((tool) => `mcp_${VIBE_SEARCH_SERVER}.${tool}`)]
@@ -49,6 +56,7 @@ export function toolNames(toolset: CriticToolset): readonly string[] {
 
 /** The tool a critic reads one file with. */
 export function readTool(toolset: CriticToolset): string {
+  if (toolset.kind === 'pi') return 'read'
   return toolset.kind === 'agy' ? 'view_file' : 'read_file'
 }
 
@@ -88,6 +96,16 @@ export function toolsSection(toolset: CriticToolset): string {
       '',
       'You have one tool: `view_file`, which reads one file of your working directory, given its path as listed below. You cannot search: listing directories and searching files are switched off for you. ' +
         SWITCHED_OFF,
+    ].join('\n')
+  }
+  if (toolset.kind === 'pi') {
+    return [
+      '# Tools',
+      '',
+      'Your tools read and search your working directory: `read` reads one file, `ls` lists a directory, `grep` searches the contents of files and `find` finds files by a glob. Give every path relative to your working directory: a call that reaches outside it voids your review. ' +
+        SEARCH_FIRST,
+      '',
+      SWITCHED_OFF,
     ].join('\n')
   }
   if (toolset.kind === 'agy') {
