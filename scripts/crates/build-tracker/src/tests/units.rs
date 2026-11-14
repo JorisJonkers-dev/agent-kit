@@ -502,3 +502,30 @@ fn a_state_that_cannot_be_written_is_reported_and_the_page_is_not_left_behind() 
     let render = crate::cli::run_cli(&["render".to_string(), "--state".to_string(), "/state/state.json".to_string(), "--out".to_string(), "/out/p.html".to_string()], &runtime);
     assert_eq!(render.stderr, "build-tracker render: EACCES: permission denied, open '/out/p.html'\n");
 }
+
+#[test]
+fn a_board_whose_tickets_all_sit_in_milestones_has_no_other_section() {
+    use crate::board::{build_board, sections, OTHER_SECTION};
+    use crate::state::{BuildTrackerState, Milestone, SpecReference, Status, Ticket};
+    let ticket = |number: u64, blocked_by: Vec<u64>| Ticket {
+        number,
+        title: format!("ticket {number}"),
+        blocked_by,
+        external: Vec::new(),
+        file: None,
+        status: Status::Todo,
+        note: String::new(),
+        live: true,
+    };
+    let state = BuildTrackerState {
+        spec: SpecReference::Github { repository: repo("github.com", "acme", "widgets"), number: 1 },
+        title: "t".to_string(),
+        subtitle: "s".to_string(),
+        milestones: vec![Milestone { name: "first".to_string(), closes: 3 }],
+        tickets: vec![ticket(2, Vec::new()), ticket(3, vec![2])],
+    };
+    let board = build_board(&state);
+    let names: Vec<String> = sections(&state, &board.tickets).into_iter().map(|section| section.name).collect();
+    assert_eq!(names, vec!["first".to_string()]);
+    assert!(!names.iter().any(|name| name == OTHER_SECTION));
+}

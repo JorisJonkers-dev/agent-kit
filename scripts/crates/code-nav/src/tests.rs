@@ -1026,3 +1026,23 @@ fn the_map_holds_one_file_text_at_a_time() {
 }
 
 mod related;
+
+#[test]
+fn a_build_file_value_that_is_not_quoted_names_nothing() {
+    use crate::build_files::{parse, BuildInfo};
+    let names = |provides: &[&str], requires: &[&str]| BuildInfo {
+        provides: provides.iter().map(|name| name.to_string()).collect(),
+        requires: requires.iter().map(|name| name.to_string()).collect(),
+    };
+    // An unquoted package name, and an unquoted rename in a dependency sub-table, which keeps the table's own name.
+    assert_eq!(parse("Cargo.toml", "[package]\nname = app\n[dependencies.serde]\npackage = real\n"), names(&[], &["serde"]));
+    assert_eq!(parse("pyproject.toml", "[project]\nname = app\n"), names(&[], &[]));
+}
+
+#[test]
+fn optional_python_dependencies_on_one_line_close_their_array() {
+    let text = "[project.optional-dependencies]\ntest = [\"pytest>=8\"]\n[project]\nname = \"app\"\n";
+    let info = crate::build_files::parse("pyproject.toml", text);
+    assert_eq!(info.provides, vec!["app".to_string()]);
+    assert_eq!(info.requires, vec!["pytest".to_string()]);
+}

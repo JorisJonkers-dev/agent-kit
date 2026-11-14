@@ -1069,9 +1069,8 @@ fn alternating_runs(text: &str, pos: usize) -> Vec<(usize, usize)> {
     for (offset, c) in text[pos..].char_indices() {
         let at = pos + offset;
         if is_word(c) != word {
-            if at > start {
-                runs.push((start, at));
-            }
+            // `pos` is at a non-word character, so the first change of class ends a run that is not empty.
+            runs.push((start, at));
             start = at;
             word = is_word(c);
         }

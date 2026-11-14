@@ -582,14 +582,14 @@ impl Gate<'_> {
             return Ok(review.review == "pass" && !review.degraded);
         }
         match link.parents.as_slice() {
-            [] => Ok(false),
-            [first, second] => Ok(self.own_changes(evidence, first, second, &link.commit)?.is_none()),
-            [_, _, ..] => Ok(false),
             [first] => {
                 let diff = git.diff_commits(&evidence.root, first, &link.commit)?;
                 let paths = git.changed_paths(&evidence.root, first, &link.commit)?;
                 Ok(risk_signals(&code_change(&diff, &paths), &evidence.labels_on(first), &evidence.rules())?.is_empty())
             }
+            [first, second] => Ok(self.own_changes(evidence, first, second, &link.commit)?.is_none()),
+            // A root commit and a merge of more than two parents are never vouched for without a review.
+            _ => Ok(false),
         }
     }
 

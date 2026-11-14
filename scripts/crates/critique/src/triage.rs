@@ -205,15 +205,14 @@ fn glob_tokens(glob: &str) -> Result<(String, Vec<Token>), String> {
             i += 1;
         } else if chars[i] == '}' && !groups.is_empty() {
             pattern.push(')');
-            if let Some(group) = groups.pop() {
-                push_token(&mut groups, &mut tokens, Token::Group(group.finish()));
-            }
+            // The arm is taken only with a group open.
+            let group = groups.pop().unwrap_or_default();
+            push_token(&mut groups, &mut tokens, Token::Group(group.finish()));
             i += 1;
         } else if chars[i] == ',' && !groups.is_empty() {
             pattern.push('|');
-            if let Some(group) = groups.last_mut() {
-                group.split();
-            }
+            // The arm is taken only with a group open.
+            groups.last_mut().into_iter().for_each(GroupBuilder::split);
             i += 1;
         } else {
             if is_pattern_special(chars[i]) {

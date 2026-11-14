@@ -236,6 +236,16 @@ fn list_models_lists_a_model_the_catalogue_does_not_know_with_no_tier_and_no_not
 }
 
 #[test]
+fn list_models_hides_a_model_the_catalogue_does_not_know_that_a_ledger_answer_refused() {
+    let listed = listings(vec![("agy", models_of(vec![model("gemini-4-pro")]))]);
+    let refused = vec![skipped("agy", "gemini-4-pro", "rate-limited at 2026-11-09T10:00:00.000Z")];
+
+    let listing = list_models(&config(), &installed(&["agy"]), &listed, &refused);
+    assert_eq!(listing.models, vec![]);
+    assert_eq!(listing.skipped, vec![skipped("agy", "gemini-4-pro", "rate-limited at 2026-11-09T10:00:00.000Z")]);
+}
+
+#[test]
 fn list_models_leaves_out_a_model_of_a_family_the_client_may_not_reach() {
     let listed = listings(vec![(
         "agy",

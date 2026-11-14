@@ -169,9 +169,8 @@ fn adjudicate(verdicts: &HashMap<String, Verdict>, finding: &RunFinding) -> Resu
     if let Some(severity) = given.and_then(|given| given.severity.as_ref()) {
         finding.body.severity = severity.clone();
         verdict.severity = Some(severity.clone());
-        if let Some(reason) = given.and_then(|given| given.severity_reason.as_ref()) {
-            verdict.severity_reason = Some(reason.clone());
-        }
+        // The verdict is the given one, which holds this reason already, or a pre-verdict, which holds none.
+        verdict.severity_reason = given.and_then(|given| given.severity_reason.clone());
     }
     Ok(AdjudicatedFinding { finding, verdict })
 }

@@ -186,13 +186,14 @@ fn codex_records_a_hooks_trust_under_the_key_it_names_it_by() {
         assert_eq!(state_table_key(line), None, "{line}");
     }
     let states = codex_hook_states(
-        "[hooks.state.\"a\"]\ntrusted_hash = \"sha256:x\"\nenabled = true\n[other]\ntrusted_hash = \"lost\"\n[hooks.state.\"b\"]\nenabled = false\nenabled = truex\ntrusted_hash = unquoted\ntrusted_hash   =   \"\"\n[hooks.state.\"c\"]\nenabled = true_\n",
+        "[hooks.state.\"a\"]\ntrusted_hash = \"sha256:x\"\nenabled = true\n[other]\ntrusted_hash = \"lost\"\n[hooks.state.\"b\"]\nenabled = false\nenabled = truex\ntrusted_hash = unquoted\ntrusted_hash   =   \"\"\n[hooks.state.\"c\"]\nenabled = true_\ntrusted_hash = \"unterminated\n",
     );
     let a = &states["a"];
     assert_eq!((a.trusted_hash.as_deref(), a.enabled), (Some("sha256:x"), Some(true)));
     let b = &states["b"];
     assert_eq!((b.trusted_hash.as_deref(), b.enabled), (Some(""), Some(false)));
     assert_eq!(states["c"].enabled, None);
+    assert_eq!(states["c"].trusted_hash, None);
     assert_eq!(states.len(), 3);
 }
 

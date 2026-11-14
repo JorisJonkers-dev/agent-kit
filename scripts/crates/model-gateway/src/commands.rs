@@ -105,15 +105,13 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
             installed.insert(id.clone());
         }
     }
-    let mut listings: BTreeMap<String, ClientListing> = BTreeMap::new();
-    for (id, client) in &config.clients {
-        if !installed.contains(id) || client.model_source == crate::config::ModelSource::Declared {
-            continue;
-        }
-        if let Some(listing) = sources::list_client(runtime, id) {
-            listings.insert(id.clone(), listing);
-        }
-    }
+    // The installed clients that list their own models, each with the listing the gateway has a source for.
+    let listings: BTreeMap<String, ClientListing> = config
+        .clients
+        .iter()
+        .filter(|(id, client)| installed.contains(*id) && client.model_source != crate::config::ModelSource::Declared)
+        .filter_map(|(id, _)| sources::list_client(runtime, id).map(|listing| (id.clone(), listing)))
+        .collect();
     let now = runtime.clock.now_ms();
     let unavailable = standing_refusals(runtime, now);
     let listing = models::list_models(&config, &installed, &listings, &unavailable);

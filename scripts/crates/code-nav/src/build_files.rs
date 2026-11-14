@@ -322,9 +322,8 @@ fn go(text: &str) -> BuildInfo {
                 in_block = false;
                 continue;
             }
-            if let Some(path) = line.split_whitespace().next() {
-                requires.push(last_segment(path).to_string());
-            }
+            // A trimmed line that is not empty has a first word.
+            requires.extend(line.split_whitespace().next().map(|path| last_segment(path).to_string()));
             continue;
         }
         let mut words = line.split_whitespace();

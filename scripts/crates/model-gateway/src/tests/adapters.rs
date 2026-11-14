@@ -771,6 +771,17 @@ fn git_reads_only_the_worktree_blocks_it_understands() {
 }
 
 #[test]
+fn git_lists_no_worktree_from_a_listing_without_a_worktree_line() {
+    let sandbox = Sandbox::new();
+    let bin = sandbox.path.join("bin");
+    std::fs::create_dir_all(&bin).expect("bin folder");
+    let _guard = serialised();
+    script(&bin, "git", "#!/bin/sh\nprintf '%s\\n' 'HEAD abc'\n");
+    let repositories = SystemGit { env: env_with_path(&text(&bin)), timeout_ms: TIMEOUT_MS };
+    assert_eq!(repositories.list_worktrees(&sandbox.text()), Ok(Vec::new()));
+}
+
+#[test]
 fn git_reads_the_staged_names_it_is_given_and_drops_the_empty_ones() {
     let sandbox = Sandbox::new();
     let bin = sandbox.path.join("bin");

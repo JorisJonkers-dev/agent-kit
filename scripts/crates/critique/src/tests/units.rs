@@ -396,3 +396,40 @@ fn the_history_of_a_path_is_what_git_logs_for_it() {
     assert_eq!(git.commit_log(&dir, "HEAD", &["a.ts".to_string(), "b.ts".to_string()], 1).unwrap().len(), 1);
     assert!(git.commit_log(&dir, "no-such-revision", &["a.ts".to_string()], 5).is_err());
 }
+
+#[test]
+fn a_diff_prefix_alone_names_no_repository_path() {
+    let candidates = |path: &str| crate::evidence::packet_candidates(path, "tree");
+    assert_eq!(candidates("a/"), ["a/", "tree/a/", "artifact/a/", "references/a/"]);
+    assert_eq!(candidates("b/src/x.rs"), ["b/src/x.rs", "tree/b/src/x.rs", "tree/src/x.rs", "artifact/b/src/x.rs", "references/b/src/x.rs"]);
+}
+
+#[test]
+fn a_goal_that_ends_on_behaviour_says_it_changes() {
+    use crate::refactoring_plan::goal_changes_behaviour;
+    assert!(goal_changes_behaviour("It changes behaviour"));
+}
+
+#[test]
+fn a_field_given_three_times_is_one_duplicate_field_error() {
+    use crate::refactoring_plan::check_plan;
+    let fields = "- **Kind**: tidy\n- **Technique**: extract function\n- **Anchor**: `src/a.ts#fooBar`\n- **Touches**: src/a.ts\n- **Safety net**: the unit tests of a\n- **Main stays green because**: nothing observable changes\n- **Rollback**: revert the commit\n- **Transitional element**: none\n- **Blocked by**: none\n- **Done when**: the tests pass\n";
+    let plan = format!(
+        "# Plan\n\n## Goal\nTidy the parser. Behaviour does not change.\n\n## Target\nThe parser has its own module.\n\n## Safety net\nThe unit tests.\n\n## Steps\n\n### S01: Do the thing\n{fields}- **Kind**: tidy\n- **Kind**: tidy\n\n## Not doing\nNothing else.\n\n## Open decisions\nNone.\n"
+    );
+    let check = check_plan(&plan, &crate::tickets::default_ticket_size(), None);
+    let duplicates: Vec<&str> = check.errors.iter().filter(|error| error.rule == "duplicate-field").map(|error| error.message.as_str()).collect();
+    assert_eq!(duplicates, ["step S01 gives \"Kind\" more than once"], "{:?}", check.errors);
+}
+
+#[test]
+fn a_caller_that_names_a_symbol_twice_is_one_caller_slice() {
+    use crate::context_slices::{context_slices, ChangedFile};
+    use crate::repo_map::SourceGraph;
+    let a = "export function shared() {\n  return 1\n}\n".to_string();
+    let b = "import { shared } from './a'\n\nexport function twice() {\n  shared()\n  shared()\n}\n".to_string();
+    let graph = SourceGraph::build(&[("src/a.ts".to_string(), a.clone()), ("src/b.ts".to_string(), b)]);
+    let slices = context_slices(&graph, &[ChangedFile { path: "src/a.ts".to_string(), text: a, before: None }]);
+    let callers: Vec<(&str, Option<&str>)> = slices.iter().filter(|slice| slice.reason == "caller").map(|slice| (slice.path.as_str(), slice.symbol.as_deref())).collect();
+    assert_eq!(callers, [("src/b.ts", Some("twice"))], "{slices:?}");
+}

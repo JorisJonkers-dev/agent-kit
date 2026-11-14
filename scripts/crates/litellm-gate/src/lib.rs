@@ -202,10 +202,8 @@ fn fetch_with(program: &str, config: &str) -> Option<String> {
         .stderr(Stdio::null())
         .spawn()
         .ok()?;
-    if let Some(mut stdin) = child.stdin.take() {
-        // A curl that dies early closes the pipe; its exit status says so.
-        let _ = stdin.write_all(config.as_bytes());
-    }
+    // A curl that dies early closes the pipe; its exit status says so.
+    let _ = child.stdin.take().map(|mut stdin| stdin.write_all(config.as_bytes()));
     let output = child.wait_with_output().ok()?;
     if !output.status.success() {
         return None;
