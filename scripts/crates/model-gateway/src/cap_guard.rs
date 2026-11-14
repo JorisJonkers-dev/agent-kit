@@ -39,6 +39,7 @@ pub struct Reservation {
 /// What a metered run's estimate is held against: the metered-personal caps, or the grant that covers a
 /// metered-employer run. A subsidised run is held to neither, and its plan limit watches it instead.
 #[derive(Clone, Debug, PartialEq)]
+#[allow(clippy::large_enum_variant)] // a grant is held by value; boxing it would touch every caller for no gain
 pub enum CapSource {
     MeteredPersonal,
     Grant(Grant),
