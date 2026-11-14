@@ -15,7 +15,9 @@ pub struct SearchServerLaunch {
 /// The tools one critic has (ADR-0006), which its prompt names exactly. A Vibe critic reads with `read_file`, and
 /// searches through the runner's search server when the server proved it cannot see past the packet and started on
 /// this critic's copy; otherwise it reads alone. An agy critic reads with `view_file`, and searches with agy's own
-/// `list_dir`, `grep_search` and `find_by_name` only once setup has proven agy read-only on this machine (#178).
+/// `list_dir`, `grep_search` and `find_by_name` only once setup has proven agy read-only on this machine (#178). A Pi
+/// critic reads and searches with Pi's own `read`, `grep`, `find` and `ls`, and any call that reaches past the packet
+/// voids its review.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CriticToolset {
     /// A Vibe critic that reads alone.
@@ -24,6 +26,8 @@ pub enum CriticToolset {
     VibeSearch { search: Vec<SearchToolName>, limits: SearchLimits, server: SearchServerLaunch },
     /// An agy critic, with agy's own search tools only once setup proved them read-only.
     Agy { search: bool },
+    /// A Pi critic, with Pi's own read and search tools.
+    Pi,
 }
 
 /// The tools of a critic that reads alone.
@@ -43,9 +47,13 @@ pub const VIBE_SEARCH_SERVER: &str = "packet";
 /// agy's own read-only tools a critic is told about: one to read and three to list and search.
 pub const AGY_TOOLS: [&str; 4] = ["view_file", "list_dir", "grep_search", "find_by_name"];
 
+/// Pi's own read-only tools, the only ones a Pi critic is launched with: one to read and three to list and search.
+pub const PI_TOOLS: [&str; 4] = ["read", "grep", "find", "ls"];
+
 /// The tool names the critic's prompt gives, in that order.
 pub fn tool_names(toolset: &CriticToolset) -> Vec<String> {
     match toolset {
+        CriticToolset::Pi => PI_TOOLS.iter().map(|tool| (*tool).to_string()).collect(),
         CriticToolset::Agy { search: true } => AGY_TOOLS.iter().map(|tool| (*tool).to_string()).collect(),
         CriticToolset::Agy { search: false } => vec!["view_file".to_string()],
         CriticToolset::VibeRead => vec!["read_file".to_string()],
@@ -62,6 +70,7 @@ pub fn read_tool(toolset: &CriticToolset) -> &'static str {
     match toolset {
         CriticToolset::VibeRead | CriticToolset::VibeSearch { .. } => "read_file",
         CriticToolset::Agy { .. } => "view_file",
+        CriticToolset::Pi => "read",
     }
 }
 
@@ -90,6 +99,9 @@ pub fn tools_section(toolset: &CriticToolset) -> String {
         ),
         CriticToolset::Agy { search: true } => format!(
             "# Tools\n\nYour tools read and search your working directory and see nothing outside it: `view_file` reads one file, `list_dir` lists a directory, `grep_search` searches the contents of files and `find_by_name` finds files by name. {SEARCH_FIRST}\n\n{SWITCHED_OFF}"
+        ),
+        CriticToolset::Pi => format!(
+            "# Tools\n\nYour tools read and search your working directory: `read` reads one file, `ls` lists a directory, `grep` searches the contents of files and `find` finds files by a glob. Give every path relative to your working directory: a call that reaches outside it voids your review. {SEARCH_FIRST}\n\n{SWITCHED_OFF}"
         ),
         CriticToolset::VibeSearch { search, limits, .. } => {
             let server = format!("mcp_{VIBE_SEARCH_SERVER}");

@@ -72,6 +72,8 @@ export class CriticTools {
   async choose(critic: RosterCritic, packetDir: string): Promise<CriticToolChoice> {
     const config = critic.client_config
     if (config.kind === 'agy') return this.agy(critic.client)
+    // Pi searches with its own read-only tools, checked against the packet after the run.
+    if (config.kind === 'pi') return { toolset: { kind: 'pi' } }
     // Codex and the work Claude agent read the packet alone: the runner's search server is a Vibe client's.
     if (config.kind !== 'vibe') return { toolset: READ_ONLY_TOOLSET }
     const search = this.deps.search

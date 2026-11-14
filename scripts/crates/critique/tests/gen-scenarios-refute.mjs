@@ -196,6 +196,36 @@ scenarios['refute-code'] = [
   }),
 ]
 
+// A Pi refuter over a LiteLLM route: started directly with the prompt on stdin, its JSON event stream read as a critic's
+// is, and logged as a pi launch. The fake `pi` keeps its argv and stdin beside the refuter's packet.
+const PI = { family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
+const piRouting = `${JSON.stringify({ clients: { 'pi-vibe-study-glm': PI }, stages: { spec: { base: [{ ...slot('vibe-mistral-large'), client: 'pi-vibe-study-glm' }], deep: [] } } })}\n`
+const piSays = (structured, calls = []) =>
+  `printf '%s\\n' ${q(
+    [
+      ...calls.map(([tool, args]) => ({ args, toolName: tool, type: 'tool_execution_start' })),
+      { message: { content: [{ text: `\`\`\`json\n${JSON.stringify(structured)}\n\`\`\``, type: 'text' }], role: 'assistant', stopReason: 'stop', usage: { cost: { total: 0.001 }, input: 400, output: 40 } }, type: 'message_end' },
+    ].map((event) => JSON.stringify(event)).join('\n'),
+  )}\nexit 0`
+const PI_CASES = {
+  p1: piSays({ findings: [], no_findings_reason: 'The finding holds up.' }, [['read', { path: 'artifact/spec.md' }]]),
+  p2: piSays({ findings: [objection('refute')] }),
+  p3: piSays({ findings: [objection('refute')] }, [['read', { path: '../../../packet/artifact/spec.md' }]]),
+}
+const fakePi = (cases) =>
+  `#!/bin/sh\nif [ "$1" = auth ]; then printf '%s\\n' '{"status":"ready"}'; exit 0; fi\nif [ "$1" = --offline ]; then printf '%s\\n' 'litellm-vibe-study glm-5-3 128K'; exit 0; fi\nprintf '%s\\n' "$@" > "$PWD/../argv.txt"\ncat > "$PWD/../stdin.txt"\ncase "$PWD" in\n${Object.entries(cases)
+    .map(([id, body]) => `*/refute/${id}/packet)\n${body}\n;;`)
+    .join('\n')}\n*)\nexit 9\n;;\nesac\n`
+const piRuns = Object.assign({}, ...Object.keys(PI_CASES).map((id) => run(`pi-${id}`, [finding(id)], { manifestExtra: { allowed_families: ['mistral', 'zhipu'] } })))
+scenarios['refute-pi'] = Object.keys(PI_CASES).map((id, index) =>
+  go(`pi-${id}`, accept(id), {
+    ...(index === 0
+      ? { write: { ...piRuns, 'bin/pi': fakePi(PI_CASES), [OVERRIDE]: piRouting, ...REPO.write }, exec: ['bin/pi'], shims: ['env', 'git', 'cat'], path: ['bin'], git: [...REPO.git, ...repoCommit] }
+      : { path: ['bin'] }),
+    roots: ['runs'],
+  }),
+)
+
 // A step names its PATH: the sandbox's bin/ with the host's env and git linked in, so a CLI the host happens to have
 // installed (vibe, agy) never changes what the step sees.
 const hermetic = (step) => (step.path !== undefined ? step : { ...step, path: ['bin'], shims: [...new Set([...(step.shims ?? []), 'env', 'git'])] })

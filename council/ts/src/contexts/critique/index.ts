@@ -127,6 +127,7 @@ export { parseTicketReviewRecord, stagedDiffHash, type TicketReviewRecord } from
 export { specReference } from './domain/manifest.js'
 export { NodeCritiqueFiles } from './adapters/fs/index.js'
 export { AgyCriticClient } from './adapters/agy/index.js'
+export { PiCriticClient } from './adapters/pi/index.js'
 export { VibeCriticClient } from './adapters/vibe/index.js'
 export { ClaudeCriticClient as WorkClaudeCriticClient, CodexCriticClient as WorkCodexCriticClient } from './adapters/work/index.js'
 export { GatewayGrants } from './adapters/grants/index.js'

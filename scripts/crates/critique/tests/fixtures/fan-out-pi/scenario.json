@@ -1,0 +1,112 @@
+{
+  "assets": true,
+  "steps": [
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/p1\"}"
+      ],
+      "write": {
+        "runs/p1/manifest.json": "{\"allowed_families\":[\"zhipu\",\"deepseek\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"pi-vibe-study-glm\",\"client_config\":{\"binary\":\"pi\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"critic_id\":\"p1c\",\"fallbacks\":[{\"client\":\"pi-opencode-go-deepseek\",\"client_config\":{\"binary\":\"pi\",\"family\":\"deepseek\",\"kind\":\"pi\",\"model\":\"deepseek-v4-flash\",\"provider\":\"litellm-opencode-go\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/p1/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/p1\",\"run_id\":\"p1\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/p1/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/p1/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/p2/manifest.json": "{\"allowed_families\":[\"zhipu\",\"deepseek\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"pi-vibe-study-glm\",\"client_config\":{\"binary\":\"pi\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"critic_id\":\"p2a\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300},{\"client\":\"pi-vibe-study-glm\",\"client_config\":{\"binary\":\"pi\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"critic_id\":\"p2b\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300},{\"client\":\"pi-vibe-study-glm\",\"client_config\":{\"binary\":\"pi\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"critic_id\":\"p2c\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":false,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/p2/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/p2\",\"run_id\":\"p2\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/p2/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/p2/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/p3/manifest.json": "{\"allowed_families\":[\"zhipu\",\"deepseek\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"pi-vibe-study-glm\",\"client_config\":{\"binary\":\"pi\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"critic_id\":\"p3a\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300},{\"client\":\"pi-vibe-study-glm\",\"client_config\":{\"binary\":\"pi\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"critic_id\":\"p3b\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300},{\"client\":\"pi-vibe-study-glm\",\"client_config\":{\"binary\":\"pi\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"critic_id\":\"p3c\",\"fallbacks\":[],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":false,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/p3/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/p3\",\"run_id\":\"p3\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/p3/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/p3/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "runs/p4/manifest.json": "{\"allowed_families\":[\"zhipu\",\"deepseek\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[{\"client\":\"pi-vibe-study-glm\",\"client_config\":{\"binary\":\"pi\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"critic_id\":\"p4c\",\"fallbacks\":[{\"client\":\"pi-opencode-go-deepseek\",\"client_config\":{\"binary\":\"pi\",\"family\":\"deepseek\",\"kind\":\"pi\",\"model\":\"deepseek-v4-flash\",\"provider\":\"litellm-opencode-go\"}}],\"lenses\":[\"failure-modes\"],\"max_price_usd\":2,\"role\":\"spec-redteam\",\"time_limit_s\":300}],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/p4/packet\",\"packet_files\":[{\"kind\":\"artifact\",\"path\":\"artifact/spec.md\",\"sha256\":\"534de7448b9df9f1c0f2769135474a22de5e11cd741e2ac5c25b5b17cd4091b7\",\"source\":\"s\"},{\"kind\":\"reference\",\"path\":\"references/decision.md\",\"sha256\":\"0a3f6acd74456c2f0e179a02c8a21935e6f8535b7cf94ae64b450c2d46f5f530\",\"source\":\"s\"}],\"repo_root\":\"@SANDBOX@/repos/r\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/p4\",\"run_id\":\"p4\",\"stage\":\"spec\",\"version\":1}\n",
+        "runs/p4/packet/artifact/spec.md": "The system retries failed requests without a limit.\nThe retry budget is unbounded.\nUsers see a spinner while it retries.\n",
+        "runs/p4/packet/references/decision.md": "Decision: retries are capped at three.\n",
+        "bin/pi": "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncase \"$PWD\" in\n*/critics/p1c/packet)\nprintf '%s\\n' '{\"cwd\":\"/p\",\"id\":\"s\",\"type\":\"session\",\"version\":3}\n{\"type\":\"agent_start\"}\n{\"args\":{\"path\":\"artifact/spec.md\"},\"toolCallId\":\"c0\",\"toolName\":\"read\",\"type\":\"tool_execution_start\"}\n{\"args\":{\"pattern\":\"retry\",\"path\":\"references\"},\"toolCallId\":\"c1\",\"toolName\":\"grep\",\"type\":\"tool_execution_start\"}\n{\"args\":{},\"toolCallId\":\"c2\",\"toolName\":\"ls\",\"type\":\"tool_execution_start\"}\n{\"message\":{\"content\":[{\"text\":\"thinking\",\"type\":\"thinking\"},{\"text\":\"Review.\\n```json\\n{\\\"findings\\\":[{\\\"category\\\":\\\"failure-mode\\\",\\\"check\\\":\\\"dependency-fails\\\",\\\"claim\\\":\\\"claim a\\\",\\\"evidence\\\":[{\\\"kind\\\":\\\"quote\\\",\\\"value\\\":\\\"The retry budget is unbounded.\\\"},{\\\"kind\\\":\\\"input\\\",\\\"value\\\":\\\"the endpoint is down\\\"}],\\\"id\\\":\\\"a\\\",\\\"location\\\":\\\"artifact/spec.md\\\",\\\"severity\\\":\\\"minor\\\"}]}\\n```\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"stop\",\"usage\":{\"cacheRead\":30,\"cost\":{\"total\":0.0021},\"input\":100,\"output\":20}},\"type\":\"message_end\"}\n{\"aborted\":false,\"type\":\"agent_settled\"}'\nexit 0\n;;\n*/critics/p2a/packet)\nprintf '%s\\n' '{\"cwd\":\"/p\",\"id\":\"s\",\"type\":\"session\",\"version\":3}\n{\"type\":\"agent_start\"}\n{\"args\":{\"command\":\"ls\"},\"toolCallId\":\"c0\",\"toolName\":\"bash\",\"type\":\"tool_execution_start\"}\n{\"args\":{\"path\":\"x\"},\"toolCallId\":\"c1\",\"toolName\":\"edit\",\"type\":\"tool_execution_start\"}\n{\"args\":{\"command\":\"pwd\"},\"toolCallId\":\"c2\",\"toolName\":\"bash\",\"type\":\"tool_execution_start\"}\n{\"message\":{\"content\":[{\"text\":\"thinking\",\"type\":\"thinking\"},{\"text\":\"Review.\\n```json\\n{\\\"findings\\\":[{\\\"category\\\":\\\"failure-mode\\\",\\\"check\\\":\\\"dependency-fails\\\",\\\"claim\\\":\\\"claim a\\\",\\\"evidence\\\":[{\\\"kind\\\":\\\"quote\\\",\\\"value\\\":\\\"The retry budget is unbounded.\\\"},{\\\"kind\\\":\\\"input\\\",\\\"value\\\":\\\"the endpoint is down\\\"}],\\\"id\\\":\\\"a\\\",\\\"location\\\":\\\"artifact/spec.md\\\",\\\"severity\\\":\\\"minor\\\"}]}\\n```\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"stop\",\"usage\":{\"cacheRead\":30,\"cost\":{\"total\":0.0021},\"input\":100,\"output\":20}},\"type\":\"message_end\"}\n{\"aborted\":false,\"type\":\"agent_settled\"}'\nexit 0\n;;\n*/critics/p2b/packet)\nsleep 1\nprintf '%s\\n' '{\"cwd\":\"/p\",\"id\":\"s\",\"type\":\"session\",\"version\":3}\n{\"type\":\"agent_start\"}\n{\"args\":{\"path\":\"/etc/hostname\"},\"toolCallId\":\"c0\",\"toolName\":\"read\",\"type\":\"tool_execution_start\"}\n{\"args\":{\"pattern\":\"../**\"},\"toolCallId\":\"c1\",\"toolName\":\"find\",\"type\":\"tool_execution_start\"}\n{\"args\":{\"glob\":\"/etc/*\",\"pattern\":\"x\"},\"toolCallId\":\"c2\",\"toolName\":\"grep\",\"type\":\"tool_execution_start\"}\n{\"args\":{\"path\":\"~/.ssh/id\"},\"toolCallId\":\"c3\",\"toolName\":\"read\",\"type\":\"tool_execution_start\"}\n{\"message\":{\"content\":[{\"text\":\"thinking\",\"type\":\"thinking\"},{\"text\":\"Review.\\n```json\\n{\\\"findings\\\":[]}\\n```\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"stop\",\"usage\":{\"cacheRead\":30,\"cost\":{\"total\":0.0021},\"input\":100,\"output\":20}},\"type\":\"message_end\"}\n{\"aborted\":false,\"type\":\"agent_settled\"}'\nexit 0\n;;\n*/critics/p2c/packet)\nsleep 2\nprintf '%s\\n' '{\"cwd\":\"/p\",\"id\":\"s\",\"type\":\"session\",\"version\":3}\n{\"type\":\"agent_start\"}\n{\"message\":{\"content\":[{\"text\":\"thinking\",\"type\":\"thinking\"},{\"text\":\"\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"error\",\"usage\":{\"input\":0,\"output\":0},\"errorMessage\":\"Connection error.\"},\"type\":\"message_end\"}\n{\"aborted\":false,\"type\":\"agent_settled\"}'\nexit 0\n;;\n*/critics/p3a/packet)\nprintf '%s\\n' 'not json'\nexit 0\n;;\n*/critics/p3b/packet)\nsleep 1\nprintf '%s' 'bad flag\\n' >&2\nexit 3\n;;\n*/critics/p3c/packet)\nsleep 2\nprintf '%s\\n' '{\"cwd\":\"/p\",\"id\":\"s\",\"type\":\"session\",\"version\":3}\n{\"type\":\"agent_start\"}\n{\"message\":{\"content\":[{\"text\":\"thinking\",\"type\":\"thinking\"},{\"text\":\"Review.\\n```json\\n{\\\"findings\\\":[],\\\"no_findings_reason\\\":\\\"nothing found\\\"}\\n```\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"aborted\",\"usage\":{\"cacheRead\":30,\"cost\":{\"total\":0.0021},\"input\":100,\"output\":20}},\"type\":\"message_end\"}\n{\"aborted\":false,\"type\":\"agent_settled\"}'\nexit 0\n;;\n*/critics/p4c/packet)\nprintf '%s\\n' '{\"cwd\":\"/p\",\"id\":\"s\",\"type\":\"session\",\"version\":3}\n{\"type\":\"agent_start\"}\n{\"message\":{\"content\":[{\"text\":\"thinking\",\"type\":\"thinking\"},{\"text\":\"no block\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"stop\",\"usage\":{\"cacheRead\":30,\"cost\":{\"total\":0.0021},\"input\":100,\"output\":20}},\"type\":\"message_end\"}\n{\"aborted\":false,\"type\":\"agent_settled\"}'\nexit 0\n;;\n*/critics/p4c-retry-pi-opencode-go-deepseek/packet)\nprintf '%s\\n' '{\"cwd\":\"/p\",\"id\":\"s\",\"type\":\"session\",\"version\":3}\n{\"type\":\"agent_start\"}\n{\"message\":{\"content\":[{\"text\":\"thinking\",\"type\":\"thinking\"},{\"text\":\"Review.\\n```json\\n{\\\"findings\\\":[],\\\"no_findings_reason\\\":\\\"nothing found\\\"}\\n```\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"stop\",\"usage\":{\"cacheRead\":0,\"input\":50,\"output\":5}},\"type\":\"message_end\"}\n{\"aborted\":false,\"type\":\"agent_settled\"}'\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n",
+        "repos/r/README.md": "# r\n"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "shims": [
+        "env",
+        "git",
+        "cat",
+        "sleep"
+      ],
+      "path": [
+        "bin"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/r"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:o/r.git"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/r",
+          "commit",
+          "-q",
+          "-m",
+          "x"
+        ]
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/p2\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/p3\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    },
+    {
+      "argv": [
+        "fan-out",
+        "--json",
+        "{\"run_dir\":\"@SANDBOX@/runs/p4\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "runs"
+      ]
+    }
+  ]
+}

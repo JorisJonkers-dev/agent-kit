@@ -54,8 +54,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients.vibe-new.kind must be one of vibe, agy, codex, claude\",\"status\":\"error\"}\n",
-      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients.vibe-new.kind must be one of vibe, agy, codex, claude\n",
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients.vibe-new.kind must be one of vibe, agy, codex, claude, pi\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients.vibe-new.kind must be one of vibe, agy, codex, claude, pi\n",
       "files": {
         "home/": null,
         "home/.config/": null,

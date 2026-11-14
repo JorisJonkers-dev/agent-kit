@@ -22,6 +22,7 @@ mod manifest;
 mod record_corpus;
 mod record_units;
 mod packets_corpus;
+mod pi_client;
 mod readers_corpus;
 mod refute_round;
 mod reviews;

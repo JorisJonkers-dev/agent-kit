@@ -73,6 +73,7 @@ pub mod merge_patch;
 pub mod packet_files;
 pub mod paths;
 pub mod packet_search;
+pub mod pi_client;
 pub mod plan;
 pub mod plan_file;
 pub mod prompt;
