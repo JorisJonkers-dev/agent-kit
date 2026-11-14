@@ -110,13 +110,9 @@
       # Line coverage of the workspace must stay at 100 percent (docs/RUST.md).
       # rustc's own instrumentation plus the llvm-tools component of the same
       # toolchain, so no further crate is involved and the profile format
-      # always matches. src/main.rs exit wrappers are excluded. Measured on
-      # 1.99.1 for now: rustc 1.100 counts 49 more lines in 28 files as
-      # uncovered, which their own change brings to 100 percent first.
+      # always matches. src/main.rs exit wrappers are excluded.
       - 'name': 'Rust line coverage is 100 percent'
         'working-directory': 'agent-kit'
-        'env':
-          'RUSTUP_TOOLCHAIN': '1.99.1'
         'run': |
-          rustup toolchain install 1.99.1 --profile minimal --component llvm-tools --no-self-update
+          rustup component add llvm-tools
           scripts/coverage.sh

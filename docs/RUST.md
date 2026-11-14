@@ -655,11 +655,11 @@ Do not use the nixpkgs `rustc`/`cargo-llvm-cov`: the latter fails its own tests
 and the former's instrumented binaries segfault while writing the profile
 (checked with rustc 1.99.0 / LLVM 21.1.8), and nixpkgs LLVM tools reject the
 profiles of other rustc builds. CI runs the same script as the last step of the
-workspace workflow, on rustc 1.99.1 with its `llvm-tools` for now: rustc 1.100
-counts 49 more lines in 28 files as uncovered, and the workspace reaches 100
-percent there first. Until then measure locally with
-`RUSTUP_TOOLCHAIN=1.99.1 scripts/coverage.sh` (after
-`rustup toolchain install 1.99.1 --profile minimal -c llvm-tools`).
+workspace workflow, after `rustup component add llvm-tools`. From rustc 1.100
+the closing brace of an `if` without an `else` counts as its false path, and a
+closure that never runs counts as a missed line, so a test takes each false
+path that can happen, and a branch whose false path cannot happen is written
+without it.
 
 ## The cooldown at resolve time
 
