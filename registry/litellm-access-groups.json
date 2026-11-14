@@ -1,5 +1,5 @@
 {
-  "comment": "A snapshot of the chat models each LiteLLM access group serves, by the canonical name the proxy takes (the ids GET /v1/models lists for a key holding that group). scripts/render_registry.py reads it in litellm_route_models() to give each Pi provider its models. Refresh: list /v1/models with a key holding only canonical and with the public key (the difference is google-free-public), keeping the ids JorisJonkers-dev/litellm-model-catalog's model-catalog.json groups mark modality chat.",
+  "comment": "A snapshot of the chat models each LiteLLM access group serves, by the canonical name the proxy takes (the ids GET /v1/models lists for a key holding that group). scripts/render_registry.py reads it in litellm_route_models() to give each Pi provider its models. Refresh: list /v1/models with a key holding only canonical and with the public key (the difference is google-free-public), keeping the ids JorisJonkers-dev/litellm-model-catalog's model-catalog.json groups mark modality chat. openrouter-free-public: the chat models of the deployments litellm#33 puts in that group (config/models.generated.yaml, model_info.access_groups), without the music model and the openrouter/free router.",
   "as_of": "2026-11-14T13:00:00Z",
   "groups": {
     "canonical": [
@@ -80,6 +80,21 @@
       "public/gemini-robotics-er-2-preview",
       "public/gemma-4-26b-a4b-it",
       "public/gemma-4-31b-it"
+    ],
+    "openrouter-free-public": [
+      "openrouter/dots-3-note-preview",
+      "openrouter/ernie-5.5-flash-preview",
+      "openrouter/flint-v1.0",
+      "openrouter/gemma-4-26b-a4b-it",
+      "openrouter/gemma-4-31b-it",
+      "openrouter/lfm-3-1.7b",
+      "openrouter/ling-3.2-flash",
+      "openrouter/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "openrouter/nemotron-3-ultra-550b-a55b",
+      "openrouter/nemotron-3.5-lightning",
+      "openrouter/nemotron-3.5-super-vl",
+      "openrouter/north-mini-code",
+      "openrouter/particle-1"
     ]
   }
 }
