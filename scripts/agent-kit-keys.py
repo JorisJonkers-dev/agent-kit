@@ -352,6 +352,17 @@ SOURCE_LINE = '[ -f "$HOME/.config/agent-kit/env.sh" ] && . "$HOME/.config/agent
 # --- LiteLLM ---------------------------------------------------------------
 
 
+class Refused(Exception):
+    """The proxy refused the admin token itself: no route can be minted with it."""
+
+
+def _why(reply: Any) -> str:
+    """LiteLLM's own reason for a refusal, short, for the message."""
+    error = reply.get("error") if isinstance(reply, dict) else None
+    message = error.get("message") if isinstance(error, dict) else (error or (reply or {}).get("detail"))
+    return f": {str(message)[:200]}" if message else ""
+
+
 class LiteLLM:
     """The proxy's management API, called with a short-lived management key that is never stored."""
 
@@ -381,8 +392,7 @@ class LiteLLM:
         code, reply = self.call("GET", "/team/list")
         teams = reply.get("teams") if isinstance(reply, dict) else reply
         if code != 200 or not isinstance(teams, list):
-            say(f"litellm: could not list the teams (HTTP {code}); is the admin token a management key?")
-            return None
+            raise Refused(f"could not list the teams (HTTP {code}{_why(reply)})")
         found = next((t for t in teams if isinstance(t, dict) and t.get("team_alias") == alias), None)
         if found is None:
             code, made = self.call("POST", "/team/new", want)
@@ -457,6 +467,9 @@ def mint_litellm(entries: list[dict[str, Any]], wanted: set[str], token: str, ke
             say(f"{entry['env']}: minted {alias} in team {agent}, checked and stored in the {keys.name}")
         except Unreachable as e:
             say(f"could not reach the LiteLLM proxy ({e}); the remaining keys were not minted")
+            return
+        except Refused as e:
+            say(f"litellm: {e}; nothing minted (registry/generated/litellm/make-admin-token.sh makes the token)")
             return
 
 

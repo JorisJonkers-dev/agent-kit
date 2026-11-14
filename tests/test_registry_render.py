@@ -1255,9 +1255,13 @@ def test_litellm_keys_are_minted_unexported_and_checked_by_the_proxy() -> None:
 
 def test_the_admin_token_script_makes_a_one_hour_management_key_and_no_agent_key() -> None:
     script = (KIT_ROOT / "registry" / "generated" / "litellm" / "make-admin-token.sh").read_text()
-    body = json.loads(script.split("--data-binary '", 1)[1].split("'", 1)[0])
-    assert body["key_type"] == "management" and body["duration"] == "1h"
-    assert "key_alias" not in body and "LITELLM_MASTER_KEY}" in script
+    bodies = [json.loads(part.split("'", 1)[0]) for part in script.split("--data-binary '")[1:]]
+    user, key = bodies
+    # LiteLLM lets a management key manage teams and keys only when its owner is a proxy admin.
+    assert user == {"user_id": "agent-kit-setup", "user_role": "proxy_admin", "auto_create_key": False}
+    assert key["user_id"] == "agent-kit-setup"
+    assert key["key_type"] == "management" and key["duration"] == "1h"
+    assert "key_alias" not in key and "LITELLM_MASTER_KEY}" in script
 
 
 @pytest.mark.parametrize(

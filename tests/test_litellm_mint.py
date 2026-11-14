@@ -184,12 +184,14 @@ def test_a_present_key_is_kept_while_the_team_still_converges(proxy) -> None:
     assert not state.keys and not store.values
 
 
-def test_a_token_without_team_access_mints_nothing(proxy) -> None:
+def test_a_token_without_team_access_mints_nothing_and_stops_at_once(proxy, capsys) -> None:
     state, url = proxy
     state.refuse.add("/team/list")
     store = Store()
     keys_tool.mint_litellm(table(url), {"LITELLM_VIBE_KEY", "LITELLM_LOCAL_KEY"}, ADMIN, store, "box")
     assert not state.keys and not store.values
+    assert state.calls == ["GET /team/list"]
+    assert "HTTP 403: not allowed" in capsys.readouterr().err
 
 
 def test_without_a_token_nothing_is_asked_when_no_key_is_missing(proxy, monkeypatch) -> None:

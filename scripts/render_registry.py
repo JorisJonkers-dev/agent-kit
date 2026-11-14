@@ -5935,30 +5935,51 @@ def render_workstation_secrets(data: dict[str, Any]) -> str:
     return json.dumps(table, indent=2) + "\n"
 
 
+# The proxy-admin user the short-lived management key belongs to. LiteLLM lets a key call the
+# team and key routes only when its owner holds the proxy_admin role; a key with no owner is refused.
+LITELLM_SETUP_USER = "agent-kit-setup"
+
+
 def render_litellm_admin_token_script(data: dict[str, Any]) -> str:
-    """The owner's one call that makes the short-lived management key setup mints the agent keys with."""
+    """The owner's calls that make the short-lived management key setup mints the agent keys with."""
     section = data.get("litellm")
     if not section:
         return "#!/usr/bin/env bash\n"
     base = section["base_url"].removesuffix("/v1")
-    body = {"key_type": "management", "duration": "1h", "metadata": {"purpose": "agent-kit setup mints agent keys"}}
+    user = {"user_id": LITELLM_SETUP_USER, "user_role": "proxy_admin", "auto_create_key": False}
+    body = {
+        "user_id": LITELLM_SETUP_USER,
+        "key_type": "management",
+        "duration": "1h",
+        "metadata": {"purpose": "agent-kit setup mints agent keys"},
+    }
     return "\n".join([
         "#!/usr/bin/env bash",
         "# GENERATED from registry/estate-tooling.yaml (litellm); do not edit.",
         "# Makes a LiteLLM management key that expires in one hour, for setup to mint this host's",
         "# agent keys and their teams with. It can call the management routes only (no model call).",
-        "# Run it with the proxy's master key in LITELLM_MASTER_KEY; the key goes in a curl config on",
-        "# stdin, so it reaches no argv. Paste the printed key into setup when it asks; setup never",
-        "# stores it.",
+        "# LiteLLM lets such a key manage teams and keys only when its owner is a proxy admin, so the",
+        f"# key belongs to the user {LITELLM_SETUP_USER} (role proxy_admin, no key of its own), made here",
+        "# the first time. Run it with the proxy's master key in LITELLM_MASTER_KEY; the key goes in a",
+        "# curl config on stdin, so it reaches no argv. The new key is printed for setup",
+        "# (LITELLM_ADMIN_TOKEN, or paste it when setup asks); setup never stores it.",
         "set -euo pipefail",
         ': "${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY to the proxy master key}"',
         "",
-        "curl -sS --fail-with-body --config - --data-binary "
-        + f"'{json.dumps(body, separators=(',', ':'))}' {base}/key/generate <<CFG"
-        + " | python3 -c 'import json, sys; print(json.load(sys.stdin)[\"key\"])'",
+        "proxy() {",
+        '  curl -sS --config - "$@" <<CFG',
         'header = "Authorization: Bearer ${LITELLM_MASTER_KEY}"',
         'header = "Content-Type: application/json"',
         "CFG",
+        "}",
+        "",
+        f"if ! proxy -o /dev/null --fail '{base}/user/info?user_id={LITELLM_SETUP_USER}' 2>/dev/null; then",
+        "  proxy --fail-with-body --data-binary "
+        + f"'{json.dumps(user, separators=(',', ':'))}' {base}/user/new >&2",
+        "fi",
+        "proxy --fail-with-body --data-binary "
+        + f"'{json.dumps(body, separators=(',', ':'))}' {base}/key/generate"
+        + " | python3 -c 'import json, sys; print(json.load(sys.stdin)[\"key\"])'",
         "",
     ])
 
