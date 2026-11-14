@@ -18,6 +18,6 @@ CFG
 }
 
 if ! proxy -o /dev/null --fail 'https://litellm.jorisjonkers.dev/user/info?user_id=agent-kit-setup' 2>/dev/null; then
-  proxy --fail-with-body --data-binary '{"user_id":"agent-kit-setup","user_role":"proxy_admin","auto_create_key":false}' https://litellm.jorisjonkers.dev/user/new >&2
+  made=$(proxy --fail-with-body --data-binary '{"user_id":"agent-kit-setup","user_role":"proxy_admin","auto_create_key":false}' https://litellm.jorisjonkers.dev/user/new) || { printf '%s\n' "$made" >&2; exit 1; }
 fi
 proxy --fail-with-body --data-binary '{"user_id":"agent-kit-setup","key_type":"management","duration":"1h","metadata":{"purpose":"agent-kit setup mints agent keys"}}' https://litellm.jorisjonkers.dev/key/generate | python3 -c 'import json, sys; print(json.load(sys.stdin)["key"])'

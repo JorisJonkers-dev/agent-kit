@@ -144,15 +144,11 @@ workstation_secrets:
     check: "https://litellm.jorisjonkers.dev/key/info"
     check_method: GET
     export: false
-  # This host's own OpenRouter key: one key per machine, made on openrouter.ai
-  # and named for the host, so a lost machine's key is revoked alone. It lives
-  # only in this machine's secret store; nothing shares it between hosts. Unexported: a tool
-  # reads it from the store. The check is OpenRouter's own key endpoint.
+  # A host's own OpenRouter key, once pasted here. Nothing on a workstation reads it: OpenRouter
+  # is reached through LiteLLM (the `openrouter` route), whose own credential the proxy holds.
+  # Removed from the secret store. Cloud sessions still get one with the session (cloud-session.sh).
   - env: OPENROUTER_API_KEY
-    paste: "this host's own OpenRouter key: openrouter.ai/settings/keys, a new key named for this host"
-    check: "https://openrouter.ai/api/v1/key"
-    check_method: GET
-    export: false
+    retired: true
   # An API key made while signed in as a separate Outline user, not the
   # owner's own account: the key reads and writes exactly what that user can,
   # so the agent sees only the collections and documents shared with it.

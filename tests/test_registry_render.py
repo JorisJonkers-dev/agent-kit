@@ -1312,7 +1312,7 @@ def test_a_bad_litellm_section_is_refused(mutate, message: str) -> None:
 
 def test_an_unchecked_secret_may_not_also_name_a_check() -> None:
     data = copy.deepcopy(_registry())
-    entry = next(e for e in data["workstation_secrets"] if e["env"] == "OPENROUTER_API_KEY")
+    entry = next(e for e in data["workstation_secrets"] if e["env"] == "OUTLINE_API_KEY")
     entry["unchecked"] = "no host to ask"
     with pytest.raises(render_registry.RegistryError, match="either checked or unchecked"):
         render_registry.validate(data)
@@ -1381,7 +1381,7 @@ def test_the_nixos_package_list_covers_the_language_servers() -> None:
 
 def test_a_secret_minted_by_anything_but_litellm_is_refused() -> None:
     data = copy.deepcopy(_registry())
-    entry = next(e for e in data["workstation_secrets"] if e["env"] == "OPENROUTER_API_KEY")
+    entry = next(e for e in data["workstation_secrets"] if e["env"] == "OUTLINE_API_KEY")
     del entry["paste"]
     entry["mint"] = "vault"
     with pytest.raises(render_registry.RegistryError, match="mint must be litellm"):

@@ -5974,8 +5974,9 @@ def render_litellm_admin_token_script(data: dict[str, Any]) -> str:
         "}",
         "",
         f"if ! proxy -o /dev/null --fail '{base}/user/info?user_id={LITELLM_SETUP_USER}' 2>/dev/null; then",
-        "  proxy --fail-with-body --data-binary "
-        + f"'{json.dumps(user, separators=(',', ':'))}' {base}/user/new >&2",
+        "  made=$(proxy --fail-with-body --data-binary "
+        + f"'{json.dumps(user, separators=(',', ':'))}' {base}/user/new)"
+        + ' || { printf \'%s\\n\' "$made" >&2; exit 1; }',
         "fi",
         "proxy --fail-with-body --data-binary "
         + f"'{json.dumps(body, separators=(',', ':'))}' {base}/key/generate"

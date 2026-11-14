@@ -94,7 +94,6 @@ asks only for what is missing or refused by its host. Optional credentials
 | `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
 | `OUTLINE_API_KEY` | the `outline` MCP server (Outline at notes.jorisjonkers.dev) | required for `outline`; without it the server is not registered |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
-| `OPENROUTER_API_KEY` | this host's own OpenRouter key, never exported; read from the store with `agent-kit-secret get OPENROUTER_API_KEY` | optional; one key per host, never shared |
 
 `HINDSIGHT_API_TOKEN` and `MEMORY_PRIVATE_TOKEN` are **per-host, individually
 revocable** service tokens, not shared secrets — mint one per device with
@@ -442,18 +441,10 @@ python3 scripts/agent-kit-keys.py --table registry/generated/workstation-secrets
 token, so `invalid` is that host refusing it. Other hosts' tokens keep working. Running
 setup afterwards sees the refused value and mints a fresh one (`ensure`).
 
-**OpenRouter key per host.** Each host keeps its own `OPENROUTER_API_KEY` in its own
-secret store (Keychain or Secret Service), so no key is shared and a lost machine's key
-is revoked alone on openrouter.ai. Make a key on openrouter.ai/settings/keys named for the
-host, then run setup in a terminal and paste it when asked (setup checks it against
-OpenRouter's key endpoint before it stores it). To store one without a full setup run
-(this stores it unchecked):
-
-```bash
-printf "OpenRouter key for %s: " "$(hostname)"; stty -echo; read -r k; stty echo; echo
-printf %s "$k" | agent-kit-secret put OPENROUTER_API_KEY; unset k
-agent-kit-secret has OPENROUTER_API_KEY && echo stored
-```
+**OpenRouter goes through LiteLLM.** A workstation reaches OpenRouter only through the
+LiteLLM proxy's `openrouter` route (its key, `LITELLM_OPENROUTER_KEY`, is minted by setup; the
+proxy holds the OpenRouter credential). The per-host `OPENROUTER_API_KEY` is retired: setup
+removes it from the secret store. Delete the old host keys on openrouter.ai/settings/keys.
 
 **Overleaf CLI login decision.** The options for how `olcli` logs in to
 `overleaf.jorisjonkers.dev`: (1) `olcli --base-url https://overleaf.jorisjonkers.dev --cookie-name overleaf.sid auth`
