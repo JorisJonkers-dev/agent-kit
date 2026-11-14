@@ -28,7 +28,7 @@
       - 'run': 'uv sync --frozen'
       - 'run': 'uv run ruff check .'
       - 'run': 'uv run mypy'
-      - 'run': 'uv run pytest'
+      - 'run': 'uv run pytest -n auto --durations=40'
       - 'run': 'uv run python scripts/check_skill_sources.py --validate'
       - 'run': 'uv run python scripts/check_agents_md.py'
 
