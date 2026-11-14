@@ -624,12 +624,12 @@ describe('reading the command line', () => {
     expect(await h.commands.gate.run(payload(h, 'git -C src commit -m x'))).toMatchObject({ reason: 'unreviewed' })
   })
 
-  it('fails open when it cannot tell which directory the command runs in', async () => {
+  it('judges a command whose directory the line does not say in the session directory', async () => {
     const h = await optedIn()
     await stageRisky(h)
 
-    for (const command of ['cd - && git commit -m x', 'cd - && cd src && git commit -m x', 'cd "$REPO" && git commit -m x', 'git -C $REPO commit -m x']) {
-      expect(await gate(h, command)).toMatchObject({ failure: 'error', reason: 'failed-open', status: 'allowed' })
+    for (const command of ['cd - && git commit -m x', 'cd - && cd src && git commit -m x', 'cd "$REPO" && git commit -m x', 'git -C $REPO commit -m x', 'cd $(pwd)/x && git push origin main']) {
+      expect(await gate(h, command)).toMatchObject({ reason: expect.stringMatching(/^(unreviewed|no-feature-review)$/) as unknown, status: 'blocked' })
     }
   })
 
@@ -801,7 +801,23 @@ describe('failing open', () => {
       status: 'allowed',
     })
     expect(await logLines(h)).toEqual([
-      { cwd: h.repo, detail: 'the gate did not decide within 700 ms', failure: 'deadline', gate: null, recorded_at: '2026-10-30T12:00:00.000Z' },
+      { command: 'git commit -m x', cwd: h.repo, detail: 'the gate did not decide within 700 ms', failure: 'deadline', gate: null, recorded_at: '2026-10-30T12:00:00.000Z' },
+    ])
+  })
+
+  it('logs which command it failed open on, without credentials and cut short', async () => {
+    const h = await optedIn()
+    await stageRisky(h)
+    h.git.remotesBehaviour = new Error('spawn git ENOENT')
+
+    await gate(h, 'git push https://user:secret@example.com/a.git main && git push git@host:a/b.git')
+    await gate(h, `git commit -m ${'é'.repeat(400)}`)
+    await gate(h, 'echo http://a.example/x && git commit -m a@b')
+
+    expect((await logLines(h)).map((line) => line.command)).toEqual([
+      'git push https://***@example.com/a.git main && git push git@host:a/b.git',
+      `git commit -m ${'é'.repeat(286)}`,
+      'echo http://a.example/x && git commit -m a@b',
     ])
   })
 
@@ -874,7 +890,12 @@ describe('failing open', () => {
     for (const raw of [null, 'git commit', { tool_input: { command: 'git commit' } }, { cwd: h.repo }]) {
       expect(await h.commands.gate.run(raw)).toMatchObject({ failure: 'error', reason: 'failed-open', status: 'allowed' })
     }
-    expect((await logLines(h)).map((line) => line.cwd)).toEqual([null, null, null, h.repo])
+    expect((await logLines(h)).map((line) => [line.cwd, line.command])).toEqual([
+      [null, null],
+      [null, null],
+      [null, 'git commit'],
+      [h.repo, null],
+    ])
   })
 
   it('allows a payload with no command', async () => {

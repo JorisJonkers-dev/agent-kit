@@ -43,7 +43,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -60,7 +60,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -77,7 +77,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -94,7 +94,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -111,7 +111,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -128,7 +128,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -145,7 +145,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -162,7 +162,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -179,7 +179,58 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"gate must be one of commit, pr\",\n  \"failure\": \"error\",\n  \"gate\": null,\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique.json": "{}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"gate must be one of commit, pr\",\n  \"failure\": \"error\",\n  \"gate\": null,\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique.json": "{}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"detail\": \"git cannot run in @SANDBOX@/removed: the directory does not exist\",\n  \"failure\": \"error\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique.json": "{}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -196,58 +247,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
-        "work/": null
-      }
-    },
-    {
-      "exit": 0,
-      "stdout": "{\n  \"detail\": \"the command line does not say which directory the command runs in\",\n  \"failure\": \"error\",\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"failed-open\",\n  \"status\": \"allowed\"\n}\n",
-      "stderr": "",
-      "files": {
-        "home/": null,
-        "home/.config/": null,
-        "home/.config/agent-kit/": null,
-        "home/.config/agent-kit/critique.json": "{}\n",
-        "home/.local/": null,
-        "home/.local/share/": null,
-        "home/.local/share/agent-kit/": null,
-        "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
-        "work/": null
-      }
-    },
-    {
-      "exit": 0,
-      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"no-remote\",\n  \"status\": \"allowed\"\n}\n",
-      "stderr": "",
-      "files": {
-        "home/": null,
-        "home/.config/": null,
-        "home/.config/agent-kit/": null,
-        "home/.config/agent-kit/critique.json": "{}\n",
-        "home/.local/": null,
-        "home/.local/share/": null,
-        "home/.local/share/agent-kit/": null,
-        "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
-        "work/": null
-      }
-    },
-    {
-      "exit": 0,
-      "stdout": "{\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"nedap\",\n  \"status\": \"allowed\"\n}\n",
-      "stderr": "",
-      "files": {
-        "home/": null,
-        "home/.config/": null,
-        "home/.config/agent-kit/": null,
-        "home/.config/agent-kit/critique.json": "{}\n",
-        "home/.local/": null,
-        "home/.local/share/": null,
-        "home/.local/share/agent-kit/": null,
-        "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -264,7 +264,58 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"no-remote\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique.json": "{}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"pr\",\n  \"line\": null,\n  \"reason\": \"nedap\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique.json": "{}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "work/": null
+      }
+    },
+    {
+      "exit": 0,
+      "stdout": "{\n  \"gate\": \"commit\",\n  \"line\": null,\n  \"reason\": \"not-opted-in\",\n  \"status\": \"allowed\"\n}\n",
+      "stderr": "",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique.json": "{}\n",
+        "home/.local/": null,
+        "home/.local/share/": null,
+        "home/.local/share/agent-kit/": null,
+        "home/.local/share/agent-kit/critique/": null,
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -282,7 +333,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -300,7 +351,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -318,7 +369,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -336,7 +387,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/repos/s1/.git/critique/flows/bad.json: phase must be one of planning, implementation, finishing\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/repos/s1/.git/critique/flows/bad.json: phase must be one of planning, implementation, finishing\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -354,7 +405,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/repos/s1/.git/critique/flows/bad.json: phase must be one of planning, implementation, finishing\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/repos/s1/.git/critique/flows/bad.json: phase must be one of planning, implementation, finishing\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     },
@@ -372,7 +423,7 @@
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"the command line does not say which directory the command runs in\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/repos/s1/.git/critique/flows/bad.json: phase must be one of planning, implementation, finishing\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories must be a JSON object\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
+        "home/.local/share/agent-kit/critique/gate.log.jsonl": "{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique.json: disabled must be true or false\",\"failure\":\"unreadable-state\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"the value must be a JSON object\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":null,\"detail\":\"cwd must be a non-empty string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":null,\"cwd\":\"/x\",\"detail\":\"tool_input.command must be a string\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git push https://***@h/r.git a@b://c x://***@z\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\",\"cwd\":\"/x\",\"detail\":\"gate must be one of commit, pr\",\"failure\":\"error\",\"gate\":null,\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/removed\",\"detail\":\"git cannot run in @SANDBOX@/removed: the directory does not exist\",\"failure\":\"error\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/repos/s1/.git/critique/flows/bad.json: phase must be one of planning, implementation, finishing\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n{\"command\":\"git commit -m x\",\"cwd\":\"@SANDBOX@/repos/s1\",\"detail\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories must be a JSON object\",\"failure\":\"unreadable-state\",\"gate\":\"commit\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\"}\n",
         "work/": null
       }
     }

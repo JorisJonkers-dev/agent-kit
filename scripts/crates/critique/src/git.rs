@@ -6,6 +6,8 @@ use model_gateway::adapters::fs::fail;
 use model_gateway::ports::GitRemote;
 use model_gateway::text::js_trim;
 use std::collections::HashMap;
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 pub trait Git: Send + Sync {
@@ -157,7 +159,33 @@ pub fn blob_path(entry: &str) -> Option<&str> {
     (digits && word(kind) && word(object) && !path.is_empty() && kind == "blob" && mode != "120000").then_some(path)
 }
 
-/// git in the environment it was given (PATH decides which git).
+/// Where git usually is when a hook runs with a `PATH` that lacks it: a Nix system or user profile, the Nix default
+/// profile, and the Homebrew and system directories. The node adapter's `gitSearchDirs`.
+pub fn git_search_dirs(env: &HashMap<String, String>) -> Vec<String> {
+    let mut dirs = vec!["/run/current-system/sw/bin".to_string()];
+    if let Some(user) = env.get("USER") {
+        dirs.push(format!("/etc/profiles/per-user/{user}/bin"));
+    }
+    if let Some(home) = env.get("HOME") {
+        dirs.push(format!("{home}/.nix-profile/bin"));
+    }
+    dirs.extend(["/nix/var/nix/profiles/default/bin", "/usr/local/bin", "/usr/bin", "/bin", "/opt/homebrew/bin"].map(str::to_string));
+    dirs
+}
+
+/// The full path of the first executable git on the environment's `PATH`, then in `fallback`; the words of the
+/// failure name where it looked.
+pub fn locate_git(env: &HashMap<String, String>, fallback: &[String]) -> Result<String, String> {
+    let path: Vec<&str> = env.get("PATH").map_or("", String::as_str).split(':').filter(|entry| !entry.is_empty()).collect();
+    let executable = |candidate: &String| std::fs::metadata(candidate).is_ok_and(|found| found.is_file() && found.permissions().mode() & 0o111 != 0);
+    path.iter()
+        .map(|dir| format!("{dir}/git"))
+        .chain(fallback.iter().map(|dir| format!("{dir}/git")))
+        .find(executable)
+        .ok_or_else(|| format!("git was not found on PATH ({}) or in {}", path.join(":"), fallback.join(":")))
+}
+
+/// git in the environment it was given (PATH, then the usual places, decide which git).
 pub struct SystemGit {
     pub env: HashMap<String, String>,
 }
@@ -170,7 +198,11 @@ impl SystemGit {
 
     /// `run`, with the exit code it ended on.
     fn run_coded(&self, cwd: &str, args: &[&str], accepted: &[i32]) -> Result<(i32, String), String> {
-        let output = Command::new("git")
+        if !Path::new(cwd).is_dir() {
+            return Err(format!("git cannot run in {cwd}: the directory does not exist"));
+        }
+        let git = locate_git(&self.env, &git_search_dirs(&self.env))?;
+        let output = Command::new(git)
             .args(args)
             .current_dir(cwd)
             .env_clear()
