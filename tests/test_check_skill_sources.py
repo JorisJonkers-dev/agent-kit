@@ -445,9 +445,9 @@ def test_the_workflow_runs_weekly_and_on_dispatch_in_one_concurrency_group() -> 
     assert any(use.startswith("actions/create-github-app-token@") for use in uses), "an App token"
 
 
-def test_the_python_job_validates_sources() -> None:
+def test_the_python_lint_job_validates_sources() -> None:
     doc = yaml.safe_load(CI_WORKFLOW.read_text())
-    runs = [step.get("run", "") for step in doc["jobs"]["python"]["steps"]]
+    runs = [step.get("run", "") for step in doc["jobs"]["python-lint"]["steps"]]
     assert "uv run python scripts/check_skill_sources.py --validate" in runs
 
 

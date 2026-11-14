@@ -99,6 +99,9 @@ def setup_run(
             "HOME": str(home),
             "PATH": f"{bin_dir}:/usr/bin:/bin",
             "AK_NIXOS_MARKER": str(root / "not-nixos"),
+            # Not the machine's /usr/local: where it is writable, as on a CI runner, setup would
+            # install there and a cloud run would put the runner's real npm ahead of the stubs.
+            "AK_SYSTEM_PREFIX": str(root / "no-system-prefix"),
             **(extra_env or {}),
         },
     )
