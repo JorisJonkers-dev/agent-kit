@@ -352,6 +352,10 @@ SOURCE_LINE = '[ -f "$HOME/.config/agent-kit/env.sh" ] && . "$HOME/.config/agent
 # --- LiteLLM ---------------------------------------------------------------
 
 
+# LiteLLM's sentinel for "whatever the key's team may use".
+TEAM_MODELS = "all-team-models"
+
+
 class Refused(Exception):
     """The proxy refused the admin token itself: no route can be minted with it."""
 
@@ -420,8 +424,14 @@ class LiteLLM:
         code, _ = self.call("POST", "/key/delete", {"key_aliases": [alias]})
         return code == 200
 
-    def mint(self, team_id: str, alias: str, models: list[str]) -> str:
-        body = {"key_alias": alias, "team_id": team_id, "models": models, "metadata": {"minted_by": "agent-kit setup"}}
+    def mint(self, team_id: str, alias: str) -> str:
+        # The key takes its team's access groups (LiteLLM's all-team-models), so a team change needs no new key.
+        body = {
+            "key_alias": alias,
+            "team_id": team_id,
+            "models": [TEAM_MODELS],
+            "metadata": {"minted_by": "agent-kit setup"},
+        }
         code, reply = self.call("POST", "/key/generate", body)
         key = reply.get("key") if isinstance(reply, dict) else None
         return str(key) if code == 200 and isinstance(key, str) else ""
@@ -455,7 +465,7 @@ def mint_litellm(entries: list[dict[str, Any]], wanted: set[str], token: str, ke
             if api.holds(alias) and not api.delete(alias):
                 say(f"{entry['env']}: the old key {alias} could not be deleted; nothing minted")
                 continue
-            key = api.mint(team_id, alias, list(team["models"]))
+            key = api.mint(team_id, alias)
             if not key or not SAFE.match(key):
                 say(f"{entry['env']}: the proxy did not mint a usable key for {alias}")
                 continue

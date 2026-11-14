@@ -1,7 +1,7 @@
 # LiteLLM: one proxy, per-key budgets
 
 The cheap agents (Pi, Vibe, OpenCode) reach their models (the paid ones, the
-OpenRouter free ones, the free-tier Google ones for public work and the local GPU) through one LiteLLM proxy in the estate cluster, shared by both machines, so one budget per
+free-tier ones for public work: Google and OpenRouter, and the local GPU) through one LiteLLM proxy in the estate cluster, shared by both machines, so one budget per
 key holds across machines (spec #392, stories 96-98). Gold Band's own cost and
 token numbers are never used; the proxy's refusal is the only budget signal.
 
@@ -12,15 +12,15 @@ token numbers are never used; the proxy's refusal is the only budget signal.
 | `vibe` | `LITELLM_VIBE_KEY` | 255 EUR | `canonical` | every canonical model |
 | `vibe-study` | `LITELLM_VIBE_STUDY_KEY` | 127.50 EUR | `canonical` | every canonical model |
 | `opencode-go` | `LITELLM_OPENCODE_GO_KEY` | 60 EUR | `canonical` | every canonical model |
-| `openrouter` | `LITELLM_OPENROUTER_KEY` | 5 EUR | `canonical` | every canonical model (its free `:free` deployments are in it; the cap bounds any paid fallback) |
+| `openrouter` | `LITELLM_OPENROUTER_KEY` | none | `openrouter-free-public` | OpenRouter's free `:free` models only, nothing paid; **public work only** |
 | `local` | `LITELLM_LOCAL_KEY` | none | `canonical` | every canonical model, the GPU workstation's server (free) among them; the key has no cap, so use it for local models only |
-| `public` | `LITELLM_PUBLIC_KEY` | 5 EUR | `google-free-public`, `canonical` | the free-tier Google models, and the paid fallbacks |
+| `public` | `LITELLM_PUBLIC_KEY` | 5 EUR | `google-free-public`, `canonical` | the free-tier Google models, and the paid fallbacks; **public work only** |
 
 A key lists **access groups**, not a provider wildcard: a caller sends one canonical model
 name (`glm-5.3`, `mistral-large`, `claude-sonnet-4-5`, ...) and the proxy routes it across the
-provider accounts by priority (litellm#20), so the agent id no longer picks the provider. The
-litellm#19 sync puts every deployment but a Google free-tier one, OpenRouter and local included, in `canonical`;
-there are no per-route groups.
+provider accounts by priority (litellm#20), so the agent id no longer picks the provider. Every paid
+deployment, and the local one, is in `canonical`. The free-tier deployments are not: each free
+provider has its own public-only group (litellm#33), and only the `data_scope: public` keys hold one.
 Which models an account can actually use is the live catalogue's job (below); a listed model
 can still be refused.
 
@@ -37,19 +37,36 @@ capped route without it. The caps on the keys are a safety net; the provider acc
 monthly pools (vibe 255, vibe-study 127.50, vibe-api 25.50, vibe-study-api 12.75) are
 capped on the deployments, in the litellm repository.
 
-### The public key: public, non-sensitive work only
+### The public-only keys: public, non-sensitive work only
 
-`public` is the only key with the `google-free-public` access group, and the Google free-tier
-deployments are in that group alone, so every other key reaches a Gemini model only through its paid
-deployments (the tests prove the keys' side in `tests/test_registry_render.py`: only `public` lists the group; the group on the deployments is the litellm repository's, and the render refuses
-`google-free-public` on any route not marked `data_scope: public`, or a second public route).
+A free-tier provider may use the prompts to train or improve its models, so every free-tier
+deployment is **public work only** (agent-kit#737). The litellm repository keeps each free
+provider's deployments in a public-only access group of its own, never in `canonical`:
 
-**Google may use free-tier prompts to improve its products, so the `public` key is for
-public, non-sensitive work only.** Use it for open-source code, public documentation and
-questions you would post publicly. Never send it a private repository, employer code
-(`nedap`), a secret, a transcript, a customer's data or anything under an NDA. When unsure, use
-another key: the Gemini model is served by the others too, through the paid deployments.
-Setup mints it like the other LiteLLM keys (`LITELLM_PUBLIC_KEY`, unexported).
+| Public-only group | What is in it | Model names | Held by |
+|---|---|---|---|
+| `google-free-public` | the Google free tier first, then the paid deployments of the same model | `public/<canonical>` | `public` |
+| `openrouter-free-public` | OpenRouter's free `:free` models, each alone | `openrouter/<canonical>` | `openrouter` |
+
+One group per provider, not one shared free group: LiteLLM grants a key a model name, so a
+shared group would hand each free provider's key the others' models. The `openrouter` key holds
+its own group and **not** `canonical`, so it reaches nothing paid and carries no cap. `public`
+also holds `canonical`, so a Gemini model falls over to the paid deployments when the free tier
+refuses; its small cap bounds that.
+
+The render enforces the keys' side (`scripts/render_registry.py`, tested in
+`tests/test_registry_render.py`): a route holding any public-only group must be
+`data_scope: public`, and a `data_scope: public` route must hold at least one. Several public
+routes are allowed. The groups on the deployments are the litellm repository's.
+
+**Use a public-only key for public, non-sensitive work only.** Use it for open-source code,
+public documentation and questions you would post publicly. Never send it a private repository,
+employer code (`nedap`), a secret, a transcript, a customer's data or anything under an NDA, and
+never route a critic on a private repository to one. When unsure, use a `canonical` key: a model a
+paid provider serves is reachable there too.
+
+There is no route for OpenCode Zen's free models: OpenCode's docs say they answer HTTP 403 to
+every client but OpenCode itself, so a route through the proxy would serve nothing.
 
 ### Provider priority (what the keys route to)
 
@@ -64,15 +81,17 @@ Set in the litellm repository (litellm#20); recorded here because the agent ids 
 4. Gemini: Google free tier first, only inside `google-free-public`.
 5. OpenCode Go only for models no Mistral, Google or Anthropic key serves. Its base is
    `https://opencode.ai/inference/go/openai/v1`.
-6. OpenRouter free models only, `data_collection: deny`.
+6. OpenRouter free models only, `data_collection: deny`, in `openrouter-free-public` alone (never
+   in `canonical`).
 
 Mistral's four keys: `vibe` (255 EUR) and `vibe-study` (127.50 EUR) are Vibe-scope; `vibe-api`
 (25.50 EUR) and `vibe-study-api` (12.75 EUR) are general API keys.
 
 ### Names the litellm repository must match
 
-`canonical` (every canonical model), `google-free-public` (the Google free-tier deployments),
-the agent ids / key aliases above, and the
+`canonical` (every paid and local deployment), the public-only groups `google-free-public` and
+`openrouter-free-public` (the free-tier deployments,
+`LITELLM_PUBLIC_GROUPS` in `scripts/render_registry.py`), the agent ids / key aliases above, and the
 canonical model names the gateway defaults use (`registry/litellm-catalogue.json` lists what
 the catalogue serves).
 
@@ -152,6 +171,12 @@ in `LITELLM_ADMIN_TOKEN` for the run instead. With the token, setup:
    `/key/info` and stores it.
 
 Without a token setup says which keys it skipped and changes nothing on the proxy.
+
+A minted key takes its team's access groups (`models: ["all-team-models"]`), so changing a
+route's groups in the registry is a team update on the next setup run with a token, and needs
+no new key. A key minted before that holds its groups itself: delete it from the store
+(`agent-kit-secret delete LITELLM_<ROUTE>_KEY`) and run setup with a token to mint it anew. This
+applies to the `openrouter` key minted before it became public-only: it still lists `canonical`.
 
 ## The window and reset
 

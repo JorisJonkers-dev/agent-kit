@@ -152,6 +152,8 @@ def test_missing_keys_get_a_team_each_and_a_key_named_for_this_host(proxy) -> No
     vibe = store.get("LITELLM_VIBE_KEY")
     assert state.keys[vibe]["key_alias"] == "vibe@box"
     assert state.keys[vibe]["team_id"] == teams["vibe"]["team_id"]
+    # A key follows its team's access groups, so a change of the team's models needs no new key.
+    assert state.keys[vibe]["models"] == ["all-team-models"]
     assert state.keys[store.get("LITELLM_LOCAL_KEY")]["key_alias"] == "local@box"
 
 
