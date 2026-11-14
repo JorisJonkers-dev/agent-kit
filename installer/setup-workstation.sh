@@ -2564,6 +2564,20 @@ sys.exit(0 if published <= when(sys.argv[1]) else 1)' "${pi_cutoff}" "$2"
       ok "pi: pi-acp -> ${pi_bin}"
     fi
   fi
+  # One Pi provider per LiteLLM route (litellm-<agent>) in Pi's models.json; each
+  # reads its route key from the secret store at request time.
+  pi_providers_args=(--providers "${KIT_ROOT}/registry/generated/pi/providers.json"
+    --models-json "${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}/models.json"
+    --state "${HOME}/.config/agent-kit/pi-providers.json"
+    --secret-helper "${HOME}/.local/bin/agent-kit-secret")
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    pi_providers_args+=(--check)
+  fi
+  if pi_providers_said="$(python3 "${KIT_ROOT}/scripts/pi-merge-providers.py" "${pi_providers_args[@]}")"; then
+    ok "pi: LiteLLM providers ${pi_providers_said}"
+  else
+    fail "pi: could not merge the LiteLLM providers into Pi's models.json"
+  fi
 fi
 
 # Google Antigravity CLI (`agy`). Gets the workstation MCP fleet
