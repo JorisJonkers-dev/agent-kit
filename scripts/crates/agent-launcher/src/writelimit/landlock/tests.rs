@@ -1,5 +1,20 @@
 use super::*;
 
+fn fs_only(handled: u64) -> RulesetAttr {
+    RulesetAttr {
+        handled_access_fs: handled,
+        ..RulesetAttr::default()
+    }
+}
+
+fn confined(ports: Option<Vec<u16>>) -> Policy {
+    Policy {
+        reads: Some(crate::Reads::default()),
+        connect_ports: ports,
+        ..Policy::default()
+    }
+}
+
 fn os(code: i32) -> io::Result<i64> {
     Err(io::Error::from_raw_os_error(code))
 }
@@ -47,7 +62,7 @@ fn the_real_kernel_answers_the_abi_query() {
 
 #[test]
 fn bad_arguments_come_back_as_os_errors() {
-    assert!(Sys::create(!0).is_err());
+    assert!(Sys::create(&fs_only(!0)).is_err());
     assert_eq!(
         Sys::add(-1, HANDLED, -1).unwrap_err().raw_os_error(),
         Some(libc::EBADF)
@@ -79,7 +94,7 @@ fn a_directory_right_on_a_file_is_refused_by_the_kernel() {
     };
     let message = Landlock.prepare(&policy).err().unwrap();
     assert!(
-        message.contains("cannot allow writes to /dev/null"),
+        message.contains("cannot grant writable access to /dev/null"),
         "{message}"
     );
 }
@@ -109,7 +124,7 @@ fn arming_with_something_that_is_not_a_ruleset_fails_and_restricts_nothing() {
 
 #[test]
 fn a_ruleset_the_kernel_refuses_is_reported() {
-    let message = build(&Policy::default(), !0).err().unwrap();
+    let message = build(&Policy::default(), fs_only(!0)).err().unwrap();
     assert!(
         message.starts_with("cannot create the Landlock ruleset"),
         "{message}"
@@ -124,4 +139,58 @@ fn landlock_cannot_keep_the_employer_roots_unreadable_and_says_so() {
     };
     let message = Landlock.prepare(&policy).err().unwrap();
     assert!(message.contains("cannot deny reads"), "{message}");
+}
+
+#[test]
+fn a_write_limit_handles_only_the_write_rights() {
+    for abi in [3, 4, 6, 9, 11] {
+        assert_eq!(handled_for(&Policy::default(), abi), Ok(fs_only(HANDLED)), "{abi}");
+    }
+}
+
+#[test]
+fn a_confinement_also_handles_reads_and_execution_and_what_the_kernel_adds() {
+    let at = |abi| handled_for(&confined(None), abi).unwrap();
+    assert_eq!(at(3), fs_only(HANDLED | READ | EXECUTE));
+    let scoped = SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL;
+    assert_eq!(at(6), RulesetAttr { scoped, ..fs_only(HANDLED | READ | EXECUTE) });
+    assert_eq!(at(9), RulesetAttr { scoped, ..fs_only(HANDLED | READ | EXECUTE | RESOLVE_UNIX) });
+}
+
+#[test]
+fn a_network_limit_handles_tcp_connect_and_bind_and_needs_abi_4() {
+    let message = handled_for(&confined(Some(vec![443])), 3).unwrap_err();
+    assert!(message.contains("ABI 3 cannot limit the network") && message.contains("ABI 4"), "{message}");
+    let attr = handled_for(&confined(Some(vec![443])), 4).unwrap();
+    assert_eq!(attr.handled_access_net, NET_BIND_TCP | NET_CONNECT_TCP);
+}
+
+#[test]
+fn a_port_the_ruleset_does_not_handle_is_refused_by_the_kernel() {
+    let message = build(&confined(Some(vec![443])), fs_only(HANDLED)).err().unwrap();
+    assert!(message.starts_with("cannot allow TCP connections to port 443"), "{message}");
+}
+
+#[test]
+fn a_confinement_grants_files_and_directories_and_names_one_it_cannot_open() {
+    let policy = Policy {
+        dirs: vec![std::env::temp_dir()],
+        files: vec!["/dev/null".into()],
+        reads: Some(crate::Reads {
+            read: vec!["/dev/urandom".into(), std::env::temp_dir()],
+            run: vec!["/dev/null".into(), "/".into()],
+        }),
+        connect_ports: Some(vec![443]),
+        ..Policy::default()
+    };
+    assert!(Landlock.prepare(&policy).is_ok());
+    let missing = Policy {
+        reads: Some(crate::Reads {
+            read: vec!["/nonexistent/agent-launcher-read".into()],
+            run: vec![],
+        }),
+        ..Policy::default()
+    };
+    let message = Landlock.prepare(&missing).err().unwrap();
+    assert!(message.contains("cannot open readable path /nonexistent/agent-launcher-read"), "{message}");
 }

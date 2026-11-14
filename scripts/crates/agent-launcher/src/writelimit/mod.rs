@@ -5,9 +5,12 @@
 //! the kernel's Landlock syscalls directly through libc, and the macOS backend
 //! ([`SandboxExec`]), which starts the agent under `sandbox-exec`.
 //!
-//! The limit never restricts the network. It restricts reads only for the
-//! employer roots of a personal-instance launch on the work Mac
-//! ([`Policy::read_denied`], ADR-0013). When the backend for this OS is not
+//! A reach level's limit never restricts the network. It restricts reads only
+//! for the employer roots of a personal-instance launch on the work Mac
+//! ([`Policy::read_denied`], ADR-0013). A confinement (`agent-launcher
+//! confine`, [`Policy::reads`]) restricts reads and execution to the paths it
+//! grants and can restrict TCP ([`Policy::connect_ports`]); only Landlock
+//! holds it so far. When the backend for this OS is not
 //! available, or cannot hold what the policy asks, the launcher refuses to
 //! start the agent; it never runs it without the limit.
 
@@ -64,6 +67,21 @@ pub struct Policy {
     /// No write limit: only the read denial applies (`full` with employer
     /// roots, where the write table has no row).
     pub writes_unlimited: bool,
+    /// A confinement: nothing may be read or run except these paths and the
+    /// writable ones. None is a write limit, which leaves reads alone.
+    pub reads: Option<Reads>,
+    /// The TCP ports a connect may reach; no bind is allowed. None leaves the
+    /// network alone.
+    pub connect_ports: Option<Vec<u16>>,
+}
+
+/// What a confinement may read, beyond the paths it may write.
+#[derive(Debug, Default, PartialEq)]
+pub struct Reads {
+    /// Readable (files read, directories listed), with everything beneath.
+    pub read: Vec<PathBuf>,
+    /// Readable and executable, with everything beneath.
+    pub run: Vec<PathBuf>,
 }
 
 /// What the guarded files held before the agent ran.
@@ -205,6 +223,7 @@ pub fn policy_for(level: &str, scope: &Scope) -> Result<Option<Policy>, String> 
         denied,
         read_denied,
         writes_unlimited: false,
+        ..Policy::default()
     }))
 }
 

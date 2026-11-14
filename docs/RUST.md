@@ -280,8 +280,8 @@ stays inside the same Landlock limit. A directory granted from
 configuration may not lie inside a `.git` directory. Also, `write` is refused in a primary checkout (its `.git`
 directory holds hooks and config beside everything else) and in a repository
 whose config enables `extensions.worktreeConfig` or includes another file (a `config.worktree` in the worktree's own
-git directory could set `core.hooksPath`). The network is never limited, and
-reads are limited only by the read limit below. The launcher refuses to start the agent, exit 1, when Landlock is
+git directory could set `core.hooksPath`). A reach level never limits the network, and
+its reads are limited only by the read limit below (`confine`, after it, does both). The launcher refuses to start the agent, exit 1, when Landlock is
 missing, disabled, or older than ABI 3 (Linux 6.2); it never runs an agent
 without its limit. The tests run without root and need a kernel with Landlock
 ABI 3.
@@ -378,6 +378,68 @@ refused. `agent-launcher read-limit-check` exits 0 when no read limit is needed
 the reason otherwise; setup runs it on the work Mac and fails the run when it does not pass.
 `tests/personal_read_limit.rs` proves the refusal on the `Rust Tests (macos)`
 job.
+
+**The confinement (`agent-launcher confine`, #737).** A reach level's limit
+leaves reads alone; a Pi critic needs the opposite, since its `read`, `grep`,
+`find` and `ls` tools run inside the Pi (node) process itself. A sandbox that
+wraps only the shell (`pi-bash-wrap`, `@yuru7/pi-sandbox`) never sees those
+reads and keeps `/` readable; `confine` limits the whole process instead, and
+everything it starts:
+
+```bash
+agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... \
+    [--write PATH]... [--net-connect PORT]... -- COMMAND [ARGS...]
+```
+
+The launcher puts a Landlock ruleset on itself and then becomes the command
+(exec), so the caller's signals and timeout reach the command and nothing is
+left behind; it sets nothing in the environment. The ruleset handles reading
+files, listing directories and executing as well as every write-side right, so
+only these can be read:
+
+| Grant | Rights | Paths |
+| :- | :- | :- |
+| `--read` | read, list | each path given (the critic's packet copy) |
+| `--run` | read, list, execute | each path given (Pi's own `bin`, which holds `fd`) |
+| `--run-from` | read, list, execute | what running PROGRAM takes (`pi`): its package (the directory right under `node_modules` or `node_modules/@scope`, else its own directory) and, for a script, its `#!` interpreter (`/usr/bin/env NAME` looked up on `PATH`) with that interpreter's install (the directory above its `bin`), links resolved; a directory that would hold the home directory or be `/` is narrowed to the file itself |
+| `--write` | read, list, write, create, remove | each directory given (the run's agent directory, its `TMPDIR`) |
+| system runtime | read, list, execute | `/nix/store`, `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, those that exist (`/nix/store` holds no secret by design; NixOS's `/etc` files and `/run/current-system` resolve into it) |
+| system files | read | `/etc/ssl`, `/etc/pki`, `/etc/ca-certificates`, `/etc/resolv.conf`, `/etc/hosts`, `/etc/host.conf`, `/etc/nsswitch.conf`, `/etc/gai.conf`, `/etc/services`, `/etc/protocols`, `/etc/localtime`, `/etc/zoneinfo`, `/dev/urandom`, `/dev/random`, those that exist |
+| devices | read, write | `/dev/null` |
+
+The system files are what a traced Pi run (`strace -f -e trace=openat,execve`)
+opened to resolve the proxy's name, check its certificate and read the time
+zone. Nothing under `/proc` or `/sys` is granted (node runs without them), so
+`/proc/<pid>/environ` of another process of the same user is unreadable, and
+so is the command's own. With `--net-connect` the ruleset also handles TCP
+(Landlock ABI 4, Linux 6.7): a connect reaches only the listed ports (443 for
+the LiteLLM proxy) and no TCP port can be bound. Where the kernel has them, a
+confinement also handles connecting to a pathname UNIX socket (ABI 9, so the
+session bus, `systemd --user` and nscd are out of reach; name resolution falls
+back to `/etc/resolv.conf`) and scopes signals and abstract UNIX sockets to
+the confined processes (ABI 6). UDP is not limited (DNS uses it).
+
+Fail closed: when the backend cannot apply the confinement in full (no
+Landlock, an ABI too old for `--net-connect`, a path that cannot be granted,
+macOS), `confine` exits **125** and starts nothing. `--check` builds the same
+ruleset, applies nothing and exits 0 (`confine: ok, ...`, then one `read`,
+`run` or `write` line per grant) or 125 with the reason, so a caller can
+refuse a critic before it launches one.
+`tests/confine.rs` proves it on the Linux runners under the real kernel: the
+granted directory reads and a file elsewhere (and one under `~/.ssh` when the
+home has one) fails with `EACCES`, nothing outside is listed, another
+process's and its own `/proc/<pid>/environ` are unreadable, only the
+`--write` directory is writable, a connect to a port not listed and a bind
+fail with `EACCES` while the listed port connects, the exit code is the
+command's, a grant that cannot be made exits 125 without running it, and
+`--run-from` lets a packaged script read its package while, without it, the
+script cannot even be executed.
+
+On macOS `sandbox-exec` refuses a confinement: a read allowlist there needs
+the system paths node reads on macOS traced and proven on the `macos` runner,
+which has not been done, so it is refused rather than claimed. Not covered: a
+confined process keeps what it inherits (open descriptors, its environment),
+and the readable and writable grants are whole trees.
 
 ## build-tracker
 

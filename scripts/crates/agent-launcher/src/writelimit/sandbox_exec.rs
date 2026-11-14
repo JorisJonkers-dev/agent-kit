@@ -189,6 +189,12 @@ fn command_prefix(binary: &Path, profile: &Profile) -> Vec<OsString> {
 
 impl WriteLimit for SandboxExec {
     fn prepare(&self, policy: &Policy) -> Result<Armed, String> {
+        // The profile has no read allowlist yet: the system paths a program
+        // needs on macOS have not been traced and proven, so a confinement
+        // is refused rather than claimed.
+        if policy.reads.is_some() || policy.connect_ports.is_some() {
+            return Err("the confinement (a read allowlist and a network limit) is not built for sandbox-exec; it is held on Linux (Landlock) only".into());
+        }
         let executable = fs::metadata(&self.binary)
             .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
             .unwrap_or(false);
