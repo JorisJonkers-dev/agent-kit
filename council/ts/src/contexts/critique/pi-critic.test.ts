@@ -38,8 +38,8 @@ function piRouting(client: Record<string, unknown> = PI_CLIENT): Record<string, 
   return { clients: { 'pi-vibe-study-glm': client }, stages: { spec: { base: [slot], deep: [] } } }
 }
 
-async function piOnly(cli: PiCli, client?: Record<string, unknown>): Promise<{ h: Harness; run: PrepareResult }> {
-  const h = await harness({ piCli: cli, routingOverride: piRouting(client) })
+async function piOnly(cli: PiCli, client?: Record<string, unknown>, search = false): Promise<{ h: Harness; run: PrepareResult }> {
+  const h = await harness({ piCli: cli, routingOverride: piRouting(client), ...(search ? { search: true } : {}) })
   open.push(h)
   await h.commands.allow.run({ families: ['zhipu'], repo: h.repo })
   const run = (await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })) as PrepareResult
@@ -69,6 +69,53 @@ describe('routing a Pi critic client', () => {
     expect(() => read({ ...PI_CLIENT, provider: 'openai' })).toThrow(/litellm-<route>/)
     expect(() => read({ ...PI_CLIENT, provider: 'litellm-' })).toThrow(/litellm-<route>/)
     expect(() => read({ ...PI_CLIENT, family: 'nobody' })).toThrow(/family/)
+  })
+})
+
+describe("the Pi critic with the runner's search server", () => {
+  it("attaches the server through the launch's own mcp.json, names its tools back into --tools and grants it to the confinement", async () => {
+    const calls = [{ args: { pattern: 'retry' }, tool: 'mcp__packet__grep' }, { args: { glob: 'artifact/*' }, tool: 'mcp__packet__list' }]
+    const { h, run } = await piOnly({ scripts: [{ stdout: piStream(`Review.\n${fenced({ findings: [finding()] })}`, { calls }) }] }, undefined, true)
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+    const criticDir = join(run.run_dir, 'critics', 'c1-pi-vibe-study-glm')
+    const packet = join(criticDir, 'packet')
+    const [launch] = h.pi?.launches ?? []
+    const args = launch?.args ?? []
+    expect(argAfter(args, '--tools')).toMatch(/^read,grep,find,ls,mcp__packet__\*$/)
+    expect(args).toContain('builtin:mcp')
+    expect(args).not.toContain('--no-mcp')
+    expect(args.indexOf('--no-extensions')).toBeLessThan(args.indexOf('builtin:mcp'))
+    const [confined] = h.pi?.confined ?? []
+    const grants = confined?.args.slice(0, confined.args.indexOf('--')) ?? []
+    expect(grants.slice(0, 5)).toEqual(['confine', '--read', packet, '--run-from', 'pi'])
+    expect(grants.filter((_, index) => grants[index - 1] === '--run-from')).toHaveLength(2)
+    const [seen] = h.pi?.agents ?? []
+    const mcp = JSON.parse(seen?.mcp ?? 'null') as { mcpServers: Record<string, { args: string[]; command: string; exposure: string }> }
+    expect(Object.keys(mcp.mcpServers)).toEqual(['packet'])
+    expect(mcp.mcpServers.packet).toMatchObject({ exposure: 'direct' })
+    expect(mcp.mcpServers.packet?.args).toEqual(expect.arrayContaining(['search-server', '--root', packet]))
+    expect(result.critics[0]).toMatchObject({ status: 'ok', tools: expect.arrayContaining(['read', 'mcp__packet__grep', 'mcp__packet__list']) as string[] })
+    expect(await readFile(join(criticDir, 'prompt.md'), 'utf8')).toContain('`mcp__packet__grep`')
+  })
+
+  it('lets the search tools through and still voids a tool beyond them', async () => {
+    const stream = (tool: string) => piStream(fenced({ findings: [finding()] }), { calls: [{ args: { pattern: 'x' }, tool }] })
+    const ok = await piOnly({ scripts: [{ stdout: stream('mcp__packet__grep') }] }, undefined, true)
+    expect((await ok.h.commands.fanOut.run({ run_dir: ok.run.run_dir })).critics[0]).toMatchObject({ status: 'ok' })
+    const other = await piOnly({ scripts: [{ stdout: stream('mcp__other__grep') }] }, undefined, true)
+    expect((await other.h.commands.fanOut.run({ run_dir: other.run.run_dir })).critics[0]).toMatchObject({ detail: 'the critic used tools beyond reading its packet: mcp__other__grep', failure: 'unsafe-tool' })
+  })
+
+  it.each(['broken', 'broken-on-copies'] as const)('reads the packet with its own tools alone when the server cannot be proven or started (%s)', async (behaviour) => {
+    const h = await harness({ piCli: { scripts: [{ stdout: piStream(`Review.\n${fenced({ findings: [finding()] })}`) }] }, routingOverride: piRouting(), search: true })
+    open.push(h)
+    h.process.searchBehaviour = behaviour
+    await h.commands.allow.run({ families: ['zhipu'], repo: h.repo })
+    const run = (await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })) as PrepareResult
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+    expect(h.pi?.agents[0]?.mcp).toBeUndefined()
+    expect(h.pi?.launches[0]?.args).toContain('--no-mcp')
+    expect(result.critics[0]).toMatchObject({ status: 'ok' })
   })
 })
 
@@ -138,7 +185,7 @@ describe('the confined Pi critic', () => {
     const agentDir = join(criticDir, 'pi-agent')
     const [confined] = h.pi?.confined ?? []
     expect(confined?.command).toBe('agent-launcher')
-    expect(confined?.args.slice(0, confined.args.indexOf('--'))).toEqual(['confine', '--read', join(criticDir, 'packet'), '--run-from', 'pi', '--write', agentDir, '--net-connect', '443'])
+    expect(confined?.args.slice(0, confined.args.indexOf('--'))).toEqual(['confine', '--read', join(criticDir, 'packet'), '--run-from', 'pi', '--write', agentDir, '--net-connect', '443', '--env', 'PI_CODING_AGENT_DIR'])
     expect(confined?.env).toEqual({ PATH: expect.stringContaining('bin') as string, PI_CODING_AGENT_DIR: agentDir, TMPDIR: agentDir })
     const [seen] = h.pi?.agents ?? []
     expect(JSON.parse(seen?.models ?? '')).toEqual({

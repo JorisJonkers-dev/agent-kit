@@ -106,11 +106,29 @@ impl CriticTools {
         }
     }
 
+    /// A Pi critic searches with its own read-only tools, checked against the packet after the run, and with the
+    /// runner's search server too when it proved it cannot see past the packet and started on this critic's copy.
+    fn pi(&self, runtime: &Runtime, packet_dir: &str) -> ToolChoice {
+        let Some(own) = &runtime.search else {
+            return ToolChoice { toolset: CriticToolset::Pi, search_failure: None };
+        };
+        let alone = |failure: String| ToolChoice { toolset: CriticToolset::Pi, search_failure: Some(failure) };
+        if let Some(unproven) = self.proven(runtime) {
+            return alone(format!("search is not proven to stay inside the packet: {unproven}"));
+        }
+        match session(runtime, own, packet_dir, &self.limits, &[]) {
+            SearchSession::Failed { detail } => alone(detail),
+            SearchSession::Started { tools, .. } => ToolChoice {
+                toolset: CriticToolset::PiSearch { search: tools, limits: self.limits.clone(), server: server_launch(own, packet_dir, &self.limits) },
+                search_failure: None,
+            },
+        }
+    }
+
     pub fn choose(&self, runtime: &Runtime, critic: &RosterCritic, packet_dir: &str) -> Result<ToolChoice, CritiqueError> {
         let config = match &critic.client_config {
             CriticClient::Agy(_) => return CriticTools::agy(runtime, critic),
-            // Pi searches with its own read-only tools, checked against the packet after the run.
-            CriticClient::Pi(_) => return Ok(ToolChoice { toolset: CriticToolset::Pi, search_failure: None }),
+            CriticClient::Pi(_) => return Ok(self.pi(runtime, packet_dir)),
             CriticClient::Vibe(config) => config,
             // Codex and the work Claude agent read the packet alone: the runner's search server is a Vibe client's.
             _ => return Ok(ToolChoice { toolset: READ_ONLY_TOOLSET, search_failure: None }),
@@ -171,7 +189,7 @@ pub fn run_critic(runtime: &Runtime, launch: &Launch<'_>) -> Result<CriticLaunch
         },
     );
     // The server stops with the critic, whatever came of the launch.
-    if matches!(choice.toolset, CriticToolset::VibeSearch { .. }) {
+    if matches!(choice.toolset, CriticToolset::VibeSearch { .. } | CriticToolset::PiSearch { .. }) {
         stop(runtime, &packet_dir);
     }
     let report = report?;

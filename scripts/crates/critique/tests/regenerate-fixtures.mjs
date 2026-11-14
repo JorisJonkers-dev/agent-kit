@@ -103,6 +103,8 @@ function runScenario(name) {
         XDG_STATE_HOME: join(sandbox, 'state'),
         FIXED_NOW: step.now ?? FIXED_NOW,
         TZ: 'UTC',
+        // The Rust tests run the library with no search server (a node path is not in a golden), so the node runner has none either.
+        CRITIQUE_SEARCH_OFF: '1',
       }
       for (const [key, value] of Object.entries(step.env ?? {})) {
         if (value === null) delete env[key]

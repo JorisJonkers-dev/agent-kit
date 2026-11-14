@@ -69,24 +69,45 @@ export class CriticTools {
     }
   }
 
+  /**
+   * A Pi critic searches with its own read-only tools, checked against the
+   * packet after the run, and with the runner's search server too when it
+   * proved it cannot see past the packet and started on this critic's copy.
+   */
+  private async pi(packetDir: string): Promise<CriticToolChoice> {
+    const search = this.deps.search
+    if (search === undefined) return { toolset: { kind: 'pi' } }
+    const unproven = await this.proven()
+    if (unproven !== undefined) return { searchFailure: `search is not proven to stay inside the packet: ${unproven}`, toolset: { kind: 'pi' } }
+    const session = await search.session(packetDir, this.limits, [])
+    if (session.status === 'failed') return { searchFailure: session.detail, toolset: { kind: 'pi' } }
+    return { toolset: { kind: 'pi-search', limits: this.limits, search: session.tools, server: search.server(packetDir, this.limits) } }
+  }
+
+  /**
+   * The reach proof, made once. A proof that throws (a symlink the file
+   * system refuses, say) is a proof that failed, and is not kept: the next
+   * critic tries it again.
+   */
+  private proven(): Promise<string | undefined> {
+    this.proof ??= proveSearchReach(this.deps, this.proofDir, this.limits).catch((error: unknown) => {
+      this.proof = undefined
+      return error instanceof Error ? error.message : String(error)
+    })
+    return this.proof
+  }
+
   async choose(critic: RosterCritic, packetDir: string): Promise<CriticToolChoice> {
     const config = critic.client_config
     if (config.kind === 'agy') return this.agy(critic.client)
-    // Pi searches with its own read-only tools, checked against the packet after the run.
-    if (config.kind === 'pi') return { toolset: { kind: 'pi' } }
+    if (config.kind === 'pi') return this.pi(packetDir)
     // Codex and the work Claude agent read the packet alone: the runner's search server is a Vibe client's.
     if (config.kind !== 'vibe') return { toolset: READ_ONLY_TOOLSET }
     const search = this.deps.search
     if (search === undefined) return { toolset: READ_ONLY_TOOLSET }
     const blocked = await this.deps.clients.vibe.searchBlocked(config)
     if (blocked !== undefined) return { searchFailure: blocked, toolset: READ_ONLY_TOOLSET }
-    // A proof that throws (a symlink the file system refuses, say) is a proof
-    // that failed, and is not kept: the next critic tries it again.
-    this.proof ??= proveSearchReach(this.deps, this.proofDir, this.limits).catch((error: unknown) => {
-      this.proof = undefined
-      return error instanceof Error ? error.message : String(error)
-    })
-    const unproven = await this.proof
+    const unproven = await this.proven()
     if (unproven !== undefined) return { searchFailure: `search is not proven to stay inside the packet: ${unproven}`, toolset: READ_ONLY_TOOLSET }
     const session = await search.session(packetDir, this.limits, [])
     if (session.status === 'failed') return { searchFailure: session.detail, toolset: READ_ONLY_TOOLSET }

@@ -2,7 +2,7 @@
 //! proof's problems. The expected text is the node runner's, copied from `domain/critic-tools.ts`.
 
 use crate::critic_tools::{
-    gateway_problems, read_tool, tool_names, tools_section, CriticToolset, SearchServerLaunch, ToolCall, AGY_TOOLS,
+    gateway_problems, pi_search_tool, read_tool, tool_names, tools_section, CriticToolset, SearchServerLaunch, ToolCall, AGY_TOOLS,
     GATEWAY_PROOF, READ_ONLY_TOOLSET, VIBE_SEARCH_SERVER,
 };
 use crate::packet_search::{default_search_limits, SearchLimits, SearchToolName, SEARCH_TOOLS};
@@ -104,6 +104,30 @@ fn the_names_a_critic_is_given_follow_its_toolset() {
         tool_names(&vibe_search(&[SearchToolName::Grep, SearchToolName::Symbol])),
         ["read_file", "run_typescript", "mcp_packet.grep", "mcp_packet.symbol"]
     );
+}
+
+fn pi_search(search: &[SearchToolName]) -> CriticToolset {
+    CriticToolset::PiSearch {
+        search: search.to_vec(),
+        limits: default_search_limits(),
+        server: SearchServerLaunch { command: "critique".to_string(), args: vec!["search".to_string()] },
+    }
+}
+
+#[test]
+fn a_pi_critic_that_searches_through_the_server_has_its_tools_and_those_of_the_server_by_pi_names() {
+    assert_eq!(tool_names(&CriticToolset::Pi), ["read", "grep", "find", "ls"]);
+    assert_eq!(
+        tool_names(&pi_search(&[SearchToolName::Grep, SearchToolName::Symbol])),
+        ["read", "grep", "find", "ls", "mcp__packet__grep", "mcp__packet__symbol"]
+    );
+    assert_eq!(pi_search_tool(SearchToolName::List), "mcp__packet__list");
+    assert_eq!(read_tool(&CriticToolset::Pi), "read");
+    assert_eq!(read_tool(&pi_search(&[SearchToolName::Grep])), "read");
+    let section = tools_section(&pi_search(&[SearchToolName::Grep, SearchToolName::List]));
+    assert!(section.starts_with("# Tools\n\nYour tools read and search your working directory: `read` reads one file"), "{section}");
+    assert!(section.contains("are called by name: `mcp__packet__grep`, `mcp__packet__list`. An answer holds at most 50 matches and 8192 bytes;"), "{section}");
+    assert!(section.ends_with("\n\nYou cannot write, edit, run commands, fetch anything or load skills: those tools are switched off, and calling them only wastes your turns."), "{section}");
 }
 
 #[test]

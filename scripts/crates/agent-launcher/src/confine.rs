@@ -6,7 +6,7 @@
 //!
 //! ```text
 //! agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]...
-//!                        [--write PATH]... [--net-connect PORT]... -- COMMAND [ARGS...]
+//!                        [--write PATH]... [--net-connect PORT]... [--env NAME]... -- COMMAND [ARGS...]
 //! ```
 //!
 //! * `--read`: readable (files read, directories listed), never executable.
@@ -16,6 +16,8 @@
 //! * `--write`: a directory that may be read, written and changed beneath.
 //! * `--net-connect`: a TCP port a connect may reach; given once or more, no
 //!   other port can be reached and no TCP port can be bound.
+//! * `--env`: an environment variable the command keeps, besides the few it
+//!   always gets (see [`KEEP_ENV`]); given once or more.
 //! * `--check`: build the confinement and say whether this machine can hold
 //!   it, and list every grant, starting nothing.
 //!
@@ -27,7 +29,12 @@
 //!
 //! The launcher puts the confinement on itself and then becomes the command
 //! (exec), so the caller's signals and timeout reach the command directly and
-//! nothing is left running behind it; it sets nothing in the environment.
+//! nothing is left running behind it. The command inherits no more than it is
+//! given: its environment is the [`KEEP_ENV`] variables and each `--env` name
+//! that the caller has set (no key, token or proxy password rides along
+//! unnamed), and every open file descriptor beyond the three standard ones is
+//! closed after the confinement is on, so a descriptor the caller left open
+//! (a file, a socket, a pipe to another process) is not carried in.
 //! When the confinement cannot be applied in full (no backend, an old kernel,
 //! a path that cannot be granted), it exits 125 and starts nothing: it never
 //! runs the command with less than it was asked to hold.
@@ -69,6 +76,25 @@ pub const SYSTEM_READ: [&str; 14] = [
     "/dev/random",
 ];
 
+/// The environment a confined command always keeps, when the caller has it:
+/// where programs are, the locale, the terminal, the time zone, the
+/// temporary directory, and the files and directories of the certificate
+/// store, none of which holds a secret. Everything else is named with `--env`.
+pub const KEEP_ENV: [&str; 12] = [
+    "PATH",
+    "HOME",
+    "LANG",
+    "LANGUAGE",
+    "TERM",
+    "TZ",
+    "TMPDIR",
+    "NO_COLOR",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "NIX_SSL_CERT_FILE",
+    "NODE_EXTRA_CA_CERTS",
+];
+
 /// The devices a confined command may write.
 const DEVICES: [&str; 1] = ["/dev/null"];
 
@@ -81,6 +107,7 @@ pub struct Spec {
     pub run_from: Vec<OsString>,
     pub write: Vec<PathBuf>,
     pub ports: Option<Vec<u16>>,
+    pub env: Vec<OsString>,
     pub command: Vec<OsString>,
 }
 
@@ -99,7 +126,7 @@ pub fn parse(args: &[OsString]) -> Result<Spec, String> {
             continue;
         }
         let value = match flag.as_ref() {
-            "--read" | "--run" | "--run-from" | "--write" | "--net-connect" => rest.next().ok_or(format!("{flag} needs a value"))?,
+            "--read" | "--run" | "--run-from" | "--write" | "--net-connect" | "--env" => rest.next().ok_or(format!("{flag} needs a value"))?,
             _ => return Err(format!("unknown confine option {flag:?}")),
         };
         match flag.as_ref() {
@@ -107,6 +134,7 @@ pub fn parse(args: &[OsString]) -> Result<Spec, String> {
             "--run" => spec.run.push(PathBuf::from(value)),
             "--run-from" => spec.run_from.push(value.clone()),
             "--write" => spec.write.push(PathBuf::from(value)),
+            "--env" => spec.env.push(env_name(value)?),
             _ => spec.ports.get_or_insert_with(Vec::new).push(port(value)?),
         }
     }
@@ -114,6 +142,54 @@ pub fn parse(args: &[OsString]) -> Result<Spec, String> {
         return Err("confine needs a command after --, or --check and no command".into());
     }
     Ok(spec)
+}
+
+fn env_name(value: &OsStr) -> Result<OsString, String> {
+    let name = value.to_string_lossy();
+    if name.is_empty() || name.contains('=') {
+        return Err(format!("--env takes a variable name, not {name:?}"));
+    }
+    Ok(value.to_os_string())
+}
+
+/// The variables a confined command gets: those of `vars` named in [`KEEP_ENV`], `LC_*` or `named`.
+pub fn kept_env(vars: impl Iterator<Item = (OsString, OsString)>, named: &[OsString]) -> Vec<(OsString, OsString)> {
+    vars.filter(|(name, _)| {
+        let text = name.to_string_lossy();
+        KEEP_ENV.contains(&text.as_ref()) || text.starts_with("LC_") || named.contains(name)
+    })
+    .collect()
+}
+
+/// Closes the descriptors `first` to `last`, or says why not (EINVAL when `first` is past `last`).
+#[cfg(target_os = "linux")]
+fn close_range(first: libc::c_uint, last: libc::c_uint) -> std::io::Result<()> {
+    // SAFETY: closes descriptors only; the launcher holds none it still needs.
+    match unsafe { libc::syscall(libc::SYS_close_range, first, last, 0 as libc::c_uint) } {
+        0 => Ok(()),
+        _ => Err(std::io::Error::last_os_error()),
+    }
+}
+
+/// Closes the descriptors `first` to `last` one by one (no `close_range` here); the confinement itself is held on
+/// Linux only, so this exists to keep the crate building.
+#[cfg(not(target_os = "linux"))]
+fn close_range(first: libc::c_uint, last: libc::c_uint) -> std::io::Result<()> {
+    for fd in first..last.min(65_536) {
+        // SAFETY: closing a descriptor that is not open only fails with EBADF.
+        unsafe { libc::close(fd as libc::c_int) };
+    }
+    Ok(())
+}
+
+/// What runs before the exec: the confinement, then closing every descriptor from `first` up.
+pub(crate) fn confine_hook(armed: crate::writelimit::Armed, first: libc::c_uint) -> impl FnMut() -> std::io::Result<()> + Send + Sync + 'static {
+    move || {
+        armed.arm()?;
+        // Once the confinement is on, this drops what the caller left open; the kernel call allocates nothing, so it
+        // is safe between the confinement and the exec.
+        close_range(first, libc::c_uint::MAX)
+    }
 }
 
 fn port(value: &OsStr) -> Result<u16, String> {
@@ -165,7 +241,7 @@ pub fn policy(spec: &Spec, env: &Env) -> Result<Policy, String> {
 
 /// A file anyone may execute.
 fn executable(path: &Path) -> bool {
-    fs::metadata(path).map_or(false, |m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+    fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
 }
 
 /// `program` itself when it names a path, else the first executable file of
@@ -238,11 +314,16 @@ fn interpreter(script: &Path, env: &Env) -> Option<PathBuf> {
 /// the confinement cannot be applied; otherwise it does not return, for the
 /// process has become the command (unless the command cannot be started).
 pub fn confine(args: &[OsString], limit: &dyn WriteLimit) -> i32 {
+    confine_from(args, limit, 3)
+}
+
+/// [`confine`], closing the descriptors from `first_fd` up before the exec (a test passes one far above its own).
+fn confine_from(args: &[OsString], limit: &dyn WriteLimit, first_fd: libc::c_uint) -> i32 {
     let spec = match parse(args) {
         Ok(spec) => spec,
         Err(message) => {
             eprintln!("{NAME}: {message}");
-            eprintln!("usage: {NAME} confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... [--write PATH]... [--net-connect PORT]... -- COMMAND [ARGS...]");
+            eprintln!("usage: {NAME} confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... [--write PATH]... [--net-connect PORT]... [--env NAME]... -- COMMAND [ARGS...]");
             return 2;
         }
     };
@@ -261,11 +342,14 @@ pub fn confine(args: &[OsString], limit: &dyn WriteLimit) -> i32 {
     }
     let mut command = Command::new(&spec.command[0]);
     command.args(&spec.command[1..]);
+    command.env_clear().envs(kept_env(std::env::vars_os(), &spec.env));
     // SAFETY: arming only makes syscalls; the launcher is single-threaded
     // here, so the limit covers the whole process the command becomes.
-    unsafe { command.pre_exec(crate::child_hook(armed)) };
+    unsafe { command.pre_exec(confine_hook(armed, first_fd)) };
     let error = command.exec();
     eprintln!("{NAME}: confine: cannot start {} under the confinement: {error}; nothing started", Path::new(&spec.command[0]).display());
+    // The hook may have closed the descriptor the ruleset is held in; dropping it would abort instead of exiting.
+    std::mem::forget(command);
     REFUSED
 }
 

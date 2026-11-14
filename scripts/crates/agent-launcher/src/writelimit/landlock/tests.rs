@@ -166,6 +166,33 @@ fn a_network_limit_handles_tcp_connect_and_bind_and_needs_abi_4() {
 }
 
 #[test]
+fn from_abi_10_the_network_limit_also_limits_udp() {
+    let attr = handled_for(&confined(Some(vec![443])), 10).unwrap();
+    assert_eq!(attr.handled_access_net, NET_BIND_TCP | NET_CONNECT_TCP | NET_BIND_UDP | NET_CONNECT_SEND_UDP);
+    // Without a network limit, UDP is left alone at any ABI.
+    assert_eq!(handled_for(&confined(None), 10).unwrap().handled_access_net, 0);
+}
+
+#[test]
+fn the_network_rules_are_the_tcp_ports_and_where_handled_udp_to_dns_and_the_ephemeral_source() {
+    let policy = confined(Some(vec![443, 8080]));
+    let tcp = RulesetAttr { handled_access_net: NET_BIND_TCP | NET_CONNECT_TCP, ..RulesetAttr::default() };
+    assert_eq!(net_rules(&policy, &tcp), vec![(NET_CONNECT_TCP, 443), (NET_CONNECT_TCP, 8080)]);
+    let both = handled_for(&policy, 10).unwrap();
+    assert_eq!(
+        net_rules(&policy, &both),
+        vec![(NET_CONNECT_TCP, 443), (NET_CONNECT_TCP, 8080), (NET_CONNECT_SEND_UDP, 53), (NET_BIND_UDP, 0)]
+    );
+    assert!(net_rules(&confined(None), &RulesetAttr::default()).is_empty());
+}
+
+#[test]
+fn a_refusal_names_what_it_could_not_allow() {
+    assert_eq!(net_name(NET_CONNECT_TCP), "TCP connections");
+    assert_eq!(net_name(NET_CONNECT_SEND_UDP), "UDP datagrams");
+}
+
+#[test]
 fn a_port_the_ruleset_does_not_handle_is_refused_by_the_kernel() {
     let message = build(&confined(Some(vec![443])), fs_only(HANDLED)).err().unwrap();
     assert!(message.starts_with("cannot allow TCP connections to port 443"), "{message}");

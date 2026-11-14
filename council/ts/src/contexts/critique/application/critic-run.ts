@@ -74,7 +74,7 @@ export async function runCritic(
     schemaPath: join(deps.assetsRoot, FINDING_SCHEMA),
     toolset,
   }).finally(async () => {
-    if (toolset.kind === 'vibe-search') await deps.search?.stop(packetDir)
+    if (toolset.kind === 'vibe-search' || toolset.kind === 'pi-search') await deps.search?.stop(packetDir)
   })
   const durationMs = deps.clock.monotonicMs() - started
   const searchFailure = choice.searchFailure ?? report.searchFailure

@@ -1075,6 +1075,8 @@ export interface PiAgentSeen {
   readonly modelsMode: number
   readonly settings: string
   readonly dirMode: number
+  /** The launch's `mcp.json`, when it had one. */
+  readonly mcp: string | undefined
 }
 
 /** What `pi --mode json` prints for a run whose last assistant message is `text`, after the tool calls named. */
@@ -1172,6 +1174,7 @@ export class FakePiProcess implements ProcessPort {
       models: await readFile(join(agentDir, 'models.json'), 'utf8'),
       modelsMode: (await stat(join(agentDir, 'models.json'))).mode & 0o777,
       settings: await readFile(join(agentDir, 'settings.json'), 'utf8'),
+      mcp: await readFile(join(agentDir, 'mcp.json'), 'utf8').catch(() => undefined),
     })
     // Pi keeps files of its own there; they go with the directory.
     await writeFile(join(agentDir, 'auth.json'), '{}\n')

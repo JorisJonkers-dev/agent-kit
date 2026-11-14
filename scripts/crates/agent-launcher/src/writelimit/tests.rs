@@ -4,7 +4,7 @@ use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 
 #[path = "../../../../test-support/fake_exe.rs"]
-mod fake_exe;
+pub(super) mod fake_exe;
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("agent-launcher-wl-{name}-{}", std::process::id()));

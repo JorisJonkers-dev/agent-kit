@@ -7,7 +7,9 @@
 //! them, connecting to a pathname UNIX socket (ABI 9) and the signal and
 //! abstract-socket scopes (ABI 6). [`Policy::connect_ports`] handles TCP
 //! connect and bind (ABI 4): a connect reaches only the listed ports, and a
-//! bind is never allowed.
+//! bind is never allowed. On a kernel with ABI 10 the same limit also takes UDP:
+//! datagrams reach port 53 alone (DNS), and the only bind is the ephemeral
+//! source port a send picks; below ABI 10 UDP stays unlimited.
 
 use std::fs;
 use std::io;
@@ -24,6 +26,10 @@ const ABI_NET: i64 = 4;
 const ABI_SCOPE: i64 = 6;
 /// The ABI that limits connecting to a pathname UNIX socket.
 const ABI_RESOLVE_UNIX: i64 = 9;
+/// The ABI that limits UDP bind and send.
+const ABI_UDP: i64 = 10;
+/// The only UDP destination port a confinement keeps: DNS.
+const DNS_PORT: u16 = 53;
 const SYS_CREATE_RULESET: libc::c_long = libc::SYS_landlock_create_ruleset;
 const SYS_ADD_RULE: libc::c_long = libc::SYS_landlock_add_rule;
 const SYS_RESTRICT_SELF: libc::c_long = libc::SYS_landlock_restrict_self;
@@ -39,6 +45,8 @@ const RESOLVE_UNIX: u64 = 1 << 16;
 const READ: u64 = READ_FILE | READ_DIR;
 const NET_BIND_TCP: u64 = 1 << 0;
 const NET_CONNECT_TCP: u64 = 1 << 1;
+const NET_BIND_UDP: u64 = 1 << 2;
+const NET_CONNECT_SEND_UDP: u64 = 1 << 3;
 const SCOPE_ABSTRACT_UNIX_SOCKET: u64 = 1 << 0;
 const SCOPE_SIGNAL: u64 = 1 << 1;
 const WRITE_FILE: u64 = 1 << 1;
@@ -84,7 +92,7 @@ impl Sys {
         if result < 0 {
             Err(io::Error::last_os_error())
         } else {
-            Ok(i64::from(result))
+            Ok(result)
         }
     }
 
@@ -203,7 +211,11 @@ fn handled_for(policy: &Policy, abi: i64) -> Result<RulesetAttr, String> {
     let scoped = if abi >= ABI_SCOPE { SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL } else { 0 };
     Ok(RulesetAttr {
         handled_access_fs: if confined { HANDLED | READ | EXECUTE | resolve_unix } else { HANDLED },
-        handled_access_net: if policy.connect_ports.is_some() { NET_BIND_TCP | NET_CONNECT_TCP } else { 0 },
+        handled_access_net: match (policy.connect_ports.is_some(), abi >= ABI_UDP) {
+            (false, _) => 0,
+            (true, false) => NET_BIND_TCP | NET_CONNECT_TCP,
+            (true, true) => NET_BIND_TCP | NET_CONNECT_TCP | NET_BIND_UDP | NET_CONNECT_SEND_UDP,
+        },
         scoped: if confined { scoped } else { 0 },
     })
 }
@@ -230,11 +242,28 @@ fn build(policy: &Policy, handled: RulesetAttr) -> Result<Armed, String> {
             grant(fd, path, access, "readable")?;
         }
     }
-    for port in policy.connect_ports.iter().flatten() {
-        Sys::add_port(fd, NET_CONNECT_TCP, *port)
-            .map_err(|e| format!("cannot allow TCP connections to port {port}: {e}"))?;
+    for (access, port) in net_rules(policy, &handled) {
+        Sys::add_port(fd, access, port).map_err(|e| format!("cannot allow {} to port {port}: {e}", net_name(access)))?;
     }
     Ok(Box::new(Ruleset(ruleset)))
+}
+
+/// The network rules of `policy` on a ruleset handling `handled`: each TCP port a connect may reach and, where the
+/// ruleset handles UDP, datagrams to the DNS port and the ephemeral source port (port 0) a first send binds to.
+fn net_rules(policy: &Policy, handled: &RulesetAttr) -> Vec<(u64, u16)> {
+    let mut rules: Vec<(u64, u16)> = policy.connect_ports.iter().flatten().map(|port| (NET_CONNECT_TCP, *port)).collect();
+    if handled.handled_access_net & NET_CONNECT_SEND_UDP != 0 {
+        rules.extend([(NET_CONNECT_SEND_UDP, DNS_PORT), (NET_BIND_UDP, 0)]);
+    }
+    rules
+}
+
+/// What a network right is called in a refusal.
+fn net_name(access: u64) -> &'static str {
+    match access {
+        NET_CONNECT_TCP => "TCP connections",
+        _ => "UDP datagrams",
+    }
 }
 
 /// A finished ruleset, waiting to be put on a child.

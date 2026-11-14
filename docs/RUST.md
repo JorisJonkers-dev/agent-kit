@@ -391,12 +391,20 @@ everything it starts:
 
 ```bash
 agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... \
-    [--write PATH]... [--net-connect PORT]... -- COMMAND [ARGS...]
+    [--write PATH]... [--net-connect PORT]... [--env NAME]... -- COMMAND [ARGS...]
 ```
 
 The launcher puts a Landlock ruleset on itself and then becomes the command
 (exec), so the caller's signals and timeout reach the command and nothing is
-left behind; it sets nothing in the environment. The ruleset handles reading
+left behind. The command inherits no more than it is given. Its environment is
+`PATH`, `HOME`, `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `TZ`, `TMPDIR`, `NO_COLOR`
+and the certificate-store variables (`SSL_CERT_FILE`, `SSL_CERT_DIR`,
+`NIX_SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`), each when the caller has it, and
+every `--env NAME` the caller names; no key, token or proxy password rides
+along unnamed, and the Pi launch names only `PI_CODING_AGENT_DIR`. Every open
+descriptor above the three standard ones is closed once the ruleset is on
+(`close_range`, kernel 5.9), so a file, socket or pipe the caller left open is
+not carried in. The ruleset handles reading
 files, listing directories and executing as well as every write-side right, so
 only these can be read:
 
@@ -420,7 +428,12 @@ the LiteLLM proxy) and no TCP port can be bound. Where the kernel has them, a
 confinement also handles connecting to a pathname UNIX socket (ABI 9, so the
 session bus, `systemd --user` and nscd are out of reach; name resolution falls
 back to `/etc/resolv.conf`) and scopes signals and abstract UNIX sockets to
-the confined processes (ABI 6). UDP is not limited (DNS uses it).
+the confined processes (ABI 6). With `--net-connect` on a kernel of Landlock
+ABI 10 UDP is limited too: datagrams reach port 53 alone (DNS) and
+the only bind is the ephemeral source port (port 0) a first send takes. Below
+ABI 10 the kernel cannot limit UDP and it stays unlimited, as TCP DNS
+fallback to port 53 stays out of reach in both cases (only the listed TCP
+ports connect).
 
 Fail closed: when the backend cannot apply the confinement in full (no
 Landlock, an ABI too old for `--net-connect`, a path that cannot be granted,
@@ -433,7 +446,9 @@ granted directory reads and a file elsewhere (and one under `~/.ssh` when the
 home has one) fails with `EACCES`, nothing outside is listed, another
 process's and its own `/proc/<pid>/environ` are unreadable, only the
 `--write` directory is writable, a connect to a port not listed and a bind
-fail with `EACCES` while the listed port connects, the exit code is the
+fail with `EACCES` while the listed port connects, UDP reaches port 53 and (on ABI 10) no other
+port, a secret variable and an open descriptor of the caller are not there in the command,
+the exit code is the
 command's, a grant that cannot be made exits 125 without running it, and
 `--run-from` lets a packaged script read its package while, without it, the
 script cannot even be executed.
