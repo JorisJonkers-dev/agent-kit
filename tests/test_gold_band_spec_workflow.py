@@ -30,8 +30,9 @@ ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 
 #: The critic client of the stage's roster (``stages.spec.base``) names the
 #: Gold Band agent that runs it (registry/estate-tooling.yaml, ``gold_band.agents``):
-#: vibe-mistral-large runs as ``vibe``, agy-gemini-flash-high as ``agy``.
-ROSTER_AGENT = {"vibe-mistral-large": "vibe", "agy-gemini-flash-high": "agy"}
+#: the Mistral critic (pi-vibe-mistral-large, on Pi over the Vibe route; the template runs it through the
+#: ``vibe`` agent) runs as ``vibe``, agy-gemini-flash-high as ``agy``.
+ROSTER_AGENT = {"pi-vibe-mistral-large": "vibe", "agy-gemini-flash-high": "agy"}
 # ---------------------------------------------------------------------------
 # The template as a file: what no Gold Band binary is needed to see
 # ---------------------------------------------------------------------------

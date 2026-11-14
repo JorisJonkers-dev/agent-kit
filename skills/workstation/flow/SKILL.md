@@ -330,6 +330,12 @@ By `repository.status`:
      and issue text to those families. Without it, a stage leaves history
      out. On yes, run `allow` again with the same families and
      `"history": true`.
+  4. **Public**, only when the repository is public on GitHub (never offer
+     it for a private one): the public flag, off by default, lets the
+     clients on a public-only LiteLLM route (`public`, `openrouter`)
+     critique it. Without it those clients are never routed to this
+     repository. On yes, run `allow` again with the same families and
+     `"public": true`.
 
 Without `repository` (outside a repository), skip this step.
 

@@ -16,6 +16,9 @@ pub struct Entry {
     pub code: bool,
     /// Whether the repository may send its history. An entry recorded before the permission existed reads as false.
     pub history: bool,
+    /// Whether the repository is public, so that a client on a public-only LiteLLM route may critique it. An entry
+    /// recorded before the flag existed reads as private, and only `allow` ever sets it.
+    pub public: bool,
     pub updated_at: String,
 }
 
@@ -45,15 +48,12 @@ impl Allowlist {
         let mut repositories = Object::new();
         for (key, entry) in &self.repositories {
             let families = Value::Arr(entry.families.iter().map(|family| Value::str(family)).collect());
-            repositories.set(
-                key,
-                json::object(vec![
-                    ("code", Value::Bool(entry.code)),
-                    ("families", families),
-                    ("history", Value::Bool(entry.history)),
-                    ("updated_at", Value::str(&entry.updated_at)),
-                ]),
-            );
+            let mut fields = vec![("code", Value::Bool(entry.code)), ("families", families), ("history", Value::Bool(entry.history))];
+            if entry.public {
+                fields.push(("public", Value::Bool(true)));
+            }
+            fields.push(("updated_at", Value::str(&entry.updated_at)));
+            repositories.set(key, json::object(fields));
         }
         let file = json::object(vec![("version", Value::Num(1.0)), ("repositories", Value::Obj(repositories))]);
         format!("{}\n", json::pretty(&file))
@@ -69,6 +69,7 @@ pub fn parse_allowlist(text: &str) -> Result<Allowlist, ShapeError> {
             code: if entry.has("code") { entry.boolean("code")? } else { false },
             families: entry.one_of_list("families", &ALLOWLIST_FAMILIES)?,
             history: if entry.has("history") { entry.boolean("history")? } else { false },
+            public: if entry.has("public") { entry.boolean("public")? } else { false },
             updated_at: entry.string("updated_at")?,
         })
     })?;

@@ -135,6 +135,12 @@ export interface RunManifest {
   readonly run_dir: string
   readonly packet_dir: string
   readonly allowed_families: readonly AllowlistFamily[]
+  /**
+   * Present, and true, only when the repository's allowlist entry said it was
+   * public when the run was prepared. Without it the repository is private, so
+   * no client on a public-only LiteLLM route runs for it, refuters included.
+   */
+  readonly public_repository?: true
   readonly artifact: ArtifactSource
   /**
    * The flow this run belongs to: the spend of every run of one flow of one
@@ -205,6 +211,7 @@ export function parseManifest(text: string): RunManifest {
     limits: readLimits(file.object('limits')),
     orchestrator_family: file.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
     packet_dir: file.string('packet_dir'),
+    ...(file.has('public_repository') && file.boolean('public_repository') ? { public_repository: true as const } : {}),
     ...(file.has('code') ? { code: readCodeSource(file.object('code')) } : {}),
     ...(file.has('work')
       ? { work: file.object('work').has('grant_workflow') ? { grant_workflow: file.object('work').string('grant_workflow') } : {} }

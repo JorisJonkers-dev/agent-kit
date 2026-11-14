@@ -67,6 +67,15 @@ employer code (`nedap`), a secret, a transcript, a customer's data or anything u
 never route a critic on a private repository to one. When unsure, use a `canonical` key: a model a
 paid provider serves is reachable there too.
 
+The critique runner enforces the last rule rather than leaving it to care (#737). Every Pi critic
+client in `skills/workstation/critique/routing.json` names its route's `data_scope` (`any` or
+`public`; `tests/test_critique_setup.py` checks it against `routes.json`). A client with
+`data_scope: public` is routed only to a repository whose entry in the machine's critique allowlist
+says `"public": true` (set with `critique allow`, off for every new entry). For any other repository
+the roster drops it with the reason `data-scope`, it is never kept as a fallback, and a refute round
+passes it over. The check lives in both runners (`council/ts` and `scripts/crates/critique`), each
+with tests.
+
 There is no route for OpenCode Zen's free models: OpenCode's docs say they answer HTTP 403 to
 every client but OpenCode itself, so a route through the proxy would serve nothing.
 

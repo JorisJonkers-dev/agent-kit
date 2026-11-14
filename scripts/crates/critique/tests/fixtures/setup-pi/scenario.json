@@ -14,7 +14,7 @@
         "bin"
       ],
       "write": {
-        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-vibe-study-glm\":{\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"pi-opencode-go-deepseek\":{\"binary\":\"pi\",\"family\":\"deepseek\",\"kind\":\"pi\",\"model\":\"deepseek-v4-flash\",\"provider\":\"litellm-opencode-go\"}}}\n"
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-vibe-study-glm\":{\"data_scope\":\"any\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"},\"pi-opencode-go-deepseek\":{\"binary\":\"pi\",\"data_scope\":\"any\",\"family\":\"deepseek\",\"kind\":\"pi\",\"model\":\"deepseek-v4-flash\",\"provider\":\"litellm-opencode-go\"}}}\n"
       }
     },
     {
@@ -353,7 +353,7 @@
         "bin"
       ],
       "write": {
-        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"openai\"}}}\n"
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"data_scope\":\"any\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"openai\"}}}\n"
       }
     },
     {
@@ -369,7 +369,7 @@
         "bin"
       ],
       "write": {
-        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm--x\"}}}\n"
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"data_scope\":\"any\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm--x\"}}}\n"
       }
     },
     {
@@ -385,7 +385,7 @@
         "bin"
       ],
       "write": {
-        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"family\":\"nobody\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"}}}\n"
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"data_scope\":\"any\",\"family\":\"nobody\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"}}}\n"
       }
     },
     {
@@ -401,7 +401,7 @@
         "bin"
       ],
       "write": {
-        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\",\"binary\":5}}}\n"
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-x\":{\"data_scope\":\"any\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\",\"binary\":5}}}\n"
       }
     }
   ]

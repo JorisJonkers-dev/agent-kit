@@ -94,6 +94,34 @@
         "--json",
         "{\"repo\":\"@SANDBOX@/work/r2\",\"families\":[\"zhipu\"],\"extra\":\"ignored\"}"
       ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"mistral\"],\"public\":true}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"mistral\",\"zhipu\"]}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"mistral\"],\"public\":false}"
+      ]
+    },
+    {
+      "argv": [
+        "allow",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/r1\",\"families\":[\"mistral\"],\"public\":\"yes\"}"
+      ]
     }
   ]
 }

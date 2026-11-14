@@ -29,7 +29,7 @@ afterEach(async () => {
   await Promise.all(open.splice(0).map((h) => h.cleanup()))
 })
 
-const PI_CLIENT = { family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' } as const
+const PI_CLIENT = { data_scope: 'any', family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' } as const
 const CONFIG: PiCriticClient = { binary: 'pi', ...PI_CLIENT }
 
 /** A routing override whose spec roster is one Pi critic, base and deep. */

@@ -18,8 +18,8 @@ const q = (text) => `'${text.split("'").join("'\\''")}'`
 const scenarios = {}
 const ALLOWLIST = 'home/.config/agent-kit/critique-allowlist.json'
 const OVERRIDE = 'home/.config/agent-kit/critique-routing.json'
-const allow = (families = ['mistral', 'zhipu', 'deepseek', 'google'], code = true, history = false) => ({
-  [ALLOWLIST]: `${JSON.stringify({ repositories: { [KEY]: { code, families, history, updated_at: '2026-11-01T00:00:00.000Z' } }, version: 1 })}\n`,
+const allow = (families = ['mistral', 'zhipu', 'deepseek', 'google'], code = true, history = false, isPublic = false) => ({
+  [ALLOWLIST]: `${JSON.stringify({ repositories: { [KEY]: { code, families, history, ...(isPublic ? { public: true } : {}), updated_at: '2026-11-01T00:00:00.000Z' } }, version: 1 })}\n`,
 })
 const roots = (...dirs) => dirs.map((dir) => `repos/${dir}/.git/critique`)
 
@@ -254,6 +254,18 @@ scenarios['prepare-roster'] = [
   prepare({ stage: 'decisions', orchestrator_family: 'openai', repo: R('k1'), feature: 'a feature', decision_summary: 'We chose X.' }, { write: { 'home/.local/share/agent-kit/critique/ledger.jsonl': agyLines(12) }, roots: roots('k1') }),
   prepare({ stage: 'spec', orchestrator_family: 'openai', repo: R('k1'), spec: 'docs/spec.md' }, { write: { 'home/.config/agent-kit/model-gateway.json': '{"clients":{"vibe":{"plan_limits":[{"window":"day","limit_usd":0.00033}]}}}\n', 'state/agent-kit/model-gateway/ledger.jsonl': `${JSON.stringify({ at: '2026-11-03T09:00:00.000Z', client: 'vibe', model: 'm', cost_usd: 0.0003, outcome: 'ok', run_id: 'r1', workflow: 'w' })}\n` }, roots: roots('k1') }),
   prepare({ stage: 'spec', orchestrator_family: 'openai', repo: R('k1'), spec: 'docs/spec.md' }, { write: { 'home/.config/agent-kit/model-gateway.json': '{"clients":{"vibe":{"plan_limits":[{"window":"day","limit_usd":0.0002}]}}}\n', 'state/agent-kit/model-gateway/ledger.jsonl': `${JSON.stringify({ at: '2026-11-03T09:00:00.000Z', client: 'vibe', model: 'm', cost_usd: 0.0003, outcome: 'ok', run_id: 'r1', workflow: 'w' })}\n` }, roots: roots('k1') }),
+]
+
+// A Pi client on a public-only route is not routed to a repository the allowlist does not record as public: its slot goes to
+// the Vibe client behind it, and the dropped critic says why. Once the entry says public the bar is gone (the Pi client is
+// then merely not installed here).
+const PUBLIC_PI = { binary: 'pi', data_scope: 'public', family: 'zhipu', kind: 'pi', model: 'glm-5-3', provider: 'litellm-vibe-study' }
+const SCOPE_ROUTING = `${JSON.stringify({ clients: { 'pi-public-glm': PUBLIC_PI }, fallbacks: { 'pi-public-glm': ['vibe-glm'] }, stages: { spec: { base: [{ client: 'pi-public-glm', role: 'spec-redteam', lenses: ['fidelity'], max_price_usd: 0.5, time_limit_s: 600 }], deep: [] } } })}\n`
+const SCOPE_STEP = { stage: 'spec', orchestrator_family: 'openai', repo: R('k1'), spec: 'docs/spec.md' }
+scenarios['prepare-data-scope'] = [
+  ...setup({ k1: { files: { ...LOCAL, 'docs/spec.md': '# Spec\n\n## User Stories\n\n1. one\n' } } }),
+  prepare(SCOPE_STEP, { write: { ...allow(['mistral', 'zhipu']), 'bin/vibe': '#!/bin/sh\nexit 0\n', ...VIBE_HOME, [OVERRIDE]: SCOPE_ROUTING }, exec: ['bin/vibe'], roots: roots('k1') }),
+  prepare(SCOPE_STEP, { write: { ...allow(['mistral', 'zhipu'], true, false, true), [OVERRIDE]: SCOPE_ROUTING }, roots: roots('k1') }),
 ]
 
 /** A routing override stays where a step wrote it, so the next step without one of its own starts without it. */

@@ -1,10 +1,8 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 import {
-  ASSETS_ROOT,
   fenced,
   finding,
   harness,
@@ -15,6 +13,7 @@ import {
   type Harness,
   type SyntheticCritic,
   type SyntheticFinding,
+  vibeRosterRouting,
 } from '../../../test/critique/harness.js'
 import type { StatsCell, StatsResult } from './index.js'
 
@@ -75,10 +74,7 @@ function runs(
 }
 
 async function shippedRouting(): Promise<Record<string, unknown>> {
-  return JSON.parse(await readFile(join(ASSETS_ROOT, 'routing.json'), 'utf8')) as Record<
-    string,
-    unknown
-  >
+  return vibeRosterRouting()
 }
 
 async function opened(options: Parameters<typeof harness>[0] = {}): Promise<Harness> {

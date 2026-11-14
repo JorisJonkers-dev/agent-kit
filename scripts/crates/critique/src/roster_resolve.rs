@@ -3,7 +3,7 @@
 
 use crate::error::CritiqueError;
 use crate::roster::{DroppedCritic, RosterCritic, RosterFallback};
-use crate::routing::{stage_routing, CriticClient, RosterSlot, Routing, StageRouting};
+use crate::routing::{data_scope_bar, DATA_SCOPE_REASON, stage_routing, CriticClient, RosterSlot, Routing, StageRouting};
 use std::collections::HashMap;
 
 /// What a roster is resolved for.
@@ -14,6 +14,8 @@ pub struct RosterRequest<'a> {
     pub orchestrator_family: &'a str,
     /// Whether the artifact holds a decision record, which adds the stage's ADR critics.
     pub adr: bool,
+    /// Whether the repository's allowlist entry says it is public; a repository is private unless it does.
+    pub public_repository: bool,
 }
 
 /// Whether a client may run in this run: ready, and within its quota. A client past the Antigravity quota is set up
@@ -83,6 +85,14 @@ fn slots_at<'a>(stage: &'a StageRouting, request: &RosterRequest) -> Vec<(&'a Ro
     slots
 }
 
+/// Why a client may not run for this repository, whatever its readiness: its route's data scope, then its family.
+fn client_reason(client: &CriticClient, request: &RosterRequest) -> Option<&'static str> {
+    if data_scope_bar(client, request.public_repository) {
+        return Some("data-scope");
+    }
+    family_reason(client_family(client), request)
+}
+
 fn family_reason(family: &str, request: &RosterRequest) -> Option<&'static str> {
     if !request.allowed_families.iter().any(|allowed| allowed == family) {
         return Some("family-not-allowed");
@@ -105,7 +115,7 @@ pub fn candidate_clients<'a>(routing: &'a Routing, request: &RosterRequest) -> R
     let mut candidates = Vec::new();
     for name in names {
         let client = client_named(routing, request.stage, &name)?;
-        if family_reason(client_family(client), request).is_none() {
+        if client_reason(client, request).is_none() {
             candidates.push((name, client));
         }
     }
@@ -115,10 +125,10 @@ pub fn candidate_clients<'a>(routing: &'a Routing, request: &RosterRequest) -> R
 /// Why a client may not run, or `None`: the family rules, then the readiness it was asked for.
 fn refusal(stage: &StageRouting, critics: &[RosterCritic], request: &RosterRequest, readiness: &HashMap<String, Availability>, name: &str, client: &CriticClient) -> Option<(Option<String>, String)> {
     let family = client_family(client);
-    let reason = family_reason(family, request)
+    let reason = client_reason(client, request)
         .or_else(|| (stage.distinct_families && critics.iter().any(|critic| client_family(&critic.client_config) == family)).then_some("same-family"));
     if let Some(reason) = reason {
-        return Some((None, reason.to_string()));
+        return Some(((reason == "data-scope").then(|| DATA_SCOPE_REASON.to_string()), reason.to_string()));
     }
     let ready = readiness.get(name).filter(|ready| !ready.ready)?;
     Some((Some(ready.detail.clone()), ready.reason.unwrap_or("unavailable").to_string()))
@@ -146,7 +156,7 @@ pub fn resolve_roster(routing: &Routing, request: &RosterRequest, readiness: &Ha
         for candidate in candidates.iter().filter(|candidate| Some(*candidate) != name) {
             let client = client_named(routing, request.stage, candidate)?;
             let ready = readiness.get(candidate).is_none_or(|ready| ready.ready);
-            if family_reason(client_family(client), request).is_none() && ready {
+            if client_reason(client, request).is_none() && ready {
                 fallbacks.push(RosterFallback { client: candidate.clone(), client_config: client.clone() });
             }
         }

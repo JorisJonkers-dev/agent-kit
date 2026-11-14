@@ -101,6 +101,7 @@ fn full_manifest() -> RunManifest {
         run_dir: "runs/r1".to_string(),
         packet_dir: "runs/r1/packet".to_string(),
         allowed_families: vec!["mistral".to_string(), "google".to_string()],
+        public_repository: true,
         artifact: ArtifactSource { tracker: "github".to_string(), reference: "o/r#1".to_string(), labels: vec!["bug".to_string()] },
         flow: "flow-1".to_string(),
         limits: CritiqueLimits {
@@ -186,6 +187,7 @@ fn full_text() -> String {
         ("packet_files", PACKET_FILES),
         ("plan_warnings", r#"["plan at 80%"]"#),
         ("previous_run_id", r#""r0""#),
+        ("public_repository", "true"),
         ("round", "2"),
         ("stage", r#""ticket-review""#),
         ("ticket_check", TICKET_CHECK),

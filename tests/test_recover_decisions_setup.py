@@ -147,8 +147,8 @@ def test_the_pipeline_readme_has_the_stage_row_for_decision_recovery() -> None:
 def test_shipped_routing_gives_decision_recovery_deepseek_and_mistral_large_and_its_depth_signals() -> None:
     stage = json.loads((CRITIQUE / "routing.json").read_text())["stages"]["decision-recovery"]
     assert [(slot["client"], slot["role"]) for slot in stage["base"]] == [
-        ("vibe-deepseek-flash", "decision-recoverer"),
-        ("vibe-mistral-large", "decision-recoverer"),
+        ("pi-vibe-deepseek-flash", "decision-recoverer"),
+        ("pi-vibe-mistral-large", "decision-recoverer"),
     ]
     assert stage["distinct_families"] is True
     assert stage["depth_signals"]["thresholds"] == {"source_lines": 20000, "context_maps": 0}

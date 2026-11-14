@@ -29,7 +29,7 @@ use crate::refute_round::{
     choose_refuter, count_outcomes, family_bar, judge_reply, record_json, refute_ledger_line, refuter_candidates, skipped, with_finding,
     JudgeContext, RefuteLedgerContext, RefuterCandidate, RefuterReply, RefuterRules,
 };
-use crate::routing::CriticClient;
+use crate::routing::{data_scope_bar, CriticClient, DATA_SCOPE_REASON};
 use crate::routing_source::load_routing;
 use crate::runtime::Runtime;
 use crate::tripwire::ReadOnlyTripwire;
@@ -214,6 +214,10 @@ fn blocked(runtime: &Runtime, manifest: &RunManifest, candidates: &[RefuterCandi
     let mut reasons = HashMap::new();
     for candidate in candidates {
         let config = &candidate.client_config;
+        if data_scope_bar(config, manifest.public_repository) {
+            reasons.insert(candidate.client.clone(), DATA_SCOPE_REASON.to_string());
+            continue;
+        }
         if !manifest.allowed_families.iter().any(|family| family == config.family()) || config.family() == manifest.orchestrator_family {
             continue;
         }

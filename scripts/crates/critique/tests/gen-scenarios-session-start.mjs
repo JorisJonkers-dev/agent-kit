@@ -19,7 +19,7 @@ const LOG = ['home/.local/share/agent-kit/critique']
 const allow = `${JSON.stringify({ repositories: { [KEY]: { families: ['mistral'], updated_at: '2026-11-01T00:00:00.000Z' } }, version: 1 })}\n`
 const result = (outcome, inputs = {}) => ({ checked_at: '2026-11-01T00:00:00.000Z', detail: 'd', inputs, result: outcome })
 const results = (checks) => `${JSON.stringify({ checks, version: 1 })}\n`
-const ALL = ['vibe-signed-in', 'critic:vibe-mistral-large', 'critic:vibe-glm', 'critic:vibe-deepseek-flash', 'critic:vibe-mistral-small', 'agy-signed-in', 'critic:agy-gemini-flash-high', 'agy-quota', 'hooks-installed', 'kill-switch']
+const ALL = ['vibe-signed-in', 'critic:vibe-mistral-large', 'critic:vibe-glm', 'critic:vibe-deepseek-flash', 'critic:vibe-mistral-small', 'agy-signed-in', 'critic:agy-gemini-flash-high', 'agy-quota', 'pi-signed-in', 'critic:pi-vibe-mistral-large', 'critic:pi-vibe-glm', 'critic:pi-vibe-deepseek-flash', 'critic:pi-opencode-go-mistral-large', 'critic:pi-opencode-go-glm', 'critic:pi-opencode-go-deepseek-flash', 'critic:pi-public-gemini-flash', 'hooks-installed', 'kill-switch']
 const every = (outcome) => Object.fromEntries(ALL.map((id) => [id, result(outcome)]))
 
 const setup = {

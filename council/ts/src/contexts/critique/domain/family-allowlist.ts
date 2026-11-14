@@ -55,6 +55,12 @@ export interface AllowlistEntry {
    * false. An entry recorded before the permission existed reads as false.
    */
   readonly history: boolean
+  /**
+   * Whether the repository is public, so that a client on a public-only
+   * LiteLLM route may critique it. Absent, or an entry recorded before the
+   * flag existed, it is private: the flag is only ever set by `allow`.
+   */
+  readonly public?: boolean
   readonly updated_at: string
 }
 
@@ -73,6 +79,7 @@ export function parseAllowlist(text: string): FamilyAllowlist {
       code: entry.has('code') ? entry.boolean('code') : false,
       families: entry.oneOfList('families', ALLOWLIST_FAMILIES),
       history: entry.has('history') ? entry.boolean('history') : false,
+      ...(entry.has('public') && entry.boolean('public') ? { public: true } : {}),
       updated_at: entry.string('updated_at'),
     })),
     version: file.literal('version', 1),
@@ -82,14 +89,16 @@ export function parseAllowlist(text: string): FamilyAllowlist {
 export function withEntry(
   allowlist: FamilyAllowlist,
   key: string,
-  permission: Pick<AllowlistEntry, 'families' | 'code' | 'history'>,
+  permission: Pick<AllowlistEntry, 'families' | 'code' | 'history' | 'public'>,
   at: Date,
 ): FamilyAllowlist {
   return {
     version: 1,
     repositories: {
       ...allowlist.repositories,
-      [key]: { code: permission.code, families: permission.families, history: permission.history, updated_at: at.toISOString() },
+      [key]: { code: permission.code, families: permission.families, history: permission.history,
+        ...(permission.public === true ? { public: true } : {}),
+        updated_at: at.toISOString() },
     },
   }
 }

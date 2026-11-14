@@ -461,6 +461,7 @@ function parseAllowlist(text) {
       code: entry2.has("code") ? entry2.boolean("code") : false,
       families: entry2.oneOfList("families", ALLOWLIST_FAMILIES),
       history: entry2.has("history") ? entry2.boolean("history") : false,
+      ...entry2.has("public") && entry2.boolean("public") ? { public: true } : {},
       updated_at: entry2.string("updated_at")
     })),
     version: file.literal("version", 1)
@@ -471,7 +472,13 @@ function withEntry(allowlist, key2, permission, at) {
     version: 1,
     repositories: {
       ...allowlist.repositories,
-      [key2]: { code: permission.code, families: permission.families, history: permission.history, updated_at: at.toISOString() }
+      [key2]: {
+        code: permission.code,
+        families: permission.families,
+        history: permission.history,
+        ...permission.public === true ? { public: true } : {},
+        updated_at: at.toISOString()
+      }
     }
   };
 }
@@ -597,6 +604,7 @@ var AllowCommand = class {
       code: fields.has("code") ? fields.boolean("code") : void 0,
       families: fields.oneOfList("families", ALLOWLIST_FAMILIES),
       history: fields.has("history") ? fields.boolean("history") : void 0,
+      public: fields.has("public") ? fields.boolean("public") : void 0,
       repo: fields.string("repo")
     }));
     const repository = await this.repositories.resolve(input.repo);
@@ -606,10 +614,19 @@ var AllowCommand = class {
     const current = allowlist.repositories[repository.key];
     const code = input.code ?? current?.code ?? false;
     const history = input.history ?? current?.history ?? false;
-    const next = withEntry(allowlist, repository.key, { code, families: input.families, history }, this.deps.clock.now());
+    const isPublic = input.public ?? current?.public ?? false;
+    const next = withEntry(allowlist, repository.key, { code, families: input.families, history, public: isPublic }, this.deps.clock.now());
     await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}
 `);
-    return { allowlist_path: path, code, families: input.families, history, repository: repository.key, status: "allowed" };
+    return {
+      allowlist_path: path,
+      code,
+      families: input.families,
+      history,
+      ...isPublic ? { public: true } : {},
+      repository: repository.key,
+      status: "allowed"
+    };
   }
 };
 
@@ -4954,6 +4971,11 @@ function parseTriageIndexRecord(text) {
 }
 
 // src/contexts/critique/domain/routing.ts
+var DATA_SCOPES = ["any", "public"];
+var DATA_SCOPE_REASON = "its LiteLLM route is public-only and this repository is not recorded as public";
+function dataScopeBar(client, publicRepository) {
+  return client.kind === "pi" && client.data_scope === "public" && !publicRepository;
+}
 var CLIENT_KINDS = ["vibe", "agy", "codex", "claude", "pi"];
 function isWorkClient(client) {
   return client.kind === "codex" || client.kind === "claude";
@@ -4978,7 +5000,7 @@ function readColdReadRouting(fields, clients) {
   }
   return { client, client_config: config, max_price_usd: fields.number("max_price_usd"), time_limit_s: fields.number("time_limit_s") };
 }
-var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable", "quota", "no-grant"];
+var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable", "quota", "no-grant", "data-scope"];
 function parseRouting(text) {
   const file = JsonFields.parse(text);
   const clients = file.entries("clients", readCriticClient);
@@ -5043,6 +5065,7 @@ function readCriticClient(fields) {
   if (kind === "pi") {
     return {
       binary: fields.has("binary") ? fields.string("binary") : "pi",
+      data_scope: fields.oneOf("data_scope", DATA_SCOPES),
       family: fields.oneOf("family", MODEL_FAMILIES),
       kind,
       model: fields.string("model"),
@@ -5121,15 +5144,15 @@ function readDroppedCritic(fields) {
 }
 function candidateClients(routing, request) {
   const names = new Set(slotsAt(stageRouting(routing, request), request).flatMap(({ slot }) => slotCandidates(routing, slot.client)));
-  return [...names].map((name) => [name, clientNamed(routing, request, name)]).filter(([, client]) => familyReason(client.family, request) === void 0);
+  return [...names].map((name) => [name, clientNamed(routing, request, name)]).filter(([, client]) => clientReason(client, request) === void 0);
 }
 function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) {
   const stage = stageRouting(routing, request);
   const critics = [];
   const dropped = [];
   const refusal2 = (name, client) => {
-    const reason = familyReason(client.family, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
-    if (reason !== void 0) return { reason };
+    const reason = clientReason(client, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
+    if (reason !== void 0) return reason === "data-scope" ? { detail: DATA_SCOPE_REASON, reason } : { reason };
     const ready = readiness.get(name);
     if (ready?.ready !== false) return void 0;
     return { detail: ready.detail, reason: "reason" in ready ? ready.reason : "unavailable" };
@@ -5141,7 +5164,7 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
       (candidate) => refusal2(candidate, clientNamed(routing, request, candidate)) === void 0
     );
     const fallbacks = slotCandidates(routing, slot.client).filter((candidate) => candidate !== name).map((candidate) => ({ client: candidate, client_config: clientNamed(routing, request, candidate) })).filter(
-      (fallback) => familyReason(fallback.client_config.family, request) === void 0 && readiness.get(fallback.client)?.ready !== false
+      (fallback) => clientReason(fallback.client_config, request) === void 0 && readiness.get(fallback.client)?.ready !== false
     );
     const chosen = name === void 0 ? void 0 : {
       ...slot,
@@ -5184,6 +5207,10 @@ function clientNamed(routing, request, name) {
     throw new CritiqueError("invalid-routing", `routing stage ${request.stage} names unknown client ${name}`);
   }
   return client;
+}
+function clientReason(client, request) {
+  if (dataScopeBar(client, request.publicRepository === true)) return "data-scope";
+  return familyReason(client.family, request);
 }
 function familyReason(family, request) {
   if (!request.allowedFamilies.includes(family)) return "family-not-allowed";
@@ -5296,6 +5323,7 @@ function parseManifest(text) {
     limits: readLimits(file.object("limits")),
     orchestrator_family: file.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
     packet_dir: file.string("packet_dir"),
+    ...file.has("public_repository") && file.boolean("public_repository") ? { public_repository: true } : {},
     ...file.has("code") ? { code: readCodeSource(file.object("code")) } : {},
     ...file.has("work") ? { work: file.object("work").has("grant_workflow") ? { grant_workflow: file.object("work").string("grant_workflow") } : {} } : {},
     ...file.has("plan_warnings") ? { plan_warnings: file.strings("plan_warnings") } : {},
@@ -10523,7 +10551,7 @@ var PrepareCommand = class {
       input.depth
     );
     const grant = repository.work ? await this.workGrant(input, workGrantClient(routing, stage)) : void 0;
-    const roster = grant !== void 0 ? await this.workRoster(routing, { grant, orchestratorFamily, stage }) : await this.openRoster(routing, { adr: contents.holdsAdr === true, allowedFamilies: entry2.families, depth, orchestratorFamily, stage });
+    const roster = grant !== void 0 ? await this.workRoster(routing, { grant, orchestratorFamily, stage }) : await this.openRoster(routing, { adr: contents.holdsAdr === true, allowedFamilies: entry2.families, depth, orchestratorFamily, publicRepository: entry2.public === true, stage });
     const planWarnings = roster.critics.some((critic) => critic.client_config.kind === "vibe") ? (await this.deps.plan.read("vibe")).warnings : [];
     const runId2 = await this.freshRunId(repository, stage);
     const runDir = join30(repository.commonDir, "critique", runId2);
@@ -10551,6 +10579,7 @@ var PrepareCommand = class {
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
       packet_files: packetFiles,
+      ...entry2.public === true ? { public_repository: true } : {},
       ...planWarnings.length === 0 ? {} : { plan_warnings: planWarnings },
       repo_root: repository.root,
       repository: repository.key,
@@ -11605,8 +11634,9 @@ var RefuteCommand = class {
     const plan = (await this.deps.plan.read("vibe")).unable_to_start;
     const quota = quotaReached(await budget.agyInvocationsToday(), manifest.limits.antigravity_quota, manifest.stage);
     const eligible = candidates.filter(
-      ({ client_config: config }) => manifest.allowed_families.includes(config.family) && config.family !== manifest.orchestrator_family
+      ({ client_config: config }) => manifest.allowed_families.includes(config.family) && config.family !== manifest.orchestrator_family && !dataScopeBar(config, manifest.public_repository === true)
     );
+    const scoped = candidates.filter(({ client_config: config }) => dataScopeBar(config, manifest.public_repository === true)).map(({ client }) => [client, DATA_SCOPE_REASON]);
     const reasons = await Promise.all(
       eligible.map(async ({ client, client_config: config }) => {
         const limit = config.kind === "vibe" ? plan : config.kind === "agy" ? quota : void 0;
@@ -11617,7 +11647,7 @@ var RefuteCommand = class {
         return [client, ready.ready ? void 0 : ready.detail];
       })
     );
-    return new Map(reasons.flatMap(([client, reason]) => reason === void 0 ? [] : [[client, reason]]));
+    return new Map([...scoped, ...reasons.flatMap(([client, reason]) => reason === void 0 ? [] : [[client, reason]])]);
   }
   /**
    * Why Codex may not refute on a `nedap` repository: the grant that let it
