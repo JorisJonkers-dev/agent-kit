@@ -308,3 +308,14 @@ fn an_employer_root_that_cannot_be_resolved_is_refused() {
     };
     assert!(profile(&policy).unwrap_err().contains("cannot resolve"));
 }
+
+#[test]
+fn a_confinement_is_refused_until_it_is_proven_on_macos() {
+    for policy in [
+        Policy { reads: Some(crate::Reads::default()), ..Policy::default() },
+        Policy { connect_ports: Some(vec![443]), ..Policy::default() },
+    ] {
+        let message = SandboxExec::system().prepare(&policy).err().unwrap();
+        assert!(message.contains("not built for sandbox-exec"), "{message}");
+    }
+}

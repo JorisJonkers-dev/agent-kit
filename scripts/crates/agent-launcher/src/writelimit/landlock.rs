@@ -1,4 +1,13 @@
 //! The Linux write-limit backend: Landlock, through its three syscalls.
+//!
+//! A write limit handles the write-side rights alone, so reads and execution
+//! stay unrestricted. A confinement ([`Policy::reads`], `agent-launcher
+//! confine`) also handles reading files, listing directories and executing,
+//! so only the granted paths can be read or run, and, where the kernel has
+//! them, connecting to a pathname UNIX socket (ABI 9) and the signal and
+//! abstract-socket scopes (ABI 6). [`Policy::connect_ports`] handles TCP
+//! connect and bind (ABI 4): a connect reaches only the listed ports, and a
+//! bind is never allowed.
 
 use std::fs;
 use std::io;
@@ -9,12 +18,29 @@ use std::path::Path;
 use super::{Arm, Armed, Policy, WriteLimit};
 
 const ABI_MIN: i64 = 3;
+/// The ABI that limits TCP (Linux 6.7).
+const ABI_NET: i64 = 4;
+/// The ABI with the signal and abstract UNIX socket scopes (Linux 6.12).
+const ABI_SCOPE: i64 = 6;
+/// The ABI that limits connecting to a pathname UNIX socket.
+const ABI_RESOLVE_UNIX: i64 = 9;
 const SYS_CREATE_RULESET: libc::c_long = libc::SYS_landlock_create_ruleset;
 const SYS_ADD_RULE: libc::c_long = libc::SYS_landlock_add_rule;
 const SYS_RESTRICT_SELF: libc::c_long = libc::SYS_landlock_restrict_self;
 const CREATE_RULESET_VERSION: u32 = 1;
 const RULE_PATH_BENEATH: u32 = 1;
+const RULE_NET_PORT: u32 = 2;
 
+const EXECUTE: u64 = 1 << 0;
+const READ_FILE: u64 = 1 << 2;
+const READ_DIR: u64 = 1 << 3;
+const RESOLVE_UNIX: u64 = 1 << 16;
+/// Reading a file and listing a directory.
+const READ: u64 = READ_FILE | READ_DIR;
+const NET_BIND_TCP: u64 = 1 << 0;
+const NET_CONNECT_TCP: u64 = 1 << 1;
+const SCOPE_ABSTRACT_UNIX_SOCKET: u64 = 1 << 0;
+const SCOPE_SIGNAL: u64 = 1 << 1;
 const WRITE_FILE: u64 = 1 << 1;
 const REMOVE_DIR: u64 = 1 << 4;
 const REMOVE_FILE: u64 = 1 << 5;
@@ -27,9 +53,21 @@ const HANDLED: u64 = WRITE_FILE | REMOVE_DIR | REMOVE_FILE | MAKE_ANY | REFER | 
 /// The rights that apply to a file rather than a directory.
 const FILE_ONLY: u64 = WRITE_FILE | TRUNCATE;
 
+/// What a ruleset handles: every right named here is denied unless a rule
+/// grants it. The kernel takes a larger structure than it knows as long as
+/// the fields it does not know are zero, so all three are always passed.
 #[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct RulesetAttr {
     handled_access_fs: u64,
+    handled_access_net: u64,
+    scoped: u64,
+}
+
+#[repr(C)]
+struct NetPort {
+    allowed_access: u64,
+    port: u64,
 }
 
 #[repr(C, packed)]
@@ -62,15 +100,12 @@ impl Sys {
         })
     }
 
-    fn create(handled: u64) -> io::Result<OwnedFd> {
-        let attr = RulesetAttr {
-            handled_access_fs: handled,
-        };
+    fn create(attr: &RulesetAttr) -> io::Result<OwnedFd> {
         // SAFETY: `attr` is a valid, live attribute of the size passed.
         let fd = Self::call(unsafe {
             libc::syscall(
                 SYS_CREATE_RULESET,
-                &attr as *const RulesetAttr,
+                attr as *const RulesetAttr,
                 std::mem::size_of::<RulesetAttr>(),
                 0u32,
             )
@@ -91,6 +126,24 @@ impl Sys {
                 ruleset,
                 RULE_PATH_BENEATH,
                 &rule as *const PathBeneath,
+                0u32,
+            )
+        })
+        .map(drop)
+    }
+
+    fn add_port(ruleset: RawFd, access: u64, port: u16) -> io::Result<()> {
+        let rule = NetPort {
+            allowed_access: access,
+            port: u64::from(port),
+        };
+        // SAFETY: `rule` is a valid, live net-port rule.
+        Self::call(unsafe {
+            libc::syscall(
+                SYS_ADD_RULE,
+                ruleset,
+                RULE_NET_PORT,
+                &rule as *const NetPort,
                 0u32,
             )
         })
@@ -132,24 +185,56 @@ impl WriteLimit for Landlock {
         if !policy.read_denied.is_empty() {
             return Err("Landlock cannot deny reads under the employer roots; the read limit is held on the work Mac (sandbox-exec) only".into());
         }
-        abi_from(Sys::version())?;
-        build(policy, HANDLED)
+        let abi = abi_from(Sys::version())?;
+        build(policy, handled_for(policy, abi)?)
     }
 }
 
-/// The ruleset for `policy` handling the rights `handled`.
-fn build(policy: &Policy, handled: u64) -> Result<Armed, String> {
-    match Sys::create(handled) {
-        Err(e) => Err(format!("cannot create the Landlock ruleset: {e}")),
-        Ok(ruleset) => {
-            for (paths, access) in [(&policy.dirs, handled), (&policy.files, FILE_ONLY)] {
-                for path in paths {
-                    grant(ruleset.as_raw_fd(), path, access)?;
-                }
-            }
-            Ok(Box::new(Ruleset(ruleset)))
+/// What the ruleset for `policy` handles on a kernel of Landlock ABI `abi`,
+/// or why that kernel cannot hold it.
+fn handled_for(policy: &Policy, abi: i64) -> Result<RulesetAttr, String> {
+    if policy.connect_ports.is_some() && abi < ABI_NET {
+        return Err(format!(
+            "Landlock ABI {abi} cannot limit the network; the confinement needs ABI {ABI_NET} or newer (Linux 6.7)"
+        ));
+    }
+    let confined = policy.reads.is_some();
+    let resolve_unix = if abi >= ABI_RESOLVE_UNIX { RESOLVE_UNIX } else { 0 };
+    let scoped = if abi >= ABI_SCOPE { SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL } else { 0 };
+    Ok(RulesetAttr {
+        handled_access_fs: if confined { HANDLED | READ | EXECUTE | resolve_unix } else { HANDLED },
+        handled_access_net: if policy.connect_ports.is_some() { NET_BIND_TCP | NET_CONNECT_TCP } else { 0 },
+        scoped: if confined { scoped } else { 0 },
+    })
+}
+
+/// The ruleset for `policy` handling the rights `handled`. A granted
+/// directory gets every write-side right and, in a confinement, reading too;
+/// a read grant reads, a run grant reads and executes. A file gets only the
+/// rights that apply to a file.
+fn build(policy: &Policy, handled: RulesetAttr) -> Result<Armed, String> {
+    let reads = handled.handled_access_fs & READ;
+    let read_file = reads & READ_FILE;
+    let ruleset = Sys::create(&handled).map_err(|e| format!("cannot create the Landlock ruleset: {e}"))?;
+    let fd = ruleset.as_raw_fd();
+    for path in &policy.dirs {
+        grant(fd, path, HANDLED | reads, "writable")?;
+    }
+    for path in &policy.files {
+        grant(fd, path, FILE_ONLY | read_file, "writable")?;
+    }
+    let none = super::Reads::default();
+    let granted = policy.reads.as_ref().unwrap_or(&none);
+    for (paths, access) in [(&granted.read, READ), (&granted.run, READ | EXECUTE)] {
+        for path in paths {
+            grant(fd, path, access, "readable")?;
         }
     }
+    for port in policy.connect_ports.iter().flatten() {
+        Sys::add_port(fd, NET_CONNECT_TCP, *port)
+            .map_err(|e| format!("cannot allow TCP connections to port {port}: {e}"))?;
+    }
+    Ok(Box::new(Ruleset(ruleset)))
 }
 
 /// A finished ruleset, waiting to be put on a child.
@@ -161,15 +246,20 @@ impl Arm for Ruleset {
     }
 }
 
-fn grant(ruleset: RawFd, path: &Path, access: u64) -> Result<(), String> {
+/// Grants `access` beneath `path`. A read grant on a file drops the right to
+/// list, which only a directory has; a write grant keeps its directory
+/// rights, so the kernel refuses one on a file.
+fn grant(ruleset: RawFd, path: &Path, access: u64, kind: &str) -> Result<(), String> {
     // O_PATH needs no read permission and opens a device without its driver.
-    let dir = fs::OpenOptions::new()
+    let opened = fs::OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_PATH)
         .open(path)
-        .map_err(|e| format!("cannot open writable path {}: {e}", path.display()))?;
-    Sys::add(ruleset, access, dir.as_raw_fd())
-        .map_err(|e| format!("cannot allow writes to {}: {e}", path.display()))
+        .map_err(|e| format!("cannot open {kind} path {}: {e}", path.display()))?;
+    let is_dir = opened.metadata().map(|m| m.is_dir()).unwrap_or(false);
+    let access = if is_dir || access & READ == 0 { access } else { access & !READ_DIR };
+    Sys::add(ruleset, access, opened.as_raw_fd())
+        .map_err(|e| format!("cannot grant {kind} access to {}: {e}", path.display()))
 }
 
 #[cfg(test)]

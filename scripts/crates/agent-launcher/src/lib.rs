@@ -24,10 +24,18 @@
 //!   can apply it (the work Mac), 1 with the reason when it cannot, so setup
 //!   refuses to start the personal instance there.
 //!
+//! * `agent-launcher confine [--check] [--read PATH]... [--run PATH]...
+//!   [--write PATH]... [--net-connect PORT]... -- COMMAND...`: becomes COMMAND
+//!   under a whole-process confinement (the `confine` module): only the
+//!   granted paths and the system runtime can be read, only the `--write`
+//!   ones written, and with `--net-connect` only those TCP ports reached.
+//!   Exit 125, nothing started, when it cannot be applied in full.
+//!
 //! The operating-system write limit (ADR-0013) is the `writelimit` module: one
 //! interface, with Landlock on Linux and sandbox-exec on macOS. `run` refuses to start an
 //! agent whose limit this OS cannot hold.
 
+mod confine;
 mod employer;
 mod record;
 mod writelimit;
@@ -40,12 +48,14 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+pub use confine::{REFUSED as CONFINE_REFUSED, SYSTEM_READ, SYSTEM_RUN};
 pub use employer::{employer_roots, overlay_path, WORK_AGENTS};
 pub use record::{cell, id_rule_problems, parse, problems, Record, LEVELS, OSES};
 #[cfg(target_os = "linux")]
 pub use writelimit::Landlock;
 pub use writelimit::{
-    native, policy_for, Arm, Armed, Guard, Policy, SandboxExec, Scope, Unsupported, WriteLimit,
+    native, policy_for, Arm, Armed, Guard, Policy, Reads, SandboxExec, Scope, Unsupported,
+    WriteLimit,
 };
 
 /// The crate's name, which prefixes every message line.
@@ -126,7 +136,7 @@ pub fn skills_dir(gold_band_home: Option<&str>, home: Option<&str>, id: &str) ->
 
 fn usage() -> String {
     format!(
-        "usage: {NAME} validate <RECORD> | {NAME} run <RECORD> <ID> [-- ARGS...] | {NAME} read-limit-check"
+        "usage: {NAME} validate <RECORD> | {NAME} run <RECORD> <ID> [-- ARGS...] | {NAME} read-limit-check | {NAME} confine [OPTIONS] -- COMMAND..."
     )
 }
 
@@ -216,6 +226,7 @@ where
     match args.as_slice() {
         [cmd, file] if cmd == OsStr::new("validate") => validate_file(file),
         [cmd] if cmd == OsStr::new("read-limit-check") => read_limit_check(limit, context),
+        [cmd, rest @ ..] if cmd == OsStr::new("confine") => confine::confine(rest, limit),
         [cmd, file, id, rest @ ..] if cmd == OsStr::new("run") => {
             let extra = match rest {
                 [] => &[][..],
@@ -370,7 +381,7 @@ fn private_dir(root: &std::path::Path, dir: &std::path::Path) -> Result<(), Stri
 }
 
 /// What runs in the child between fork and exec.
-fn child_hook(armed: Armed) -> impl FnMut() -> std::io::Result<()> + Send + Sync + 'static {
+pub(crate) fn child_hook(armed: Armed) -> impl FnMut() -> std::io::Result<()> + Send + Sync + 'static {
     move || armed.arm()
 }
 
