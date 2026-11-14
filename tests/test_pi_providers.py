@@ -128,12 +128,12 @@ def test_rendering_ignores_the_live_cache_and_never_fetches(tmp_path: Path, monk
     def refuse(*_args: Any, **_kwargs: Any) -> None:
         raise AssertionError("rendering must not run a process")
 
-    monkeypatch.setattr(litellm_catalogue.subprocess, "run", refuse)
+    monkeypatch.setattr(render_registry.litellm_catalogue.subprocess, "run", refuse)
     assert render_registry.render_pi_providers(render_registry.load_registry()) == before
 
 
 def test_a_catalogue_that_cannot_be_read_stops_the_render(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(litellm_catalogue, "SNAPSHOT", tmp_path / "missing.json")
+    monkeypatch.setattr(render_registry.litellm_catalogue, "SNAPSHOT", tmp_path / "missing.json")
     with pytest.raises(render_registry.RegistryError, match="snapshot cannot be read"):
         render_registry.litellm_route_models(["canonical"])
 
