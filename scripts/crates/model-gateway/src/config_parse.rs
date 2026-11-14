@@ -14,7 +14,8 @@ use crate::ports::Runtime;
 use std::collections::BTreeMap;
 
 /// The fields a client has; a machine file that names another is refused, not quietly ignored.
-const CLIENT_FIELDS: [&str; 7] = ["binary", "cost_class", "model_source", "families", "provider_cost_classes", "providers", "plan_limits"];
+const CLIENT_FIELDS: [&str; 8] =
+    ["binary", "cost_class", "model_source", "families", "provider_cost_classes", "providers", "plan_limits", "litellm_route"];
 
 /// The top-level keys a machine file may name; one it does not is refused, not quietly dropped.
 const OVERRIDE_KEYS: [&str; 5] = ["version", "clients", "disabled", "models", "settings"];
@@ -163,10 +164,14 @@ fn parse_client(id: &str, raw: &Object, base: Option<&ClientConfig>) -> Result<C
         None => base.and_then(|client| client.plan_limits.clone()),
         Some(value) => Some(parse_plan_limits(value, &format!("{where_}.plan_limits"))?),
     };
+    let litellm_route = match raw.get("litellm_route") {
+        None => base.and_then(|client| client.litellm_route.clone()),
+        Some(value) => Some(require_string(Some(value), &format!("{where_}.litellm_route"))?),
+    };
     let (Some(binary), Some(cost_class), Some(model_source)) = (binary, cost_class, model_source) else {
         return Err(invalid(format!("{where_} is new, so it needs binary, cost_class and model_source")));
     };
-    Ok(ClientConfig { binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits })
+    Ok(ClientConfig { binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits, litellm_route })
 }
 
 /// The windows of a client's plan, each naming its span and either its dollars or its runs.

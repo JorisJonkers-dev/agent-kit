@@ -470,6 +470,7 @@ impl RunCommand<'_> {
         }
         require_provider(input, &client)?;
         let entry = catalogue_entry(&config, &input.client, &input.model)?;
+        crate::litellm_catalogue::require_usable(self.runtime, &config, &input.client, &input.model)?;
         let Some(family) = entry.as_ref().map(|entry| entry.family.clone()).or_else(|| family_of_model_id(&input.model).map(str::to_string)) else {
             return Err(GatewayError::new(
                 "unknown-model",

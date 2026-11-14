@@ -19,6 +19,7 @@ fn client(binary: &str, cost_class: CostClass, model_source: ModelSource) -> Cli
         provider_cost_classes: None,
         providers: None,
         plan_limits: None,
+        litellm_route: None,
     }
 }
 
@@ -139,6 +140,7 @@ fn listed_model(
         tier,
         notes: notes.to_string(),
         source,
+        free: false,
     }
 }
 

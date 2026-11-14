@@ -113,6 +113,26 @@ never offered, and is named in `skipped` with the reason, whether Vibe dropped
 the model or the catalogue outlived it. The entry keeps recording the model's
 prices until it is removed from `defaults.json`.
 
+### The live LiteLLM catalogue
+
+A client with a `litellm_route` (`vibe` on `vibe`, `opencode` on
+`opencode-go`) has its listed models judged by the live LiteLLM catalogue: the
+probes the litellm repository's sync publishes, which setup fetches to
+`$XDG_CACHE_HOME/agent-kit/litellm-catalogue.json` (else
+`~/.cache/agent-kit/litellm-catalogue.json`). A model is looked up by its id
+and every name its defaults entry gives it, without the route prefix. Only a
+model the catalogue calls `usable` is offered; one it calls `blocked` is named
+in `skipped` with the provider's own reason, and any other status (`error`,
+`budget-exhausted`, `unprobed`, ...) is skipped with that status. A model the
+catalogue marks free carries `"free": true`. A model the catalogue does not
+list is offered as before, on the client's own answer.
+
+A missing, unreadable or malformed catalogue is never an error: the models
+are listed unchecked and the result carries `warnings` saying so. A catalogue
+older than two days is still used, with a warning that it is stale. A run on a
+model the catalogue refuses is refused before anything is launched, code
+`model-not-usable`, with the same reason.
+
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
 
 ## The `usage` command
@@ -230,6 +250,9 @@ Everything that can refuse the run happens before anything is launched:
   returned with a `cleanup_warning`.
 - `unknown-model` — a model the catalogue cannot place, or one this machine
   disabled.
+- `model-not-usable` — the live LiteLLM catalogue says the model cannot be used
+  on its client's route: blocked (with the provider's reason) or not probed
+  usable. A machine with no readable catalogue never refuses on it.
 
 A run goes in place only on a client model with a passing read-only proof:
 setup's recorded result for the critic client of the client's own kind (Vibe,

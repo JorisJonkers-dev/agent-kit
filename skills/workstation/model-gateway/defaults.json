@@ -1,11 +1,11 @@
 {
   "version": 1,
   "clients": {
-    "vibe":   { "binary": "vibe", "cost_class": "subsidised",       "model_source": "live"},
+    "vibe":   { "binary": "vibe", "cost_class": "subsidised",       "model_source": "live", "litellm_route": "vibe"},
     "agy":    {"binary": "agy",    "cost_class": "subsidised",       "model_source": "live", "families": ["google"]},
     "claude": {"binary": "claude", "cost_class": "subsidised",       "model_source": "declared"},
     "hermes": {"binary": "hermes", "cost_class": "metered-personal", "model_source": "config"},
-    "opencode": {"binary": "opencode", "cost_class": "metered-personal", "model_source": "live", "provider_cost_classes": {"opencode-go": "subsidised"}},
+    "opencode": {"binary": "opencode", "cost_class": "metered-personal", "model_source": "live", "provider_cost_classes": {"opencode-go": "subsidised"}, "litellm_route": "opencode-go"},
     "codex":  {"binary": "codex",  "cost_class": "metered-employer", "model_source": "declared"}
   },
   "models": [

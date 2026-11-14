@@ -86,9 +86,13 @@ serves GLM 5.3, GLM 5.3 Flash and DeepSeek V4.1 Flash, the OpenCode Go entries f
 gone: OpenCode Go is not used for a model Vibe serves. `mistral-large-4-0-3` became
 `mistral-large-latest`, and the deprecated `mistral-medium-3.5` (retires 2027-04-30) became
 `mistral-medium-latest`. `tests/test_litellm_models.py` checks every default against
-`registry/litellm-catalogue.json`, a snapshot of the catalogue's usable ids (its `comment` says
-how to refresh it), and fails on one the catalogue does not list or on an OpenCode default that
-Vibe serves.
+`registry/litellm-catalogue.json`, a trimmed snapshot of the catalogue in its own shape (its
+`comment` says how to refresh it), and fails on one the catalogue does not list as usable or on
+an OpenCode default that Vibe serves.
+
+The defaults no longer decide which models a route offers: they describe a model (family, tier,
+notes, prices) the gateway already lists from the client's own answer, and the live catalogue
+(below) then decides whether it is usable.
 
 ## What a request carries
 
@@ -206,7 +210,33 @@ and shown on the `LiteLLM` Grafana dashboard: see the litellm repository's
 README. The same repository publishes the live model catalogue: each route's
 provider list, probed with one 1-token request per model through that route's key
 and classified `usable`, `blocked` (reason kept), `unknown`, `budget-exhausted`,
-`error`, `not-chat` or `unprobed`, with free models marked. The model gateway and
-the Gold Band agent ids read it instead of a static list (follow-up ticket); it
-follows the Vibe alias probe's idea (`parseVibeAvailable`, #391) and replaces
-guessing from the provider's list.
+`error`, `not-chat` or `unprobed`, with free models marked. It follows the Vibe alias
+probe's idea (`parseVibeAvailable`, #391) and replaces guessing from the provider's list.
+
+### Where the live copy comes from (#568)
+
+The catalogue repository (`JorisJonkers-dev/litellm-model-catalog`, `model-catalog.json`) is
+private, so setup fetches it with the owner's GitHub login (`gh api`, raw contents) into
+`$XDG_CACHE_HOME/agent-kit/litellm-catalogue.json`, else `~/.cache/agent-kit/litellm-catalogue.json`:
+the published file verbatim, so the file's mtime is when it was fetched and its `updated_at` is
+when it was probed. The fetch is checked before it replaces the old copy; a failed fetch is a
+setup warning and the old copy stays. `python3 scripts/litellm_catalogue.py fetch` does the same
+by hand, and `... show [--provider vibe]` prints what the catalogue says.
+
+Readers:
+
+- **The model gateway** (node and Rust) reads the live copy for each client with a
+  `litellm_route` in its defaults (`vibe` on `vibe`, `opencode` on `opencode-go`): it lists only
+  the models the catalogue calls usable, skips a blocked one with the provider's reason, marks a
+  free one `"free": true`, and refuses a run on a refused model (`model-not-usable`). A model the
+  catalogue does not list is listed as before. See the gateway's SKILL.md.
+- **Setup's own writers** (the Pi providers per route) use `scripts/litellm_catalogue.py`:
+  `load_catalogue()` returns the live copy, else the snapshot `registry/litellm-catalogue.json`,
+  with every problem as a warning; `provider_models(catalogue, provider)` lists one provider
+  route's probes; `canonical_groups(catalogue, access_groups)` lists the canonical model names a
+  key with those access groups reaches. A public-only group (a free tier) is reached only through
+  an access group that only `data_scope: public` routes hold in `routes.json`, or the access
+  groups the catalogue names on the group itself, so no group name is fixed in the reader.
+
+A missing or stale catalogue is a warning, never a failed run: the gateway lists unchecked when
+it has none and still uses a stale one (older than two days) with a warning.

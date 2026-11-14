@@ -31,6 +31,7 @@ pub mod home_mcp;
 pub mod json;
 pub mod kept_file;
 pub mod launchers;
+pub mod litellm_catalogue;
 pub mod ledger;
 pub mod ledger_file;
 pub mod lock;

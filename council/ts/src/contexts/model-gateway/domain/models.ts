@@ -12,6 +12,8 @@ export interface ListedModel {
   readonly tier: Tier | null
   readonly notes: string
   readonly source: ModelSource
+  /** Set when the LiteLLM catalogue marks the model free on its route. */
+  readonly free?: true
 }
 
 /** A client the gateway knows but cannot use on this machine. */

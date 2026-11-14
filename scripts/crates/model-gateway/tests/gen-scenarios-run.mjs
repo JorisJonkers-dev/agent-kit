@@ -28,6 +28,7 @@ const SETUP_RESULTS = 'home/.local/share/agent-kit/critique/machine-setup.json'
 const STATE = 'state/agent-kit/model-gateway'
 const LEDGER = `${STATE}/ledger.jsonl`
 const WORKFLOWS = `${STATE}/workflows.json`
+const LITELLM_CATALOGUE = 'cache/agent-kit/litellm-catalogue.json'
 export const REPO = `${SBX}/repo`
 export const NOW = '2026-11-03T12:00:00.000Z'
 export const SHIMS = ['git', 'env', 'cat', 'mkdir', 'sleep', 'rm', 'mv']
@@ -538,6 +539,15 @@ exit 1
     [{ client: 'hermes', model: 'claude-sonnet-4.6', provider: 'azure', mode: 'read-only', prompt: 'Provider off the list.' }, {}],
     [{ client: 'vibe', model: 'mistral-small-latest', mode: 'read-only', prompt: 'Ended.', workflow: 'over' }, merge(workflows({ name: 'over', started_at: '2026-11-03T08:00:00Z', ended_at: '2026-11-03T09:00:00Z' }))],
     [{ client: 'vibe', model: 'mistral-small-latest', mode: 'read-only', prompt: 'Expired.', workflow: 'stale' }, merge(workflows({ name: 'stale', started_at: '2026-11-01T08:00:00Z' }))],
+    // The live LiteLLM catalogue refuses a model it does not call usable, by any of its names, with the provider's reason.
+    [{ client: 'vibe', model: 'glm-5-3', mode: 'read-only', prompt: 'Blocked by the provider.' }, merge(file(LITELLM_CATALOGUE, {
+      updated_at: '2026-11-03T11:17:01Z',
+      providers: {
+        vibe: { models: [{ id: 'vibe/zai-glm-5-3', metadata: { status: 'blocked', reason: 'Model zai-glm-5-3 is a Labs model.', free: false } }] },
+        'opencode-go': { models: [{ id: 'opencode-go/kimi-k2.7-code', metadata: { status: 'error', reason: '' } }] },
+      },
+    }))],
+    [{ client: 'opencode', model: 'opencode-go/kimi-k2.7-code', mode: 'read-only', prompt: 'Probe failed.' }, {}],
   ]
   scenarios['run-refusals'] = refusals.map(([input, extra], index) => run(input, index === 0 ? merge(clients('vibe'), extra) : merge(extra)))
 

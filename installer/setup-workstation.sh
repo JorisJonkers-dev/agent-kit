@@ -4326,6 +4326,31 @@ model_gateway_rust_setup() {
   [ "${rc}" = 0 ] || warn "model gateway (rust): not installed (exit ${rc}); the node runner stays"
 }
 model_gateway_rust_setup
+# The live LiteLLM model catalogue (#568): the probed model list the litellm repository
+# publishes, fetched into ${XDG_CACHE_HOME:-~/.cache}/agent-kit/litellm-catalogue.json for the
+# gateway and the Pi providers. The repository is private, so the fetch goes through gh;
+# a failed fetch keeps the old copy and is a warning, and readers fall back to the snapshot.
+litellm_catalogue_setup() {
+  if [ "${CLOUD}" = 1 ]; then
+    log "LiteLLM catalogue: not fetched in a cloud session"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would fetch the live LiteLLM catalogue"
+    return 0
+  fi
+  if ! command -v gh >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    warn "LiteLLM catalogue: gh or python3 is not on PATH; the gateway lists models unchecked"
+    return 0
+  fi
+  local out
+  if out=$(python3 "${KIT_ROOT}/scripts/litellm_catalogue.py" fetch 2>&1); then
+    ok "${out}"
+  else
+    warn "LiteLLM catalogue: not refreshed (${out}); the last copy or the snapshot stays"
+  fi
+}
+litellm_catalogue_setup
 gateway_pointer "${CLAUDE_HOME}/CLAUDE.md"
 gateway_pointer "${CODEX_HOME}/AGENTS.md"
 if [ "${CLOUD}" != 1 ]; then
