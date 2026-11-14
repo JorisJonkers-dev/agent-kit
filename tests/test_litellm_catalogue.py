@@ -242,3 +242,25 @@ def test_a_failed_fetch_is_a_setup_warning_not_a_failure(tmp_path: Path) -> None
     assert not (run.home / ".cache" / "agent-kit" / "litellm-catalogue.json").exists()
     assert "LiteLLM catalogue: not refreshed" in run.stdout + run.stderr
     assert "HTTP 404" in run.stdout + run.stderr
+
+
+def test_a_group_reports_the_smallest_context_window_of_its_first_deployments() -> None:
+    data = {
+        "updated_at": "2026-11-14T00:00:00Z",
+        "providers": {
+            "a": {"models": [{"id": "a/x", "metadata": {"status": "usable", "context_length": 8000}}]},
+            "b": {"models": [{"id": "b/y", "metadata": {"status": "usable", "context_length": 4000}},
+                             {"id": "b/z", "metadata": {"status": "usable"}}]},
+        },
+        "groups": {
+            "both": {"modality": "chat", "public": False, "deployments": [
+                {"route": "a", "upstream_id": "x", "order": 1}, {"route": "b", "upstream_id": "y", "order": 1}]},
+            "unknown": {
+                "modality": "chat", "public": False, "deployments": [{"route": "b", "upstream_id": "z", "order": 1}]
+            },
+            "fallback-only-unknown": {"modality": "chat", "public": False, "deployments": [
+                {"route": "a", "upstream_id": "x", "order": 1}, {"route": "b", "upstream_id": "z", "order": 2}]},
+        },
+    }
+    found = {g.name: g.context_length for g in cat.canonical_groups(cat.Catalogue(data, "live"), ["canonical"], [])}
+    assert found == {"both": 4000, "unknown": None, "fallback-only-unknown": 8000}
