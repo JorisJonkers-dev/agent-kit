@@ -1,0 +1,11 @@
+[package]
+name = "projects-layout-guard"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The projects-layout-guard PreToolUse hook (ADR-0009): denies a clone or worktree outside ~/Projects/<owner>/<repo> and ~/Projects/<owner>/worktrees/<repo>/<name>."
+
+# serde_json is pinned to the version the other members share (docs/RUST.md), so
+# the lockfile gains only this member.
+[dependencies]
+serde_json = "=1.0.154"

@@ -4902,9 +4902,9 @@ else
   fi
 fi
 
-# The critique pipeline's shared files: the bundled runner, the
-# prompt preamble, roles, lenses, finding schema and default
-# routing that the critique skills drive.
+# The critique pipeline's shared files: the launcher, the prompt
+# preamble, roles, lenses, finding schema and default routing that
+# the critique skills drive.
 src="${KIT_ROOT}/skills/workstation/critique"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "critique: ${src}/SKILL.md is missing; nothing to install"
@@ -9137,7 +9137,7 @@ purge_leaked_runner_workspace_trust /workspace
 log "critique hooks"
 critique_hooks install
 # The critique runner's Rust build: the skill's launcher prefers it once it is
-# installed, and runs critique.mjs until then, so a failed build changes nothing.
+# installed (there is no node runner), so a failed build changes nothing.
 critique_rust_setup() {
   local rc=0 mode=()
   if [ "${CLOUD}" = 1 ]; then
@@ -9175,7 +9175,7 @@ workspace_tools_setup() {
   fi
   [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
   out=$(bash "${KIT_ROOT}/scripts/install-workspace-tools.sh" ${mode[@]+"${mode[@]}"} \
-    agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate 2>&1) || rc=$?
+    agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate estate projects-layout-guard pr-composer 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || warn "workspace tools: not all installed (exit ${rc}); the installed ones are unchanged"
 }

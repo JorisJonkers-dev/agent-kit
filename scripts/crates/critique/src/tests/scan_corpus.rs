@@ -1,5 +1,5 @@
 //! The replay of the corpus the node runner's scans produced over generated sources
-//! (tests/gen-scan-corpus.mjs): the import scan, the source scan, the code facts and the word search.
+//!: the import scan, the source scan, the code facts and the word search.
 //! The environment's `CRITIQUE_SCAN_CORPUS` names a bigger corpus file to replay instead of the committed one.
 
 use crate::code_facts::{code_facts, history_facts, FileHistory, ModuleSource};

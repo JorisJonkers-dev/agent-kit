@@ -90,7 +90,8 @@ def test_the_table_is_rendered_from_the_registry_and_holds_no_key():
     assert table["base_url"] == data["litellm"]["base_url"]
     for route in table["routes"]:
         assert route["provider"] == f"litellm-{route['agent']}"
-        assert route["key_env"].startswith("LITELLM_") and route["models"]
+        assert route["key_env"].startswith("LITELLM_")
+        assert route["models"] or route["agent"] == "local", "only local has no usable model yet"
     assert "sk-" not in TABLE_PATH.read_text()
     assert {r["agent"]: r["data_scope"] for r in table["routes"]}["public"] == "public"
 

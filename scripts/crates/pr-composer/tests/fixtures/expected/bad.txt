@@ -1,0 +1,12 @@
+template sections: 4 · body sections: 4 · template checkboxes: 3 · body checkboxes: 1
+  warn  7 unfilled placeholder(s): «fill me»; «two»; «three»; «four»; «five»; «six» …
+  warn  2 HTML comment(s) from the template still present — keep them only if the repo's merged PRs also keep them (check comments_retained_rate in the style profile).
+  FAIL  INVENTED SECTION: 'Invented thing' (body line 7) is not in the template. Remove it, or ask the user before adding a section the repo doesn't use.
+  FAIL  MISSING SECTION: template has '**Screenshots:**' (template line 21) and the body doesn't. Include it, or pass it in --skipped if the user skipped it.
+  FAIL  HEADING LEVEL CHANGED: 'Summary' is # in the body but ## in the template. Match the template exactly.
+  FAIL  SECTION ORDER CHANGED. Template order: Summary → Linked issues → Test plan  |  body order: Summary → Test plan → Linked issues. Restore the template's order — link blocks in particular belong where the template puts them, not wherever they read best.
+  FAIL  DROPPED CHECKLIST ITEM: 'Docs updated'. Reproduce every item verbatim.
+  FAIL  DROPPED CHECKLIST ITEM: 'Changelog entry'. Reproduce every item verbatim.
+  FAIL  CHECKLIST TRUNCATED: template has 3 items, body has 1.
+
+7 violation(s). Fix the body and re-run before rendering the preview.

@@ -1,0 +1,4 @@
+template sections: 4 · body sections: 3 · template checkboxes: 3 · body checkboxes: 3
+  FAIL  MISSING SECTION: template has '**Screenshots:**' (template line 21) and the body doesn't. Include it, or pass it in --skipped if the user skipped it.
+
+1 violation(s). Fix the body and re-run before rendering the preview.

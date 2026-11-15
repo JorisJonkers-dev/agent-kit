@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Builds the Rust critique runner from this kit's cargo workspace and installs it
 # where the critique skill's launcher (skills/workstation/critique/critique) looks
-# for it (~/.local/share/agent-kit/critique/critique). Until it is installed the
-# launcher runs the node runner, critique.mjs, so nothing breaks mid-way; a build
-# that fails leaves the installed binary (or the node runner) as it was.
+# for it (~/.local/share/agent-kit/critique/critique). There is no other runner: until it is installed the launcher says so and
+# exits 127. A build that fails leaves the installed binary as it was.
 #
 # The same build makes agent-launcher, which the runner starts every Pi critic
 # through (`agent-launcher confine`, docs/RUST.md); it is installed on PATH as
@@ -13,16 +12,13 @@
 #   --check                    report what would happen; build nothing.
 #   KIT_ROOT                   the kit (default: this script's parent).
 #
-# Exit status: 0 installed, already current, or skipped (no cargo, no workspace,
-# or the node runner is pinned); 1 the build or the smoke check failed.
-# Rollback: docs/RUST.md ("Swapping the critique runner in").
+# Exit status: 0 installed, already current, or skipped (no cargo, no workspace); 1 the build or the smoke check failed.
 set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 KIT=${KIT_ROOT:-$(dirname "$HERE")}
 # Where the launcher looks (skills/workstation/critique/critique reads the same place).
 DEST_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/agent-kit/critique
-PIN=${XDG_CONFIG_HOME:-$HOME/.config}/agent-kit/critique-node
 MANIFEST=$KIT/scripts/Cargo.toml
 CHECK=0
 case "${1:-}" in
@@ -33,9 +29,8 @@ esac
 
 say() { printf 'critique runner (rust): %s\n' "$*"; }
 
-if [ -e "$PIN" ]; then say "skipped, the node runner is pinned by $PIN"; exit 0; fi
 if [ ! -f "$MANIFEST" ]; then say "skipped, no cargo workspace at $MANIFEST"; exit 0; fi
-if ! command -v cargo >/dev/null 2>&1; then say "skipped, cargo is not on PATH; the node runner stays"; exit 0; fi
+if ! command -v cargo >/dev/null 2>&1; then say "skipped, cargo is not on PATH; no runner is installed (the node runners are gone)"; exit 0; fi
 if [ "$CHECK" = 1 ]; then say "would build and install $DEST_DIR/critique"; exit 0; fi
 
 target=${CARGO_TARGET_DIR:-$KIT/scripts/target}

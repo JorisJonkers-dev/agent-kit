@@ -1,7 +1,7 @@
 """The `/review-grill` skill's install: declared for every agent, said to
 apply after grilling and before /to-spec, and copied beside the shared
 `critique` skill in every agent home, since it finds the runner at
-../critique/critique.mjs.
+../critique/critique.
 """
 
 from __future__ import annotations
@@ -55,4 +55,4 @@ def test_setup_installs_it_beside_the_shared_skill_in_every_agent_home(macos_run
     for home in HOMES:
         skills = macos_run.home / home / "skills"
         assert (skills / "review-grill" / "SKILL.md").read_bytes() == SKILL.read_bytes(), home
-        assert (skills / "review-grill" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "review-grill" / ".." / "critique" / "critique").is_file(), home

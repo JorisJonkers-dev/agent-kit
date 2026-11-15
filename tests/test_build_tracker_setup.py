@@ -1,6 +1,5 @@
 """The build tracker's install: its skill in every agent home, its runner
-pinned in manifest.yaml the way the critique runner is, and runnable with
-`node` as it ships.
+its launcher pinned in manifest.yaml the way the critique launcher is.
 
 The setup assertions run the checked-in setup script against a temp HOME with
 every external command stubbed (tests/setup_harness.py).
@@ -11,7 +10,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib.util
-import json
 import os
 import re
 import shutil
@@ -28,7 +26,6 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 from setup_harness import Run, setup_run  # noqa: E402
 
 SKILL = KIT_ROOT / "skills" / "workstation" / "build-tracker"
-RUNNER = SKILL / "build-tracker.mjs"
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
 
 
@@ -64,20 +61,20 @@ def test_the_build_tracker_skill_is_declared_for_claude_codex_and_the_other_agen
 
 def test_setup_installs_the_whole_skill_into_every_agent_home(macos_run: Run) -> None:
     want = sorted(p.relative_to(SKILL).as_posix() for p in SKILL.rglob("*") if p.is_file())
-    assert want == ["SKILL.md", "build-tracker", "build-tracker.mjs"]
+    assert want == ["SKILL.md", "build-tracker"]
     for home in HOMES:
         dest = macos_run.home / home / "skills" / "build-tracker"
         got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
         assert got == want, home
-        assert (dest / "build-tracker.mjs").read_bytes() == RUNNER.read_bytes(), home
+        assert (dest / "build-tracker").read_bytes() == (SKILL / "build-tracker").read_bytes(), home
 
 
-def test_the_runner_is_pinned_in_the_manifest_like_the_critique_runner() -> None:
+def test_the_launcher_is_pinned_in_the_manifest_like_the_critique_launcher() -> None:
     files = {f["path"]: f for f in _manifest()["build_tracker"]["files"]}
-    assert files["skills/workstation/build-tracker/build-tracker.mjs"]["mode"] == "0755"
+    assert files["skills/workstation/build-tracker/build-tracker"]["mode"] == "0755"
     for path, entry in files.items():
         digest = hashlib.sha256((KIT_ROOT / path).read_bytes()).hexdigest()
-        assert entry["sha256"] == digest, f"{path}: rebuild council/ts and update manifest.yaml build_tracker.files"
+        assert entry["sha256"] == digest, f"{path}: update manifest.yaml build_tracker.files"
 
 
 def test_the_manifest_pins_every_file_the_skill_ships_but_its_skill_md() -> None:
@@ -89,93 +86,6 @@ def test_a_runner_missing_from_the_pin_fails_validation() -> None:
     manifest["build_tracker"]["files"] = []
     with pytest.raises(AssertionError, match=re.escape("build_tracker.files mismatch")):
         _validator().validate_build_tracker(manifest)
-
-
-@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
-def test_the_shipped_runner_renders_a_page_with_node(tmp_path: Path) -> None:
-    state = tmp_path / "state.json"
-    state.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "spec": "acme/widgets#10",
-                "title": "Widgets build",
-                "tickets": {"1": {"title": "widget store", "blocked_by": [], "status": "todo"}},
-            }
-        )
-    )
-    page = tmp_path / "tracker.html"
-
-    rendered = subprocess.run(
-        ["node", str(RUNNER), "render", "--state", str(state), "--out", str(page)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert rendered.returncode == 0, rendered.stderr
-    assert json.loads(rendered.stdout)["status"] == "rendered"
-    assert '<a href="https://github.com/acme/widgets/issues/1">#1</a>' in page.read_text()
-
-    changed = subprocess.run(
-        ["node", str(RUNNER), "set", "--state", str(state), "1=merged:abc1234"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert changed.returncode == 0, changed.stderr
-    assert json.loads(state.read_text())["tickets"]["1"] == {
-        "title": "widget store",
-        "blocked_by": [],
-        "status": "merged",
-        "note": "abc1234",
-    }
-
-
-@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
-def test_the_shipped_runner_names_init_for_a_missing_state(tmp_path: Path) -> None:
-    result = subprocess.run(
-        ["node", str(RUNNER), "set", "--state", str(tmp_path / "state.json"), "1=merged"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 1
-    assert json.loads(result.stdout)["code"] == "missing-state"
-    assert "init" in result.stderr
-
-
-@pytest.mark.skipif(shutil.which("node") is None or shutil.which("git") is None, reason="node or git is not installed")
-def test_the_shipped_runner_refreshes_a_local_spec_as_flow_runs_it(tmp_path: Path) -> None:
-    """#273: one refresh seeds the state, marks the landed tickets merged and renders the page."""
-    repo = tmp_path / "widgets"
-    (repo / "specs" / "issues").mkdir(parents=True)
-    (repo / "specs" / "spec.md").write_text("# Local widgets\n")
-    (repo / "specs" / "issues" / "01-store.md").write_text("# Widget store\n")
-    (repo / "specs" / "issues" / "02-list.md").write_text("# Widget list\n\n## Blocked by\n\n- 01\n")
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
-    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), "XDG_STATE_HOME": str(tmp_path / "state")}
-
-    def refresh() -> dict:
-        result = subprocess.run(
-            ["node", str(RUNNER), "refresh", "--spec", "specs/spec.md", "--landed", "01"],
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=repo,
-            env=env,
-        )
-        assert result.returncode == 0, result.stderr
-        return json.loads(result.stdout)
-
-    first = refresh()
-    assert (first["status"], first["ran"], first["merged"]) == ("refreshed", "init", [1])
-    tickets = json.loads(Path(first["state"]).read_text())["tickets"]
-    assert {n: t["status"] for n, t in tickets.items()} == {"1": "merged", "2": "todo"}
-    assert "Widget list" in Path(first["page"]).read_text()
-    assert first["page"].startswith(str(tmp_path / "state"))
-
-    second = refresh()
-    assert (second["ran"], second["merged"], second["page"]) == ("sync", [], first["page"])
 
 
 # ---------------------------------------------------------------------------
@@ -368,8 +278,8 @@ def test_continuing_an_earlier_build_says_what_happens_to_its_milestones() -> No
 
 
 # ---------------------------------------------------------------------------
-# The Rust swap: the launcher prefers ~/.local/bin/build-tracker and falls back to
-# the node bundle beside it; scripts/install-build-tracker-rust.sh builds it.
+# The Rust swap: the launcher runs ~/.local/bin/build-tracker or exits 127;
+# scripts/install-build-tracker-rust.sh builds it.
 # Everything runs against temp directories with stub programs.
 # ---------------------------------------------------------------------------
 
@@ -400,11 +310,9 @@ def _program(path: Path, body: str) -> Path:
 def home(tmp_path: Path) -> Path:
     root = tmp_path / "home"
     root.mkdir()
-    _program(tmp_path / "bin" / "node", 'echo "node $*"')
     skill = root / ".claude" / "skills" / "build-tracker"
     skill.mkdir(parents=True)
     shutil.copy(LAUNCHER, skill / "build-tracker")
-    (skill / "build-tracker.mjs").write_text("// bundle\n")
     return root
 
 
@@ -418,10 +326,11 @@ def _install_rust(home: Path) -> Path:
     return _program(home / ".local" / "bin" / "build-tracker", 'echo "rust $*"')
 
 
-def test_without_the_rust_binary_the_launcher_runs_the_node_bundle_beside_it(home: Path) -> None:
+def test_without_the_rust_binary_the_launcher_says_so_and_exits_127(home: Path) -> None:
     result = _tracker(home, "render", "--tickets", "t.yaml")
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == f"node {home}/.claude/skills/build-tracker/build-tracker.mjs render --tickets t.yaml\n"
+    assert result.returncode == 127
+    assert result.stdout == ""
+    assert "the Rust build tracker is not installed" in result.stderr
 
 
 def test_with_the_rust_binary_installed_the_launcher_runs_it(home: Path) -> None:
@@ -429,30 +338,14 @@ def test_with_the_rust_binary_installed_the_launcher_runs_it(home: Path) -> None
     assert _tracker(home, "render", "--tickets", "t.yaml").stdout == "rust render --tickets t.yaml\n"
 
 
-def test_an_unexecutable_rust_binary_falls_back_to_node(home: Path) -> None:
+def test_an_unexecutable_rust_binary_is_not_run(home: Path) -> None:
     _install_rust(home).chmod(0o644)
-    assert _tracker(home, "path").stdout.startswith("node ")
+    assert _tracker(home, "path").returncode == 127
 
 
 def test_a_directory_where_the_binary_should_be_is_not_executed(home: Path) -> None:
     (home / ".local" / "bin" / "build-tracker").mkdir(parents=True)
-    assert _tracker(home, "path").stdout.startswith("node ")
-
-
-def test_the_environment_rolls_one_call_back_to_node(home: Path) -> None:
-    _install_rust(home)
-    assert _tracker(home, "path", AGENT_KIT_BUILD_TRACKER="node").stdout.startswith("node ")
-    assert _tracker(home, "path", AGENT_KIT_BUILD_TRACKER="rust").stdout.startswith("rust path")
-
-
-def test_the_pin_file_rolls_every_call_back_until_it_is_removed(home: Path) -> None:
-    _install_rust(home)
-    pin = home / ".config" / "agent-kit" / "build-tracker-node"
-    pin.parent.mkdir(parents=True)
-    pin.write_text("")
-    assert _tracker(home, "path").stdout.startswith("node ")
-    pin.unlink()
-    assert _tracker(home, "path").stdout.startswith("rust path")
+    assert _tracker(home, "path").returncode == 127
 
 
 def test_another_rust_binary_can_be_named(home: Path, tmp_path: Path) -> None:
@@ -463,8 +356,7 @@ def test_another_rust_binary_can_be_named(home: Path, tmp_path: Path) -> None:
 def test_the_skills_run_the_launcher() -> None:
     for name in ("build-tracker", "flow"):
         text = (KIT_ROOT / "skills" / "workstation" / name / "SKILL.md").read_text()
-        assert "node <this folder>/build-tracker.mjs" not in text
-        assert "node <build-tracker dir>/build-tracker.mjs" not in text
+        assert "build-tracker.mjs" not in text
     assert "sh <this folder>/build-tracker render --tickets" in (SKILL / "SKILL.md").read_text()
 
 
@@ -565,16 +457,10 @@ def test_an_unknown_argument_builds_nothing(kit: Kit) -> None:
     assert not (kit.root / "cargo-args").exists()
 
 
-def test_without_cargo_a_workspace_or_with_the_pin_the_step_is_skipped(kit: Kit, home: Path) -> None:
+def test_without_cargo_or_a_workspace_the_step_is_skipped(kit: Kit) -> None:
     assert "cargo is not on PATH" in kit.run(path=False).stdout
     (kit.root / "scripts" / "Cargo.toml").unlink()
     assert "no cargo workspace" in kit.run().stdout
-    (kit.root / "scripts" / "Cargo.toml").write_text("[workspace]\n")
-    pin = home / ".config" / "agent-kit" / "build-tracker-node"
-    pin.parent.mkdir(parents=True)
-    pin.write_text("")
-    result = kit.run()
-    assert result.returncode == 0 and "the node bundle is pinned" in result.stdout
     assert not kit.dest.exists()
 
 

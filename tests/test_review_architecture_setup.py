@@ -54,7 +54,7 @@ def test_setup_installs_it_beside_the_shared_skill_in_every_agent_home(macos_run
     for home in HOMES:
         skills = macos_run.home / home / "skills"
         assert (skills / "review-architecture" / "SKILL.md").read_bytes() == SKILL.read_bytes(), home
-        assert (skills / "review-architecture" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "review-architecture" / ".." / "critique" / "critique").is_file(), home
         assert (skills / "critique" / "roles" / "architecture-critic.md").is_file(), home
 
 

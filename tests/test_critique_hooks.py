@@ -13,7 +13,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -289,11 +288,31 @@ def test_setup_fails_rather_than_wiring_a_hook_to_a_missing_script() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The hook scripts themselves, against a real repository and the bundled runner
+# The hook scripts themselves, against a real repository and the Rust runner
 # ---------------------------------------------------------------------------
 
 SCRIPTS = KIT_ROOT / "skills" / "workstation" / "critique" / "hooks"
-NODE = shutil.which("node")
+MANIFEST = KIT_ROOT / "scripts" / "Cargo.toml"
+
+
+@pytest.fixture(scope="module")
+def critique_bin() -> str:
+    """The Rust critique runner: CRITIQUE_BIN, or built offline from this repository (no registry crate is needed)."""
+    named = os.environ.get("CRITIQUE_BIN")
+    if named:
+        return named
+    built = subprocess.run(
+        ["cargo", "build", "--offline", "-q", "--manifest-path", str(MANIFEST), "-p", "critique"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=900,
+        env=dict(os.environ, CARGO_NET_RETRY="0"),
+    )
+    if built.returncode != 0:
+        pytest.skip(f"the critique runner cannot be built offline (set CRITIQUE_BIN): {built.stderr[-300:]}")
+    target = os.environ.get("CARGO_TARGET_DIR") or str(KIT_ROOT / "scripts" / "target")
+    return str(Path(target) / "debug" / "critique")
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -309,8 +328,9 @@ def _git(repo: Path, *args: str) -> None:
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> tuple[Path, Path]:
+def repo(tmp_path: Path, critique_bin: str, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     """An opted-in repository (code allowed) with a risky change staged, and the HOME whose allowlist opts it in."""
+    monkeypatch.setenv("AGENT_KIT_CRITIQUE_BIN", critique_bin)
     home = tmp_path / "home"
     allowlist = home / ".config" / "agent-kit" / "critique-allowlist.json"
     allowlist.parent.mkdir(parents=True)
@@ -342,7 +362,13 @@ def _hook(name: str, payload: dict, home: Path, **env: str) -> tuple[subprocess.
         capture_output=True,
         text=True,
         check=False,
-        env={"HOME": str(home), "PATH": os.environ["PATH"], "GIT_CONFIG_GLOBAL": "/dev/null", **env},
+        env={
+            "HOME": str(home),
+            "PATH": os.environ["PATH"],
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "AGENT_KIT_CRITIQUE_BIN": os.environ["AGENT_KIT_CRITIQUE_BIN"],
+            **env,
+        },
     )
     return result, time.monotonic() - started
 
@@ -352,14 +378,13 @@ def _bash(repo: Path, command: str) -> dict:
 
 
 @pytest.mark.timing
-@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_commit_gate_script_blocks_an_unreviewed_risky_commit_with_the_deny_and_exit_0(
     repo: tuple[Path, Path],
 ) -> None:
     path, home = repo
     payload = _bash(path, 'git commit -m "Expire sessions"')
     # The bound is the gate's cost per commit on a machine that has run it before. The
-    # first node start of a fresh CI runner reads node from a cold disk and takes seconds.
+    # first start of a fresh CI runner reads the binary from a cold disk and takes seconds.
     _hook("critique-commit-gate", payload, home)
     result, took = _hook("critique-commit-gate", payload, home)
 
@@ -376,7 +401,6 @@ def test_the_commit_gate_script_blocks_an_unreviewed_risky_commit_with_the_deny_
     assert took < 1.0, f"the commit gate took {took:.2f}s"
 
 
-@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_gate_scripts_print_nothing_when_they_allow(repo: tuple[Path, Path]) -> None:
     path, home = repo
     commit_on_pr, _ = _hook("critique-commit-gate", _bash(path, "gh pr create"), home)
@@ -386,7 +410,6 @@ def test_the_gate_scripts_print_nothing_when_they_allow(repo: tuple[Path, Path])
     assert [(r.returncode, r.stdout) for r in (commit_on_pr, pr_on_commit, killed)] == [(0, ""), (0, ""), (0, "")]
 
 
-@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_gate_scripts_allow_everything_when_the_repository_has_no_active_flow(repo: tuple[Path, Path]) -> None:
     path, home = repo
     (path / ".git" / "critique" / "flows" / "widgets.json").unlink()
@@ -396,7 +419,6 @@ def test_the_gate_scripts_allow_everything_when_the_repository_has_no_active_flo
     assert [(r.returncode, r.stdout) for r in (commit, pr)] == [(0, ""), (0, "")]
 
 
-@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_pr_gate_script_blocks_a_pr_with_no_feature_review(repo: tuple[Path, Path]) -> None:
     path, home = repo
     result, _ = _hook("critique-pr-gate", _bash(path, "gh pr create --fill"), home)
@@ -405,7 +427,6 @@ def test_the_pr_gate_script_blocks_a_pr_with_no_feature_review(repo: tuple[Path,
     assert result.returncode == 0 and reason.startswith("PR blocked: no /review-pr run has recorded a gate for ")
 
 
-@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_session_start_script_suggests_flow_setup_in_an_opted_in_repository_only(
     repo: tuple[Path, Path], tmp_path: Path
 ) -> None:
@@ -420,7 +441,7 @@ def test_the_session_start_script_suggests_flow_setup_in_an_opted_in_repository_
     assert (elsewhere.returncode, elsewhere.stdout) == (0, "")
 
 
-def test_a_hook_script_with_no_node_fails_without_exit_2_so_neither_agent_blocks(tmp_path: Path) -> None:
+def test_a_hook_script_with_no_runner_fails_without_exit_2_so_neither_agent_blocks(tmp_path: Path) -> None:
     result = subprocess.run(
         ["/bin/sh", str(SCRIPTS / "critique-commit-gate.sh")],
         input="{}",
