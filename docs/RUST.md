@@ -60,7 +60,8 @@ on the Linux workstation.
   fetch shim and verifier (below); it takes serde and serde_json, each pinned
   exactly, and the workspace's own gold-band-report for its SHA-256.
   `crates/ci-wait` is the CI-wait gate (below); it takes
-  serde_json and serde_yaml, each pinned exactly. New Rust joins this
+  serde_json and serde_yaml, each pinned exactly. `crates/rust-migration-guard`
+  is the Rust migration guard (below), taking only serde_json. New Rust joins this
   workspace as a new member, never as its own Cargo project.
 
 ```bash
@@ -750,6 +751,50 @@ touch ~/.config/agent-kit/critique-node                 # every call, until remo
 
 `tests/test_critique_rust_swap.py` covers the launcher and the installer with stub
 programs; `tests/binary.rs` runs the real binary.
+
+## Rust migration guard
+
+agent-kit is going 100 percent Rust (#802). `crates/rust-migration-guard`
+(#804) is the CI job `Rust Migration Guard`, needed by `Pipeline Complete`, that
+keeps Python and TypeScript from growing while the children of #802 remove them.
+
+```bash
+rust-migration-guard [--repo-dir DIR] [--allowlist PATH] --event-path FILE
+rust-migration-guard [--repo-dir DIR] [--allowlist PATH] --base REF --body-file FILE
+```
+
+CI passes `$GITHUB_EVENT_PATH` (base is `pull_request.base.sha`, body is
+`pull_request.body`; a push to main has no pull request and passes). The second
+form is the local mode: run it from a branch against `origin/main` and a file
+holding the body you intend to use. It needs only git and the checkout.
+
+It watches `.py .pyi .ts .tsx .mts .cts .js .mjs .cjs` files in
+`git diff -M BASE...HEAD`, except under `node_modules`, `target`, `.venv`,
+`venv`, `__pycache__` or `dist-packages` (vendored or built output; no tracked
+file lives there). Fixture and golden directories are not excluded: a script
+there is still a script. The allowlist is `ci/rust-migration-allowlist.txt`,
+one path per line, grouped under a comment naming the child ticket that removes
+the files; it starts with every such file on main.
+
+| Change | Result |
+| --- | --- |
+| a watched file is added, or renamed to a new path, off the allowlist | fails |
+| a watched file off the allowlist is modified | fails |
+| an allowlisted file is modified, or renamed onto an allowlisted path | fails without a debt line |
+| a path is added to the allowlist | fails without a debt line |
+| a file is deleted or an allowlist line is removed | passes |
+
+The debt line is a line of its own in the pull request body:
+
+```text
+rust-migration-debt: #810 one-line fix for the converge crash until the port lands
+```
+
+It needs a `#<child ticket>` and a non-empty reason. The guard reads the body
+from the event payload of the run, so after editing the body push a commit (a
+re-run of the old run still carries the old body). Delete the allowlist line in
+the same pull request that deletes a file; never regenerate the list to make a
+new file pass.
 
 ## Measuring line coverage
 
