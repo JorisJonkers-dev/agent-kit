@@ -6278,8 +6278,8 @@ def _litellm_harness_block() -> list[str]:
         "    else",
         '      mkdir -p "${HOME}/.local/bin" "${litellm_state}" \\',
         f'        && install -m 0644 {table} "${{litellm_state}}/litellm-harnesses.json" \\',
-        '        && printf \'#!/bin/sh\\n%s\\nexec "%s" "$@"\\n\' "${litellm_marker}" "${AGENT_KIT_BIN}/litellm-harness"'
-        ' >"${litellm_launcher}" \\',
+        '        && printf \'#!/bin/sh\\n%s\\nexec "%s" "$@"\\n\' "${litellm_marker}"'
+        ' "${AGENT_KIT_BIN}/litellm-harness" >"${litellm_launcher}" \\',
         '        && chmod 0755 "${litellm_launcher}" \\',
         '        && ok "agent-kit-litellm -> ${litellm_launcher}" \\',
         '        || fail "agent-kit-litellm: could not install ${litellm_launcher}"',
