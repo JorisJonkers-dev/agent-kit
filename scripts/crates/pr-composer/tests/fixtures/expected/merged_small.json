@@ -1,0 +1,286 @@
+{
+  "sample_size": 3,
+  "title": {
+    "conventional_commit_rate": 100.0,
+    "ticket_key_rate": 33.3,
+    "ticket_keys_seen": [
+      {
+        "value": "ABC",
+        "count": 1
+      }
+    ],
+    "ticket_plus_conventional_rate": 33.3,
+    "median_length": 24,
+    "p90_length": 24,
+    "trailing_period_rate": 33.3,
+    "lowercase_after_prefix_rate": 100.0,
+    "common_scopes": [
+      {
+        "value": "api",
+        "count": 1
+      },
+      {
+        "value": "db",
+        "count": 1
+      }
+    ],
+    "examples": [
+      "feat(api): add endpoint.",
+      "[ABC-12] fix(db)!: Repair index",
+      "docs: update readme"
+    ]
+  },
+  "body": {
+    "empty_body_rate": 33.3,
+    "median_words": 26,
+    "p10_words": 19,
+    "p90_words": 19,
+    "comments_retained_rate": 33.3,
+    "checklist_rate": 33.3,
+    "checked_box_rate": 33.3,
+    "image_rate": 33.3,
+    "slack_link_rate": 33.3,
+    "issue_reference_rate": 66.7,
+    "link_keywords": [
+      {
+        "value": "closes",
+        "count": 1
+      },
+      {
+        "value": "fixes",
+        "count": 1
+      },
+      {
+        "value": "related to",
+        "count": 1
+      },
+      {
+        "value": "part of",
+        "count": 1
+      }
+    ],
+    "preferred_link_keyword": "closes",
+    "section_frequency": [
+      {
+        "section": "summary",
+        "rate": 66.7
+      },
+      {
+        "section": "test plan",
+        "rate": 66.7
+      },
+      {
+        "section": "notes",
+        "rate": 33.3
+      },
+      {
+        "section": "risks",
+        "rate": 33.3
+      }
+    ],
+    "modal_section_order": [
+      "summary",
+      "test plan",
+      "notes"
+    ],
+    "routinely_hollow_sections": []
+  },
+  "people": {
+    "top_reviewers": [
+      {
+        "value": "alice",
+        "count": 2
+      },
+      {
+        "value": "bob",
+        "count": 2
+      },
+      {
+        "value": "carol",
+        "count": 1
+      },
+      {
+        "value": "dave",
+        "count": 1
+      },
+      {
+        "value": "team-x",
+        "count": 1
+      },
+      {
+        "value": "s1",
+        "count": 1
+      }
+    ],
+    "top_approvers": [
+      {
+        "value": "alice",
+        "count": 2
+      },
+      {
+        "value": "bob",
+        "count": 1
+      }
+    ],
+    "top_requested": [
+      {
+        "value": "carol",
+        "count": 1
+      },
+      {
+        "value": "dave",
+        "count": 1
+      },
+      {
+        "value": "team-x",
+        "count": 1
+      },
+      {
+        "value": "s1",
+        "count": 1
+      }
+    ],
+    "top_assignees": [
+      {
+        "value": "alice",
+        "count": 1
+      },
+      {
+        "value": "bob",
+        "count": 1
+      }
+    ],
+    "median_reviewers_per_pr": 2,
+    "mean_reviewers_per_pr": 2.67,
+    "reviewer_by_path": {
+      "api/x.rs": [
+        {
+          "value": "alice",
+          "count": 1
+        },
+        {
+          "value": "bob",
+          "count": 1
+        },
+        {
+          "value": "carol",
+          "count": 1
+        },
+        {
+          "value": "dave",
+          "count": 1
+        }
+      ],
+      "api/y.rs": [
+        {
+          "value": "alice",
+          "count": 1
+        },
+        {
+          "value": "bob",
+          "count": 1
+        },
+        {
+          "value": "carol",
+          "count": 1
+        },
+        {
+          "value": "dave",
+          "count": 1
+        }
+      ],
+      "README.md": [
+        {
+          "value": "alice",
+          "count": 1
+        },
+        {
+          "value": "bob",
+          "count": 1
+        },
+        {
+          "value": "carol",
+          "count": 1
+        },
+        {
+          "value": "dave",
+          "count": 1
+        }
+      ],
+      "db/a.sql": [
+        {
+          "value": "alice",
+          "count": 1
+        },
+        {
+          "value": "bob",
+          "count": 1
+        }
+      ]
+    }
+  },
+  "meta": {
+    "label_frequency": [
+      {
+        "value": "type: feat",
+        "count": 1
+      },
+      {
+        "value": "area: api",
+        "count": 1
+      },
+      {
+        "value": "type: fix",
+        "count": 1
+      },
+      {
+        "value": "type: docs",
+        "count": 1
+      },
+      {
+        "value": "area: docs",
+        "count": 1
+      }
+    ],
+    "labelled_pr_rate": 100.0,
+    "required_label_families": [
+      {
+        "family": "type",
+        "coverage": 100.0,
+        "values": [
+          {
+            "value": "type: feat",
+            "count": 1
+          },
+          {
+            "value": "type: fix",
+            "count": 1
+          },
+          {
+            "value": "type: docs",
+            "count": 1
+          }
+        ]
+      }
+    ],
+    "label_families": [
+      {
+        "family": "type",
+        "coverage": 100.0
+      },
+      {
+        "family": "area",
+        "coverage": 66.7
+      }
+    ],
+    "median_lines_changed": 4,
+    "median_files_changed": 1,
+    "base_branches": [
+      {
+        "value": "main",
+        "count": 3
+      }
+    ]
+  },
+  "warning": "only 3 merged PRs \u2014 treat every rate here as anecdote, lean on the template and conventional defaults instead"
+}

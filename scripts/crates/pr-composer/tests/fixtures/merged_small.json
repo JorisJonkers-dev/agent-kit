@@ -1,0 +1,129 @@
+[
+ {
+  "number": 1,
+  "title": "feat(api): add endpoint.",
+  "body": "<!-- why -->\n## Summary\n\nDid the thing and here is a long enough summary of the change for eight words.\n\n## Test plan\n\n- [x] ran it\n- [ ] more\n\n## Notes\n\nnone\n\nCloses #12\n",
+  "labels": [
+   {
+    "name": "type: feat"
+   },
+   {
+    "name": "area: api"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "alice"
+    },
+    "state": "APPROVED"
+   },
+   {
+    "author": {
+     "login": "bob"
+    },
+    "state": "COMMENTED"
+   }
+  ],
+  "reviewRequests": [
+   {
+    "login": "carol"
+   },
+   {
+    "requestedReviewer": {
+     "login": "dave"
+    }
+   },
+   {
+    "name": "team-x"
+   },
+   {
+    "slug": "s1"
+   }
+  ],
+  "assignees": [
+   {
+    "login": "alice"
+   }
+  ],
+  "files": [
+   {
+    "path": "api/x.rs"
+   },
+   {
+    "path": "api/y.rs"
+   },
+   {
+    "path": "README.md"
+   }
+  ],
+  "additions": 100,
+  "deletions": 5,
+  "changedFiles": 3,
+  "baseRefName": "main"
+ },
+ {
+  "number": 2,
+  "title": "[ABC-12] fix(db)!: Repair index",
+  "body": "## Summary\n\nshort\n\n## Test plan\n\n\n**Risks:**\n\n![shot](http://x/y.png)\nSee https://acme.slack.com/archives/C1/p123 and fixes #3. Related to #4, part of #5.\n",
+  "labels": [
+   {
+    "name": "type: fix"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "alice"
+    },
+    "state": "APPROVED"
+   },
+   {
+    "author": {
+     "login": "bob"
+    },
+    "state": "APPROVED"
+   }
+  ],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "db/a.sql"
+   }
+  ],
+  "additions": 3,
+  "deletions": 1,
+  "changedFiles": 1,
+  "baseRefName": "main"
+ },
+ {
+  "number": 3,
+  "title": "docs: update readme",
+  "body": "",
+  "labels": [
+   {
+    "name": "type: docs"
+   },
+   {
+    "name": "area: docs"
+   }
+  ],
+  "reviews": [],
+  "reviewRequests": [],
+  "assignees": [
+   {
+    "login": "bob"
+   }
+  ],
+  "files": [
+   {
+    "path": "README.md"
+   }
+  ],
+  "additions": 0,
+  "deletions": 0,
+  "changedFiles": 1,
+  "baseRefName": "main"
+ }
+]

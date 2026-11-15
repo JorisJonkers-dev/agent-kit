@@ -1146,6 +1146,8 @@ workspace_tools:
     surfaces: [workstation]
   - name: projects-layout-guard
     surfaces: [workstation]
+  - name: pr-composer
+    surfaces: [workstation]
 
 # -------------------------------------------------------------------
 # Hindsight Coding Agents: Hindsight's own plugin for Claude Code and

@@ -207,6 +207,7 @@ DECLARED = [
     "litellm-gate",
     "estate",
     "projects-layout-guard",
+    "pr-composer",
 ]
 
 

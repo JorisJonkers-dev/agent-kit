@@ -38,4 +38,5 @@ members = [
     "crates/critique-block",
     "crates/estate",
     "crates/projects-layout-guard",
+    "crates/pr-composer",
 ]

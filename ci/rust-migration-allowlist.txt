@@ -52,8 +52,6 @@ scripts/check_agents_md.py
 scripts/check_marketplace_bump.py
 scripts/check_skill_sources.py
 scripts/verify_release_asset.py
-skills/workstation/pr-composer/scripts/check_body.py
-skills/workstation/pr-composer/scripts/mine_prs.py
 
 # #814 remove the Python and TypeScript toolchains: the pytest suite, its fixtures and what remains
 tests/ci_shard.py

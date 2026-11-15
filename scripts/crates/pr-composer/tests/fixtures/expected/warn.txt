@@ -1,0 +1,4 @@
+template sections: 4 · body sections: 4 · template checkboxes: 3 · body checkboxes: 3
+  warn  1 unfilled placeholder(s): «todo»
+
+body matches template (with warnings)
