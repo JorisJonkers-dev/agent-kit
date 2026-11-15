@@ -1,5 +1,21 @@
 # Changelog
 
+## [6.4.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.3.0...v6.4.0) (2026-11-15)
+
+
+### Features
+
+* **build-tracker:** port render --tickets to the Rust crate and swap it in ([#817](https://github.com/JorisJonkers-dev/agent-kit/issues/817)) ([1301a89](https://github.com/JorisJonkers-dev/agent-kit/commit/1301a898a97b12d1ac77e06f790078463e89b6cc))
+* **gold-band:** generated critique block with accept, revise and escalate for spec and tickets ([#823](https://github.com/JorisJonkers-dev/agent-kit/issues/823)) ([b1e114e](https://github.com/JorisJonkers-dev/agent-kit/commit/b1e114ee9ed3a5cb12abaf3f50487de443bc3f75))
+* **litellm:** let the openrouter key reach OpenCode Go's free models ([#824](https://github.com/JorisJonkers-dev/agent-kit/issues/824)) ([217b7ff](https://github.com/JorisJonkers-dev/agent-kit/commit/217b7ff20f8f1984585c7fd7c4b1790d9e4ddc60))
+* **model-gateway:** a verified free cost class and free-only runs ([#822](https://github.com/JorisJonkers-dev/agent-kit/issues/822)) ([b542212](https://github.com/JorisJonkers-dev/agent-kit/commit/b542212a398763ea81eaed1c0cb71121ecfba058)), closes [#819](https://github.com/JorisJonkers-dev/agent-kit/issues/819)
+
+
+### Bug Fixes
+
+* **gold-band:** keep a critic of the writer's family out of workflow-c reviews ([#818](https://github.com/JorisJonkers-dev/agent-kit/issues/818)) ([e8344ac](https://github.com/JorisJonkers-dev/agent-kit/commit/e8344ac6061b72859971b82d770552ed5316f76a))
+* **litellm:** mark a model free only when every deployment is free ([#820](https://github.com/JorisJonkers-dev/agent-kit/issues/820)) ([3f69fd3](https://github.com/JorisJonkers-dev/agent-kit/commit/3f69fd3af11468aa311ed17fbb3296226e751689)), closes [#819](https://github.com/JorisJonkers-dev/agent-kit/issues/819)
+
 ## [6.3.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.2.1...v6.3.0) (2026-11-15)
 
 
