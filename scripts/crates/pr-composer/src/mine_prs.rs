@@ -471,11 +471,6 @@ fn people_stats(prs: &[Value]) -> J {
             }
             let bucket: Vec<&str> = path.split('/').take(2).collect();
             let bucket = bucket.join("/");
-            let bucket = if bucket.is_empty() {
-                path.to_string()
-            } else {
-                bucket
-            };
             let slot = match by_path.iter().position(|(k, _)| *k == bucket) {
                 Some(i) => i,
                 None => {
