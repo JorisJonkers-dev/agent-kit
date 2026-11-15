@@ -66,6 +66,14 @@ CATALOGUE = {
                 {"route": "anthropic", "upstream_id": "claude-haiku-5-5", "order": 2},
             ],
         },
+        "free-then-paid": {
+            "modality": "chat",
+            "public": False,
+            "deployments": [
+                {"route": "openrouter", "upstream_id": "google/gemma-4-31b-it:free", "order": 1},
+                {"route": "vibe", "upstream_id": "zai-glm-5-3", "order": 2},
+            ],
+        },
         "opencode-free/beam": {
             "modality": "chat",
             "public": True,
@@ -153,6 +161,7 @@ def test_a_canonical_key_reaches_the_canonical_groups_only() -> None:
     catalogue = cat.Catalogue(CATALOGUE, "live")
     groups = cat.canonical_groups(catalogue, ["canonical"], ["google-free-public"])
     assert [(g.name, g.free, g.routes) for g in groups] == [
+        ("free-then-paid", False, ("openrouter", "vibe")),
         ("gemma-4-31b-it", True, ("openrouter",)),
         ("glm-5.3", False, ("vibe",)),
     ]
@@ -163,8 +172,34 @@ def test_a_public_group_needs_a_public_only_access_group() -> None:
     names = [
         g.name for g in cat.canonical_groups(catalogue, ["google-free-public", "canonical"], ["google-free-public"])
     ]
-    assert names == ["gemma-4-31b-it", "glm-5.3", "public/gemini-3.5-flash"]
-    assert all(g.free for g in cat.canonical_groups(catalogue, ["google-free-public"], ["google-free-public"]))
+    assert names == ["free-then-paid", "gemma-4-31b-it", "glm-5.3", "public/gemini-3.5-flash"]
+    # Public is about who may send the prompt, not about price: a free tier still bills.
+    assert not any(g.free for g in cat.canonical_groups(catalogue, ["google-free-public"], ["google-free-public"]))
+
+
+def test_a_group_is_free_only_when_every_deployment_is_a_model_its_provider_marks_free() -> None:
+    catalogue = cat.Catalogue(CATALOGUE, "live")
+    free = {g.name: g.free for g in cat.canonical_groups(catalogue, ["canonical"], [])}
+    assert free["gemma-4-31b-it"] is True
+    # A paid fallback is what a run lands on when the free deployment refuses: not free.
+    assert free["free-then-paid"] is False
+    assert free["glm-5.3"] is False
+
+
+def test_an_upstream_id_that_starts_with_its_route_name_is_found_as_it_is() -> None:
+    data = {
+        "updated_at": "2026-11-14T12:00:00Z",
+        "providers": {"openrouter": {"models": [_model("openrouter/openrouter/free", "usable", free=True)]}},
+        "groups": {
+            "openrouter/free": {
+                "modality": "chat",
+                "public": False,
+                "deployments": [{"route": "openrouter", "upstream_id": "openrouter/free", "order": 1}],
+            }
+        },
+    }
+    groups = cat.canonical_groups(cat.Catalogue(data, "live"), ["canonical"], [])
+    assert [(g.name, g.free) for g in groups] == [("openrouter/free", True)]
 
 
 def test_a_group_naming_its_own_access_groups_is_gated_by_them() -> None:

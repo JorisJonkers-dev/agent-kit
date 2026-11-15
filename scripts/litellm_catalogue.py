@@ -231,15 +231,18 @@ def public_access_groups(routes_path: Path = ROUTES) -> frozenset[str]:
 
 
 def _group_free(catalogue: Catalogue, deployments: Sequence[Mapping[str, Any]]) -> bool:
-    """Whether every first-tried deployment of a group is a model its provider marks free."""
-    first = [d for d in deployments if d.get("order") == min((x.get("order", 0) for x in deployments), default=0)]
-    if not first:
+    """Whether every deployment of a group, fallbacks included, is a model its provider marks free.
+
+    A fallback is where a run lands when the free deployment refuses (a quota, a cooldown, a 404),
+    so a group with one paid deployment anywhere can bill and is not free.
+    """
+    if not deployments:
         return False
-    for deployment in first:
+    for deployment in deployments:
         route = str(deployment.get("route", ""))
         upstream = str(deployment.get("upstream_id", ""))
         known = {model.id: model for model in provider_models(catalogue, route)}
-        model = known.get(upstream.removeprefix(f"{route}/"))
+        model = known.get(upstream) or known.get(upstream.removeprefix(f"{route}/"))
         if model is None or not model.free:
             return False
     return True
@@ -253,7 +256,7 @@ def _group_context_length(catalogue: Catalogue, deployments: Sequence[Mapping[st
         route = str(deployment.get("route", ""))
         upstream = str(deployment.get("upstream_id", ""))
         known = {model.id: model for model in provider_models(catalogue, route)}
-        model = known.get(upstream.removeprefix(f"{route}/"))
+        model = known.get(upstream) or known.get(upstream.removeprefix(f"{route}/"))
         if model is None or model.context_length is None:
             return None
         lengths.append(model.context_length)
@@ -273,8 +276,9 @@ def canonical_groups(
     (``public_groups``; by default the ones only ``data_scope: public`` routes hold in
     routes.json), so no group name is fixed here. A group with a deployment on a withheld
     route (``WITHHELD_ROUTES``) is reached only when the key holds that route's own access
-    group, whatever else the group or the key names. A public group (a free tier) counts as
-    free; another group is free when every deployment tried first is a free model.
+    group, whatever else the group or the key names. A group is free only when every
+    deployment, fallbacks included, is a model its provider marks free; public says who may send
+    the prompt, never the price (a free tier still bills once its quota is gone).
     """
     held = set(access_groups)
     gates = public_access_groups() if public_groups is None else frozenset(public_groups)
@@ -300,7 +304,7 @@ def canonical_groups(
             CanonicalGroup(
                 name=name,
                 modality=str(group.get("modality", "")),
-                free=public or _group_free(catalogue, deployments),
+                free=_group_free(catalogue, deployments),
                 public=public,
                 routes=tuple(dict.fromkeys(str(d.get("route", "")) for d in deployments)),
                 context_length=_group_context_length(catalogue, deployments),
