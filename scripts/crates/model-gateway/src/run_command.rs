@@ -508,6 +508,12 @@ impl RunCommand<'_> {
         if carries.1 && !permission.may_send.history {
             return Err(GatewayError::new("policy-refused", format!("{}:{} may not carry history: {}", input.client, input.model, decision.reason)));
         }
+        if input.free_only == Some(true) && !crate::sources::pi_model_is_free(self.runtime, &input.client, &input.model) {
+            return Err(GatewayError::new(
+                "free-only-refused",
+                format!("{}:{} is not free: its Pi provider entry does not price every field at zero, and a free-only run never falls back to another model", input.client, input.model),
+            ));
+        }
         if let Some(profile) = &input.profile {
             let every: Vec<PolicySubject> = config
                 .models

@@ -8,9 +8,10 @@
 
 use crate::json::{self, Object, Value};
 use crate::locations::{pi_models_path, vibe_available_cache_path, vibe_config_path};
+use crate::config::CostClass;
 use crate::models::{
     hermes_default_model, is_vibe_model_id, parse_antigravity_models, parse_opencode_models, parse_vibe_available,
-    vibe_models, ClientListing, ClientModel,
+    vibe_models, ClientListing, ClientModel, ListedModel, ModelListing,
 };
 use crate::ports::{ProcessResult, Runtime};
 
@@ -132,6 +133,53 @@ pub fn parse_pi_listing(text: &str, provider: &str, path: &str) -> ClientListing
             .map(|id| ClientModel { model: id.to_string(), names: Vec::new(), provider: None })
             .collect(),
     )
+}
+
+/// Whether the Pi provider's entry for a model prices every field at zero: a `cost` object with at least one
+/// field, each a number equal to 0. A missing, partial or non-numeric `cost` is not free.
+pub fn pi_entry_is_free(text: &str, provider: &str, model: &str) -> bool {
+    let Ok(parsed) = json::parse(text) else {
+        return false;
+    };
+    let models = parsed.as_object().and_then(|object| object.get("providers")).and_then(Value::as_object).and_then(|providers| providers.get(provider)).and_then(Value::as_object).and_then(|entry| entry.get("models"));
+    let Some(Value::Arr(models)) = models else {
+        return false;
+    };
+    let entry = models.iter().filter_map(Value::as_object).find(|entry| entry.get("id").and_then(Value::as_str) == Some(model));
+    let Some(cost) = entry.and_then(|entry| entry.get("cost")).and_then(Value::as_object) else {
+        return false;
+    };
+    let fields: Vec<&Value> = cost.entries().into_iter().map(|(_, value)| value).collect();
+    !fields.is_empty() && fields.iter().all(|value| matches!(value, Value::Num(number) if *number == 0.0))
+}
+
+/// Whether a Pi client's model is free on this machine, read from the home's `models.json`; `false` for a client
+/// that is not Pi's or a file that cannot be read.
+pub fn pi_model_is_free(runtime: &Runtime, client: &str, model: &str) -> bool {
+    if !crate::run::is_pi_client(client) {
+        return false;
+    }
+    let Ok(path) = pi_models_path(&runtime.env) else {
+        return false;
+    };
+    runtime.files.read_text(&path).is_ok_and(|text| pi_entry_is_free(&text, &crate::run::pi_provider(client), model))
+}
+
+/// The listing with every Pi model that is verifiably free moved from `subsidised` to `free`; any other class is kept.
+pub fn mark_free(runtime: &Runtime, listing: ModelListing) -> ModelListing {
+    let models = listing
+        .models
+        .into_iter()
+        .map(|model| {
+            let free = model.cost_class == CostClass::Subsidised && pi_model_is_free(runtime, &model.client, &model.model);
+            if free {
+                ListedModel { cost_class: CostClass::Free, ..model }
+            } else {
+                model
+            }
+        })
+        .collect();
+    ModelListing { models, ..listing }
 }
 
 /// Hermes' own configuration: `hermes model` is an interactive picker, so the

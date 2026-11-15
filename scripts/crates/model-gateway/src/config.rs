@@ -9,25 +9,32 @@ pub const CONFIG_VERSION: f64 = 1.0;
 /// What a run on a client costs the owner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CostClass {
+    /// A model whose Pi provider entry prices every field at zero. Never a guess: only a verified zero price.
+    Free,
     Subsidised,
     MeteredPersonal,
     MeteredEmployer,
 }
 
 impl CostClass {
-    pub const ALL: [CostClass; 3] = [CostClass::Subsidised, CostClass::MeteredPersonal, CostClass::MeteredEmployer];
+    pub const ALL: [CostClass; 4] = [CostClass::Free, CostClass::Subsidised, CostClass::MeteredPersonal, CostClass::MeteredEmployer];
 
-    /// The name the JSON files and the output use: `subsidised`, `metered-personal`, `metered-employer`.
+    /// The name the JSON files and the output use: `free`, `subsidised`, `metered-personal`, `metered-employer`.
     pub fn as_str(self) -> &'static str {
         match self {
+            CostClass::Free => "free",
             CostClass::Subsidised => "subsidised",
             CostClass::MeteredPersonal => "metered-personal",
             CostClass::MeteredEmployer => "metered-employer",
         }
     }
 
+    /// The classes a configuration or the ledger may name. `free` is never among them: it is only ever found by
+    /// reading the Pi provider's prices, so no file can declare a client or a run free.
+    pub const DECLARABLE: [CostClass; 3] = [CostClass::Subsidised, CostClass::MeteredPersonal, CostClass::MeteredEmployer];
+
     pub fn parse(text: &str) -> Option<CostClass> {
-        Self::ALL.into_iter().find(|class| class.as_str() == text)
+        Self::DECLARABLE.into_iter().find(|class| class.as_str() == text)
     }
 }
 

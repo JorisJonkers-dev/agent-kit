@@ -64,6 +64,7 @@ fn reads_the_input_a_caller_sends_with_the_default_time_limit() {
             max_attempts: None,
             profile: None,
             narrow: None,
+            free_only: None,
             tail: Vec::new(),
         }
     );
@@ -73,11 +74,12 @@ fn reads_the_input_a_caller_sends_with_the_default_time_limit() {
 fn reads_every_optional_field() {
     let read = read_run_input(&input(
         r#"{"carries":{"code":true,"history":false},"max_price_usd":0.5,"provider":"anthropic","repo":"/work/agent-kit","time_limit_s":60,
-            "escalate":false,"family_binding":true,"headless":true,"max_attempts":2}"#,
+            "escalate":false,"family_binding":true,"headless":true,"max_attempts":2,"free_only":true}"#,
     ))
     .expect("full input");
     assert_eq!(read.carries, Some(Carries { code: true, history: false }));
     assert_eq!(read.max_price_usd, Some(0.5));
+    assert_eq!(read.free_only, Some(true));
     assert_eq!(read.provider.as_deref(), Some("anthropic"));
     assert_eq!(read.repo.as_deref(), Some("/work/agent-kit"));
     assert_eq!(read.time_limit_s, 60.0);

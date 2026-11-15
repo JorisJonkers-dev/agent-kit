@@ -284,7 +284,7 @@ pub fn held_cost_class(input: &RunInput, config: &GatewayConfig) -> Result<Optio
             ),
         ));
     };
-    Ok(Some(run_cost_class(client, input)).filter(|class| *class != CostClass::Subsidised))
+    Ok(Some(run_cost_class(client, input)).filter(|class| !matches!(class, CostClass::Subsidised | CostClass::Free)))
 }
 
 /// Why a run does not fit the metered-personal caps, naming the cap, its limit, what is spent and reserved, and the estimate.

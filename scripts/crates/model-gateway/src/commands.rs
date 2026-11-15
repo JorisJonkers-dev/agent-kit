@@ -117,10 +117,9 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
     let unavailable = standing_refusals(runtime, now);
     let judges = config.clients.iter().any(|(id, client)| installed.contains(id) && (client.litellm_route.is_some() || crate::run::is_pi_client(id)));
     let reading = if judges { crate::litellm_catalogue::read_catalogue(runtime) } else { Default::default() };
-    let listing = crate::litellm_catalogue::judge_listing(
-        &config,
-        models::list_models(&config, &installed, &listings, &unavailable),
-        reading.catalogue.as_ref(),
+    let listing = sources::mark_free(
+        runtime,
+        crate::litellm_catalogue::judge_listing(&config, models::list_models(&config, &installed, &listings, &unavailable), reading.catalogue.as_ref()),
     );
     let scope = policy::resolve_scope(runtime, repo.as_deref())?;
     let subjects: Vec<PolicySubject> = listing

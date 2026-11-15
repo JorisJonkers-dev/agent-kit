@@ -516,7 +516,7 @@ fn plan_window(input: &BatchInput) -> f64 {
         .delegations
         .iter()
         .map(|delegation| {
-            let attempts = if delegation.input.escalate == Some(false) {
+            let attempts = if delegation.input.escalate == Some(false) || delegation.input.free_only == Some(true) {
                 1.0
             } else {
                 delegation.input.max_attempts.unwrap_or(DEFAULT_MAX_ATTEMPTS)

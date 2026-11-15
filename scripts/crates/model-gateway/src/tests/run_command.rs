@@ -487,3 +487,36 @@ fn a_pi_run_whose_profile_lists_a_skill_the_home_lacks_is_refused_before_anythin
     assert!(error.message.starts_with("profile cheap-research cannot run on pi-vibe: skill lint is not in Pi's home: looked for "), "{}", error.message);
     assert!(!std::path::Path::new(&format!("{}/state/agent-kit/model-gateway/ledger.jsonl", machine.sandbox.text())).exists());
 }
+
+fn pi_free_machine(cost: &str) -> Machine {
+    let machine = pi_machine();
+    std::fs::write(
+        format!("{}/home/.pi/agent/models.json", machine.sandbox.text()),
+        format!(r#"{{"providers":{{"litellm-vibe":{{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{{"id":"ministral-8b"{cost}}}]}}}}}}"#),
+    )
+    .expect("models");
+    machine
+}
+
+#[test]
+fn a_free_only_run_on_a_model_that_is_not_free_is_refused_before_anything_runs() {
+    for cost in ["", r#","cost":{"input":0,"output":0.2}"#] {
+        let machine = pi_free_machine(cost);
+
+        let error = run(&machine, &pi_run(r#","free_only":true"#)).expect_err("a model that is not free");
+
+        assert_eq!(error.code, "free-only-refused");
+        assert!(error.message.starts_with("pi-vibe:ministral-8b is not free"), "{}", error.message);
+        assert!(!std::path::Path::new(&format!("{}/state/agent-kit/model-gateway/ledger.jsonl", machine.sandbox.text())).exists());
+    }
+}
+
+#[test]
+fn a_free_only_run_on_a_free_model_runs_and_a_run_that_does_not_ask_is_unchanged() {
+    let free = pi_free_machine(r#","cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0}"#);
+    assert_eq!(text(&run(&free, &pi_run(r#","free_only":true"#)).expect("the free run"), "status"), "ok");
+    let paid = pi_free_machine(r#","cost":{"input":1,"output":0}"#);
+    assert_eq!(text(&run(&paid, &pi_run("")).expect("the run that did not ask"), "status"), "ok");
+    let error = run(&paid, &pi_run(r#","free_only":"yes""#)).expect_err("not a flag");
+    assert_eq!(error.code, "invalid-input");
+}

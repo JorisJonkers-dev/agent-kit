@@ -119,7 +119,14 @@ Pi is the preferred client: `pi-vibe`, `pi-vibe-study`, `pi-opencode-go`,
 `pi-local` and `pi-public`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
 all started by the one `pi` program, each on its route's key, which sits in the
 route's own team and budget. There is no `pi-openrouter`: the owner forbade
-OpenRouter. All are `subsidised`. Each lists the models the home's
+OpenRouter. All are `subsidised`, except a model that is verifiably `free`
+(below). A Pi model is
+`free` (the `cost_class` `models` prints, ahead of `subsidised`) only when its
+entry in that provider carries a `cost` object whose every field is a number 0;
+a missing, empty, partial or non-numeric `cost` keeps `subsidised`. No
+configuration or ledger file can declare `free`. A free model is held to the
+caps and the plan limit exactly like a `subsidised` one (neither applies).
+Each lists the models the home's
 `~/.pi/agent/models.json` (or `PI_CODING_AGENT_DIR`) gives its
 `litellm-<route>` provider, which setup writes from the live catalogue's
 canonical groups the route's key reaches, so `models` shows what a Pi client
@@ -245,9 +252,13 @@ only for an inline run), `time_limit_s` (default 900), `max_price_usd` and
 `provider` (which a Hermes run must name, and which this machine must allow),
 `escalate` (default `true`; `false` turns off the retry, the climb and the
 fall-through below), `family_binding` (default `true`; see below),
-`max_attempts` (default 3) and `headless` (a boolean that
+`max_attempts` (default 3), `headless` (a boolean that
 changes nothing else: a run marked headless is refused and launched exactly
-like any other).
+like any other) and `free_only` (a boolean; see below).
+`free_only: true` refuses the run, before anything starts, with code
+`free-only-refused` unless the model is `free`; it also turns off the retry,
+the climb and the fall-through, so a free-only run never moves to another
+model. A non-boolean is `invalid-input`.
 `workflow` is required (`code: "invalid-input"`), and is a name: a letter or
 digit, then letters, digits and `. _ : / @ -` only, at most 80 characters. Every
 command that takes a workflow name holds it to that rule, because the name
