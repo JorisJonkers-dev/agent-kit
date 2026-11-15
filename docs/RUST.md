@@ -476,7 +476,10 @@ Known differences from the node runner:
 
 - A number beyond 2^53, or beyond what a `u64` holds, in a spec, an assignment
   or a state file parses differently from a JavaScript `Number`.
-- A lone UTF-16 surrogate escape in a state file reads as U+FFFD.
+- A lone UTF-16 surrogate escape in a state file reads as U+FFFD (and prints
+  back as the escape it came from, so a line carrying one round-trips).
+- JSON nested deeper than 10,000 levels is refused with an error, where V8
+  would read it.
 - Some V8 JSON error texts and rare errno wordings differ.
 - A program's output is not capped at 64 MiB.
 - When the rename that writes `--out` fails, the outcome is non-deterministic.
@@ -577,7 +580,8 @@ reads as UTC, not local time (the goldens run with `TZ=UTC`); `Date.parse`'s
 legacy non-ISO formats (`2026/11/03`, `2026-1-03`, a `+0200` offset) are not accepted; an empty
 `HOME` resolves the state directory under `/` rather than the working directory;
 a failure to remove the lock file is not reported; a lone UTF-16 surrogate
-escape reads as U+FFFD; the V8 JSON error texts and errno
+escape reads as U+FFFD (and prints back as the escape it came from); JSON
+nested deeper than 10,000 levels is refused with an error; the V8 JSON error texts and errno
 wordings are the same where `src/json.rs` and `src/adapters/fs.rs` reproduce
 them, and differ for rare ones. Also different: a ledger line that is not a JSON
 object is skipped (the node runner stops on it), a run line missing a field the

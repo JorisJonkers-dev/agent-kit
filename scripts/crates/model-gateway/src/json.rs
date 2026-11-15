@@ -2,8 +2,19 @@
 //! `JSON.stringify(value, null, 2)`: objects keep their key order (integer
 //! keys first, ascending, as a JavaScript object orders them), numbers print
 //! as JavaScript prints them, and a syntax error reads as V8 words it.
+//!
+//! Two differences from V8 are deliberate. A lone surrogate escape cannot live
+//! in a Rust string, so it reads as U+FFFD, with the code unit it came from
+//! kept beside it so it prints back as the escape it was. And nesting deeper
+//! than [`MAX_DEPTH`] is refused with an error where V8 would read it, so a
+//! hostile line cannot overflow the stack.
 
-#[derive(Clone, Debug, PartialEq)]
+use std::collections::HashMap;
+
+/// The deepest nesting [`parse`] accepts; the node runners write far less.
+pub const MAX_DEPTH: usize = 10_000;
+
+#[derive(Clone, Debug)]
 pub enum Value {
     Null,
     Bool(bool),
@@ -13,10 +24,33 @@ pub enum Value {
     Obj(Object),
 }
 
+/// A string compares by what JavaScript sees: the marks that record lone surrogates are invisible.
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Str(left), Value::Str(right)) => without_marks(left) == without_marks(right),
+            (Value::Null, Value::Null) => true,
+            (Value::Bool(left), Value::Bool(right)) => left == right,
+            (Value::Num(left), Value::Num(right)) => left == right,
+            (Value::Arr(left), Value::Arr(right)) => left == right,
+            (Value::Obj(left), Value::Obj(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
 /// An object's members in insertion order; `entries` gives the order JavaScript enumerates them in.
-#[derive(Clone, Debug, Default, PartialEq)]
+/// `slots` finds a member by key, so a wide object is not a linear scan.
+#[derive(Clone, Debug, Default)]
 pub struct Object {
     members: Vec<(String, Value)>,
+    slots: HashMap<String, usize>,
+}
+
+impl PartialEq for Object {
+    fn eq(&self, other: &Self) -> bool {
+        self.members == other.members
+    }
 }
 
 fn array_index(key: &str) -> Option<u32> {
@@ -30,23 +64,33 @@ impl Object {
     }
 
     pub fn get(&self, key: &str) -> Option<&Value> {
-        self.members.iter().find(|(name, _)| name == key).map(|(_, value)| value)
+        self.slots.get(key).map(|at| &self.members[*at].1)
     }
 
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
-        self.members.iter_mut().find(|(name, _)| name == key).map(|(_, value)| value)
+        let at = self.slots.get(key).copied()?;
+        Some(&mut self.members[at].1)
     }
 
     /// Sets a member: in place when the key exists, else last.
     pub fn set(&mut self, key: &str, value: Value) {
-        match self.get_mut(key) {
-            Some(slot) => *slot = value,
-            None => self.members.push((key.to_string(), value)),
+        match self.slots.get(key) {
+            Some(at) => self.members[*at].1 = value,
+            None => {
+                self.slots.insert(key.to_string(), self.members.len());
+                self.members.push((key.to_string(), value));
+            }
         }
     }
 
     pub fn remove(&mut self, key: &str) {
+        if self.slots.remove(key).is_none() {
+            return;
+        }
         self.members.retain(|(name, _)| name != key);
+        for (at, (name, _)) in self.members.iter().enumerate() {
+            self.slots.insert(name.clone(), at);
+        }
     }
 
     /// The members as a JavaScript object enumerates them.
@@ -133,7 +177,8 @@ pub fn number_text(number: f64) -> String {
 
 fn quote(text: &str, out: &mut String) {
     out.push('"');
-    for c in text.chars() {
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
         match c {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
@@ -143,10 +188,34 @@ fn quote(text: &str, out: &mut String) {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            // A lone surrogate reads as U+FFFD plus a mark holding its code unit, since a Rust
+            // string cannot hold the surrogate itself.
+            '\u{fffd}' if is_surrogate_mark(chars.peek().copied()) => {
+                let mark = chars.next().expect("the mark is there");
+                out.push_str(&format!("\\u{:04x}", surrogate_of(mark)));
+            }
             c => out.push(c),
         }
     }
     out.push('"');
+}
+
+/// The private-use character that follows U+FFFD to record a lone surrogate's code unit.
+fn surrogate_mark(code: u32) -> char {
+    char::from_u32(0xf0000 + code).expect("a private-use character")
+}
+
+fn is_surrogate_mark(c: Option<char>) -> bool {
+    matches!(c, Some(c) if (0xf0000..0xf0000 + 0x10000).contains(&(c as u32)))
+}
+
+fn surrogate_of(mark: char) -> u32 {
+    mark as u32 - 0xf0000
+}
+
+/// The text as JavaScript holds it, with the marks of lone surrogates taken out.
+fn without_marks(text: &str) -> String {
+    text.chars().filter(|c| !is_surrogate_mark(Some(*c))).collect()
 }
 
 fn write(value: &Value, indent: Option<usize>, out: &mut String) {
@@ -203,7 +272,22 @@ pub fn compact(value: &Value) -> String {
 
 /// `JSON.parse`; the error is the message V8 gives.
 pub fn parse(text: &str) -> Result<Value, String> {
-    let mut parser = Parser { chars: text.chars().collect(), at: 0 };
+    // A thread of its own with a stack sized for `MAX_DEPTH`, so a deep line is
+    // read rather than overflowing the caller's stack.
+    let chars: Vec<char> = text.chars().collect();
+    let stack = MAX_DEPTH.saturating_mul(4 * 1024).max(8 * 1024 * 1024);
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(stack)
+            .spawn_scoped(scope, || parse_chars(chars))
+            .expect("a parser thread starts")
+            .join()
+            .expect("the parser returns an error rather than panicking")
+    })
+}
+
+fn parse_chars(chars: Vec<char>) -> Result<Value, String> {
+    let mut parser = Parser { chars, at: 0, depth: 0, lone: None };
     parser.skip_space();
     let value = parser.value()?;
     parser.skip_space();
@@ -216,6 +300,9 @@ pub fn parse(text: &str) -> Result<Value, String> {
 struct Parser {
     chars: Vec<char>,
     at: usize,
+    depth: usize,
+    /// The code unit of the lone surrogate `escape` just read, if it read one.
+    lone: Option<u32>,
 }
 
 impl Parser {
@@ -345,7 +432,12 @@ impl Parser {
                 }
                 '\\' => {
                     self.at += 1;
-                    out.push(self.escape()?);
+                    let escaped = self.escape()?;
+                    out.push(escaped);
+                    // A lone surrogate keeps its code unit, so it prints back as it came.
+                    if let Some(code) = self.lone.take() {
+                        out.push(surrogate_mark(code));
+                    }
                 }
                 c if (c as u32) < 0x20 => return Err(self.fail("Bad control character in string literal in JSON")),
                 c => {
@@ -386,10 +478,20 @@ impl Parser {
             if (0xdc00..0xe000).contains(&pair) {
                 return Ok(char::from_u32(0x10000 + ((code - 0xd800) << 10) + (pair - 0xdc00)).expect("a surrogate pair is a scalar value"));
             }
+            // The escape after a high surrogate is not its pair: it reads on its own, so the
+            // high surrogate goes back to be read as the lone one it is.
             self.at = saved;
+            self.lone = Some(code);
+            return Ok('\u{fffd}');
         }
-        // A lone surrogate cannot live in a Rust string; it reads as U+FFFD.
-        Ok(char::from_u32(code).unwrap_or('\u{fffd}'))
+        // A lone surrogate cannot live in a Rust string; it reads as U+FFFD and a mark.
+        match char::from_u32(code) {
+            Some(scalar) => Ok(scalar),
+            None => {
+                self.lone = Some(code);
+                Ok('\u{fffd}')
+            }
+        }
     }
 
     fn hex4(&mut self) -> Result<u32, String> {
@@ -404,7 +506,23 @@ impl Parser {
         Ok(code)
     }
 
+    /// Counts one more level of nesting, refusing past [`MAX_DEPTH`].
+    fn enter(&mut self) -> Result<(), String> {
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            return Err(self.fail("Exceeded maximum nesting depth in JSON"));
+        }
+        Ok(())
+    }
+
     fn array(&mut self) -> Result<Value, String> {
+        self.enter()?;
+        let value = self.array_members();
+        self.depth -= 1;
+        value
+    }
+
+    fn array_members(&mut self) -> Result<Value, String> {
         self.at += 1;
         self.skip_space();
         let mut items = Vec::new();
@@ -430,6 +548,13 @@ impl Parser {
     }
 
     fn object(&mut self) -> Result<Value, String> {
+        self.enter()?;
+        let value = self.object_members();
+        self.depth -= 1;
+        value
+    }
+
+    fn object_members(&mut self) -> Result<Value, String> {
         self.at += 1;
         self.skip_space();
         let mut members = Object::new();
