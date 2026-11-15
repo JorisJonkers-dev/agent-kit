@@ -279,8 +279,7 @@ package_proxy:
 # Gold Band (github.com/diodeme/Gold-Band, AGPL, third party).
 #
 # On Linux, setup builds the pinned commit from an EXISTING clone (never
-# cloned or touched by setup) through the packages proxy, after crate-age has
-# checked its Cargo.lock, and installs the desktop app and the headless
+# cloned or touched by setup) through the packages proxy and installs the desktop app and the headless
 # `gold-band` binary into ~/.local/bin. No clone: the surface is skipped and
 # setup says so. The pin is a commit, not a tag. See docs/GOLD-BAND.md.
 # -------------------------------------------------------------------
@@ -1104,7 +1103,7 @@ retired_skills:
   - name: run-tests
 
 # Workspace tools: command-line tools built from this kit's own cargo workspace
-# (scripts/Cargo.toml, `--locked`, behind the 7-day crate cooldown) and installed
+# (scripts/Cargo.toml, `--locked`) and installed
 # into ~/.local/bin by scripts/install-workspace-tools.sh, so the Gold Band
 # workflows, the pre-commit hooks and the CI helpers find them by name. Each
 # `name` is a workspace crate under scripts/crates whose binary has the same

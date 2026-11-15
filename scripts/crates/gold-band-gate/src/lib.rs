@@ -3,7 +3,7 @@
 //!
 //! A gate node is a cheap worker whose agent id runs exactly one pinned
 //! wrapper, `gold-band-gate run`. The wrapper runs the gate command (build,
-//! tests, lint, coverage, crate age), captures its output and writes a gate
+//! tests, lint, coverage), captures its output and writes a gate
 //! report (`gold-band-report`) that the gate agent cannot write: the report
 //! directory is outside what the launcher lets that agent id write (ticket
 //! #432, the launcher's OS write limit; this crate only makes the wrapper and

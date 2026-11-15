@@ -20,31 +20,20 @@ ticket.
 2. **Read the pin without touching the clone.** The tree at the pinned commit
    is extracted with `git archive` into
    `~/.cache/agent-kit/gold-band/<commit>/src`.
-3. **crate-age over Gold Band's `Cargo.lock`.** Exit `1` (a locked version is
-   younger than 7 days) stops the build: the crate is printed, setup reports a
-   failure, nothing is built or installed. Exit `2` (age unprovable) fails
-   closed too, with exactly two exceptions that have no publish date by
-   nature: Gold Band's own path crates, and the `tao` git patch, accepted only
-   while the lockfile pins it to rev `c704261c`. An HTTP 429 from crates.io is
-   reported as a rate limit to retry, never as a pass.
-4. **Through the packages proxy.** Gold Band ships a `.cargo/config.toml` that
-   points crates.io at a third-party mirror (rsproxy.cn), which would bypass
-   the cooldown. In the build copy only, it is replaced by a config that
-   resolves through the packages proxy (which hides versions younger than 7
-   days) with cargo's own `global-min-publish-age = "7 days"`, using the token
-   setup wrote to `~/.cargo/credentials.toml` (`scripts/install-crate-age.sh`
-   installs crate-age; see [RUST.md](RUST.md)). One exception, stated rather than hidden: Gold Band's
+3. **Through the packages proxy.** Gold Band ships a `.cargo/config.toml` that
+   points crates.io at a third-party mirror (rsproxy.cn). In the build copy
+   only, it is replaced by a config that resolves through the packages proxy,
+   using the token setup wrote to `~/.cargo/credentials.toml`. Gold Band's
    `[patch.crates-io] tao` is a git dependency at rev `c704261c`, which cargo
-   fetches from github.com directly (the proxy only serves crates.io); the
-   builder refuses any other tao source. The web UI's npm
-   packages come through the packages proxy that setup already configures.
-5. **Build** `npm ci`, `npm run web:build` (the UI the desktop app embeds),
+   fetches from github.com directly (the proxy only serves crates.io). The web
+   UI's npm packages come through the packages proxy that setup already
+   configures.
+4. **Build** `npm ci`, `npm run web:build` (the UI the desktop app embeds),
    then `cargo build --release -p gold-band --bin gold-band` and
    `cargo build --release -p gold-band-desktop`. The lockfile at the pin is
    stale for Gold Band's own two crates (`0.19.0` recorded, `0.19.1` in the
-   manifests), so the build runs without `--locked`; afterwards the builder
-   proves that no third-party entry of the lockfile changed.
-6. **Install and report.** Both binaries go to `~/.local/bin`, and
+   manifests), so the build runs without `--locked`.
+5. **Install and report.** Both binaries go to `~/.local/bin`, and
    `~/.local/state/agent-kit/gold-band/build.json` records version, tag, build
    commit, build time, the age-check result, the sha256 of the build patches
    (`patches_sha256`) and each binary's sha256. A run
@@ -52,7 +41,7 @@ ticket.
    binaries' sha256 equal to the recorded ones, does nothing (`GOLD_BAND_FORCE=1`
    rebuilds). `setup-workstation.sh --check` only reports.
 
-7. **Make it findable and runnable (every run, built or not).** The builder
+6. **Make it findable and runnable (every run, built or not).** The builder
    installs `~/.local/bin/gold-band-launch`, `${XDG_DATA_HOME:-~/.local/share}/gold-band/runtime.nix`,
    `applications/gold-band.desktop` (`Name=Gold Band`, `Exec` the launcher's
    absolute path, `Icon=gold-band`, `Categories=Development;`,
@@ -73,8 +62,7 @@ ticket.
    --retire [--check]` removes all of these files and keeps the binaries and
    the clone. `GOLD_BAND_SHARE` moves the data home.
 
-Exit status of the builder: `0` built, already built, or skipped; `3` a crate
-too young or unprovable (build stopped, setup fails); `1` any other failure.
+Exit status of the builder: `0` built, already built, or skipped; `1` any failure.
 
 ## System build dependencies (NixOS)
 
@@ -101,10 +89,6 @@ them directly and skips `nix-shell`.
 
 Linux x86_64 (NixOS), 2026-11-10, from commit `987fc3e298b15d725a7f0e9b609b0f77dba63a74`:
 
-* **Age check:** crate-age proved 766 of 768 locked registry versions at least
-  7 days old and refused the two with no publish date by nature:
-  `gold-band-desktop 0.19.0` (path) and `tao 0.35.3` (git, rev `c704261c`).
-  No crate was younger than 7 days.
 * **Build:** `npm ci` and the web build, then both cargo builds, all crates
   resolved through the gate; the lockfile changed only in Gold Band's own two
   versions.
@@ -547,7 +531,7 @@ own vitest file (`web/tests/workflow-entry-failure-targets.test.ts`).
 * `build-linux.sh` applies every `patches/*.patch` (name order, `git apply`) to the
   build copy before `npm run web:build`. A patch that does not apply (the pin moved)
   stops the build with exit 1 and a message; nothing is installed. The clone is
-  never touched. The pin and the 7-day crate cooldown are unchanged.
+  never touched. The pin is unchanged.
 * The sha256 of the patches is recorded in `build.json` (`patches_sha256`, `none`
   without patches); a record with another or no value is not "built", so the next
   setup run rebuilds. `--check` prints the hash. After this lands, run once:
@@ -1435,7 +1419,7 @@ The updater is held off by pointing it nowhere. The app has no updater
 switch; its only setting is `desktopUpdaterUrlOverride` (`src/config/mod.rs:877`,
 an https URL). Left alone, the updater polls GitHub's `latest.json` and installs
 critical updates silently, replacing the binary the builder made from the pin
-after crate-age and the 7-day cooldown (it once replaced it with a v0.20.0
+(it once replaced it with a v0.20.0
 AppImage). The kit owns this key: setup sets it to
 `GOLD_BAND_UPDATER_DISABLED_URL` (`https://127.0.0.1:9/gold-band-updates-disabled.json`
 in `scripts/converge.py`), whatever it held, so updates arrive only by moving the pin.

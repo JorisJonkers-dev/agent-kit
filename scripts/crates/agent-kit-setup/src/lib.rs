@@ -1,9 +1,8 @@
 //! The setup canary crate: the Rust workspace's proof of path.
 //!
 //! The standards repo's ADR-0014 puts all of agent-kit's Rust in one workspace
-//! under `scripts/`, behind the 7-day crate cooldown. This member is
-//! deliberately trivial and std-only, with no dependency of any kind, so the
-//! workspace lockfile holds nothing whose age the cooldown could question.
+//! under `scripts/`. This member is deliberately trivial and std-only, with no
+//! dependency of any kind.
 //! `--version` proves the build end to end; the command also validates a path.
 //! New Rust joins this workspace as a new member, never as its own Cargo
 //! project.

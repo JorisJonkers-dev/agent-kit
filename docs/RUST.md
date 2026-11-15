@@ -1,24 +1,17 @@
-# The Rust workspace and the 7-day crate cooldown
+# The Rust workspace
 
 The estate's Rust lives in **one cargo workspace**, `scripts/Cargo.toml`, with
 **one lockfile**, `scripts/Cargo.lock`, and **no git or path dependency**
-outside the workspace. The rule and the 7-day crate cooldown come from the
-standards repo (`JorisJonkers-dev/standards`, ADR-0014, whose `scripts/README.md`
-documents its tooling); this page is how agent-kit follows it, on the Mac and
-on the Linux workstation.
+outside the workspace. The rule comes from the standards repo
+(`JorisJonkers-dev/standards`, ADR-0014); this page is how agent-kit follows
+it, on the Mac and on the Linux workstation.
 
-* **The cooldown.** No crate version younger than **7 days** may be used.
-  Two things hold it at resolve time, so a normal `cargo build` cannot pick a
-  young version up even by accident: cargo's own cooldown
-  (`registry.global-min-publish-age = "7 days"`, honoured from Rust 1.100), and
-  the packages proxy every workstation and CI job resolves through
-  (`packages.jorisjonkers.dev/cargo`), which hides those versions from its
-  index. **crate-age** is the check for after the fact: it exits `1` for a version proven younger than 7
-  days, `2` for a version whose age cannot be proven, and `0` only when every
-  locked version is proven old enough. The gate **fails closed**: an unprovable
-  age blocks the change.
+* **Resolution.** A registry dependency is pinned exactly. Cargo resolves
+  through the packages proxy every workstation and CI job uses
+  (`packages.jorisjonkers.dev/cargo`). There is no crate cooldown check in this
+  repository (see "Resolving crates" below).
 * **The workspace.** Twenty-one members. `crates/agent-kit-setup` is the canary: a
-  std-only crate (nothing in the lockfile has an age to question) whose
+  std-only crate whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
   server is missing from docs/gold-band-port-inventory.md, has two targets or no
@@ -646,8 +639,7 @@ this order: the Rust binary at `~/.local/share/agent-kit/model-gateway/model-gat
 (`AGENT_KIT_MODEL_GATEWAY_BIN` names another), unless the node runner is asked for;
 else the node bundle in the Claude Code home, as before. Setup runs
 `scripts/install-model-gateway-rust.sh`, which builds the crate from this workspace
-(`cargo build --release --locked -p model-gateway`, std only, so nothing in the lockfile
-has an age to question), checks that the new binary answers `--help`, and moves it into
+(`cargo build --release --locked -p model-gateway`, std only), checks that the new binary answers `--help`, and moves it into
 place atomically. A machine with no cargo or no workspace skips the step and keeps
 running the node runner (a release's kit bundle ships the workspace, so a bundle
 install builds it too; SETUP.md's "The kit's own command-line tools" lists what
@@ -838,8 +830,7 @@ exit-wrapper line each crate documents. Test code is excluded too, since the
 standard is coverage of production source: unit tests live in `src/tests.rs`
 (`#[cfg(test)] mod tests;`, or `src/<module>/tests.rs`) and integration tests
 under `tests/`, and any file matching `/tests.rs` or `/tests/` is ignored.
-Keep test helpers and stubs in those files, never in a production file. No crate is added, so the cooldown is
-untouched. It needs a rustup toolchain with the `llvm-tools` component (so
+Keep test helpers and stubs in those files, never in a production file. It needs a rustup toolchain with the `llvm-tools` component (so
 `llvm-profdata` and `llvm-cov` come from the LLVM that built that `rustc`; the
 script refuses a mismatch) and `jq`.
 
@@ -861,106 +852,35 @@ closure that never runs counts as a missed line, so a test takes each false
 path that can happen, and a branch whose false path cannot happen is written
 without it.
 
-## The cooldown at resolve time
+## Resolving crates
 
-`.cargo/config.toml` at the repository root sets the cooldown for every cargo
-command run in the repository:
+Cargo resolves through the packages proxy (`packages.jorisjonkers.dev/cargo`)
+wherever setup or `setup-package-proxy` configured `~/.cargo/config.toml`, with
+the token in `~/.cargo/credentials.toml`. The proxy's own release cooldown is
+the proxy's concern and is unchanged. The repository itself sets no cargo
+cooldown, runs no crate-age check, and has no pre-commit hook or waiver file for
+one: the crate cooldown (standards ADR-0014) was removed from agent-kit by owner
+decision.
 
-```toml
-[registry]
-global-min-publish-age = "7 days"
-```
-
-From Rust 1.100 the resolver then skips any version published less than 7 days
-ago unless `Cargo.lock` already holds it, and says what it held back. Setup
-writes the same key into `~/.cargo/config.toml` with the packages-proxy block,
-and makes sure a stable toolchain is at least 1.100 (`rustup update stable`
-when it is older; a default pinned to an older release is a failure). An older
-cargo ignores the key with a warning.
-
-The packages proxy is the second floor: its cargo index leaves out every
-version younger than 7 days and keeps each entry's `pubtime`, so cargo's own
-check works through it. Resolution goes through it wherever setup or
-`setup-package-proxy` configured `~/.cargo/config.toml`. `cargo install` skips
-cargo's cooldown, so the proxy is what holds it there.
-
-The loopback crate-gate (`127.0.0.1:17342`) that used to replace crates.io here
-is retired: the proxy and the cargo setting replace it. Stop a gate a machine
-still runs with `systemctl --user disable --now crate-gate` (launchd on the
-Mac) and delete `~/.config/systemd/user/crate-gate.service`.
-
-### crate-age on a workstation
-
-`scripts/install-crate-age.sh` builds crate-age from your standards clone
-(`~/Projects/JorisJonkers-dev/standards`, or `STANDARDS_DIR`) with `git archive`
-at the pinned commit `STANDARDS_REF` — the clone's working tree is never
-touched — borrowing cargo from `nix shell` on NixOS when none is on `PATH`, and
-installs it to `~/.local/bin`. The Mac installs it from the standards repo the
-same way.
-
-## The pre-commit hook
-
-`.githooks/pre-commit` runs **crate-age** over any staged `Cargo.toml` or
-`Cargo.lock` change. Enable it once per clone:
-
-```bash
-git config core.hooksPath .githooks
-```
-
-(plus `chmod +x .githooks/pre-commit` if the checkout lost the executable
-bit). How the hook obtains crate-age — it never copies it in:
-
-1. `$CRATE_AGE` — a full path to the crate-age executable;
-2. `crate-age` on `PATH` — what `scripts/install-crate-age.sh` installs;
-3. neither — no age can be proven, so the commit is **refused (exit 2)** with
-   the reason printed.
-
-`tests/test_crate_cooldown_hook.py` commits to a scratch repository against a
-fake crate-age and asserts on whether the commit exists: exit 1, exit 2 and a
-missing checker are all refused; exit 0 and a commit that touches no Cargo file
-pass.
+The loopback crate-gate (`127.0.0.1:17342`) that once replaced crates.io here is
+long retired. Stop a gate a machine still runs with
+`systemctl --user disable --now crate-gate` (launchd on the Mac) and delete
+`~/.config/systemd/user/crate-gate.service`.
 
 ## The pull-request workflow
 
-`.github/workflows/crate-cooldown.yml` runs on every pull request (and on
-pushes to `main`), so every `Cargo.toml` or `Cargo.lock` change is checked. It
-checks out this repository and the standards repo at a pinned commit (the
-standards repo is private, so the job mints a release-app token for it; the app
-must be installed on that repository), builds crate-age, runs it over the
-checkout, and builds and tests the workspace with cargo resolving through the
-packages proxy and the cooldown setting. A too-young or unprovable
-version fails the job, so the same change a contributor cannot commit cannot
-merge either. Move the pinned commit here and in `scripts/install-crate-age.sh`
-together when the standards repo tags a release.
-
-## The security-fix waiver
-
-A crate version may need to land *before* it cools down — a security fix, for
-which waiting seven days is the worse risk. The route:
-
-1. Open the pull request. The cooldown gate fails it (exit 1: too young, or
-   exit 2: age unproven), and cannot be argued away in the PR body.
-2. A **named human owner reviews the security case** (advisory link, why the
-   young version is the fix, why pinning lower does not work) and approves.
-   The approval is recorded by that owner in
-   [`docs/waivers/crate-cooldown.yaml`](waivers/crate-cooldown.yaml):
-   package, exact version, reason, PR link, approver, approval date and an
-   **expiry date** — never later than `approved_at` plus 7 days.
-3. Only the approving owner merges the PR, with the failing gate overridden
-   by that human approval, and the waiver entry is linked from the PR.
-4. **The waiver expires.** On its `expires` date the entry is dead: it is
-   removed from the ledger, and from then on the gate blocks that version
-   again unless its seven days have passed. A waiver is never renewed.
-
-How crate-age itself honours a waiver is defined by the standards repo
-(ADR-0014); the ledger here is this repository's approval record for it.
+The `Rust Workspace` job in `.github/workflows/ci.yml` runs on every pull
+request and push to `main`, and `Pipeline Complete` needs it. With cargo
+resolving through the packages proxy it builds the workspace, tests it, runs the
+Gold Band port inventory check, validates the reach-level record and runs
+`scripts/coverage.sh`, the 100 percent line-coverage gate.
 
 ## The Gold Band workflow lint
 
 `crates/workflow-lint` is a library plus a CLI (`workflow-lint [--shape] --instance gold-band|gold-band-personal <FILE>...`;
 exit 0 clean, 1 problems, 2 bad usage or an unreadable or invalid file) that
 later tickets call. Its one registry dependency, `serde_json`, is pinned
-exactly at a version older than the cooldown. It reads Gold Band's workflow
+exactly. It reads Gold Band's workflow
 JSON (version `0.1`), bare or in the authoring wrapper with `modelBindings`,
 and refuses, one line per problem, `<node>: <rule>: <message>`:
 
@@ -1149,12 +1069,9 @@ is a later child of #802, and the tarball will carry it when it exists.
   tarballs (`sha256sum -c` format). Verify with
   `grep ' agent-kit-tools-<tag>-<target>.tar.gz$' SHA256SUMS | sha256sum -c -`
   (`shasum -a 256 -c -` on macOS).
-* **The gate.** The `Release` workflow builds only after release-please creates
-  a release, and a `crate-age` job (the same check and standards pin as
-  `crate-cooldown.yml`) runs in front of every build job: a lockfile with a
-  crate version younger than 7 days, or one whose age cannot be proven, builds
-  nothing. The builds are `--locked`, from the repository (so
-  `.cargo/config.toml`'s cooldown applies) and through the packages proxy.
+* **The trigger.** The `Release` workflow builds only after release-please
+  creates a release. The builds are `--locked`, from the repository and through
+  the packages proxy.
 * **The smoke test.** After the assets are attached, a job per target on a
   runner of that target downloads them from the release, verifies them against
   `SHA256SUMS`, and runs every binary with `--help`. The tools have no common
@@ -1162,7 +1079,7 @@ is a later child of #802, and the tarball will carry it when it exists.
   output); a missing loader, a signal or silence fails it.
 * **Dry run.** Run the `Release` workflow by hand (Actions, Run workflow, or
   `gh workflow run release.yml --ref <branch>`). release-please is skipped, the
-  tag is `dry-run-<sha7>`, the same crate-age, build and smoke jobs run, and the
+  tag is `dry-run-<sha7>`, the same build and smoke jobs run, and the
   tarballs and `SHA256SUMS` are uploaded to the run as the `release-assets`
   artifact; nothing is attached to a release. The same three commands run
   locally: `scripts/release-binaries.sh build TAG TARGET dist`, `sums dist`,

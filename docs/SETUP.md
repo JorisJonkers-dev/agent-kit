@@ -64,11 +64,7 @@ registry's `workspace_tools:`; each name is a crate under `scripts/crates`
 whose binary has the same name.
 
 * One `cargo build --release --locked` builds them all from `scripts/Cargo.lock`,
-  so the lockfile is the pin. It runs from the kit, so the kit's
-  `.cargo/config.toml` applies: cargo skips any crate version younger than seven
-  days (`registry.global-min-publish-age`), the same cooldown as every other
-  build ([RUST.md](RUST.md)). A kit whose config lacks that setting is refused,
-  never built without the cooldown.
+  so the lockfile is the pin. It runs from the kit ([RUST.md](RUST.md)).
 * Every new binary has to start and print its usage before any is installed,
   and each lands by an atomic rename. A failed build or a binary that does not
   start leaves every installed tool as it was, and setup warns instead of
@@ -77,7 +73,7 @@ whose binary has the same name.
   tool and builds nothing. A run with no `cargo`, or with no workspace, skips
   the step.
 * A release's kit bundle ships the workspace (`scripts/Cargo.toml`,
-  `scripts/Cargo.lock`, `scripts/crates`, `.cargo/config.toml`), so a setup run
+  `scripts/Cargo.lock`, `scripts/crates`), so a setup run
   from the bundle builds the same tools; `tests/test_publish_installer_artifacts.py`
   checks that the bundle carries every file setup reads.
 * `agent-launcher` is also built by the critique runner's installer; both

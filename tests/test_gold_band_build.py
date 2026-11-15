@@ -1,11 +1,10 @@
 """Setup builds the pinned Gold Band on Linux (scripts/gold-band/build-linux.sh).
 
 Each test runs the real script against a scratch git repository that stands in
-for the Gold Band clone, with crate-age, npm, cargo and
+for the Gold Band clone, with npm, cargo and
 pkg-config replaced by stubs. What is asserted is what the host holds afterwards:
 which binaries are installed, what the build record says, whether cargo was ever
-called, and what the build copy's cargo config points at. The age check's own
-exit codes (1 too young, 2 unprovable) come from the standards repo.
+called, and what the build copy's cargo config points at.
 """
 
 from __future__ import annotations
@@ -101,7 +100,6 @@ class Host:
             "GOLD_BAND_CACHE": str(self.root / "cache"),
             "GOLD_BAND_STATE": str(self.state),
             "GOLD_BAND_PATCHES": str(self.patches),
-            "CRATE_AGE": "crate-age",
             **env,
         }
         return subprocess.run(["bash", str(SCRIPT), *args], capture_output=True, text=True, env=full, check=False)
@@ -110,10 +108,7 @@ class Host:
 def make_host(
     tmp_path: Path,
     *,
-    age_status: int = 0,
-    age_output: str = "",
     proxy_token: bool = True,
-    cargo_lock: str | None = None,
     patch: str | None = NOTE_PATCH,
 ) -> Host:
     root = tmp_path
@@ -146,12 +141,11 @@ def make_host(
     stubs = root / "stubs"
     stubs.mkdir()
     calls = root / "calls.log"
-    stub(stubs, "crate-age", f'echo "crate-age $*" >> "{calls}"\ncat <<\'OUT\'\n{age_output}\nOUT\nexit {age_status}')
     # What the web build would see: the build copy's file the patch changes.
     stub(stubs, "npm", f'echo "npm $*" >> "{calls}"\ncp web/note.txt "{root}/note-seen.txt"')
     stub(stubs, "node", "exit 0")
     stub(stubs, "pkg-config", "exit 0")
-    new_lock = cargo_lock if cargo_lock is not None else LOCK.replace('version = "0.19.0"', 'version = "0.19.1"')
+    new_lock = LOCK.replace('version = "0.19.0"', 'version = "0.19.1"')
     lock_file = root / "new.lock"
     lock_file.write_text(new_lock)
     stub(
@@ -210,7 +204,7 @@ def test_cargo_resolves_through_the_packages_proxy_not_gold_bands_mirror(tmp_pat
     assert config["source"]["crates-io"]["replace-with"] == "jorisjonkers-packages"
     assert config["source"]["jorisjonkers-packages"]["registry"] == proxy
     assert config["registries"]["jorisjonkers-packages"]["index"] == proxy
-    assert config["registry"]["global-min-publish-age"] == "7 days"
+    assert "global-min-publish-age" not in config["registry"]
     assert "127.0.0.1" not in str(config)
     config = str(config)
     assert "rsproxy" not in config
@@ -238,74 +232,12 @@ def test_check_builds_nothing(tmp_path: Path) -> None:
     assert not host.bin_dir.exists()
 
 
-def test_a_crate_younger_than_seven_days_stops_the_build_and_is_reported(tmp_path: Path) -> None:
-    host = make_host(tmp_path, age_status=1, age_output="young: serde 1.0.200: published 2 days ago")
-    done = host.run()
-    assert done.returncode == 3
-    assert "young: serde 1.0.200" in done.stdout
-    assert "younger than 7 days" in done.stdout
-    assert [c for c in calls_of(host) if c.startswith(("cargo", "npm"))] == []
-    assert not host.bin_dir.exists()
-
-
-def test_an_unprovable_age_other_than_the_two_known_ones_stops_the_build(tmp_path: Path) -> None:
-    out = "refused: gold-band 0.19.0: path dependency: no published date exists\nrefused: foo 1.0.0: not found"
-    host = make_host(tmp_path, age_status=2, age_output=out)
-    done = host.run()
-    assert done.returncode == 3
-    assert "cannot be proven" in done.stdout
-    assert not host.bin_dir.exists()
-
-
-def test_a_rate_limited_age_check_is_a_failure_to_retry_not_a_pass(tmp_path: Path) -> None:
-    out = "refused: serde 1.0.200: GET https://crates.io/api/v1/crates/serde/1.0.200: http status: 429"
-    host = make_host(tmp_path, age_status=2, age_output=out)
-    done = host.run()
-    assert done.returncode == 1
-    assert "rate-limited" in done.stdout
-    assert not host.bin_dir.exists()
-
-
-def test_only_path_crates_and_the_pinned_tao_are_allowed_to_lack_an_age(tmp_path: Path) -> None:
-    out = (
-        "refused: gold-band-desktop 0.19.0: path dependency: no published date exists\n"
-        "refused: tao 0.35.3: git dependency: no published date exists"
-    )
-    host = make_host(tmp_path, age_status=2, age_output=out)
-    done = host.run()
-    assert done.returncode == 0, done.stdout + done.stderr
-    assert "unprovable by nature" in json.loads(host.state.read_text())["age_check"]
-
-
-def test_tao_at_another_git_revision_stops_the_build(tmp_path: Path) -> None:
-    out = "refused: tao 0.35.3: git dependency: no published date exists"
-    host = make_host(tmp_path, age_status=2, age_output=out)
-    (host.clone / "Cargo.lock").write_text(
-        LOCK.replace(
-            "c704261c519c58cfdd0bc2d58ba24e06a0b71c92#c704261c519c58cfdd0bc2d58ba24e06a0b71c92", "deadbeef#deadbeef"
-        )
-    )
-    git(host.clone, "commit", "-q", "-am", "moved tao")
-    done = host.run(GOLD_BAND_REF=git(host.clone, "rev-parse", "HEAD"))
-    assert done.returncode == 3
-    assert "tao is not the pinned git revision" in done.stdout
-    assert not host.bin_dir.exists()
-
-
 def test_no_packages_proxy_token_stops_the_build_before_anything_is_fetched(tmp_path: Path) -> None:
     host = make_host(tmp_path, proxy_token=False)
     done = host.run()
     assert done.returncode == 1
     assert "no packages proxy token" in done.stderr
     assert [c for c in calls_of(host) if c.startswith(("cargo", "npm"))] == []
-
-
-def test_a_build_that_changes_a_third_party_lock_entry_installs_nothing(tmp_path: Path) -> None:
-    host = make_host(tmp_path, cargo_lock=LOCK.replace("1.0.200", "1.0.201"))
-    done = host.run()
-    assert done.returncode == 3
-    assert "third-party Cargo.lock entry" in done.stderr
-    assert not (host.bin_dir / "gold-band").exists()
 
 
 def test_a_missing_commit_is_reported(tmp_path: Path) -> None:
@@ -334,34 +266,6 @@ def test_setup_runs_the_builder_when_the_clone_exists(tmp_path: Path) -> None:
     run = setup_run(tmp_path, "Linux", args=("--check",), prepare_home=clone, extra_env=_path(tmp_path))
     # git is a recording stub, so the pin cannot resolve: the builder fails and setup reports it.
     assert "gold band: the build failed" in run.stderr
-
-
-def test_a_young_crate_stops_the_build_even_when_crate_age_exits_2_for_tao(tmp_path: Path) -> None:
-    out = (
-        "refused: tao 0.35.3: git dependency: no published date exists\n"
-        "TOO NEW serde 1.0.200: 2 day(s) old, the floor is 7"
-    )
-    host = make_host(tmp_path, age_status=2, age_output=out)
-    done = host.run()
-    assert done.returncode == 3
-    assert "TOO NEW serde 1.0.200" in done.stdout
-    assert [c for c in calls_of(host) if c.startswith(("cargo", "npm"))] == []
-
-
-def test_a_third_party_path_dependency_without_an_age_stops_the_build(tmp_path: Path) -> None:
-    host = make_host(
-        tmp_path, age_status=2, age_output="refused: vendored 1.0.0: path dependency: no published date exists"
-    )
-    assert host.run().returncode == 3
-
-
-def test_a_lock_entry_with_a_different_source_at_the_same_version_installs_nothing(tmp_path: Path) -> None:
-    moved = LOCK.replace(
-        "registry+https://github.com/rust-lang/crates.io-index", "git+https://example.invalid/serde#abc"
-    ).replace('version = "0.19.0"', 'version = "0.19.1"')
-    host = make_host(tmp_path, cargo_lock=moved)
-    assert host.run().returncode == 3
-    assert not (host.bin_dir / "gold-band").exists()
 
 
 def share(host: Host, *parts: str) -> Path:

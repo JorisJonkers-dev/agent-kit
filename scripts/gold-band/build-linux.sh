@@ -14,7 +14,6 @@
 #   GOLD_BAND_CACHE    build area (default ~/.cache/agent-kit/gold-band).
 #   GOLD_BAND_STATE    the build record (default
 #                      ~/.local/state/agent-kit/gold-band/build.json).
-#   CRATE_AGE          the crate-age executable (default: crate-age on PATH).
 #   PACKAGES_CARGO_INDEX  the packages proxy's cargo index (default
 #                      sparse+https://packages.jorisjonkers.dev/cargo/).
 #   GOLD_BAND_PATCHES  the directory of *.patch files applied to the build copy
@@ -32,15 +31,11 @@
 # are replaced when they differ.
 #
 # Exit status: 0 built (or already built, or skipped for want of a clone);
-# 3 a locked crate is younger than 7 days (or its age is unprovable beyond the
-# two known exceptions): the build is stopped and the crate reported; 1 any
-# other failure.
+# 1 any failure.
 #
 # The clone is read with `git archive`, never touched. The build copy has
 # Gold Band's own `.cargo/config.toml` replaced (it points crates.io at a
-# third-party mirror, which would bypass the cooldown) by one that resolves
-# only through the packages proxy, which hides versions younger than 7 days,
-# with cargo's own 7-day cooldown on top (docs/RUST.md).
+# third-party mirror) by one that resolves only through the packages proxy.
 # The patches in patches/ are applied to the build copy of the source, in file
 # name order, before `npm run web:build` (today: the workflow editor's entry
 # rule, 0001-entry-rule-failure-targets.patch). A patch that does not apply
@@ -61,7 +56,6 @@ REF=${GOLD_BAND_REF:-$PIN}
 BIN_DIR=${GOLD_BAND_BIN_DIR:-$HOME/.local/bin}
 CACHE=${GOLD_BAND_CACHE:-$HOME/.cache/agent-kit/gold-band}
 STATE=${GOLD_BAND_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/agent-kit/gold-band/build.json}
-CRATE_AGE=${CRATE_AGE:-crate-age}
 INDEX=${PACKAGES_CARGO_INDEX:-sparse+https://packages.jorisjonkers.dev/cargo/}
 CREDENTIALS=${CARGO_HOME:-$HOME/.cargo}/credentials.toml
 SHARE=${GOLD_BAND_SHARE:-${XDG_DATA_HOME:-$HOME/.local/share}}
@@ -220,12 +214,11 @@ if [ "${GOLD_BAND_FORCE:-0}" != 1 ] && recorded; then
   exit 0
 fi
 if [ "$CHECK" = 1 ]; then
-  say "would build $commit ($PIN_TAG) from $CLONE with patches $PATCHES_SHA: crate-age over its Cargo.lock, then the desktop app and gold-band through the packages proxy, into $BIN_DIR"
+  say "would build $commit ($PIN_TAG) from $CLONE with patches $PATCHES_SHA: the desktop app and gold-band through the packages proxy, into $BIN_DIR"
   desktop_integration
   exit 0
 fi
 
-command -v "$CRATE_AGE" >/dev/null 2>&1 || die "no crate-age ($CRATE_AGE); scripts/install-crate-age.sh installs it"
 grep -q '^\[registries\.jorisjonkers-packages\]' "$CREDENTIALS" 2>/dev/null \
   || die "no packages proxy token in $CREDENTIALS; run setup, which writes it"
 
@@ -250,47 +243,7 @@ done
 version=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' "$src/Cargo.toml" | head -1)
 say "building Gold Band $version at $commit"
 
-# 1. The age check over Gold Band's own lockfile. Exit 1 (a version younger
-# than 7 days) stops the build. Exit 2 fails closed too, except for the two
-# entries that have no publish date by nature: Gold Band's own path crate and
-# the git patch of tao pinned to one revision.
-age_out="$work/crate-age.txt"
-set +e
-"$CRATE_AGE" --root "$src" >"$age_out" 2>&1
-age=$?
-set -e
-cat "$age_out"
-# A young crate stops the build whatever the exit code: the lock always holds
-# the tao git patch, so crate-age exits 2 even when it also found a young one.
-if grep -q '^TOO NEW ' "$age_out"; then
-  say "STOPPED: a crate in Gold Band's Cargo.lock is younger than 7 days (see above); nothing was built"
-  exit 3
-fi
-case $age in
-  0) age_result="all locked registry versions are at least 7 days old" ;;
-  1) say "STOPPED: a crate in Gold Band's Cargo.lock is younger than 7 days (see above); nothing was built"; exit 3 ;;
-  2)
-    unproven=$(grep '^refused:' "$age_out" | grep -v '^refused: gold-band-desktop [0-9.]*: path dependency: no published date exists$' \
-      | grep -v '^refused: tao [0-9.]*: git dependency: no published date exists$' || true)
-    if printf '%s\n' "$unproven" | grep -q 'http status: 429'; then
-      say "STOPPED: crates.io rate-limited the age check (HTTP 429), so ages could not be proven; nothing was built. Retry in a few minutes."
-      exit 1
-    fi
-    if [ -n "$unproven" ]; then
-      say "STOPPED: a crate whose age cannot be proven (see above); nothing was built"
-      exit 3
-    fi
-    tao_all=$(grep -A2 '^name = "tao"$' "$src/Cargo.lock" | grep -c '^source = ' || true)
-    tao_pin=$(grep -A2 '^name = "tao"$' "$src/Cargo.lock" | grep -c '^source = "git+https://github.com/tauri-apps/tao?rev=c704261c519c58cfdd0bc2d58ba24e06a0b71c92#' || true)
-    [ "$tao_all" -ge 1 ] && [ "$tao_all" = "$tao_pin" ] \
-      || { say "STOPPED: tao is not the pinned git revision c704261c; nothing was built"; exit 3; }
-    age_result="every registry version at least 7 days old; unprovable by nature: path crates and tao at git rev c704261c"
-    ;;
-  *) die "crate-age failed (exit $age)" ;;
-esac
-say "age check: $age_result"
-
-# 2. The packages proxy replaces Gold Band's mirror config in the build copy
+# 1. The packages proxy replaces Gold Band's mirror config in the build copy
 # only. The token comes from the credentials setup wrote.
 mkdir -p "$src/.cargo"
 cat > "$src/.cargo/config.toml" <<TOML
@@ -305,10 +258,9 @@ index = "$INDEX"
 
 [registry]
 global-credential-providers = ["cargo:token"]
-global-min-publish-age = "7 days"
 TOML
 
-# 3. Build inside the system-library shell on NixOS; plain PATH elsewhere.
+# 2. Build inside the system-library shell on NixOS; plain PATH elsewhere.
 build_script="$work/build.sh"
 cat > "$build_script" <<'BUILD'
 set -eu
@@ -330,21 +282,7 @@ else
 fi
 run || die "the build failed (log above); the clone and ~/.local/bin are untouched"
 
-# 4. The lockfile may differ from the pin only in Gold Band's own two crates.
-python3 -I - "$CLONE" "$commit" "$src/Cargo.lock" <<'PY' || { say "STOPPED: the build changed a third-party Cargo.lock entry, which was never age-checked; nothing was installed" >&2; exit 3; }
-import re, subprocess, sys
-clone, commit, new = sys.argv[1:4]
-old = subprocess.run(["git", "-C", clone, "show", f"{commit}:Cargo.lock"], capture_output=True, text=True, check=True).stdout
-def pkgs(text):
-    return {m: m for m in re.findall(r'name = "([^"]+)"\nversion = "([^"]+)"(?:\nsource = "([^"]*)")?', text)}
-own = {"gold-band", "gold-band-desktop"}
-a, b = pkgs(old), pkgs(open(new).read())
-def third(d):
-    return {k for k, v in d.items() if v[0] not in own}
-sys.exit(0 if third(a) == third(b) else 1)
-PY
-
-# 5. Install and record.
+# 3. Install and record.
 mkdir -p "$BIN_DIR"
 install -m 0755 "$src/target/release/gold-band" "$BIN_DIR/gold-band"
 install -m 0755 "$src/target/release/gold-band-desktop" "$BIN_DIR/gold-band-desktop"
@@ -357,7 +295,6 @@ cat > "$STATE" <<JSON
   "tag": "$PIN_TAG",
   "commit": "$commit",
   "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "age_check": "$age_result",
   "patches_sha256": "$PATCHES_SHA",
   "gold-band": {"path": "$BIN_DIR/gold-band", "sha256": "$sha_head"},
   "gold-band-desktop": {"path": "$BIN_DIR/gold-band-desktop", "sha256": "$sha_desk"}

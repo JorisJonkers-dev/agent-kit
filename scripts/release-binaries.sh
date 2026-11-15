@@ -8,8 +8,7 @@
 #   release-binaries.sh smoke TAG TARGET DIR         -> verify DIR against SHA256SUMS, unpack, run every binary
 #
 # Build from the repository root's pinned workspace with --locked, so the
-# lockfile (gated by crate-age, docs/RUST.md) is what is built, and from the
-# repository so .cargo/config.toml (the 7-day crate cooldown) applies. Linux
+# lockfile is what is built, and from the repository. Linux
 # targets are musl and must come out statically linked. docs/RUST.md,
 # "Release binaries".
 set -euo pipefail

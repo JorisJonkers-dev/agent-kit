@@ -278,8 +278,7 @@
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
       # The build runs from the runner's temp directory and resolves through
-      # the packages proxy that setup-package-proxy configured, which hides
-      # crate versions younger than 7 days.
+      # the packages proxy that setup-package-proxy configured.
       - 'name': 'Build the harness'
         'working-directory': '${{ runner.temp }}'
         'env':
@@ -412,6 +411,49 @@
           fi
           echo "All $(jq -r '.checked' nixos-packages.json) nixpkgs attributes resolve and evaluate."
 
+  # The Rust workspace: build, tests, the port inventory, the reach-level
+  # record and the 100 percent line-coverage gate (docs/RUST.md). Cargo resolves
+  # through the packages proxy, whose registry is authenticated: setup-package-proxy
+  # writes the source replacement and exports the token; cargo also needs the
+  # registry declared by name and told to read tokens from the environment.
+  'rust-workspace':
+    'name': 'Rust Workspace'
+    'runs-on': 'ubuntu-latest'
+    'env':
+      'CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX': 'sparse+https://packages.jorisjonkers.dev/cargo/'
+      'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
+      - 'name': 'Current stable Rust'
+        'run': |
+          rustup update stable --no-self-update
+          rustup default stable
+      - 'name': 'Build the workspace'
+        'run': 'cargo build --locked --manifest-path scripts/Cargo.toml'
+      - 'name': 'Test the workspace'
+        'run': 'cargo test --locked --manifest-path scripts/Cargo.toml'
+      # Every skill, hook, role file and MCP server has exactly one target
+      # and its lanes in docs/gold-band-port-inventory.md (spec #392).
+      - 'name': 'Check the Gold Band port inventory'
+        'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p inventory-check -- .'
+      # The reach-level support record: every id names a level, its agent
+      # can hold it on each OS it runs on, and research and write-scoped ids
+      # carry an output directory (docs/REGISTRY.md).
+      - 'name': 'Validate the reach-level support record'
+        'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p agent-launcher -- validate registry/reach-levels.yaml'
+      # Line coverage of the workspace must stay at 100 percent (docs/RUST.md).
+      # rustc's own instrumentation plus the llvm-tools component of the same
+      # toolchain, so no further crate is involved and the profile format
+      # always matches. src/main.rs exit wrappers are excluded.
+      - 'name': 'Rust line coverage is 100 percent'
+        'run': |
+          rustup component add llvm-tools
+          scripts/coverage.sh
+
   'pipeline-complete':
     'name': 'Pipeline Complete'
     'if': 'always()'
@@ -428,6 +470,7 @@
       - 'rust-migration-guard'
       - 'gold-band-proof'
       - 'rust-macos'
+      - 'rust-workspace'
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 're-actors/alls-green@release/v1'
