@@ -481,3 +481,39 @@ fn a_caller_that_names_a_symbol_twice_is_one_caller_slice() {
     let callers: Vec<(&str, Option<&str>)> = slices.iter().filter(|slice| slice.reason == "caller").map(|slice| (slice.path.as_str(), slice.symbol.as_deref())).collect();
     assert_eq!(callers, [("src/b.ts", Some("twice"))], "{slices:?}");
 }
+
+#[test]
+fn a_change_that_touches_a_submodule_is_read_with_the_pointer_left_out() {
+    let sandbox = Sandbox::new();
+    let dir = sandbox.text();
+    let run = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"])
+            .args(args)
+            .current_dir(&dir)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .output()
+            .expect("git runs");
+        assert!(output.status.success(), "{args:?}: {}", String::from_utf8_lossy(&output.stderr));
+    };
+    run(&["init", "-q"]);
+    std::fs::write(sandbox.path.join("a.ts"), "1\n").expect("write");
+    std::fs::write(sandbox.path.join("x.lock"), "1\n").expect("write");
+    run(&["add", "."]);
+    run(&["update-index", "--add", "--cacheinfo", "160000,1111111111111111111111111111111111111111,vendor/sub"]);
+    run(&["commit", "-q", "-m", "first"]);
+    run(&["tag", "base"]);
+    std::fs::write(sandbox.path.join("a.ts"), "1\n2\n").expect("write");
+    std::fs::write(sandbox.path.join("x.lock"), "1\n2\n").expect("write");
+    run(&["update-index", "--cacheinfo", "160000,2222222222222222222222222222222222222222,vendor/sub"]);
+    run(&["commit", "-q", "-am", "second"]);
+    let mut runtime = runtime("");
+    runtime.git = Box::new(SystemGit { env: std::env::vars().collect() });
+    let mut limits = crate::repository_packet::default_packet_limits();
+    limits.exclude = vec![("lock".to_string(), vec!["*.lock".to_string()])];
+    let read = crate::code_change::read_change(&runtime, &dir, "base", "HEAD", &limits).expect("a submodule pointer does not fail the read");
+    assert_eq!(read.change.paths, vec!["a.ts".to_string(), "vendor/sub".to_string(), "x.lock".to_string()]);
+    assert_eq!(read.change.changed_lines, 1.0);
+    assert_eq!(read.left_out.iter().map(|left| left.path.as_str()).collect::<Vec<_>>(), vec!["vendor/sub", "x.lock"]);
+    assert!(!read.diff.contains("Subproject commit"), "{}", read.diff);
+}

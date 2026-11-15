@@ -33,9 +33,15 @@ pub fn read_change(runtime: &Runtime, root: &str, base: &str, head: &str, limits
     let paths = runtime.git.changed_paths(root, &base_commit, &head_commit).map_err(CritiqueError::unexpected)?;
     let mut reasons: HashMap<String, String> = HashMap::new();
     for path in &paths {
-        let text = if excluded(path, None, limits)?.is_none() { Some(text_of(runtime, root, &head_commit, &base_commit, path)?) } else { None };
-        if let Some(exclusion) = excluded(path, text.as_deref(), limits)? {
-            reasons.insert(path.clone(), exclusion_reason(&exclusion));
+        let reason = if let Some(exclusion) = excluded(path, None, limits)? {
+            Some(exclusion_reason(&exclusion))
+        } else if let Some(text) = text_of(runtime, root, &head_commit, &base_commit, path) {
+            excluded(path, Some(&text), limits)?.map(|exclusion| exclusion_reason(&exclusion))
+        } else {
+            Some(NOT_TEXT.to_string())
+        };
+        if let Some(reason) = reason {
+            reasons.insert(path.clone(), reason);
         }
     }
     let filtered = filter_diff(&raw, &|path| reasons.get(path).cloned());
@@ -46,9 +52,14 @@ fn excluded(path: &str, text: Option<&str>, limits: &PacketLimits) -> Result<Opt
     exclusion_of(path, text, limits).map_err(CritiqueError::unexpected)
 }
 
-/// The path's text at the head, or at the base when the change deleted it.
-fn text_of(runtime: &Runtime, root: &str, head: &str, base: &str, path: &str) -> Result<String, CritiqueError> {
-    runtime.git.file_at(root, head, path).or_else(|_| runtime.git.file_at(root, base, path)).map_err(CritiqueError::unexpected)
+/// Why a path with no readable text keeps one line in the diff: a submodule is a gitlink (mode 160000), not a blob, so
+/// `git cat-file blob` fails for it at both commits.
+const NOT_TEXT: &str = "a submodule pointer or a file with no readable text";
+
+/// The path's text at the head, or at the base when the change deleted it; `None` when neither commit holds a blob
+/// at the path (a submodule), which counts as no text rather than failing the whole change.
+fn text_of(runtime: &Runtime, root: &str, head: &str, base: &str, path: &str) -> Option<String> {
+    runtime.git.file_at(root, head, path).or_else(|_| runtime.git.file_at(root, base, path)).ok()
 }
 
 fn commit(runtime: &Runtime, root: &str, field: &str, revision: &str) -> Result<String, CritiqueError> {
