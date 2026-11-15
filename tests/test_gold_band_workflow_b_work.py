@@ -286,7 +286,14 @@ def _stretch(template: dict[str, Any], codex_node: str) -> dict[str, Any]:
     """The real template cut to one Codex node: its grant-check node, the node, the manual check."""
     workflow = template["workflow"]
     keep = {f"grant-check-{codex_node}", codex_node, "grant-refused"}
-    nodes = [dict(n) for n in workflow["nodes"] if n["id"] in keep]
+    # The throw-away machine holds the builtin profile only, so a test critic's review profile is cut to it:
+    # this proof is about the grant check before the node, not about the profile the node reads with.
+    nodes = [{**n, "profile": "pf-builtin-dev"} for n in workflow["nodes"] if n["id"] in keep]
+    for node in nodes:
+        if node["id"] == codex_node:
+            # The review orchestrator answers with a findings list in the real template; the stub answers ok.
+            node["output"] = {"kind": "json", "artifact": f"{codex_node}-stretch", "schema": {"ok": True}}
+            node["success_condition"] = {"path": "$.ok", "equals": True}
     edges = [e for e in workflow["edges"] if e["from"] in keep and e["to"] in keep]
     edges.append({"from": codex_node, "to": "$end", "on": "success"})
     slots = {n["executionSlotId"] for n in nodes}
@@ -365,7 +372,7 @@ def test_a_live_grant_lets_the_codex_node_run_after_reserving_one_start(
 @needs_headless
 def test_a_grant_with_no_start_left_refuses_the_next_codex_node(work: WorkMachine, template: dict[str, Any]) -> None:
     work.grant(1)
-    assert _run(work, template, "writer")[0] == 0
+    assert _run(work, template, "writer-s1")[0] == 0
     code, markers, said = _run(work, template, "repair-1")
     assert code == 2, said
     assert not markers["codex"].exists(), "Codex ran past its last start"

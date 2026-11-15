@@ -862,11 +862,19 @@ on the control limit before it reaches an escalation. The CI wait is added by a 
 
 **Proof (headless, stub agents).** `workflow-lint --shape` and `--critique` pass (the entry rule
 is the patched one: the manual checks reached by failure edges are not entries), and `gold-band-proof
-prove` runs `clean`, `actionable-1`..`actionable-3` (a test critic round, then a code-review round),
-`needs-human` (the orchestrator's finding pauses), `gate-fail-<gate>` for each of the 28 gates and
-their copiers (a failed gate ends in a repair and success, a failed copier ends the run in failure, a
-final gate pauses) and `after-<check>.…` for the stretch after each manual check. `scripts/crates/critique-block`
-proves the generated block is what the recipe produces (`critique-block check`).
+prove` against the real Gold Band binary passes 36 scenarios for the personal template and 44 for the
+work one: `clean`; `needs-human` (the orchestrator's finding pauses); `actionable-1` (a test critic
+round and a review round, each repaired, exit 0) and `actionable-2`, `actionable-3` (both review rounds
+fail: the Opus escalation's manual check, exit 2); `gate-fail-<gate>` for the four first-pass gates (a
+repair follows, exit 0) and the four final gates (`-r3`, the final check, exit 2); a gate failing in every
+repair round (`gate-fail-build-and-build-r1`, exit 0; `...-and-build-r2`, the gate escalation, exit 2) for
+each of the four; `gate-fail-findings-N` and the runner's four gates (no failure edge, exit 1); and
+`after-<check>.…` for the stretch after each manual check. The work template adds `grant-lapse-<node>` for
+the eight Codex nodes on the clean path (writers, test critics, self-review, the review orchestrator); the
+other four grant checks (`repair-1`, `repair-2`, `ticket-review-revise-1`, `ticket-review-verdicts-2`) sit
+behind a failure edge and are proved by `tests/test_gold_band_workflow_b_work.py`, which runs each Codex
+node's stretch. `scripts/crates/critique-block` proves the runner's nodes in the template are what the recipe
+produces (`critique-block check`).
 
 ## Workflow B live in the personal instance
 
@@ -1007,7 +1015,7 @@ repository still needs the run-start shim and a live grant for the run
 The proof is two layers. `gold-band-proof prove` runs the whole template
 against the stub agents: the clean run, both repairs, the escalation pause, a
 failing gate (build, tests, lint, coverage, the finding check and the final gates) and `grant-lapse-<node>` for
-each of the twelve grant checks (the node fails and the run pauses at `grant-refused`). `tests/test_gold_band_workflow_b_work.py`
+each of the eight grant checks on the clean path (the node fails and the run pauses at `grant-refused`). `tests/test_gold_band_workflow_b_work.py`
 runs each Codex node's stretch of the real template with the real wrapper and
 the real gateway bundle over a fake grants file in a throw-away configuration
 outside any repository: with no grant the run pauses before Codex and no start is

@@ -1,7 +1,7 @@
 {
   "workflow": {
     "description": "Workflow B v2 for the work instance (issue #797): the same shape as workflow-b with the work agents only. The work Claude agent (claude-work) plans and writes each slice's test, Codex (a different family) writes the code, the repairs, the writer's self-review and, since the work instance has two families only, the test critic (a different family from the test author; the writer is its consumer, so independence from the writer cannot be had here). The code review is the runner's ticket-review stage, whose roster leaves out the orchestrator's family (Codex), so the work Claude agent reviews on both axes. Every Codex node is preceded by a grant-check node whose failure edge leads to the grant-refused manual check. Gate failures go to repair nodes, never end the run; a failing copier still ends it. After the second failed review round an Opus escalation node on claude-work and a manual check pause the run for the owner.",
-    "version": "0.2",
+    "version": "0.1",
     "id": "workflow-b-work",
     "entry": "slice-plan",
     "control": {
