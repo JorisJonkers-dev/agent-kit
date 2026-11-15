@@ -35,13 +35,15 @@ module.exports = {
     },
     {
       // Critics never debate. The critique context and its runner must not
-      // reach council's triage lens catalog, nor the workflow, composition
-      // and CLI shells that wire the council.
+      // reach council's cross-critique, design-vote or consolidation code
+      // (design, review, reviewpack's checkpoint packs, context's role
+      // matrix, prompts, triage's lens catalog), nor the workflow,
+      // composition and CLI shells that wire it.
       name: 'critique-never-imports-council-debate',
       severity: 'error',
       from: { path: '^src/(contexts/critique|critique-cli)/' },
       to: {
-        path: '^src/(contexts/triage|workflows|composition|app|cli)/',
+        path: '^src/(contexts/(design|review|reviewpack|context|prompts|triage)|workflows|composition|app|cli)/',
       },
     },
     {
