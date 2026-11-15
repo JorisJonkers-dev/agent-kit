@@ -19,6 +19,6 @@ trademark_caveat: BMad, BMad Method, BMAD-METHOD, and related names/marks are tr
 
 ## Frozen
 
-This lock records where the council prompts came from. Nothing syncs them
-from upstream any more: no Renovate rule watches this file and the council's
-`sync-bmad` command is gone. Edit the prompts in place.
+This lock records where the council prompts came from. The council is retired
+and its prompts are removed; the lock stays as the provenance record for the
+copies in the history. Nothing syncs from upstream.

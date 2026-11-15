@@ -22,7 +22,6 @@ cargo run --manifest-path scripts/Cargo.toml -p inventory-check -- .
 | --- | --- | --- | --- | --- | --- |
 | agent-session-bootstrap | `skills/workstation/agent-session-bootstrap/` | Checklist for configuring a Claude Code or Codex session: config layers, MCP servers, memory-file hygiene, parity. | skill set | direct, gold-band, gold-band-personal | |
 | build-tracker | `skills/workstation/build-tracker/` | Renders each ticket's status for a spec being implemented into a one-page summary with a dependency graph. | workflow | direct, gold-band, gold-band-personal | Runner reimplemented in the Rust workspace (#331). |
-| council | `skills/workstation/council/` | Cross-model orchestrator (Claude and Codex): triage, planning, grill, design checkpoint, guarded fan-out, review council. | stays outside | direct | Whole council family stays outside (decision 6). |
 | critique | `skills/workstation/critique/` | Shared bundle of the critique pipeline: runner `critique.mjs`, prompt preamble, roles, lenses, finding schema, default routing. | workflow | direct, gold-band, gold-band-personal | Runner reimplemented in the Rust workspace (#331). |
 | critique-adrs | `skills/workstation/critique-adrs/` | Critique stage that reviews ADRs. | workflow | direct, gold-band, gold-band-personal | Ported as Wave 2 templates over the runner. |
 | critique-stats | `skills/workstation/critique-stats/` | Reports how each critic client performs per stage from the ledger, ending with routing suggestions; writes nothing. | workflow | direct, gold-band, gold-band-personal | Runner `stats` command reimplemented in Rust (#331). |
@@ -52,14 +51,6 @@ cargo run --manifest-path scripts/Cargo.toml -p inventory-check -- .
 | Name | Path | What it does | Target | Lanes | Notes |
 | --- | --- | --- | --- | --- | --- |
 | agent-session-bootstrap | `skills/repo/agent-session-bootstrap/` | Repo-source variant of the session-configuration checklist, rendered per CLI target. | skill set | direct, gold-band, gold-band-personal | |
-| council | `skills/repo/council/` | The council skill's repo source (Claude and Codex targets). | stays outside | direct | Whole council family stays outside (decision 6). |
-| council-amend | `skills/repo/council-amend/` | Amends an existing council brief, design, task DAG or run after feedback. | stays outside | direct | Whole council family stays outside (decision 6). |
-| council-design | `skills/repo/council-design/` | Produces a council-ready design, consolidated plan and parallel task DAG from a brief. | stays outside | direct | Whole council family stays outside (decision 6). |
-| council-grill | `skills/repo/council-grill/` | Stress-tests a plan, patch, task DAG or decision through an adversarial council review. | stays outside | direct | Whole council family stays outside (decision 6). |
-| council-inject | `skills/repo/council-inject/` | Injects new constraints, evidence or operator guidance into an active council flow. | stays outside | direct | Whole council family stays outside (decision 6). |
-| council-run | `skills/repo/council-run/` | Executes an approved council plan or task DAG through supervised workers. | stays outside | direct | Whole council family stays outside (decision 6). |
-| council-supervise | `skills/repo/council-supervise/` | Supervises a single cross-CLI delegate with bounded scope and progress relay. | stays outside | direct | Whole council family stays outside (decision 6). |
-| council-triage | `skills/repo/council-triage/` | Decides whether work belongs in a normal session, a council split skill, or a full council run. | stays outside | direct | Whole council family stays outside (decision 6). |
 | kb-first | `skills/repo/kb-first/` | Repo-source variant of the memory-first consultation and capture skill. | skill set | direct, gold-band, gold-band-personal | |
 | token-economy | `skills/repo/token-economy/` | Repo-source variant of the token-budget discipline skill. | skill set | direct, gold-band, gold-band-personal | |
 
@@ -93,11 +84,8 @@ is `stays outside` in the `direct` lane.
 | refuter | `skills/workstation/critique/roles/refuter.md` | In the refute round, may only refute or downgrade an accepted critical finding, with evidence. | role | direct, gold-band, gold-band-personal | Gold Band profile (#345). |
 | spec-redteam | `skills/workstation/critique/roles/spec-redteam.md` | Redteams a spec for failure modes and omissions. | role | direct, gold-band, gold-band-personal | Gold Band profile (#345). |
 | ticket-linter | `skills/workstation/critique/roles/ticket-linter.md` | Lints a spec's ticket structure read-only. | role | direct, gold-band, gold-band-personal | Gold Band profile (#345). |
-| council role prompts | `council/prompts/` (mirrored at `skills/workstation/council/prompts/`, pinned in `manifest.yaml` `council.files`) | Role prompts for council members: designer, planner, critic, reviewers, consolidators, triage judge, verifier, worker. | stays outside | direct | Whole council family stays outside (decision 6). |
 | Vibe critic agents | `registry/generated/vibe/agents/critic-mistral-large.toml`, `critic-mistral-small.toml`, `critic-glm.toml`, `critic-deepseek-flash.toml` | Read-only critic client agents for the critique pipeline, each pinning a model and its prices. | role | direct, gold-band, gold-band-personal | Become Gold Band agent bindings (decision 2). |
 | Vibe delegate agents | `registry/generated/vibe/agents/delegate-readonly.toml`, `delegate-write.toml` | Read-only and worktree-write delegate agents of the model gateway. | role | direct | Kept in the direct lane. |
-| codex-med | `agents/codex-med.md` (rendered to `.claude/agents/codex-med.md`) | Claude Code subagent supervising a Codex delegate at medium reasoning effort. | stays outside | direct | Codex never appears in a Gold Band binding. |
-| codex-xhigh | `agents/codex-xhigh.md` (rendered to `.claude/agents/codex-xhigh.md`) | Same supervisor at high reasoning effort for difficult reasoning or deep review. | stays outside | direct | Codex never appears in a Gold Band binding. |
 
 ## MCP servers
 

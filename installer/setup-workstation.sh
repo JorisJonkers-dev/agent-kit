@@ -1071,7 +1071,7 @@ https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md
 
 Read it before doing anything non-trivial in an estate repository.
 
-Multi-ticket builds (/implement-spec, a council run, a /flow feature in implementation): keep the build tracker current with the build-tracker skill.
+Multi-ticket builds (/implement-spec, a /flow feature in implementation): keep the build tracker current with the build-tracker skill.
 
 ## Memory
 
@@ -1096,7 +1096,7 @@ https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md
 
 Read it before doing anything non-trivial in an estate repository.
 
-Multi-ticket builds (/implement-spec, a council run, a /flow feature in implementation): keep the build tracker current with the build-tracker skill.
+Multi-ticket builds (/implement-spec, a /flow feature in implementation): keep the build tracker current with the build-tracker skill.
 
 ## Memory
 
@@ -2240,48 +2240,6 @@ if [ "${UNINSTALL}" = 1 ]; then
   legacy_remove "${CLAUDE_HOME}/skills/token-economy/SKILL.md"
   legacy_remove "${CLAUDE_HOME}/skills/agent-session-bootstrap/SKILL.md"
   legacy_remove "${CLAUDE_HOME}/skills/grill-me/SKILL.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/SKILL.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/council.mjs"
-  legacy_remove "${CLAUDE_HOME}/skills/council/council.toml"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/_baseline.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/consolidator.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/correct_course.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/critic.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/design_consolidator.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/design_lens.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/design_vote.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/designer.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/grill.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/planner.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/review_triage.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewer_acceptance.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewer_adversarial.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewer_edgecase.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/checkpoint-1.html"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/checkpoint-1.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/checkpoint-2.html"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/checkpoint-2.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/design-checkpoint.html"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/design-checkpoint.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviser.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/story_author.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/story_check.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/story_template.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/survey.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/triage_judge.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/verifier.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/worker.md"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/amendment.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/consolidated.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/context-pack.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/design-ledger.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/events.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/plan.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/review-verdict.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/routing-verdict.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/run-state.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/verdict.schema.json"
-  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/worker-result.schema.json"
   legacy_remove "${CLAUDE_HOME}/.knowledge-system-version"
   legacy_remove "${CODEX_HOME}/skills/speckit-analyze/SKILL.md"
   legacy_remove "${CODEX_HOME}/skills/speckit-checklist/SKILL.md"
@@ -2298,48 +2256,6 @@ if [ "${UNINSTALL}" = 1 ]; then
   legacy_remove "${CODEX_HOME}/skills/token-economy/SKILL.md"
   legacy_remove "${CODEX_HOME}/skills/agent-session-bootstrap/SKILL.md"
   legacy_remove "${CODEX_HOME}/skills/grill-me/SKILL.md"
-  legacy_remove "${CODEX_HOME}/skills/council/SKILL.md"
-  legacy_remove "${CODEX_HOME}/skills/council/council.mjs"
-  legacy_remove "${CODEX_HOME}/skills/council/council.toml"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/_baseline.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/consolidator.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/correct_course.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/critic.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/design_consolidator.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/design_lens.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/design_vote.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/designer.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/grill.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/planner.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/review_triage.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewer_acceptance.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewer_adversarial.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewer_edgecase.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/checkpoint-1.html"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/checkpoint-1.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/checkpoint-2.html"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/checkpoint-2.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/design-checkpoint.html"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/design-checkpoint.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviser.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/story_author.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/story_check.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/story_template.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/survey.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/triage_judge.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/verifier.md"
-  legacy_remove "${CODEX_HOME}/skills/council/prompts/worker.md"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/amendment.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/consolidated.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/context-pack.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/design-ledger.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/events.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/plan.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/review-verdict.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/routing-verdict.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/run-state.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/verdict.schema.json"
-  legacy_remove "${CODEX_HOME}/skills/council/schemas/worker-result.schema.json"
   legacy_remove "${CODEX_HOME}/.knowledge-system-version"
   purge_retired_hooks
   critique_hooks remove
@@ -2377,7 +2293,7 @@ else
   fi
 fi
 
-# OpenAI Codex CLI, the second engine council fans out to.
+# OpenAI Codex CLI.
 if command -v codex >/dev/null 2>&1; then
   run_sh 'npm install -g @openai/codex@latest'
   ok "codex $(codex --version 2>/dev/null | head -1)"
@@ -2614,8 +2530,8 @@ fi
 # OpenCode 2, the open-source terminal coding agent. Gets the
 # workstation MCP fleet minus Private Memory, the agent-kit
 # instructions pointer, the kit's and the vendored skills, and the
-# skills of every enabled Claude Code plugin. Not a council or
-# critique target.
+# skills of every enabled Claude Code plugin. Not a critique
+# target.
 if [ "${CLOUD}" = 1 ]; then
   log "opencode: not set up in cloud mode"
 else
@@ -4589,138 +4505,6 @@ else
       ok "pr-composer -> ${dest}"
     else
       fail "pr-composer: ${dest} is incomplete after copy"
-    fi
-  fi
-fi
-
-# Cross-model orchestrator (Claude + Codex) for large,
-# decomposable work: triage, cross-model planning, grill, a design
-# checkpoint, guarded fan-out, a review council, and resumable
-# status/tail.
-src="${KIT_ROOT}/skills/workstation/council"
-if [ ! -f "${src}/SKILL.md" ]; then
-  fail "council: ${src}/SKILL.md is missing; nothing to install"
-else
-  dest="${CLAUDE_HOME}/skills/council"
-  if [ "${CHECK_ONLY}" = 1 ]; then
-    log "would replace ${dest}"
-  else
-    rm -rf "${dest}"
-    mkdir -p "$(dirname "${dest}")"
-    cp -R "${src}" "${dest}"
-    # Verify the value: the copy is only useful if SKILL.md and
-    # every script actually landed.
-    if [ -f "${dest}/SKILL.md" ] \
-       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "council -> ${dest}"
-    else
-      fail "council: ${dest} is incomplete after copy"
-    fi
-  fi
-  dest="${CODEX_HOME}/skills/council"
-  if [ "${CHECK_ONLY}" = 1 ]; then
-    log "would replace ${dest}"
-  else
-    rm -rf "${dest}"
-    mkdir -p "$(dirname "${dest}")"
-    cp -R "${src}" "${dest}"
-    # Verify the value: the copy is only useful if SKILL.md and
-    # every script actually landed.
-    if [ -f "${dest}/SKILL.md" ] \
-       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "council -> ${dest}"
-    else
-      fail "council: ${dest} is incomplete after copy"
-    fi
-  fi
-  dest="${VIBE_HOME}/skills/council"
-  if [ "${VIBE_HOMES_READY}" != 1 ]; then
-    :
-  elif [ "${CHECK_ONLY}" = 1 ]; then
-    log "would replace ${dest}"
-  else
-    rm -rf "${dest}"
-    mkdir -p "$(dirname "${dest}")"
-    cp -R "${src}" "${dest}"
-    # Verify the value: the copy is only useful if SKILL.md and
-    # every script actually landed.
-    if [ -f "${dest}/SKILL.md" ] \
-       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "council -> ${dest}"
-    else
-      fail "council: ${dest} is incomplete after copy"
-    fi
-  fi
-  dest="${VIBE_PRIVATE_HOME}/skills/council"
-  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
-    :
-  elif [ "${CHECK_ONLY}" = 1 ]; then
-    log "would replace ${dest}"
-  else
-    rm -rf "${dest}"
-    mkdir -p "$(dirname "${dest}")"
-    cp -R "${src}" "${dest}"
-    # Verify the value: the copy is only useful if SKILL.md and
-    # every script actually landed.
-    if [ -f "${dest}/SKILL.md" ] \
-       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "council -> ${dest}"
-    else
-      fail "council: ${dest} is incomplete after copy"
-    fi
-  fi
-  dest="${ANTIGRAVITY_HOME}/skills/council"
-  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
-    :
-  elif [ "${CHECK_ONLY}" = 1 ]; then
-    log "would replace ${dest}"
-  else
-    rm -rf "${dest}"
-    mkdir -p "$(dirname "${dest}")"
-    cp -R "${src}" "${dest}"
-    # Verify the value: the copy is only useful if SKILL.md and
-    # every script actually landed.
-    if [ -f "${dest}/SKILL.md" ] \
-       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "council -> ${dest}"
-    else
-      fail "council: ${dest} is incomplete after copy"
-    fi
-  fi
-  dest="${ANTIGRAVITY_CLI_HOME}/skills/council"
-  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
-    :
-  elif [ "${CHECK_ONLY}" = 1 ]; then
-    log "would replace ${dest}"
-  else
-    rm -rf "${dest}"
-    mkdir -p "$(dirname "${dest}")"
-    cp -R "${src}" "${dest}"
-    # Verify the value: the copy is only useful if SKILL.md and
-    # every script actually landed.
-    if [ -f "${dest}/SKILL.md" ] \
-       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "council -> ${dest}"
-    else
-      fail "council: ${dest} is incomplete after copy"
-    fi
-  fi
-  dest="${OPENCODE_HOME}/skills/council"
-  if [ "${OPENCODE_READY}" != 1 ]; then
-    :
-  elif [ "${CHECK_ONLY}" = 1 ]; then
-    log "would replace ${dest}"
-  else
-    rm -rf "${dest}"
-    mkdir -p "$(dirname "${dest}")"
-    cp -R "${src}" "${dest}"
-    # Verify the value: the copy is only useful if SKILL.md and
-    # every script actually landed.
-    if [ -f "${dest}/SKILL.md" ] \
-       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "council -> ${dest}"
-    else
-      fail "council: ${dest} is incomplete after copy"
     fi
   fi
 fi
@@ -8676,6 +8460,574 @@ if [ -d "${OPENCODE_HOME}/skills/run-tests" ]; then
   else
     rm -rf "${dest}"
     ok "removed retired skill run-tests from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/council" ]; then
+  dest="${CLAUDE_HOME}/skills/council"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/council" ]; then
+  dest="${CODEX_HOME}/skills/council"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/council" ]; then
+  dest="${VIBE_HOME}/skills/council"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/council" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/council"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/council" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/council"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/council" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/council"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/council" ]; then
+  dest="${OPENCODE_HOME}/skills/council"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/council-amend" ]; then
+  dest="${CLAUDE_HOME}/skills/council-amend"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-amend from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/council-amend" ]; then
+  dest="${CODEX_HOME}/skills/council-amend"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-amend from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/council-amend" ]; then
+  dest="${VIBE_HOME}/skills/council-amend"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-amend from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/council-amend" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/council-amend"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-amend from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/council-amend" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/council-amend"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-amend from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/council-amend" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/council-amend"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-amend from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/council-amend" ]; then
+  dest="${OPENCODE_HOME}/skills/council-amend"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-amend from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/council-design" ]; then
+  dest="${CLAUDE_HOME}/skills/council-design"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-design from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/council-design" ]; then
+  dest="${CODEX_HOME}/skills/council-design"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-design from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/council-design" ]; then
+  dest="${VIBE_HOME}/skills/council-design"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-design from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/council-design" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/council-design"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-design from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/council-design" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/council-design"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-design from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/council-design" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/council-design"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-design from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/council-design" ]; then
+  dest="${OPENCODE_HOME}/skills/council-design"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-design from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/council-grill" ]; then
+  dest="${CLAUDE_HOME}/skills/council-grill"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-grill from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/council-grill" ]; then
+  dest="${CODEX_HOME}/skills/council-grill"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-grill from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/council-grill" ]; then
+  dest="${VIBE_HOME}/skills/council-grill"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-grill from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/council-grill" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/council-grill"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-grill from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/council-grill" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/council-grill"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-grill from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/council-grill" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/council-grill"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-grill from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/council-grill" ]; then
+  dest="${OPENCODE_HOME}/skills/council-grill"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-grill from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/council-inject" ]; then
+  dest="${CLAUDE_HOME}/skills/council-inject"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-inject from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/council-inject" ]; then
+  dest="${CODEX_HOME}/skills/council-inject"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-inject from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/council-inject" ]; then
+  dest="${VIBE_HOME}/skills/council-inject"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-inject from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/council-inject" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/council-inject"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-inject from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/council-inject" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/council-inject"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-inject from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/council-inject" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/council-inject"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-inject from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/council-inject" ]; then
+  dest="${OPENCODE_HOME}/skills/council-inject"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-inject from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/council-run" ]; then
+  dest="${CLAUDE_HOME}/skills/council-run"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-run from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/council-run" ]; then
+  dest="${CODEX_HOME}/skills/council-run"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-run from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/council-run" ]; then
+  dest="${VIBE_HOME}/skills/council-run"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-run from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/council-run" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/council-run"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-run from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/council-run" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/council-run"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-run from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/council-run" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/council-run"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-run from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/council-run" ]; then
+  dest="${OPENCODE_HOME}/skills/council-run"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-run from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/council-supervise" ]; then
+  dest="${CLAUDE_HOME}/skills/council-supervise"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-supervise from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/council-supervise" ]; then
+  dest="${CODEX_HOME}/skills/council-supervise"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-supervise from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/council-supervise" ]; then
+  dest="${VIBE_HOME}/skills/council-supervise"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-supervise from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/council-supervise" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/council-supervise"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-supervise from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/council-supervise" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/council-supervise"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-supervise from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/council-supervise" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/council-supervise"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-supervise from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/council-supervise" ]; then
+  dest="${OPENCODE_HOME}/skills/council-supervise"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-supervise from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/council-triage" ]; then
+  dest="${CLAUDE_HOME}/skills/council-triage"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-triage from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/council-triage" ]; then
+  dest="${CODEX_HOME}/skills/council-triage"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-triage from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/council-triage" ]; then
+  dest="${VIBE_HOME}/skills/council-triage"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-triage from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/council-triage" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/council-triage"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-triage from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/council-triage" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/council-triage"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-triage from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/council-triage" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/council-triage"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-triage from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/council-triage" ]; then
+  dest="${OPENCODE_HOME}/skills/council-triage"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill council-triage from ${dest}"
   fi
 fi
 

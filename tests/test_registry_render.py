@@ -963,7 +963,7 @@ def test_container_install_refuses_to_run_as_non_root(tmp_path: Path) -> None:
 def test_estate_skills_are_local_skills_for_every_agent() -> None:
     data = _registry()
     by_name = {s["name"]: s for s in data["local_skills"]}
-    for name in ("council", "kb-first", "token-economy", "agent-session-bootstrap", "pr-composer"):
+    for name in ("kb-first", "token-economy", "agent-session-bootstrap", "pr-composer"):
         assert name in by_name, name
         skill = by_name[name]
         assert skill["surfaces"] == ["workstation"]
@@ -1049,9 +1049,6 @@ def test_uninstall_removes_a_legacy_kb_install_and_purges_hooks(tmp_path: Path) 
     (claude_home / "commands" / "speckit.plan.md").write_text("legacy")
     (claude_home / "skills" / "kb-first").mkdir(parents=True)
     (claude_home / "skills" / "kb-first" / "SKILL.md").write_text("legacy")
-    council_dir = claude_home / "skills" / "council"
-    council_dir.mkdir(parents=True)
-    (council_dir / "council.mjs").write_text("legacy")
     (codex_home / "skills" / "speckit-plan").mkdir(parents=True)
     (codex_home / "skills" / "speckit-plan" / "SKILL.md").write_text("legacy")
     settings = claude_home / "settings.json"
@@ -1084,10 +1081,30 @@ def test_uninstall_removes_a_legacy_kb_install_and_purges_hooks(tmp_path: Path) 
     assert result.returncode == 0, result.stdout + result.stderr
     assert not (claude_home / "commands" / "speckit.plan.md").exists()
     assert not (claude_home / "skills" / "kb-first" / "SKILL.md").exists()
-    assert not (council_dir / "council.mjs").exists()
     assert not (codex_home / "skills" / "speckit-plan" / "SKILL.md").exists()
     remaining = json.loads(settings.read_text())
     assert "hooks" not in remaining
+
+
+def test_the_retired_council_skills_are_declared_and_removed_from_every_home() -> None:
+    data = _registry()
+    retired = {entry["name"] for entry in data["retired_skills"]}
+    council = {
+        "council",
+        "council-amend",
+        "council-design",
+        "council-grill",
+        "council-inject",
+        "council-run",
+        "council-supervise",
+        "council-triage",
+    }
+    assert council <= retired
+    assert not council & {entry["name"] for entry in data["local_skills"]}
+    script = render_registry.render_setup_script(data)
+    for name in council:
+        assert f'if [ -d "${{CLAUDE_HOME}}/skills/{name}" ]; then' in script, name
+        assert f'if [ -d "${{CODEX_HOME}}/skills/{name}" ]; then' in script, name
 
 
 def test_check_mode_uninstall_removes_nothing(tmp_path: Path) -> None:

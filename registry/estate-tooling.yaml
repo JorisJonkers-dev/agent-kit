@@ -661,7 +661,7 @@ clis:
 
   - name: codex
     binary: codex
-    purpose: OpenAI Codex CLI, the second engine council fans out to.
+    purpose: OpenAI Codex CLI.
     latest: true
     surfaces: [workstation, container]
     install: "npm install -g @openai/codex@latest"
@@ -785,7 +785,7 @@ clis:
       OpenCode 2, the open-source terminal coding agent. Gets the workstation
       MCP fleet minus Private Memory, the agent-kit instructions pointer, the
       kit's and the vendored skills, and the skills of every enabled Claude
-      Code plugin. Not a council or critique target.
+      Code plugin. Not a critique target.
     latest: true
     surfaces: [workstation]
     # Homebrew core's `opencode` formula is OpenCode 2. The opencode.ai install
@@ -1101,6 +1101,17 @@ retired_skills:
   - name: open-pr
   - name: prepare-rollback
   - name: run-tests
+  # The council is retired (agent-kit#803): its workstation skill and the
+  # seven council-* repo skills (-amend, -design, -grill, -inject, -run,
+  # -supervise, -triage) are dropped, with no replacement.
+  - name: council
+  - name: council-amend
+  - name: council-design
+  - name: council-grill
+  - name: council-inject
+  - name: council-run
+  - name: council-supervise
+  - name: council-triage
 
 # Workspace tools: command-line tools built from this kit's own cargo workspace
 # (scripts/Cargo.toml, `--locked`) and installed
@@ -1580,19 +1591,6 @@ local_skills:
       the repo rather than guessing, which is what `gh pr create --label bug`
       gets wrong.
 
-  - name: council
-    path: skills/workstation/council
-    purpose: >-
-      Cross-model orchestrator (Claude + Codex) for large, decomposable work:
-      triage, cross-model planning, grill, a design checkpoint, guarded
-      fan-out, a review council, and resumable status/tail.
-    agents: [claude, codex, vibe, antigravity, opencode]
-    surfaces: [workstation]
-    note: >-
-      Previously shipped only by the retired install.sh. Content is unchanged from that install other than the
-      retired install.sh reference in SKILL.md; council.mjs/council.toml/
-      prompts/schemas mirror council/ at the repo root byte-for-byte.
-
   - name: kb-first
     path: skills/workstation/kb-first
     purpose: >-
@@ -1644,8 +1642,7 @@ local_skills:
     surfaces: [workstation]
     note: >-
       critique.mjs is built from council/ts by its build and pinned in
-      manifest.yaml's critique.files, the way council's runner is pinned in
-      council.files.
+      manifest.yaml's critique.files.
 
   - name: review-grill
     path: skills/workstation/review-grill
@@ -1909,8 +1906,7 @@ local_skills:
     surfaces: [workstation]
     note: >-
       Drives the gateway in skills/workstation/model-gateway/ and links to
-      its SKILL.md for fields and codes. Council's triage and design skills
-      point at it instead of carrying their own difficulty and model rubric.
+      its SKILL.md for fields and codes.
 
   - name: research
     path: skills/workstation/research

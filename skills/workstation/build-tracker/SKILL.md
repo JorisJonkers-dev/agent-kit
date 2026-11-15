@@ -1,6 +1,6 @@
 ---
 name: build-tracker
-description: Use at the start of any multi-ticket build (/implement-spec, a council run, a /flow feature in implementation) and on every ticket status change in it. Seeds a page of the spec's tickets from the issue tracker, with a dependency graph and a list per milestone, and keeps it current for the owner.
+description: Use at the start of any multi-ticket build (/implement-spec, a /flow feature in implementation) and on every ticket status change in it. Seeds a page of the spec's tickets from the issue tracker, with a dependency graph and a list per milestone, and keeps it current for the owner.
 disable-model-invocation: true
 ---
 
@@ -27,8 +27,8 @@ the owner must do) and never runs `init`, `sync` or `set`.
 
 ### 1. Start the build tracker
 
-Start it at the start of any multi-ticket build: `/implement-spec`, a
-council run, or a `/flow` feature in implementation. `<ref>` is the spec: its
+Start it at the start of any multi-ticket build: `/implement-spec` or a
+`/flow` feature in implementation. `<ref>` is the spec: its
 issue number or URL on GitHub, or the path of a local markdown spec.
 
 Run `init --spec <ref>` with one `--milestone "<name>=<ticket>"` per

@@ -812,7 +812,7 @@ def _manifest() -> dict:
     return yaml.safe_load((KIT_ROOT / "manifest.yaml").read_text())
 
 
-def test_the_critique_runner_is_pinned_in_the_manifest_like_councils() -> None:
+def test_the_critique_runner_is_pinned_in_the_manifest() -> None:
     files = {f["path"]: f for f in _manifest()["critique"]["files"]}
     runner = files["skills/workstation/critique/critique.mjs"]
     assert runner["mode"] == "0755"

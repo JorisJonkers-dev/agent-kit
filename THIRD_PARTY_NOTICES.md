@@ -17,9 +17,9 @@ here because the material executes inside agent context.
 - Copyright notice: Copyright (c) 2025 BMad Code, LLC
 - Trademark caveat: BMad, BMad Method, BMAD-METHOD, and related names/marks
   are trademarks of BMad Code, LLC and are not licensed under MIT.
-- Adapted material: the council prompts under `council/prompts/` (each names
-  its BMAD source in a provenance comment). The adaptation is frozen at the
-  resolved commit; nothing syncs it from upstream.
+- Adapted material: the council prompts that lived under `council/prompts/`
+  (each named its BMAD source in a provenance comment). The council is retired
+  and the prompts are removed; the notice stays for the copies in the history.
 
 - Project: Skills
 - Repository: https://github.com/mattpocock/skills

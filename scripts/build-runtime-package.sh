@@ -10,72 +10,17 @@ trap 'rm -rf "$stage"' EXIT
 
 mkdir -p "$out_dir" "$stage/rendered" "$stage/package/home"
 
-(
-  cd "$root/council/ts"
-  pnpm install --frozen-lockfile
-  pnpm run build
-)
-
 "$python_bin" "$root/scripts/render_agent_kit.py" --output "$stage/rendered"
-
-stage_council_skill() {
-  local skill_src="$1"
-  local dest="$2"
-  mkdir -p "$dest"
-  cp "$skill_src" "$dest/SKILL.md"
-  chmod 0644 "$dest/SKILL.md"
-  "$python_bin" - "$root" "$dest" <<'PY'
-import importlib.util
-import shutil
-import sys
-from pathlib import Path
-
-root = Path(sys.argv[1])
-dest = Path(sys.argv[2])
-spec = importlib.util.spec_from_file_location("render_agent_kit", root / "scripts" / "render_agent_kit.py")
-if spec is None or spec.loader is None:
-    raise SystemExit("cannot load scripts/render_agent_kit.py")
-renderer = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = renderer
-spec.loader.exec_module(renderer)
-toolkit = renderer.council_toolkit_files()
-for rel, mode in toolkit:
-    source = root / "council" / rel
-    target = dest / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, target)
-    target.chmod(int(mode, 8))
-
-dist = root / "council" / "ts-dist"
-if not (dist / "cli" / "index.js").is_file():
-    raise SystemExit("council/ts-dist is missing; package build did not produce the council CLI")
-for source in sorted(path for path in dist.rglob("*") if path.is_file()):
-    rel = source.relative_to(dist)
-    if (
-        "__pycache__" in source.parts
-        or source.suffix in {".map", ".pyc"}
-        or source.name.endswith(".tsbuildinfo")
-    ):
-        continue
-    target = dest / "ts-dist" / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, target)
-    target.chmod(0o644)
-PY
-}
 
 cp -a "$stage/rendered/.claude" "$stage/package/home/.claude"
 # No repo skill renders to .codex now that the hooks are gone, so the
 # renderer emits no .codex directory at all and `cp -a` of it fails with
-# `cannot stat`. The council skill is still staged into .codex/skills below,
-# so create the directory and copy only if the renderer produced one.
+# `cannot stat`, so create the directory and copy only if the renderer produced one.
 mkdir -p "$stage/package/home/.codex"
 if [ -d "$stage/rendered/.codex" ]; then
   cp -a "$stage/rendered/.codex/." "$stage/package/home/.codex/"
 fi
 cp -a "$stage/rendered/.agents" "$stage/package/home/.agents"
-stage_council_skill "$root/skills/repo/council/claude/SKILL.md" "$stage/package/home/.claude/skills/council"
-stage_council_skill "$root/skills/repo/council/codex/SKILL.md" "$stage/package/home/.codex/skills/council"
 cp -a "$root/runner/manifests/runtime/mcp" "$stage/package/mcp"
 cp -a "$root/runner/manifests/runtime/bin" "$stage/package/bin"
 cp "$root/runner/manifests/runtime/runtime-package.yaml" "$stage/package/runtime-package.yaml"

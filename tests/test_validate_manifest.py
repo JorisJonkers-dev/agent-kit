@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
-import io
 import os
 import sys
 import tempfile
 import unittest
 import unittest.mock
-from contextlib import redirect_stdout
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
@@ -162,105 +160,6 @@ class ValidateEntrypointHomeIsolation(unittest.TestCase):
         self._assert_refused("", r"inside the runner container did not set credential.helper")
 
 
-class ValidateManifestCouncilCommandSurface(unittest.TestCase):
-    validator: ClassVar[ModuleType]
-
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.validator = load_validator()
-
-    def test_current_cli_source_contains_required_council_command_surface(self) -> None:
-        self.validator.validate_council_command_surface()
-
-    def test_cli_surface_requires_source_file(self) -> None:
-        with (
-            unittest.mock.patch.object(
-                self.validator,
-                "COUNCIL_CLI_INDEX_PATH",
-                ROOT / "council" / "ts" / "src" / "cli" / "missing.ts",
-            ),
-            self.assertRaisesRegex(AssertionError, "council command surface source is missing"),
-        ):
-            self.validator.validate_council_command_surface()
-
-    def test_cli_surface_requires_registry_specs_for_required_commands(self) -> None:
-        source = """
-const COMMANDS: readonly CommandSpec[] = [
-  { help: 'score a run with the eval workflow', name: 'eval' },
-]
-export async function runCli(command: string) {
-  switch (command) {
-    case 'eval':
-      return okJson(await app.eval(parseEval(rest)))
-    case 'status':
-      return await runStatusCommand(app, parseStatus(rest))
-    case 'tail':
-      return await runTailCommand(app, parseTail(rest))
-    case 'triage':
-      return okJson(await app.triage(parseTriage(rest)))
-  }
-}
-"""
-
-        with self.assertRaisesRegex(
-            AssertionError,
-            r"required commands \(eval, status, tail, triage\) missing command registry specs: status, tail, triage",
-        ):
-            self.validator.validate_council_command_surface_source(source)
-
-    def test_cli_surface_accepts_direct_and_handler_dispatch_branches(self) -> None:
-        source = """
-const COMMANDS: readonly CommandSpec[] = [
-  { help: 'score a run with the eval workflow', name: 'eval' },
-  { help: 'summarize a run directory', name: 'status' },
-  { help: 'tail one task log', name: 'tail' },
-  { help: 'run the triage gate and emit routing payload', name: 'triage' },
-]
-export async function runCli(command: string) {
-  switch (command) {
-    case 'eval':
-      return okJson(await app.eval(parseEval(rest)))
-    case 'status':
-      return await runStatusCommand(app, parseStatus(rest))
-    case 'tail':
-      return await runTailCommand(app, parseTail(rest))
-    case 'triage':
-      return okJson(await app.triage(parseTriage(rest)))
-  }
-}
-"""
-
-        self.validator.validate_council_command_surface_source(source)
-
-    def test_cli_surface_requires_dispatch_branches_for_required_commands(self) -> None:
-        source = """
-const COMMANDS: readonly CommandSpec[] = [
-  { help: 'score a run with the eval workflow', name: 'eval' },
-  { help: 'summarize a run directory', name: 'status' },
-  { help: 'tail one task log', name: 'tail' },
-  { help: 'run the triage gate and emit routing payload', name: 'triage' },
-]
-export async function runCli(command: string) {
-  switch (command) {
-    case 'eval':
-      return okJson(await app.eval(parseEval(rest)))
-    case 'status':
-      return okJson({ command: 'status', compiled: true })
-    case 'tail':
-      return okJson({ command: 'tail', compiled: true })
-    case 'triage':
-      return okJson({ command: 'triage', compiled: true })
-  }
-}
-"""
-
-        with self.assertRaisesRegex(
-            AssertionError,
-            r"required commands \(eval, status, tail, triage\) missing command dispatch branches: status, tail, triage",
-        ):
-            self.validator.validate_council_command_surface_source(source)
-
-
 class ValidateManifestAttachmentProfiles(unittest.TestCase):
     validator: ClassVar[ModuleType]
 
@@ -397,12 +296,11 @@ class RenderAgentKitDoctor(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.renderer = load_renderer()
 
-    def test_manifest_check_reports_successful_command_surface_validation(self) -> None:
+    def test_manifest_check_reports_a_valid_manifest(self) -> None:
         result = self.renderer.manifest_check()
 
         self.assertEqual(result.name, "manifest")
         self.assertEqual(result.status, "ok")
-        self.assertIn("council command surface validated: eval, status, tail, triage", result.detail)
 
     def test_manifest_check_reports_missing_manifest(self) -> None:
         with unittest.mock.patch.object(self.renderer, "MANIFEST_PATH", ROOT / "missing-manifest.yaml"):
@@ -419,14 +317,6 @@ class RenderAgentKitDoctor(unittest.TestCase):
             self.renderer.DoctorCheck("manifest", "fail", "cannot load scripts/validate_manifest.py"),
         )
 
-    def test_manifest_check_reports_council_command_surface_assertion(self) -> None:
-        spec = ModuleSpec("validate_manifest", AssertionLoader())
-
-        with unittest.mock.patch.object(self.renderer.importlib.util, "spec_from_file_location", return_value=spec):
-            result = self.renderer.manifest_check()
-
-        self.assertEqual(result, self.renderer.DoctorCheck("council-command-surface", "fail", "surface drift"))
-
     def test_manifest_check_reports_validator_load_failure(self) -> None:
         spec = ModuleSpec("validate_manifest", SystemExitLoader())
 
@@ -434,47 +324,6 @@ class RenderAgentKitDoctor(unittest.TestCase):
             result = self.renderer.manifest_check()
 
         self.assertEqual(result, self.renderer.DoctorCheck("manifest", "fail", "missing dependency"))
-
-    def test_doctor_reports_council_command_surface_failure(self) -> None:
-        args = self.renderer.parse_args(["--doctor"])
-        ok_findings = self.renderer.RenderFindings(missing=[], drifted=[])
-
-        with (
-            unittest.mock.patch.object(self.renderer, "render_findings", return_value=ok_findings),
-            unittest.mock.patch.object(
-                self.renderer,
-                "manifest_check",
-                return_value=self.renderer.DoctorCheck(
-                    name="council-command-surface",
-                    status="fail",
-                    detail=(
-                        "required commands (eval, status, tail, triage) "
-                        "missing command dispatch branches: status, tail"
-                    ),
-                ),
-            ),
-        ):
-            output = io.StringIO()
-            with redirect_stdout(output):
-                exit_code = self.renderer.doctor(args)
-
-        self.assertEqual(exit_code, 1)
-        self.assertIn(
-            "fail council-command-surface: required commands (eval, status, tail, triage) "
-            "missing command dispatch branches: status, tail",
-            output.getvalue(),
-        )
-
-
-class AssertionLoader:
-    def create_module(self, _spec: ModuleSpec) -> None:
-        return None
-
-    def exec_module(self, module: ModuleType) -> None:
-        def fail_validation() -> None:
-            raise AssertionError("surface drift")
-
-        module.validate_council_command_surface = fail_validation
 
 
 class SystemExitLoader:

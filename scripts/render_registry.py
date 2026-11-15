@@ -1952,7 +1952,7 @@ def _agents_pointer_text(w: Any, private: bool) -> None:
     w("")
     w("Read it before doing anything non-trivial in an estate repository.")
     w("")
-    w("Multi-ticket builds (/implement-spec, a council run, a /flow feature in implementation):"
+    w("Multi-ticket builds (/implement-spec, a /flow feature in implementation):"
       " keep the build tracker current with the build-tracker skill.")
     w("")
     w("## Memory")
@@ -4530,10 +4530,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
     _critique_hooks_fn(w)
 
     # --- --uninstall: remove what a PREVIOUS install.sh/install-agents.sh wrote ---
-    council_dir = KIT_ROOT / "skills" / "workstation" / "council"
-    council_relative = sorted(
-        str(p.relative_to(council_dir)) for p in council_dir.rglob("*") if p.is_file()
-    )
     speckit_names = [
         "analyze",
         "checklist",
@@ -4556,13 +4552,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
     legacy_claude_paths = (
         [f"commands/speckit.{n}.md" for n in speckit_names]
         + [f"skills/{n}/SKILL.md" for n in legacy_shared_skill_names]
-        + [f"skills/council/{p}" for p in council_relative]
         + [".knowledge-system-version"]
     )
     legacy_codex_paths = (
         [f"skills/speckit-{n}/SKILL.md" for n in speckit_names]
         + [f"skills/{n}/SKILL.md" for n in legacy_shared_skill_names]
-        + [f"skills/council/{p}" for p in council_relative]
         + [".knowledge-system-version"]
     )
     w("# -----------------------------------------------------------------")

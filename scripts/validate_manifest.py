@@ -27,7 +27,6 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised in CI setup f
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_SELFTEST_ENV = "AGENT_RUNTIME_SELFTEST"
 MANIFEST_PATH = ROOT / "manifest.yaml"
-COUNCIL_CLI_INDEX_PATH = ROOT / "council" / "ts" / "src" / "cli" / "index.ts"
 MODEL_GATEWAY_ROOT = ROOT / "skills" / "workstation" / "model-gateway"
 ROUND3_SKELETON_DIR = ROOT / "runner/manifests"
 ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR,)
@@ -99,8 +98,6 @@ ROUTING_CARD_KEYS = {
     "risk",
     "expectedOutputs",
 }
-REQUIRED_COUNCIL_CLI_COMMANDS = ("eval", "status", "tail", "triage")
-REQUIRED_COUNCIL_CLI_COMMANDS_LABEL = ", ".join(REQUIRED_COUNCIL_CLI_COMMANDS)
 
 
 def load_renderer() -> Any:
@@ -341,110 +338,6 @@ def validate_hooks(manifest: dict[str, Any]) -> None:
         script = ROOT / "skills" / "workstation" / str(hook.get("skill")) / "hooks" / f"{name}.sh"
         if "skill" in hook and not script.is_file():
             fail(f"hook {name} skill {hook['skill']} has no hooks/{name}.sh")
-
-
-def _has_council_command_spec(source: str, command: str) -> bool:
-    command_literal = re.escape(command)
-    pattern = re.compile(
-        r"\{[^{}]*\bname:\s*(['\"])" + command_literal + r"\1[^{}]*\}",
-        re.MULTILINE | re.DOTALL,
-    )
-    return pattern.search(source) is not None
-
-
-def _has_council_command_dispatch(source: str, command: str) -> bool:
-    command_literal = re.escape(command)
-    pattern = re.compile(
-        r"case\s+(['\"])"
-        + command_literal
-        + r"\1\s*:\s*return\s+okJson\s*\(\s*await\s+app\."
-        + command_literal
-        + r"\s*\(",
-        re.MULTILINE | re.DOTALL,
-    )
-    return pattern.search(source) is not None
-
-
-def _has_council_command_handler_dispatch(source: str, command: str) -> bool:
-    command_literal = re.escape(command)
-    handler_literal = "run" + "".join(part.capitalize() for part in command.split("-")) + "Command"
-    parser_literal = "parse" + "".join(part.capitalize() for part in command.split("-"))
-    pattern = re.compile(
-        r"case\s+(['\"])"
-        + command_literal
-        + r"\1\s*:\s*return\s+await\s+"
-        + re.escape(handler_literal)
-        + r"\s*\(\s*app\s*,\s*"
-        + re.escape(parser_literal)
-        + r"\s*\(",
-        re.MULTILINE | re.DOTALL,
-    )
-    return pattern.search(source) is not None
-
-
-def _has_required_council_command_dispatch(source: str, command: str) -> bool:
-    return _has_council_command_dispatch(source, command) or _has_council_command_handler_dispatch(source, command)
-
-
-def validate_council_command_surface_source(source: str) -> None:
-    missing_specs = [
-        command for command in REQUIRED_COUNCIL_CLI_COMMANDS if not _has_council_command_spec(source, command)
-    ]
-    if missing_specs:
-        fail(
-            "council command surface required commands "
-            f"({REQUIRED_COUNCIL_CLI_COMMANDS_LABEL}) missing command registry specs: "
-            + ", ".join(missing_specs),
-        )
-
-    missing_dispatches = [
-        command
-        for command in REQUIRED_COUNCIL_CLI_COMMANDS
-        if not _has_required_council_command_dispatch(source, command)
-    ]
-    if missing_dispatches:
-        fail(
-            "council command surface required commands "
-            f"({REQUIRED_COUNCIL_CLI_COMMANDS_LABEL}) missing command dispatch branches: "
-            + ", ".join(missing_dispatches),
-        )
-
-
-def validate_council_command_surface() -> None:
-    if not COUNCIL_CLI_INDEX_PATH.is_file():
-        fail(f"council command surface source is missing: {COUNCIL_CLI_INDEX_PATH.relative_to(ROOT)}")
-    validate_council_command_surface_source(COUNCIL_CLI_INDEX_PATH.read_text())
-
-
-def validate_council(manifest: dict[str, Any]) -> None:
-    renderer = load_renderer()
-    council = as_mapping(manifest.get("council"), "council")
-    files = as_list(council.get("files"), "council.files")
-    manifest_files = {item.get("path") for item in files}
-    rendered_files = {f"council/{rel}" for rel, _mode in renderer.council_toolkit_files()}
-    actual_files = {
-        path.relative_to(ROOT).as_posix()
-        for path in (ROOT / "council").rglob("*")
-        if (
-            path.is_file()
-            and path.name != "README.md"
-            and "__pycache__" not in path.parts
-            and "node_modules" not in path.relative_to(ROOT / "council").parts
-            and "coverage" not in path.relative_to(ROOT / "council").parts
-            and path.suffix != ".pyc"
-            and path.suffix != ".map"
-            and not path.name.endswith(".tsbuildinfo")
-            and path.relative_to(ROOT / "council").parts[:1] not in (("ts",), ("ts-dist",))
-            and (
-                path.relative_to(ROOT / "council").as_posix() in {"council.mjs", "council.toml"}
-                or path.relative_to(ROOT / "council").parts[:1] in (("prompts",), ("schemas",))
-            )
-        )
-    }
-    if rendered_files != actual_files:
-        fail(f"council renderer mismatch: rendered={sorted(rendered_files)} actual={sorted(actual_files)}")
-    if manifest_files != actual_files:
-        fail(f"council.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
 
 
 def validate_critique(manifest: dict[str, Any]) -> None:
@@ -1170,8 +1063,6 @@ def main(argv: list[str] | None = None) -> int:
         validate_checksums(manifest, managed_paths)
         validate_surface_parity(manifest)
         validate_hooks(manifest)
-        validate_council_command_surface()
-        validate_council(manifest)
         validate_critique(manifest)
         validate_build_tracker(manifest)
         validate_model_gateway(manifest)
