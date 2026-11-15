@@ -1121,3 +1121,53 @@ research-layout verify --papers DIR --fetched DIR [--base REF]
 The unit tests drive `fetch` through a stub `curl` script and `verify` through
 the real `git` over a fixture repository; they cover every line except
 `src/main.rs`.
+
+## Release binaries
+
+Every release carries prebuilt, statically linked builds of the command-line
+tools setup installs from source today (#806, part of #802). They are the first
+step of the bootstrap that replaces `cargo build` on a clean machine; the
+bootstrap shell and NixOS packaging that consume them are #807, and setup does
+not use them yet. There is no single `agent-kit` binary yet; the multicall crate
+is a later child of #802, and the tarball will carry it when it exists.
+
+* **What ships.** The `workspace_tools` of `registry/estate-tooling.yaml`
+  (agent-launcher, gold-band-gate, gold-band-run-start, gold-band-findings,
+  gold-band-proof, research-layout, ticket-publish, workflow-lint,
+  coverage-gate, ci-wait, litellm-gate) plus critique, model-gateway and
+  build-tracker. The list is `TOOLS` in `scripts/release-binaries.sh`.
+* **Targets.** `x86_64-unknown-linux-musl` (hosted `ubuntu-latest`),
+  `aarch64-unknown-linux-musl` (the native `ubuntu-24.04-arm` runner) and
+  `aarch64-apple-darwin` (`macos-latest`). Each is built natively on a runner of
+  its own architecture, so no cross linker is needed: the workspace has no C
+  dependency, and the musl targets link statically with the toolchain's own C
+  runtime. A Linux binary that is not statically linked fails the build.
+* **Assets.** Per target `agent-kit-tools-<tag>-<target>.tar.gz` (a directory of
+  the same name holding `bin/<tool>`, `VERSION` with the tag and target, and a
+  `SHA256SUMS` of its files) and `agent-kit-tools-<tag>-<target>.tar.gz.sha256`
+  as the runtime-home package has; plus one release-wide `SHA256SUMS` over the
+  tarballs (`sha256sum -c` format). Verify with
+  `grep ' agent-kit-tools-<tag>-<target>.tar.gz$' SHA256SUMS | sha256sum -c -`
+  (`shasum -a 256 -c -` on macOS).
+* **The gate.** The `Release` workflow builds only after release-please creates
+  a release, and a `crate-age` job (the same check and standards pin as
+  `crate-cooldown.yml`) runs in front of every build job: a lockfile with a
+  crate version younger than 7 days, or one whose age cannot be proven, builds
+  nothing. The builds are `--locked`, from the repository (so
+  `.cargo/config.toml`'s cooldown applies) and through the packages proxy.
+* **The smoke test.** After the assets are attached, a job per target on a
+  runner of that target downloads them from the release, verifies them against
+  `SHA256SUMS`, and runs every binary with `--help`. The tools have no common
+  `--version`, so the check is that each starts and answers (exit 0 to 2 with
+  output); a missing loader, a signal or silence fails it.
+* **Dry run.** Run the `Release` workflow by hand (Actions, Run workflow, or
+  `gh workflow run release.yml --ref <branch>`). release-please is skipped, the
+  tag is `dry-run-<sha7>`, the same crate-age, build and smoke jobs run, and the
+  tarballs and `SHA256SUMS` are uploaded to the run as the `release-assets`
+  artifact; nothing is attached to a release. The same three commands run
+  locally: `scripts/release-binaries.sh build TAG TARGET dist`, `sums dist`,
+  `smoke TAG TARGET dist`.
+* **Limits.** The workflow cannot be proven on a real release without cutting
+  one; the dry run covers everything except the `gh release upload` and
+  `gh release download` steps. The aarch64 Linux build assumes the
+  `setup-package-proxy` action works on the arm runner.

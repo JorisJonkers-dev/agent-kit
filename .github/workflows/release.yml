@@ -4,6 +4,10 @@
   'push':
     'branches':
       - 'main'
+  # The dry run: builds the release binaries from the dispatched ref, smoke
+  # tests them and uploads them to this run, never to a release
+  # (docs/RUST.md, "Release binaries").
+  'workflow_dispatch':
 
 'permissions':
   'contents': 'write'
@@ -12,6 +16,7 @@
 
 'jobs':
   'release-please':
+    'if': "github.event_name == 'push'"
     'runs-on': 'ubuntu-latest'
     'outputs':
       'release_created': '${{ steps.release.outputs.release_created }}'
@@ -71,3 +76,201 @@
             "dist/agent-kit-runtime-home-${tag}.tar.gz" \
             "dist/agent-kit-runtime-home-${tag}.tar.gz.sha256" \
             --clobber
+
+  # What the binary jobs below build and whether they publish: a release
+  # release-please just created (tag, publish), or a dry run from a manual
+  # dispatch (a throwaway tag, nothing published).
+  'plan':
+    'needs': 'release-please'
+    'if': "${{ always() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.release_created == 'true') }}"
+    'runs-on': 'ubuntu-latest'
+    'outputs':
+      'tag': '${{ steps.plan.outputs.tag }}'
+      'ref': '${{ steps.plan.outputs.ref }}'
+      'publish': '${{ steps.plan.outputs.publish }}'
+    'steps':
+      - 'id': 'plan'
+        'env':
+          'EVENT': '${{ github.event_name }}'
+          'RELEASE_TAG': '${{ needs.release-please.outputs.tag_name }}'
+        'run': |
+          set -euo pipefail
+          if [ "$EVENT" = push ]; then
+            { echo "tag=$RELEASE_TAG"; echo "ref=$RELEASE_TAG"; echo "publish=true"; } >> "$GITHUB_OUTPUT"
+          else
+            { echo "tag=dry-run-${GITHUB_SHA::7}"; echo "ref=$GITHUB_SHA"; echo "publish=false"; } >> "$GITHUB_OUTPUT"
+          fi
+
+  # The 7-day crate cooldown gate, in front of every build: crate-age refuses a
+  # lockfile with a crate version younger than seven days (exit 1) or one whose
+  # age cannot be proven (exit 2). The same check and the same standards pin as
+  # crate-cooldown.yml; move both together.
+  'crate-age':
+    'needs': 'plan'
+    'if': "${{ !cancelled() && needs.plan.result == 'success' }}"
+    'runs-on': 'ubuntu-latest'
+    'permissions':
+      'contents': 'read'
+    'env':
+      'CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX': 'sparse+https://packages.jorisjonkers.dev/cargo/'
+      'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+        'with':
+          'ref': '${{ needs.plan.outputs.ref }}'
+          'path': 'agent-kit'
+      - 'name': 'Mint a token to read the standards repo'
+        'id': 'app-token'
+        'uses': 'actions/create-github-app-token@v3'
+        'with':
+          'app-id': '${{ secrets.RELEASE_APP_ID }}'
+          'private-key': '${{ secrets.RELEASE_APP_PRIVATE_KEY }}'
+          'owner': '${{ github.repository_owner }}'
+          'repositories': 'standards'
+      - 'name': 'Check out the standards repo (crate-age source)'
+        'uses': 'actions/checkout@v6'
+        'with':
+          'repository': 'JorisJonkers-dev/standards'
+          'ref': '7d0673432f10f4a515a5dc700f78daae8e389cd5'
+          'path': 'standards'
+          'token': '${{ steps.app-token.outputs.token }}'
+          'persist-credentials': false
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
+      - 'name': 'Rust 1.100 or newer (the cargo cooldown)'
+        'run': |
+          rustup update stable --no-self-update
+          rustup default stable
+          minor=$(rustc --version | sed -n 's/^rustc 1\.\([0-9][0-9]*\)\..*/\1/p')
+          [ "${minor:-0}" -ge 100 ] || { echo "rustc $(rustc --version) is older than 1.100" >&2; exit 1; }
+      - 'name': 'Build crate-age'
+        'working-directory': 'standards/scripts'
+        'run': 'cargo build --release --locked --bin crate-age'
+      - 'name': 'Run crate-age over the checkout'
+        'run': 'standards/scripts/target/release/crate-age --root agent-kit'
+
+  # Static binaries per target: musl on Linux (x86_64 on the hosted runner,
+  # aarch64 on the native arm runner, so neither needs a cross toolchain) and
+  # native arm64 on macOS. scripts/release-binaries.sh builds with --locked
+  # from the repository, so .cargo/config.toml's cooldown applies, through the
+  # packages proxy; it fails a Linux binary that is not statically linked.
+  'binaries':
+    'name': 'Build ${{ matrix.target }}'
+    'needs': ['plan', 'crate-age']
+    'if': "${{ !cancelled() && needs.plan.result == 'success' && needs.crate-age.result == 'success' }}"
+    'strategy':
+      'fail-fast': false
+      'matrix':
+        'include':
+          - 'target': 'x86_64-unknown-linux-musl'
+            'os': 'ubuntu-latest'
+          - 'target': 'aarch64-unknown-linux-musl'
+            'os': 'ubuntu-24.04-arm'
+          - 'target': 'aarch64-apple-darwin'
+            'os': 'macos-latest'
+    'runs-on': '${{ matrix.os }}'
+    'permissions':
+      'contents': 'read'
+    'env':
+      'CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX': 'sparse+https://packages.jorisjonkers.dev/cargo/'
+      'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+        'with':
+          'ref': '${{ needs.plan.outputs.ref }}'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
+      - 'name': 'Rust 1.100 or newer and the target'
+        'run': |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add "${{ matrix.target }}"
+          minor=$(rustc --version | sed -n 's/^rustc 1\.\([0-9][0-9]*\)\..*/\1/p')
+          [ "${minor:-0}" -ge 100 ] || { echo "rustc $(rustc --version) is older than 1.100" >&2; exit 1; }
+      - 'name': 'Build and pack'
+        'run': 'scripts/release-binaries.sh build "${{ needs.plan.outputs.tag }}" "${{ matrix.target }}" dist'
+      - 'uses': 'actions/upload-artifact@v4'
+        'with':
+          'name': 'binaries-${{ matrix.target }}'
+          'path': 'dist/agent-kit-tools-*.tar.gz*'
+          'if-no-files-found': 'error'
+
+  # SHA256SUMS over every tarball, then the release assets (a release) or the
+  # run's artifact (a dry run, nothing published).
+  'checksums':
+    'needs': ['plan', 'binaries']
+    'if': "${{ !cancelled() && needs.plan.result == 'success' && needs.binaries.result == 'success' }}"
+    'runs-on': 'ubuntu-latest'
+    'permissions':
+      'contents': 'write'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+        'with':
+          'ref': '${{ needs.plan.outputs.ref }}'
+      - 'uses': 'actions/download-artifact@v4'
+        'with':
+          'pattern': 'binaries-*'
+          'path': 'dist'
+          'merge-multiple': 'true'
+      - 'name': 'Checksums'
+        'run': 'scripts/release-binaries.sh sums dist'
+      - 'uses': 'actions/upload-artifact@v4'
+        'with':
+          'name': 'release-assets'
+          'path': |
+            dist/agent-kit-tools-*.tar.gz
+            dist/SHA256SUMS
+          'if-no-files-found': 'error'
+      - 'name': 'Attach release assets'
+        'if': "${{ needs.plan.outputs.publish == 'true' }}"
+        'env':
+          'GH_TOKEN': '${{ secrets.GITHUB_TOKEN }}'
+        'run': |
+          set -euo pipefail
+          gh release upload "${{ needs.plan.outputs.tag }}" dist/agent-kit-tools-*.tar.gz dist/SHA256SUMS --clobber
+
+  # Downloads each artifact the way a user would (the release for a release,
+  # the run's artifact for a dry run), verifies SHA256SUMS and runs every binary
+  # on a runner of its own target.
+  'smoke':
+    'name': 'Smoke ${{ matrix.target }}'
+    'needs': ['plan', 'checksums']
+    'if': "${{ !cancelled() && needs.plan.result == 'success' && needs.checksums.result == 'success' }}"
+    'strategy':
+      'fail-fast': false
+      'matrix':
+        'include':
+          - 'target': 'x86_64-unknown-linux-musl'
+            'os': 'ubuntu-latest'
+          - 'target': 'aarch64-unknown-linux-musl'
+            'os': 'ubuntu-24.04-arm'
+          - 'target': 'aarch64-apple-darwin'
+            'os': 'macos-latest'
+    'runs-on': '${{ matrix.os }}'
+    'permissions':
+      'contents': 'read'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+        'with':
+          'ref': '${{ needs.plan.outputs.ref }}'
+      - 'name': 'Download the release assets'
+        'if': "${{ needs.plan.outputs.publish == 'true' }}"
+        'env':
+          'GH_TOKEN': '${{ secrets.GITHUB_TOKEN }}'
+        'run': |
+          set -euo pipefail
+          mkdir dist
+          gh release download "${{ needs.plan.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --dir dist \
+            --pattern 'agent-kit-tools-*-${{ matrix.target }}.tar.gz' --pattern SHA256SUMS
+      - 'name': 'Download the dry-run artifact'
+        'if': "${{ needs.plan.outputs.publish != 'true' }}"
+        'uses': 'actions/download-artifact@v4'
+        'with':
+          'name': 'release-assets'
+          'path': 'dist'
+      - 'name': 'Verify and run every binary'
+        'run': 'scripts/release-binaries.sh smoke "${{ needs.plan.outputs.tag }}" "${{ matrix.target }}" dist'
