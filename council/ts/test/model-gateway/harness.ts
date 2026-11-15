@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 
@@ -350,11 +350,6 @@ export class FakeFiles implements ModelGatewayFilesPort {
   async writeTextPrivate(path: string, content: string): Promise<void> {
     await mkdir(dirname(path), { recursive: true, mode: 0o700 })
     await writeFile(path, content, { mode: 0o600 })
-  }
-
-  async copyTree(from: string, to: string): Promise<void> {
-    await mkdir(dirname(to), { recursive: true })
-    await cp(from, to, { dereference: true, recursive: true })
   }
 }
 

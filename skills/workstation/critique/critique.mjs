@@ -3267,8 +3267,6 @@ var pi = {
       write ? PI_WRITE_SYSTEM_PROMPT : PI_READ_SYSTEM_PROMPT
     ];
     const confine = extras?.confine;
-    for (const path of confine?.skills ?? []) piArgs.push("--skill", path);
-    for (const path of confine?.extensions ?? []) piArgs.push("-e", path);
     if (confine === void 0) {
       return { args: piArgs, command: binary, cwd: paths.workDir, env: extras?.env ?? {}, stdin: prompt, timeoutMs: input.time_limit_s * 1e3 };
     }
@@ -3290,7 +3288,7 @@ var pi = {
 var LAUNCHERS = { agy, claude, codex, hermes, opencode, pi, vibe };
 
 // src/contexts/model-gateway/application/pi-launch.ts
-import { basename, join as join6 } from "node:path";
+import { join as join6 } from "node:path";
 var KEY_TIMEOUT_MS = 2e4;
 var NO_LAUNCHER = "pi: agent-launcher is not on PATH, and a Pi delegate only runs confined to its working directory; re-run agent-kit setup, which installs it";
 var FIX = "re-run agent-kit setup so it writes the LiteLLM providers into ~/.pi/agent/models.json";
@@ -3357,75 +3355,19 @@ async function launcherOf(ports) {
   }
   return void 0;
 }
-async function resolveScope(ports, tools) {
-  const names = (list2) => list2 === "any" ? [] : list2;
-  const find = async (candidates) => {
-    for (const path of candidates) if (await ports.files.exists(path)) return path;
-    return void 0;
-  };
-  const skills = [];
-  const homes = [join6(homeAgentDir(ports), "skills"), join6(ports.env.get("HOME") ?? "", ".agents", "skills")];
-  for (const name of names(tools.skills)) {
-    const marked = homes.map((home) => join6(home, name, "SKILL.md"));
-    const at = await find(marked);
-    if (at === void 0) return `skill ${name} is not in Pi's home: looked for ${marked.join(" and ")}`;
-    skills.push({ from: at.slice(0, -"/SKILL.md".length), name });
-  }
-  const plugins = [];
-  const extensions = join6(homeAgentDir(ports), "extensions");
-  for (const name of names(tools.plugins)) {
-    const candidates = [join6(extensions, name), join6(extensions, `${name}.ts`), join6(extensions, `${name}.js`)];
-    const at = await find(candidates);
-    if (at === void 0) return `plugin ${name} is not in Pi's home: looked for ${candidates.slice(0, 2).join(", ")} and ${candidates[2] ?? ""}`;
-    plugins.push({ from: at, name });
-  }
-  return { plugins, skills };
-}
-async function preparePi(ports, provider, model, agentDir, scope) {
+async function preparePi(ports, provider, model, agentDir) {
   const route = await routeOf(ports, provider, model);
   if (typeof route === "string") return route;
   const launcher = await launcherOf(ports);
   if (launcher === void 0) return NO_LAUNCHER;
-  const listed = scope === void 0 ? { plugins: [], skills: [] } : await resolveScope(ports, scope);
-  if (typeof listed === "string") return listed;
   const key2 = await keyOf(ports, provider, route.apiKey);
   if ("error" in key2) return key2.error;
   const files = ports.files;
   if (files.writeTextPrivate === void 0) return "pi: the launch has no way to write its private agent directory";
   const entry2 = { api: route.api, apiKey: key2.value, baseUrl: route.baseUrl, models: [route.model] };
-  try {
-    await files.writeTextPrivate(join6(agentDir, "settings.json"), "{}\n");
-  } catch (error) {
-    return `pi: cannot write the launch's agent directory ${agentDir}: ${messageOf3(error)}`;
-  }
-  const copy = async (from, kind, name, folder) => {
-    const to = join6(agentDir, folder, basename(from));
-    if (files.copyTree === void 0) return `pi: the launch has no way to copy ${kind} ${name} into its agent directory`;
-    try {
-      await files.copyTree(from, to);
-      return { to };
-    } catch (error) {
-      return `pi: cannot copy ${kind} ${name} into the launch's agent directory ${agentDir}: ${messageOf3(error)}`;
-    }
-  };
-  const skills = [];
-  for (const skill of listed.skills) {
-    const done = await copy(skill.from, "skill", skill.name, "skills");
-    if (typeof done === "string") return done;
-    skills.push(done.to);
-  }
-  const extensions = [];
-  for (const plugin of listed.plugins) {
-    const done = await copy(plugin.from, "plugin", plugin.name, "extensions");
-    if (typeof done === "string") return done;
-    extensions.push(done.to);
-  }
-  try {
-    await files.writeTextPrivate(join6(agentDir, "models.json"), `${JSON.stringify({ providers: { [provider]: entry2 } }, null, 2)}
+  await files.writeTextPrivate(join6(agentDir, "settings.json"), "{}\n");
+  await files.writeTextPrivate(join6(agentDir, "models.json"), `${JSON.stringify({ providers: { [provider]: entry2 } }, null, 2)}
 `);
-  } catch (error) {
-    return `pi: cannot write the launch's agent directory ${agentDir}: ${messageOf3(error)}`;
-  }
   const bin = join6(homeAgentDir(ports), "bin");
   const path = ports.env.get("PATH");
   return {
@@ -3433,9 +3375,7 @@ async function preparePi(ports, provider, model, agentDir, scope) {
     launcher,
     port: route.port,
     ...await ports.files.exists(bin) ? { bin } : {},
-    ...path === void 0 ? {} : { path },
-    ...skills.length === 0 ? {} : { skills },
-    ...extensions.length === 0 ? {} : { extensions }
+    ...path === void 0 ? {} : { path }
   };
 }
 
@@ -3472,11 +3412,10 @@ var ClientRun = class {
     this.ports = ports;
   }
   ports;
-  /** The launch, with the tool scope a delegation profile gives a Pi run: its home holds exactly the skills and plugins the scope lists. */
-  async launch(request, scope) {
+  async launch(request) {
     requireSupportedExtras(request.client, request.extras);
     const launcher = LAUNCHERS[request.client];
-    const confine = request.client === "pi" ? await this.confinementOf(request, scope) : void 0;
+    const confine = request.client === "pi" ? await this.confinementOf(request) : void 0;
     const extras = { ...await this.extrasOf(request), ...confine === void 0 ? {} : { confine } };
     let result;
     try {
@@ -3492,9 +3431,9 @@ var ClientRun = class {
    * What a Pi launch runs through, or the refusal that says why it cannot: Pi
    * has no sandbox of its own, so a launch that cannot be confined never starts.
    */
-  async confinementOf(request, scope) {
+  async confinementOf(request) {
     if (request.provider === void 0) throw new ModelGatewayError("unconfined", "a pi launch must name its provider");
-    const prepared = await preparePi(this.ports, request.provider, request.model, join7(request.paths.exportDir, "pi-agent"), scope);
+    const prepared = await preparePi(this.ports, request.provider, request.model, join7(request.paths.exportDir, "pi-agent"));
     if (typeof prepared === "string") throw new ModelGatewayError("unconfined", prepared);
     return prepared;
   }
@@ -3670,7 +3609,7 @@ async function keyringHoldsKey(process2, platform) {
 
 // src/contexts/model-gateway/adapters/fs/index.ts
 import { createHash, randomBytes } from "node:crypto";
-import { access, cp, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join as join9 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
@@ -3732,10 +3671,6 @@ var NodeModelGatewayFiles = class {
     } catch {
       return void 0;
     }
-  }
-  async copyTree(from, to) {
-    await mkdir(dirname(to), { recursive: true });
-    await cp(from, to, { dereference: true, recursive: true });
   }
   async writeTextPrivate(path, content) {
     await mkdir(dirname(path), { recursive: true, mode: 448 });
@@ -6976,7 +6911,7 @@ function readCriticFailure(fields) {
 import { dirname as dirname6, join as join11 } from "node:path";
 
 // src/contexts/critique/application/tracker.ts
-import { basename as basename2, dirname as dirname5, join as join10 } from "node:path";
+import { basename, dirname as dirname5, join as join10 } from "node:path";
 
 // src/contexts/critique/application/paths.ts
 import { isAbsolute as isAbsolute3, relative, resolve } from "node:path";
@@ -7104,7 +7039,7 @@ var LocalMarkdownTracker = class {
     }
     return {
       labels: [],
-      name: basename2(path),
+      name: basename(path),
       reference: path,
       status: "read",
       text: await this.deps.files.readText(absolute),
@@ -7123,7 +7058,7 @@ var LocalMarkdownTracker = class {
     );
     return { status: "read", tickets: localTickets(files).map((ticket) => ({
       ...ticket,
-      name: basename2(ticket.reference),
+      name: basename(ticket.reference),
       open: localTicketOpen(ticket.text)
     })) };
   }
@@ -8038,7 +7973,7 @@ var CheckTicketsCommand = class {
 };
 
 // src/contexts/critique/application/cold-read.ts
-import { basename as basename3, join as join19 } from "node:path";
+import { basename as basename2, join as join19 } from "node:path";
 
 // src/contexts/critique/domain/cold-read.ts
 var COLD_READ_ANSWERS = ["decided", "rejected", "revisit"];
@@ -8310,7 +8245,7 @@ var ColdReadCommand = class {
     if (blocked2 !== void 0) return unavailableFile(path, blocked2);
     const dir = join19(manifest.run_dir, "cold-read", String(n));
     const packetDir = join19(dir, "packet");
-    const packetPath = join19("artifact", basename3(path));
+    const packetPath = join19("artifact", basename2(path));
     await this.deps.files.writeText(join19(packetDir, packetPath), text);
     const promptPath = join19(dir, "prompt.md");
     await this.deps.files.writeText(promptPath, await this.prompt(packetPath));
@@ -10779,7 +10714,7 @@ async function sampleTree(deps, root, packet2, code, rest, ranked = false) {
 }
 
 // src/contexts/critique/application/decision-docs.ts
-import { basename as basename4, dirname as dirname8, join as join28 } from "node:path";
+import { basename as basename3, dirname as dirname8, join as join28 } from "node:path";
 var DecisionDocs = class {
   constructor(files) {
     this.files = files;
@@ -10790,7 +10725,7 @@ var DecisionDocs = class {
     const found = await this.files.exists(domainDoc) ? await this.fromDomainDoc(root, await this.files.readText(domainDoc)) : await this.fallback(root);
     const inForceDocs = [];
     for (const path of new Set(found)) {
-      if (NOT_RECORDS.includes(basename4(path)) || inForce(await this.files.readText(join28(root, path)))) inForceDocs.push(path);
+      if (NOT_RECORDS.includes(basename3(path)) || inForce(await this.files.readText(join28(root, path)))) inForceDocs.push(path);
     }
     return inForceDocs;
   }
@@ -10798,7 +10733,7 @@ var DecisionDocs = class {
     const found = [];
     for (const path of namedPaths2(text)) {
       found.push(...await this.expand(root, path));
-      if (basename4(path) === CONTEXT_MAP && await this.isFile(root, path)) {
+      if (basename3(path) === CONTEXT_MAP && await this.isFile(root, path)) {
         found.push(...await this.contexts(root, await this.files.readText(join28(root, path))));
       }
     }
@@ -10807,7 +10742,7 @@ var DecisionDocs = class {
   /** Each `CONTEXT.md` a context map names, with the ADRs beside it. */
   async contexts(root, map) {
     const found = [];
-    for (const path of namedPaths2(map).filter((named) => basename4(named) === "CONTEXT.md")) {
+    for (const path of namedPaths2(map).filter((named) => basename3(named) === "CONTEXT.md")) {
       found.push(...await this.expand(root, path), ...await this.markdownIn(root, join28(dirname8(path), ADR_DIRECTORY)));
     }
     return found;
@@ -10834,7 +10769,7 @@ var DecisionDocs = class {
   }
   /** True only for a plain file, so an empty directory is never read as a doc. */
   async isFile(root, path) {
-    return (await this.files.listFiles(join28(root, dirname8(path)))).includes(basename4(path));
+    return (await this.files.listFiles(join28(root, dirname8(path)))).includes(basename3(path));
   }
 };
 

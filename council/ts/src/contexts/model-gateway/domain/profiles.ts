@@ -78,19 +78,12 @@ export function effectiveSpend(profile: DelegationProfile, narrow: Narrowing | u
   return caps.length === 0 ? undefined : Math.min(...caps)
 }
 
-/** Whether a skill or plugin entry is one plain name: the folder or file it names in Pi's home, never a path that reaches out of it. */
-export function plainName(name: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)
-}
-
 /**
  * The limit the chosen client cannot enforce, as a reason, or undefined when
- * it can hold the scope. Only Pi enforces: its per-run home is built from the
- * scope, so it holds a list of skills and plugins (extensions) by name, and
- * holds mcp at none. It cannot hold `any` (its home is built only from named
- * items) or an MCP server (the confined launch reaches only the route's proxy
- * port and starts no other program, so a server could never connect). Every
- * other client is unable to hold a restricted scope.
+ * it can hold the scope. Only Pi enforces for now, and only the empty scope:
+ * its launch home holds the route's provider and nothing else, so no MCP
+ * server, plugin or skill can be attached. Every other client is unable to
+ * hold a restricted scope, so a profile that restricts tools is refused there.
  */
 export function unenforceable(profileName: string, client: string, isPi: boolean, tools: ToolScope): string | undefined {
   const restricted = TOOL_KINDS.filter((kind) => tools[kind] !== 'any')
@@ -98,33 +91,14 @@ export function unenforceable(profileName: string, client: string, isPi: boolean
     if (restricted.length === 0) return undefined
     return `profile ${profileName} restricts ${restricted.join(', ')} (a scope is deny-all unless the profile lists it), and ${client} cannot enforce a tool scope: only Pi does`
   }
-  const open = TOOL_KINDS.filter((kind) => tools[kind] === 'any')
-  if (open.length > 0) {
-    return `profile ${profileName} leaves ${open.join(', ')} open with any, and ${client} builds its per-run home only from named items: list the ${open.join(', ')} it needs, or leave them out for deny-all`
-  }
-  if (tools.mcp !== 'any' && tools.mcp.length > 0) {
-    return `profile ${profileName} grants mcp ${tools.mcp.join(', ')}, and ${client} cannot enforce it: Pi has a built-in MCP client, but a confined launch reaches only the route's proxy port and starts no other program, so a listed server could never connect; mcp stays deny-all on Pi`
-  }
-  for (const kind of ['skills', 'plugins'] as const) {
+  const granted = TOOL_KINDS.flatMap((kind) => {
     const list = tools[kind]
-    const bad = list === 'any' ? undefined : list.find((item) => !plainName(item))
-    if (bad !== undefined) {
-      return `profile ${profileName} lists ${kind} entry ${bad}, which is not a plain name: a ${kind === 'skills' ? 'skill' : 'plugin'} is named by the folder or file it is in Pi's home, never a path`
-    }
-  }
-  return undefined
+    return list === 'any' || list.length === 0 ? [] : [`${kind} ${list.join(', ')}`]
+  })
+  if (granted.length === 0) return undefined
+  return `profile ${profileName} grants ${granted.join('; ')}, and ${client} cannot attach them yet: its launch home holds only the route's provider, so only the empty scope holds`
 }
 
-/** The tool scope a run holds, or undefined when it names no profile (or one the defaults do not state). */
-export function runScope(config: GatewayConfig, profile: string | undefined, narrow: Narrowing | undefined): ToolScope | undefined {
-  const found = profile === undefined ? undefined : config.profiles[profile]
-  return found === undefined ? undefined : effectiveTools(found, narrow)
-}
-
-/** A tool scope as the ledger writes it: each kind a list of names, or `any`, in a fixed order. */
-export function toolsJson(scope: ToolScope): ToolScope {
-  return { mcp: scope.mcp, plugins: scope.plugins, skills: scope.skills }
-}
 
 /**
  * The models of the profile a request may use. `available` is what the data

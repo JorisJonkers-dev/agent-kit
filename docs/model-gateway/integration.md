@@ -98,6 +98,11 @@ and why. Models are sorted by client, then model id.
 
 ### Tool scope on Pi (#773)
 
+Implemented in the Rust gateway only. The node runner (`model-gateway.mjs`) is
+migration debt: where the launcher still falls back to it, a Pi run under a
+profile that lists skills or plugins is refused as before, and its ledger line
+has no `profile` or `tool_scope`.
+
 A profile's `tools` is the scope a run holds, narrowed by the request. Each of
 `mcp`, `plugins` and `skills` is a list of names, or left out for deny-all:
 

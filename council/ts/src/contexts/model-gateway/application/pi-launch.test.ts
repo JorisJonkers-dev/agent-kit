@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import type { ProcessCommand, ProcessResult } from '../../../ports/index.js'
 import { FakeEnv, FakeFiles } from '../../../../test/model-gateway/harness.js'
-import { homeAgentDir, NO_LAUNCHER, preparePi, resolveScope, urlPort, type PiLaunchPorts } from './pi-launch.js'
+import { homeAgentDir, NO_LAUNCHER, preparePi, urlPort, type PiLaunchPorts } from './pi-launch.js'
 
 const cleanups: (() => Promise<void>)[] = []
 
@@ -172,86 +172,5 @@ describe('preparing a confined Pi launch', () => {
     const prepared = await preparePi({ ...ports, files: { exists: (path) => ports.files.exists(path), readText: (path) => ports.files.readText(path) } }, 'litellm-vibe', 'glm-5.3', m.agentDir)
 
     expect(prepared).toBe('pi: the launch has no way to write its private agent directory')
-  })
-})
-
-describe('a launch home built from a tool scope', () => {
-  const scope = (skills: readonly string[], plugins: readonly string[] = []): { mcp: readonly string[]; plugins: readonly string[]; skills: readonly string[] } => ({ mcp: [], plugins, skills })
-
-  /** A home with three skills (one in Pi's folder, one shared), and two extensions. */
-  async function stocked(): Promise<Machine> {
-    const m = await machine()
-    await m.setup(provider('literal'))
-    const agent = join(m.home, '.pi', 'agent')
-    for (const [root, name] of [[join(agent, 'skills'), 'inside'], [join(agent, 'skills'), 'outside'], [join(m.home, '.agents', 'skills'), 'shared']] as const) {
-      await mkdir(join(root, name, 'references'), { recursive: true })
-      await writeFile(join(root, name, 'SKILL.md'), `---\nname: ${name}\ndescription: d\n---\n`)
-      await writeFile(join(root, name, 'references', 'notes.md'), name)
-    }
-    await mkdir(join(agent, 'extensions'), { recursive: true })
-    await writeFile(join(agent, 'extensions', 'hello.ts'), 'export default () => {}\n')
-    await writeFile(join(agent, 'extensions', 'unlisted.js'), 'export default () => {}\n')
-    await writeFile(join(agent, 'extensions', 'plain'), 'x')
-    return m
-  }
-
-  it('holds the listed skills and plugins and no other: a skill outside the scope is not in the run home, an enforced one is', async () => {
-    const m = await stocked()
-
-    const prepared = await preparePi(m.ports(), 'litellm-vibe', 'glm-5.3', m.agentDir, scope(['inside', 'shared'], ['hello']))
-
-    expect(prepared).toMatchObject({ extensions: [join(m.agentDir, 'extensions', 'hello.ts')], skills: [join(m.agentDir, 'skills', 'inside'), join(m.agentDir, 'skills', 'shared')] })
-    expect(await readFile(join(m.agentDir, 'skills', 'inside', 'references', 'notes.md'), 'utf8')).toBe('inside')
-    expect(await readFile(join(m.agentDir, 'skills', 'shared', 'SKILL.md'), 'utf8')).toContain('name: shared')
-    await expect(stat(join(m.agentDir, 'skills', 'outside'))).rejects.toThrow()
-    await expect(stat(join(m.agentDir, 'extensions', 'unlisted.js'))).rejects.toThrow()
-    expect(await readdir(join(m.agentDir, 'skills'))).toEqual(['inside', 'shared'])
-    expect((await stat(m.agentDir)).mode & 0o777).toBe(0o700)
-  })
-
-  it('finds a plugin by its folder, its .ts file or its .js file, and holds the empty scope as no scope at all', async () => {
-    const m = await stocked()
-    const ports = m.ports()
-    expect(await resolveScope(ports, scope([], ['plain', 'hello', 'unlisted']))).toEqual({
-      plugins: ['plain', 'hello', 'unlisted'].map((name, at) => ({ from: join(m.home, '.pi', 'agent', 'extensions', ['plain', 'hello.ts', 'unlisted.js'][at] ?? ''), name })),
-      skills: [],
-    })
-    const empty = await preparePi(m.ports(), 'litellm-vibe', 'glm-5.3', m.agentDir, scope([]))
-    expect(empty).not.toHaveProperty('skills')
-    expect(empty).not.toHaveProperty('extensions')
-    expect(await resolveScope(ports, { mcp: 'any', plugins: 'any', skills: 'any' })).toEqual({ plugins: [], skills: [] })
-  })
-
-  it('refuses a skill or plugin that is not in the home, naming where it looked, before anything is written or read from the store', async () => {
-    const m = await stocked()
-
-    const skill = await preparePi(m.ports(), 'litellm-vibe', 'glm-5.3', m.agentDir, scope(['inside', 'ghost']))
-    const plugin = await preparePi(m.ports(), 'litellm-vibe', 'glm-5.3', m.agentDir, scope([], ['ghost']))
-
-    expect(skill).toBe(`skill ghost is not in Pi's home: looked for ${join(m.home, '.pi/agent/skills/ghost/SKILL.md')} and ${join(m.home, '.agents/skills/ghost/SKILL.md')}`)
-    expect(plugin).toContain("plugin ghost is not in Pi's home: looked for ")
-    expect(plugin).toContain('ghost.ts')
-    expect(plugin).toContain('ghost.js')
-    await expect(stat(m.agentDir)).rejects.toThrow()
-  })
-
-  it('leaves no key behind when a copy or a write fails, and says what failed', async () => {
-    const m = await stocked()
-    const ports = m.ports()
-    const failing = (copyTree: ((from: string, to: string) => Promise<void>) | undefined, writeTextPrivate?: (path: string, content: string) => Promise<void>): PiLaunchPorts => ({
-      ...ports,
-      files: { exists: (path) => ports.files.exists(path), readText: (path) => ports.files.readText(path), writeTextPrivate: writeTextPrivate ?? ((path, content) => ports.files.writeTextPrivate?.(path, content) ?? Promise.resolve()), ...(copyTree === undefined ? {} : { copyTree }) },
-    })
-
-    expect(await preparePi(failing(undefined), 'litellm-vibe', 'glm-5.3', m.agentDir, scope(['inside']))).toBe('pi: the launch has no way to copy skill inside into its agent directory')
-    expect(await preparePi(failing(() => Promise.reject(new Error('EACCES: denied'))), 'litellm-vibe', 'glm-5.3', m.agentDir, scope([], ['hello']))).toBe(
-      `pi: cannot copy plugin hello into the launch's agent directory ${m.agentDir}: EACCES: denied`,
-    )
-    await expect(stat(join(m.agentDir, 'models.json'))).rejects.toThrow()
-    const settings = await preparePi(failing(undefined, () => Promise.reject(new Error('EACCES: no settings'))), 'litellm-vibe', 'glm-5.3', m.agentDir)
-    expect(settings).toBe(`pi: cannot write the launch's agent directory ${m.agentDir}: EACCES: no settings`)
-    let writes = 0
-    const models = await preparePi(failing(undefined, (path, content) => (++writes === 2 ? Promise.reject(new Error('EACCES: no models')) : ports.files.writeTextPrivate?.(path, content) ?? Promise.resolve())), 'litellm-vibe', 'glm-5.3', m.agentDir)
-    expect(models).toBe(`pi: cannot write the launch's agent directory ${m.agentDir}: EACCES: no models`)
   })
 })

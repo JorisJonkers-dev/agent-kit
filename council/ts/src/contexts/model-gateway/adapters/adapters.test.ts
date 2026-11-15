@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 
@@ -144,26 +144,6 @@ describe('NodeModelGatewayFiles', () => {
     expect(await readFile(path, 'utf8')).toBe('{}')
     expect((await stat(path)).mode & 0o777).toBe(0o600)
     expect((await stat(dirname(path))).mode & 0o777).toBe(0o700)
-  })
-})
-
-describe('NodeModelGatewayFiles.copyTree', () => {
-  it('copies a folder with everything in it and a lone file, making the parents, and follows a symlink to what it points at', async () => {
-    const dir = await tempDir()
-    await mkdir(join(dir, 'skill', 'references'), { recursive: true })
-    await writeFile(join(dir, 'skill', 'SKILL.md'), 'skill')
-    await writeFile(join(dir, 'skill', 'references', 'notes.md'), 'notes')
-    await writeFile(join(dir, 'real.txt'), 'real')
-    await symlink(join(dir, 'real.txt'), join(dir, 'skill', 'link.txt'))
-    const files = new NodeModelGatewayFiles()
-
-    await files.copyTree(join(dir, 'skill'), join(dir, 'home', 'skills', 'skill'))
-    await files.copyTree(join(dir, 'real.txt'), join(dir, 'home', 'extensions', 'real.txt'))
-
-    expect(await readFile(join(dir, 'home', 'skills', 'skill', 'references', 'notes.md'), 'utf8')).toBe('notes')
-    expect(await readFile(join(dir, 'home', 'skills', 'skill', 'link.txt'), 'utf8')).toBe('real')
-    expect((await lstat(join(dir, 'home', 'skills', 'skill', 'link.txt'))).isSymbolicLink()).toBe(false)
-    expect(await readFile(join(dir, 'home', 'extensions', 'real.txt'), 'utf8')).toBe('real')
   })
 })
 

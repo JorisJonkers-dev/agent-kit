@@ -5051,7 +5051,7 @@ async function escalating(options: RunWorkspaceOptions = {}): Promise<RunWorkspa
 }
 
 describe('model-gateway run: retry', () => {
-  it('returns a result that is fine at once, with one attempt and no link on its ledger line, and none for a run without a profile', async () => {
+  it('returns a result that is fine at once, with one attempt and no link on its ledger line', async () => {
     const w = await escalating({ scripts: [SUCCEEDS] })
 
     const result = await w.run(delegation(w))
@@ -7786,29 +7786,6 @@ describe('model-gateway run: delegation profiles', () => {
     expect(printed(result).status).toBe('ok')
     const input = JSON.parse(await readFile(join(runDirOf(w, result), 'input.json'), 'utf8')) as Record<string, unknown>
     expect(input).toMatchObject({ narrow: { max_spend_usd: 0.5, models: ['vibe:glm-5-3'] }, profile: 'bound' })
-  })
-
-  it('writes the profile and the scope the run ran with on its ledger line, and none for a run without a profile', async () => {
-    const w = await ready()
-
-    await w.run(w.input({ profile: 'bound' }))
-    await w.run(w.input())
-
-    const runs = ledgerLines(await readFile(w.ledger, 'utf8')).filter((line) => line.outcome !== undefined)
-    expect(runs.map((line) => [line.profile, line.tool_scope])).toEqual([
-      ['bound', SCOPE_ANY],
-      [undefined, undefined],
-    ])
-  })
-
-  it('refuses a Pi run whose profile lists a skill the home does not have, naming where it looked, before anything runs', async () => {
-    const w = await readyRun({ defaults: await withProfiles({ lint: { description: 'd', models: ['pi-vibe:glm-5.3'], tools: { skills: ['ghost'] } } }) })
-
-    const result = printed(await w.run(w.input({ client: 'pi-vibe', model: 'glm-5.3', profile: 'lint' })))
-
-    expect(result).toMatchObject({ code: 'profile-refused', status: 'error' })
-    expect(result.message).toContain("profile lint cannot run on pi-vibe: skill ghost is not in Pi's home: looked for ")
-    expect(w.vibe.commands).toEqual([])
   })
 
   it('refuses a profile that restricts tools on a client that cannot enforce them, naming the limits', async () => {

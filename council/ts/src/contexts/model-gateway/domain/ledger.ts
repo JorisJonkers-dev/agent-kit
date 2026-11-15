@@ -1,4 +1,4 @@
-import type { CostClass, ToolScope } from './config.js'
+import type { CostClass } from './config.js'
 import type { RunMode, RunTokens } from './run.js'
 
 /**
@@ -47,10 +47,6 @@ export interface LedgerRecord {
   readonly attempt?: number
   /** The run id of the delegation's first attempt, on every later one. */
   readonly attempt_of?: string
-  /** The delegation profile the run was held to, when it named one. */
-  readonly profile?: string
-  /** The tool scope the run ran with: the profile's, narrowed. Each kind is a list of names, or `any`. */
-  readonly tool_scope?: ToolScope
   /**
    * What the client reported the run used; absent when it reported none, which
    * a timed-out or failed run does. A reading the gateway cannot get is

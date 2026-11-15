@@ -111,10 +111,6 @@ export interface PiConfinement {
   readonly bin?: string
   readonly port: number
   readonly path?: string
-  /** The skills of the scope, each a folder the launch's agent directory holds, which Pi loads with `--skill`. */
-  readonly skills?: readonly string[]
-  /** The plugins (Pi extensions) of the scope, each a file or folder the launch's agent directory holds, loaded with `-e`. */
-  readonly extensions?: readonly string[]
 }
 
 /** What a caller adds to one launch, with the client's home servers already resolved. */
@@ -483,10 +479,6 @@ const pi: ClientLauncher = {
       write ? PI_WRITE_SYSTEM_PROMPT : PI_READ_SYSTEM_PROMPT,
     ]
     const confine = extras?.confine
-    // The scope's own skills and extensions are the only ones the launch loads: the flags above switch every
-    // discovered one off, and an explicit path still loads.
-    for (const path of confine?.skills ?? []) piArgs.push('--skill', path)
-    for (const path of confine?.extensions ?? []) piArgs.push('-e', path)
     if (confine === undefined) {
       return { args: piArgs, command: binary, cwd: paths.workDir, env: extras?.env ?? {}, stdin: prompt, timeoutMs: input.time_limit_s * 1000 }
     }

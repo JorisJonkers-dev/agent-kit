@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -475,41 +475,6 @@ describe('a Pi launch', () => {
     expect(launch?.args[launch.args.indexOf('--tools') + 1]).toBe('read,grep,find,ls')
     expect(outcome.output).toEqual({ answer: 'done\nSUMMARY: ok', charged: undefined, tokens: { cached: 0, input: 3, output: 2 } })
     await expect(readFile(join(w.agentDir, 'models.json'), 'utf8')).rejects.toThrow()
-  })
-
-  it('starts Pi with only the skills and plugins of its scope: a skill outside it is not in the run home during the run, an enforced one is, and both are gone after', async () => {
-    const seen: { skills: string[]; extensions: string[] } = { extensions: [], skills: [] }
-    const w = await piWorkspace('literal', async (command) => {
-      if (command.command !== 'agent-kit-secret') {
-        seen.skills = await readdir(join(w.agentDir, 'skills'))
-        seen.extensions = await readdir(join(w.agentDir, 'extensions'))
-      }
-      return piAnswer(command)
-    })
-    const agent = join(w.dir, 'home', '.pi', 'agent')
-    for (const name of ['enforced', 'outside']) {
-      await mkdir(join(agent, 'skills', name), { recursive: true })
-      await writeFile(join(agent, 'skills', name, 'SKILL.md'), `---\nname: ${name}\ndescription: d\n---\n`)
-    }
-    await mkdir(join(agent, 'extensions'), { recursive: true })
-    await writeFile(join(agent, 'extensions', 'hello.ts'), 'export default () => {}\n')
-    await writeFile(join(agent, 'extensions', 'other.ts'), 'export default () => {}\n')
-
-    await w.run.launch(w.request(), { mcp: [], plugins: ['hello'], skills: ['enforced'] })
-
-    expect(seen).toEqual({ extensions: ['hello.ts'], skills: ['enforced'] })
-    const args = w.asked.at(-1)?.args ?? []
-    expect(args).toEqual(expect.arrayContaining(['--no-skills', '--no-extensions', '--no-mcp']))
-    expect(args[args.indexOf('--skill') + 1]).toBe(join(w.agentDir, 'skills', 'enforced'))
-    expect(args[args.indexOf('-e') + 1]).toBe(join(w.agentDir, 'extensions', 'hello.ts'))
-    expect(args).not.toContain(join(w.agentDir, 'skills', 'outside'))
-    await expect(readdir(w.agentDir)).rejects.toThrow()
-  })
-
-  it('refuses to start a Pi run whose scope lists a skill the home does not have', async () => {
-    const w = await piWorkspace('literal', piAnswer)
-
-    await expect(w.run.launch(w.request(), { mcp: [], plugins: [], skills: ['ghost'] })).rejects.toMatchObject({ code: 'unconfined', message: expect.stringContaining("skill ghost is not in Pi's home") as string })
   })
 
   it('lets a writing run write its working directory and the git directories it names, and gives Pi the edit tools', async () => {
