@@ -111,7 +111,8 @@ GOLD_BAND_SETTINGS_SCHEMA_VERSION = 12
 GOLD_BAND_SCHEMA_KEY = "settingsSchemaVersion"
 # Gold Band's updater polls GitHub's latest.json and installs critical updates
 # silently, replacing the binary this kit built from the pin. The app has no
-# off switch, only this endpoint override (validated as an https URL), so the kit owns the key and points it at an address nothing answers.
+# off switch, only this endpoint override (validated as an https URL), so the kit
+# owns the key and points it at an address nothing answers.
 GOLD_BAND_UPDATER_KEY = "desktopUpdaterUrlOverride"
 GOLD_BAND_UPDATER_DISABLED_URL = "https://127.0.0.1:9/gold-band-updates-disabled.json"
 GOLD_BAND_WORK_INSTANCE = "gold-band"
