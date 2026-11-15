@@ -1,0 +1,19 @@
+# Gold Band workflow templates that break the critique rules today
+# (workflow-lint --critique: critic-required, critic-family; docs/GOLD-BAND.md
+# "Every written artifact is critiqued by another family").
+# Recorded 2026-11-15, Gold Band pin 987fc3e2 (v0.19.1). Separate from known-shape-failures.txt.
+#
+# CI (scripts/check-workflow-shape.sh) and `converge.py gold-band-workflows` tolerate exactly
+# these files: any other template, and any new one, must pass; a listed template that now passes
+# fails CI ("remove it from the list"). One line per file: `<file> #<ticket that fixes it>`, then
+# the rules it breaks as a comment. A line that starts with # is a comment.
+#
+# #795: spec, tickets, brainstorming and grill templates have no critic stage.
+to-spec.json #795 critic-required: spec-write
+to-tickets.json #795 critic-required: tickets-write
+brainstorming.json #795 critic-required: design-draft, design-record
+grill-me.json #795 critic-required: grill-summary
+grill-with-docs.json #795 critic-required: docs-update
+# #796: the critic roster includes the family of the writer it reviews.
+workflow-c.json #796 critic-family: mistral writer vs pi-vibe-mistral-large (spec and tickets stages, deep slot)
+workflow-c-work.json #796 critic-family: claude-work writer vs the work roster's claude-work (spec and tickets)

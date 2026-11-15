@@ -1,0 +1,65 @@
+{
+  "workflow": {
+    "description": "fixture",
+    "version": "0.1",
+    "id": "write-without-critic",
+    "entry": "spec-write",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "spec-write",
+        "executionSlotId": "slot-spec-write",
+        "profile": "pf-builtin-dev",
+        "goal": "g",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-write",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "done",
+        "executionSlotId": "slot-done",
+        "profile": "pf-builtin-dev",
+        "goal": "g"
+      }
+    ],
+    "edges": [
+      {
+        "from": "spec-write",
+        "to": "done",
+        "on": "success"
+      },
+      {
+        "from": "done",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-spec-write",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-done",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      }
+    ]
+  }
+}

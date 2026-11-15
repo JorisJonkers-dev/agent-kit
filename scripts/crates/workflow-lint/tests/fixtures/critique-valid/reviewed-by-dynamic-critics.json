@@ -1,0 +1,90 @@
+{
+  "workflow": {
+    "description": "fixture",
+    "version": "0.1",
+    "id": "reviewed-by-dynamic-critics",
+    "entry": "writer",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "writer",
+        "executionSlotId": "slot-writer",
+        "profile": "pf-builtin-dev",
+        "goal": "g",
+        "output": {
+          "kind": "json",
+          "artifact": "implementation",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "ai-dynamic",
+        "id": "critics",
+        "agentStrategy": {
+          "mode": "dynamic",
+          "availableAgents": [
+            {
+              "provider": "pi",
+              "model": "litellm-vibe/glm-5.3"
+            },
+            {
+              "provider": "claude",
+              "model": "sonnet"
+            }
+          ],
+          "bootstrapProvider": "pi",
+          "bootstrapModel": "litellm-vibe/glm-5.3"
+        },
+        "goal": "g"
+      },
+      {
+        "type": "worker",
+        "id": "verdict-1",
+        "executionSlotId": "slot-verdict-1",
+        "profile": "pf-builtin-dev",
+        "goal": "g"
+      }
+    ],
+    "edges": [
+      {
+        "from": "writer",
+        "to": "critics",
+        "on": "success"
+      },
+      {
+        "from": "critics",
+        "to": "verdict-1",
+        "on": "success"
+      },
+      {
+        "from": "verdict-1",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-writer",
+        "agentId": "pi",
+        "modelId": "litellm-vibe-study/deepseek-v4.1-flash"
+      },
+      {
+        "executionSlotId": "slot-verdict-1",
+        "agentId": "verdict-1",
+        "modelId": "stub-model"
+      }
+    ]
+  }
+}

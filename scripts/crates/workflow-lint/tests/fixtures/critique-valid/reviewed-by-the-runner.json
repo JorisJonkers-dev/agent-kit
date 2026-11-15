@@ -1,0 +1,99 @@
+{
+  "workflow": {
+    "description": "fixture",
+    "version": "0.1",
+    "id": "reviewed-by-the-runner",
+    "entry": "spec-write",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "spec-write",
+        "executionSlotId": "slot-spec-write",
+        "profile": "pf-builtin-dev",
+        "goal": "g",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-write",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-fan-out",
+        "executionSlotId": "slot-gate-critique-spec-fan-out",
+        "profile": "pf-builtin-dev",
+        "goal": "g"
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-record",
+        "executionSlotId": "slot-gate-critique-spec-record",
+        "profile": "pf-builtin-dev",
+        "goal": "g"
+      },
+      {
+        "type": "worker",
+        "id": "done",
+        "executionSlotId": "slot-done",
+        "profile": "pf-builtin-dev",
+        "goal": "g"
+      }
+    ],
+    "edges": [
+      {
+        "from": "spec-write",
+        "to": "gate-critique-spec-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-spec-fan-out",
+        "to": "gate-critique-spec-record",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-spec-record",
+        "to": "done",
+        "on": "success"
+      },
+      {
+        "from": "done",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-spec-write",
+        "agentId": "claude",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-fan-out",
+        "agentId": "gate-critique-spec-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-record",
+        "agentId": "gate-critique-spec-record",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-done",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      }
+    ]
+  }
+}
