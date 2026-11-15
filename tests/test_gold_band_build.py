@@ -47,6 +47,21 @@ name = "tao"
 version = "0.35.3"
 {TAO}
 """
+
+
+def png(size: int) -> bytes:
+    return b"\x89PNG\r\n\x1a\n" + (13).to_bytes(4, "big") + b"IHDR" + size.to_bytes(4, "big") * 2 + b"test"
+
+
+ICON = png(128)
+ICONS = {
+    "32x32.png": png(32),
+    "64x64.png": png(64),
+    "128x128.png": ICON,
+    "128x128@2x.png": png(256),
+    "icon.png": png(512),
+}
+SVG = b"<svg xmlns='http://www.w3.org/2000/svg'/>"
 RSPROXY = '[source.crates-io]\nreplace-with = "rsproxy-sparse"\n'
 
 
@@ -72,6 +87,7 @@ class Host:
             "GOLD_BAND_DIR": str(self.clone),
             "GOLD_BAND_REF": self.commit,
             "GOLD_BAND_BIN_DIR": str(self.bin_dir),
+            "GOLD_BAND_SHARE": str(self.root / "share"),
             "GOLD_BAND_CACHE": str(self.root / "cache"),
             "GOLD_BAND_STATE": str(self.state),
             "CRATE_AGE": "crate-age",
@@ -106,6 +122,9 @@ def make_host(
     (clone / "Cargo.lock").write_text(LOCK)
     (clone / ".cargo").mkdir()
     (clone / ".cargo" / "config.toml").write_text(RSPROXY)
+    (clone / "src-tauri" / "icons").mkdir(parents=True)
+    for name, data in {**ICONS, "logo-source.svg": SVG}.items():
+        (clone / "src-tauri" / "icons" / name).write_bytes(data)
     git(clone, "add", "-A")
     git(clone, "commit", "-q", "-m", "pin")
     commit = git(clone, "rev-parse", "HEAD")
@@ -321,3 +340,153 @@ def test_a_lock_entry_with_a_different_source_at_the_same_version_installs_nothi
     host = make_host(tmp_path, cargo_lock=moved)
     assert host.run().returncode == 3
     assert not (host.bin_dir / "gold-band").exists()
+
+
+def share(host: Host, *parts: str) -> Path:
+    return host.root / "share" / Path(*parts)
+
+
+def test_it_installs_the_launcher_runtime_shell_desktop_entry_and_icon(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    done = host.run()
+    assert done.returncode == 0, done.stdout + done.stderr
+    launcher = host.bin_dir / "gold-band-launch"
+    assert os.access(launcher, os.X_OK)
+    text = launcher.read_text()
+    assert f"GB_BIN='{host.bin_dir}/gold-band-desktop'" in text
+    assert f"GB_RUNTIME='{share(host, 'gold-band', 'runtime.nix')}'" in text
+    assert "pkg-config --exists webkit2gtk-4.1" in text
+    runtime = share(host, "gold-band", "runtime.nix").read_text()
+    assert "webkitgtk_4_1" in runtime and "GB_LIBS" in runtime and "GB_DATA" in runtime
+    entry = share(host, "applications", "gold-band.desktop").read_text().splitlines()
+    for line in (
+        "Name=Gold Band",
+        f"Exec={launcher}",
+        "Icon=gold-band",
+        "Categories=Development;",
+        "StartupWMClass=gold-band-desktop",
+    ):
+        assert line in entry
+    hicolor = share(host, "icons", "hicolor")
+    for size in (32, 64, 128, 256, 512):
+        assert (hicolor / f"{size}x{size}" / "apps" / "gold-band.png").read_bytes() == png(size)
+    assert (hicolor / "scalable" / "apps" / "gold-band.svg").read_bytes() == SVG
+    icon_name = next(line for line in entry if line.startswith("Icon=")).removeprefix("Icon=")
+    assert all(p.name.startswith(f"{icon_name}.") for p in hicolor.glob("*/apps/*"))
+    assert len(list(hicolor.glob("*/apps/*"))) == 6
+
+
+def test_the_launcher_execs_the_binary_directly_where_webkit_is_on_the_system(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    assert host.run().returncode == 0
+    desktop = host.bin_dir / "gold-band-desktop"
+    desktop.write_text('#!/bin/sh\necho "ran $*" > "$OUT"\n')
+    out = tmp_path / "out"
+    # pkg-config is stubbed to succeed (WebKitGTK found) and nix-shell is absent.
+    done = subprocess.run(
+        [str(host.bin_dir / "gold-band-launch"), "--flag"],
+        capture_output=True,
+        text=True,
+        env={"PATH": f"{tmp_path / 'stubs'}:{SYSTEM_BIN}:/usr/bin:/bin", "OUT": str(out)},
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    assert out.read_text() == "ran --flag\n"
+
+
+def test_the_launcher_enters_runtime_nix_when_webkit_is_missing(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    assert host.run().returncode == 0
+    stubs = tmp_path / "stubs"
+    stub(stubs, "pkg-config", "exit 1")
+    stub(stubs, "nix-shell", f'echo "nix-shell $*" > "{tmp_path}/nix.log"')
+    done = subprocess.run(
+        [str(host.bin_dir / "gold-band-launch"), "a b"],
+        capture_output=True,
+        text=True,
+        env={"PATH": f"{stubs}:{SYSTEM_BIN}:/usr/bin:/bin"},
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    line = (tmp_path / "nix.log").read_text()
+    assert "-I nixpkgs=flake:nixpkgs" in line
+    assert str(share(host, "gold-band", "runtime.nix")) in line
+    assert "LD_LIBRARY_PATH" in line and "XDG_DATA_DIRS" in line and "a\\ b" in line
+
+
+def test_a_second_run_and_the_already_built_path_leave_the_files_alone(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    assert host.run().returncode == 0
+    entry = share(host, "applications", "gold-band.desktop")
+    stamp = entry.stat().st_mtime_ns
+    again = host.run()
+    assert again.returncode == 0
+    assert "already built" in again.stdout
+    assert f"up to date: {entry}" in again.stdout
+    assert entry.stat().st_mtime_ns == stamp
+
+
+def test_hand_installed_copies_are_replaced_and_a_stale_built_machine_gets_the_entry(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    assert host.run().returncode == 0
+    entry = share(host, "applications", "gold-band.desktop")
+    for path in (host.bin_dir / "gold-band-launch", entry, share(host, "gold-band", "runtime.nix")):
+        path.write_text("hand made\n")
+    done = host.run()
+    assert done.returncode == 0
+    assert f"installed {entry}" in done.stdout
+    assert "hand made" not in entry.read_text()
+    assert "hand made" not in (host.bin_dir / "gold-band-launch").read_text()
+    assert "webkitgtk_4_1" in share(host, "gold-band", "runtime.nix").read_text()
+
+
+def test_check_reports_the_desktop_files_and_writes_none(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    done = host.run("--check")
+    assert done.returncode == 0
+    assert f"would install {share(host, 'applications', 'gold-band.desktop')}" in done.stdout
+    assert not (host.root / "share").exists()
+    assert not host.bin_dir.exists()
+    host.run()
+    again = host.run("--check")
+    assert "would install" not in again.stdout
+
+
+def test_a_missing_icon_is_reported_and_does_not_fail_the_run(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    git(host.clone, "rm", "-q", "-r", "src-tauri")
+    git(host.clone, "commit", "-q", "-m", "no icons")
+    done = host.run(GOLD_BAND_REF=git(host.clone, "rev-parse", "HEAD"))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "the icon was not installed" in done.stdout
+    assert share(host, "applications", "gold-band.desktop").exists()
+
+
+def test_a_stale_icon_cache_is_removed_where_no_cache_tool_exists(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    cache = share(host, "icons", "hicolor", "icon-theme.cache")
+    cache.parent.mkdir(parents=True)
+    cache.write_text("stale")
+    assert host.run().returncode == 0
+    assert not cache.exists()
+
+
+def test_the_cache_tool_runs_when_present_and_its_failure_is_not_fatal(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    stub(tmp_path / "stubs", "gtk-update-icon-cache", f'echo "$*" > "{tmp_path}/cache.log"\nexit 1')
+    done = host.run()
+    assert done.returncode == 0
+    assert (tmp_path / "cache.log").read_text().startswith("-f -t ")
+
+
+def test_retire_removes_every_installed_file_and_keeps_the_binaries(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    assert host.run().returncode == 0
+    dry = host.run("--retire", "--check")
+    assert dry.returncode == 0 and "would remove" in dry.stdout
+    assert (host.bin_dir / "gold-band-launch").exists()
+    done = host.run("--retire")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert not (host.bin_dir / "gold-band-launch").exists()
+    assert not list((host.root / "share").rglob("gold-band*"))
+    assert (host.bin_dir / "gold-band-desktop").exists()

@@ -61,6 +61,7 @@ KIT_FILES = (
     "scripts/package-proxy-merge.py",
     "scripts/gold-band/build-linux.sh",
     "scripts/gold-band/shell.nix",
+    "scripts/gold-band/runtime.nix",
     "scripts/antigravity-merge-mcp.py",
     "registry/generated/antigravity/mcp_config.json",
     "scripts/opencode-merge-mcp.py",

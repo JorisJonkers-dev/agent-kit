@@ -49,6 +49,27 @@ ticket.
    that finds that record matching the pin does nothing (`GOLD_BAND_FORCE=1`
    rebuilds). `setup-workstation.sh --check` only reports.
 
+7. **Make it findable and runnable (every run, built or not).** The builder
+   installs `~/.local/bin/gold-band-launch`, `${XDG_DATA_HOME:-~/.local/share}/gold-band/runtime.nix`,
+   `applications/gold-band.desktop` (`Name=Gold Band`, `Exec` the launcher's
+   absolute path, `Icon=gold-band`, `Categories=Development;`,
+   `StartupWMClass=gold-band-desktop`) and the pinned source's
+   `src-tauri/icons` as `gold-band.*` in `icons/hicolor`: `32x32.png`,
+   `64x64.png`, `128x128.png`, `128x128@2x.png` (256x256) and `icon.png`
+   (512x512), each under the directory of its real size, and
+   `logo-source.svg` under `scalable/apps`. A file that differs, hand-installed
+   or not, is replaced; one that matches is left alone (`up to date`). The
+   launcher execs `gold-band-desktop` directly where `pkg-config` finds
+   `webkit2gtk-4.1` (or there is no `nix-shell`); on NixOS it enters
+   `runtime.nix`, which puts WebKitGTK, GTK, libsoup 3 and the rest on
+   `LD_LIBRARY_PATH` and their share directories on `XDG_DATA_DIRS`. After a
+   change the icon cache is refreshed with `gtk-update-icon-cache -f -t` when
+   that tool exists (a failure is not fatal); where it does not (NixOS), a stale
+   `hicolor/icon-theme.cache` is removed so it cannot hide the new icons.
+   `--check` reports `would install` and writes nothing. `build-linux.sh
+   --retire [--check]` removes all of these files and keeps the binaries and
+   the clone. `GOLD_BAND_SHARE` moves the data home.
+
 Exit status of the builder: `0` built, already built, or skipped; `3` a crate
 too young or unprovable (build stopped, setup fails); `1` any other failure.
 
@@ -94,6 +115,15 @@ Linux x86_64 (NixOS), 2026-11-10, from commit `987fc3e298b15d725a7f0e9b609b0f77d
 
 
 ## The personal instance's agent map
+
+Convergence also writes `settingsSchemaVersion`, because Gold Band reads a
+`settings.json` without it as a legacy file and the app refuses to start
+(`cannot migrate unsupported managed agent`). The value is
+`GOLD_BAND_SETTINGS_SCHEMA_VERSION` in `scripts/converge.py` (12 at `v0.19.1`,
+Gold Band's `CURRENT_SETTINGS_SCHEMA_VERSION`), declared beside
+`GOLD_BAND_PIN_TAG`; a test ties that tag to the registry's and the builder's.
+Bump both with the pin. A file already at that value or higher keeps its value;
+it is never lowered.
 
 After the build, setup converges the `agents` map of the personal instance's
 `settings.json` (`${GOLD_BAND_HOME:-~}/.gold-band/settings.json`; the app keeps its data in

@@ -92,6 +92,13 @@ REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
 # The Gold Band instance whose settings.json this kit converges, and the app
 # process whose running state makes a write unsafe.
 GOLD_BAND_INSTANCE = "gold-band-personal"
+# The Gold Band release this kit pins (registry gold_band.tag, build-linux.sh
+# PIN_TAG) and that release's CURRENT_SETTINGS_SCHEMA_VERSION (src/config/mod.rs).
+# A settings.json without `settingsSchemaVersion` is read as a legacy file and the
+# app refuses to start on it, so convergence writes this value. Bump both with the pin.
+GOLD_BAND_PIN_TAG = "v0.19.1"
+GOLD_BAND_SETTINGS_SCHEMA_VERSION = 12
+GOLD_BAND_SCHEMA_KEY = "settingsSchemaVersion"
 GOLD_BAND_WORK_INSTANCE = "gold-band"
 GOLD_BAND_INSTANCES = (GOLD_BAND_WORK_INSTANCE, GOLD_BAND_INSTANCE)
 # Claude Code reads its profile from this variable, and the adapter forwards
@@ -1304,6 +1311,7 @@ def gold_band(args: argparse.Namespace) -> int:
         return 3
     # Quiet last, so an overlay cannot turn the outbound components back on.
     new_doc = _gold_band_quiet(new_doc)
+    new_doc = _gold_band_schema_version(new_doc)
     if new_doc == doc:
         # An unchanged map still leaves the data directory owner-only.
         if not args.check and settings.parent.is_dir():
@@ -1316,6 +1324,8 @@ def gold_band(args: argparse.Namespace) -> int:
         print(f"changed {name}")
     for name in removed:
         print(f"removed {name}")
+    if new_doc.get(GOLD_BAND_SCHEMA_KEY) != doc.get(GOLD_BAND_SCHEMA_KEY):
+        print(f"set {GOLD_BAND_SCHEMA_KEY} {new_doc[GOLD_BAND_SCHEMA_KEY]} ({GOLD_BAND_PIN_TAG})")
     for line in server_lines:
         print(line)
     for note in overlay_notes:
@@ -1333,6 +1343,14 @@ def gold_band(args: argparse.Namespace) -> int:
         print(f"gold-band-agents: settings were not replaced, the old file is in place: {exc}")
         return 1
     return 0
+
+
+def _gold_band_schema_version(document: dict[str, Any]) -> dict[str, Any]:
+    """``settingsSchemaVersion`` at the pinned release's value; an equal or higher one is kept, never lowered."""
+    have = document.get(GOLD_BAND_SCHEMA_KEY)
+    if isinstance(have, int) and not isinstance(have, bool) and have >= GOLD_BAND_SETTINGS_SCHEMA_VERSION:
+        return document
+    return {**document, GOLD_BAND_SCHEMA_KEY: GOLD_BAND_SETTINGS_SCHEMA_VERSION}
 
 
 def _gold_band_write_settings(settings: Path, document: dict[str, Any]) -> None:

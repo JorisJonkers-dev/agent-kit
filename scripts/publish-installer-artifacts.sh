@@ -68,6 +68,7 @@ KIT_PATHS=(
   scripts/package-proxy-merge.py
   scripts/gold-band/build-linux.sh
   scripts/gold-band/shell.nix
+  scripts/gold-band/runtime.nix
   installer/agent-kit-secret
   installer/vibe-study
   installer/vibe-private
