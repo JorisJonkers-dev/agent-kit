@@ -2207,7 +2207,7 @@ def claude_allow_rules(data: dict[str, Any]) -> list[str]:
 GATEWAY_POINTER_TEXT = (
     "The model gateway is the `model-gateway` command on PATH. `model-gateway models`",
     "lists the client models on this machine, each with its cost class and difficulty tier.",
-    "The `delegate` skill, which is coming later, plans delegations with it.",
+    "The `delegate` skill plans delegations with it.",
 )
 INSTRUCTION_BLOCK = Path("scripts/instruction-block.py")
 PACKAGE_PROXY_MERGE = Path("scripts/package-proxy-merge.py")
