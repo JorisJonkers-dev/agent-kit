@@ -107,6 +107,7 @@
   # crate-cooldown.yml; move both together.
   'crate-age':
     'needs': 'plan'
+    'if': "${{ !cancelled() && needs.plan.result == 'success' }}"
     'runs-on': 'ubuntu-latest'
     'permissions':
       'contents': 'read'
@@ -158,6 +159,7 @@
   'binaries':
     'name': 'Build ${{ matrix.target }}'
     'needs': ['plan', 'crate-age']
+    'if': "${{ !cancelled() && needs.plan.result == 'success' && needs.crate-age.result == 'success' }}"
     'strategy':
       'fail-fast': false
       'matrix':
@@ -201,6 +203,7 @@
   # run's artifact (a dry run, nothing published).
   'checksums':
     'needs': ['plan', 'binaries']
+    'if': "${{ !cancelled() && needs.plan.result == 'success' && needs.binaries.result == 'success' }}"
     'runs-on': 'ubuntu-latest'
     'permissions':
       'contents': 'write'
@@ -236,6 +239,7 @@
   'smoke':
     'name': 'Smoke ${{ matrix.target }}'
     'needs': ['plan', 'checksums']
+    'if': "${{ !cancelled() && needs.plan.result == 'success' && needs.checksums.result == 'success' }}"
     'strategy':
       'fail-fast': false
       'matrix':
