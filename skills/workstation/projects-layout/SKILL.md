@@ -44,3 +44,5 @@ Code and Codex ([ADR-0009](https://github.com/JorisJonkers-dev/agent-kit/blob/ma
 It denies `git clone`, `gh repo clone` and `git worktree add` with a target
 outside this layout, and Claude Code's `EnterWorktree` with `name`. It does
 nothing when `~/Projects` does not exist or `PROJECTS_LAYOUT_OFF=1` is set.
+The shim runs the `projects-layout-guard` binary setup installs into
+`~/.local/bin`; until it is installed the shim allows the call.

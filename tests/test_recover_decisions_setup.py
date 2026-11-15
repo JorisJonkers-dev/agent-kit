@@ -69,7 +69,7 @@ def test_setup_installs_it_beside_the_shared_skill_in_every_agent_home(macos_run
     for home in HOMES:
         skills = macos_run.home / home / "skills"
         assert (skills / "recover-decisions" / "SKILL.md").read_bytes() == SKILL.read_bytes(), home
-        assert (skills / "recover-decisions" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "recover-decisions" / ".." / "critique" / "critique").is_file(), home
 
 
 def test_it_runs_the_review_stage_and_never_passes_a_flow() -> None:

@@ -137,10 +137,8 @@ updates the page the owner already has open.
 ## Commands
 
 Run the launcher with `sh`. It runs the Rust `build-tracker` that setup installs on
-PATH (`~/.local/bin/build-tracker`) and, until that is installed, the
-`build-tracker.mjs` beside it; the two print the same JSON and the same page.
-`AGENT_KIT_BUILD_TRACKER=node` forces the node bundle for one call, and
-`touch ~/.config/agent-kit/build-tracker-node` for every call:
+PATH (`~/.local/bin/build-tracker`); until that is installed it exits 127.
+`AGENT_KIT_BUILD_TRACKER_BIN` names another binary:
 
 ```sh
 sh <this folder>/build-tracker init --spec <ref> [--milestone "<name>=<ticket>"] ...

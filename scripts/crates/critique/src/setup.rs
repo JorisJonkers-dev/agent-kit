@@ -392,10 +392,10 @@ fn outcome_status(outcome: &CriticOutcome) -> &'static str {
     }
 }
 
-/// The bundled runner, which is the search server: a new one must be proven again.
+/// The runner binary, which is the search server: a new one must be proven again.
 fn runner_hash(runtime: &Runtime) -> Result<String, CritiqueError> {
-    let path = join(&[&runtime.assets_root, "critique.mjs"]);
-    hash_of_file(runtime, &path).map(|hash| hash.unwrap_or_else(|| "none".to_string()))
+    let Some(search) = &runtime.search else { return Ok("none".to_string()) };
+    hash_of_file(runtime, &search.command).map(|hash| hash.unwrap_or_else(|| "none".to_string()))
 }
 
 /// The sha256 of the critic agent file; none when it is not installed.

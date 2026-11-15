@@ -206,6 +206,7 @@ DECLARED = [
     "ci-wait",
     "litellm-gate",
     "estate",
+    "projects-layout-guard",
 ]
 
 

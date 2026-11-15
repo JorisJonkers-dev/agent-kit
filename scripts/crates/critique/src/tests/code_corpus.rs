@@ -1,5 +1,5 @@
 //! The source graph, repo map, context slices, windowed diff and code sample over generated modules, diffs and limits,
-//! compared with what the node runner makes of the same input (tests/gen-code-corpus.mjs). `CRITIQUE_CODE_CORPUS`
+//! compared with what the node runner makes of the same input. `CRITIQUE_CODE_CORPUS`
 //! names a bigger corpus to replay.
 
 use crate::code_sample::{sample_code_tree, CodeSampleRequest};

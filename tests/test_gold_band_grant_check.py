@@ -19,7 +19,7 @@ called: the Codex nodes are stub agents that write marker files.
 * the race proof starts many wrapper processes at once on a grant with room for
   fewer starts and counts how many pass.
 
-They skip, with the reason, when node, cargo or (for the headless run)
+They skip, with the reason, when cargo or (for the headless run)
 ``GOLD_BAND_BIN`` is missing; ``GOLD_BAND_RUN_START_BIN`` names a prebuilt wrapper.
 """
 
@@ -40,16 +40,14 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = KIT_ROOT / "tests" / "fixtures" / "gold-band" / "grant-check-proof.json"
 STUB = KIT_ROOT / "tests" / "fixtures" / "gold_band_stub_acp.py"
 MANIFEST = KIT_ROOT / "scripts" / "Cargo.toml"
-GATEWAY_BUNDLE = KIT_ROOT / "skills" / "workstation" / "model-gateway" / "model-gateway.mjs"
 
 GOLD_BAND_BIN = os.environ.get("GOLD_BAND_BIN")
 NO_TOOLS = (
-    shutil.which("node") is None
-    or shutil.which("git") is None
+    shutil.which("git") is None
     or (shutil.which("cargo") is None and not os.environ.get("GOLD_BAND_RUN_START_BIN"))
 )
 pytestmark = pytest.mark.skipif(
-    NO_TOOLS, reason="node, git or cargo (or GOLD_BAND_RUN_START_BIN) is missing: the shim and the gateway cannot run"
+    NO_TOOLS, reason="git or cargo (or GOLD_BAND_RUN_START_BIN) is missing: the shim and the gateway cannot run"
 )
 needs_gold_band = pytest.mark.skipif(
     GOLD_BAND_BIN is None, reason="GOLD_BAND_BIN not set: point it at a headless gold-band binary (docs/GOLD-BAND.md)"
@@ -87,6 +85,26 @@ def wrapper() -> str:
     return str(Path(target) / "debug" / "gold-band-run-start")
 
 
+@pytest.fixture(scope="module")
+def gateway_binary() -> str:
+    """The Rust model gateway: MODEL_GATEWAY_BIN, or built from this repository the way the wrapper is."""
+    named = os.environ.get("MODEL_GATEWAY_BIN")
+    if named:
+        return named
+    built = subprocess.run(
+        ["cargo", "build", "--offline", "-q", "--manifest-path", str(MANIFEST), "-p", "model-gateway"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_SECONDS,
+        env=dict(os.environ, CARGO_NET_RETRY="0"),
+    )
+    if built.returncode != 0:
+        pytest.skip(f"the gateway cannot be built offline (set MODEL_GATEWAY_BIN): {built.stderr[-300:]}")
+    target = os.environ.get("CARGO_TARGET_DIR") or str(KIT_ROOT / "scripts" / "target")
+    return str(Path(target) / "debug" / "model-gateway")
+
+
 def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True)
 
@@ -94,7 +112,7 @@ def _git(repo: Path, *args: str) -> None:
 class Machine:
     """A throw-away machine: home, configuration and state outside any repository, a work repository, a gateway."""
 
-    def __init__(self, tmp: Path, wrapper: str) -> None:
+    def __init__(self, tmp: Path, wrapper: str, gateway_binary: str) -> None:
         self.tmp = tmp
         self.wrapper = wrapper
         self.home = tmp / "home"
@@ -107,7 +125,7 @@ class Machine:
         _git(self.repo, "init", "-q")
         _git(self.repo, "remote", "add", "origin", NEDAP)
         self.gateway = tmp / "model-gateway"
-        self.gateway.write_text(f'#!/bin/sh\nexec node "{GATEWAY_BUNDLE}" "$@"\n')
+        self.gateway.write_text(f'#!/bin/sh\nexec "{gateway_binary}" "$@"\n')
         self.gateway.chmod(self.gateway.stat().st_mode | stat.S_IXUSR)
         # The gateway reads these three, never the owner's real ones.
         self.env = dict(
@@ -200,8 +218,8 @@ class Machine:
 
 
 @pytest.fixture
-def machine(tmp_path: Path, wrapper: str) -> Machine:
-    return Machine(tmp_path, wrapper)
+def machine(tmp_path: Path, wrapper: str, gateway_binary: str) -> Machine:
+    return Machine(tmp_path, wrapper, gateway_binary)
 
 
 def _report(path: Path) -> dict[str, Any]:

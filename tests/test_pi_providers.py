@@ -81,8 +81,10 @@ def test_every_route_renders_one_provider_with_its_models() -> None:
     routes = data["litellm"]["routes"]
     assert table["base_url"] == data["litellm"]["base_url"]
     assert table["api"] == "openai-completions"
-    assert [p["name"] for p in table["providers"]] == [f"litellm-{r['agent']}" for r in routes]
-    assert [p["key_env"] for p in table["providers"]] == [r["key_env"] for r in routes]
+    # A route with no usable model (local, until a local/* model is probed) has no provider.
+    listed = [r for r in routes if r["agent"] != "local"]
+    assert [p["name"] for p in table["providers"]] == [f"litellm-{r['agent']}" for r in listed]
+    assert [p["key_env"] for p in table["providers"]] == [r["key_env"] for r in listed]
     for provider in table["providers"]:
         assert provider["models"], provider["name"]
         assert _ids(provider["models"]) == sorted(set(_ids(provider["models"])))
@@ -90,6 +92,10 @@ def test_every_route_renders_one_provider_with_its_models() -> None:
 
 def _snapshot() -> Any:
     return litellm_catalogue.load_catalogue(live_path=KIT_ROOT / "no-such-live-copy.json")
+
+
+def _usable_names(catalogue: Any) -> set[str]:
+    return set(litellm_catalogue.usable_group_names(catalogue))
 
 
 def test_route_models_are_the_canonical_chat_groups_with_their_context_window() -> None:
@@ -101,6 +107,7 @@ def test_route_models_are_the_canonical_chat_groups_with_their_context_window() 
         n
         for n, g in groups.items()
         if g["modality"] == "chat"
+        and n in _usable_names(catalogue)
         and not g["public"]
         and not {d["route"] for d in g["deployments"]} & withheld
     )
@@ -297,3 +304,81 @@ def test_a_models_json_with_odd_providers_is_left_alone(tmp_path: Path) -> None:
 def test_the_helper_path_is_quoted_in_the_key_command() -> None:
     entry = merge.desired_providers(_table(("litellm-vibe", "K", ["a"])), "/home/a b/agent-kit-secret")
     assert entry["litellm-vibe"]["apiKey"] == "!'/home/a b/agent-kit-secret' get K"
+
+
+def _probe(route: str, upstream: str, status: str) -> dict[str, Any]:
+    return {"id": f"{route}/{upstream}", "metadata": {"status": status, "modality": "chat"}}
+
+
+def _deployed(name: str, route: str, upstream: str, public: bool = False) -> dict[str, Any]:
+    deployment = {"route": route, "upstream_id": upstream, "order": 1}
+    return {"modality": "chat", "public": public, "deployments": [deployment]}
+
+
+def test_a_group_is_listed_only_when_a_deployment_is_probed_usable() -> None:
+    catalogue = litellm_catalogue.Catalogue(
+        {
+            "providers": {
+                "vibe": {"models": [_probe("vibe", "ok", "usable"), _probe("vibe", "bad", "blocked"),
+                                    _probe("vibe", "err", "error"), _probe("vibe", "what", "unknown")]},
+                "opencode-go": {"models": [_probe("opencode-go", "fallback", "usable")]},
+            },
+            "groups": {
+                "ok": _deployed("ok", "vibe", "ok"),
+                "bad": _deployed("bad", "vibe", "bad"),
+                "err": _deployed("err", "vibe", "err"),
+                "what": _deployed("what", "vibe", "what"),
+                "unprobed": _deployed("unprobed", "vibe", "nothing"),
+                "second": {"modality": "chat", "public": False, "deployments": [
+                    {"route": "vibe", "upstream_id": "bad", "order": 1},
+                    {"route": "opencode-go", "upstream_id": "fallback", "order": 2}]},
+            },
+        },
+        "live",
+    )
+    assert _ids(render_registry.litellm_route_models(["canonical"], catalogue)) == ["ok", "second"]
+
+
+def _scoped_catalogue() -> Any:
+    return litellm_catalogue.Catalogue(
+        {
+            "providers": {
+                "vibe": {"models": [_probe("vibe", "paid", "usable")]},
+                "local": {"models": [_probe("local", "qwen", "usable")]},
+                "google": {"models": [_probe("google", "free", "usable")]},
+            },
+            "groups": {
+                "paid": _deployed("paid", "vibe", "paid"),
+                "qwen": _deployed("qwen", "local", "qwen"),
+                "free": _deployed("free", "google", "free", public=True),
+            },
+        },
+        "live",
+    )
+
+
+def test_the_local_route_lists_only_its_own_models_and_the_public_route_only_public_groups() -> None:
+    catalogue = _scoped_catalogue()
+    routes = {r["agent"]: r for r in render_registry.load_registry()["litellm"]["routes"]}
+    local = render_registry.litellm_route_models(["canonical", "local/*"], catalogue, routes["local"])
+    assert _ids(local) == ["qwen"]
+    public = render_registry.litellm_route_models(["google-free-public", "canonical"], catalogue, routes["public"])
+    assert _ids(public) == ["free"]
+    assert _ids(render_registry.litellm_route_models(["canonical"], catalogue, routes["vibe"])) == ["paid", "qwen"]
+
+
+def test_a_route_with_nothing_usable_has_no_pi_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(render_registry, "litellm_route_models", lambda *_a, **_k: [])
+    table = json.loads(render_registry.render_pi_providers(render_registry.load_registry()))
+    assert table["providers"] == []
+
+
+def test_the_rendered_table_lists_nothing_unusable_or_cloud_on_local_and_public() -> None:
+    catalogue = _snapshot()
+    usable = _usable_names(catalogue)
+    table = json.loads(render_registry.render_pi_providers(render_registry.load_registry()))
+    providers = {p["name"]: p["models"] for p in table["providers"]}
+    assert "litellm-local" not in providers
+    for name, models in providers.items():
+        assert set(_ids(models)) <= usable, name
+    assert all(catalogue.data["groups"][i]["public"] for i in _ids(providers["litellm-public"]))

@@ -1,5 +1,5 @@
 //! The packet readers (ADR review, decisions, decision recovery, architecture review) and code-nav's map over generated
-//! repositories, compared with what the node runner makes of the same repository (tests/gen-packets-corpus.mjs): its
+//! repositories, compared with what the node runner makes of the same repository: its
 //! working tree, git tree, history, issues and what code-nav answers. `CRITIQUE_PACKETS_CORPUS` names a bigger corpus.
 
 use super::cli::runtime;

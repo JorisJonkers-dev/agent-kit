@@ -22,7 +22,11 @@ ADR. This is that ADR, for one hook: `projects-layout-guard`.
 | `projects-layout-guard` | `PreToolUse` | `Bash\|EnterWorktree` in Claude Code, `Bash` in Codex | `git clone`, `gh repo clone`, `git worktree add`, and Claude Code's `EnterWorktree` | Denies a clone of a GitHub repository to any path except `~/Projects/<owner>/<repo>`, a worktree outside `~/Projects/<owner>/worktrees/<repo>/`, and `EnterWorktree` with `name` (which creates `.claude/worktrees/`). |
 
 It lives in the `projects-layout` first-party skill. That skill's `SKILL.md`
-states the layout, and setup copies it into every agent home. Setup also
+states the layout, and setup copies it into every agent home. The skill's
+`hooks/projects-layout-guard.sh` is a shim around the Rust
+`projects-layout-guard` crate (`scripts/crates/projects-layout-guard`), which
+setup builds and installs with the kit's other command-line tools
+(`registry/estate-tooling.yaml`, `workspace_tools:`). Setup also
 writes a short form of the rule as a marked `projects-layout` block into the
 global instruction files of Claude Code, Codex, Hermes and OpenCode, the same
 way it writes the model-gateway pointer.
@@ -42,7 +46,7 @@ It follows every rule of ADR-0002, except the opt-in rule:
 - **Well under one second.** Each `git` call has a 2-second timeout, and the
   hook is registered with the same 5-second `timeout` as the critique hooks.
 - **Fail open on its own errors.** An unparsable command, a repository it
-  cannot identify, a missing `python3` or a crash allows the call.
+  cannot identify, a guard binary that is not installed, or a crash, allows the call: the shim prints nothing and exits 0.
 - **Fail closed only on an explicit decision.** It denies by printing the JSON
   `deny` and exiting 0. The reason is one line that names the path the clone
   or worktree must use.
