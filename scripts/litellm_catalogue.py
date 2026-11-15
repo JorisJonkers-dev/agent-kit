@@ -222,6 +222,11 @@ def public_access_groups(routes_path: Path = ROUTES) -> frozenset[str]:
         routes = json.loads(routes_path.read_text(encoding="utf-8"))["routes"]
     except (OSError, ValueError, KeyError, TypeError):
         return frozenset()
+    return public_groups_of(routes)
+
+
+def public_groups_of(routes: Sequence[Mapping[str, Any]]) -> frozenset[str]:
+    """The access groups only ``data_scope: public`` routes hold, from a list of routes."""
     public: set[str] = set()
     other: set[str] = set()
     for route in routes:

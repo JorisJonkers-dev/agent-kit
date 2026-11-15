@@ -214,14 +214,15 @@ litellm:
       budget_duration: 30d
       data_scope: any
       models: ["canonical"]
-    # OpenRouter's free `:free` models only, public work only. The key holds its own group and
+    # The free models only, public work only: OpenRouter's `:free` models and OpenCode Go's
+    # `-free` ids, whose providers may train on the prompt. The key holds the two free groups and
     # not `canonical`, so it reaches nothing paid and needs no cap.
     - agent: openrouter
       key_env: LITELLM_OPENROUTER_KEY
       budget_eur: null
       budget_duration: null
       data_scope: public
-      models: ["openrouter-free-public"]
+      models: ["openrouter-free-public", "opencode-go-free-public"]
     # The OpenAI-compatible model server on the GPU workstation: free, so no cap. It also holds
     # its own wildcard, so local/<id> reaches whatever the server serves (qwen3:32b) before the
     # catalogue deploys it under its canonical name (agent-kit#569).

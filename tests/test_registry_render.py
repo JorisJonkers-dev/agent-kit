@@ -1196,7 +1196,7 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
         "vibe": ["canonical"],
         "vibe-study": ["canonical"],
         "opencode-go": ["canonical"],
-        "openrouter": ["openrouter-free-public"],
+        "openrouter": ["openrouter-free-public", "opencode-go-free-public"],
         "local": ["canonical", "local/*"],
         "public": ["google-free-public", "canonical"],
     }
@@ -1312,6 +1312,10 @@ def test_the_admin_token_script_makes_a_one_hour_management_key_and_no_agent_key
         (lambda d: d["litellm"]["routes"][0].update(models=["canonical", "canonical"]), "must not repeat"),
         (lambda d: d["litellm"]["routes"][0].update(data_scope="private"), "data_scope must be"),
         (lambda d: d["litellm"]["routes"][0].update(models=["google-free-public"]), "only a data_scope: public key"),
+        (
+            lambda d: d["litellm"]["routes"][0].update(models=["opencode-go-free-public"]),
+            "only a data_scope: public key",
+        ),
         (
             lambda d: d["litellm"]["routes"][0].update(models=["canonical", "openrouter-free-public"]),
             "only a data_scope: public key",

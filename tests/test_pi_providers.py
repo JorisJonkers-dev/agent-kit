@@ -119,6 +119,34 @@ def test_no_workstation_route_lists_a_claude_model() -> None:
     assert listed and not [i for i in listed if i.startswith("claude-")]
 
 
+def test_the_openrouter_route_reaches_the_opencode_go_free_ids_at_zero_cost() -> None:
+    catalogue = litellm_catalogue.Catalogue(
+        {
+            "updated_at": "2026-11-15T12:00:00Z",
+            "providers": {
+                "opencode-go": {
+                    "models": [{"id": "opencode-go/beam-free", "metadata": {"status": "usable", "free": True}}]
+                }
+            },
+            "groups": {
+                "opencode-go-free/beam-1.0": {
+                    "modality": "chat",
+                    "public": True,
+                    "deployments": [{"route": "opencode-go", "upstream_id": "beam-free", "order": 1}],
+                }
+            },
+        },
+        "live",
+    )
+    route = next(r for r in render_registry.load_registry()["litellm"]["routes"] if r["agent"] == "openrouter")
+    assert "opencode-go-free-public" in route["models"]
+    reached = render_registry.litellm_route_models(route["models"], catalogue)
+    zero = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
+    assert [(m["id"], m.get("cost")) for m in reached] == [("opencode-go-free/beam-1.0", zero)]
+    # The public key holds canonical and Google's free tier, never the OpenCode free group.
+    assert render_registry.litellm_route_models(["google-free-public", "canonical"], catalogue) == []
+
+
 def test_free_groups_carry_zero_cost_and_only_the_matching_public_route_reaches_them() -> None:
     table = json.loads(render_registry.render_pi_providers(render_registry.load_registry()))
     providers = {p["name"]: p["models"] for p in table["providers"]}

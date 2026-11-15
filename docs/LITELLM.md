@@ -12,7 +12,7 @@ token numbers are never used; the proxy's refusal is the only budget signal.
 | `vibe` | `LITELLM_VIBE_KEY` | 255 EUR | `canonical` | every canonical model |
 | `vibe-study` | `LITELLM_VIBE_STUDY_KEY` | 127.50 EUR | `canonical` | every canonical model |
 | `opencode-go` | `LITELLM_OPENCODE_GO_KEY` | 60 EUR | `canonical` | every canonical model |
-| `openrouter` | `LITELLM_OPENROUTER_KEY` | none | `openrouter-free-public` | OpenRouter's free `:free` models only, nothing paid; **public work only** |
+| `openrouter` | `LITELLM_OPENROUTER_KEY` | none | `openrouter-free-public`, `opencode-go-free-public` | The free models only: OpenRouter's `:free` models and OpenCode Go's `-free` ids, nothing paid; **public work only** |
 | `local` | `LITELLM_LOCAL_KEY` | none | `canonical`, `local/*` | every canonical model, and `local/<id>` for any id the GPU workstation's server (free) serves, such as `local/qwen3:32b`; the key has no cap, so use it for local models only |
 | `public` | `LITELLM_PUBLIC_KEY` | 5 EUR | `google-free-public`, `canonical` | the free-tier Google models, and the paid fallbacks; **public work only** |
 
@@ -49,6 +49,7 @@ provider's deployments in a public-only access group of its own, never in `canon
 |---|---|---|---|
 | `google-free-public` | the Google free tier first, then the paid deployments of the same model | `public/<canonical>` | `public` |
 | `openrouter-free-public` | OpenRouter's free `:free` models, each alone | `openrouter/<canonical>` | `openrouter` |
+| `opencode-go-free-public` | OpenCode Go's free `-free` ids, each alone | `opencode-go-free/<canonical>` | `openrouter` |
 
 One group per provider, not one shared free group: LiteLLM grants a key a model name, so a
 shared group would hand each free provider's key the others' models. The `openrouter` key holds
@@ -92,16 +93,19 @@ Set in the litellm repository (litellm#20); recorded here because the agent ids 
 4. Gemini: Google free tier first, only inside `google-free-public`.
 5. OpenCode Go only for models no Mistral, Google or Anthropic key serves. Its base is
    `https://opencode.ai/inference/go/openai/v1`.
-6. OpenRouter free models only, `data_collection: deny`, in `openrouter-free-public` alone (never
-   in `canonical`).
+6. OpenRouter free models only, `data_collection: allow` (public work only; most free endpoints
+   exist only with training on), in `openrouter-free-public` alone (never in `canonical`). The
+   OpenRouter account's privacy setting "Free model training" must be on.
+7. OpenCode Go's free ids (`beam-free`), whose providers may train on the prompt, only in
+   `opencode-go-free-public`, each alone (never in `canonical` or a paid group).
 
 Mistral's four keys: `vibe` (255 EUR) and `vibe-study` (127.50 EUR) are Vibe-scope; `vibe-api`
 (25.50 EUR) and `vibe-study-api` (12.75 EUR) are general API keys.
 
 ### Names the litellm repository must match
 
-`canonical` (every paid and local deployment), the public-only groups `google-free-public` and
-`openrouter-free-public` (the free-tier deployments,
+`canonical` (every paid and local deployment), the public-only groups `google-free-public`,
+`openrouter-free-public` and `opencode-go-free-public` (the free-tier deployments,
 `LITELLM_PUBLIC_GROUPS` in `scripts/render_registry.py`), the agent ids / key aliases above, and the
 canonical model names the gateway defaults use (`registry/litellm-catalogue.json` lists what
 the catalogue serves).

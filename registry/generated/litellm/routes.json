@@ -39,7 +39,8 @@
       "budget_duration": null,
       "data_scope": "public",
       "models": [
-        "openrouter-free-public"
+        "openrouter-free-public",
+        "opencode-go-free-public"
       ]
     },
     {
