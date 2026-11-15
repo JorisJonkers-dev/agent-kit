@@ -5669,7 +5669,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('log "critique hooks"')
     w("critique_hooks install")
     w("# The critique runner's Rust build: the skill's launcher prefers it once it is")
-    w("# installed, and runs critique.mjs until then, so a failed build changes nothing.")
+    w("# installed (there is no node runner), so a failed build changes nothing.")
     w("critique_rust_setup() {")
     w("  local rc=0 mode=()")
     w('  if [ "${CLOUD}" = 1 ]; then')

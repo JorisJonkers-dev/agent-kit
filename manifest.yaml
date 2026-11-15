@@ -148,15 +148,11 @@ hooks:
 
 # The critique runner and the files it reads, pinned. skills/workstation/critique/ is itself the copy setup installs (there is no
 # repo copy beside it), so the pin is on it. Its SKILL.md is the skill's text,
-# not the runner's, and is left out. `pnpm run build` in council/ts rebuilds
-# critique.mjs: update its sha256 here in the same commit.
+# not the runner's, and is left out.
 critique:
   files:
     - path: skills/workstation/critique/critique
-      sha256: 48c2954c72ef6247dab9dfec08e2607f03eaabf2afad147294634130dfcde45e
-      mode: "0755"
-    - path: skills/workstation/critique/critique.mjs
-      sha256: ea53e7bc75d0cce08faee40f2941c571d6aadc55a8c37142b0aad97a838d7243
+      sha256: 9d718606d67289aa7162f892320ea6c890b20d9221f6796e6c51143ff0de5d2f
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
       sha256: 6527a08a703b293c5714951106b8dfd0f55734a0b6d63fa9d7c088c1876f36dc
@@ -281,29 +277,21 @@ critique:
     - path: skills/workstation/critique/schemas/finding.schema.json
       sha256: 3e5a5fc33f61562457c628c33a8706b6f9fa3d6e849502bc94b7a73464833bc6
       mode: "0644"
-# The build tracker's launcher and node bundle, pinned the way critique.files pins the critique
+# The build tracker's launcher, pinned the way critique.files pins the critique
 # runner. skills/workstation/build-tracker/ is the copy setup installs; its SKILL.md is the
-# skill's text and is left out. `pnpm run build` in council/ts rebuilds
-# build-tracker.mjs: update its sha256 here in the same commit.
+# skill's text and is left out.
 build_tracker:
   files:
     - path: skills/workstation/build-tracker/build-tracker
-      sha256: 16a0e4fd959fd8db967f071ced94ea9b06ffe3d580480c8ec74cd2aaa000f398
-      mode: "0755"
-    - path: skills/workstation/build-tracker/build-tracker.mjs
-      sha256: a081654e70827bd15795e9f74a811a363238f94bd1921745d7c86cb4754e8b86
+      sha256: 4bc72b198568e582ff81b15e3f92ca87f5a403c5ff4ef025f3eeff520f38068f
       mode: "0755"
 # The model gateway's runner and shipped defaults, pinned the way
 # critique.files pins the critique runner. skills/workstation/model-gateway/ is
 # the copy setup installs; its SKILL.md is the skill's text and is left out.
-# `pnpm run build` in council/ts rebuilds model-gateway.mjs: update its sha256
-# here in the same commit. defaults.json is validated against
+# defaults.json is validated against
 # defaults.schema.json by scripts/validate_manifest.py.
 model_gateway:
   files:
-    - path: skills/workstation/model-gateway/model-gateway.mjs
-      sha256: 8f5e7049b6633d62c4c2fab7d4cf2ded2bed7f500cc877c6620f79cb2211c436
-      mode: "0755"
     - path: skills/workstation/model-gateway/defaults.json
       sha256: aad9496a02d1a0a337527149707797a00e2cc789f1378d09b5a99513b5fc31eb
       mode: "0644"

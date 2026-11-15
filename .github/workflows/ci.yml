@@ -93,9 +93,6 @@
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
-      - 'uses': 'pnpm/action-setup@v4'
-        'with':
-          'package_json_file': 'council/ts/package.json'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
       - 'run': 'uv sync --frozen'
       - 'run': 'uv run python scripts/render_agent_kit.py --check'
@@ -116,33 +113,6 @@
         'if': '${{ !cancelled() }}'
       - 'run': 'scripts/build-runtime-package.sh v0.0.0-ci dist'
       - 'run': 'tar -tzf dist/agent-kit-runtime-home-v0.0.0-ci.tar.gz >/dev/null'
-
-  'node':
-    'name': 'Node CI'
-    'runs-on': 'ubuntu-latest'
-    'steps':
-      - 'uses': 'actions/checkout@v6'
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
-        'with':
-          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
-          'require-package-proxy': 'true'
-      - 'uses': 'pnpm/action-setup@v4'
-        'with':
-          'package_json_file': 'council/ts/package.json'
-      - 'uses': 'actions/setup-node@v6'
-        'with':
-          'node-version': '22'
-          'cache': 'pnpm'
-          'cache-dependency-path': 'council/ts/pnpm-lock.yaml'
-      # The build tracker's online checks: the pinned Mermaid hash against
-      # the CDN file, and the graph rendered from a local file in headless
-      # Chrome. Opt-in on a workstation. The ubuntu runner image ships
-      # google-chrome on PATH; BUILD_TRACKER_REQUIRE_CHROME makes the browser
-      # tests fail rather than skip if it ever stops shipping one.
-      - 'run': 'cd council/ts && pnpm install --frozen-lockfile && pnpm run build && pnpm test'
-        'env':
-          'BUILD_TRACKER_ONLINE': '1'
-          'BUILD_TRACKER_REQUIRE_CHROME': '1'
 
   # The actionlint job. It was named `workflow-lint` / 'Workflow Lint' like the
   # Gold Band `workflow-lint` crate (next job), so the two read as one. Neither
@@ -459,7 +429,6 @@
     'if': 'always()'
     'needs':
       - 'nixos-packages'
-      - 'node'
       - 'python'
       - 'python-lint'
       - 'python-tests'

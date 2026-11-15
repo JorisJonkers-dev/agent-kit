@@ -27,7 +27,6 @@ import render_registry  # noqa: E402
 from setup_harness import Run, setup_run  # noqa: E402
 
 SKILL = KIT_ROOT / "skills" / "workstation" / "model-gateway"
-RUNNER = SKILL / "model-gateway.mjs"
 DEFAULTS = SKILL / "defaults.json"
 SCHEMA = SKILL / "defaults.schema.json"
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
@@ -318,17 +317,15 @@ def test_the_schema_requires_every_key_and_allows_no_others() -> None:
 def test_the_runner_and_defaults_are_pinned_in_the_manifest() -> None:
     files = {f["path"]: f for f in _manifest()["model_gateway"]["files"]}
     assert set(files) == {
-        "skills/workstation/model-gateway/model-gateway.mjs",
         "skills/workstation/model-gateway/defaults.json",
         "skills/workstation/model-gateway/defaults.schema.json",
     }
-    assert files["skills/workstation/model-gateway/model-gateway.mjs"]["mode"] == "0755"
     for path in ("skills/workstation/model-gateway/defaults.json",
                  "skills/workstation/model-gateway/defaults.schema.json"):
         assert files[path]["mode"] == "0644", path
     for path, entry in files.items():
         digest = hashlib.sha256((KIT_ROOT / path).read_bytes()).hexdigest()
-        assert entry["sha256"] == digest, f"{path}: rebuild council/ts and update manifest.yaml model_gateway.files"
+        assert entry["sha256"] == digest, f"{path}: update manifest.yaml model_gateway.files"
 
 
 def test_the_manifest_pins_every_file_the_skill_ships_but_its_skill_md() -> None:
@@ -451,13 +448,12 @@ def test_the_model_gateway_skill_is_declared_for_claude_codex_and_the_other_agen
 
 def test_setup_installs_the_whole_skill_into_every_agent_home(macos_run: Run) -> None:
     want = sorted(p.relative_to(SKILL).as_posix() for p in SKILL.rglob("*") if p.is_file())
-    assert want == ["SKILL.md", "defaults.json", "defaults.schema.json", "model-gateway.mjs"]
+    assert want == ["SKILL.md", "defaults.json", "defaults.schema.json"]
     for home in HOMES:
         dest = macos_run.home / home / "skills" / "model-gateway"
         got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
         assert got == want, home
         assert (dest / "defaults.json").read_bytes() == DEFAULTS.read_bytes(), home
-        assert (dest / "model-gateway.mjs").read_bytes() == RUNNER.read_bytes(), home
 
 
 def test_a_second_run_replaces_an_older_copy_of_the_folder(tmp_path: Path) -> None:
@@ -467,19 +463,14 @@ def test_a_second_run_replaces_an_older_copy_of_the_folder(tmp_path: Path) -> No
     def older_copy(home: Path) -> None:
         dest = home / ".claude" / "skills" / "model-gateway"
         dest.mkdir(parents=True)
-        (dest / "stale.mjs").write_text("// from an older version\n")
+        (dest / "stale.txt").write_text("// from an older version\n")
 
     run = setup_run(tmp_path, "Darwin", prepare_home=older_copy)
     dest = run.home / ".claude" / "skills" / "model-gateway"
     got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
-    assert got == ["SKILL.md", "defaults.json", "defaults.schema.json", "model-gateway.mjs"]
+    assert got == ["SKILL.md", "defaults.json", "defaults.schema.json"]
     assert (dest / "defaults.json").read_bytes() == DEFAULTS.read_bytes()
     assert f"ok    model-gateway -> {dest}" in run.stdout
-
-
-def test_the_shipped_runner_is_executable_and_starts_with_a_node_shebang() -> None:
-    assert RUNNER.stat().st_mode & 0o777 == 0o755
-    assert RUNNER.read_text().splitlines()[0] == "#!/usr/bin/env node"
 
 
 # ---------------------------------------------------------------------------
@@ -623,16 +614,16 @@ def test_the_skill_says_it_is_not_a_workflow_of_its_own() -> None:
 
 def test_the_skill_names_its_files_and_the_models_command() -> None:
     text = _skill_text()
-    for name in ("model-gateway.mjs", "defaults.json", "defaults.schema.json"):
+    for name in ("defaults.json", "defaults.schema.json"):
         assert name in text, name
-    assert """model-gateway.mjs models --json '{"repo": "/path/to/repo"}'""" in text
-    assert "model-gateway.mjs models --input <file.json>" in text
+    assert """model-gateway models --json '{"repo": "/path/to/repo"}'""" in text
+    assert "model-gateway models --input <file.json>" in text
 
 
 def test_the_skill_documents_the_run_command() -> None:
     text = _skill_text()
     for word in (
-        "model-gateway.mjs run --json",
+        "model-gateway run --json",
         "delegate-readonly",
         "throwaway worktree",
         "worktree-failed",
@@ -653,7 +644,7 @@ def test_the_skill_documents_the_run_command() -> None:
 def test_the_skill_documents_the_batch_command() -> None:
     text = _skill_text()
     for word in (
-        "model-gateway.mjs batch --json",
+        "model-gateway batch --json",
         "depends_on",
         "plan-refused",
         "cycle",

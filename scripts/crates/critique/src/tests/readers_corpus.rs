@@ -1,5 +1,5 @@
 //! The packet readers' small parts over generated input, compared with what the node runner makes of the same input
-//! (tests/gen-readers-corpus.mjs): plan files, decision docs, the decisions stage's texts, the architecture and
+//!: plan files, decision docs, the decisions stage's texts, the architecture and
 //! recovery rules, the tracked tree and the ranking note. `CRITIQUE_READERS_CORPUS` names a bigger corpus to replay.
 
 use super::cli::runtime;

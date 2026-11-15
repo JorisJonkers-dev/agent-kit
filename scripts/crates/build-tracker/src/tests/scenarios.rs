@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// 2026-11-03T12:00:00Z, the instant fake-clock.mjs gives the node runner.
+/// 2026-11-03T12:00:00Z, the instant the frozen goldens were made at.
 pub const FIXED_NOW: i64 = 1_793_707_200;
 
 pub struct FixedClock(pub i64);

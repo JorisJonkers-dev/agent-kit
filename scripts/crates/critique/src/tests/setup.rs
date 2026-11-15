@@ -1,5 +1,5 @@
 //! What the goldens cannot reach in `setup`: a Vibe client's read-only proof, which starts the runner's own search server
-//! (the node runner's is `node critique.mjs`, so its launch cannot be the same bytes), a probe whose launch is refused,
+//! (its launch is the runner itself), a probe whose launch is refused,
 //! and the hook and client readers' edges. The node runner's `application/setup.ts`, `application/agent-hooks.ts` and
 //! `domain/agent-hooks.ts`.
 
@@ -212,8 +212,10 @@ fn a_hook_is_wired_by_the_script_its_command_names() {
 
 #[test]
 fn a_runner_file_that_cannot_be_read_stops_the_listing() {
-    let run = run_in(Box::new(FakeProcess::answering(exit(0))), vec![], &[]);
-    std::fs::create_dir_all(format!("{}/assets/critique.mjs", run.sandbox.text())).expect("a directory where the runner goes");
+    let mut run = run_in(Box::new(FakeProcess::answering(exit(0))), vec![], &[]);
+    let runner = format!("{}/runner", run.sandbox.text());
+    std::fs::create_dir_all(&runner).expect("a directory where the runner goes");
+    run.runtime.search = Some(crate::search_client::SearchCommand { command: runner.clone(), args: Vec::new() });
     let result = setup::run(&input("{}"), &run.runtime);
-    assert_eq!(result.err().map(|error| error.message), Some(format!("cannot read {}/assets/critique.mjs", run.sandbox.text())));
+    assert_eq!(result.err().map(|error| error.message), Some(format!("cannot read {runner}")));
 }

@@ -327,16 +327,16 @@ fn a_searching_pi_launch_names_the_servers_tools_back_in_and_keeps_mcp_on_throug
 
 #[test]
 fn the_launchs_mcp_json_holds_the_search_server_alone_and_the_grants_let_pi_run_it() {
-    let server = SearchServerLaunch { command: "/opt/critique".to_string(), args: vec!["/opt/critique.mjs".to_string(), "search-server".to_string(), "--root".to_string(), "/c/packet".to_string()] };
+    let server = SearchServerLaunch { command: "/opt/critique".to_string(), args: vec!["/opt/server.js".to_string(), "search-server".to_string(), "--root".to_string(), "/c/packet".to_string()] };
     let written = mcp_servers(&server);
-    let expected = parse(r#"{"mcpServers":{"packet":{"command":"/opt/critique","args":["/opt/critique.mjs","search-server","--root","/c/packet"],"exposure":"direct","description":"Search the files of your working directory"}}}"#).unwrap();
+    let expected = parse(r#"{"mcpServers":{"packet":{"command":"/opt/critique","args":["/opt/server.js","search-server","--root","/c/packet"],"exposure":"direct","description":"Search the files of your working directory"}}}"#).unwrap();
     assert_eq!(written, expected);
     let (files, runtime) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
-    files.put("/opt/critique.mjs", "");
+    files.put("/opt/server.js", "");
     let grants = grants(&runtime, &config(), &route_for(443), Some(("/p", "/a")), Some(&server));
     assert_eq!(
         grants,
-        ["--read", "/p", "--run-from", "pi", "--run-from", "/opt/critique", "--read", "/opt/critique.mjs", "--write", "/a", "--net-connect", "443", "--env", "PI_CODING_AGENT_DIR"].map(String::from)
+        ["--read", "/p", "--run-from", "pi", "--run-from", "/opt/critique", "--read", "/opt/server.js", "--write", "/a", "--net-connect", "443", "--env", "PI_CODING_AGENT_DIR"].map(String::from)
     );
     prepare(&runtime, &config(), "/c/pi-agent", Some(&server)).unwrap().unwrap();
     assert_eq!(parse(&files.read_text("/c/pi-agent/mcp.json").unwrap()).unwrap(), expected);

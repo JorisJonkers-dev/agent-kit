@@ -16,9 +16,9 @@ them.
 
 ## What is in here
 
-- `model-gateway.mjs` — the runner. It is built from `council/ts` by
-  `npm run build` and pinned in `manifest.yaml`'s `model_gateway.files`, the
-  way the critique runner is pinned in `critique.files`. Run it with `node`.
+- The runner is the Rust `model-gateway` command on PATH (setup builds it with
+  `scripts/install-model-gateway-rust.sh`); this folder holds only its defaults,
+  pinned in `manifest.yaml`'s `model_gateway.files`.
 - `defaults.json` — the shipped defaults: the clients on this machine, the
   client models each offers with their family, difficulty tier and capability
   notes, and the caps and thresholds a delegation is held to.
@@ -37,8 +37,8 @@ and exits 0; on an error it prints
 `{"status":"error","code":"<slug>","message":"<one line>"}` and exits 1.
 
 ```sh
-node model-gateway.mjs models --json '{"repo": "/path/to/repo"}'
-node model-gateway.mjs models --input <file.json>
+model-gateway models --json '{"repo": "/path/to/repo"}'
+model-gateway models --input <file.json>
 ```
 
 `repo` is the path the caller works in; the gateway asks git for that path's
@@ -190,8 +190,8 @@ it has spent, what its own plan has left, and how close it is to the plan
 limit the owner set for it. It prints one JSON object on stdout and exits 0.
 
 ```sh
-node model-gateway.mjs usage --json '{"days": 7, "workflow": "spec-293"}'
-node model-gateway.mjs usage --input <file.json>
+model-gateway usage --json '{"days": 7, "workflow": "spec-293"}'
+model-gateway usage --input <file.json>
 ```
 
 The input is optional: `days` (7 by default) is how many UTC days the usage
@@ -242,8 +242,8 @@ succeeded or failed; only a refusal is an error, and it prints
 `{"status":"error","code":"<slug>","message":"<one line>"}` and exits 1.
 
 ```sh
-node model-gateway.mjs run --json '{"workflow":"review","client":"vibe","model":"mistral-large-latest","mode":"read-only","prompt":"Review src/app.ts","repo":"/path/to/repo"}'
-node model-gateway.mjs run --input <file.json>
+model-gateway run --json '{"workflow":"review","client":"vibe","model":"mistral-large-latest","mode":"read-only","prompt":"Review src/app.ts","repo":"/path/to/repo"}'
+model-gateway run --input <file.json>
 ```
 
 The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
@@ -559,7 +559,7 @@ too. The data policy is the same as for any run that reads a repository: the
 entry must allow the model's family and `code`.
 
 ```sh
-node model-gateway.mjs run --json '{"workflow":"spec-293","client":"claude","model":"claude-sonnet-5-5","mode":"write","prompt":"Add the --verbose flag","repo":"/path/to/repo","base":"main","check":"npm test"}'
+model-gateway run --json '{"workflow":"spec-293","client":"claude","model":"claude-sonnet-5-5","mode":"write","prompt":"Add the --verbose flag","repo":"/path/to/repo","base":"main","check":"npm test"}'
 ```
 
 1. The gateway creates a worktree off `base` at
@@ -618,9 +618,9 @@ that made it ends. `workflow end` ends it; `worktrees clean` then removes what
 it kept:
 
 ```sh
-node model-gateway.mjs workflow end --json '{"name":"spec-293"}'
-node model-gateway.mjs worktrees clean --json '{"workflow":"spec-293"}'
-node model-gateway.mjs worktrees clean --json '{"all":true}'
+model-gateway workflow end --json '{"name":"spec-293"}'
+model-gateway worktrees clean --json '{"workflow":"spec-293"}'
+model-gateway worktrees clean --json '{"all":true}'
 ```
 
 It removes each kept worktree of that workflow (`git worktree remove --force`)
@@ -641,10 +641,10 @@ client and model (the `delegate` skill picks the tiers); the gateway chooses
 none.
 
 ```sh
-node model-gateway.mjs batch --json '{"workflow":"spec-293","delegations":[
+model-gateway batch --json '{"workflow":"spec-293","delegations":[
   {"id":"find","client":"vibe","model":"glm-5-3","mode":"read-only","prompt":"Find the callers of parse()","repo":"/path/to/repo"},
   {"id":"fix","depends_on":["find"],"client":"claude","model":"claude-sonnet-5-5","mode":"write","prompt":"Fix them","repo":"/path/to/repo","base":"main","check":"npm test"}]}'
-node model-gateway.mjs batch --input <plan.json>
+model-gateway batch --input <plan.json>
 ```
 
 The input is `workflow` (the batch is one workflow) and `delegations`, a
@@ -779,9 +779,9 @@ JSON object: `{"status":"ok","workflow":{"name","started_at","ended_at","state"}
 for `start` and `end`, and `{"status":"ok","workflows":[...]}` for `list`.
 
 ```sh
-node model-gateway.mjs workflow start --json '{"name": "spec-293"}'
-node model-gateway.mjs workflow end   --json '{"name": "spec-293"}'
-node model-gateway.mjs workflow list  --json '{}'
+model-gateway workflow start --json '{"name": "spec-293"}'
+model-gateway workflow end   --json '{"name": "spec-293"}'
+model-gateway workflow list  --json '{}'
 ```
 
 A workflow records when it started and, once someone ends it, when it ended. A
@@ -814,8 +814,8 @@ initiative, and never widen one: a bigger cap or a longer life is a new
 question to the owner.
 
 ```sh
-node model-gateway.mjs grant write --json '{"workflow":"spec-293","client":"codex","cap_usd":5,"question":"may I spend up to $5 of nedap money on spec-293?","answer":"yes, up to five dollars"}'
-node model-gateway.mjs grant list  --json '{}'
+model-gateway grant write --json '{"workflow":"spec-293","client":"codex","cap_usd":5,"question":"may I spend up to $5 of nedap money on spec-293?","answer":"yes, up to five dollars"}'
+model-gateway grant list  --json '{}'
 ```
 
 `grant write` takes `workflow`, `client` (a metered-employer client, `codex`

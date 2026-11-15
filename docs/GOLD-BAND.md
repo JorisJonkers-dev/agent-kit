@@ -1059,7 +1059,7 @@ Every template has the same path:
 Nothing in a template reimplements a runner guarantee. A critic that writes
 outside its packet is voided by the runner's tripwire, a search outside the
 packet returns nothing, and a critic past its time limit is stopped by the
-runner; `council/ts/src/critique-cli/template-run.test.ts` proves each through
+runner; `scripts/crates/critique` proves each through
 the same `--strict` command line a gate node runs. The headless proof
 (`gold-band-proof prove`) checks each template's sequencing only, against stub
 agents: a clean run ends in success, a finding pauses at the manual check, and
