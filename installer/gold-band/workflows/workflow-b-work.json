@@ -1,9 +1,9 @@
 {
   "workflow": {
-    "description": "Workflow B for the work instance (issue #462), proven headless with stubs: the same shape as workflow-b with the work agents only. A test author on the work Claude agent (claude-work) writes failing tests from the ticket, one writer on Codex (a different family) implements until they pass, then build, tests, lint and the coverage gate each run through the gate shim. One critic worker on claude-work (a different family from the Codex writer) reviews the change and the finding check keeps only findings with a checkable quote. A round with an actionable finding sends the ticket back to the Codex writer, at most twice, in fixed nodes (repair-1, repair-2), so no loop exists. Every Codex node (the writer and both repairs) is preceded by a grant-check node that reserves one Codex node start against the run's grant; when the grant is missing or used up its failure edge leads to the grant-refused manual check, so the run pauses before Codex. After the second failed repair an Opus escalation node on claude-work judges the ticket and a manual check pauses the run for the owner. No gate node has a failure edge, so a failing gate ends the run in failure.",
-    "version": "0.1",
+    "description": "Workflow B v2 for the work instance (issue #797): the same shape as workflow-b with the work agents only. The work Claude agent (claude-work) plans and writes each slice's test, Codex (a different family) writes the code, the repairs, the writer's self-review and, since the work instance has two families only, the test critic (a different family from the test author; the writer is its consumer, so independence from the writer cannot be had here). The code review is the runner's ticket-review stage, whose roster leaves out the orchestrator's family (Codex), so the work Claude agent reviews on both axes. Every Codex node is preceded by a grant-check node whose failure edge leads to the grant-refused manual check. Gate failures go to repair nodes, never end the run; a failing copier still ends it. After the second failed review round an Opus escalation node on claude-work and a manual check pause the run for the owner.",
+    "version": "0.2",
     "id": "workflow-b-work",
-    "entry": "test-author",
+    "entry": "slice-plan",
     "control": {
       "max_attempts": 1,
       "max_rounds": 1
@@ -11,15 +11,15 @@
     "nodes": [
       {
         "type": "worker",
-        "id": "test-author",
-        "executionSlotId": "slot-test-author",
+        "id": "slice-plan",
+        "executionSlotId": "slot-slice-plan",
         "provider": "claude-work",
         "model": "sonnet",
         "profile": "pf-builtin-dev",
-        "goal": "You are the test author, on the work Claude agent, a different family from the Codex writer. Read the ticket's acceptance criteria in the requirement document and write failing tests for them, one test per criterion, in the repository's own test style. Write tests only: no implementation, no change to any non-test file. Answer with one fenced json block holding ok and nothing else.",
+        "goal": "You are the test author. Read the ticket's acceptance criteria in the requirement document, then the spec the ticket names under Parent: its Testing Decisions section lists the test seams, the places where behaviour is tested. Plan at most 3 vertical slices (tracer bullets), each one behaviour of the ticket that crosses a seam end to end, in the order the behaviours depend on each other, and write the plan to slice-plan.json in the worktree as {\"slices\": [{\"behaviour\": \"...\", \"seam\": \"...\", \"criterion\": \"...\"}]}. Every slice names a seam the spec lists; when the spec lists none, name the one seam you chose and why. Cover every acceptance criterion in as few slices as possible and never plan more than 3. Write no test and no implementation. Answer with one fenced json block holding ok and nothing else.",
         "output": {
           "kind": "json",
-          "artifact": "tests-written",
+          "artifact": "slice-plan",
           "schema": {
             "ok": true
           }
@@ -31,15 +31,35 @@
       },
       {
         "type": "worker",
-        "id": "grant-check-writer",
-        "executionSlotId": "slot-grant-check-writer",
-        "provider": "grant-writer",
-        "model": "stub-model",
+        "id": "test-author-s1",
+        "executionSlotId": "slot-test-author-s1",
+        "provider": "claude-work",
+        "model": "sonnet",
         "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node writer (--node writer) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "goal": "You are the test author, slice 1 of 3, from a different family than the writer. Read slice-plan.json and write ONE failing test, for slice 1's behaviour only, at the seam the slice names (the spec's Testing Decisions), through that seam's public interface, in the repository's own test style. If the plan holds fewer than 1 slices, write nothing and answer ok. A test describes behaviour, never implementation: no assertion on a private function, a call count or an internal field, no expected value copied from the output of the code under test, and no mock of the unit's own collaborators that decides the result. Run the test and see it fail for the right reason before you answer. Write tests only: no implementation, no change to any non-test file, and no test for a later slice. Answer with one fenced json block holding ok and nothing else.",
         "output": {
           "kind": "json",
-          "artifact": "grant-check-writer-report",
+          "artifact": "slice-1-tests-written",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-test-critic-1",
+        "executionSlotId": "slot-grant-check-test-critic-1",
+        "provider": "grant-test-critic-1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node test-critic-1 (--node test-critic-1) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-test-critic-1-report",
           "schema": {
             "run_id": "string",
             "attempt": 1,
@@ -56,15 +76,15 @@
       },
       {
         "type": "worker",
-        "id": "writer",
-        "executionSlotId": "slot-writer",
+        "id": "test-critic-1",
+        "executionSlotId": "slot-test-critic-1",
         "provider": "codex",
         "model": "gpt-5.5",
-        "profile": "pf-builtin-dev",
-        "goal": "You are the one writer. Implement the ticket until the tests the test author wrote pass: change non-test files only, never edit or delete a test, and add nothing the tests and the requirement do not ask for. Answer with one fenced json block holding ok and nothing else.",
+        "profile": "pf-diff-reviewer",
+        "goal": "You are the test critic for slice 1, from another family than the test author and the writer. Read the ticket's requirement document, slice-plan.json, the spec's Testing Decisions and the test the test author wrote for slice 1 (the git diff against the base branch). Look for tests coupled to the implementation (an assertion on a private function, a call count or an internal field, a mock of the unit's own collaborators, anything a refactor that keeps behaviour would break), for tautological tests (no assertion, a value copied from the output of the code under test, a mock that returns what it asserts, a test that cannot fail) and for tests outside the seams the spec lists. Write your whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the test or the ticket, and a no_findings_reason when the array is empty; an empty slice 1 has none), to findings/test-critic-1.json in your own worktree, committed. Change no other file. Answer with one fenced json block holding ok and nothing else.",
         "output": {
           "kind": "json",
-          "artifact": "implementation",
+          "artifact": "test-critic-1-findings",
           "schema": {
             "ok": true
           }
@@ -73,6 +93,1316 @@
           "path": "$.ok",
           "equals": true
         }
+      },
+      {
+        "type": "worker",
+        "id": "gate-findings-1",
+        "executionSlotId": "slot-gate-findings-1",
+        "provider": "gate-findings-1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper for the finding check, which runs gold-band-findings check over the test critic's findings files, the diff and the ticket and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-findings-1-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-findings-1",
+        "executionSlotId": "slot-copy-findings-1",
+        "provider": "copy-findings-1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the finding check, which runs gold-band-findings check over the test critic's findings files, the diff and the ticket and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-findings-1-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "verdict-1",
+        "executionSlotId": "slot-verdict-1",
+        "provider": "verdict-1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Read findings-check.json, the report the finding check wrote into the gate report directory, and answer with its actionable count as one fenced json block and nothing else. A hint is never actionable.",
+        "output": {
+          "kind": "json",
+          "artifact": "verdict-1-actionable",
+          "schema": {
+            "actionable": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.actionable",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "test-revise-1",
+        "executionSlotId": "slot-test-revise-1",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the test author, back for the revision of slice 1's test. Read findings-check.json: fix only the findings under kept, which each name a quote that exists in the diff or the ticket, and never act on a hint. Change the slice 1 test only, write no implementation, and add nothing the findings do not ask for. The code review at the end reads the revised test with fresh critics. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "slice-1-revise-written",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-writer-s1",
+        "executionSlotId": "slot-grant-check-writer-s1",
+        "provider": "grant-writer-s1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node writer-s1 (--node writer-s1) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-writer-s1-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "writer-s1",
+        "executionSlotId": "slot-writer-s1",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the writer, slice 1 of 3. Run slice 1's test first and see it fail (red), then write the least change that makes it pass (green), and only then tidy what you just wrote while every test stays green. If slice-plan.json holds fewer than 1 slices, change nothing and answer ok. Change non-test files only, never edit or delete a test, keep the tests of earlier slices passing and add nothing the slice's test and the requirement do not ask for. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "slice-1-implementation",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "test-author-s2",
+        "executionSlotId": "slot-test-author-s2",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the test author, slice 2 of 3, from a different family than the writer. Read slice-plan.json and write ONE failing test, for slice 2's behaviour only, at the seam the slice names (the spec's Testing Decisions), through that seam's public interface, in the repository's own test style. If the plan holds fewer than 2 slices, write nothing and answer ok. A test describes behaviour, never implementation: no assertion on a private function, a call count or an internal field, no expected value copied from the output of the code under test, and no mock of the unit's own collaborators that decides the result. Run the test and see it fail for the right reason before you answer. Write tests only: no implementation, no change to any non-test file, and no test for a later slice. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "slice-2-tests-written",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-test-critic-2",
+        "executionSlotId": "slot-grant-check-test-critic-2",
+        "provider": "grant-test-critic-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node test-critic-2 (--node test-critic-2) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-test-critic-2-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "test-critic-2",
+        "executionSlotId": "slot-test-critic-2",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-diff-reviewer",
+        "goal": "You are the test critic for slice 2, from another family than the test author and the writer. Read the ticket's requirement document, slice-plan.json, the spec's Testing Decisions and the test the test author wrote for slice 2 (the git diff against the base branch). Look for tests coupled to the implementation (an assertion on a private function, a call count or an internal field, a mock of the unit's own collaborators, anything a refactor that keeps behaviour would break), for tautological tests (no assertion, a value copied from the output of the code under test, a mock that returns what it asserts, a test that cannot fail) and for tests outside the seams the spec lists. Write your whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the test or the ticket, and a no_findings_reason when the array is empty; an empty slice 2 has none), to findings/test-critic-2.json in your own worktree, committed. Change no other file. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "test-critic-2-findings",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-findings-2",
+        "executionSlotId": "slot-gate-findings-2",
+        "provider": "gate-findings-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper for the finding check, which runs gold-band-findings check over the test critic's findings files, the diff and the ticket and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-findings-2-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-findings-2",
+        "executionSlotId": "slot-copy-findings-2",
+        "provider": "copy-findings-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the finding check, which runs gold-band-findings check over the test critic's findings files, the diff and the ticket and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-findings-2-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "verdict-2",
+        "executionSlotId": "slot-verdict-2",
+        "provider": "verdict-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Read findings-check.json, the report the finding check wrote into the gate report directory, and answer with its actionable count as one fenced json block and nothing else. A hint is never actionable.",
+        "output": {
+          "kind": "json",
+          "artifact": "verdict-2-actionable",
+          "schema": {
+            "actionable": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.actionable",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "test-revise-2",
+        "executionSlotId": "slot-test-revise-2",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the test author, back for the revision of slice 2's test. Read findings-check.json: fix only the findings under kept, which each name a quote that exists in the diff or the ticket, and never act on a hint. Change the slice 2 test only, write no implementation, and add nothing the findings do not ask for. The code review at the end reads the revised test with fresh critics. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "slice-2-revise-written",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-writer-s2",
+        "executionSlotId": "slot-grant-check-writer-s2",
+        "provider": "grant-writer-s2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node writer-s2 (--node writer-s2) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-writer-s2-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "writer-s2",
+        "executionSlotId": "slot-writer-s2",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the writer, slice 2 of 3. Run slice 2's test first and see it fail (red), then write the least change that makes it pass (green), and only then tidy what you just wrote while every test stays green. If slice-plan.json holds fewer than 2 slices, change nothing and answer ok. Change non-test files only, never edit or delete a test, keep the tests of earlier slices passing and add nothing the slice's test and the requirement do not ask for. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "slice-2-implementation",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "test-author-s3",
+        "executionSlotId": "slot-test-author-s3",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the test author, slice 3 of 3, from a different family than the writer. Read slice-plan.json and write ONE failing test, for slice 3's behaviour only, at the seam the slice names (the spec's Testing Decisions), through that seam's public interface, in the repository's own test style. If the plan holds fewer than 3 slices, write nothing and answer ok. A test describes behaviour, never implementation: no assertion on a private function, a call count or an internal field, no expected value copied from the output of the code under test, and no mock of the unit's own collaborators that decides the result. Run the test and see it fail for the right reason before you answer. Write tests only: no implementation, no change to any non-test file, and no test for a later slice. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "slice-3-tests-written",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-test-critic-3",
+        "executionSlotId": "slot-grant-check-test-critic-3",
+        "provider": "grant-test-critic-3",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node test-critic-3 (--node test-critic-3) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-test-critic-3-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "test-critic-3",
+        "executionSlotId": "slot-test-critic-3",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-diff-reviewer",
+        "goal": "You are the test critic for slice 3, from another family than the test author and the writer. Read the ticket's requirement document, slice-plan.json, the spec's Testing Decisions and the test the test author wrote for slice 3 (the git diff against the base branch). Look for tests coupled to the implementation (an assertion on a private function, a call count or an internal field, a mock of the unit's own collaborators, anything a refactor that keeps behaviour would break), for tautological tests (no assertion, a value copied from the output of the code under test, a mock that returns what it asserts, a test that cannot fail) and for tests outside the seams the spec lists. Write your whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the test or the ticket, and a no_findings_reason when the array is empty; an empty slice 3 has none), to findings/test-critic-3.json in your own worktree, committed. Change no other file. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "test-critic-3-findings",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-findings-3",
+        "executionSlotId": "slot-gate-findings-3",
+        "provider": "gate-findings-3",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper for the finding check, which runs gold-band-findings check over the test critic's findings files, the diff and the ticket and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-findings-3-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-findings-3",
+        "executionSlotId": "slot-copy-findings-3",
+        "provider": "copy-findings-3",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the finding check, which runs gold-band-findings check over the test critic's findings files, the diff and the ticket and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-findings-3-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "verdict-3",
+        "executionSlotId": "slot-verdict-3",
+        "provider": "verdict-3",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Read findings-check.json, the report the finding check wrote into the gate report directory, and answer with its actionable count as one fenced json block and nothing else. A hint is never actionable.",
+        "output": {
+          "kind": "json",
+          "artifact": "verdict-3-actionable",
+          "schema": {
+            "actionable": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.actionable",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "test-revise-3",
+        "executionSlotId": "slot-test-revise-3",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the test author, back for the revision of slice 3's test. Read findings-check.json: fix only the findings under kept, which each name a quote that exists in the diff or the ticket, and never act on a hint. Change the slice 3 test only, write no implementation, and add nothing the findings do not ask for. The code review at the end reads the revised test with fresh critics. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "slice-3-revise-written",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-writer-s3",
+        "executionSlotId": "slot-grant-check-writer-s3",
+        "provider": "grant-writer-s3",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node writer-s3 (--node writer-s3) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-writer-s3-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "writer-s3",
+        "executionSlotId": "slot-writer-s3",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the writer, slice 3 of 3. Run slice 3's test first and see it fail (red), then write the least change that makes it pass (green), and only then tidy what you just wrote while every test stays green. If slice-plan.json holds fewer than 3 slices, change nothing and answer ok. Change non-test files only, never edit or delete a test, keep the tests of earlier slices passing and add nothing the slice's test and the requirement do not ask for. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "slice-3-implementation",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-repair-1",
+        "executionSlotId": "slot-grant-check-repair-1",
+        "provider": "grant-repair-1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node repair-1 (--node repair-1) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-repair-1-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "repair-1",
+        "executionSlotId": "slot-repair-1",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the writer, back for repair 1 of 2 after a gate failed. Read gate-output.txt and gate-report.json in the gate report directory of the gate that failed (build, tests, lint or coverage) and fix the cause. Change non-test files only, never edit or delete a test, and add nothing the failure does not ask for; if the failing test itself is wrong, say so in a comment in your change and leave it. The gates run again and fresh critics review the result. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "repair-1-implementation",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-repair-2",
+        "executionSlotId": "slot-grant-check-repair-2",
+        "provider": "grant-repair-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node repair-2 (--node repair-2) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-repair-2-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "repair-2",
+        "executionSlotId": "slot-repair-2",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the writer, back for repair 2 of 2 after a gate failed. Read gate-output.txt and gate-report.json in the gate report directory of the gate that failed (build, tests, lint or coverage) and fix the cause. Change non-test files only, never edit or delete a test, and add nothing the failure does not ask for; if the failing test itself is wrong, say so in a comment in your change and leave it. The gates run again and fresh critics review the result. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "repair-2-implementation",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gates-escalation",
+        "executionSlotId": "slot-gates-escalation",
+        "provider": "claude-work",
+        "model": "opus",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the escalation judge: the writer's two repairs did not make every gate pass. Read the failing gate's output and report of the last round and the requirement, judge whether the gate or the ticket is at fault, whether the tests are right and what the owner should decide, and state it in plain words in your answer. Change no file. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gates-escalation-judgment",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gates-check",
+        "executionSlotId": "slot-gates-check",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "The owner reads the gate escalation judgment and the failing gate's output and rules on the ticket; the review of the change still runs after the owner's answer.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "final-check",
+        "executionSlotId": "slot-final-check",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "A gate failed after the code review accepted the change: the owner reads the failing gate's output and rules on the ticket. Nothing repairs the change automatically after its review.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-self-review",
+        "executionSlotId": "slot-grant-check-self-review",
+        "provider": "grant-self-review",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node self-review (--node self-review) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-self-review-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "self-review",
+        "executionSlotId": "slot-self-review",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the writer, reviewing your own change before the other families do, along the two axes of the code review. Standards: does the diff follow this repository's documented coding standards (CLAUDE.md, AGENTS.md, CONTEXT.md, the glossary and the ADRs)? Spec: does it do what the ticket and the spec it names ask, all of it and nothing more? Fix only a clear defect you find, in non-test files, and change nothing when there is none; never edit or delete a test. This review does not block anything: the critics that follow decide. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "self-review-implementation",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-ticket-review-prepare",
+        "executionSlotId": "slot-gate-critique-ticket-review-prepare",
+        "provider": "gate-critique-ticket-review-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique prepare --strict` for the stage for the ticket's code review (/review-implementation) and answer with its exit status as one fenced json block and nothing else. The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family), and the work Claude agent covers the Spec and Standards axes alone; do not ask for the deep depth, whose critic is not a work agent.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-prepare-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-ticket-review-prepare",
+        "executionSlotId": "slot-copy-critique-ticket-review-prepare",
+        "provider": "copy-critique-ticket-review-prepare",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the prepare gate of the ticket's code review (/review-implementation) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-prepare-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-ticket-review-fan-out",
+        "executionSlotId": "slot-gate-critique-ticket-review-fan-out",
+        "provider": "gate-critique-ticket-review-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique fan-out --strict` for the stage for the ticket's code review (/review-implementation) and answer with its exit status as one fenced json block and nothing else. The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family), and the work Claude agent covers the Spec and Standards axes alone; do not ask for the deep depth, whose critic is not a work agent.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-fan-out-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-ticket-review-fan-out",
+        "executionSlotId": "slot-copy-critique-ticket-review-fan-out",
+        "provider": "copy-critique-ticket-review-fan-out",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the fan-out gate of the ticket's code review (/review-implementation) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-fan-out-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-ticket-review-verdicts",
+        "executionSlotId": "slot-grant-check-ticket-review-verdicts",
+        "provider": "grant-ticket-review-verdicts",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node ticket-review-verdicts (--node ticket-review-verdicts) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-writer-s1-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "ticket-review-verdicts",
+        "executionSlotId": "slot-ticket-review-verdicts",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the orchestrator of the ticket's code review (/review-implementation). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
+        "output": {
+          "kind": "json",
+          "artifact": "ticket-review-open-findings",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "ticket-review-needs-human",
+        "executionSlotId": "slot-ticket-review-needs-human",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "Some finding of the ticket's code review (/review-implementation) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-ticket-review-refute",
+        "executionSlotId": "slot-gate-critique-ticket-review-refute",
+        "provider": "gate-critique-ticket-review-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique refute --strict` for the stage for the ticket's code review (/review-implementation) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-refute-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-ticket-review-refute",
+        "executionSlotId": "slot-copy-critique-ticket-review-refute",
+        "provider": "copy-critique-ticket-review-refute",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the refute gate of the ticket's code review (/review-implementation) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-refute-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-ticket-review-record",
+        "executionSlotId": "slot-gate-critique-ticket-review-record",
+        "provider": "gate-critique-ticket-review-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique record --strict` for the stage for the ticket's code review (/review-implementation) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-record-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-ticket-review-record",
+        "executionSlotId": "slot-copy-critique-ticket-review-record",
+        "provider": "copy-critique-ticket-review-record",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the record gate of the ticket's code review (/review-implementation) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-record-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "accept-ticket-review-1",
+        "executionSlotId": "slot-accept-ticket-review-1",
+        "provider": "accept-ticket-review-1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned accept shim for round 1 of the ticket's code review (/review-implementation): it reads the round's record report in the run directory and answers open_blocking, the number of accepted findings of blocking severity still open, as one fenced json block and nothing else. The round is accepted when it is 0.",
+        "output": {
+          "kind": "json",
+          "artifact": "ticket-review-open-blocking-1",
+          "schema": {
+            "open_blocking": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.open_blocking",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-ticket-review-revise-1",
+        "executionSlotId": "slot-grant-check-ticket-review-revise-1",
+        "provider": "grant-ticket-review-revise-1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node ticket-review-revise-1 (--node ticket-review-revise-1) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-writer-s1-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "ticket-review-revise-1",
+        "executionSlotId": "slot-ticket-review-revise-1",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the author of the ticket's code review (/review-implementation). Round 1 of the ticket's code review (/review-implementation) left accepted findings: read the round's record report and its accepted findings in the run directory and apply exactly those to the ticket's change, read on two axes: Standards (this repository's documented coding standards) and Spec (what the ticket and its spec ask), nothing the findings do not call for and no finding that was not accepted. Fresh critics review the result next. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "ticket-review-revise-1-write",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-ticket-review-prepare-2",
+        "executionSlotId": "slot-gate-critique-ticket-review-prepare-2",
+        "provider": "gate-critique-ticket-review-prepare-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique prepare --strict` for the stage for the ticket's code review (/review-implementation) and answer with its exit status as one fenced json block and nothing else. The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family), and the work Claude agent covers the Spec and Standards axes alone; do not ask for the deep depth, whose critic is not a work agent. This is round 2: pass the first round's run directory as previous_run_dir, so fresh critics review the revised artifact and the first round's findings are not raised again.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-prepare-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-ticket-review-prepare-2",
+        "executionSlotId": "slot-copy-critique-ticket-review-prepare-2",
+        "provider": "copy-critique-ticket-review-prepare-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the prepare gate of the ticket's code review (/review-implementation) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-prepare-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-ticket-review-fan-out-2",
+        "executionSlotId": "slot-gate-critique-ticket-review-fan-out-2",
+        "provider": "gate-critique-ticket-review-fan-out-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique fan-out --strict` for the stage for the ticket's code review (/review-implementation) and answer with its exit status as one fenced json block and nothing else. The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family), and the work Claude agent covers the Spec and Standards axes alone; do not ask for the deep depth, whose critic is not a work agent.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-fan-out-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-ticket-review-fan-out-2",
+        "executionSlotId": "slot-copy-critique-ticket-review-fan-out-2",
+        "provider": "copy-critique-ticket-review-fan-out-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the fan-out gate of the ticket's code review (/review-implementation) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-fan-out-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "grant-check-ticket-review-verdicts-2",
+        "executionSlotId": "slot-grant-check-ticket-review-verdicts-2",
+        "provider": "grant-ticket-review-verdicts-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node ticket-review-verdicts-2 (--node ticket-review-verdicts-2) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-writer-s1-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "ticket-review-verdicts-2",
+        "executionSlotId": "slot-ticket-review-verdicts-2",
+        "provider": "codex",
+        "model": "gpt-5.5",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the orchestrator of the ticket's code review (/review-implementation). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
+        "output": {
+          "kind": "json",
+          "artifact": "ticket-review-open-findings-2",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "ticket-review-needs-human-2",
+        "executionSlotId": "slot-ticket-review-needs-human-2",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "Some finding of the ticket's code review (/review-implementation) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-ticket-review-refute-2",
+        "executionSlotId": "slot-gate-critique-ticket-review-refute-2",
+        "provider": "gate-critique-ticket-review-refute-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique refute --strict` for the stage for the ticket's code review (/review-implementation) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-refute-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-ticket-review-refute-2",
+        "executionSlotId": "slot-copy-critique-ticket-review-refute-2",
+        "provider": "copy-critique-ticket-review-refute-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the refute gate of the ticket's code review (/review-implementation) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-refute-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-ticket-review-record-2",
+        "executionSlotId": "slot-gate-critique-ticket-review-record-2",
+        "provider": "gate-critique-ticket-review-record-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique record --strict` for the stage for the ticket's code review (/review-implementation) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-record-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-ticket-review-record-2",
+        "executionSlotId": "slot-copy-critique-ticket-review-record-2",
+        "provider": "copy-critique-ticket-review-record-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the record gate of the ticket's code review (/review-implementation) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-ticket-review-record-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "accept-ticket-review-2",
+        "executionSlotId": "slot-accept-ticket-review-2",
+        "provider": "accept-ticket-review-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned accept shim for round 2 of the ticket's code review (/review-implementation): it reads the round's record report in the run directory and answers open_blocking, the number of accepted findings of blocking severity still open, as one fenced json block and nothing else. The round is accepted when it is 0.",
+        "output": {
+          "kind": "json",
+          "artifact": "ticket-review-open-blocking-2",
+          "schema": {
+            "open_blocking": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.open_blocking",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "ticket-review-escalation",
+        "executionSlotId": "slot-ticket-review-escalation",
+        "provider": "claude-work",
+        "model": "opus",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the escalation judge for the ticket's code review (/review-implementation). Both critique rounds ended with accepted blocking findings still open, so nothing passes automatically. Read the two rounds' record reports and the artifact and state to the owner, in one short paragraph, which findings are still open, whether the author or the findings are at fault and what you recommend. Do not edit any file. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "ticket-review-escalation-judgment",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "ticket-review-escalation-check",
+        "executionSlotId": "slot-ticket-review-escalation-check",
+        "provider": "claude-work",
+        "model": "sonnet",
+        "profile": "pf-builtin-dev",
+        "goal": "the ticket's code review (/review-implementation) could not be accepted in two rounds: read the escalation judge's paragraph and state it to the owner. Do not write any file; the manual check after your answer is where the owner decides, and the run ends here whatever the owner decides: no later stage runs on this artifact automatically.",
+        "manual_check": true
       },
       {
         "type": "worker",
@@ -252,136 +1582,6 @@
         "success_condition": {
           "path": "$.exit_code",
           "equals": 0
-        }
-      },
-      {
-        "type": "worker",
-        "id": "critics-1",
-        "executionSlotId": "slot-critics-1",
-        "provider": "claude-work",
-        "model": "sonnet",
-        "profile": "pf-diff-reviewer",
-        "goal": "You are the critic, on the work Claude agent and a different family from the Codex writer. Read the ticket's requirement document and the writer's change (git diff against the base branch) and write your whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the diff or the ticket, and a no_findings_reason when the array is empty), to findings/critics-1.json in your own worktree, committed. Change no other file. Answer with one fenced json block holding ok and nothing else.",
-        "output": {
-          "kind": "json",
-          "artifact": "critics-1-findings",
-          "schema": {
-            "ok": true
-          }
-        },
-        "success_condition": {
-          "path": "$.ok",
-          "equals": true
-        }
-      },
-      {
-        "type": "worker",
-        "id": "gate-findings-1",
-        "executionSlotId": "slot-gate-findings-1",
-        "provider": "gate-findings-1",
-        "model": "stub-model",
-        "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-gate wrapper for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with its exit status as one fenced json block and nothing else.",
-        "output": {
-          "kind": "json",
-          "artifact": "gate-findings-1-status",
-          "schema": {
-            "exit_code": 0
-          }
-        },
-        "success_condition": {
-          "path": "$.exit_code",
-          "equals": 0
-        }
-      },
-      {
-        "type": "worker",
-        "id": "copy-findings-1",
-        "executionSlotId": "slot-copy-findings-1",
-        "provider": "copy-findings-1",
-        "model": "stub-model",
-        "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-gate verify copier for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with the report it prints as one fenced json block and nothing else.",
-        "output": {
-          "kind": "json",
-          "artifact": "gate-findings-1-report",
-          "schema": {
-            "run_id": "string",
-            "attempt": 1,
-            "command": "string",
-            "exit_code": 0,
-            "output_hash": "string",
-            "timestamp": "string"
-          }
-        },
-        "success_condition": {
-          "path": "$.exit_code",
-          "equals": 0
-        }
-      },
-      {
-        "type": "worker",
-        "id": "verdict-1",
-        "executionSlotId": "slot-verdict-1",
-        "provider": "verdict-1",
-        "model": "stub-model",
-        "profile": "pf-builtin-dev",
-        "goal": "Read findings-check.json, the report the finding check wrote into the gate report directory, and answer with its actionable count as one fenced json block and nothing else. A hint is never actionable.",
-        "output": {
-          "kind": "json",
-          "artifact": "verdict-1-actionable",
-          "schema": {
-            "actionable": 0
-          }
-        },
-        "success_condition": {
-          "path": "$.actionable",
-          "equals": 0
-        }
-      },
-      {
-        "type": "worker",
-        "id": "grant-check-repair-1",
-        "executionSlotId": "slot-grant-check-repair-1",
-        "provider": "grant-repair-1",
-        "model": "stub-model",
-        "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node repair-1 (--node repair-1) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
-        "output": {
-          "kind": "json",
-          "artifact": "grant-check-repair-1-report",
-          "schema": {
-            "run_id": "string",
-            "attempt": 1,
-            "command": "string",
-            "exit_code": 0,
-            "output_hash": "string",
-            "timestamp": "string"
-          }
-        },
-        "success_condition": {
-          "path": "$.exit_code",
-          "equals": 0
-        }
-      },
-      {
-        "type": "worker",
-        "id": "repair-1",
-        "executionSlotId": "slot-repair-1",
-        "provider": "codex",
-        "model": "gpt-5.5",
-        "profile": "pf-builtin-dev",
-        "goal": "You are the writer, back for repair 1 of 2. Read findings-check.json: fix only the findings under kept, which each name a quote that exists in the diff or the ticket, and never act on a hint. Change non-test files only, never edit or delete a test, and add nothing the findings do not ask for. Answer with one fenced json block holding ok and nothing else.",
-        "output": {
-          "kind": "json",
-          "artifact": "repair-1-implementation",
-          "schema": {
-            "ok": true
-          }
-        },
-        "success_condition": {
-          "path": "$.ok",
-          "equals": true
         }
       },
       {
@@ -566,136 +1766,6 @@
       },
       {
         "type": "worker",
-        "id": "critics-2",
-        "executionSlotId": "slot-critics-2",
-        "provider": "claude-work",
-        "model": "sonnet",
-        "profile": "pf-diff-reviewer",
-        "goal": "You are the critic, on the work Claude agent and a different family from the Codex writer. Read the ticket's requirement document and the writer's change (git diff against the base branch) and write your whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the diff or the ticket, and a no_findings_reason when the array is empty), to findings/critics-2.json in your own worktree, committed. Change no other file. Answer with one fenced json block holding ok and nothing else.",
-        "output": {
-          "kind": "json",
-          "artifact": "critics-2-findings",
-          "schema": {
-            "ok": true
-          }
-        },
-        "success_condition": {
-          "path": "$.ok",
-          "equals": true
-        }
-      },
-      {
-        "type": "worker",
-        "id": "gate-findings-2",
-        "executionSlotId": "slot-gate-findings-2",
-        "provider": "gate-findings-2",
-        "model": "stub-model",
-        "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-gate wrapper for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with its exit status as one fenced json block and nothing else.",
-        "output": {
-          "kind": "json",
-          "artifact": "gate-findings-2-status",
-          "schema": {
-            "exit_code": 0
-          }
-        },
-        "success_condition": {
-          "path": "$.exit_code",
-          "equals": 0
-        }
-      },
-      {
-        "type": "worker",
-        "id": "copy-findings-2",
-        "executionSlotId": "slot-copy-findings-2",
-        "provider": "copy-findings-2",
-        "model": "stub-model",
-        "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-gate verify copier for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with the report it prints as one fenced json block and nothing else.",
-        "output": {
-          "kind": "json",
-          "artifact": "gate-findings-2-report",
-          "schema": {
-            "run_id": "string",
-            "attempt": 1,
-            "command": "string",
-            "exit_code": 0,
-            "output_hash": "string",
-            "timestamp": "string"
-          }
-        },
-        "success_condition": {
-          "path": "$.exit_code",
-          "equals": 0
-        }
-      },
-      {
-        "type": "worker",
-        "id": "verdict-2",
-        "executionSlotId": "slot-verdict-2",
-        "provider": "verdict-2",
-        "model": "stub-model",
-        "profile": "pf-builtin-dev",
-        "goal": "Read findings-check.json, the report the finding check wrote into the gate report directory, and answer with its actionable count as one fenced json block and nothing else. A hint is never actionable.",
-        "output": {
-          "kind": "json",
-          "artifact": "verdict-2-actionable",
-          "schema": {
-            "actionable": 0
-          }
-        },
-        "success_condition": {
-          "path": "$.actionable",
-          "equals": 0
-        }
-      },
-      {
-        "type": "worker",
-        "id": "grant-check-repair-2",
-        "executionSlotId": "slot-grant-check-repair-2",
-        "provider": "grant-repair-2",
-        "model": "stub-model",
-        "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node repair-2 (--node repair-2) and answer with the report it wrote as one fenced json block and nothing else. The wrapper reserves one Codex node start against this run's grant and refuses when there is none.",
-        "output": {
-          "kind": "json",
-          "artifact": "grant-check-repair-2-report",
-          "schema": {
-            "run_id": "string",
-            "attempt": 1,
-            "command": "string",
-            "exit_code": 0,
-            "output_hash": "string",
-            "timestamp": "string"
-          }
-        },
-        "success_condition": {
-          "path": "$.exit_code",
-          "equals": 0
-        }
-      },
-      {
-        "type": "worker",
-        "id": "repair-2",
-        "executionSlotId": "slot-repair-2",
-        "provider": "codex",
-        "model": "gpt-5.5",
-        "profile": "pf-builtin-dev",
-        "goal": "You are the writer, back for repair 2 of 2. Read findings-check.json: fix only the findings under kept, which each name a quote that exists in the diff or the ticket, and never act on a hint. Change non-test files only, never edit or delete a test, and add nothing the findings do not ask for. Answer with one fenced json block holding ok and nothing else.",
-        "output": {
-          "kind": "json",
-          "artifact": "repair-2-implementation",
-          "schema": {
-            "ok": true
-          }
-        },
-        "success_condition": {
-          "path": "$.ok",
-          "equals": true
-        }
-      },
-      {
-        "type": "worker",
         "id": "gate-build-r2",
         "executionSlotId": "slot-gate-build-r2",
         "provider": "gate-build-r2",
@@ -876,35 +1946,15 @@
       },
       {
         "type": "worker",
-        "id": "critics-3",
-        "executionSlotId": "slot-critics-3",
-        "provider": "claude-work",
-        "model": "sonnet",
-        "profile": "pf-diff-reviewer",
-        "goal": "You are the critic, on the work Claude agent and a different family from the Codex writer. Read the ticket's requirement document and the writer's change (git diff against the base branch) and write your whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the diff or the ticket, and a no_findings_reason when the array is empty), to findings/critics-3.json in your own worktree, committed. Change no other file. Answer with one fenced json block holding ok and nothing else.",
-        "output": {
-          "kind": "json",
-          "artifact": "critics-3-findings",
-          "schema": {
-            "ok": true
-          }
-        },
-        "success_condition": {
-          "path": "$.ok",
-          "equals": true
-        }
-      },
-      {
-        "type": "worker",
-        "id": "gate-findings-3",
-        "executionSlotId": "slot-gate-findings-3",
-        "provider": "gate-findings-3",
+        "id": "gate-build-r3",
+        "executionSlotId": "slot-gate-build-r3",
+        "provider": "gate-build-r3",
         "model": "stub-model",
         "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-gate wrapper for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with its exit status as one fenced json block and nothing else.",
+        "goal": "Run the pinned gold-band-gate wrapper for the build after the code review and answer with its exit status as one fenced json block and nothing else.",
         "output": {
           "kind": "json",
-          "artifact": "gate-findings-3-status",
+          "artifact": "gate-build-r3-status",
           "schema": {
             "exit_code": 0
           }
@@ -916,15 +1966,15 @@
       },
       {
         "type": "worker",
-        "id": "copy-findings-3",
-        "executionSlotId": "slot-copy-findings-3",
-        "provider": "copy-findings-3",
+        "id": "copy-build-r3",
+        "executionSlotId": "slot-copy-build-r3",
+        "provider": "copy-build-r3",
         "model": "stub-model",
         "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-gate verify copier for the finding check, which runs gold-band-findings check over the critics' findings files, the diff and the ticket and answer with the report it prints as one fenced json block and nothing else.",
+        "goal": "Run the pinned gold-band-gate verify copier for the build after the code review and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
           "kind": "json",
-          "artifact": "gate-findings-3-report",
+          "artifact": "gate-build-r3-report",
           "schema": {
             "run_id": "string",
             "attempt": 1,
@@ -941,53 +1991,138 @@
       },
       {
         "type": "worker",
-        "id": "verdict-3",
-        "executionSlotId": "slot-verdict-3",
-        "provider": "verdict-3",
+        "id": "gate-test-r3",
+        "executionSlotId": "slot-gate-test-r3",
+        "provider": "gate-test-r3",
         "model": "stub-model",
         "profile": "pf-builtin-dev",
-        "goal": "Read findings-check.json, the report the finding check wrote into the gate report directory, and answer with its actionable count as one fenced json block and nothing else. A hint is never actionable.",
+        "goal": "Run the pinned gold-band-gate wrapper for the tests after the code review and answer with its exit status as one fenced json block and nothing else.",
         "output": {
           "kind": "json",
-          "artifact": "verdict-3-actionable",
+          "artifact": "gate-test-r3-status",
           "schema": {
-            "actionable": 0
+            "exit_code": 0
           }
         },
         "success_condition": {
-          "path": "$.actionable",
+          "path": "$.exit_code",
           "equals": 0
         }
       },
       {
         "type": "worker",
-        "id": "workflow-b-escalation",
-        "executionSlotId": "slot-workflow-b-escalation",
-        "provider": "claude-work",
-        "model": "opus",
+        "id": "copy-test-r3",
+        "executionSlotId": "slot-copy-test-r3",
+        "provider": "copy-test-r3",
+        "model": "stub-model",
         "profile": "pf-builtin-dev",
-        "goal": "You are the escalation judge: the writer's two repairs did not clear the critics' actionable findings. Read findings-check.json of the last round and the requirement, judge whether the findings are right, whether the ticket is wrong or too large, and what the owner should decide, and state it in plain words in your answer. Change no file. Answer with one fenced json block holding ok and nothing else.",
+        "goal": "Run the pinned gold-band-gate verify copier for the tests after the code review and answer with the report it prints as one fenced json block and nothing else.",
         "output": {
           "kind": "json",
-          "artifact": "escalation-judgment",
+          "artifact": "gate-test-r3-report",
           "schema": {
-            "ok": true
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
           }
         },
         "success_condition": {
-          "path": "$.ok",
-          "equals": true
+          "path": "$.exit_code",
+          "equals": 0
         }
       },
       {
         "type": "worker",
-        "id": "escalation-check",
-        "executionSlotId": "slot-escalation-check",
-        "provider": "claude-work",
-        "model": "sonnet",
+        "id": "gate-lint-r3",
+        "executionSlotId": "slot-gate-lint-r3",
+        "provider": "gate-lint-r3",
+        "model": "stub-model",
         "profile": "pf-builtin-dev",
-        "goal": "The owner reads the escalation judgment and the last findings and rules on the ticket.",
-        "manual_check": true
+        "goal": "Run the pinned gold-band-gate wrapper for the linter after the code review and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-lint-r3-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-lint-r3",
+        "executionSlotId": "slot-copy-lint-r3",
+        "provider": "copy-lint-r3",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the linter after the code review and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-lint-r3-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-coverage-r3",
+        "executionSlotId": "slot-gate-coverage-r3",
+        "provider": "gate-coverage-r3",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper for the coverage gate after the code review and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-coverage-r3-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-coverage-r3",
+        "executionSlotId": "slot-copy-coverage-r3",
+        "provider": "copy-coverage-r3",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the coverage gate after the code review and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-coverage-r3-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
       },
       {
         "type": "worker",
@@ -1002,67 +2137,27 @@
     ],
     "edges": [
       {
-        "from": "test-author",
-        "to": "grant-check-writer",
+        "from": "slice-plan",
+        "to": "test-author-s1",
         "on": "success"
       },
       {
-        "from": "grant-check-writer",
-        "to": "writer",
+        "from": "test-author-s1",
+        "to": "grant-check-test-critic-1",
         "on": "success"
       },
       {
-        "from": "grant-check-writer",
+        "from": "grant-check-test-critic-1",
+        "to": "test-critic-1",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-test-critic-1",
         "to": "grant-refused",
         "on": "failure"
       },
       {
-        "from": "writer",
-        "to": "gate-build",
-        "on": "success"
-      },
-      {
-        "from": "gate-build",
-        "to": "copy-build",
-        "on": "success"
-      },
-      {
-        "from": "copy-build",
-        "to": "gate-test",
-        "on": "success"
-      },
-      {
-        "from": "gate-test",
-        "to": "copy-test",
-        "on": "success"
-      },
-      {
-        "from": "copy-test",
-        "to": "gate-lint",
-        "on": "success"
-      },
-      {
-        "from": "gate-lint",
-        "to": "copy-lint",
-        "on": "success"
-      },
-      {
-        "from": "copy-lint",
-        "to": "gate-coverage",
-        "on": "success"
-      },
-      {
-        "from": "gate-coverage",
-        "to": "copy-coverage",
-        "on": "success"
-      },
-      {
-        "from": "copy-coverage",
-        "to": "critics-1",
-        "on": "success"
-      },
-      {
-        "from": "critics-1",
+        "from": "test-critic-1",
         "to": "gate-findings-1",
         "on": "success"
       },
@@ -1078,66 +2173,51 @@
       },
       {
         "from": "verdict-1",
-        "to": "grant-check-repair-1",
-        "on": "failure"
-      },
-      {
-        "from": "grant-check-repair-1",
-        "to": "repair-1",
+        "to": "grant-check-writer-s1",
         "on": "success"
       },
       {
-        "from": "grant-check-repair-1",
+        "from": "grant-check-writer-s1",
+        "to": "writer-s1",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-writer-s1",
         "to": "grant-refused",
         "on": "failure"
       },
       {
-        "from": "repair-1",
-        "to": "gate-build-r1",
+        "from": "verdict-1",
+        "to": "test-revise-1",
+        "on": "failure"
+      },
+      {
+        "from": "test-revise-1",
+        "to": "grant-check-writer-s1",
         "on": "success"
       },
       {
-        "from": "gate-build-r1",
-        "to": "copy-build-r1",
+        "from": "writer-s1",
+        "to": "test-author-s2",
         "on": "success"
       },
       {
-        "from": "copy-build-r1",
-        "to": "gate-test-r1",
+        "from": "test-author-s2",
+        "to": "grant-check-test-critic-2",
         "on": "success"
       },
       {
-        "from": "gate-test-r1",
-        "to": "copy-test-r1",
+        "from": "grant-check-test-critic-2",
+        "to": "test-critic-2",
         "on": "success"
       },
       {
-        "from": "copy-test-r1",
-        "to": "gate-lint-r1",
-        "on": "success"
+        "from": "grant-check-test-critic-2",
+        "to": "grant-refused",
+        "on": "failure"
       },
       {
-        "from": "gate-lint-r1",
-        "to": "copy-lint-r1",
-        "on": "success"
-      },
-      {
-        "from": "copy-lint-r1",
-        "to": "gate-coverage-r1",
-        "on": "success"
-      },
-      {
-        "from": "gate-coverage-r1",
-        "to": "copy-coverage-r1",
-        "on": "success"
-      },
-      {
-        "from": "copy-coverage-r1",
-        "to": "critics-2",
-        "on": "success"
-      },
-      {
-        "from": "critics-2",
+        "from": "test-critic-2",
         "to": "gate-findings-2",
         "on": "success"
       },
@@ -1152,72 +2232,52 @@
         "on": "success"
       },
       {
-        "from": "verdict-1",
-        "to": "$end",
-        "on": "success"
-      },
-      {
         "from": "verdict-2",
-        "to": "grant-check-repair-2",
-        "on": "failure"
-      },
-      {
-        "from": "grant-check-repair-2",
-        "to": "repair-2",
+        "to": "grant-check-writer-s2",
         "on": "success"
       },
       {
-        "from": "grant-check-repair-2",
+        "from": "grant-check-writer-s2",
+        "to": "writer-s2",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-writer-s2",
         "to": "grant-refused",
         "on": "failure"
       },
       {
-        "from": "repair-2",
-        "to": "gate-build-r2",
+        "from": "verdict-2",
+        "to": "test-revise-2",
+        "on": "failure"
+      },
+      {
+        "from": "test-revise-2",
+        "to": "grant-check-writer-s2",
         "on": "success"
       },
       {
-        "from": "gate-build-r2",
-        "to": "copy-build-r2",
+        "from": "writer-s2",
+        "to": "test-author-s3",
         "on": "success"
       },
       {
-        "from": "copy-build-r2",
-        "to": "gate-test-r2",
+        "from": "test-author-s3",
+        "to": "grant-check-test-critic-3",
         "on": "success"
       },
       {
-        "from": "gate-test-r2",
-        "to": "copy-test-r2",
+        "from": "grant-check-test-critic-3",
+        "to": "test-critic-3",
         "on": "success"
       },
       {
-        "from": "copy-test-r2",
-        "to": "gate-lint-r2",
-        "on": "success"
+        "from": "grant-check-test-critic-3",
+        "to": "grant-refused",
+        "on": "failure"
       },
       {
-        "from": "gate-lint-r2",
-        "to": "copy-lint-r2",
-        "on": "success"
-      },
-      {
-        "from": "copy-lint-r2",
-        "to": "gate-coverage-r2",
-        "on": "success"
-      },
-      {
-        "from": "gate-coverage-r2",
-        "to": "copy-coverage-r2",
-        "on": "success"
-      },
-      {
-        "from": "copy-coverage-r2",
-        "to": "critics-3",
-        "on": "success"
-      },
-      {
-        "from": "critics-3",
+        "from": "test-critic-3",
         "to": "gate-findings-3",
         "on": "success"
       },
@@ -1232,32 +2292,332 @@
         "on": "success"
       },
       {
-        "from": "verdict-2",
+        "from": "verdict-3",
+        "to": "grant-check-writer-s3",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-writer-s3",
+        "to": "writer-s3",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-writer-s3",
+        "to": "grant-refused",
+        "on": "failure"
+      },
+      {
+        "from": "verdict-3",
+        "to": "test-revise-3",
+        "on": "failure"
+      },
+      {
+        "from": "test-revise-3",
+        "to": "grant-check-writer-s3",
+        "on": "success"
+      },
+      {
+        "from": "gate-build",
+        "to": "copy-build",
+        "on": "success"
+      },
+      {
+        "from": "gate-build",
+        "to": "grant-check-repair-1",
+        "on": "failure"
+      },
+      {
+        "from": "grant-check-repair-1",
+        "to": "repair-1",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-repair-1",
+        "to": "grant-refused",
+        "on": "failure"
+      },
+      {
+        "from": "copy-build",
+        "to": "gate-test",
+        "on": "success"
+      },
+      {
+        "from": "gate-test",
+        "to": "copy-test",
+        "on": "success"
+      },
+      {
+        "from": "gate-test",
+        "to": "grant-check-repair-1",
+        "on": "failure"
+      },
+      {
+        "from": "copy-test",
+        "to": "gate-lint",
+        "on": "success"
+      },
+      {
+        "from": "gate-lint",
+        "to": "copy-lint",
+        "on": "success"
+      },
+      {
+        "from": "gate-lint",
+        "to": "grant-check-repair-1",
+        "on": "failure"
+      },
+      {
+        "from": "copy-lint",
+        "to": "gate-coverage",
+        "on": "success"
+      },
+      {
+        "from": "gate-coverage",
+        "to": "copy-coverage",
+        "on": "success"
+      },
+      {
+        "from": "gate-coverage",
+        "to": "grant-check-repair-1",
+        "on": "failure"
+      },
+      {
+        "from": "copy-coverage",
+        "to": "grant-check-self-review",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-self-review",
+        "to": "self-review",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-self-review",
+        "to": "grant-refused",
+        "on": "failure"
+      },
+      {
+        "from": "gate-build-r1",
+        "to": "copy-build-r1",
+        "on": "success"
+      },
+      {
+        "from": "gate-build-r1",
+        "to": "grant-check-repair-2",
+        "on": "failure"
+      },
+      {
+        "from": "grant-check-repair-2",
+        "to": "repair-2",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-repair-2",
+        "to": "grant-refused",
+        "on": "failure"
+      },
+      {
+        "from": "copy-build-r1",
+        "to": "gate-test-r1",
+        "on": "success"
+      },
+      {
+        "from": "gate-test-r1",
+        "to": "copy-test-r1",
+        "on": "success"
+      },
+      {
+        "from": "gate-test-r1",
+        "to": "grant-check-repair-2",
+        "on": "failure"
+      },
+      {
+        "from": "copy-test-r1",
+        "to": "gate-lint-r1",
+        "on": "success"
+      },
+      {
+        "from": "gate-lint-r1",
+        "to": "copy-lint-r1",
+        "on": "success"
+      },
+      {
+        "from": "gate-lint-r1",
+        "to": "grant-check-repair-2",
+        "on": "failure"
+      },
+      {
+        "from": "copy-lint-r1",
+        "to": "gate-coverage-r1",
+        "on": "success"
+      },
+      {
+        "from": "gate-coverage-r1",
+        "to": "copy-coverage-r1",
+        "on": "success"
+      },
+      {
+        "from": "gate-coverage-r1",
+        "to": "grant-check-repair-2",
+        "on": "failure"
+      },
+      {
+        "from": "copy-coverage-r1",
+        "to": "grant-check-self-review",
+        "on": "success"
+      },
+      {
+        "from": "gate-build-r2",
+        "to": "copy-build-r2",
+        "on": "success"
+      },
+      {
+        "from": "gate-build-r2",
+        "to": "gates-escalation",
+        "on": "failure"
+      },
+      {
+        "from": "copy-build-r2",
+        "to": "gate-test-r2",
+        "on": "success"
+      },
+      {
+        "from": "gate-test-r2",
+        "to": "copy-test-r2",
+        "on": "success"
+      },
+      {
+        "from": "gate-test-r2",
+        "to": "gates-escalation",
+        "on": "failure"
+      },
+      {
+        "from": "copy-test-r2",
+        "to": "gate-lint-r2",
+        "on": "success"
+      },
+      {
+        "from": "gate-lint-r2",
+        "to": "copy-lint-r2",
+        "on": "success"
+      },
+      {
+        "from": "gate-lint-r2",
+        "to": "gates-escalation",
+        "on": "failure"
+      },
+      {
+        "from": "copy-lint-r2",
+        "to": "gate-coverage-r2",
+        "on": "success"
+      },
+      {
+        "from": "gate-coverage-r2",
+        "to": "copy-coverage-r2",
+        "on": "success"
+      },
+      {
+        "from": "gate-coverage-r2",
+        "to": "gates-escalation",
+        "on": "failure"
+      },
+      {
+        "from": "copy-coverage-r2",
+        "to": "grant-check-self-review",
+        "on": "success"
+      },
+      {
+        "from": "writer-s3",
+        "to": "gate-build",
+        "on": "success"
+      },
+      {
+        "from": "repair-1",
+        "to": "gate-build-r1",
+        "on": "success"
+      },
+      {
+        "from": "repair-2",
+        "to": "gate-build-r2",
+        "on": "success"
+      },
+      {
+        "from": "gates-escalation",
+        "to": "gates-check",
+        "on": "success"
+      },
+      {
+        "from": "gates-escalation",
+        "to": "gates-check",
+        "on": "failure"
+      },
+      {
+        "from": "gates-check",
+        "to": "grant-check-self-review",
+        "on": "success"
+      },
+      {
+        "from": "gate-build-r3",
+        "to": "copy-build-r3",
+        "on": "success"
+      },
+      {
+        "from": "gate-build-r3",
+        "to": "final-check",
+        "on": "failure"
+      },
+      {
+        "from": "copy-build-r3",
+        "to": "gate-test-r3",
+        "on": "success"
+      },
+      {
+        "from": "gate-test-r3",
+        "to": "copy-test-r3",
+        "on": "success"
+      },
+      {
+        "from": "gate-test-r3",
+        "to": "final-check",
+        "on": "failure"
+      },
+      {
+        "from": "copy-test-r3",
+        "to": "gate-lint-r3",
+        "on": "success"
+      },
+      {
+        "from": "gate-lint-r3",
+        "to": "copy-lint-r3",
+        "on": "success"
+      },
+      {
+        "from": "gate-lint-r3",
+        "to": "final-check",
+        "on": "failure"
+      },
+      {
+        "from": "copy-lint-r3",
+        "to": "gate-coverage-r3",
+        "on": "success"
+      },
+      {
+        "from": "gate-coverage-r3",
+        "to": "copy-coverage-r3",
+        "on": "success"
+      },
+      {
+        "from": "gate-coverage-r3",
+        "to": "final-check",
+        "on": "failure"
+      },
+      {
+        "from": "copy-coverage-r3",
         "to": "$end",
         "on": "success"
       },
       {
-        "from": "verdict-3",
-        "to": "$end",
-        "on": "success"
-      },
-      {
-        "from": "verdict-3",
-        "to": "workflow-b-escalation",
-        "on": "failure"
-      },
-      {
-        "from": "workflow-b-escalation",
-        "to": "escalation-check",
-        "on": "success"
-      },
-      {
-        "from": "workflow-b-escalation",
-        "to": "escalation-check",
-        "on": "failure"
-      },
-      {
-        "from": "escalation-check",
+        "from": "final-check",
         "to": "$end",
         "on": "success"
       },
@@ -1265,20 +2625,515 @@
         "from": "grant-refused",
         "to": "$end",
         "on": "success"
+      },
+      {
+        "from": "gate-critique-ticket-review-prepare",
+        "to": "copy-critique-ticket-review-prepare",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-ticket-review-prepare",
+        "to": "gate-critique-ticket-review-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-ticket-review-fan-out",
+        "to": "copy-critique-ticket-review-fan-out",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-ticket-review-fan-out",
+        "to": "grant-check-ticket-review-verdicts",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-ticket-review-verdicts",
+        "to": "ticket-review-verdicts",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-ticket-review-verdicts",
+        "to": "grant-refused",
+        "on": "failure"
+      },
+      {
+        "from": "ticket-review-verdicts",
+        "to": "gate-critique-ticket-review-refute",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-ticket-review-refute",
+        "to": "copy-critique-ticket-review-refute",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-ticket-review-refute",
+        "to": "gate-critique-ticket-review-record",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-ticket-review-record",
+        "to": "copy-critique-ticket-review-record",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-ticket-review-record",
+        "to": "accept-ticket-review-1",
+        "on": "success"
+      },
+      {
+        "from": "ticket-review-verdicts",
+        "to": "ticket-review-needs-human",
+        "on": "failure"
+      },
+      {
+        "from": "ticket-review-needs-human",
+        "to": "gate-critique-ticket-review-refute",
+        "on": "success"
+      },
+      {
+        "from": "accept-ticket-review-1",
+        "to": "gate-build-r3",
+        "on": "success"
+      },
+      {
+        "from": "accept-ticket-review-1",
+        "to": "grant-check-ticket-review-revise-1",
+        "on": "failure"
+      },
+      {
+        "from": "grant-check-ticket-review-revise-1",
+        "to": "ticket-review-revise-1",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-ticket-review-revise-1",
+        "to": "grant-refused",
+        "on": "failure"
+      },
+      {
+        "from": "gate-critique-ticket-review-prepare-2",
+        "to": "copy-critique-ticket-review-prepare-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-ticket-review-prepare-2",
+        "to": "gate-critique-ticket-review-fan-out-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-ticket-review-fan-out-2",
+        "to": "copy-critique-ticket-review-fan-out-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-ticket-review-fan-out-2",
+        "to": "grant-check-ticket-review-verdicts-2",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-ticket-review-verdicts-2",
+        "to": "ticket-review-verdicts-2",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-ticket-review-verdicts-2",
+        "to": "grant-refused",
+        "on": "failure"
+      },
+      {
+        "from": "ticket-review-verdicts-2",
+        "to": "gate-critique-ticket-review-refute-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-ticket-review-refute-2",
+        "to": "copy-critique-ticket-review-refute-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-ticket-review-refute-2",
+        "to": "gate-critique-ticket-review-record-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-ticket-review-record-2",
+        "to": "copy-critique-ticket-review-record-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-ticket-review-record-2",
+        "to": "accept-ticket-review-2",
+        "on": "success"
+      },
+      {
+        "from": "ticket-review-verdicts-2",
+        "to": "ticket-review-needs-human-2",
+        "on": "failure"
+      },
+      {
+        "from": "ticket-review-needs-human-2",
+        "to": "gate-critique-ticket-review-refute-2",
+        "on": "success"
+      },
+      {
+        "from": "accept-ticket-review-2",
+        "to": "gate-build-r3",
+        "on": "success"
+      },
+      {
+        "from": "ticket-review-revise-1",
+        "to": "gate-critique-ticket-review-prepare-2",
+        "on": "success"
+      },
+      {
+        "from": "accept-ticket-review-2",
+        "to": "ticket-review-escalation",
+        "on": "failure"
+      },
+      {
+        "from": "ticket-review-escalation",
+        "to": "ticket-review-escalation-check",
+        "on": "success"
+      },
+      {
+        "from": "ticket-review-escalation-check",
+        "to": "$end",
+        "on": "success"
+      },
+      {
+        "from": "self-review",
+        "to": "gate-critique-ticket-review-prepare",
+        "on": "success"
       }
     ]
   },
   "modelBindings": {
     "bindings": [
       {
-        "executionSlotId": "slot-test-author",
+        "executionSlotId": "slot-slice-plan",
         "agentId": "claude-work",
         "modelId": "sonnet"
       },
       {
-        "executionSlotId": "slot-writer",
+        "executionSlotId": "slot-test-author-s1",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grant-check-test-critic-1",
+        "agentId": "grant-test-critic-1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-test-critic-1",
         "agentId": "codex",
         "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-gate-findings-1",
+        "agentId": "gate-findings-1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-findings-1",
+        "agentId": "copy-findings-1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-verdict-1",
+        "agentId": "verdict-1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-test-revise-1",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grant-check-writer-s1",
+        "agentId": "grant-writer-s1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-writer-s1",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-test-author-s2",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grant-check-test-critic-2",
+        "agentId": "grant-test-critic-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-test-critic-2",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-gate-findings-2",
+        "agentId": "gate-findings-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-findings-2",
+        "agentId": "copy-findings-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-verdict-2",
+        "agentId": "verdict-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-test-revise-2",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grant-check-writer-s2",
+        "agentId": "grant-writer-s2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-writer-s2",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-test-author-s3",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grant-check-test-critic-3",
+        "agentId": "grant-test-critic-3",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-test-critic-3",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-gate-findings-3",
+        "agentId": "gate-findings-3",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-findings-3",
+        "agentId": "copy-findings-3",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-verdict-3",
+        "agentId": "verdict-3",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-test-revise-3",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grant-check-writer-s3",
+        "agentId": "grant-writer-s3",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-writer-s3",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-grant-check-repair-1",
+        "agentId": "grant-repair-1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-repair-1",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-grant-check-repair-2",
+        "agentId": "grant-repair-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-repair-2",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-gates-escalation",
+        "agentId": "claude-work",
+        "modelId": "opus"
+      },
+      {
+        "executionSlotId": "slot-gates-check",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-final-check",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-grant-check-self-review",
+        "agentId": "grant-self-review",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-self-review",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-ticket-review-prepare",
+        "agentId": "gate-critique-ticket-review-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-ticket-review-prepare",
+        "agentId": "copy-critique-ticket-review-prepare",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-ticket-review-fan-out",
+        "agentId": "gate-critique-ticket-review-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-ticket-review-fan-out",
+        "agentId": "copy-critique-ticket-review-fan-out",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grant-check-ticket-review-verdicts",
+        "agentId": "grant-ticket-review-verdicts",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-ticket-review-verdicts",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-ticket-review-needs-human",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-ticket-review-refute",
+        "agentId": "gate-critique-ticket-review-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-ticket-review-refute",
+        "agentId": "copy-critique-ticket-review-refute",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-ticket-review-record",
+        "agentId": "gate-critique-ticket-review-record",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-ticket-review-record",
+        "agentId": "copy-critique-ticket-review-record",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-accept-ticket-review-1",
+        "agentId": "accept-ticket-review-1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grant-check-ticket-review-revise-1",
+        "agentId": "grant-ticket-review-revise-1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-ticket-review-revise-1",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-ticket-review-prepare-2",
+        "agentId": "gate-critique-ticket-review-prepare-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-ticket-review-prepare-2",
+        "agentId": "copy-critique-ticket-review-prepare-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-ticket-review-fan-out-2",
+        "agentId": "gate-critique-ticket-review-fan-out-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-ticket-review-fan-out-2",
+        "agentId": "copy-critique-ticket-review-fan-out-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-grant-check-ticket-review-verdicts-2",
+        "agentId": "grant-ticket-review-verdicts-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-ticket-review-verdicts-2",
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
+      },
+      {
+        "executionSlotId": "slot-ticket-review-needs-human-2",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-ticket-review-refute-2",
+        "agentId": "gate-critique-ticket-review-refute-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-ticket-review-refute-2",
+        "agentId": "copy-critique-ticket-review-refute-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-ticket-review-record-2",
+        "agentId": "gate-critique-ticket-review-record-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-ticket-review-record-2",
+        "agentId": "copy-critique-ticket-review-record-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-accept-ticket-review-2",
+        "agentId": "accept-ticket-review-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-ticket-review-escalation",
+        "agentId": "claude-work",
+        "modelId": "opus"
+      },
+      {
+        "executionSlotId": "slot-ticket-review-escalation-check",
+        "agentId": "claude-work",
+        "modelId": "sonnet"
       },
       {
         "executionSlotId": "slot-gate-build",
@@ -1321,26 +3176,6 @@
         "modelId": "stub-model"
       },
       {
-        "executionSlotId": "slot-gate-findings-1",
-        "agentId": "gate-findings-1",
-        "modelId": "stub-model"
-      },
-      {
-        "executionSlotId": "slot-copy-findings-1",
-        "agentId": "copy-findings-1",
-        "modelId": "stub-model"
-      },
-      {
-        "executionSlotId": "slot-verdict-1",
-        "agentId": "verdict-1",
-        "modelId": "stub-model"
-      },
-      {
-        "executionSlotId": "slot-repair-1",
-        "agentId": "codex",
-        "modelId": "gpt-5.5"
-      },
-      {
         "executionSlotId": "slot-gate-build-r1",
         "agentId": "gate-build-r1",
         "modelId": "stub-model"
@@ -1379,26 +3214,6 @@
         "executionSlotId": "slot-copy-coverage-r1",
         "agentId": "copy-coverage-r1",
         "modelId": "stub-model"
-      },
-      {
-        "executionSlotId": "slot-gate-findings-2",
-        "agentId": "gate-findings-2",
-        "modelId": "stub-model"
-      },
-      {
-        "executionSlotId": "slot-copy-findings-2",
-        "agentId": "copy-findings-2",
-        "modelId": "stub-model"
-      },
-      {
-        "executionSlotId": "slot-verdict-2",
-        "agentId": "verdict-2",
-        "modelId": "stub-model"
-      },
-      {
-        "executionSlotId": "slot-repair-2",
-        "agentId": "codex",
-        "modelId": "gpt-5.5"
       },
       {
         "executionSlotId": "slot-gate-build-r2",
@@ -1441,58 +3256,43 @@
         "modelId": "stub-model"
       },
       {
-        "executionSlotId": "slot-gate-findings-3",
-        "agentId": "gate-findings-3",
+        "executionSlotId": "slot-gate-build-r3",
+        "agentId": "gate-build-r3",
         "modelId": "stub-model"
       },
       {
-        "executionSlotId": "slot-copy-findings-3",
-        "agentId": "copy-findings-3",
+        "executionSlotId": "slot-copy-build-r3",
+        "agentId": "copy-build-r3",
         "modelId": "stub-model"
       },
       {
-        "executionSlotId": "slot-verdict-3",
-        "agentId": "verdict-3",
+        "executionSlotId": "slot-gate-test-r3",
+        "agentId": "gate-test-r3",
         "modelId": "stub-model"
       },
       {
-        "executionSlotId": "slot-workflow-b-escalation",
-        "agentId": "claude-work",
-        "modelId": "opus"
-      },
-      {
-        "executionSlotId": "slot-escalation-check",
-        "agentId": "claude-work",
-        "modelId": "sonnet"
-      },
-      {
-        "executionSlotId": "slot-critics-1",
-        "agentId": "claude-work",
-        "modelId": "sonnet"
-      },
-      {
-        "executionSlotId": "slot-critics-2",
-        "agentId": "claude-work",
-        "modelId": "sonnet"
-      },
-      {
-        "executionSlotId": "slot-critics-3",
-        "agentId": "claude-work",
-        "modelId": "sonnet"
-      },
-      {
-        "executionSlotId": "slot-grant-check-writer",
-        "agentId": "grant-writer",
+        "executionSlotId": "slot-copy-test-r3",
+        "agentId": "copy-test-r3",
         "modelId": "stub-model"
       },
       {
-        "executionSlotId": "slot-grant-check-repair-1",
-        "agentId": "grant-repair-1",
+        "executionSlotId": "slot-gate-lint-r3",
+        "agentId": "gate-lint-r3",
         "modelId": "stub-model"
       },
       {
-        "executionSlotId": "slot-grant-check-repair-2",
-        "agentId": "grant-repair-2",
+        "executionSlotId": "slot-copy-lint-r3",
+        "agentId": "copy-lint-r3",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-coverage-r3",
+        "agentId": "gate-coverage-r3",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-coverage-r3",
+        "agentId": "copy-coverage-r3",
         "modelId": "stub-model"
       },
       {

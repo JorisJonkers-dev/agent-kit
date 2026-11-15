@@ -459,6 +459,12 @@ critique:
     - path: skills/workstation/critique/lenses/simplicity.md
       sha256: 2cc16d1399cb56cf35ee8129152f0f41db56927e039aeb439af37ffef129c080
       mode: "0644"
+    - path: skills/workstation/critique/lenses/spec-conformance.md
+      sha256: 74db1ee20dc1c5734d8d68a0797b2892f1fa5806a972aa2b32b6bbde8f7c9d0e
+      mode: "0644"
+    - path: skills/workstation/critique/lenses/standards.md
+      sha256: 3a18ddda4304ae3703ecf737eda9ac083b367437caa9aabfb0b2107807a8106f
+      mode: "0644"
     - path: skills/workstation/critique/lenses/test-seams.md
       sha256: a8a266b1e302f2c0a019ceff96fce1b5438c10fb055416ce0de97802f9c85fcb
       mode: "0644"
@@ -514,10 +520,10 @@ critique:
       sha256: fa4dceabc2764d7d2fcf4638b376f9444553764b674ce42aec3c295012dfd20a
       mode: "0644"
     - path: skills/workstation/critique/README.md
-      sha256: 46a195d4043b456d850c50215a1640a9493ab880bbfcecda6108d6e599c085bc
+      sha256: b2d78cdb9062343b13988a3943d4fc873211c28d6d83faa7ea7d4e8e3742ba61
       mode: "0644"
     - path: skills/workstation/critique/routing.json
-      sha256: 36f4b2d5fe5e644760376c7d76f5bb9240e207e80c990b975810e057f8b63dbc
+      sha256: c9a453ee0c135a1effba103ee5a4c84be813b956347bdb4611f044be39c75d44
       mode: "0644"
     - path: skills/workstation/critique/schemas/finding.schema.json
       sha256: 3e5a5fc33f61562457c628c33a8706b6f9fa3d6e849502bc94b7a73464833bc6

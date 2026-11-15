@@ -644,6 +644,28 @@ fn the_gate_role_answers_one_when_the_verdict_fails_it() {
 }
 
 #[test]
+fn the_gate_role_fails_when_the_verdict_names_it_among_several_failing_gates() {
+    let dir = temp_dir("gate-fail-several");
+    let mut stub = Stub::with_role(
+        Role::Gate("build-r1".to_string()),
+        dir.to_string_lossy().into_owned(),
+    );
+    assert_eq!(
+        fenced_body(&prompt_text(&mut stub, "gate-fail=build,build-r1")),
+        json!({ "exit_code": 1 })
+    );
+    let mut other = Stub::with_role(
+        Role::Gate("build-r2".to_string()),
+        dir.to_string_lossy().into_owned(),
+    );
+    assert_eq!(
+        fenced_body(&prompt_text(&mut other, "gate-fail=build,build-r1")),
+        json!({ "exit_code": 0 })
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn the_gate_role_answers_two_when_the_report_directory_cannot_be_created() {
     let dir = temp_dir("gate-blocked");
     fs::write(dir.join("build"), "not a directory").expect("blocker written");
@@ -1060,9 +1082,18 @@ fn the_mixed_role_answers_the_findings_document_and_ok_both() {
 
 #[test]
 fn the_accept_role_answers_the_open_blocking_count_of_its_round() {
-    assert_eq!(crate::stub::accept_document(1, "actionable=1"), json!({ "open_blocking": 1 }));
-    assert_eq!(crate::stub::accept_document(2, "actionable=1"), json!({ "open_blocking": 0 }));
-    assert_eq!(crate::stub::accept_document(1, "clean"), json!({ "open_blocking": 0 }));
+    assert_eq!(
+        crate::stub::accept_document(1, "actionable=1"),
+        json!({ "open_blocking": 1 })
+    );
+    assert_eq!(
+        crate::stub::accept_document(2, "actionable=1"),
+        json!({ "open_blocking": 0 })
+    );
+    assert_eq!(
+        crate::stub::accept_document(1, "clean"),
+        json!({ "open_blocking": 0 })
+    );
     let mut first = Stub::with_role(Role::Accept(1), String::new());
     assert_eq!(
         fenced_body(&prompt_text(&mut first, "actionable=2")),

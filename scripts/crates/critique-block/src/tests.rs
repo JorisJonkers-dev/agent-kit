@@ -249,7 +249,7 @@ fn the_shipped_templates_hold_what_the_recipes_generate() {
 
 #[test]
 fn the_json_the_generator_writes_is_the_json_the_templates_are_kept_in() {
-    for name in ["to-spec", "to-tickets", "workflow-c", "workflow-c-work", "workflow-b"] {
+    for name in ["to-spec", "to-tickets", "workflow-c", "workflow-c-work", "workflow-b", "workflow-b-work"] {
         let text = fs::read_to_string(kit().join("workflows").join(format!("{name}.json"))).unwrap();
         assert_eq!(format!("{}\n", json::pretty(&json::parse(&text).unwrap())), text, "{name}");
     }
@@ -257,11 +257,11 @@ fn the_json_the_generator_writes_is_the_json_the_templates_are_kept_in() {
 
 #[test]
 fn every_shipped_block_meets_the_rules_the_issue_names() {
-    for name in ["to-spec", "to-tickets", "workflow-c", "workflow-c-work"] {
+    for name in ["to-spec", "to-tickets", "workflow-c", "workflow-c-work", "workflow-b", "workflow-b-work"] {
         let text = fs::read_to_string(kit().join("workflows").join(format!("{name}.json"))).unwrap();
         let (nodes, edges) = nodes_and_edges(&text);
         let ids = ids_of(&nodes);
-        for stage in ["spec", "tickets"].into_iter().filter(|s| ids.contains(&format!("accept-{s}-1"))) {
+        for stage in ["spec", "tickets", "ticket-review"].into_iter().filter(|s| ids.contains(&format!("accept-{s}-1"))) {
             // Every revise is followed by a critic before any exit.
             let revise = format!("{stage}-revise-1");
             assert!(reaches(&edges, &revise, &format!("gate-critique-{stage}-record-2")), "{name} {stage}");

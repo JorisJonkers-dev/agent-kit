@@ -53,6 +53,7 @@ mapping: completed and success is 0, completed otherwise 1, paused 2).
 | `open-questions` | one open question | from the walk | a questions node is reached |
 | `actionable-<k>` | the critics' findings are actionable in rounds `1` to `k` | from the walk (0 when a repair clears them, 2 when the escalation's manual check is reached) | a verdict node `verdict-<n>` is reached, one scenario per round |
 | `gate-fail-<name>` | the gate's command fails | from the walk (1 without a failure edge) | the workflow has a `gate-<name>` agent that the segment reaches, one scenario per gate, sorted by name |
+| `gate-fail-<name>-and-<name>-r1[-and-<name>-r2]` | the gate's command fails in the first pass and in each repair round named (`gate-fail=build,build-r1`; a comma separated list) | from the walk (0 when the repair clears it, 2 when the escalation's manual check is reached) | a gate `<name>` has repair rounds `<name>-r1`, `<name>-r2` that the walk reaches (#797: a failed gate goes to a repair node, so one failing gate cannot reach the second repair or the escalation) |
 
 The expected exit code comes from walking the workflow graph under the
 scenario's verdict (`harness::walk`): a node fails when its stub does (a gate or

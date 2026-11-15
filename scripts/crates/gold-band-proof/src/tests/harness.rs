@@ -245,18 +245,21 @@ fn workflow_b() -> WorkflowInfo {
 fn inspect_gives_every_agent_of_workflow_b_its_role() {
     let info = workflow_b();
     assert_eq!(info.id, "workflow-b");
-    // Every gate shim: the main path, the findings check of each critic round
-    // and the four gates again after each repair.
-    let mut gates: Vec<String> = ["build", "test", "lint", "coverage"]
-        .iter()
-        .map(|gate| gate.to_string())
-        .collect();
+    // Every gate shim: the four gates in four rounds (the first pass, after each of the two
+    // repairs and after the code review), the finding check of each test critic round and the
+    // runner's prepare, fan-out, refute and record of both review rounds.
+    let mut gates: Vec<String> = Vec::new();
+    for suffix in ["", "-r1", "-r2", "-r3"] {
+        for gate in ["build", "test", "lint", "coverage"] {
+            gates.push(format!("{}{}", gate, suffix));
+        }
+    }
     for round in 1..=3 {
         gates.push(format!("findings-{}", round));
     }
-    for repair in 1..=2 {
-        for gate in ["build", "test", "lint", "coverage"] {
-            gates.push(format!("{}-r{}", gate, repair));
+    for suffix in ["", "-2"] {
+        for step in ["prepare", "fan-out", "refute", "record"] {
+            gates.push(format!("critique-ticket-review-{}{}", step, suffix));
         }
     }
     let mut expected: Vec<(String, Role)> = Vec::new();
@@ -267,12 +270,16 @@ fn inspect_gives_every_agent_of_workflow_b_its_role() {
     for round in 1..=3 {
         expected.push((format!("verdict-{}", round), Role::Verdict(round)));
     }
-    // The two critics' agents also serve the plain nodes (the test author, the
-    // writer, the repairs, the escalation judge and the manual check), which
-    // they answer as an answer.
-    let critics = vec!["pi".to_string(), "claude".to_string()];
-    expected.push(("claude".to_string(), Role::Dynamic(critics.clone())));
-    expected.push(("pi".to_string(), Role::Dynamic(critics)));
+    for round in 1..=2 {
+        expected.push((
+            format!("accept-ticket-review-{}", round),
+            Role::Accept(round),
+        ));
+    }
+    // The two model agents also serve every plain node, which they answer as an answer
+    // (Pi serves the nodes that write findings too, so it is mixed).
+    expected.push(("claude".to_string(), Role::Answer));
+    expected.push(("pi".to_string(), Role::Mixed));
     expected.sort_by(|left, right| left.0.cmp(&right.0));
     let roles: Vec<(String, Role)> = info
         .roles
@@ -742,20 +749,47 @@ fn default_scenarios_add_a_failing_gate_for_every_gate_the_clean_path_reaches() 
         .into_iter()
         .map(|scenario| scenario.name)
         .collect();
-    assert_eq!(
-        names,
-        vec![
-            "clean",
-            "actionable-1",
-            "actionable-2",
-            "actionable-3",
-            "gate-fail-build",
-            "gate-fail-coverage",
-            "gate-fail-findings-1",
-            "gate-fail-lint",
-            "gate-fail-test",
-        ]
-    );
+    let mut expected: Vec<String> = [
+        "clean",
+        "needs-human",
+        "actionable-1",
+        "actionable-2",
+        "actionable-3",
+    ]
+    .iter()
+    .map(|name| name.to_string())
+    .collect();
+    // One failing gate each, sorted: the first pass (a repair follows), the final pass (a manual
+    // check follows), the test critics' finding checks and the runner's gates (no failure edge).
+    for gate in [
+        "build",
+        "build-r3",
+        "coverage",
+        "coverage-r3",
+        "critique-ticket-review-fan-out",
+        "critique-ticket-review-prepare",
+        "critique-ticket-review-record",
+        "critique-ticket-review-refute",
+        "findings-1",
+        "findings-2",
+        "findings-3",
+        "lint",
+        "lint-r3",
+        "test",
+        "test-r3",
+    ] {
+        expected.push(format!("gate-fail-{}", gate));
+    }
+    // One gate failing in every repair round, which reaches repair 2 and then the escalation.
+    for gate in ["build", "coverage", "lint", "test"] {
+        expected.push(format!("gate-fail-{gate}-and-{gate}-r1"));
+        expected.push(format!("gate-fail-{gate}-and-{gate}-r1-and-{gate}-r2"));
+    }
+    assert_eq!(&names[..expected.len()], expected.as_slice());
+    // The stretches after the manual checks follow.
+    assert!(names[expected.len()..]
+        .iter()
+        .all(|name| name.starts_with("after-")));
 }
 
 #[test]
@@ -841,21 +875,33 @@ fn default_scenarios_prove_each_repair_and_the_escalation_of_workflow_b() {
             .find(|scenario| scenario.name == name)
             .map(|scenario| scenario.expected_exit)
     };
-    // A repair that clears the findings ends the run; the second failed repair
+    // A repair that clears the findings ends the run; the second failed review round
     // reaches the escalation node and its manual check, which pauses the run.
     assert_eq!(exit("clean"), Some(0));
     assert_eq!(exit("actionable-1"), Some(0));
-    assert_eq!(exit("actionable-2"), Some(0));
+    assert_eq!(exit("actionable-2"), Some(2));
     assert_eq!(exit("actionable-3"), Some(2));
+    // A failed gate is repaired and the run goes on; the same gate failing after both
+    // repairs pauses at the gate escalation's manual check; after the review a failed gate
+    // pauses at the final check; a failed finding check or runner gate ends the run.
+    assert_eq!(exit("gate-fail-build"), Some(0));
+    assert_eq!(exit("gate-fail-build-and-build-r1"), Some(0));
+    assert_eq!(exit("gate-fail-build-and-build-r1-and-build-r2"), Some(2));
+    assert_eq!(exit("gate-fail-build-r3"), Some(2));
     assert_eq!(exit("gate-fail-findings-1"), Some(1));
+    assert_eq!(exit("gate-fail-critique-ticket-review-record"), Some(1));
+    assert_eq!(exit("after-gates-check.clean"), Some(0));
 }
 
 #[test]
-fn walk_of_workflow_b_reaches_the_escalation_only_after_two_repairs() {
+fn walk_of_workflow_b_reaches_the_gate_escalation_only_after_two_repairs() {
     let info = workflow_b();
-    let walked = walk(&info, &info.entry, "actionable=3");
+    let walked = walk(&info, &info.entry, "gate-fail=build,build-r1,build-r2");
     assert_eq!(walked.exit, 2);
-    assert_eq!(walked.failures, vec!["verdict-1", "verdict-2", "verdict-3"]);
+    assert_eq!(
+        walked.failures,
+        vec!["gate-build", "gate-build-r1", "gate-build-r2"]
+    );
     let tail: Vec<&str> = walked
         .visited
         .iter()
@@ -863,10 +909,49 @@ fn walk_of_workflow_b_reaches_the_escalation_only_after_two_repairs() {
         .take(2)
         .map(String::as_str)
         .collect();
-    assert_eq!(tail, vec!["escalation-check", "workflow-b-escalation"]);
+    assert_eq!(tail, vec!["gates-check", "gates-escalation"]);
     assert!(walked.visited.contains(&"repair-1".to_string()));
     assert!(walked.visited.contains(&"repair-2".to_string()));
     assert!(!walked.visited.contains(&"repair-3".to_string()));
+}
+
+#[test]
+fn walk_of_workflow_b_reaches_the_review_escalation_only_after_two_review_rounds() {
+    let info = workflow_b();
+    let walked = walk(&info, &info.entry, "actionable=2");
+    assert_eq!(walked.exit, 2);
+    let tail: Vec<&str> = walked
+        .visited
+        .iter()
+        .rev()
+        .take(2)
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        tail,
+        vec!["ticket-review-escalation-check", "ticket-review-escalation"]
+    );
+    // Both rounds ran, with a revise between them and fresh critics after it.
+    for node in [
+        "accept-ticket-review-1",
+        "ticket-review-revise-1",
+        "gate-critique-ticket-review-fan-out-2",
+        "accept-ticket-review-2",
+    ] {
+        assert!(walked.visited.contains(&node.to_string()), "{node}");
+    }
+}
+
+#[test]
+fn a_test_critic_finding_sends_the_slice_s_test_back_to_the_test_author_before_its_writer() {
+    let info = workflow_b();
+    let walked = walk(&info, &info.entry, "actionable=1");
+    let position = |node: &str| walked.visited.iter().position(|v| v == node);
+    assert!(position("verdict-1") < position("test-revise-1"));
+    assert!(position("test-revise-1") < position("writer-s1"));
+    assert!(position("test-critic-1") < position("writer-s1"));
+    // The second slice's critic found nothing, so its test is not revised.
+    assert_eq!(position("test-revise-2"), None);
 }
 
 #[test]
@@ -974,6 +1059,56 @@ fn default_scenarios_give_a_gate_the_first_segment_walks_its_own_scenario() {
             spec("gate-fail-start", "gate-fail=start", 1),
             segment_spec("after-check.clean", "clean", 0, "refute"),
         ]
+    );
+}
+
+#[test]
+fn parse_scenario_reads_a_gate_failing_in_several_rounds_and_refuses_an_empty_name_among_them() {
+    let spec = parse_scenario("again:gate-fail=build,build-r1:2").expect("parsed");
+    assert_eq!(spec.verdict, "gate-fail=build,build-r1");
+    assert!(parse_scenario("again:gate-fail=build,:2").is_err());
+    assert!(parse_scenario("again:gate-fail=:2").is_err());
+}
+
+#[test]
+fn a_gate_failing_in_a_repair_round_adds_one_scenario_per_round_only_when_the_round_exists() {
+    // A gate with no repair round (and a name that merely ends in -r) adds nothing.
+    let info = graph(
+        vec![
+            node("gate-a", Some("gate-a"), false),
+            node("gate-b-r", Some("gate-b-r"), false),
+            node("gate-c", Some("gate-c"), false),
+            node("gate-c-r1", Some("gate-c-r1"), false),
+        ],
+        vec![
+            edge("gate-a", "gate-b-r", "success"),
+            edge("gate-b-r", "gate-c", "success"),
+            edge("gate-c", "gate-c-r1", "success"),
+            edge("gate-c", "gate-c-r1", "failure"),
+            edge("gate-c-r1", "$end", "success"),
+        ],
+        &[
+            ("gate-a", Role::Gate("a".to_string())),
+            ("gate-b-r", Role::Gate("b-r".to_string())),
+            ("gate-c", Role::Gate("c".to_string())),
+            ("gate-c-r1", Role::Gate("c-r1".to_string())),
+        ],
+    );
+    let names: Vec<String> = default_scenarios(&info)
+        .into_iter()
+        .map(|scenario| scenario.name)
+        .collect();
+    assert!(
+        !names.iter().any(|name| name.contains("-and-a")),
+        "{names:?}"
+    );
+    assert!(
+        names.contains(&"gate-fail-c-and-c-r1".to_string()),
+        "{names:?}"
+    );
+    assert_eq!(
+        names.iter().filter(|name| name.contains("-and-")).count(),
+        1
     );
 }
 
@@ -2425,7 +2560,10 @@ fn walk_fails_an_accept_round_like_a_verdict_round_and_scenarios_name_its_rounds
     assert_eq!(walk(&info, "accept-1", "clean").exit, 0);
     assert_eq!(walk(&info, "accept-1", "actionable=1").exit, 0);
     assert_eq!(walk(&info, "accept-1", "actionable=2").exit, 2);
-    let names: Vec<String> = default_scenarios(&info).into_iter().map(|s| s.name).collect();
+    let names: Vec<String> = default_scenarios(&info)
+        .into_iter()
+        .map(|s| s.name)
+        .collect();
     assert!(names.contains(&"actionable-1".to_string()), "{names:?}");
     assert!(names.contains(&"actionable-2".to_string()), "{names:?}");
 }

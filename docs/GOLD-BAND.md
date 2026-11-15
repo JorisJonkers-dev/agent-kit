@@ -797,51 +797,76 @@ document (not JSON, an unknown key, `findings` not an array, or a missing or emp
 read as "no findings". Exit `2`: bad usage, an unreadable input or an unwritable report directory. The
 old `findings-check.json` is removed before each run.
 
-## Workflow B's critics, repairs and escalation
+## Workflow B v2: slices, a test critic, gate repairs and a code review
 
 `installer/gold-band/workflows/workflow-b.json` (spec #392, stories 78 and 90;
-issue #451) continues the main path (test author, one writer, the build, test,
-lint and coverage gates) with the review and the repairs. Everything below is
+issues #451 and #797) is the Pocock `implement`, `tdd` and `code-review` loop as
 fixed nodes: the file has no cycle and no `$new-round` edge, so its cost is known
-before it runs.
+before it runs. The shape, in order (85 nodes):
 
-1. **Critics.** `critics-1` is one `ai-dynamic` node with a dynamic strategy.
-   Its candidate workers are GLM on Pi (`pi`, `litellm-vibe/glm-5.3`) and Claude
-   (`claude`, `sonnet`), both different families from the writer's (DeepSeek,
-   `pi` with `litellm-vibe-study/deepseek-v4.1-flash`) and the test author's
-   (Mistral, `pi` with `litellm-vibe/mistral-large-4-0`). Pi over LiteLLM is the
-   default lightweight harness, so one agent id serves three families: the
-   family is the model's, not the agent id's. The routing prompt tells the planner to
-   fan out exactly two workers, one per provider, with the `pf-diff-reviewer`
-   profile, and each critic writes its whole answer in the critic finding schema
-   to `findings/<its node id>.json` in its worktree, committed so the merge
-   brings it back. The node's limits are explicit: at most two fanned-out nodes,
-   two in parallel, one group deep, no nested dynamic node and five dynamic nodes
-   in all (the bootstrap, two critics, the merge and the acceptance).
-2. **Finding check.** `gate-findings-N` and `copy-findings-N` are the finding check
-   node above, then `verdict-N`, a read-only worker that reads
-   `findings-check.json` and answers `{"actionable": N}`. Its success condition is
-   `actionable` equal to `0`, so a run with hints only goes on and never repairs.
-   The gate wrapper's arguments (the findings files, the diff and the ticket) are
-   pinned in the repository's pins file, as for every other gate agent id (see
-   "Workflow B live" below).
-3. **Repairs.** A verdict that fails goes to `repair-1`, the writer's agent and
-   model, which fixes the kept findings only. The build, tests, lint and coverage
-   gates run again (`gate-build-r1` and so on), then `critics-2`, its finding
-   check and `verdict-2`. A second failure goes to `repair-2`, the same chain and
-   `critics-3`. Two repairs is the cap: there is no `repair-3`.
-4. **Escalation.** When `verdict-3` fails, `workflow-b-escalation` runs, the one
-   node in the personal instance that binds Opus (its id ends in `-escalation`,
-   as the workflow lint requires). It judges the ticket and the last findings,
-   and either outcome of it goes to `escalation-check`, a manual check, so the run
-   pauses (exit 2) for the owner and never ends on a control limit.
+1. **The seams and the plan.** `slice-plan` (the test author, Mistral on Pi) reads
+   the ticket and the spec it names, takes the test seams from the spec's Testing
+   Decisions section and writes `slice-plan.json`: at most three vertical slices, each one
+   behaviour at a named seam. Every later test author node is told to read the
+   same seams and test through their public interface only.
+2. **Three unrolled slices** (`test-author-s1`..`s3`). A slice is `test-author-sN`
+   (ONE failing test, run to see it fail for the right reason; no assertion on a private
+   function, a call count or an internal field, no value copied from the code's own
+   output), then `test-critic-N`, then the finding check, then `writer-sN` (DeepSeek on Pi:
+   red, then the least change that turns the test green, then a tidy while
+   green; earlier slices stay green). The plan may hold fewer than three slices; an
+   empty slice's nodes answer `ok` and change nothing. All tests are no longer
+   written before the writer starts (the horizontal slicing the `tdd` skill names as an
+   anti-pattern).
+3. **The test critic** (`test-critic-N`, GLM on Pi with the `pf-diff-reviewer` profile) is
+   a third family, neither the test author's (Mistral) nor the writer's (DeepSeek), and runs on
+   the slice's test before its writer starts. It looks for tests coupled to the
+   implementation and tautological tests (the `test-seams` lens, in the goal), and writes
+   the critic finding schema to `findings/test-critic-N.json`. `gate-findings-N`,
+   `copy-findings-N` and `verdict-N` keep only findings with a checkable quote (the finding check
+   node above); a failed verdict sends the test back to the test author once
+   (`test-revise-N`), then the writer starts. The revised test is read by the fresh critics
+   of the code review (item 5), so no revision exits unreviewed.
+4. **Gate repair edges.** After the last slice, `gate-build`, `gate-test`, `gate-lint` and
+   `gate-coverage` each run through the gate shim, each followed by its copier. A failed gate (not a copier:
+   a report that does not verify still ends the run) goes to `repair-1`, the writer's family,
+   which reads the failing gate's output and fixes the cause; the four gates run again (`-r1`),
+   a failure goes to `repair-2` and the gates (`-r2`), and a failure there goes to
+   `gates-escalation` (Opus) and the manual check `gates-check`, after which the review
+   runs anyway. Two repairs is the cap.
+5. **The code review.** `self-review` is the writer's own review of its change on the two axes (Standards and
+   Spec); it never blocks. Then the runner's `ticket-review` stage runs as a generated block
+   (`critique-block`, recipe in `installer/gold-band/critique-blocks.json`): `prepare`, `fan-out`,
+   the orchestrator's `ticket-review-verdicts` and its `needs-human` manual check, `refute`, `record`
+   and `accept-ticket-review-N`, so the read-only tripwire, the quote check and the refute round
+   are the runner's own, not bespoke critics. The two code-review axes are two entries of the
+   stage's `base` roster in `skills/workstation/critique/routing.json`, each its own critic
+   with its own lens (`lenses/spec-conformance.md` and `lenses/standards.md`) from a
+   competitor family: Gemini (`spec-conformance`, `failure-modes`, `security`) and GLM
+   (`standards`). The orchestrator is bound to the writer's family (DeepSeek), so the runner
+   drops that family from the roster (the lint's #796 rule); the `deep` depth adds Mistral, the test
+   author's family, which is why the fan-out goal says not to ask for it.
+6. **Repair, fresh critics, escalation.** An accepted round goes to the final gates; a round with
+   open blocking findings goes to `ticket-review-revise-1` (the writer), then a second round with
+   fresh critics (`-2` of every stage node, `previous_run_dir` set so findings are not raised again). A
+   second failed round goes to `ticket-review-escalation` (the one other Opus node, its id ends
+   in `-escalation` as the lint requires) and its manual check, and the run pauses (exit 2). Every
+   path from a writing node to `$end` crosses a review record (`workflow-lint --critique`).
+7. **The final gates** (`-r3`) run once more after the review. A failure there goes to the
+   `final-check` manual check: nothing repairs a reviewed change automatically, since a repair would
+   need a third review round.
 
-A failing gate or copier, in any round, has no failure edge and ends the run in
-failure, as on the main path. `control.max_attempts` stays `1`: Gold Band counts a
-failure-triggered jump per edge (from one node to another), and in a graph with no
-cycle every edge runs at most once, so the cap is never exceeded and the run cannot
-end on the control limit before it reaches the escalation. The CI wait is added by a
-later ticket.
+`control.max_attempts` stays `1`: Gold Band counts a failure-triggered jump per edge, and in a graph
+with no cycle every edge runs at most once, so the cap is never exceeded and the run cannot end
+on the control limit before it reaches an escalation. The CI wait is added by a later ticket.
+
+**Proof (headless, stub agents).** `workflow-lint --shape` and `--critique` pass (the entry rule
+is the patched one: the manual checks reached by failure edges are not entries), and `gold-band-proof
+prove` runs `clean`, `actionable-1`..`actionable-3` (a test critic round, then a code-review round),
+`needs-human` (the orchestrator's finding pauses), `gate-fail-<gate>` for each of the 28 gates and
+their copiers (a failed gate ends in a repair and success, a failed copier ends the run in failure, a
+final gate pauses) and `after-<check>.…` for the stretch after each manual check. `scripts/crates/critique-block`
+proves the generated block is what the recipe produces (`critique-block check`).
 
 ## Workflow B live in the personal instance
 
@@ -903,6 +928,15 @@ gold-band-proof run --workflow installer/gold-band/workflows/workflow-b.json \
   (`LLVM_COV` and `LLVM_PROFDATA` set), and the gates build with this host's
   linker flags, so the run is started inside the shell that provides them.
 
+**v2 and the live run.** Workflow B v2's slices, test critics, finding checks, gates and repairs
+bind the same pinned shims and Pi nodes as before (`findings-1`..`findings-3` now check the test critics'
+findings; `-r3` names the final gates). The code review is the runner's `ticket-review` stage, whose gates
+(`gate-critique-ticket-review-prepare` and the rest) and `accept-ticket-review-N` shims are pinned by the live
+wiring of the stage templates, which no template has yet (the node goals name the command only). Until it
+lands `gold-band-proof run --pins` refuses a live run of v2 (exit 5) and names exactly those ids, which
+`the_checked_in_pins_bind_every_shim_of_workflow_b_but_the_review_stage_s` pins; the headless proof does not
+depend on it.
+
 What a live run still does not have: the run-start shim is not a node of
 Workflow B, and its family check keys a family on the agent id, so it refuses
 a Pi node (three families on one id) and a pinned shim (no family); a
@@ -943,28 +977,26 @@ seconds (HTTP 200), so the route and its key are not the cause of the first run.
 ## Workflow B in the work instance
 
 `installer/gold-band/workflows/workflow-b-work.json` (spec #392, stories 80 and
-81; issue #462) is Workflow B bound to the work instance's two agents only,
-`claude-work` (Anthropic) and `codex` (OpenAI), beside the personal
-`workflow-b.json`, which is unchanged. It has the same gates, critics rounds,
-two unrolled repairs and escalation. The bindings differ, and each round's critics
-become one worker (below); the writer and the reviewer are always of different
-families. With two families, the test author and the critics share one (Claude): the
-critic reviews the writer's change, tests included, and the writer is never of that family:
+81; issues #462 and #797) is Workflow B v2 bound to the work instance's two agents only,
+`claude-work` (Anthropic) and `codex` (OpenAI), beside the personal `workflow-b.json`. It has
+the same shape (98 nodes: the personal template's 85, the `grant-refused` check and twelve grant checks): the plan, three unrolled
+slices with a test critic, the gate repair edges, the self-review, the generated `ticket-review` block
+and the final gates. The bindings differ. With two families a test critic cannot differ from both
+the test author and the writer, so it differs from the test author (which the lint checks) and the
+writer, its consumer, is of its family:
 
-* **Claude** writes the failing tests (`test-author`), is the one critic of each
-  round (`critics-N`, one `claude-work` worker rather than an `ai-dynamic` fan-out,
-  which Gold Band refuses below two nodes) and judges the escalation (`workflow-b-escalation`, `opus`, and the
-  `escalation-check` manual check).
-* **Codex** (`gpt-5.5`) is the writer and the two repairs, so the critics are
-  never of the writer's family and the test author is never of its family.
-* **A grant-check node precedes every Codex node.** `grant-check-writer`,
-  `grant-check-repair-1` and `grant-check-repair-2` each run the pinned
-  `gold-band-run-start grant-check` wrapper for the node they guard (`--node
-  <name>`), and the guarded node has no other way in. A refused check (no grant,
-  a lapsed one, or every `max_starts` start taken) takes the node's failure edge
-  to the `grant-refused` manual check, so the run pauses (exit 2) before Codex
-  starts. A run reserves at most three Codex starts, so a grant needs
-  `max_starts` of 3.
+* **Claude** plans and writes each slice's test (`slice-plan`, `test-author-sN`, `test-revise-N`),
+  reviews the code (the orchestrator is Codex, so the runner drops Codex from the stage's `work` roster
+  and the work Claude agent covers the Spec and Standards axes alone: both lenses are on each `work`
+  entry of the routing file) and judges the escalations (`gates-escalation` and
+  `ticket-review-escalation`, `opus`, with their manual checks).
+* **Codex** (`gpt-5.5`) is the writer of each slice, the two repairs, the self-review, the test critics
+  (`test-critic-N`, the `pf-diff-reviewer` profile) and the review stage's orchestrator and revise node.
+* **A grant-check node precedes every Codex node**, twelve in all. Each runs the pinned
+  `gold-band-run-start grant-check` wrapper for the node it guards (`--node <name>`), and the guarded
+  node has no other way in. A refused check (no grant, a lapsed one, or every `max_starts` start taken)
+  takes the node's failure edge to the `grant-refused` manual check, so the run pauses (exit 2) before
+  Codex starts. A run can reserve up to twelve Codex starts, so a grant needs `max_starts` of 12.
 
 The gate, copier, verdict and grant-check nodes bind stub agent ids (`gate-*`,
 `copy-*`, `verdict-*`, `grant-*`) as in the personal template; the live wiring
@@ -974,8 +1006,8 @@ repository still needs the run-start shim and a live grant for the run
 
 The proof is two layers. `gold-band-proof prove` runs the whole template
 against the stub agents: the clean run, both repairs, the escalation pause, a
-failing gate (build, tests, lint, coverage and the finding check) and `grant-lapse-writer` (the grant-check node fails
-and the run pauses at `grant-refused`). `tests/test_gold_band_workflow_b_work.py`
+failing gate (build, tests, lint, coverage, the finding check and the final gates) and `grant-lapse-<node>` for
+each of the twelve grant checks (the node fails and the run pauses at `grant-refused`). `tests/test_gold_band_workflow_b_work.py`
 runs each Codex node's stretch of the real template with the real wrapper and
 the real gateway bundle over a fake grants file in a throw-away configuration
 outside any repository: with no grant the run pauses before Codex and no start is

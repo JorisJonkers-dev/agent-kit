@@ -548,9 +548,7 @@ fn node_role(info: &WorkflowInfo, node: &GraphNode) -> Role {
 fn node_fails(info: &WorkflowInfo, node: &GraphNode, verdict: &str) -> bool {
     let verdict = verdict.trim();
     match node_role(info, node) {
-        Role::Gate(name) | Role::Copy(name) => {
-            verdict.strip_prefix("gate-fail=") == Some(name.as_str())
-        }
+        Role::Gate(name) | Role::Copy(name) => gate_fail_names(verdict).contains(&name.as_str()),
         // A grant-check shim refuses when the grant lapsed, which is its own
         // verdict: the run pauses at the failure edge that leads to a manual
         // check.
@@ -684,10 +682,38 @@ fn candidate_verdicts(info: &WorkflowInfo) -> Vec<String> {
     for name in gate_names(info) {
         verdicts.push(format!("gate-fail={}", name));
     }
+    verdicts.extend(repeated_gate_failures(info));
     for name in grant_names(info) {
         verdicts.push(format!("grant-lapse={}", name));
     }
     verdicts
+}
+
+/// The verdicts that fail one gate in every repair round it has: for a gate `build` with the
+/// repair rounds `build-r1` and `build-r2`, `gate-fail=build,build-r1` and then
+/// `gate-fail=build,build-r1,build-r2`, so the proof reaches the second repair and the
+/// escalation a failing gate leads to. A gate without a repair round adds nothing.
+fn repeated_gate_failures(info: &WorkflowInfo) -> Vec<String> {
+    let names = gate_names(info);
+    let mut verdicts = Vec::new();
+    for base in names.iter().filter(|name| !is_repair_round(name)) {
+        let mut chain = vec![base.clone()];
+        for round in 1.. {
+            let next = format!("{}-r{}", base, round);
+            if !names.contains(&next) {
+                break;
+            }
+            chain.push(next);
+            verdicts.push(format!("gate-fail={}", chain.join(",")));
+        }
+    }
+    verdicts
+}
+
+/// Whether a gate name ends in a repair round, `-r` and a number.
+fn is_repair_round(name: &str) -> bool {
+    name.rsplit_once("-r")
+        .is_some_and(|(_, round)| !round.is_empty() && round.chars().all(|c| c.is_ascii_digit()))
 }
 
 /// The highest critic round the workflow's verdict nodes name, 0 when none.
@@ -705,7 +731,7 @@ fn max_verdict_round(info: &WorkflowInfo) -> u32 {
 /// The scenario name a verdict gets: `gate-fail=NAME` becomes `gate-fail-NAME`
 /// and `grant-lapse=NAME` becomes `grant-lapse-NAME`.
 fn verdict_name(verdict: &str) -> String {
-    verdict.replace('=', "-")
+    verdict.replace('=', "-").replace(',', "-and-")
 }
 
 /// The gate names the workflow's roles name, sorted.
@@ -790,7 +816,20 @@ fn is_known_verdict(verdict: &str) -> bool {
     if actionable(verdict).is_some() {
         return true;
     }
-    names_a_shim(verdict, "gate-fail=") || names_a_shim(verdict, "grant-lapse=")
+    let several = verdict
+        .strip_prefix("gate-fail=")
+        .is_some_and(|names| names.split(',').all(is_name));
+    several || names_a_shim(verdict, "grant-lapse=")
+}
+
+/// The gate names a `gate-fail=A,B` verdict fails: one or more, comma separated, so a
+/// scenario can fail the same gate in every repair round. Empty for any other verdict.
+pub fn gate_fail_names(verdict: &str) -> Vec<&str> {
+    verdict
+        .trim()
+        .strip_prefix("gate-fail=")
+        .map(|names| names.split(',').collect())
+        .unwrap_or_default()
 }
 
 /// Whether a verdict is `prefix` followed by a non-empty name.
