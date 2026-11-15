@@ -325,3 +325,25 @@ def test_a_group_reports_the_smallest_context_window_of_its_first_deployments() 
     }
     found = {g.name: g.context_length for g in cat.canonical_groups(cat.Catalogue(data, "live"), ["canonical"], [])}
     assert found == {"both": 4000, "unknown": None, "fallback-only-unknown": 8000}
+
+
+def test_usable_group_names_needs_one_usable_probe() -> None:
+    catalogue = cat.Catalogue(
+        {
+            "providers": {
+                "p": {"models": [
+                    {"id": "p/a", "metadata": {"status": "usable"}},
+                    {"id": "p/b", "metadata": {"status": "error"}},
+                    "junk",
+                ]},
+                "bad": "x",
+            },
+            "groups": {
+                "a": {"deployments": [{"route": "p", "upstream_id": "a"}]},
+                "b": {"deployments": [{"route": "p", "upstream_id": "b"}, "junk"]},
+                "c": "junk",
+            },
+        },
+        "live",
+    )
+    assert cat.usable_group_names(catalogue) == {"a"}

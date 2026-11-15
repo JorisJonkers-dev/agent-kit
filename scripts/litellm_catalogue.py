@@ -268,6 +268,32 @@ def _group_context_length(catalogue: Catalogue, deployments: Sequence[Mapping[st
     return min(lengths) if lengths else None
 
 
+def usable_group_names(catalogue: Catalogue) -> frozenset[str]:
+    """The groups with at least one deployment the catalogue probed ``usable``.
+
+    A deployment's probe is the provider entry ``<route>/<upstream_id>``; a group is usable
+    when any of its deployments is, so a group every probe of which is blocked, failed,
+    unknown or not a chat model is not.
+    """
+    status = {
+        str(model.get("id")): (model.get("metadata") or {}).get("status")
+        for provider in catalogue.data.get("providers", {}).values()
+        if isinstance(provider, dict)
+        for model in provider.get("models", [])
+        if isinstance(model, dict)
+    }
+    return frozenset(
+        name
+        for name, group in catalogue.data.get("groups", {}).items()
+        if isinstance(group, dict)
+        and any(
+            status.get(f"{d.get('route')}/{d.get('upstream_id')}") == "usable"
+            for d in group.get("deployments", [])
+            if isinstance(d, dict)
+        )
+    )
+
+
 def canonical_groups(
     catalogue: Catalogue,
     access_groups: Iterable[str],
