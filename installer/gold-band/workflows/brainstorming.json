@@ -183,6 +183,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -209,6 +213,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       }
     ],

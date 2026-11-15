@@ -116,7 +116,7 @@ def test_the_edges_are_the_personal_ones_with_a_grant_check_before_each_codex_no
     assert redirected <= set(edges)
     assert extra == {(f"grant-check-{name}", name, "success") for name in CODEX_NODES} | {
         (f"grant-check-{name}", "grant-refused", "failure") for name in CODEX_NODES
-    }
+    } | {("grant-refused", "$end", "success")}
 
 
 def test_only_the_work_agents_and_shims_are_bound(nodes: dict[str, dict[str, Any]], template: dict[str, Any]) -> None:
@@ -161,13 +161,13 @@ def test_each_codex_node_is_reachable_only_through_its_grant_check(
 
 
 @pytest.mark.parametrize("draft", CODEX_NODES)
-def test_a_refused_grant_pauses_the_run_on_a_manual_check_that_goes_nowhere(
+def test_a_refused_grant_pauses_the_run_on_a_manual_check_that_only_ends_the_run(
     nodes: dict[str, dict[str, Any]], edges: list[tuple[str, str, str]], draft: str
 ) -> None:
     pause = "grant-refused"
     assert (f"grant-check-{draft}", pause, "failure") in edges
     assert nodes[pause]["manual_check"] is True
-    assert [e for e in edges if e[0] == pause] == []
+    assert [e for e in edges if e[0] == pause] == [(pause, "$end", "success")]
 
 
 def test_the_nodes_that_pause_for_the_owner_are_exactly_the_manual_checks(
