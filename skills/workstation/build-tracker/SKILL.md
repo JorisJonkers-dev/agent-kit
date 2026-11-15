@@ -12,7 +12,7 @@ rendered from it and never edited by hand. It is a view for the owner: the
 issue tracker stays the source of what is done.
 
 You are the **orchestrator**: the agent the owner works in, which hands
-tickets to implementers and mergers. The runner is `build-tracker.mjs` in the
+tickets to implementers and mergers. The runner is the `build-tracker` launcher in the
 folder this file is in (see **Commands**).
 
 ## Who writes the state
@@ -120,11 +120,11 @@ Spec `acme/widgets#10` has tickets #11 to #14; #14 is the live check that
 closes the milestone "Widgets live". In the spec's repository:
 
 ```sh
-node <this folder>/build-tracker.mjs init --spec 10 --milestone "Widgets live=14"
-node <this folder>/build-tracker.mjs path --spec 10
-node <this folder>/build-tracker.mjs render --state <state> --out <page>
-node <this folder>/build-tracker.mjs set --state <state> 11=running:
-node <this folder>/build-tracker.mjs render --state <state> --out <page>
+sh <this folder>/build-tracker init --spec 10 --milestone "Widgets live=14"
+sh <this folder>/build-tracker path --spec 10
+sh <this folder>/build-tracker render --state <state> --out <page>
+sh <this folder>/build-tracker set --state <state> 11=running:
+sh <this folder>/build-tracker render --state <state> --out <page>
 ```
 
 `path` prints the two paths this example writes as `<state>` and `<page>`.
@@ -136,16 +136,20 @@ updates the page the owner already has open.
 
 ## Commands
 
-Run the runner with `node`:
+Run the launcher with `sh`. It runs the Rust `build-tracker` that setup installs on
+PATH (`~/.local/bin/build-tracker`) and, until that is installed, the
+`build-tracker.mjs` beside it; the two print the same JSON and the same page.
+`AGENT_KIT_BUILD_TRACKER=node` forces the node bundle for one call, and
+`touch ~/.config/agent-kit/build-tracker-node` for every call:
 
 ```sh
-node <this folder>/build-tracker.mjs init --spec <ref> [--milestone "<name>=<ticket>"] ...
-node <this folder>/build-tracker.mjs sync --spec <ref>
-node <this folder>/build-tracker.mjs path --spec <ref>
-node <this folder>/build-tracker.mjs refresh --spec <ref> [--landed <ticket>] ...
-node <this folder>/build-tracker.mjs render --state <state file> --out <page file>
-node <this folder>/build-tracker.mjs render --tickets <ticket file> [--repo <owner/repo>] --out <page file>
-node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[:note] ...
+sh <this folder>/build-tracker init --spec <ref> [--milestone "<name>=<ticket>"] ...
+sh <this folder>/build-tracker sync --spec <ref>
+sh <this folder>/build-tracker path --spec <ref>
+sh <this folder>/build-tracker refresh --spec <ref> [--landed <ticket>] ...
+sh <this folder>/build-tracker render --state <state file> --out <page file>
+sh <this folder>/build-tracker render --tickets <ticket file> [--repo <owner/repo>] --out <page file>
+sh <this folder>/build-tracker set --state <state file> <ticket>=<status>[:note] ...
 ```
 
 - `<ref>` is the spec's issue (`#12`, `owner/repo#12` or its URL), whose
@@ -181,7 +185,7 @@ node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[
   `init`. `--repo` names the repository the issues are in; without it the
   working directory's remote (`origin`, else the first remote) is used. Give the page its own path, and
   publish it as **Republish** says:
-  `node <this folder>/build-tracker.mjs render --tickets docs/specs/gold-band/tickets.yaml --out <page>`.
+  `sh <this folder>/build-tracker render --tickets docs/specs/gold-band/tickets.yaml --out <page>`.
 - `set` changes the named tickets' statuses. A note after the status replaces
   the ticket's note, an empty note removes it, and no note keeps it. The
   statuses are `todo`, `running`, `review`, `merged` and `owner`.

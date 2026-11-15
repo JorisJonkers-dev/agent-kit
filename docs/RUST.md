@@ -484,12 +484,15 @@ Known differences from the node runner:
 - Some V8 JSON error texts and rare errno wordings differ.
 - A program's output is not capped at 64 MiB.
 - When the rename that writes `--out` fails, the outcome is non-deterministic.
-- `render --tickets FILE [--repo OWNER/REPO]` (one page for a whole spec from its
-  ticket file and GitHub, grouped by branch, B0-07) exists only in the node
-  runner. The port does not have it yet, so the node runner's `--help` text is
-  longer than the port's and the `usage` golden predates it. The port gains the
-  option, a reader for the ticket file's YAML subset and the regenerated `usage`
-  golden when the node runners are ported (spec #392, story 119).
+
+`render --tickets FILE [--repo OWNER/REPO]` (one page for a whole spec from its
+ticket file and GitHub, grouped by branch) is ported too: `src/yaml_subset.rs`
+reads the ticket file's YAML subset, `src/tickets_file.rs` checks it and builds the
+state, and the `render-tickets` scenario (47 steps, error paths included) and the
+regenerated `usage` golden hold it to the node runner's bytes. On
+`docs/specs/gold-band/tickets.yaml` against the live repository both write the same
+page but for its `updated` stamp. The issues are read eight at a time, as the node
+runner does. That page needs no overlay: it is the combined multi-branch page.
 
 ```bash
 cargo run --manifest-path scripts/Cargo.toml -p build-tracker -- --help
@@ -517,6 +520,28 @@ UTC` stamp: the node runner is run with its clock fixed (`fixtures/fake-clock.mj
 and the replay uses a fixed clock too; a separate test runs on the real clock and
 compares the page with the stamp normalised. Regenerate the goldens only when the
 node runner's behaviour changes on purpose.
+
+### Swapping the build tracker in
+
+`skills/workstation/build-tracker/build-tracker` is the launcher the skill's text and
+`/flow` call (`sh <build-tracker dir>/build-tracker <command> ...`). It runs the Rust
+binary installed as `~/.local/bin/build-tracker` when there is one, else
+`build-tracker.mjs` beside it, which stays as the fallback until it is retired.
+
+Setup runs `scripts/install-build-tracker-rust.sh`, which builds the crate
+(`cargo build --release --locked -p build-tracker`), checks that the new binary answers
+`--help`, and moves it into place atomically. No cargo, no workspace or a cloud session
+skips the step, and a failed build leaves whatever was installed untouched.
+
+Rollback, without a setup run:
+
+```sh
+AGENT_KIT_BUILD_TRACKER=node sh <build-tracker dir>/build-tracker ...   # one call or one shell
+touch ~/.config/agent-kit/build-tracker-node                            # every call, until removed
+```
+
+`tests/test_build_tracker_rust_swap.py` covers the launcher and the installer with stub
+programs.
 
 ## model-gateway
 

@@ -35,7 +35,8 @@ pub struct IssueRecord {
 }
 
 /// The issue tracker (GitHub), read only. Any failure is the message that says what went wrong.
-pub trait Issues {
+/// `Sync` so `render --tickets` can read several issues at once.
+pub trait Issues: Sync {
     fn issue(&self, repository: &RepositoryName, number: u64) -> Result<IssueRecord, String>;
     /// The issue's sub-issues, in the issue tracker's order.
     fn sub_issues(&self, repository: &RepositoryName, number: u64) -> Result<Vec<IssueRecord>, String>;
@@ -69,7 +70,7 @@ pub struct ProcessOutput {
 }
 
 /// Runs one program and reports how it exited; the gh and git adapters reach the system only through it.
-pub trait Process {
+pub trait Process: Sync {
     /// Any exit code is an `Ok`; an `Err` is a program that could not be started.
     fn exec(&self, command: &str, args: &[String]) -> Result<ProcessOutput, String>;
 }

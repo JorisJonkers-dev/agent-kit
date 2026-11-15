@@ -16,7 +16,7 @@ pub const USAGE: &str = "usage: build-tracker init --spec SPEC [--milestone <nam
        build-tracker sync --spec SPEC
        build-tracker path --spec SPEC
        build-tracker refresh --spec SPEC [--landed <ticket> ...]
-       build-tracker render --state FILE --out FILE
+       build-tracker render (--state FILE | --tickets FILE [--repo OWNER/REPO]) --out FILE
        build-tracker set --state FILE <ticket>=<status>[:note] ...
 
 SPEC is a GitHub issue (#12, owner/repo#12 or its URL) whose sub-issues are
@@ -37,7 +37,12 @@ refresh brings the spec's page up to date in one step, as /flow runs it: init
 --landed ticket (12, #12, or a local ticket's 01) turns merged, keeping its
 note; then the page is rendered at the path path prints.
 
-render writes the build tracker page for the state file. set changes the
+render writes the build tracker page for the state file. With --tickets it
+writes one page for every ticket of a spec instead, grouped by branch: the
+ticket file (docs/specs/<name>/tickets.yaml) names the tickets and branches,
+GitHub says which issues are closed (shown merged), and --repo names the
+repository the issues are in (the working directory's remote when it is
+left out). It reads and writes no state file. set changes the
 named tickets' statuses in the state file; a note after the status replaces
 the ticket's note, an empty one removes it, and none keeps it. The statuses
 are todo, running, review, merged and owner.
@@ -48,23 +53,36 @@ is an error that names init; an unreadable one names its path and says to
 delete it and run init again. Bad arguments print this usage and exit 2.
 ";
 
-/// The flags a command takes, each `required` (given once) or repeatable (any number of times, none included).
+/// The flags a command takes, each `required` (given once), `optional` (once at most) or repeatable (any number of
+/// times, none included). `fits` has the last word on which flags may go together.
 struct CommandSpec {
     required: &'static [&'static str],
+    optional: &'static [&'static str],
     repeatable: &'static [&'static str],
     positionals: bool,
+    fits: fn(&HashMap<String, Vec<String>>) -> bool,
+}
+
+fn any_flags(_: &HashMap<String, Vec<String>>) -> bool {
+    true
+}
+
+/// `render` takes a state file or a ticket file, and `--repo` only with the ticket file.
+fn render_flags(flags: &HashMap<String, Vec<String>>) -> bool {
+    flags.contains_key("state") != flags.contains_key("tickets") && (!flags.contains_key("repo") || flags.contains_key("tickets"))
 }
 
 fn command_spec(name: &str) -> Option<CommandSpec> {
-    let (required, repeatable, positionals): (&'static [&'static str], &'static [&'static str], bool) = match name {
-        "init" => (&["spec"], &["milestone"], false),
-        "path" | "sync" => (&["spec"], &[], false),
-        "refresh" => (&["spec"], &["landed"], false),
-        "render" => (&["out", "state"], &[], false),
-        "set" => (&["state"], &[], true),
+    let (required, optional, repeatable, positionals): (&'static [&'static str], &'static [&'static str], &'static [&'static str], bool) = match name {
+        "init" => (&["spec"], &[], &["milestone"], false),
+        "path" | "sync" => (&["spec"], &[], &[], false),
+        "refresh" => (&["spec"], &[], &["landed"], false),
+        "render" => (&["out"], &["repo", "state", "tickets"], &[], false),
+        "set" => (&["state"], &[], &[], true),
         _ => return None,
     };
-    Some(CommandSpec { positionals, repeatable, required })
+    let fits: fn(&HashMap<String, Vec<String>>) -> bool = if name == "render" { render_flags } else { any_flags };
+    Some(CommandSpec { fits, optional, positionals, repeatable, required })
 }
 
 struct Parsed {
@@ -94,9 +112,9 @@ fn parse_arguments(args: &[String], spec: &CommandSpec) -> Option<Parsed> {
             index += 1;
             continue;
         };
-        let known = spec.required.contains(&name) || spec.repeatable.contains(&name);
+        let single = spec.required.contains(&name) || spec.optional.contains(&name);
         let value = args.get(index + 1)?;
-        if !known || (spec.required.contains(&name) && flags.contains_key(name)) {
+        if !(single || spec.repeatable.contains(&name)) || (single && flags.contains_key(name)) {
             return None;
         }
         flags.entry(name.to_string()).or_default().push(value.clone());
@@ -104,7 +122,7 @@ fn parse_arguments(args: &[String], spec: &CommandSpec) -> Option<Parsed> {
     }
     let flags_ok = spec.required.iter().all(|name| flags.contains_key(*name));
     let positionals_ok = if spec.positionals { !positionals.is_empty() } else { positionals.is_empty() };
-    (flags_ok && positionals_ok).then_some(Parsed { flags, positionals })
+    (flags_ok && positionals_ok && (spec.fits)(&flags)).then_some(Parsed { flags, positionals })
 }
 
 fn run_command(name: &str, parsed: &Parsed, runtime: &Runtime) -> Result<Value, Failure> {
@@ -112,6 +130,7 @@ fn run_command(name: &str, parsed: &Parsed, runtime: &Runtime) -> Result<Value, 
         "init" => commands::init(runtime, parsed.flag("spec"), parsed.all("milestone")),
         "path" => commands::path(runtime, parsed.flag("spec")),
         "refresh" => commands::refresh(runtime, parsed.flag("spec"), parsed.all("landed")),
+        "render" if parsed.flags.contains_key("tickets") => commands::render_tickets(runtime, parsed.flag("tickets"), parsed.flags.get("repo").map(|_| parsed.flag("repo")), parsed.flag("out")),
         "render" => commands::render(runtime, parsed.flag("state"), parsed.flag("out")),
         "set" => commands::set(runtime, parsed.flag("state"), &parsed.positionals),
         _ => commands::sync(runtime, parsed.flag("spec")),

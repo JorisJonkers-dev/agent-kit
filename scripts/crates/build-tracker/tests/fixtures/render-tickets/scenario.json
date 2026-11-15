@@ -1,0 +1,447 @@
+{
+  "repo": "widgets",
+  "remote": "https://github.com/acme/widgets.git",
+  "steps": [
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/demo/tickets.yaml",
+        "--out",
+        "@SANDBOX@/out/demo.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "@SANDBOX@/work/widgets/docs/specs/demo/tickets.yaml",
+        "--repo",
+        "acme/widgets",
+        "--out",
+        "@SANDBOX@/out/demo-repo.html"
+      ],
+      "cwd": "home"
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "@SANDBOX@/work/widgets/docs/specs/demo/tickets.yaml",
+        "--out",
+        "@SANDBOX@/out/demo-noremote.html"
+      ],
+      "cwd": "home"
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/demo/tickets.yaml",
+        "--repo",
+        "acme",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/demo/tickets.yaml",
+        "--repo",
+        "acme/wid gets",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/demo/tickets.yaml",
+        "--repo",
+        "acme/other",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/demo/missing.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/demo/tickets.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ],
+      "gh": "gh-missing"
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/bom.yaml",
+        "--out",
+        "@SANDBOX@/out/bom.html"
+      ],
+      "write": {
+        "work/widgets/docs/specs/bad/bom.yaml": "\ufeffspec: 10\r\nbranches:\r\n  B0:\r\n    title: t\r\n    issue: 2\r\ntickets:\r\n- key: a\r\n  title: \"a\"\r\n  branch: B0\r\n  issue: 31\r\n  blocked_by: []\r\n"
+      }
+    },
+    {
+      "argv": [
+        "render",
+        "--state",
+        "x",
+        "--tickets",
+        "y",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "y"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--repo",
+        "a/b",
+        "--state",
+        "x",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "y",
+        "--tickets",
+        "z",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/empty.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/tab.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/notmap.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/nospec.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/badline.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/dup.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/proto.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/indent.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/stray.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/plaincolon.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/form.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/unq.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/dq.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/dqtail.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/dqopen.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/sqtail.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/noval.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/nobranches.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/branchnotmap.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/branchissue.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/branchtitle.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/notickets.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/ticketsempty.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/ticketnotmap.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/nokey.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/blocked.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/blockednum.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/tbranch.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/tissue.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/ttitle.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/dupkey.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/dupissue.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/nobranch.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    },
+    {
+      "argv": [
+        "render",
+        "--tickets",
+        "docs/specs/bad/stray2.yaml",
+        "--out",
+        "@SANDBOX@/out/x.html"
+      ]
+    }
+  ]
+}

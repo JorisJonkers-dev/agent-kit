@@ -522,12 +522,15 @@ critique:
     - path: skills/workstation/critique/schemas/finding.schema.json
       sha256: 3e5a5fc33f61562457c628c33a8706b6f9fa3d6e849502bc94b7a73464833bc6
       mode: "0644"
-# The build tracker's runner, pinned the way critique.files pins the critique
+# The build tracker's launcher and node bundle, pinned the way critique.files pins the critique
 # runner. skills/workstation/build-tracker/ is the copy setup installs; its SKILL.md is the
 # skill's text and is left out. `pnpm run build` in council/ts rebuilds
 # build-tracker.mjs: update its sha256 here in the same commit.
 build_tracker:
   files:
+    - path: skills/workstation/build-tracker/build-tracker
+      sha256: 16a0e4fd959fd8db967f071ced94ea9b06ffe3d580480c8ec74cd2aaa000f398
+      mode: "0755"
     - path: skills/workstation/build-tracker/build-tracker.mjs
       sha256: a081654e70827bd15795e9f74a811a363238f94bd1921745d7c86cb4754e8b86
       mode: "0755"

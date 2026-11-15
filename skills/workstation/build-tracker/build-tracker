@@ -1,0 +1,23 @@
+#!/bin/sh
+# The build tracker's launcher: `sh <this directory>/build-tracker <command> ...`.
+#
+# It runs the Rust build tracker setup built (scripts/install-build-tracker-rust.sh)
+# when that binary is installed, and otherwise the node bundle beside it,
+# build-tracker.mjs. The two take the same commands and print the same JSON and
+# the same page.
+#
+# Rollback to the node bundle, without touching setup:
+#   AGENT_KIT_BUILD_TRACKER=node sh .../build-tracker ...   one call or one shell
+#   touch ~/.config/agent-kit/build-tracker-node            every call, until removed
+# AGENT_KIT_BUILD_TRACKER_BIN names another Rust binary to use.
+case $0 in
+  */*) here=${0%/*} ;;
+  *) here=. ;;
+esac
+here=$(cd "$here" && pwd) || exit 1
+rust=${AGENT_KIT_BUILD_TRACKER_BIN:-${XDG_BIN_HOME:-$HOME/.local/bin}/build-tracker}
+pin=${XDG_CONFIG_HOME:-$HOME/.config}/agent-kit/build-tracker-node
+if [ "${AGENT_KIT_BUILD_TRACKER:-rust}" != node ] && [ ! -e "$pin" ] && [ -f "$rust" ] && [ -x "$rust" ]; then
+  exec "$rust" "$@"
+fi
+exec node "$here/build-tracker.mjs" "$@"

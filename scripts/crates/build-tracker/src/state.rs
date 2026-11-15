@@ -85,8 +85,17 @@ pub enum SpecReference {
     Local { path: String },
 }
 
+/// A named run of tickets the page lists as one section, in the order given; `render --tickets` makes one per branch.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Group {
+    pub name: String,
+    pub tickets: Vec<u64>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BuildTrackerState {
+    /// The sections to list, when the state does not come from a state file (which has milestones instead).
+    pub groups: Option<Vec<Group>>,
     pub spec: SpecReference,
     pub title: String,
     pub subtitle: String,
@@ -149,7 +158,7 @@ pub fn parse_state(raw: &Object) -> Result<BuildTrackerState, Failure> {
     }
     let milestones = read_milestones(raw.get("milestones"), &tickets)?;
     tickets.sort_by_key(|ticket| ticket.number);
-    Ok(BuildTrackerState { milestones, spec, subtitle, tickets, title })
+    Ok(BuildTrackerState { groups: None, milestones, spec, subtitle, tickets, title })
 }
 
 fn parse_spec(raw: Option<&Value>) -> Result<SpecReference, Failure> {

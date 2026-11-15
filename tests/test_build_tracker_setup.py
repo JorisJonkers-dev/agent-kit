@@ -64,7 +64,7 @@ def test_the_build_tracker_skill_is_declared_for_claude_codex_and_the_other_agen
 
 def test_setup_installs_the_whole_skill_into_every_agent_home(macos_run: Run) -> None:
     want = sorted(p.relative_to(SKILL).as_posix() for p in SKILL.rglob("*") if p.is_file())
-    assert want == ["SKILL.md", "build-tracker.mjs"]
+    assert want == ["SKILL.md", "build-tracker", "build-tracker.mjs"]
     for home in HOMES:
         dest = macos_run.home / home / "skills" / "build-tracker"
         got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
@@ -229,7 +229,7 @@ def test_the_skill_starts_the_build_tracker_with_init_and_the_specs_milestones()
 def test_the_skill_lists_every_command_the_runner_has() -> None:
     commands = _section(_skill_text(), "## Commands")
     for command in ("init", "sync", "path", "refresh", "render", "set"):
-        assert f"build-tracker.mjs {command} " in commands, command
+        assert f"build-tracker {command} " in commands, command
         assert f"- `{command}`" in commands, command
 
 
@@ -275,7 +275,7 @@ def test_the_worked_example_runs_from_init_to_a_first_render_and_one_status_chan
     example = _section(_skill_text(), "## Worked example")
     block = re.search(r"```sh\n(.*?)```", example, re.S)
     assert block, "the example is one sh block"
-    commands = re.findall(r"^node \S.*?build-tracker\.mjs (\w+)", block.group(1), re.M)
+    commands = re.findall(r"^sh \S.*?build-tracker (\w+)", block.group(1), re.M)
     assert commands == ["init", "path", "render", "set", "render"], commands
     assert "--milestone " in block.group(1)
     assert "=running" in block.group(1)

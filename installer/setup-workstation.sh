@@ -8844,6 +8844,20 @@ critique_rust_setup() {
   [ "${rc}" = 0 ] || warn "critique runner (rust): not installed (exit ${rc}); the node runner stays"
 }
 critique_rust_setup
+# The build tracker's Rust build, installed on PATH as ~/.local/bin/build-tracker: the
+# build-tracker skill's launcher prefers it once it is installed, and runs the node bundle
+# until then, so a failed build changes nothing.
+build_tracker_rust_setup() {
+  local rc=0 mode=()
+  if [ "${CLOUD}" = 1 ]; then
+    log "build-tracker (rust): not built in a cloud session"
+    return 0
+  fi
+  [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
+  bash "${KIT_ROOT}/scripts/install-build-tracker-rust.sh" ${mode[@]+"${mode[@]}"} || rc=$?
+  [ "${rc}" = 0 ] || warn "build-tracker (rust): not installed (exit ${rc}); the node bundle stays"
+}
+build_tracker_rust_setup
 
 # The kit's own command-line tools (registry workspace_tools:), built from its pinned
 # cargo workspace behind the 7-day crate cooldown and installed into ~/.local/bin. A failed

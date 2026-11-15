@@ -5,11 +5,14 @@ use crate::board::Shown;
 use crate::json::{numbers, object, Object, Value};
 use crate::ports::Runtime;
 use crate::seed::{parse_milestones, seed_state, sync_state};
-use crate::spec::{state_base, state_location, ResolvedSpec, TicketFiles};
+use crate::spec::{parse_issue_reference, repository_name, state_base, state_location, RepositoryName, ResolvedSpec, TicketFiles};
+use crate::text::is_word;
 use crate::specs::{local_spec_place, locate_spec, LocatedSpec};
 use crate::state::{parse_state, BuildTrackerState, Failure, SpecReference, Status};
 use crate::state_file::{load_state, read_state_file, write_page, write_state};
 use crate::text::resolve;
+use crate::tickets_file::{parse_tickets_file, state_from_tickets};
+use std::collections::HashMap;
 
 fn parse_object(raw: &Object) -> Result<BuildTrackerState, Failure> {
     parse_state(raw)
@@ -97,6 +100,55 @@ pub fn render(runtime: &Runtime, state_path: &str, out: &str) -> Result<Value, F
     let files = ticket_files(runtime, state_path, &loaded.state)?;
     let shown = write_page(runtime, out, &loaded.state, files.as_ref())?;
     Ok(object(vec![("counts", counts(&shown)), ("out", Value::str(out)), ("status", Value::str("rendered"))]))
+}
+
+/// How many issues `render --tickets` reads at once.
+const ISSUE_READS_AT_ONCE: usize = 8;
+
+/// One page for every ticket of a spec, grouped by branch, from its ticket file and the state of each ticket's issue on
+/// GitHub. It reads and writes no state file: the ticket file and the issue tracker are the source.
+pub fn render_tickets(runtime: &Runtime, path: &str, repo: Option<&str>, out: &str) -> Result<Value, Failure> {
+    let text = runtime
+        .files
+        .read_text(&resolve(&runtime.cwd, path))
+        .map_err(|error| Failure::new("invalid-tickets", format!("the ticket file at {path} cannot be read: {}", error.message)))?;
+    let file = parse_tickets_file(&text)?;
+    let repository = ticket_repository(runtime, repo)?;
+    let tracker = |number: u64| {
+        runtime.issues.issue(&repository, number).map_err(|message| Failure::new("tracker-unreachable", format!("the issue tracker could not be read: {message}")))
+    };
+    let spec = tracker(file.spec)?;
+    let mut closed = HashMap::new();
+    for batch in file.tickets.chunks(ISSUE_READS_AT_ONCE) {
+        let issues: Vec<Result<bool, Failure>> = std::thread::scope(|scope| {
+            let reads: Vec<_> = batch.iter().map(|ticket| scope.spawn(|| tracker(ticket.issue).map(|issue| issue.closed))).collect();
+            reads.into_iter().map(|read| read.join().expect("an issue read does not panic")).collect()
+        });
+        for (ticket, issue) in batch.iter().zip(issues) {
+            closed.insert(ticket.issue, issue?);
+        }
+    }
+    let state = state_from_tickets(&file, &repository, &spec.title, &closed);
+    let shown = write_page(runtime, out, &state, None)?;
+    Ok(object(vec![("counts", counts(&shown)), ("out", Value::str(out)), ("status", Value::str("rendered"))]))
+}
+
+/// The repository the issues are in: `--repo owner/repo`, else the working directory's remote.
+fn ticket_repository(runtime: &Runtime, repo: Option<&str>) -> Result<RepositoryName, Failure> {
+    if let Some(repo) = repo {
+        let named = match repo.split_once('/') {
+            Some((owner, name)) if [owner, name].iter().all(|part| !part.is_empty() && part.chars().all(|c| is_word(c) || c == '.' || c == '-')) => parse_issue_reference(&format!("{repo}#1")),
+            _ => None,
+        };
+        let Some(named) = named else {
+            return Err(Failure::new("invalid-spec", format!("--repo must be owner/repo, not {repo}")));
+        };
+        return Ok(repository_name(&named.repository.host, &named.repository.owner, &named.repository.repo));
+    }
+    let location = runtime.repositories.locate(&runtime.cwd).map_err(|message| Failure::new("unexpected", message))?;
+    location
+        .and_then(|location| location.remote)
+        .ok_or_else(|| Failure::new("invalid-spec", "the working directory has no git remote; name the repository with --repo owner/repo"))
 }
 
 /// Where a local spec's ticket files are shown, read from the repository the command runs in. Only the spec's own

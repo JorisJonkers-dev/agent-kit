@@ -106,11 +106,11 @@ with one `--landed` per ticket of `state.tickets` whose `landed` is true,
 named by its `id`:
 
 ```sh
-node <build-tracker dir>/build-tracker.mjs refresh --spec '<state.spec>' --landed '<id>' ...
+sh <build-tracker dir>/build-tracker refresh --spec '<state.spec>' --landed '<id>' ...
 ```
 
-The runner is `build-tracker.mjs` in the `build-tracker` skill directory
-(`../build-tracker/build-tracker.mjs` from the folder this file is in).
+The runner is the `build-tracker` launcher in the `build-tracker` skill directory
+(`../build-tracker/build-tracker` from the folder this file is in).
 Quote every argument: unquoted, an id such as `#183` starts a shell comment.
 `refresh` runs `init` when the spec has no build tracker state yet, and
 `sync` when it has one; it marks each landed ticket `merged`, renders the
