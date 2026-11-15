@@ -4792,7 +4792,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
                 f"if nix_provides {binary}; then",
                 f'  ok "{name}: provided by Nix; setup does not install or update it"',
                 f"  if copy=$(non_nix_copy {binary}); then",
-                f'    warn "{name}: ${{copy}} is not from Nix and can shadow the Nix-provided {binary}; remove it with:  rm \\"${{copy}}\\""',
+                f'    warn "{name}: ${{copy}} is not from Nix and can shadow the Nix-provided {binary};'
+                f' remove it with:  rm \\"${{copy}}\\""',
                 "  fi",
                 "else",
                 *[f"  {line}" if line else line for line in block],
