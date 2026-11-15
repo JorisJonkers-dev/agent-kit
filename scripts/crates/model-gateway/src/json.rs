@@ -68,10 +68,8 @@ impl Object {
     }
 
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
-        match self.slots.get(key) {
-            Some(at) => Some(&mut self.members[*at].1),
-            None => None,
-        }
+        let at = self.slots.get(key).copied()?;
+        Some(&mut self.members[at].1)
     }
 
     /// Sets a member: in place when the key exists, else last.
@@ -284,7 +282,7 @@ pub fn parse(text: &str) -> Result<Value, String> {
             .spawn_scoped(scope, || parse_chars(chars))
             .expect("a parser thread starts")
             .join()
-            .unwrap_or_else(|_| Err("Unexpected end of JSON input".to_string()))
+            .expect("the parser returns an error rather than panicking")
     })
 }
 
