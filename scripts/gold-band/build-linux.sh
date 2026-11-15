@@ -68,18 +68,10 @@ die() { say "$*" >&2; exit 1; }
 [ "$(uname -s)" = Linux ] || die "this builder is for Linux; the Mac build is its own ticket"
 [ "$(uname -m)" = x86_64 ] || die "only Linux x86_64 is supported here (this host is $(uname -m))"
 
-if [ "$RETIRE" = 1 ]; then
-  retire_desktop_integration
-  exit 0
-fi
-
-if [ ! -e "$CLONE/.git" ]; then
-  say "skipped: no Gold Band clone at $CLONE (git clone https://github.com/diodeme/Gold-Band there to enable it)"
-  exit 0
-fi
-commit=$(git -C "$CLONE" rev-parse --verify "$REF^{commit}" 2>/dev/null) \
-  || die "commit $REF is not in $CLONE (git -C $CLONE fetch origin)"
-
+recorded() {
+  [ -f "$STATE" ] && grep -q "\"commit\": \"$commit\"" "$STATE" \
+    && [ -x "$BIN_DIR/gold-band" ] && [ -x "$BIN_DIR/gold-band-desktop" ]
+}
 # The icons of the pinned source's src-tauri/icons, installed as gold-band.* into
 # hicolor under the directory of their real size (the SVG under scalable).
 ICON_SOURCES="32x32.png 64x64.png 128x128.png 128x128@2x.png icon.png logo-source.svg"
@@ -182,10 +174,18 @@ DESKTOP
   rm -rf "$tmp"
 }
 
-recorded() {
-  [ -f "$STATE" ] && grep -q "\"commit\": \"$commit\"" "$STATE" \
-    && [ -x "$BIN_DIR/gold-band" ] && [ -x "$BIN_DIR/gold-band-desktop" ]
-}
+if [ "$RETIRE" = 1 ]; then
+  retire_desktop_integration
+  exit 0
+fi
+
+if [ ! -e "$CLONE/.git" ]; then
+  say "skipped: no Gold Band clone at $CLONE (git clone https://github.com/diodeme/Gold-Band there to enable it)"
+  exit 0
+fi
+commit=$(git -C "$CLONE" rev-parse --verify "$REF^{commit}" 2>/dev/null) \
+  || die "commit $REF is not in $CLONE (git -C $CLONE fetch origin)"
+
 if [ "${GOLD_BAND_FORCE:-0}" != 1 ] && recorded; then
   say "already built: $(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$STATE") at ${commit} ($STATE)"
   desktop_integration

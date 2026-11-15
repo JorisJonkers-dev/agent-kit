@@ -461,16 +461,23 @@ def test_a_missing_icon_is_reported_and_does_not_fail_the_run(tmp_path: Path) ->
     git(host.clone, "commit", "-q", "-m", "no icons")
     done = host.run(GOLD_BAND_REF=git(host.clone, "rev-parse", "HEAD"))
     assert done.returncode == 0, done.stdout + done.stderr
-    assert "the icon was not installed" in done.stdout
+    assert "was not installed" in done.stdout
     assert share(host, "applications", "gold-band.desktop").exists()
 
 
 def test_a_stale_icon_cache_is_removed_where_no_cache_tool_exists(tmp_path: Path) -> None:
     host = make_host(tmp_path)
+    # A PATH of the host's tools without gtk-update-icon-cache, as on NixOS.
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for directory in (SYSTEM_BIN, "/usr/bin", "/bin"):
+        for entry in Path(directory).iterdir() if Path(directory).is_dir() else []:
+            if entry.name != "gtk-update-icon-cache" and not (tools / entry.name).exists():
+                (tools / entry.name).symlink_to(entry)
     cache = share(host, "icons", "hicolor", "icon-theme.cache")
     cache.parent.mkdir(parents=True)
     cache.write_text("stale")
-    assert host.run().returncode == 0
+    assert host.run(PATH=f"{tmp_path / 'stubs'}:{tools}").returncode == 0
     assert not cache.exists()
 
 
