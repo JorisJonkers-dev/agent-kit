@@ -1142,6 +1142,8 @@ workspace_tools:
     surfaces: [workstation]
   - name: litellm-gate
     surfaces: [workstation]
+  - name: estate
+    surfaces: [workstation]
   - name: projects-layout-guard
     surfaces: [workstation]
 

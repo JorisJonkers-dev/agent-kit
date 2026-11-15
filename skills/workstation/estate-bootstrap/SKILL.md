@@ -47,10 +47,10 @@ Read these live, in order, with `gh api repos/OWNER/REPO/contents/PATH --jq .con
 Run the audit on the repository and on the template it came from. Each run needs a local directory, so use an existing clone under `~/Projects/JorisJonkers-dev/`, or clone it as the projects-layout skill says. Fetch the default branch before the run, or treat a clone's result as provisional.
 
 ```
-python3 <skill-dir>/scripts/audit.py <repo-dir> --latest-sha <release-sha>
+estate audit <repo-dir> --latest-sha <release-sha>
 ```
 
-The script prints one line per gap, `<file>: <gap> (source: <doc>)`, or `no gaps`. It exits 2 for a missing directory. It checks:
+The audit prints one line per gap, `<file>: <gap> (source: <doc>)`, or `no gaps`. It exits 2 for a missing directory. It checks:
 
 - Pins to `main` or a non-SHA ref, and pins behind the latest release SHA. A trailing `# ...` comment is ignored. Scope: `.github/workflows/`, `.github/actions/` and `templates/**/*.tmpl` (`repo-template` carries its workflows as `.tmpl` files).
 - The single `Pipeline Complete` job: only a job-level `name:` under the top-level `jobs:` key counts, in `.github/workflows/` only. `.tmpl` files are not checked for it.
