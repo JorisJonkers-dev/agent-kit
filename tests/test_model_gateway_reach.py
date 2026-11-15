@@ -2,8 +2,7 @@
 marked pointer block each client's global instruction file carries.
 
 The setup assertions run the checked-in setup script against a temp HOME with
-every external command stubbed (tests/setup_harness.py). The block helper is
-run directly on temp files.
+every external command stubbed (tests/setup_harness.py).
 """
 
 from __future__ import annotations
@@ -24,7 +23,6 @@ sys.path.insert(0, str(KIT_ROOT / "tests"))
 from setup_harness import Run, setup_run  # noqa: E402
 
 COMMAND = KIT_ROOT / "installer" / "model-gateway"
-HELPER = KIT_ROOT / "scripts" / "instruction-block.py"
 PUBLISH = KIT_ROOT / "scripts" / "publish-installer-artifacts.sh"
 BEGIN = "<!-- agent-kit model-gateway begin -->"
 END = "<!-- agent-kit model-gateway end -->"
@@ -50,15 +48,6 @@ def _render_registry():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def _helper(
-    path: Path, name: str = "model-gateway", *, remove: bool = False, body: str = ""
-) -> subprocess.CompletedProcess:
-    args = [sys.executable, str(HELPER), str(path), name]
-    if remove:
-        args.append("--remove")
-    return subprocess.run(args, input=body, capture_output=True, text=True, check=False)
 
 
 def _block(body: str) -> str:
@@ -121,12 +110,12 @@ def test_retiring_the_gateway_removes_the_command_and_its_pointers() -> None:
     assert 'gateway_pointer "${CLAUDE_HOME}/CLAUDE.md" remove' in retired
 
 
-def test_the_bundle_ships_the_command_and_the_block_helper_it_needs() -> None:
+def test_the_bundle_ships_the_command_and_the_crate_that_writes_its_block() -> None:
     listed = re.search(r"KIT_PATHS=\((.*?)\n\)", PUBLISH.read_text(), re.S)
     assert listed is not None
     paths = listed.group(1).split()
     assert "installer/model-gateway" in paths
-    assert "scripts/instruction-block.py" in paths
+    assert "scripts/crates" in paths
 
 
 # ---------------------------------------------------------------------------
@@ -199,84 +188,3 @@ def test_check_only_writes_no_command_and_no_pointer(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # The block helper
 # ---------------------------------------------------------------------------
-
-
-def test_the_helper_appends_its_block_to_a_missing_file(tmp_path: Path) -> None:
-    file = tmp_path / "AGENTS.md"
-
-    result = _helper(file, body="Pointer line.")
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "changed"
-    assert file.read_text() == _block("Pointer line.")
-
-
-def test_the_helper_is_unchanged_on_a_second_run_with_the_same_body(tmp_path: Path) -> None:
-    file = tmp_path / "AGENTS.md"
-    _helper(file, body="Pointer line.")
-
-    result = _helper(file, body="Pointer line.")
-
-    assert result.stdout.strip() == "unchanged"
-
-
-def test_the_helper_replaces_its_block_in_place_and_keeps_the_text_around_it(tmp_path: Path) -> None:
-    file = tmp_path / "AGENTS.md"
-    file.write_text("Before.\n\n" + _block("old") + "After.\n")
-
-    result = _helper(file, body="new")
-
-    assert result.returncode == 0, result.stderr
-    assert file.read_text() == "Before.\n\n" + _block("new") + "After.\n"
-
-
-def test_the_helper_leaves_a_file_with_an_unclosed_block_alone(tmp_path: Path) -> None:
-    file = tmp_path / "AGENTS.md"
-    original = f"Mine.\n{BEGIN}\nhalf a block\n"
-    file.write_text(original)
-
-    result = _helper(file, body="new")
-
-    assert result.returncode == 2
-    assert "model-gateway" in result.stderr
-    assert file.read_text() == original
-
-
-def test_the_helper_removes_only_its_block(tmp_path: Path) -> None:
-    file = tmp_path / "AGENTS.md"
-    file.write_text("Before.\n\n" + _block("pointer") + "After.\n")
-
-    result = _helper(file, remove=True)
-
-    assert result.returncode == 0, result.stderr
-    assert file.read_text() == "Before.\n\nAfter.\n"
-
-
-def test_the_helper_removing_from_a_file_without_its_block_changes_nothing(tmp_path: Path) -> None:
-    file = tmp_path / "AGENTS.md"
-    file.write_text("Mine.\n")
-
-    result = _helper(file, remove=True)
-
-    assert result.stdout.strip() == "unchanged"
-    assert file.read_text() == "Mine.\n"
-
-
-def test_the_helper_keeps_other_named_blocks_in_the_same_file(tmp_path: Path) -> None:
-    file = tmp_path / "AGENTS.md"
-    other = "<!-- agent-kit other begin -->\nother\n<!-- agent-kit other end -->\n"
-    file.write_text(other)
-
-    _helper(file, body="pointer")
-
-    assert file.read_text().startswith(other)
-
-
-def test_the_helper_keeps_a_crlf_file_byte_for_byte_around_its_block(tmp_path: Path) -> None:
-    file = tmp_path / "AGENTS.md"
-    file.write_bytes(b"Mine.\r\n\r\n" + _block("old").replace("\n", "\r\n").encode() + b"Tail.\r\n")
-
-    result = _helper(file, body="new")
-
-    assert result.returncode == 0, result.stderr
-    assert file.read_bytes() == b"Mine.\r\n\r\n" + _block("new").replace("\n", "\r\n").encode() + b"Tail.\r\n"

@@ -14,8 +14,6 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
 import render_registry  # noqa: E402
 
-MERGE = KIT_ROOT / "scripts" / "vibe-merge-mcp.py"
-
 
 def _registry() -> dict:
     return yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text())
@@ -80,60 +78,6 @@ def test_vibe_fragment_is_a_generated_artifact() -> None:
     assert render_registry.VIBE_MCP in render_registry.artifacts(_registry())
 
 
-def _merge(tmp_path: Path, *extra: str) -> subprocess.CompletedProcess:
-    fragment = tmp_path / "fragment.toml"
-    fragment.write_text(render_registry.render_vibe_mcp(_registry()))
-    return subprocess.run(
-        ["uv", "run", "--no-project", "--exclude-newer", "7 days", "--with", "tomlkit",
-          "python", str(MERGE), str(fragment),
-         "--config", str(tmp_path / "config.toml"), *extra],
-        capture_output=True, text=True, check=False,
-    )
-
-
-def test_merge_keeps_the_users_settings_and_servers(tmp_path: Path) -> None:
-    config = tmp_path / "config.toml"
-    config.write_text(
-        'active_model = "mistral-medium-3.5"\n\n'
-        "[[mcp_servers]]\nname = \"mine\"\ntransport = \"stdio\"\ncommand = \"my-mcp\"\n\n"
-        "[[mcp_servers]]\nname = \"memory-api\"\ntransport = \"http\"\nurl = \"https://stale.example/mcp\"\n"
-    )
-    result = _merge(tmp_path)
-    assert result.returncode == 0, result.stdout + result.stderr
-    data = tomllib.loads(config.read_text())
-    assert data["active_model"] == "mistral-medium-3.5"
-    servers = {s["name"]: s for s in data["mcp_servers"]}
-    assert servers["mine"]["command"] == "my-mcp"
-    assert servers["memory-api"]["url"].endswith("/mcp/default/")
-    assert [s["name"] for s in data["mcp_servers"]].count("memory-api") == 1
-    assert set(servers) >= {s["name"] for s in _vibe_servers(_registry())}
-
-
-def test_merge_is_idempotent_and_creates_the_config(tmp_path: Path) -> None:
-    assert _merge(tmp_path).returncode == 0
-    first = (tmp_path / "config.toml").read_text()
-    assert _merge(tmp_path).returncode == 0
-    assert (tmp_path / "config.toml").read_text() == first
-
-
-def test_merge_is_idempotent_beside_the_users_own_settings(tmp_path: Path) -> None:
-    config = tmp_path / "config.toml"
-    config.write_text('# my vibe\nactive_model = "mistral-medium-3.5"\n\n[tools.bash]\npermission = "ask"\n')
-    assert _merge(tmp_path).returncode == 0
-    first = config.read_text()
-    assert _merge(tmp_path).returncode == 0
-    assert config.read_text() == first
-    assert first.startswith("# my vibe\n")
-
-
-def test_merge_keeps_the_first_backup(tmp_path: Path) -> None:
-    config = tmp_path / "config.toml"
-    config.write_text('active_model = "original"\n')
-    assert _merge(tmp_path).returncode == 0
-    assert _merge(tmp_path).returncode == 0
-    assert (tmp_path / "config.toml.bak").read_text() == 'active_model = "original"\n'
-
-
 def test_cloud_mode_merges_once_with_its_removals() -> None:
     script = render_registry.render_setup_script(_registry())
     assert script.count('"${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config') == 1
@@ -142,17 +86,10 @@ def test_cloud_mode_merges_once_with_its_removals() -> None:
     )
 
 
-def test_merge_can_remove_a_managed_server(tmp_path: Path) -> None:
-    assert _merge(tmp_path).returncode == 0
-    assert _merge(tmp_path, "--remove", "kubernetes").returncode == 0
-    names = {s["name"] for s in tomllib.loads((tmp_path / "config.toml").read_text())["mcp_servers"]}
-    assert "kubernetes" not in names
-
-
 def test_setup_merges_vibe_servers_when_vibe_is_on_path() -> None:
     script = render_registry.render_setup_script(_registry())
     assert "if command -v vibe >/dev/null 2>&1; then" in script
-    assert 'scripts/vibe-merge-mcp.py" \\' in script
+    assert "agent_kit_merge vibe-mcp \\" in script
     assert f'"${{KIT_ROOT}}/{render_registry.VIBE_MCP}"' in script
 
 

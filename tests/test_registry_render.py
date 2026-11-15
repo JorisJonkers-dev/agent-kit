@@ -223,7 +223,7 @@ def test_setup_script_wires_every_workstation_server_into_all_three_agents() -> 
         assert f"claude mcp add --scope user {name}" in script
         assert f"codex mcp add {name}" in script
     # local-hermes merge is emitted once
-    assert "hermes-merge-mcp.py" in script
+    assert "agent_kit_merge hermes-mcp" in script
 
 
 def test_claude_env_flags_come_after_the_server_name() -> None:

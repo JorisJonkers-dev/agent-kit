@@ -12,16 +12,9 @@
 scripts/gold-band/patches/templates-entry-rule.test.ts
 
 # #809 Rust config and merge library: merge-mcp, package-proxy-merge, instruction-block and the profile scripts
-scripts/antigravity-merge-mcp.py
-scripts/codex-add-url-mcp.py
 scripts/fold-profile-settings.py
-scripts/hermes-merge-mcp.py
-scripts/instruction-block.py
-scripts/opencode-merge-mcp.py
 scripts/opencode-plugin-skills.py
-scripts/package-proxy-merge.py
 scripts/pi-merge-providers.py
-scripts/vibe-merge-mcp.py
 scripts/vibe-no-commit-signature.py
 scripts/vibe-split-homes.py
 scripts/vibe-sync-models.py

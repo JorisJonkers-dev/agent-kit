@@ -6,7 +6,10 @@ machine's agent homes. Tests assert on the tree the run leaves behind.
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
+import pwd
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -14,6 +17,44 @@ from pathlib import Path
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 SETUP = KIT_ROOT / "installer" / "setup-workstation.sh"
+
+
+_MERGE_BINARY: list[str] = []
+
+
+def merge_binary() -> str:
+    """The agent-kit-merge binary the setup script's ``agent_kit_merge`` function runs.
+
+    Built once per machine from the kit's cargo workspace (a debug build, under a lock
+    so parallel test workers wait for one build), with the real home's cargo and rustup
+    directories since a test's HOME is a temporary one. ``AGENT_KIT_MERGE`` names one
+    explicitly, such as a prebuilt release binary.
+    """
+    if _MERGE_BINARY:
+        return _MERGE_BINARY[0]
+    named = os.environ.get("AGENT_KIT_MERGE")
+    if named:
+        _MERGE_BINARY.append(named)
+        return named
+    real_home = pwd.getpwuid(os.getuid()).pw_dir
+    target = Path(os.environ.get("CARGO_TARGET_DIR") or KIT_ROOT / "scripts" / "target")
+    target.mkdir(parents=True, exist_ok=True)
+    env = {
+        **os.environ,
+        "CARGO_HOME": os.environ.get("CARGO_HOME") or f"{real_home}/.cargo",
+        "RUSTUP_HOME": os.environ.get("RUSTUP_HOME") or f"{real_home}/.rustup",
+    }
+    with open(target / ".merge-binary.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        subprocess.run(
+            ["cargo", "build", "--quiet", "--locked", "-p", "agent-kit-merge",
+             "--manifest-path", str(KIT_ROOT / "scripts" / "Cargo.toml")],
+            check=True,
+            env=env,
+            capture_output=True,
+        )
+    _MERGE_BINARY.append(str(target / "debug" / "agent-kit-merge"))
+    return _MERGE_BINARY[0]
 
 
 @dataclass(frozen=True)
@@ -102,6 +143,7 @@ def setup_run(
             # Not the machine's /usr/local: where it is writable, as on a CI runner, setup would
             # install there and a cloud run would put the runner's real npm ahead of the stubs.
             "AK_SYSTEM_PREFIX": str(root / "no-system-prefix"),
+            "AGENT_KIT_MERGE": merge_binary(),
             **(extra_env or {}),
         },
     )

@@ -14,7 +14,7 @@
 # "Release binaries".
 set -euo pipefail
 
-TOOLS="agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate projects-layout-guard critique model-gateway build-tracker"
+TOOLS="agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate projects-layout-guard agent-kit-merge critique model-gateway build-tracker"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 sha() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }

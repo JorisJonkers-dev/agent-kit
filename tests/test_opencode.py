@@ -23,7 +23,6 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 import render_registry  # noqa: E402
 from setup_harness import Run, setup_run  # noqa: E402
 
-MERGE = KIT_ROOT / "scripts" / "opencode-merge-mcp.py"
 PLUGIN_SKILLS = KIT_ROOT / "scripts" / "opencode-plugin-skills.py"
 CONVERGE = KIT_ROOT / "scripts" / "converge.py"
 FRAGMENT = KIT_ROOT / "registry" / "generated" / "opencode" / "opencode.json"
@@ -364,41 +363,6 @@ def test_a_failing_claude_changes_nothing_and_says_so(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert "claude plugin list failed" in result.stderr
     assert not (tmp_path / "skills").exists()
-
-
-# ---------------------------------------------------------------------------
-# The merge on its own
-# ---------------------------------------------------------------------------
-
-
-def _merge(config: Path, *extra: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([sys.executable, str(MERGE), str(FRAGMENT), "--config", str(config), *extra],
-                          capture_output=True, text=True, check=False)
-
-
-def test_merge_is_idempotent_and_backs_up_the_first_version_only(tmp_path: Path) -> None:
-    config = tmp_path / "opencode.json"
-    config.write_text(json.dumps({"model": "x"}))
-    assert _merge(config).returncode == 0
-    first = config.read_text()
-    assert _merge(config).returncode == 0
-    assert config.read_text() == first
-    assert json.loads((tmp_path / "opencode.json.bak").read_text()) == {"model": "x"}
-
-
-def test_merge_writes_a_fresh_config(tmp_path: Path) -> None:
-    config = tmp_path / "new" / "opencode.json"
-    assert _merge(config).returncode == 0
-    assert _servers(json.loads(config.read_text())) == _servers(_fragment())
-
-
-def test_merge_refuses_a_config_with_comments(tmp_path: Path) -> None:
-    config = tmp_path / "opencode.json"
-    config.write_text('{\n  // mine\n  "model": "x"\n}\n')
-    result = _merge(config)
-    assert result.returncode == 1
-    assert "is not plain JSON" in result.stderr
-    assert config.read_text() == '{\n  // mine\n  "model": "x"\n}\n'
 
 
 # ---------------------------------------------------------------------------

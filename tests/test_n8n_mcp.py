@@ -11,7 +11,6 @@ import json
 import re
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
@@ -21,7 +20,6 @@ import render_registry  # noqa: E402
 import yaml  # noqa: E402
 
 PY = sys.executable
-MERGE = KIT_ROOT / "scripts" / "vibe-merge-mcp.py"
 
 FAKE_CLAUDE = f"""#!{PY}
 import json, os, sys
@@ -154,21 +152,6 @@ def test_codex_registers_n8n_mcp_with_no_api_key(tmp_path: Path) -> None:
     machine = Machine(tmp_path)
     machine.setup()
     assert machine.codex() == ["--", "n8n-mcp"]
-
-
-def test_vibe_starts_n8n_mcp_with_no_api_key(tmp_path: Path) -> None:
-    fragment = tmp_path / "fragment.toml"
-    fragment.write_text(render_registry.render_vibe_mcp(_registry()))
-    config = tmp_path / "config.toml"
-    subprocess.run(
-        ["uv", "run", "--no-project", "--exclude-newer", "7 days", "--with", "tomlkit",
-          "python", str(MERGE), str(fragment),
-         "--config", str(config)],
-        capture_output=True, text=True, check=True,
-    )
-    server = next(s for s in tomllib.loads(config.read_text())["mcp_servers"] if s["name"] == "n8n-mcp")
-    assert (server["command"], server["args"]) == ("n8n-mcp", [])
-    assert "env" not in server
 
 
 def test_convergence_keeps_n8n_mcp_on_every_client() -> None:

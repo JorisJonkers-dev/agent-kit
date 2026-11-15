@@ -25,7 +25,6 @@ import render_registry  # noqa: E402
 import yaml  # noqa: E402
 
 PY = sys.executable
-MERGE = KIT_ROOT / "scripts" / "vibe-merge-mcp.py"
 
 FAKE_CLAUDE = f"""#!{PY}
 import json, os, sys
@@ -212,21 +211,6 @@ def test_setup_warns_by_name_when_the_playwright_mcp_binary_is_missing(tmp_path:
     machine = Machine(tmp_path)
     result = machine.setup(npm_broken=True)
     assert "warn playwright: playwright-mcp is not on PATH" in result.stderr
-
-
-def test_vibe_starts_playwright_from_the_pinned_binary_with_a_startup_timeout(tmp_path: Path) -> None:
-    fragment = tmp_path / "fragment.toml"
-    fragment.write_text(render_registry.render_vibe_mcp(_registry()))
-    config = tmp_path / "config.toml"
-    subprocess.run(
-        ["uv", "run", "--no-project", "--exclude-newer", "7 days", "--with", "tomlkit",
-          "python", str(MERGE), str(fragment),
-         "--config", str(config)],
-        capture_output=True, text=True, check=True,
-    )
-    server = next(s for s in tomllib.loads(config.read_text())["mcp_servers"] if s["name"] == "playwright")
-    assert {"command": server["command"], "args": server["args"]} == EXPECTED
-    assert server["startup_timeout_sec"] == 60.0
 
 
 def test_one_renovate_match_moves_the_container_and_the_workstation_pin() -> None:

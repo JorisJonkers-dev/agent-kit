@@ -1,0 +1,19 @@
+[package]
+name = "agent-kit-merge"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Config-and-merge library and the agent-kit-merge binary: atomic settings writes, marked-block edits and MCP config merges (issue #809)."
+
+[lib]
+name = "agent_kit_merge"
+path = "src/lib.rs"
+
+[[bin]]
+name = "agent-kit-merge"
+path = "src/main.rs"
+
+[dependencies]
+regex = "=1.13.1"
+serde_yaml = "=0.9.34"
+toml_edit = "=0.25.19"

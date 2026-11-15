@@ -1,7 +1,7 @@
 # GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
 #
 # Mistral Vibe's MCP servers, merged into ~/.vibe/config.toml by
-# scripts/vibe-merge-mcp.py. Servers named here are replaced on every
+# agent-kit-merge vibe-mcp. Servers named here are replaced on every
 # run; any other server in that file is left alone.
 
 [[mcp_servers]]

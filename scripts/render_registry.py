@@ -1200,14 +1200,14 @@ def render_hermes_local_mcp(data: dict[str, Any]) -> str:
     are rendered as ``${CRED}`` placeholders that Hermes interpolates at
     connect time from its secret scope / environment -- never written to disk.
 
-    The block is merged into the local config by ``scripts/hermes-merge-mcp.py``
+    The block is merged into the local config by ``agent-kit-merge hermes-mcp``
     (generated setup calls it once after registering the CLI agents).
     """
     lines = [
         f"# {GENERATED_BANNER}",
         "#",
         "# WORKSTATION surface for LOCAL Hermes. Merged into",
-        "# ~/.hermes/config.yaml by scripts/hermes-merge-mcp.py.",
+        "# ~/.hermes/config.yaml by agent-kit-merge hermes-mcp.",
         "#",
         "mcp_servers:",
     ]
@@ -1285,13 +1285,13 @@ def _render_vibe_mcp(data: dict[str, Any], launcher: str, config: str) -> str:
     """Render the ``[[mcp_servers]]`` entries merged into a Vibe home's config.toml.
 
     Credentials are named, never written: Vibe's static auth reads the token
-    from ``api_key_env`` at connect time. Merged by ``scripts/vibe-merge-mcp.py``.
+    from ``api_key_env`` at connect time. Merged by ``agent-kit-merge vibe-mcp``.
     """
     lines = [
         f"# {GENERATED_BANNER}",
         "#",
         f"# Mistral Vibe's MCP servers, merged into {config} by",
-        "# scripts/vibe-merge-mcp.py. Servers named here are replaced on every",
+        "# agent-kit-merge vibe-mcp. Servers named here are replaced on every",
         "# run; any other server in that file is left alone.",
     ]
     for server in vibe_servers(data, launcher):
@@ -1345,7 +1345,7 @@ def render_antigravity_mcp(data: dict[str, Any]) -> str:
     token is registered as the stdio proxy rather than with a ``headers``
     block: the proxy reads the token from the agent-kit secret store at
     start-up, and no secret value reaches this file. Merged into
-    ``~/.gemini/config/mcp_config.json`` by ``scripts/antigravity-merge-mcp.py``.
+    ``~/.gemini/config/mcp_config.json`` by ``agent-kit-merge antigravity-mcp``.
     """
     servers: dict[str, Any] = {}
     for server in antigravity_servers(data):
@@ -1388,7 +1388,7 @@ def render_opencode_mcp(data: dict[str, Any]) -> str:
     discovery is off for it. An ``auth: oauth`` server is left to OpenCode's
     own sign-in (``opencode mcp auth <name>``). Timeouts are milliseconds.
     Merged into ``~/.config/opencode/opencode.json`` by
-    ``scripts/opencode-merge-mcp.py``.
+    ``agent-kit-merge opencode-mcp``.
     """
     servers: dict[str, Any] = {}
     for server in opencode_servers(data):
@@ -1696,6 +1696,32 @@ def _leaked_runner_workspace_trust_fn(w: Any) -> None:
     w("")
 
 
+# The Rust merge tool (scripts/crates/agent-kit-merge) does every marked-block edit and every
+# MCP config merge in setup. This shell function finds it: AGENT_KIT_MERGE when set, else the
+# workspace tool on PATH or in ~/.local/bin, else the kit's own release build, made once on
+# first use (the package proxy step runs before the workspace tools are installed).
+_AGENT_KIT_MERGE_FN = (
+    "agent_kit_merge() {",
+    '  local bin="${AGENT_KIT_MERGE:-}" candidate target="${CARGO_TARGET_DIR:-${KIT_ROOT}/scripts/target}"',
+    '  if [ -z "${bin}" ]; then',
+    '    for candidate in "${AK_BIN_DIR}/agent-kit-merge" "${HOME}/.local/bin/agent-kit-merge" \\',
+    '      "${target}/release/agent-kit-merge"; do',
+    '      if [ -x "${candidate}" ]; then bin="${candidate}"; break; fi',
+    "    done",
+    "  fi",
+    '  if [ -z "${bin}" ]; then',
+    "    if ! command -v cargo >/dev/null 2>&1; then",
+    '      echo "agent-kit-merge is not installed and cargo is not on PATH; cannot merge config" >&2',
+    "      return 127",
+    "    fi",
+    '    cargo build --release --locked --quiet -p agent-kit-merge \\',
+    '      --manifest-path "${KIT_ROOT}/scripts/Cargo.toml" </dev/null >&2 || return 127',
+    '    bin="${target}/release/agent-kit-merge"',
+    "  fi",
+    '  "${bin}" "$@"',
+    "}",
+)
+
 # The no-agent-attribution rule, one marked block in each agent's global
 # instruction file. Plain words only: it is written through a quoted heredoc.
 ATTRIBUTION_RULE_TEXT = (
@@ -1763,7 +1789,7 @@ def _no_agent_attribution_fns(w: Any) -> None:
     w("    return 0")
     w("  fi")
     w('  mkdir -p "$(dirname "${file}")"')
-    w(f'  python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" no-agent-attribution <<\'BLOCK\' >/dev/null \\')
+    w('  agent_kit_merge instruction-block "${file}" no-agent-attribution <<\'BLOCK\' >/dev/null \\')
     w('    && ok "no-agent-attribution rule -> ${file}" \\')
     w('    || warn "no-agent-attribution rule: ${file} left alone; fix its block, then re-run setup"')
     for line in ATTRIBUTION_RULE_TEXT:
@@ -2208,8 +2234,6 @@ GATEWAY_POINTER_TEXT = (
     "lists the client models on this machine, each with its cost class and difficulty tier.",
     "The `delegate` skill plans delegations with it.",
 )
-INSTRUCTION_BLOCK = Path("scripts/instruction-block.py")
-PACKAGE_PROXY_MERGE = Path("scripts/package-proxy-merge.py")
 
 
 def _gateway_pointer_fn(w: Any) -> None:
@@ -2224,13 +2248,13 @@ def _gateway_pointer_fn(w: Any) -> None:
     w("  fi")
     w('  if [ "${action}" = remove ]; then')
     w('    [ -f "${file}" ] || return 0')
-    w(f'    python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" model-gateway --remove >/dev/null \\')
+    w('    agent_kit_merge instruction-block "${file}" model-gateway --remove >/dev/null \\')
     w('      && ok "model-gateway pointer removed from ${file}" \\')
     w('      || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"')
     w("    return 0")
     w("  fi")
     w('  mkdir -p "$(dirname "${file}")"')
-    w(f'  python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" model-gateway <<\'BLOCK\' \\')
+    w('  agent_kit_merge instruction-block "${file}" model-gateway <<\'BLOCK\' \\')
     w('    && ok "model-gateway pointer -> ${file}" \\')
     w('    || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"')
     for line in GATEWAY_POINTER_TEXT:
@@ -2363,13 +2387,13 @@ def _layout_pointer_fn(w: Any) -> None:
     w("  fi")
     w('  if [ "${action}" = remove ]; then')
     w('    [ -f "${file}" ] || return 0')
-    w(f'    python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" projects-layout --remove >/dev/null \\')
+    w('    agent_kit_merge instruction-block "${file}" projects-layout --remove >/dev/null \\')
     w('      && ok "projects-layout rule removed from ${file}" \\')
     w('      || warn "projects-layout rule: ${file} left alone; fix its block, then re-run setup"')
     w("    return 0")
     w("  fi")
     w('  mkdir -p "$(dirname "${file}")"')
-    w(f'  python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" projects-layout <<\'BLOCK\' \\')
+    w('  agent_kit_merge instruction-block "${file}" projects-layout <<\'BLOCK\' \\')
     w('    && ok "projects-layout rule -> ${file}" \\')
     w('    || warn "projects-layout rule: ${file} left alone; fix its block, then re-run setup"')
     for line in LAYOUT_POINTER_TEXT:
@@ -2704,13 +2728,12 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("pp_write_npmrc() {")
     w('  local root="$1" key="$2"')
     w('  local npmrc="${root}/.npmrc"')
-    w(f'  local helper="${{KIT_ROOT}}/{PACKAGE_PROXY_MERGE}"')
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
     w('    log "would set up the packages registry and token in ${npmrc}"')
     w("    return 0")
     w("  fi")
     w(f"  printf 'registry={npm_url}\\n{npm_auth}:_authToken=%s\\n' \"${{key}}\" \\")
-    w("    | python3 \"${helper}\" \"${npmrc}\" packages-proxy --mode 600 --refuse '^registry=' >/dev/null")
+    w("    | agent_kit_merge package-proxy \"${npmrc}\" packages-proxy --mode 600 --refuse '^registry=' >/dev/null")
     w("  case $? in")
     w('    0) ok "packages proxy: ${npmrc} is set up" ;;')
     w('    3) warn "packages proxy: ${npmrc} has its own registry= line, nothing written" ;;')
@@ -2728,7 +2751,6 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w('  local root="$1"')
     w('  local config_root="${XDG_CONFIG_HOME:-${root}/.config}"')
     w('  local uv_toml="${config_root}/uv/uv.toml"')
-    w(f'  local helper="${{KIT_ROOT}}/{PACKAGE_PROXY_MERGE}"')
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
     w('    log "would set up the packages pypi index in ${uv_toml}"')
     w("    return 0")
@@ -2740,7 +2762,7 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("      return 0 ;;")
     w("  esac")
     w(f'  printf \'[[index]]\\nurl = "{pypi_url}"\\ndefault = true\\nexclude-newer = "7 days"\\n\' \\')
-    w("    | python3 \"${helper}\" \"${uv_toml}\" packages-proxy --validate toml \\")
+    w("    | agent_kit_merge package-proxy \"${uv_toml}\" packages-proxy --validate toml \\")
     w("      --refuse '^exclude-newer' >/dev/null")
     w("  case $? in")
     w('    0) ok "packages proxy: ${uv_toml} is set up" ;;')
@@ -2760,7 +2782,6 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w('  local root="$1"')
     w('  local config_root="${XDG_CONFIG_HOME:-${root}/.config}"')
     w('  local pip_conf="${config_root}/pip/pip.conf" body probe')
-    w(f'  local helper="${{KIT_ROOT}}/{PACKAGE_PROXY_MERGE}"')
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
     w('    log "would set up the packages pypi index in ${pip_conf}"')
     w("    return 0")
@@ -2775,7 +2796,7 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w('  if [ -f "${pip_conf}" ]; then')
     w('    probe="$(mktemp "${pip_conf}.probe.XXXXXX")"')
     w('    cp "${pip_conf}" "${probe}"')
-    w('    python3 "${helper}" "${probe}" packages-proxy --remove \\')
+    w('    agent_kit_merge package-proxy "${probe}" packages-proxy --remove \\')
     w("      --refuse '^\\[global\\]' >/dev/null 2>&1 </dev/null")
     w("    case $? in")
     w(f"      3) body=$'index-url = {pypi_url}' ;;")
@@ -2783,7 +2804,7 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w('    rm -f "${probe}" "${probe}.bak-agent-kit"')
     w("  fi")
     w('  printf \'%s\\n\' "${body}" \\')
-    w("    | python3 \"${helper}\" \"${pip_conf}\" packages-proxy --validate ini \\")
+    w("    | agent_kit_merge package-proxy \"${pip_conf}\" packages-proxy --validate ini \\")
     w("      --refuse '^index-url' >/dev/null")
     w("  case $? in")
     w('    0) ok "packages proxy: ${pip_conf} is set up" ;;')
@@ -2810,7 +2831,6 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("  esac")
     w('  local cargo_config="${cargo_home}/config.toml"')
     w('  local credentials="${cargo_home}/credentials.toml"')
-    w(f'  local helper="${{KIT_ROOT}}/{PACKAGE_PROXY_MERGE}"')
     w("  local guard='^\\[(source\\.(crates-io|jorisjonkers-packages)|'\\")
     w("$'registries\\.jorisjonkers-packages|registry)\\]'")
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
@@ -2822,7 +2842,7 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w(f"    printf '[source.jorisjonkers-packages]\\nregistry = \"{cargo_url}\"\\n\\n'")
     w(f"    printf '[registries.jorisjonkers-packages]\\nindex = \"{cargo_url}\"\\n\\n'")
     w("    printf '[registry]\\nglobal-credential-providers = [\"cargo:token\"]\\n'")
-    w("  } | python3 \"${helper}\" \"${cargo_config}\" packages-proxy --validate toml \\")
+    w("  } | agent_kit_merge package-proxy \"${cargo_config}\" packages-proxy --validate toml \\")
     w('    --refuse "${guard}" >/dev/null')
     w("  case $? in")
     w('    0) ok "packages proxy: ${cargo_config} is set up" ;;')
@@ -2830,7 +2850,7 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("    *) return 1 ;;")
     w("  esac")
     w("  printf '[registries.jorisjonkers-packages]\\ntoken = \"Bearer %s\"\\n' \"${key}\" \\")
-    w("    | python3 \"${helper}\" \"${credentials}\" packages-proxy --validate toml --mode 600 \\")
+    w("    | agent_kit_merge package-proxy \"${credentials}\" packages-proxy --validate toml --mode 600 \\")
     w("      --refuse '^\\[registries\\.jorisjonkers-packages\\]' >/dev/null")
     w("  case $? in")
     w('    0) ok "packages proxy: ${credentials} is set up" ;;')
@@ -2861,7 +2881,6 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("  esac")
     w('  local init_script="${gradle_home}/init.d/packages-proxy.init.gradle.kts"')
     w('  local gradle_props="${gradle_home}/gradle.properties"')
-    w(f'  local helper="${{KIT_ROOT}}/{PACKAGE_PROXY_MERGE}"')
     w("  local tmp")
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
     w('    log "would write the gradle init script ${init_script}"')
@@ -2884,7 +2903,7 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
         "  printf 'packagesProxyToken=%s\\nsystemProp.gradle.wrapperUser=packages\\n"
         "systemProp.gradle.wrapperPassword=%s\\n' \"${key}\" \"${key}\" \\"
     )
-    w("    | python3 \"${helper}\" \"${gradle_props}\" packages-proxy --mode 600 \\")
+    w("    | agent_kit_merge package-proxy \"${gradle_props}\" packages-proxy --mode 600 \\")
     w("      --refuse '^(packagesProxyToken=|systemProp\\.gradle\\.wrapper(User|Password)=)' >/dev/null")
     w("  case $? in")
     w('    0) ok "packages proxy: ${gradle_props} is set up" ;;')
@@ -3994,7 +4013,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# The kit's hooks into one Vibe home; extra arguments are --remove NAME pairs.")
     w("_vibe_hooks() {")
     w('  local home="$1"; shift')
-    w('  uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    w("  agent_kit_merge vibe-mcp \\")
     w(f'    "${{KIT_ROOT}}/{VIBE_HOOKS}" --key hooks --config "${{home}}/hooks.toml" "$@" \\')
     w('    && ok "Vibe hooks merged (${home})" \\')
     w('    || fail "Vibe hooks merge failed (${home})"')
@@ -4023,8 +4042,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
     w('    log "would merge vibe-private MCP servers into ${VIBE_PRIVATE_HOME}/config.toml"')
     w("  else")
-    w('    uv run --no-project --exclude-newer "7 days" --with tomlkit python '
-        '"${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    w("    agent_kit_merge vibe-mcp \\")
     w(f'      "${{KIT_ROOT}}/{VIBE_PRIVATE_MCP}" --config "${{VIBE_PRIVATE_HOME}}/config.toml" \\')
     w('      && ok "vibe-private MCP servers merged" \\')
     w('      || fail "vibe-private MCP merge failed"')
@@ -4378,6 +4396,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  AK_BIN_DIR="$HOME/.local/bin" AK_OPT_DIR="$HOME/.local/lib/agent-kit"')
     w("fi")
     w("export AK_BIN_DIR AK_OPT_DIR")
+    w("")
+    for line in _AGENT_KIT_MERGE_FN:
+        w(line)
     w("")
     w('if [ "${CLOUD}" = 1 ]; then')
     w(f'  . "${{KIT_ROOT}}/{CLOUD_HELPER}"')
@@ -5257,8 +5278,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         if server.get("auth") == "oauth":
             # `codex mcp add --url` starts the OAuth flow at once and waits for a
             # browser, so the helper writes the entry and codex reads it back.
-            b(f'{indent}  if run uv run --no-project --exclude-newer "7 days" --with tomlkit python '
-              f'"${{KIT_ROOT}}/scripts/codex-add-url-mcp.py" '
+            b(f'{indent}  if run agent_kit_merge codex-add-url '
               f'"${{CODEX_HOME:-${{HOME}}/.codex}}/config.toml" {name} {server["url_workstation"]} \\')
             b(f"{indent}    && run codex mcp get {name} >/dev/null; then")
         else:
@@ -5293,16 +5313,14 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("      if [ \"${CHECK_ONLY}\" = 1 ]; then")
     w("        log \"would merge local Hermes MCP servers\"")
     w("      else")
-    w("        uv run --no-project --exclude-newer \"7 days\" --with pyyaml python "
-        "\"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
+    w("        agent_kit_merge hermes-mcp \\")
     w(f"          \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" \\")
     w("          || fail \"local Hermes MCP merge failed\"")
     retired = retired_servers(data)
     if retired:
         # The merge only adds and replaces, so retired servers go in a separate pass.
         removes = " ".join(f"--remove {name}" for name in retired)
-        w("        uv run --no-project --exclude-newer \"7 days\" --with pyyaml python "
-            "\"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
+        w("        agent_kit_merge hermes-mcp \\")
         w(f"          \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" {removes} \\")
         w("          || fail \"local Hermes retired MCP cleanup failed\"")
     hermes_off_cloud = [
@@ -5313,8 +5331,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     if hermes_off_cloud:
         removes = " ".join(f"--remove {name}" for name in hermes_off_cloud)
         w('        if [ "${CLOUD}" = 1 ]; then')
-        w("          uv run --no-project --exclude-newer \"7 days\" --with pyyaml python "
-            "\"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
+        w("          agent_kit_merge hermes-mcp \\")
         w(f"            \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" {removes} \\")
         w("            || fail \"local Hermes MCP cleanup failed\"")
         w("        fi")
@@ -5335,8 +5352,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     if vibe_off_cloud:
         removes = " ".join(f"--remove {name}" for name in vibe_off_cloud)
         w(f'        [ "${{CLOUD}}" = 1 ] && vibe_remove+=({removes})')
-    w('        uv run --no-project --exclude-newer "7 days" --with tomlkit python '
-        '"${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    w("        agent_kit_merge vibe-mcp \\")
     # A shared home from before the split still lists Private Memory: drop it.
     private_only = "".join(
         f" --remove {s['name']}" for s in _entries(data, "mcp_servers")
@@ -5371,7 +5387,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ] && command -v agy >/dev/null 2>&1; then')
     w('      if [ "${CHECK_ONLY}" = 1 ]; then')
     w('        log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"')
-    w("      elif python3 \"${KIT_ROOT}/scripts/antigravity-merge-mcp.py\" \\")
+    w("      elif agent_kit_merge antigravity-mcp \\")
     antigravity_private = [
         str(s["name"]) for s in _entries(data, "mcp_servers")
         if session_only(s) and s not in antigravity_servers(data)
@@ -5407,7 +5423,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("        :")
     w('      elif [ "${CHECK_ONLY}" = 1 ]; then')
     w('        log "would merge OpenCode MCP servers into ${OPENCODE_HOME}/opencode.json"')
-    w("      elif python3 \"${KIT_ROOT}/scripts/opencode-merge-mcp.py\" \\")
+    w("      elif agent_kit_merge opencode-mcp \\")
     opencode_private = [
         str(s["name"]) for s in _entries(data, "mcp_servers")
         if session_only(s) and s not in opencode_servers(data)

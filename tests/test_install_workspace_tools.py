@@ -206,6 +206,7 @@ DECLARED = [
     "ci-wait",
     "litellm-gate",
     "projects-layout-guard",
+    "agent-kit-merge",
 ]
 
 

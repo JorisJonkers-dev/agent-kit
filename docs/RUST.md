@@ -1037,7 +1037,7 @@ is a later child of #802, and the tarball will carry it when it exists.
 * **What ships.** The `workspace_tools` of `registry/estate-tooling.yaml`
   (agent-launcher, gold-band-gate, gold-band-run-start, gold-band-findings,
   gold-band-proof, research-layout, ticket-publish, workflow-lint,
-  coverage-gate, ci-wait, litellm-gate, projects-layout-guard) plus critique, model-gateway and
+  coverage-gate, ci-wait, litellm-gate, projects-layout-guard, agent-kit-merge) plus critique, model-gateway and
   build-tracker. The list is `TOOLS` in `scripts/release-binaries.sh`.
 * **Targets.** `x86_64-unknown-linux-musl` (hosted `ubuntu-latest`),
   `aarch64-unknown-linux-musl` (the native `ubuntu-24.04-arm` runner) and
@@ -1111,3 +1111,34 @@ curl -fsSL https://github.com/JorisJonkers-dev/agent-kit/releases/latest/downloa
   against a fake release over `file://`: install paths, pins, stamping, a
   tampered tarball, a bad tag, a PATH with no Python, Node or cargo, and the
   derivation's evaluation when nix is present. It needs no network.
+
+## agent-kit-merge
+
+`crates/agent-kit-merge` is the config-and-merge library (#809) and the
+`agent-kit-merge` binary over it. It replaces the `*-merge-mcp`,
+`package-proxy-merge`, `instruction-block` and `codex-add-url-mcp` Python
+scripts; the later converge port (#810) reuses the library. It takes
+`toml_edit` (the format-preserving TOML editor `tomlkit` was), `serde_yaml` and
+`regex`, each pinned exactly; the JSON it needs (ordered, written as Python's
+`json.dumps(indent=2)` writes it) is in the crate.
+
+```bash
+agent-kit-merge antigravity-mcp FRAGMENT [--config PATH] [--remove NAME ...]
+agent-kit-merge opencode-mcp    FRAGMENT [--config PATH] [--remove NAME ...]
+agent-kit-merge hermes-mcp      FRAGMENT [--config PATH] [--remove NAME ...]
+agent-kit-merge vibe-mcp        FRAGMENT [--key mcp_servers|hooks] [--config PATH] [--remove NAME ...]
+agent-kit-merge codex-add-url   CONFIG NAME URL
+agent-kit-merge instruction-block FILE NAME [--remove]     # body on stdin
+agent-kit-merge package-proxy   FILE NAME [--remove] [--validate toml|ini] [--refuse REGEX] [--mode MODE]
+```
+
+Behaviour, exit codes and output lines are those of the scripts. JSON and TOML
+merges write the bytes the Python tools wrote, so a re-run over a file they
+wrote changes nothing; the Hermes YAML merge keeps the same keys and values but
+`serde_yaml` lays the file out its own way (no 80-column wrapping of long
+strings, a `yes` key stays a string). Setup runs the tool through the shell
+function `agent_kit_merge`: `AGENT_KIT_MERGE` when set, else
+`agent-kit-merge` in the setup bin directory or `~/.local/bin`, else the kit's
+own release build, made once on first use (the package proxy step runs before
+the workspace tools are installed). The Python tests build it into
+`scripts/target` through `tests/setup_harness.py`.

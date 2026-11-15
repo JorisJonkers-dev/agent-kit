@@ -336,13 +336,12 @@ pp_write_go() {
 pp_write_npmrc() {
   local root="$1" key="$2"
   local npmrc="${root}/.npmrc"
-  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would set up the packages registry and token in ${npmrc}"
     return 0
   fi
   printf 'registry=https://packages.jorisjonkers.dev/npm/\n//packages.jorisjonkers.dev/npm/:_authToken=%s\n' "${key}" \
-    | python3 "${helper}" "${npmrc}" packages-proxy --mode 600 --refuse '^registry=' >/dev/null
+    | agent_kit_merge package-proxy "${npmrc}" packages-proxy --mode 600 --refuse '^registry=' >/dev/null
   case $? in
     0) ok "packages proxy: ${npmrc} is set up" ;;
     3) warn "packages proxy: ${npmrc} has its own registry= line, nothing written" ;;
@@ -360,7 +359,6 @@ pp_write_uv() {
   local root="$1"
   local config_root="${XDG_CONFIG_HOME:-${root}/.config}"
   local uv_toml="${config_root}/uv/uv.toml"
-  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would set up the packages pypi index in ${uv_toml}"
     return 0
@@ -372,7 +370,7 @@ pp_write_uv() {
       return 0 ;;
   esac
   printf '[[index]]\nurl = "https://packages.jorisjonkers.dev/pypi/simple/"\ndefault = true\nexclude-newer = "7 days"\n' \
-    | python3 "${helper}" "${uv_toml}" packages-proxy --validate toml \
+    | agent_kit_merge package-proxy "${uv_toml}" packages-proxy --validate toml \
       --refuse '^exclude-newer' >/dev/null
   case $? in
     0) ok "packages proxy: ${uv_toml} is set up" ;;
@@ -392,7 +390,6 @@ pp_write_pip() {
   local root="$1"
   local config_root="${XDG_CONFIG_HOME:-${root}/.config}"
   local pip_conf="${config_root}/pip/pip.conf" body probe
-  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would set up the packages pypi index in ${pip_conf}"
     return 0
@@ -407,7 +404,7 @@ pp_write_pip() {
   if [ -f "${pip_conf}" ]; then
     probe="$(mktemp "${pip_conf}.probe.XXXXXX")"
     cp "${pip_conf}" "${probe}"
-    python3 "${helper}" "${probe}" packages-proxy --remove \
+    agent_kit_merge package-proxy "${probe}" packages-proxy --remove \
       --refuse '^\[global\]' >/dev/null 2>&1 </dev/null
     case $? in
       3) body=$'index-url = https://packages.jorisjonkers.dev/pypi/simple/' ;;
@@ -415,7 +412,7 @@ pp_write_pip() {
     rm -f "${probe}" "${probe}.bak-agent-kit"
   fi
   printf '%s\n' "${body}" \
-    | python3 "${helper}" "${pip_conf}" packages-proxy --validate ini \
+    | agent_kit_merge package-proxy "${pip_conf}" packages-proxy --validate ini \
       --refuse '^index-url' >/dev/null
   case $? in
     0) ok "packages proxy: ${pip_conf} is set up" ;;
@@ -442,7 +439,6 @@ pp_write_cargo() {
   esac
   local cargo_config="${cargo_home}/config.toml"
   local credentials="${cargo_home}/credentials.toml"
-  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
   local guard='^\[(source\.(crates-io|jorisjonkers-packages)|'\
 $'registries\.jorisjonkers-packages|registry)\]'
   if [ "${CHECK_ONLY}" = 1 ]; then
@@ -454,7 +450,7 @@ $'registries\.jorisjonkers-packages|registry)\]'
     printf '[source.jorisjonkers-packages]\nregistry = "sparse+https://packages.jorisjonkers.dev/cargo/"\n\n'
     printf '[registries.jorisjonkers-packages]\nindex = "sparse+https://packages.jorisjonkers.dev/cargo/"\n\n'
     printf '[registry]\nglobal-credential-providers = ["cargo:token"]\n'
-  } | python3 "${helper}" "${cargo_config}" packages-proxy --validate toml \
+  } | agent_kit_merge package-proxy "${cargo_config}" packages-proxy --validate toml \
     --refuse "${guard}" >/dev/null
   case $? in
     0) ok "packages proxy: ${cargo_config} is set up" ;;
@@ -462,7 +458,7 @@ $'registries\.jorisjonkers-packages|registry)\]'
     *) return 1 ;;
   esac
   printf '[registries.jorisjonkers-packages]\ntoken = "Bearer %s"\n' "${key}" \
-    | python3 "${helper}" "${credentials}" packages-proxy --validate toml --mode 600 \
+    | agent_kit_merge package-proxy "${credentials}" packages-proxy --validate toml --mode 600 \
       --refuse '^\[registries\.jorisjonkers-packages\]' >/dev/null
   case $? in
     0) ok "packages proxy: ${credentials} is set up" ;;
@@ -493,7 +489,6 @@ pp_write_gradle() {
   esac
   local init_script="${gradle_home}/init.d/packages-proxy.init.gradle.kts"
   local gradle_props="${gradle_home}/gradle.properties"
-  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
   local tmp
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would write the gradle init script ${init_script}"
@@ -575,7 +570,7 @@ KTS
   chmod 644 "${init_script}"
   ok "packages proxy: ${init_script} is set up"
   printf 'packagesProxyToken=%s\nsystemProp.gradle.wrapperUser=packages\nsystemProp.gradle.wrapperPassword=%s\n' "${key}" "${key}" \
-    | python3 "${helper}" "${gradle_props}" packages-proxy --mode 600 \
+    | agent_kit_merge package-proxy "${gradle_props}" packages-proxy --mode 600 \
       --refuse '^(packagesProxyToken=|systemProp\.gradle\.wrapper(User|Password)=)' >/dev/null
   case $? in
     0) ok "packages proxy: ${gradle_props} is set up" ;;
@@ -1124,13 +1119,13 @@ gateway_pointer() {
   fi
   if [ "${action}" = remove ]; then
     [ -f "${file}" ] || return 0
-    python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" model-gateway --remove >/dev/null \
+    agent_kit_merge instruction-block "${file}" model-gateway --remove >/dev/null \
       && ok "model-gateway pointer removed from ${file}" \
       || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"
     return 0
   fi
   mkdir -p "$(dirname "${file}")"
-  python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" model-gateway <<'BLOCK' \
+  agent_kit_merge instruction-block "${file}" model-gateway <<'BLOCK' \
     && ok "model-gateway pointer -> ${file}" \
     || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"
 The model gateway is the `model-gateway` command on PATH. `model-gateway models`
@@ -1149,13 +1144,13 @@ layout_pointer() {
   fi
   if [ "${action}" = remove ]; then
     [ -f "${file}" ] || return 0
-    python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" projects-layout --remove >/dev/null \
+    agent_kit_merge instruction-block "${file}" projects-layout --remove >/dev/null \
       && ok "projects-layout rule removed from ${file}" \
       || warn "projects-layout rule: ${file} left alone; fix its block, then re-run setup"
     return 0
   fi
   mkdir -p "$(dirname "${file}")"
-  python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" projects-layout <<'BLOCK' \
+  agent_kit_merge instruction-block "${file}" projects-layout <<'BLOCK' \
     && ok "projects-layout rule -> ${file}" \
     || warn "projects-layout rule: ${file} left alone; fix its block, then re-run setup"
 Clones live at `~/Projects/<owner>/<repo>` (GitHub owner, exact case). Use an existing
@@ -1183,7 +1178,7 @@ _vibe_models() {
 # The kit's hooks into one Vibe home; extra arguments are --remove NAME pairs.
 _vibe_hooks() {
   local home="$1"; shift
-  uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+  agent_kit_merge vibe-mcp \
     "${KIT_ROOT}/installer/vibe-hooks.toml" --key hooks --config "${home}/hooks.toml" "$@" \
     && ok "Vibe hooks merged (${home})" \
     || fail "Vibe hooks merge failed (${home})"
@@ -1211,7 +1206,7 @@ _vibe_private_home() {
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would merge vibe-private MCP servers into ${VIBE_PRIVATE_HOME}/config.toml"
   else
-    uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+    agent_kit_merge vibe-mcp \
       "${KIT_ROOT}/registry/generated/vibe-private/mcp-servers.toml" --config "${VIBE_PRIVATE_HOME}/config.toml" \
       && ok "vibe-private MCP servers merged" \
       || fail "vibe-private MCP merge failed"
@@ -1669,6 +1664,26 @@ else
 fi
 export AK_BIN_DIR AK_OPT_DIR
 
+agent_kit_merge() {
+  local bin="${AGENT_KIT_MERGE:-}" candidate target="${CARGO_TARGET_DIR:-${KIT_ROOT}/scripts/target}"
+  if [ -z "${bin}" ]; then
+    for candidate in "${AK_BIN_DIR}/agent-kit-merge" "${HOME}/.local/bin/agent-kit-merge" \
+      "${target}/release/agent-kit-merge"; do
+      if [ -x "${candidate}" ]; then bin="${candidate}"; break; fi
+    done
+  fi
+  if [ -z "${bin}" ]; then
+    if ! command -v cargo >/dev/null 2>&1; then
+      echo "agent-kit-merge is not installed and cargo is not on PATH; cannot merge config" >&2
+      return 127
+    fi
+    cargo build --release --locked --quiet -p agent-kit-merge \
+      --manifest-path "${KIT_ROOT}/scripts/Cargo.toml" </dev/null >&2 || return 127
+    bin="${target}/release/agent-kit-merge"
+  fi
+  "${bin}" "$@"
+}
+
 if [ "${CLOUD}" = 1 ]; then
   . "${KIT_ROOT}/installer/cloud-session.sh"
   cloud_prepare
@@ -1847,7 +1862,7 @@ attribution_rule() {
     return 0
   fi
   mkdir -p "$(dirname "${file}")"
-  python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" no-agent-attribution <<'BLOCK' >/dev/null \
+  agent_kit_merge instruction-block "${file}" no-agent-attribution <<'BLOCK' >/dev/null \
     && ok "no-agent-attribution rule -> ${file}" \
     || warn "no-agent-attribution rule: ${file} left alone; fix its block, then re-run setup"
 Commits, pull requests and issues carry the owner's identity only. Never add a
@@ -3889,7 +3904,7 @@ for install in installs:
         fi
       fi
       if command -v codex >/dev/null 2>&1; then
-        if run uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/codex-add-url-mcp.py" "${CODEX_HOME:-${HOME}/.codex}/config.toml" n8n https://n8n.jorisjonkers.dev/mcp-server/http \
+        if run agent_kit_merge codex-add-url "${CODEX_HOME:-${HOME}/.codex}/config.toml" n8n https://n8n.jorisjonkers.dev/mcp-server/http \
           && run codex mcp get n8n >/dev/null; then
           ok "n8n registered (codex)"
         else
@@ -4132,14 +4147,14 @@ for install in installs:
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge local Hermes MCP servers"
       else
-        uv run --no-project --exclude-newer "7 days" --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
+        agent_kit_merge hermes-mcp \
           "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" \
           || fail "local Hermes MCP merge failed"
-        uv run --no-project --exclude-newer "7 days" --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
+        agent_kit_merge hermes-mcp \
           "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove memory-mcp --remove vuetify \
           || fail "local Hermes retired MCP cleanup failed"
         if [ "${CLOUD}" = 1 ]; then
-          uv run --no-project --exclude-newer "7 days" --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
+          agent_kit_merge hermes-mcp \
             "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove n8n --remove kubernetes --remove code-nav --remove grimoire --remove outline \
             || fail "local Hermes MCP cleanup failed"
         fi
@@ -4157,7 +4172,7 @@ for install in installs:
       else
         vibe_remove=()
         [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove n8n --remove kubernetes --remove code-nav --remove grimoire --remove outline)
-        uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+        agent_kit_merge vibe-mcp \
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" --remove memory-private ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
           || fail "Vibe MCP merge failed"
@@ -4181,7 +4196,7 @@ for install in installs:
     if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ] && command -v agy >/dev/null 2>&1; then
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"
-      elif python3 "${KIT_ROOT}/scripts/antigravity-merge-mcp.py" \
+      elif agent_kit_merge antigravity-mcp \
         "${KIT_ROOT}/registry/generated/antigravity/mcp_config.json" --config "${ANTIGRAVITY_HOME}/mcp_config.json" --remove memory-mcp --remove vuetify --remove memory-private; then
         ok "Antigravity MCP servers merged"
       else
@@ -4211,7 +4226,7 @@ for install in installs:
         :
       elif [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge OpenCode MCP servers into ${OPENCODE_HOME}/opencode.json"
-      elif python3 "${KIT_ROOT}/scripts/opencode-merge-mcp.py" \
+      elif agent_kit_merge opencode-mcp \
         "${KIT_ROOT}/registry/generated/opencode/opencode.json" --config "${OPENCODE_HOME}/opencode.json" --remove memory-mcp --remove vuetify --remove memory-private; then
         ok "OpenCode MCP servers merged"
       else
@@ -9175,7 +9190,7 @@ workspace_tools_setup() {
   fi
   [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
   out=$(bash "${KIT_ROOT}/scripts/install-workspace-tools.sh" ${mode[@]+"${mode[@]}"} \
-    agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate projects-layout-guard 2>&1) || rc=$?
+    agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate projects-layout-guard agent-kit-merge 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || warn "workspace tools: not all installed (exit ${rc}); the installed ones are unchanged"
 }
