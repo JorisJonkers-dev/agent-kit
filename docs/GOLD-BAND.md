@@ -470,6 +470,62 @@ anyway`, any other violator refuses the run before anything is written. Without 
 binary it installs and warns that the critique rules were not checked (migration debt:
 setup converges templates before the cargo tools are built, and there is no Python twin).
 
+## The generated critique block (#795)
+
+A template does not hand-copy the critique chain. `critique-block`
+(`scripts/crates/critique-block`, std plus the model gateway's ordered JSON; there is no
+Python or TypeScript generator) writes one shared block per stage into a template, from the
+recipes in `installer/gold-band/critique-blocks.json`, and rewrites the template in place:
+
+```bash
+critique-block generate --recipes installer/gold-band/critique-blocks.json --dir installer/gold-band/workflows
+critique-block check    --recipes installer/gold-band/critique-blocks.json --dir installer/gold-band/workflows
+```
+
+`check` fails when a template differs from what the recipes generate (the crate's tests run it
+over the shipped templates, so CI holds it). A recipe names the template, the stage (`spec` or
+`tickets`), the writer node, the node the accepted artifact goes to (`next`), and the bindings:
+the orchestrator, an optional needs-human override, the escalation judge and its check, an
+optional pre-check command, and, for the work instance, the grant refusal node and a grant-check
+node to clone for every node bound to Codex. The generator is idempotent: it removes the nodes it
+owns (including a template's own hand-written chain for the stage) and generates them again.
+
+```text
+writer -> [pre-check] -> CRIT(1) -> accept-1 --success--> next
+                                    accept-1 --failure--> revise-1 -> [pre-check] -> CRIT(2)
+                                      -> accept-2 --success--> next
+                                         accept-2 --failure--> escalation -> escalation-check -> $end
+```
+
+* `CRIT(N)` is the stage template's runner chain (`critique-<stage>.json`: prepare, fan-out, the
+  orchestrator's `<stage>-verdicts` and its needs-human manual check, refute, record), each gate with
+  its copier. Round 2 appends `-2` to every id and artifact and asks `prepare` for fresh critics
+  over the first round's run directory (`previous_run_dir`); `workflow-lint --critique` reads the
+  `-2` ids as the same stage with the same roster.
+* `accept-<stage>-N` is a shim agent (pinned like the gate shims, wiring named in its goal) that
+  reads round N's record and answers `{"open_blocking": n}`; the round is accepted when `n` is 0.
+* `<stage>-revise-1` is the writer's own binding applying the accepted findings of round 1 and
+  nothing else; fresh critics review the result before any exit.
+* After a second failed round `<stage>-escalation` (the Opus judge, allowed by the lint's
+  `-escalation` rule) states what is still open and `<stage>-escalation-check` is a manual check
+  whose only way on is `$end`: a failed second round never reaches `next`, so nothing passes
+  automatically and the run ends needing the owner.
+* The most a stage runs is two rounds, the loops are unrolled (the lint refuses cycles), so the cost is
+  static. The only edges into `next` come from an accept node. For `tickets` the pre-check is
+  `critique check-tickets --strict` (cycles, dangling blockers, uncited stories) before each round's
+  critics, so revised tickets are checked mechanically too.
+* The writer and the orchestrator are bound to one family (see "Every written artifact is critiqued by
+  another family"); the revise node has the writer's binding, so it is of that family as well.
+
+Applied to `to-spec`, `to-tickets`, `workflow-c` and `workflow-c-work` (the spec and the tickets
+stage; Workflow C's runner chain was advisory before, with no step that applies a finding).
+`brainstorming`, `grill-me` and `grill-with-docs` stay in `known-critique-failures.txt`; #798 and #794 consolidate
+them into the generated workflows. The headless proof (`gold-band-proof prove`) gains the `accept`
+role: `accept-<stage>-<n>` answers `{"open_blocking": 1}` under the verdict `actionable=K` while
+`n <= K`, so `actionable-1` proves the revise path (the second critic round runs, then the next stage)
+and `actionable-2` proves the escalation (the run pauses at the escalation check, exit 2, and the
+next stage is never reached).
+
 ## The build patch: failure targets are not entries
 
 Unpatched v0.19.1 refuses 21 of the 24 shipped templates (Save, run-mode start and
@@ -1019,7 +1075,9 @@ pauses on a manual check wherever the owner has to settle something:
    check, and the owner's answers feed the next round. After round three the
    check hands over to the spec regardless.
 3. `spec-draft`, then the spec review (`/review-spec`), then `tickets-draft`
-   and the ticket review (`/review-tickets`). The review nodes are the
+   and the ticket review (`/review-tickets`), each stage wrapped in the generated critique
+   block (accept, revise once with fresh critics, then escalate; see "The generated critique
+   block") so a finding changes the artifact before the next stage starts. The review nodes are the
    `critique-spec` and `critique-tickets` templates' own, unchanged (the
    runner stays the executor, behind the gate shim), including the
    `<stage>-needs-human` manual check for a finding the orchestrator cannot

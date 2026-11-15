@@ -26,6 +26,7 @@ a temporary directory:
   | `mixed` | an agent that runs both answer nodes and `findings` nodes (the work instance's `codex`: drafts and review orchestrators) | the findings document with `"ok": true` beside it |
   | `dynamic:<agent ids>` | an agent id an `ai-dynamic` node's `agentStrategy` names | for an AI-DYNAMIC internal prompt, the node's `dynamic-node-completion`: the bootstrap fans out to one worker per listed agent id (two when it lists one) and every other internal node ends; any other prompt gets `{"ok": true}` |
   | `verdict:<n>` | `verdict-<n>` | `{"actionable": 1}` under the verdict `actionable=K` when `n <= K`, else `{"actionable": 0}` |
+  | `accept:<n>` | `accept-<stage>-<n>` (the generated critique block's accept shim) | `{"open_blocking": 1}` under the verdict `actionable=K` when `n <= K`, else `{"open_blocking": 0}` |
   | `gate:<name>` | `gate-<name>` | `{"exit_code": N}`, the exit code `gold-band-gate run` earned |
   | `copy:<name>` | `copy-<name>` | the gate report `gold-band-gate verify` printed, or a report-shaped refusal carrying its exit code |
 

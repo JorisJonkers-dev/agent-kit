@@ -491,8 +491,12 @@ pub fn run<I>(args: I) -> i32
 where
     I: IntoIterator<Item = OsString>,
 {
-    let args: Vec<String> = args.into_iter().map(|a| a.to_string_lossy().into_owned()).collect();
-    match command(&args) {
+    run_words(&args.into_iter().map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>())
+}
+
+/// [`run`] on words, so every caller shares one compiled copy of the logic.
+fn run_words(args: &[String]) -> i32 {
+    match command(args) {
         Ok(code) => code,
         Err(why) => {
             eprintln!("{NAME}: {why}");

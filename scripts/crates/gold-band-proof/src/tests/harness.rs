@@ -2380,6 +2380,9 @@ fn walk_fails_a_mixed_agents_node_only_when_it_routes_failures() {
     );
     assert_eq!(walk(&info, "draft", "clean").exit, 0);
     assert_eq!(walk(&info, "draft", "needs-human").exit, 2);
+}
+
+#[test]
 fn inspect_reads_an_accept_round_from_the_agent_id() {
     let text = r#"{"id":"accepts","nodes":[
         {"provider":"accept-spec-1"},

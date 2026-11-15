@@ -1056,6 +1056,9 @@ fn the_mixed_role_answers_the_findings_document_and_ok_both() {
     let found = fenced_body(&prompt_text(&mut mixed, "needs-human"));
     assert_eq!(found["ok"], json!(true));
     assert_eq!(found["findings"].as_array().map(Vec::len), Some(1));
+}
+
+#[test]
 fn the_accept_role_answers_the_open_blocking_count_of_its_round() {
     assert_eq!(crate::stub::accept_document(1, "actionable=1"), json!({ "open_blocking": 1 }));
     assert_eq!(crate::stub::accept_document(2, "actionable=1"), json!({ "open_blocking": 0 }));

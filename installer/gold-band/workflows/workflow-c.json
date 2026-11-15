@@ -558,7 +558,7 @@
         "type": "worker",
         "id": "spec-verdicts-2",
         "executionSlotId": "slot-spec-verdicts-2",
-        "provider": "vibe",
+        "provider": "vibe-study",
         "model": "glm-5-3",
         "profile": "pf-builtin-dev",
         "goal": "You are the orchestrator of the spec review (/review-spec). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
@@ -1208,7 +1208,7 @@
         "type": "worker",
         "id": "tickets-verdicts-2",
         "executionSlotId": "slot-tickets-verdicts-2",
-        "provider": "vibe",
+        "provider": "vibe-study",
         "model": "glm-5-3",
         "profile": "pf-builtin-dev",
         "goal": "You are the orchestrator of the ticket review (/review-tickets). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
@@ -1977,7 +1977,7 @@
       },
       {
         "executionSlotId": "slot-spec-verdicts-2",
-        "agentId": "vibe",
+        "agentId": "vibe-study",
         "modelId": "glm-5-3"
       },
       {
@@ -2127,7 +2127,7 @@
       },
       {
         "executionSlotId": "slot-tickets-verdicts-2",
-        "agentId": "vibe",
+        "agentId": "vibe-study",
         "modelId": "glm-5-3"
       },
       {

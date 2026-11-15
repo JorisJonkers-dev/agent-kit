@@ -9,7 +9,7 @@
       "label": "the spec review (/review-spec)",
       "artifact": "the spec file the spec record names",
       "orchestrator": {
-        "provider": "vibe",
+        "provider": "vibe-study",
         "model": "glm-5-3"
       },
       "escalation": {
@@ -29,7 +29,7 @@
       "label": "the ticket review (/review-tickets)",
       "artifact": "tickets.json, in the same {\"tickets\":[{\"title\",\"body\",\"labels\"}]} form and with labels only from the repository's setup file",
       "orchestrator": {
-        "provider": "vibe",
+        "provider": "vibe-study",
         "model": "glm-5-3"
       },
       "escalation": {
@@ -53,7 +53,7 @@
       "label": "the spec review (/review-spec)",
       "artifact": "the spec file the spec record names",
       "orchestrator": {
-        "provider": "vibe",
+        "provider": "vibe-study",
         "model": "glm-5-3"
       },
       "escalation": {
@@ -73,7 +73,7 @@
       "label": "the ticket review (/review-tickets)",
       "artifact": "tickets.json, in the same {\"tickets\":[{\"title\",\"body\",\"labels\"}]} form and with labels only from the repository's setup file",
       "orchestrator": {
-        "provider": "vibe",
+        "provider": "vibe-study",
         "model": "glm-5-3"
       },
       "escalation": {

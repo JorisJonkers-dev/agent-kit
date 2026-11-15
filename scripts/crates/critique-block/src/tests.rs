@@ -276,3 +276,17 @@ fn every_shipped_block_meets_the_rules_the_issue_names() {
         }
     }
 }
+
+#[test]
+fn the_helpers_leave_a_value_that_is_not_an_object_alone() {
+    let mut scalar = Value::Null;
+    set(&mut scalar, "key", Value::str("x"));
+    assert_eq!(scalar, Value::Null);
+    assert!(nested(&mut scalar, "a", "b").is_none());
+    let mut shallow = json::parse(r#"{"a":1}"#).unwrap();
+    assert!(nested(&mut shallow, "a", "b").is_none());
+    assert!(Template { root: Value::Null }.list(&["workflow"]).is_none());
+    let mut template = Template { root: json::parse(r#"{"workflow":{"nodes":{}}}"#).unwrap() };
+    assert!(template.list(&["workflow", "nodes"]).is_none());
+    assert!(template.list(&["workflow", "nodes", "deeper"]).is_none());
+}
