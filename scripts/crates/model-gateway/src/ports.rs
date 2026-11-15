@@ -40,6 +40,10 @@ pub trait Files: Send + Sync {
     fn temp_dir(&self, parent: &str, prefix: &str) -> Result<String, FsError>;
     /// `rm -rf`: says nothing when the path is not there.
     fn remove(&self, path: &str) -> Result<(), FsError>;
+    /// Copies a file, or a folder with everything in it, to `to`, making its parent first; symlinks are copied as what they point at.
+    fn copy_tree(&self, _from: &str, _to: &str) -> Result<(), FsError> {
+        Err(FsError { code: "ENOSYS".into(), message: "ENOSYS: this file system cannot copy".into() })
+    }
 }
 
 /// What `stamp` reports of a file, followed through every symlink.

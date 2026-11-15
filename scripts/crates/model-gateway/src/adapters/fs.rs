@@ -187,6 +187,29 @@ impl Files for SystemFiles {
         };
         removed.map_err(|error| fail(&error, "rm", Some(path)))
     }
+
+    fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
+        copy_into(std::path::Path::new(&resolve(&self.cwd, from)), std::path::Path::new(&resolve(&self.cwd, to)), 0).map_err(|error| fail(&error, "cp", Some(from)))
+    }
+}
+
+/// How deep a copied folder may go, which stops a symlink that points back at its own folder.
+const COPY_DEPTH: usize = 16;
+
+fn copy_into(from: &std::path::Path, to: &std::path::Path, depth: usize) -> std::io::Result<()> {
+    if depth > COPY_DEPTH {
+        return Err(std::io::Error::other("too deep"));
+    }
+    if from.is_dir() {
+        std::fs::create_dir_all(to)?;
+        for entry in std::fs::read_dir(from)? {
+            let entry = entry?;
+            copy_into(&entry.path(), &to.join(entry.file_name()), depth + 1)?;
+        }
+        return Ok(());
+    }
+    std::fs::create_dir_all(to.parent().unwrap_or(to))?;
+    std::fs::copy(from, to).map(|_| ())
 }
 
 /// Writes `content` to `temporary`, then renames it over `target`.

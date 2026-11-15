@@ -837,3 +837,36 @@ fn git_worktree_and_staging_commands_say_when_git_cannot_run() {
     assert_eq!(repositories.list_worktrees(&path), Err("cannot run git: spawn git ENOENT".to_string()));
     assert_eq!(repositories.status(&path), Err("cannot run git: spawn git ENOENT".to_string()));
 }
+
+#[test]
+fn copy_tree_copies_a_folder_with_everything_in_it_and_a_lone_file_following_symlinks() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.text();
+    let files = SystemFiles { cwd: root.clone() };
+    std::fs::create_dir_all(format!("{root}/skill/references")).expect("folders");
+    std::fs::write(format!("{root}/skill/SKILL.md"), "skill").expect("skill");
+    std::fs::write(format!("{root}/skill/references/notes.md"), "notes").expect("notes");
+    std::fs::write(format!("{root}/real.txt"), "real").expect("real");
+    std::os::unix::fs::symlink(format!("{root}/real.txt"), format!("{root}/skill/link.txt")).expect("link");
+
+    files.copy_tree("skill", "home/skills/skill").expect("a folder");
+    files.copy_tree("real.txt", "home/extensions/real.txt").expect("a file");
+
+    assert_eq!(std::fs::read_to_string(format!("{root}/home/skills/skill/references/notes.md")).as_deref().ok(), Some("notes"));
+    assert_eq!(std::fs::read_to_string(format!("{root}/home/skills/skill/link.txt")).as_deref().ok(), Some("real"));
+    assert!(!std::fs::symlink_metadata(format!("{root}/home/skills/skill/link.txt")).expect("copied").file_type().is_symlink());
+    assert_eq!(std::fs::read_to_string(format!("{root}/home/extensions/real.txt")).as_deref().ok(), Some("real"));
+}
+
+#[test]
+fn copy_tree_names_what_it_cannot_copy_and_stops_at_a_folder_that_contains_itself() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.text();
+    let files = SystemFiles { cwd: root.clone() };
+    let missing = files.copy_tree("nowhere", "home/nowhere").expect_err("nothing to copy");
+    assert_eq!(missing.code, "ENOENT");
+    std::fs::create_dir_all(format!("{root}/loop")).expect("folder");
+    std::os::unix::fs::symlink(format!("{root}/loop"), format!("{root}/loop/again")).expect("loop");
+    let looped = files.copy_tree("loop", "home/loop").expect_err("a loop");
+    assert!(looped.message.contains("too deep") || looped.message.contains("cp"), "{}", looped.message);
+}
