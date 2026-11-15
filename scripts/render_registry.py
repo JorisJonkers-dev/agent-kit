@@ -6116,7 +6116,9 @@ def render_litellm_admin_token_script(data: dict[str, Any]) -> str:
     ])
 
 
-def litellm_route_models(access_groups: list[str], catalogue: Any = None) -> list[dict[str, Any]]:
+def litellm_route_models(
+    access_groups: list[str], catalogue: Any = None, route: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
     """The chat models a key holding these access groups reaches, as Pi model entries sorted by id.
 
     The names come from the catalogue's ``canonical_groups()`` (#568). Rendering has to give
@@ -6141,10 +6143,16 @@ def litellm_route_models(access_groups: list[str], catalogue: Any = None) -> lis
             raise RegistryError(
                 f"litellm access group {group!r} is neither canonical, a public group nor named by the catalogue"
             )
+    usable = litellm_catalogue.usable_group_names(catalogue)
     models = []
     for entry in litellm_catalogue.canonical_groups(catalogue, held, gates):
-        if entry.modality != "chat":
+        if entry.modality != "chat" or entry.name not in usable:
             continue
+        if route is not None:
+            if route.get("data_scope") == "public" and not entry.public:
+                continue
+            if route.get("agent") == "local" and "local" not in entry.routes:
+                continue
         # The catalogue does not say which public-only access group serves a public group, so the
         # estate's naming stands in: a group on the openrouter route is reached by openrouter-free-public,
         # one on the opencode-go route by opencode-go-free-public.
@@ -6165,24 +6173,24 @@ def pi_provider_name(route: dict[str, Any]) -> str:
 
 
 def render_pi_providers(data: dict[str, Any]) -> str:
-    """One Pi provider per LiteLLM route: the proxy URL, the route's key variable and its models.
+    """One Pi provider per LiteLLM route with a usable model: the proxy URL, the route's key variable, its models.
 
     No key is in here: setup turns ``key_env`` into an ``apiKey`` command that reads the
     key from the secret store when Pi sends a request.
     """
     section = data.get("litellm") or {}
+    providers = []
+    for route in section.get("routes") or []:
+        models = litellm_route_models(route["models"], route=route)
+        # A route with nothing usable (the local server before any local/* model is probed) gets no
+        # provider, so Pi never lists a model that would be refused; setup removes one it wrote before.
+        if models:
+            providers.append({"name": pi_provider_name(route), "key_env": route["key_env"], "models": models})
     table = {
         "generated_from": "registry/estate-tooling.yaml",
         "base_url": section.get("base_url"),
         "api": "openai-completions",
-        "providers": [
-            {
-                "name": pi_provider_name(route),
-                "key_env": route["key_env"],
-                "models": litellm_route_models(route["models"]),
-            }
-            for route in section.get("routes") or []
-        ],
+        "providers": providers,
     }
     return json.dumps(table, indent=2) + "\n"
 
@@ -6225,7 +6233,7 @@ def render_litellm_harnesses(data: dict[str, Any]) -> str:
                 "provider": pi_provider_name(route),
                 "key_env": route["key_env"],
                 "data_scope": route["data_scope"],
-                "models": litellm_route_models(route["models"]),
+                "models": litellm_route_models(route["models"], route=route),
             }
             for route in section.get("routes") or []
         ],
