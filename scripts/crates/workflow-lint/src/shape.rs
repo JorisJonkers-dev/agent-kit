@@ -20,6 +20,12 @@
 //! limits). Node ids are compared after de-duplication where the app keeps
 //! duplicates (a duplicate id is reported as `duplicate-node-id` anyway).
 //!
+//! The entry rule is the *patched* one: setup applies
+//! `scripts/gold-band/patches/0001-entry-rule-failure-targets.patch` to the
+//! build copy (docs/GOLD-BAND.md, "The build patch"). A backward non-success
+//! edge is ignored only when its target reaches its source over success edges;
+//! any other failure edge makes its target a non-entry.
+//!
 //! Each finding reads `<node id or "workflow">: <rule>: <message>`; the
 //! messages are the editor's own English text.
 
@@ -107,8 +113,26 @@ fn topology_order(ids: &[String], edges: &[Value]) -> BTreeMap<String, usize> {
         .collect()
 }
 
+/// Whether `goal` is reachable from `start` over success edges.
+fn reaches_over_success(edges: &[Value], start: &str, goal: &str) -> bool {
+    let mut seen: BTreeSet<&str> = BTreeSet::from([start]);
+    let mut stack = vec![start];
+    while let Some(current) = stack.pop() {
+        if current == goal {
+            return true;
+        }
+        for edge in edges {
+            let next = text(edge, "to");
+            if text(edge, "on") == "success" && text(edge, "from") == current && seen.insert(next) {
+                stack.push(next);
+            }
+        }
+    }
+    false
+}
+
 /// `deriveWorkflowEntryCandidateIds`: nodes with no incoming edge, ignoring a
-/// non-success edge that goes backward in the success topology.
+/// non-success edge that goes backward in the success topology and closes a loop.
 fn entry_candidates(nodes: &[Value], edges: &[Value]) -> Vec<String> {
     let ids: Vec<String> = nodes
         .iter()
@@ -128,8 +152,13 @@ fn entry_candidates(nodes: &[Value], edges: &[Value]) -> Vec<String> {
         if !order.contains_key(from) || !order.contains_key(to) {
             continue;
         }
-        // `isBackwardEdge`: the target sorts before the source.
-        if text(edge, "on") != "success" && order[to] < order[from] {
+        // `isBackwardEdge`: the target sorts before the source. Patched
+        // (scripts/gold-band/patches/0001): such an edge is a retry loop only
+        // when its target reaches its source over success edges.
+        if text(edge, "on") != "success"
+            && order[to] < order[from]
+            && reaches_over_success(edges, to, from)
+        {
             continue;
         }
         incoming.insert(to);

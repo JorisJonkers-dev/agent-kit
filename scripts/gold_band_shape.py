@@ -7,6 +7,10 @@ machine (``workspace_tools_setup`` runs after the workflow templates are
 converged), so it cannot call the crate; ``tests/test_gold_band_shape.py`` runs both over the same
 fixtures and the shipped templates and fails when their findings differ.
 
+The entry rule is the patched one (scripts/gold-band/patches/0001-entry-rule-failure-targets.patch,
+docs/GOLD-BAND.md "The build patch"): a failure edge to a node that does not close a loop makes
+that node a non-entry.
+
 Ported from Gold Band v0.19.1, commit 987fc3e298b15d725a7f0e9b609b0f77dba63a74:
 ``web/src/components/WorkflowEditor.tsx`` (``validateWorkflowForSave``, lines
 3395-3680, ``deriveWorkflowEntryCandidateIds`` :2904, ``nodeSupportsFailureOutcome``
@@ -83,6 +87,23 @@ def _topology_order(ids: list[str], edges: list[Any]) -> dict[str, int]:
     return {i: index for index, i in enumerate(ordered)}
 
 
+def _reaches(edges: list[Any], start: str, goal: str) -> bool:
+    """Whether ``goal`` is reachable from ``start`` over success edges."""
+    seen = {start}
+    stack = [start]
+    while stack:
+        current = stack.pop()
+        if current == goal:
+            return True
+        for edge in edges:
+            if _text(edge, "on") == "success" and _text(edge, "from") == current:
+                nxt = _text(edge, "to")
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+    return False
+
+
 def _entry_candidates(nodes: list[Any], edges: list[Any]) -> list[str]:
     ids = [i for i in (_text(n, "id") for n in nodes) if i]
     unique = list(dict.fromkeys(ids))
@@ -92,7 +113,10 @@ def _entry_candidates(nodes: list[Any], edges: list[Any]) -> list[str]:
         source, target = _text(edge, "from"), _text(edge, "to")
         if source not in order or target not in order:
             continue
-        if _text(edge, "on") != "success" and order[target] < order[source]:
+        # A backward non-success edge is a retry loop only when it closes one:
+        # its target reaches its source over success edges. A failure edge to a
+        # node that merely sorts earlier still makes that node a non-entry.
+        if _text(edge, "on") != "success" and order[target] < order[source] and _reaches(edges, target, source):
             continue
         incoming.add(target)
     return [i for i in ids if i not in incoming]

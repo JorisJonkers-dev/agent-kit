@@ -10,16 +10,7 @@
 #
 # One file name per line; a line that starts with # is a comment.
 brainstorming.json
-critique-adr-review.json
-critique-architecture-review.json
-critique-decision-recovery.json
-critique-decisions.json
-critique-feature-review.json
 critique-spec-stage.json
-critique-spec.json
-critique-ticket-review.json
-critique-tickets.json
-critique.json
 grill-me.json
 grill-with-docs.json
 pr-composer.json
