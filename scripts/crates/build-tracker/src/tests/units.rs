@@ -13,7 +13,7 @@ use crate::ports::{Clock, Files, FsError, IssueRecord, Issues, Process, ProcessO
 use crate::spec::*;
 use crate::state_file::stamp;
 use crate::text::*;
-use std::cell::RefCell;
+use std::sync::Mutex;
 use std::collections::HashMap;
 
 fn repo(host: &str, owner: &str, name: &str) -> RepositoryName {
@@ -221,20 +221,20 @@ fn a_run_on_the_real_clock_matches_the_golden_but_for_its_stamp() {
 }
 
 struct FakeProcess {
-    replies: RefCell<Vec<Result<ProcessOutput, String>>>,
-    calls: RefCell<Vec<String>>,
+    replies: Mutex<Vec<Result<ProcessOutput, String>>>,
+    calls: Mutex<Vec<String>>,
 }
 
 impl FakeProcess {
     fn new(replies: Vec<Result<ProcessOutput, String>>) -> FakeProcess {
-        FakeProcess { calls: RefCell::new(Vec::new()), replies: RefCell::new(replies.into_iter().rev().collect()) }
+        FakeProcess { calls: Mutex::new(Vec::new()), replies: Mutex::new(replies.into_iter().rev().collect()) }
     }
 }
 
 impl Process for FakeProcess {
     fn exec(&self, command: &str, args: &[String]) -> Result<ProcessOutput, String> {
-        self.calls.borrow_mut().push(format!("{command} {}", args.join(" ")));
-        self.replies.borrow_mut().pop().unwrap_or_else(|| Err("no reply".to_string()))
+        self.calls.lock().expect("calls").push(format!("{command} {}", args.join(" ")));
+        self.replies.lock().expect("replies").pop().unwrap_or_else(|| Err("no reply".to_string()))
     }
 }
 
@@ -253,14 +253,14 @@ fn gh_reads_issues_through_gh_api() {
     let reader = gh(vec![out(r#"{"number":10,"title":"Spec","state":"closed","html_url":"https://ghe.io/o/r/pull/10"}"#)]);
     let issue = reader.issue(&widgets, 10).expect("issue");
     assert_eq!((issue.number, issue.title.as_str(), issue.closed, issue.repository), (10, "Spec", true, repo("ghe.io", "o", "r")));
-    assert_eq!(reader.process.calls.borrow()[0], "gh api --hostname github.com repos/acme/widgets/issues/10");
+    assert_eq!(reader.process.calls.lock().expect("calls")[0], "gh api --hostname github.com repos/acme/widgets/issues/10");
     let reader = gh(vec![out(r#"[[{"number":1},{"number":2,"title":"two","state":"open"}],[{"number":3}]]"#)]);
     let subs = reader.sub_issues(&widgets, 10).expect("sub-issues");
     assert_eq!(subs.iter().map(|sub| sub.number).collect::<Vec<_>>(), vec![1, 2, 3]);
-    assert_eq!(reader.process.calls.borrow()[0], "gh api --hostname github.com --paginate --slurp repos/acme/widgets/issues/10/sub_issues?per_page=100");
+    assert_eq!(reader.process.calls.lock().expect("calls")[0], "gh api --hostname github.com --paginate --slurp repos/acme/widgets/issues/10/sub_issues?per_page=100");
     let reader = gh(vec![out("[[]]")]);
     assert_eq!(reader.blocked_by(&widgets, 10), Ok(Vec::new()));
-    assert_eq!(reader.process.calls.borrow()[0], "gh api --hostname github.com --paginate --slurp repos/acme/widgets/issues/10/dependencies/blocked_by?per_page=100");
+    assert_eq!(reader.process.calls.lock().expect("calls")[0], "gh api --hostname github.com --paginate --slurp repos/acme/widgets/issues/10/dependencies/blocked_by?per_page=100");
     let errors = [
         (failed(1, "", "  \nfirst\nsecond"), "gh api repos/acme/widgets/issues/10 exited 1: first"),
         (failed(4, "from stdout\n", ""), "gh api repos/acme/widgets/issues/10 exited 4: from stdout"),
@@ -290,8 +290,8 @@ fn git_locates_a_directory_in_its_repository() {
     let place = finder.locate("/r/docs").expect("located").expect("in a repository");
     assert_eq!((place.root.as_str(), place.prefix.as_str(), place.main_root.as_str()), ("/r", "docs/", "/r"));
     assert_eq!(place.remote, Some(repo("github.com", "acme", "widgets")));
-    assert_eq!(finder.process.calls.borrow()[0], "git -C /r/docs rev-parse --path-format=absolute --show-toplevel --git-common-dir --show-prefix");
-    assert_eq!(finder.process.calls.borrow()[1], r"git -C /r/docs config --get-regexp ^remote\..*\.url$");
+    assert_eq!(finder.process.calls.lock().expect("calls")[0], "git -C /r/docs rev-parse --path-format=absolute --show-toplevel --git-common-dir --show-prefix");
+    assert_eq!(finder.process.calls.lock().expect("calls")[1], r"git -C /r/docs config --get-regexp ^remote\..*\.url$");
     let linked = git(vec![paths("/wt/feature", "/main/widgets/.git", ""), failed(1, "", "")]).locate("/wt/feature").expect("located").expect("in a repository");
     assert_eq!((linked.main_root.as_str(), linked.prefix.as_str(), linked.remote), ("/main/widgets", "", None));
     let bare = git(vec![paths("/r", "/srv/widgets.git", ""), out("remote.upstream.url https://github.com/a/b\nremote.fork.url nonsense\nremote.odd.url https://github.com/a/odd\u{2028}x\n")]).locate("/r").expect("located").expect("in a repository");
@@ -434,9 +434,9 @@ impl Repositories for InRepository {
 }
 
 fn memory_runtime(memory: Memory) -> Runtime {
-    let shared = std::rc::Rc::new(memory);
+    let shared = std::sync::Arc::new(memory);
     // The runtime owns boxed ports; each box shares the one memory.
-    struct Shared(std::rc::Rc<Memory>);
+    struct Shared(std::sync::Arc<Memory>);
     impl Files for Shared {
         fn read_text(&self, path: &str) -> Result<String, FsError> {
             self.0.read_text(path)
@@ -518,6 +518,7 @@ fn a_board_whose_tickets_all_sit_in_milestones_has_no_other_section() {
         live: true,
     };
     let state = BuildTrackerState {
+        groups: None,
         spec: SpecReference::Github { repository: repo("github.com", "acme", "widgets"), number: 1 },
         title: "t".to_string(),
         subtitle: "s".to_string(),
@@ -528,4 +529,28 @@ fn a_board_whose_tickets_all_sit_in_milestones_has_no_other_section() {
     let names: Vec<String> = sections(&state, &board.tickets).into_iter().map(|section| section.name).collect();
     assert_eq!(names, vec!["first".to_string()]);
     assert!(!names.iter().any(|name| name == OTHER_SECTION));
+}
+
+#[test]
+fn only_a_mapping_has_keys() {
+    use crate::yaml_subset::Yaml;
+    assert_eq!(Yaml::Null.get("a"), None);
+    assert_eq!(Yaml::Map(vec![("a".to_string(), Yaml::Bool(true))]).get("a"), Some(&Yaml::Bool(true)));
+}
+
+#[test]
+fn render_tickets_reports_a_git_that_cannot_run() {
+    struct Failing;
+    impl Repositories for Failing {
+        fn locate(&self, _dir: &str) -> Result<Option<RepositoryLocation>, String> {
+            Err("cannot run git: spawn git ENOENT".to_string())
+        }
+    }
+    let tickets = "spec: 1\nbranches:\n  B0:\n    title: t\n    issue: 2\ntickets:\n- key: a\n  title: a\n  branch: B0\n  issue: 3\n  blocked_by: []\n";
+    let memory = Memory { files: HashMap::from([("/r/t.yaml".to_string(), Ok(tickets.to_string()))]), failing_write: false, issue_failure: None };
+    let mut runtime = memory_runtime(memory);
+    runtime.repositories = Box::new(Failing);
+    let result = crate::cli::run_cli(&["render".to_string(), "--tickets".to_string(), "t.yaml".to_string(), "--out".to_string(), "/out/p.html".to_string()], &runtime);
+    assert_eq!(result.stderr, "build-tracker render: cannot run git: spawn git ENOENT\n");
+    assert_eq!(result.exit_code, 1);
 }

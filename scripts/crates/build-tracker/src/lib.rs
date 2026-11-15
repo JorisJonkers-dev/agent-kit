@@ -20,6 +20,8 @@ pub mod specs;
 pub mod state;
 pub mod state_file;
 pub mod text;
+pub mod tickets_file;
+pub mod yaml_subset;
 
 use adapters::clock::SystemClock;
 use adapters::fs::SystemFiles;

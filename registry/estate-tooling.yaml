@@ -1810,9 +1810,13 @@ local_skills:
     agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
-      build-tracker.mjs is built from council/ts by its build and pinned
-      in manifest.yaml's build_tracker.files, the way the critique runner
-      is pinned in critique.files.
+      The skill's build-tracker launcher runs the Rust crate that setup
+      builds and installs as ~/.local/bin/build-tracker
+      (scripts/install-build-tracker-rust.sh), and falls back to
+      build-tracker.mjs until it is installed. build-tracker.mjs is built
+      from council/ts by its build and pinned in manifest.yaml's
+      build_tracker.files, the way the critique runner is pinned in
+      critique.files; it stays as the fallback.
 
   - name: projects-layout
     path: skills/workstation/projects-layout

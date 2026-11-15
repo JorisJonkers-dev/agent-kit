@@ -52,6 +52,7 @@ KIT_FILES = (
     "installer/model-gateway",
     "scripts/install-model-gateway-rust.sh",
     "scripts/install-critique-rust.sh",
+    "scripts/install-build-tracker-rust.sh",
     "scripts/fold-profile-settings.py",
     "scripts/pi-merge-providers.py",
     "registry/generated/pi/providers.json",

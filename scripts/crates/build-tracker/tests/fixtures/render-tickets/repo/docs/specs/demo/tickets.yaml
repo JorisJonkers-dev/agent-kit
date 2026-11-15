@@ -1,0 +1,53 @@
+# Ticket graph for spec #10.
+spec: 10   # the spec issue
+labels:
+- ready
+-
+  nested: item
+  flag: true
+  off: false
+  none: null
+  tilde: ~
+  count: -3
+  big: 12345
+  tag: v1#rc
+branches:
+  B0:
+    title: B0 Foundations
+    issue: 20
+  B1:
+    title: 'B1 Don''t wait <fast>'
+    issue: 21
+  B2:
+    title: "B2 Empty \u00e9"
+    issue: 22
+tickets:
+- key: B0-01
+  title: The first ticket
+  branch: B0
+  issue: 31
+  blocked_by: []
+- key: B0-02
+  title: Second ticket (LIVE) with # hash and "quotes"
+  branch: B0
+  issue: 32
+  blocked_by:
+  - B0-01
+- key: B1-01
+  title: Third, closed upstream
+  branch: B1
+  issue: 30
+  blocked_by:
+  - B0-01
+- title: A  very   long title that goes past the thirty-five character limit for graph labels
+  key: B1-02
+  branch: B1
+  issue: 33
+  blocked_by:
+  - B1-01
+  - B0-02   # two blockers
+- key: B0-03
+  title: "Quoted # not a comment" # but this is
+  branch: B0
+  issue: 34
+  blocked_by: []

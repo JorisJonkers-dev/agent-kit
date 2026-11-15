@@ -27,7 +27,7 @@ SKILLS = KIT_ROOT / "skills" / "workstation"
 SINGLE = {
     "critique-stats": ("`critique stats --strict`", "critique-stats", "critique stats"),
     "flow": ("`critique state --strict`", "flow", "critique state"),
-    "build-tracker": ("`build-tracker refresh`", "flow", "build-tracker.mjs refresh"),  # refreshed by /flow, step 3,
+    "build-tracker": ("`build-tracker refresh`", "flow", "build-tracker refresh"),  # refreshed by /flow, step 3,
 }
 FORBIDDEN_FAMILIES = ["codex", "opus"]
 

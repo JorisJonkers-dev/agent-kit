@@ -687,8 +687,8 @@ def test_flow_refreshes_the_build_tracker_before_it_reports() -> None:
 def test_flow_refreshes_the_build_tracker_for_a_feature_in_implementation_or_finishing() -> None:
     step = _flow_part("### 3. Refresh the build tracker")
     assert "its `phase` is `implementation` or `finishing`" in step
-    assert "`../build-tracker/build-tracker.mjs`" in step
-    assert "build-tracker.mjs refresh --spec '<state.spec>' --landed '<id>' ..." in step
+    assert "`../build-tracker/build-tracker`" in step
+    assert "build-tracker refresh --spec '<state.spec>' --landed '<id>' ..." in step
     assert "one `--landed` per ticket of `state.tickets` whose `landed` is true" in step
     assert "`refresh` runs `init` when the spec has no build tracker state yet, and `sync` when it has one" in step
     assert "it marks each landed ticket `merged`, renders the page" in step

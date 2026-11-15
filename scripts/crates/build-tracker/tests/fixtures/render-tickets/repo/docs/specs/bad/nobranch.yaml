@@ -1,0 +1,11 @@
+spec: 1
+branches:
+  B0:
+    title: t
+    issue: 2
+tickets:
+- key: a
+  title: a
+  branch: B9
+  issue: 3
+  blocked_by: []

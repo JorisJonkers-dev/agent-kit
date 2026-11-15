@@ -92,9 +92,13 @@ fn shown_status(ticket: &Ticket, merged: &HashSet<u64>) -> Shown {
     }
 }
 
-/// One section per milestone, in the state's order. A ticket sits in the first milestone whose closing ticket depends on
+/// One section per group when the state has them. Otherwise one section per milestone, in the state's order. A ticket sits in the first milestone whose closing ticket depends on
 /// it, directly or through other tickets; the rest go in Other. A state without milestones has one section.
 pub fn sections<'a>(state: &BuildTrackerState, tickets: &'a [BoardTicket<'a>]) -> Vec<BoardSection<'a>> {
+    if let Some(groups) = &state.groups {
+        let by_number: HashMap<u64, &BoardTicket> = tickets.iter().map(|ticket| (ticket.ticket.number, ticket)).collect();
+        return groups.iter().map(|group| section(&group.name, group.tickets.iter().filter_map(|number| by_number.get(number).copied()).collect())).collect();
+    }
     if state.milestones.is_empty() {
         return vec![section(SINGLE_SECTION, tickets.iter().collect())];
     }

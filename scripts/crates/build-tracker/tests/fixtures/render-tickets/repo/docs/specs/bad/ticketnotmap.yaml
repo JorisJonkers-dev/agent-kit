@@ -1,0 +1,7 @@
+spec: 1
+branches:
+  B0:
+    title: t
+    issue: 2
+tickets:
+- a
