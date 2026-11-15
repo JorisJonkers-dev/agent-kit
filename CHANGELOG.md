@@ -1,5 +1,24 @@
 # Changelog
 
+## [6.3.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.2.1...v6.3.0) (2026-11-15)
+
+
+### Features
+
+* **model-gateway:** delegation profiles that own the allowed models and the tool scope ([#792](https://github.com/JorisJonkers-dev/agent-kit/issues/792)) ([2d534ab](https://github.com/JorisJonkers-dev/agent-kit/commit/2d534abc89d7fd9ab02c1f48a8c4c1dc552fe0a4)), closes [#774](https://github.com/JorisJonkers-dev/agent-kit/issues/774) [#773](https://github.com/JorisJonkers-dev/agent-kit/issues/773)
+* **model-gateway:** enforce a profile's skills and plugins on Pi with a per-run home ([#801](https://github.com/JorisJonkers-dev/agent-kit/issues/801)) ([cf543d9](https://github.com/JorisJonkers-dev/agent-kit/commit/cf543d96460fc9a64ba78f512276517d35ed7130))
+* **workflow-lint:** critic-required and critic-family rules for Gold Band templates ([#800](https://github.com/JorisJonkers-dev/agent-kit/issues/800)) ([4a8539f](https://github.com/JorisJonkers-dev/agent-kit/commit/4a8539fa7d53e81ac3d6b6c99c699c3e5c2f54db))
+* **workflow-lint:** enforce Gold Band's editor validation rules on shipped templates ([#782](https://github.com/JorisJonkers-dev/agent-kit/issues/782)) ([da78a02](https://github.com/JorisJonkers-dev/agent-kit/commit/da78a02259758b8bdbc9b1927e64c1e35ea6d05d)), closes [#780](https://github.com/JorisJonkers-dev/agent-kit/issues/780)
+
+
+### Bug Fixes
+
+* **gold-band:** add success expressions and the grant-refused end edge to the shipped templates ([#790](https://github.com/JorisJonkers-dev/agent-kit/issues/790)) ([046aecb](https://github.com/JorisJonkers-dev/agent-kit/commit/046aecb7b668525079bd6764ca20ce137c84a4f7)), closes [#781](https://github.com/JorisJonkers-dev/agent-kit/issues/781)
+* **gold-band:** findable desktop entry, NixOS launcher and settingsSchemaVersion ([#766](https://github.com/JorisJonkers-dev/agent-kit/issues/766)) ([76d0eef](https://github.com/JorisJonkers-dev/agent-kit/commit/76d0eeff0783c1cdd1339766a4420278fa3fc5bf))
+* **gold-band:** patch the editor entry rule so failure targets are not entries ([#791](https://github.com/JorisJonkers-dev/agent-kit/issues/791)) ([a7d215e](https://github.com/JorisJonkers-dev/agent-kit/commit/a7d215ee77c676edeb0bb10d9d7bd2d8ba0ad961)), closes [#781](https://github.com/JorisJonkers-dev/agent-kit/issues/781)
+* **litellm:** withhold Claude models from every workstation route ([#816](https://github.com/JorisJonkers-dev/agent-kit/issues/816)) ([e6e1647](https://github.com/JorisJonkers-dev/agent-kit/commit/e6e1647018d26d7a3aaf96bc77f7dc94e235300d))
+* **setup:** install hermes-agent with its acp extra and fail --check on missing Gold Band templates ([#779](https://github.com/JorisJonkers-dev/agent-kit/issues/779)) ([766531d](https://github.com/JorisJonkers-dev/agent-kit/commit/766531d370a598e106f2710564469c844fe3ead5))
+
 ## [6.2.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.2.0...v6.2.1) (2026-11-15)
 
 
