@@ -72,6 +72,14 @@ def git(repo: Path, *args: str) -> str:
     return done.stdout.strip()
 
 
+NOTE_PATCH = """--- a/web/note.txt
++++ b/web/note.txt
+@@ -1 +1 @@
+-entry rule: upstream
++entry rule: patched
+"""
+
+
 @dataclass
 class Host:
     root: Path
@@ -80,6 +88,7 @@ class Host:
     bin_dir: Path
     state: Path
     calls: Path
+    patches: Path
 
     def run(self, *args: str, **env: str) -> subprocess.CompletedProcess[str]:
         full = {
@@ -91,6 +100,7 @@ class Host:
             "GOLD_BAND_SHARE": str(self.root / "share"),
             "GOLD_BAND_CACHE": str(self.root / "cache"),
             "GOLD_BAND_STATE": str(self.state),
+            "GOLD_BAND_PATCHES": str(self.patches),
             "CRATE_AGE": "crate-age",
             **env,
         }
@@ -104,6 +114,7 @@ def make_host(
     age_output: str = "",
     proxy_token: bool = True,
     cargo_lock: str | None = None,
+    patch: str | None = NOTE_PATCH,
 ) -> Host:
     root = tmp_path
     (root / "home").mkdir()
@@ -123,6 +134,8 @@ def make_host(
     (clone / "Cargo.lock").write_text(LOCK)
     (clone / ".cargo").mkdir()
     (clone / ".cargo" / "config.toml").write_text(RSPROXY)
+    (clone / "web").mkdir()
+    (clone / "web" / "note.txt").write_text("entry rule: upstream\n")
     (clone / "src-tauri" / "icons").mkdir(parents=True)
     for name, data in {**ICONS, "logo-source.svg": SVG}.items():
         (clone / "src-tauri" / "icons" / name).write_bytes(data)
@@ -134,7 +147,8 @@ def make_host(
     stubs.mkdir()
     calls = root / "calls.log"
     stub(stubs, "crate-age", f'echo "crate-age $*" >> "{calls}"\ncat <<\'OUT\'\n{age_output}\nOUT\nexit {age_status}')
-    stub(stubs, "npm", f'echo "npm $*" >> "{calls}"')
+    # What the web build would see: the build copy's file the patch changes.
+    stub(stubs, "npm", f'echo "npm $*" >> "{calls}"\ncp web/note.txt "{root}/note-seen.txt"')
     stub(stubs, "node", "exit 0")
     stub(stubs, "pkg-config", "exit 0")
     new_lock = cargo_lock if cargo_lock is not None else LOCK.replace('version = "0.19.0"', 'version = "0.19.1"')
@@ -151,7 +165,11 @@ def make_host(
         '  printf "#!/bin/sh\\necho $b\\n" > target/release/$b; chmod +x target/release/$b\n'
         "done",
     )
-    return Host(root, clone, commit, root / "bin", root / "state" / "build.json", calls)
+    patches = root / "patches"
+    patches.mkdir()
+    if patch is not None:
+        (patches / "0001-note.patch").write_text(patch)
+    return Host(root, clone, commit, root / "bin", root / "state" / "build.json", calls, patches)
 
 
 def calls_of(host: Host) -> list[str]:
@@ -525,3 +543,79 @@ def test_a_missing_binary_is_rebuilt(tmp_path: Path) -> None:
     done = host.run()
     assert "already built" not in done.stdout
     assert (host.bin_dir / "gold-band").exists()
+
+
+def patches_hash(host: Host) -> str:
+    return hashlib.sha256(b"".join(p.read_bytes() for p in sorted(host.patches.glob("*.patch")))).hexdigest()
+
+
+def test_the_patch_is_applied_to_the_build_copy_before_the_web_build_and_recorded(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    done = host.run()
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "applied build patch 0001-note.patch" in done.stdout
+    assert (tmp_path / "note-seen.txt").read_text() == "entry rule: patched\n"
+    assert json.loads(host.state.read_text())["patches_sha256"] == patches_hash(host)
+    # The clone is untouched.
+    assert (host.clone / "web" / "note.txt").read_text() == "entry rule: upstream\n"
+    assert git(host.clone, "status", "--porcelain") == ""
+
+
+def test_a_patch_that_does_not_apply_stops_the_build_and_installs_nothing(tmp_path: Path) -> None:
+    host = make_host(tmp_path, patch=NOTE_PATCH.replace("upstream", "moved"))
+    done = host.run()
+    assert done.returncode == 1
+    assert "build patch 0001-note.patch does not apply" in done.stdout + done.stderr
+    assert "the pin moved" in done.stdout + done.stderr
+    assert not (host.bin_dir / "gold-band").exists()
+    assert not host.state.exists()
+    assert [c for c in calls_of(host) if c.startswith(("npm", "cargo"))] == []
+
+
+def test_a_record_without_the_patch_hash_or_with_another_is_rebuilt(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    assert host.run().returncode == 0
+    record = json.loads(host.state.read_text())
+    cargo = lambda: len([c for c in calls_of(host) if c.startswith("cargo")])  # noqa: E731
+    del record["patches_sha256"]
+    host.state.write_text(json.dumps(record))
+    before = cargo()
+    assert "already built" not in host.run().stdout
+    assert cargo() == before + 2
+    record["patches_sha256"] = "0" * 64
+    host.state.write_text(json.dumps(record))
+    assert "already built" not in host.run().stdout
+    assert json.loads(host.state.read_text())["patches_sha256"] == patches_hash(host)
+    assert "already built" in host.run().stdout
+
+
+def test_a_changed_patch_triggers_a_rebuild(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    assert host.run().returncode == 0
+    (host.patches / "0001-note.patch").write_text(NOTE_PATCH.replace("patched", "patched twice"))
+    done = host.run()
+    assert "already built" not in done.stdout
+    assert (tmp_path / "note-seen.txt").read_text() == "entry rule: patched twice\n"
+
+
+def test_check_reports_the_patch_hash_and_applies_nothing(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    done = host.run("--check")
+    assert done.returncode == 0
+    assert patches_hash(host) in done.stdout
+    assert calls_of(host) == []
+
+
+def test_no_patches_builds_the_pin_as_is_and_records_none(tmp_path: Path) -> None:
+    host = make_host(tmp_path, patch=None)
+    done = host.run()
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "applied build patch" not in done.stdout
+    assert (tmp_path / "note-seen.txt").read_text() == "entry rule: upstream\n"
+    assert json.loads(host.state.read_text())["patches_sha256"] == "none"
+    assert "already built" in host.run().stdout
+
+
+def test_the_shipped_patch_set_is_the_entry_rule_patch() -> None:
+    shipped = sorted((SCRIPT.parent / "patches").glob("*.patch"))
+    assert [p.name for p in shipped] == ["0001-entry-rule-failure-targets.patch"]

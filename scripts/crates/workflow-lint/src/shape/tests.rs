@@ -76,8 +76,9 @@ fn a_check_round_loop_with_backward_failure_edges_has_one_entry() {
 }
 
 #[test]
-fn a_check_node_reached_only_by_failure_edges_is_a_second_entry() {
-    // The to-spec shape: the check nodes hang off failure edges only.
+fn a_check_node_reached_only_by_failure_edges_is_not_an_entry() {
+    // The to-spec shape: the check nodes hang off failure edges only. Unpatched
+    // Gold Band counted check-1 as a second entry; the build patch does not.
     let nodes = vec![
         worker("gate"),
         validated(
@@ -103,10 +104,54 @@ fn a_check_node_reached_only_by_failure_edges_is_a_second_entry() {
         edge("check-1", "round-2", "success"),
         edge("round-2", "$end", "success"),
     ];
+    assert!(check(nodes, edges).is_empty());
+}
+
+#[test]
+fn a_node_without_any_incoming_edge_is_still_a_second_entry() {
+    let nodes = vec![worker("gate"), worker("other"), worker("done")];
+    let edges = vec![
+        edge("gate", "done", "success"),
+        edge("other", "done", "success"),
+        edge("done", "$end", "success"),
+    ];
     let found = check(nodes, edges);
     assert_eq!(found.len(), 1);
     assert!(found[0]
-        .starts_with("check-1: entry-multiple: Workflow has multiple entry nodes: gate, check-1"));
+        .starts_with("other: entry-multiple: Workflow has multiple entry nodes: gate, other"));
+}
+
+#[test]
+fn a_failure_edge_back_over_a_longer_success_path_still_closes_a_loop() {
+    // gate -> a -> b -> c, failure c -> gate: gate reaches c over success
+    // edges, so the edge is a retry loop and gate stays the entry.
+    let mut c = worker("c");
+    c["manual_check"] = json!(true);
+    let nodes = vec![worker("gate"), worker("a"), worker("b"), c];
+    let edges = vec![
+        edge("gate", "a", "success"),
+        edge("a", "b", "success"),
+        edge("b", "c", "success"),
+        edge("c", "gate", "failure"),
+        edge("c", "$end", "success"),
+    ];
+    assert!(check(nodes, edges).is_empty());
+}
+
+#[test]
+fn a_failure_edge_back_to_a_node_that_does_not_reach_the_source_is_incoming() {
+    // other sorts before gate's success chain but never reaches fail: the
+    // failure edge fail -> other is no loop, so other is not an entry.
+    let mut fail = worker("fail");
+    fail["manual_check"] = json!(true);
+    let nodes = vec![worker("other"), worker("gate"), fail];
+    let edges = vec![
+        edge("gate", "fail", "success"),
+        edge("fail", "other", "failure"),
+        edge("other", "$end", "success"),
+        edge("fail", "$end", "success"),
+    ];
+    assert!(check(nodes, edges).is_empty());
 }
 
 #[test]

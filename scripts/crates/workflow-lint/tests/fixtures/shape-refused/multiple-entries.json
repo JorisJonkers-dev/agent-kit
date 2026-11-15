@@ -70,11 +70,6 @@
         "on": "success"
       },
       {
-        "from": "write",
-        "to": "check",
-        "on": "failure"
-      },
-      {
         "from": "check",
         "to": "done",
         "on": "success"

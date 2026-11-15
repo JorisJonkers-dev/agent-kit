@@ -75,6 +75,16 @@ def test_each_refused_fixture_breaks_exactly_its_rule(name: str) -> None:
     assert all(node for node, _, _ in found)
 
 
+def test_a_failure_target_is_not_an_entry_but_a_real_second_entry_is() -> None:
+    valid = shape.shape_findings(_definition(FIXTURES / "shape-valid" / "failure-target.json"))
+    assert valid == []
+    cases = _odd_definitions()
+    assert shape.shape_findings(cases["failure-target-sorted-first"]) == []
+    assert [(n, r) for n, r, _ in shape.shape_findings(cases["real-second-entry"])] == [("g", "entry-multiple")]
+    assert shape.shape_findings(cases["failure-loop-long"]) == []
+    assert [r for _, r, _ in shape.shape_findings(cases["cycle"])] == ["entry-missing"]
+
+
 def test_the_two_owner_reported_messages() -> None:
     found = shape.shape_findings(_definition(FIXTURES / "shape-refused" / "multiple-entries.json"))
     assert found[0][2].startswith("Workflow has multiple entry nodes: gate, check.")
@@ -221,6 +231,26 @@ def _odd_definitions() -> dict[str, dict[str, Any]]:
         ],
     }.items():
         cases[name] = _wf(copy.deepcopy(base_nodes), edges)
+    # Failure targets and entries (the build patch): "a" sorts first and is reached by a failure edge only.
+    chain = [
+        {"from": "g", "to": "c", "on": "success"},
+        {"from": "c", "to": "$end", "on": "success"},
+        {"from": "a", "to": "$end", "on": "success"},
+    ]
+    nodes = [_worker("a"), _worker("g"), check]
+    cases["failure-target-sorted-first"] = _wf(
+        copy.deepcopy(nodes), [*chain, {"from": "c", "to": "a", "on": "failure"}]
+    )
+    cases["real-second-entry"] = _wf(copy.deepcopy(nodes), chain)
+    cases["failure-loop-long"] = _wf(
+        copy.deepcopy([_worker("a"), _worker("b"), check]),
+        [
+            {"from": "a", "to": "b", "on": "success"},
+            {"from": "b", "to": "c", "on": "success"},
+            {"from": "c", "to": "a", "on": "failure"},
+            {"from": "c", "to": "$end", "on": "success"},
+        ],
+    )
     return cases
 
 

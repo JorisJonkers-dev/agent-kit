@@ -17,6 +17,8 @@
 #   CRATE_AGE          the crate-age executable (default: crate-age on PATH).
 #   PACKAGES_CARGO_INDEX  the packages proxy's cargo index (default
 #                      sparse+https://packages.jorisjonkers.dev/cargo/).
+#   GOLD_BAND_PATCHES  the directory of *.patch files applied to the build copy
+#                      (default patches/ beside this file).
 #   GOLD_BAND_FORCE=1  rebuild even when the record already matches the pin.
 #   --check            report what would happen; build nothing.
 #   --retire [--check] remove the launcher, runtime.nix, desktop entry and icons
@@ -39,6 +41,12 @@
 # third-party mirror, which would bypass the cooldown) by one that resolves
 # only through the packages proxy, which hides versions younger than 7 days,
 # with cargo's own 7-day cooldown on top (docs/RUST.md).
+# The patches in patches/ are applied to the build copy of the source, in file
+# name order, before `npm run web:build` (today: the workflow editor's entry
+# rule, 0001-entry-rule-failure-targets.patch). A patch that does not apply
+# (the pin moved) stops the build with exit 1 and installs nothing. The
+# sha256 of the patches is recorded in build.json as "patches_sha256"; a
+# record with another (or no) value is not "built", so a rebuild happens.
 # The desktop binary is built with tauri/custom-protocol so it embeds web/dist instead of loading a dev server.
 # The web UI is built with npm through the packages proxy. On NixOS the system
 # libraries a Tauri app links against come from `shell.nix` beside this file.
@@ -57,6 +65,7 @@ CRATE_AGE=${CRATE_AGE:-crate-age}
 INDEX=${PACKAGES_CARGO_INDEX:-sparse+https://packages.jorisjonkers.dev/cargo/}
 CREDENTIALS=${CARGO_HOME:-$HOME/.cargo}/credentials.toml
 SHARE=${GOLD_BAND_SHARE:-${XDG_DATA_HOME:-$HOME/.local/share}}
+PATCHES=${GOLD_BAND_PATCHES:-$HERE/patches}
 CHECK=0
 [ "${1:-}" = "--check" ] && CHECK=1
 RETIRE=0
@@ -68,10 +77,22 @@ die() { say "$*" >&2; exit 1; }
 [ "$(uname -s)" = Linux ] || die "this builder is for Linux; the Mac build is its own ticket"
 [ "$(uname -m)" = x86_64 ] || die "only Linux x86_64 is supported here (this host is $(uname -m))"
 
+# The sha256 over the build patches (all *.patch in name order), "none" with no patch.
+patches_sha() {
+  local f list=""
+  for f in "$PATCHES"/*.patch; do [ -f "$f" ] && list="$list $f"; done
+  [ -n "$list" ] || { echo none; return; }
+  # shellcheck disable=SC2086
+  cat $list | sha256sum | cut -d' ' -f1
+}
+PATCHES_SHA=$(patches_sha)
+
 # A binary replaced behind the record (the app's own updater once did) is not "built".
 recorded() {
   local name want have
   [ -f "$STATE" ] && grep -q "\"commit\": \"$commit\"" "$STATE" || return 1
+  # A record without this patch set (or from before patches existed) is not built.
+  grep -q "\"patches_sha256\": \"$PATCHES_SHA\"" "$STATE" || return 1
   for name in gold-band gold-band-desktop; do
     [ -x "$BIN_DIR/$name" ] || return 1
     want=$(grep "\"$name\": {" "$STATE" | sed -n 's/.*"sha256": "\([0-9a-f]*\)".*/\1/p')
@@ -199,7 +220,7 @@ if [ "${GOLD_BAND_FORCE:-0}" != 1 ] && recorded; then
   exit 0
 fi
 if [ "$CHECK" = 1 ]; then
-  say "would build $commit ($PIN_TAG) from $CLONE: crate-age over its Cargo.lock, then the desktop app and gold-band through the packages proxy, into $BIN_DIR"
+  say "would build $commit ($PIN_TAG) from $CLONE with patches $PATCHES_SHA: crate-age over its Cargo.lock, then the desktop app and gold-band through the packages proxy, into $BIN_DIR"
   desktop_integration
   exit 0
 fi
@@ -218,6 +239,14 @@ mkdir -p "$src" "$(dirname "$STATE")"
 git -C "$CLONE" archive "$commit" >"$work/src.tar"
 tar -x -C "$src" -f "$work/src.tar"
 [ -d "$work/target.keep" ] && mv "$work/target.keep" "$src/target"
+# The build patches, before anything is built; the pin moving shows up here.
+for patch in "$PATCHES"/*.patch; do
+  [ -f "$patch" ] || continue
+  git -C "$src" apply --check "$patch" 2>"$work/patch.err" \
+    || { cat "$work/patch.err" >&2; die "STOPPED: build patch $(basename "$patch") does not apply to $commit (the pin moved?); nothing was built. Rebase the patch (docs/GOLD-BAND.md) or drop it if upstream carries the change"; }
+  git -C "$src" apply "$patch" || die "STOPPED: build patch $(basename "$patch") failed to apply to $commit; nothing was built"
+  say "applied build patch $(basename "$patch")"
+done
 version=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' "$src/Cargo.toml" | head -1)
 say "building Gold Band $version at $commit"
 
@@ -329,6 +358,7 @@ cat > "$STATE" <<JSON
   "commit": "$commit",
   "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "age_check": "$age_result",
+  "patches_sha256": "$PATCHES_SHA",
   "gold-band": {"path": "$BIN_DIR/gold-band", "sha256": "$sha_head"},
   "gold-band-desktop": {"path": "$BIN_DIR/gold-band-desktop", "sha256": "$sha_desk"}
 }

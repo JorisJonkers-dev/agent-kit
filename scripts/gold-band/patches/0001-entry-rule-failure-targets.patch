@@ -1,0 +1,102 @@
+Gold Band editor: a failure target is not an entry candidate
+
+deriveWorkflowEntryCandidateIds ignored every non-success edge that sorts
+backward in the success topology, so a node reached only by a failure edge
+(a human check after a failed round) could count as a second entry whenever its
+id sorted before the failing node. Save, run-mode start and task-list start
+refuse such a workflow ("multiple entry nodes").
+
+A backward non-success edge is now ignored only when it closes a loop: the
+target reaches the source over success edges (a retry back to the entry, kept
+as before). Any other failure edge counts as an incoming edge. A node with no
+incoming edge at all is still an entry, and a workflow with none still errors.
+
+ web/src/components/WorkflowEditor.tsx            | 21 +++++++++++-
+ web/tests/workflow-entry-failure-targets.test.ts | 41 ++++++++++++++++++++++++
+ 2 files changed, 61 insertions(+), 1 deletion(-)
+
+diff --git a/web/src/components/WorkflowEditor.tsx b/web/src/components/WorkflowEditor.tsx
+index de903ec..3cdf8a9 100644
+--- a/web/src/components/WorkflowEditor.tsx
++++ b/web/src/components/WorkflowEditor.tsx
+@@ -2901,13 +2901,32 @@ function WorkflowRoutedEdge({ sourceX, sourceY, sourcePosition, targetX, targetY
+   );
+ }
+ 
++function reachesOverSuccessEdges(edges: WorkflowDsl['edges'], from: string, to: string): boolean {
++  const seen = new Set<string>([from]);
++  const stack = [from];
++  while (stack.length > 0) {
++    const current = stack.pop()!;
++    if (current === to) return true;
++    edges.forEach((edge) => {
++      if (edge.on === 'success' && edge.from === current && !seen.has(edge.to)) {
++        seen.add(edge.to);
++        stack.push(edge.to);
++      }
++    });
++  }
++  return false;
++}
++
+ export function deriveWorkflowEntryCandidateIds(workflow: Pick<WorkflowDsl, 'nodes' | 'edges'>): string[] {
+   const nodeIds = new Set(workflow.nodes.map((node) => node.id).filter(Boolean));
+   const nodeOrder = workflowSuccessTopologyOrder({ ...workflow, entry: '' });
+   const incomingNodeIds = new Set<string>();
+   workflow.edges.forEach((edge) => {
+     if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to)) return;
+-    if (edge.on !== 'success' && isBackwardEdge(edge.from, edge.to, nodeOrder)) return;
++    // A backward non-success edge is a retry loop and is ignored, but only when it really closes
++    // a loop: its target reaches its source over success edges. A failure edge to a node that
++    // merely sorts earlier (a human check reached only by failure) still makes that node a non-entry.
++    if (edge.on !== 'success' && isBackwardEdge(edge.from, edge.to, nodeOrder) && reachesOverSuccessEdges(workflow.edges, edge.to, edge.from)) return;
+     incomingNodeIds.add(edge.to);
+   });
+   return workflow.nodes
+diff --git a/web/tests/workflow-entry-failure-targets.test.ts b/web/tests/workflow-entry-failure-targets.test.ts
+new file mode 100644
+index 0000000..3b757b5
+--- /dev/null
++++ b/web/tests/workflow-entry-failure-targets.test.ts
+@@ -0,0 +1,41 @@
++import { describe, expect, it } from 'vitest';
++import { deriveWorkflowEntryCandidateIds } from '../src/components/WorkflowEditor';
++import type { WorkflowDsl } from '../src/types';
++
++function node(id: string) {
++  return { type: 'worker' as const, id, executionSlotId: `slot-${id}`, profile: 'developer', goal: id };
++}
++
++function entries(ids: string[], edges: WorkflowDsl['edges']) {
++  return deriveWorkflowEntryCandidateIds({ nodes: ids.map(node), edges });
++}
++
++describe('workflow entry candidates and failure targets', () => {
++  it('does not treat a node reached only by a failure edge as an entry, whatever its position', () => {
++    expect(entries(['check', 'gate', 'round'], [
++      { from: 'gate', to: 'round', on: 'success' },
++      { from: 'round', to: '$end', on: 'success' },
++      { from: 'round', to: 'check', on: 'failure' },
++      { from: 'check', to: '$end', on: 'success' },
++    ])).toEqual(['gate']);
++  });
++
++  it('still ignores a failure edge that closes a success loop back to the entry', () => {
++    expect(entries(['dev', 'test'], [
++      { from: 'dev', to: 'test', on: 'success' },
++      { from: 'test', to: 'dev', on: 'failure' },
++      { from: 'test', to: '$end', on: 'success' },
++    ])).toEqual(['dev']);
++  });
++
++  it('still counts a node with no incoming edge at all as an entry, and none is none', () => {
++    expect(entries(['a', 'b'], [
++      { from: 'a', to: '$end', on: 'success' },
++      { from: 'b', to: '$end', on: 'success' },
++    ])).toEqual(['a', 'b']);
++    expect(entries(['a', 'b'], [
++      { from: 'a', to: 'b', on: 'success' },
++      { from: 'b', to: 'a', on: 'success' },
++    ])).toEqual([]);
++  });
++});

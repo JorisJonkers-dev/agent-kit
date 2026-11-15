@@ -5,7 +5,8 @@ Setup makes the pinned commit **`987fc3e298b15d725a7f0e9b609b0f77dba63a74`**
 (tag `v0.19.1`) present on a Linux workstation: the desktop app
 (`gold-band-desktop`, a Tauri 2 app) and the headless `gold-band` binary, both
 built from source, both installed to `~/.local/bin`. Upstream packages are not
-used. Gold Band's code is never changed and never copied into this repository.
+used. Gold Band's code is never copied into this repository; the build copy gets
+one small documented patch to the editor's entry rule (see "The build patch").
 
 The surface is declared in `registry/estate-tooling.yaml` (`gold_band:`); the
 builder is `scripts/gold-band/build-linux.sh`. The Mac build is a separate
@@ -45,9 +46,10 @@ ticket.
    proves that no third-party entry of the lockfile changed.
 6. **Install and report.** Both binaries go to `~/.local/bin`, and
    `~/.local/state/agent-kit/gold-band/build.json` records version, tag, build
-   commit, build time, the age-check result and each binary's sha256. A run
-   that finds that record matching the pin, with both installed binaries'
-   sha256 equal to the recorded ones, does nothing (`GOLD_BAND_FORCE=1`
+   commit, build time, the age-check result, the sha256 of the build patches
+   (`patches_sha256`) and each binary's sha256. A run
+   that finds that record matching the pin and the patches, with both installed
+   binaries' sha256 equal to the recorded ones, does nothing (`GOLD_BAND_FORCE=1`
    rebuilds). `setup-workstation.sh --check` only reports.
 
 7. **Make it findable and runnable (every run, built or not).** The builder
@@ -343,8 +345,11 @@ topological order, `deriveWorkflowEntryCandidateIds` for the entry count). A fin
 reads `<file>: <node or workflow>: <rule>: <message>`, with the editor's own message,
 and the exit code is the crate's (0 clean, 1 findings, 2 unreadable). Rules:
 
-* **Entry**: exactly one node with no incoming edge, where a failure edge that
-  goes backward in the success-edge topological order does not count as incoming
+* **Entry**: exactly one node with no incoming edge, where a non-success edge that
+  goes backward in the success-edge topological order and closes a loop (its target
+  reaches its source over success edges) does not count as incoming; any other
+  failure edge does, so a failure target is not an entry (the build patch below;
+  unpatched v0.19.1 also ignored a backward failure edge to such a node)
   (`entry-multiple`, `entry-missing`); at least one edge to `$end` (`end-required`);
   at least one node (`nodes-required`).
 * **Success expression**, for a worker with `output` or `success_condition`:
@@ -388,20 +393,61 @@ definitions (it needs `WORKFLOW_LINT_BIN` or a built `scripts/target/debug/workf
 The fixtures are under `scripts/crates/workflow-lint/tests/fixtures/shape-valid` and
 `shape-refused` (one per rule, including the two owner-reported errors).
 
-**Known failures (#781).** Four templates pass (build-tracker, critique-stats, flow, research);
-the rest are listed in `installer/gold-band/workflows/known-shape-failures.txt` (one file per
-line, a comment pointing to #781). Every worker that has `output` now carries a
-`success_condition` of `{"path": "$.ok", "equals": true}` over its declared `{"ok": true}`
-output, except the two spec critics of `critique-spec-stage`, whose output is a findings
-list that no condition can accept in every case, and `grant-refused` in the work variants
-has its edge to `$end`. What remains is `entry-multiple`: a human-check node is reached only
-by a failure edge, which the editor ignores when the check sorts before its source in the
-success-edge order, so the check counts as a second entry. A check cannot be given a success
-predecessor (every round's success edge is taken, and one edge per outcome is allowed), and a
-pass-through node in front of it only moves the entry onto that node, so this needs a change
-in Gold Band's rule, not in the templates. CI and setup tolerate exactly the listed files:
-any other template, and any new one, must pass; a listed template that now passes fails CI
-with "remove it from the list".
+**Known failures (#781).** Every worker that has `output` carries a `success_condition`
+of `{"path": "$.ok", "equals": true}` over its declared `{"ok": true}` output, and
+`grant-refused` in the work variants has its edge to `$end`. The `entry-multiple`
+findings (a human check reached only by a failure edge) are cleared by the build patch
+below, not by the templates: no change of nodes can satisfy the unpatched rule. What
+may still be listed in `installer/gold-band/workflows/known-shape-failures.txt` (one
+file per line, a comment pointing to #781) is named there with its reason: the two
+spec critics of `critique-spec-stage` output a findings list that no condition can
+accept in every case. CI and setup tolerate exactly the listed files: any other
+template, and any new one, must pass; a listed template that now passes fails CI with
+"remove it from the list".
+
+## The build patch: failure targets are not entries
+
+Unpatched v0.19.1 refuses 21 of the 24 shipped templates (Save, run-mode start and
+task-list start). `deriveWorkflowEntryCandidateIds` ignores every non-success edge
+that goes backward in the success-edge topological order, so a node reached only by
+a failure edge (the human check `spec-check-N` after `spec-round-N --failure-->`)
+counted as a second entry whenever its id sorted before the failing node: "Workflow
+has multiple entry nodes". The failure -> human-check loop is the intended design
+and no change of nodes satisfies the rule, so setup patches the build copy.
+
+`scripts/gold-band/patches/0001-entry-rule-failure-targets.patch` changes that one
+function: a backward non-success edge is ignored only when it closes a loop (its
+target reaches its source over success edges, the retry back to the entry that
+Gold Band's own test `accepts a failure back edge into the initial entry node`
+keeps). Any other failure edge counts as incoming. A node with no incoming edge at
+all is still an entry and a workflow with none still errors. The patch carries its
+own vitest file (`web/tests/workflow-entry-failure-targets.test.ts`).
+
+* `build-linux.sh` applies every `patches/*.patch` (name order, `git apply`) to the
+  build copy before `npm run web:build`. A patch that does not apply (the pin moved)
+  stops the build with exit 1 and a message; nothing is installed. The clone is
+  never touched. The pin and the 7-day crate cooldown are unchanged.
+* The sha256 of the patches is recorded in `build.json` (`patches_sha256`, `none`
+  without patches); a record with another or no value is not "built", so the next
+  setup run rebuilds. `--check` prints the hash. After this lands, run once:
+  `GOLD_BAND_FORCE=1 scripts/gold-band/build-linux.sh` (needs crates.io not
+  rate-limited, #772).
+* `workflow-lint --shape` and `scripts/gold_band_shape.py` implement the patched rule.
+* Verification (needs Gold Band's source and `npm ci`, so not in CI): apply the
+  patch to the pinned source, copy `scripts/gold-band/patches/templates-entry-rule.test.ts`
+  to `web/tests/`, and run
+  `GB_TEMPLATES=<kit>/installer/gold-band/workflows npx vitest run --config web/vitest.config.ts web/tests/templates-entry-rule.test.ts web/tests/workflow-entry-failure-targets.test.ts web/tests/workflow-editor-new-round.test.ts`.
+  Unpatched, 21 templates fail it; patched, all 24 pass the entry rule.
+* Trade-off: a failure edge back to a node that does not reach its source over
+  success edges now makes that node a non-entry; with no other entry the editor
+  reports `entry-missing`, as it does for any workflow without one.
+
+**Dropping it.** Upstream proposal: JorisJonkers-dev/agent-kit#787. When a Gold Band
+release carries the same rule, move the pin, delete the patch (and its test file), run
+`scripts/gold-band/build-linux.sh`, and check `gold_band_shape.py` and
+`shape.rs` against the new `deriveWorkflowEntryCandidateIds`. If the pin moves
+without that, the build stops at the patch step: regenerate it against the new
+source (`git diff` of `deriveWorkflowEntryCandidateIds`) or drop it.
 
 Longer term (also #780): a check that runs the pinned app's own validator, so that a
 pin bump cannot drift from the port. Until then, re-read `validateWorkflowForSave`

@@ -485,14 +485,13 @@ def test_setup_check_fails_when_templates_are_missing_and_a_resave_by_the_app_ke
 
 
 def _two_entry_template(wid: str) -> dict[str, Any]:
-    """The to-spec shape: a check node reached only by a failure edge is a second entry."""
+    """A check node with no incoming edge at all is a second entry."""
     body = _template(wid)
     nodes = body["workflow"]["nodes"]
     check = {**nodes[0], "id": "check", "executionSlotId": f"slot-{wid}-check", "manual_check": True}
     nodes.insert(0, check)
     body["workflow"]["edges"] = [
         {"from": "one", "to": "$end", "on": "success"},
-        {"from": "one", "to": "check", "on": "failure"},
         {"from": "check", "to": "$end", "on": "success"},
     ]
     nodes[1].update({"output": {"kind": "json", "artifact": "a", "schema": {"ok": True}}})

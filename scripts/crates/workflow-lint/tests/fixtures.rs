@@ -172,6 +172,14 @@ fn the_valid_shape_fixture_passes() {
 }
 
 #[test]
+fn a_failure_target_sorted_before_its_source_is_not_an_entry() {
+    assert_eq!(
+        shape_findings("shape-valid", "failure-target"),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
 fn each_refused_shape_fixture_breaks_exactly_its_rule() {
     for (name, rule) in SHAPE_REFUSED {
         let found = shape_findings("shape-refused", name);
