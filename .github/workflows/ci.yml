@@ -238,6 +238,10 @@
           bash -n "${repo_shell_scripts[@]}"
           shellcheck "${repo_shell_scripts[@]}"
 
+      - 'name': 'Test the bootstrap shell'
+        'if': '${{ !cancelled() }}'
+        'run': 'scripts/test-bootstrap.sh'
+
       - 'name': 'Lint the generated container setup script'
         'if': '${{ !cancelled() }}'
         'run': 'shellcheck installer/setup-container.sh'

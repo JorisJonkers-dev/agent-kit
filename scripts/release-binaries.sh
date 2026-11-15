@@ -5,6 +5,7 @@
 #
 #   release-binaries.sh build TAG TARGET [OUT_DIR]   -> OUT_DIR/agent-kit-tools-TAG-TARGET.tar.gz (+ .sha256)
 #   release-binaries.sh sums OUT_DIR                 -> OUT_DIR/SHA256SUMS over every *.tar.gz in it
+#   release-binaries.sh stamp TAG DIR               -> DIR/bootstrap.sh: scripts/bootstrap.sh with TAG and DIR/SHA256SUMS stamped in
 #   release-binaries.sh smoke TAG TARGET DIR         -> verify DIR against SHA256SUMS, unpack, run every binary
 #
 # Build from the repository root's pinned workspace with --locked, so the
@@ -63,6 +64,22 @@ cmd_sums() {
   (cd "$dir" && sha agent-kit-tools-*.tar.gz > SHA256SUMS && cat SHA256SUMS)
 }
 
+cmd_stamp() {
+  local tag="${1:?tag}" dir="${2:?dir}"
+  [ -f "$dir/SHA256SUMS" ] || { echo "no SHA256SUMS in $dir" >&2; return 1; }
+  local block; block="$(mktemp)"; trap 'rm -f "$block"' RETURN
+  { echo "STAMPED_TAG='$tag'"; echo "STAMPED_SUMS='$(cat "$dir/SHA256SUMS")"; echo "'"; } > "$block"
+  awk -v blockfile="$block" '
+    /^# --- end stamped ---/ { skipping = 0 }
+    skipping { next }
+    { print }
+    /^# --- stamped by/ { while ((getline line < blockfile) > 0) print line; skipping = 1 }
+  ' "$ROOT/scripts/bootstrap.sh" > "$dir/bootstrap.sh"
+  chmod 0755 "$dir/bootstrap.sh"
+  grep -q "^STAMPED_TAG='$tag'\$" "$dir/bootstrap.sh" || { echo "stamping failed" >&2; return 1; }
+  echo "stamped $dir/bootstrap.sh"
+}
+
 cmd_smoke() {
   local tag="${1:?tag}" target="${2:?target}" dir="${3:?dir}"
   local name="agent-kit-tools-${tag}-${target}"
@@ -94,6 +111,7 @@ cmd_smoke() {
 case "${1:-}" in
   build) shift; cmd_build "$@" ;;
   sums) shift; cmd_sums "$@" ;;
+  stamp) shift; cmd_stamp "$@" ;;
   smoke) shift; cmd_smoke "$@" ;;
-  *) echo "usage: release-binaries.sh build TAG TARGET [OUT_DIR] | sums OUT_DIR | smoke TAG TARGET DIR" >&2; exit 2 ;;
+  *) echo "usage: release-binaries.sh build TAG TARGET [OUT_DIR] | sums OUT_DIR | stamp TAG DIR | smoke TAG TARGET DIR" >&2; exit 2 ;;
 esac

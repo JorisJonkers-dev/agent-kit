@@ -167,12 +167,15 @@
           'merge-multiple': 'true'
       - 'name': 'Checksums'
         'run': 'scripts/release-binaries.sh sums dist'
+      - 'name': 'Stamp the bootstrap shell'
+        'run': 'scripts/release-binaries.sh stamp "${{ needs.plan.outputs.tag }}" dist'
       - 'uses': 'actions/upload-artifact@v4'
         'with':
           'name': 'release-assets'
           'path': |
             dist/agent-kit-tools-*.tar.gz
             dist/SHA256SUMS
+            dist/bootstrap.sh
           'if-no-files-found': 'error'
       - 'name': 'Attach release assets'
         'if': "${{ needs.plan.outputs.publish == 'true' }}"
@@ -180,7 +183,7 @@
           'GH_TOKEN': '${{ secrets.GITHUB_TOKEN }}'
         'run': |
           set -euo pipefail
-          gh release upload "${{ needs.plan.outputs.tag }}" dist/agent-kit-tools-*.tar.gz dist/SHA256SUMS --clobber
+          gh release upload "${{ needs.plan.outputs.tag }}" dist/agent-kit-tools-*.tar.gz dist/SHA256SUMS dist/bootstrap.sh --clobber
 
   # Downloads each artifact the way a user would (the release for a release,
   # the run's artifact for a dry run), verifies SHA256SUMS and runs every binary

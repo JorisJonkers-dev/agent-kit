@@ -1047,8 +1047,8 @@ the real `git` over a fixture repository; they cover every line except
 Every release carries prebuilt, statically linked builds of the command-line
 tools setup installs from source today (#806, part of #802). They are the first
 step of the bootstrap that replaces `cargo build` on a clean machine; the
-bootstrap shell and NixOS packaging that consume them are #807, and setup does
-not use them yet. There is no single `agent-kit` binary yet; the multicall crate
+bootstrap shell and NixOS packaging that consume them are described under
+"Bootstrap" below (#807). There is no single `agent-kit` binary yet; the multicall crate
 is a later child of #802, and the tarball will carry it when it exists.
 
 * **What ships.** The `workspace_tools` of `registry/estate-tooling.yaml`
@@ -1088,3 +1088,43 @@ is a later child of #802, and the tarball will carry it when it exists.
   one; the dry run covers everything except the `gh release upload` and
   `gh release download` steps. The aarch64 Linux build assumes the
   `setup-package-proxy` action works on the arm runner.
+
+## Bootstrap
+
+A machine with no Python, Node or cargo installs from the release with
+`scripts/bootstrap.sh` (#807, part of #802), POSIX sh needing curl or wget,
+tar and sha256sum or shasum:
+
+```bash
+curl -fsSL https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/bootstrap.sh | sh -s -- [setup options]
+```
+
+* **What it does.** Picks the target from `uname`, downloads
+  `agent-kit-tools-<tag>-<target>.tar.gz`, checks its sha256, unpacks it, checks
+  the tarball's own `SHA256SUMS` and `VERSION`, installs every tool atomically,
+  then downloads the same release's `setup-workstation.sh` and runs it with the
+  arguments it was given. A failed check installs nothing.
+* **Where tools go.** `~/.local/bin` (`AGENT_KIT_BIN_DIR`), except `critique` and
+  `model-gateway`, which go where their launchers look
+  (`~/.local/share/agent-kit/<tool>/`). A pin file
+  (`~/.config/agent-kit/critique-node`, `model-gateway-node`,
+  `build-tracker-node`) keeps the node runner, as for the source installers.
+  Without cargo setup's own installers skip; with cargo they may replace these
+  with a local build.
+* **Stamping.** The release attaches `bootstrap.sh` with its tag and the
+  release-wide `SHA256SUMS` lines stamped in (`scripts/release-binaries.sh stamp`,
+  run by the `checksums` job), so the tarball is checked against a value that
+  travelled with the script. The unstamped copy in the repository fetches
+  `SHA256SUMS` from the release, which only HTTPS secures. `setup-workstation.sh`
+  is fetched over HTTPS and is not covered by the stamp.
+* **Overrides.** `AGENT_KIT_TAG`, `AGENT_KIT_RELEASE_BASE` (a directory of the
+  assets, `file://` works), `AGENT_KIT_SKIP_SETUP=1`.
+* **NixOS.** `nix/agent-kit-tools.nix` packages the same tarball:
+  `pkgs.callPackage ./agent-kit-tools.nix { tag = "v1.2.3"; sums = builtins.readFile ./SHA256SUMS; }`
+  with the release's `SHA256SUMS`. The Linux binaries are static, so nothing is
+  patched.
+* **Developer fallback.** `cargo build` from a checkout, as before.
+* **Test.** `scripts/test-bootstrap.sh` (CI, Shell Lint job) runs the bootstrap
+  against a fake release over `file://`: install paths, pins, stamping, a
+  tampered tarball, a bad tag, a PATH with no Python, Node or cargo, and the
+  derivation's evaluation when nix is present. It needs no network.
