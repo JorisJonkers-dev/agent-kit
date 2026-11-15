@@ -3274,6 +3274,11 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w('    exit 1')
     w('  fi')
     w('  [ "${rc}" = 0 ] || fail "the Gold Band workflow templates did not converge (see above)"')
+    w("  # A drifted store is a failure under --check, not a log line: a machine whose")
+    w("  # templates are missing must not pass the check (it did, #768).")
+    w('  if [ "${CHECK_ONLY}" = 1 ] && [ "${rc}" = 0 ] && grep -Eq "^would (add|change) " <<< "${out}"; then')
+    w('    fail "Gold Band workflow templates are missing or out of date; quit Gold Band and run setup-workstation.sh"')
+    w("  fi")
     w("}")
     w("gold_band_workflows")
     w("")
@@ -4699,6 +4704,25 @@ def render_setup_script(data: dict[str, Any]) -> str:
             update = f"run_sh {_q(str(cli.get('update') or install_cmd))}"
             label = str(binary)
             failed = f"{binary} still not on PATH after install; open a new shell and re-run"
+        # An install that is present but unusable (an extra missing) is not
+        # converged by an upgrade, so `health` probes it and `repair` redoes
+        # the install; --check reports the failure and changes nothing.
+        health_lines: list[str] = []
+        if cli.get("health") and cli.get("repair"):
+            health_cmd = _q(str(cli["health"]))
+            repair_cmd = _q(str(cli["repair"]))
+            health_lines = [
+                f"  if ! bash -c {health_cmd} >/dev/null 2>&1; then",
+                '    if [ "${CHECK_ONLY}" = 1 ]; then',
+                f'      fail "{binary}: installed without a required extra (health check failed); '
+                f'setup would run: "{repair_cmd}',
+                "    else",
+                f"      run_sh {repair_cmd}",
+                f"      bash -c {health_cmd} >/dev/null 2>&1 \\",
+                f'        || fail "{binary}: still failing its health check after reinstall"',
+                "    fi",
+                "  fi",
+            ]
         def emit(
             out_: list[str],
             present: str,
@@ -4709,9 +4733,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
             binary: Any = binary,
             version_command: Any = version_command,
             provides: Any = provides,
+            health_lines: list[str] = health_lines,
         ) -> None:
             out_.append(f"if {present}; then")
             out_.append(f"  {update}")
+            out_.extend(health_lines)
             if version_command:
                 out_.append(f'  ok "{binary} $({version_command} 2>/dev/null | head -1)"')
             else:

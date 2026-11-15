@@ -455,3 +455,23 @@ def test_setup_runs_the_convergence_and_the_bundle_ships_the_workflows() -> None
     assert '--workflows "${KIT_ROOT}/installer/gold-band/workflows"' in setup
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
     assert "installer/gold-band/workflows" in publish.split("KIT_PATHS=(")[1].split(")")[0].split()
+
+
+def test_setup_check_fails_when_templates_are_missing_and_a_resave_by_the_app_keeps_them(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    setup = (KIT_ROOT / "installer" / "setup-workstation.sh").read_text()
+    block = setup.split("gold_band_workflows() {")[1].split("\ngold_band_workflows\n")[0]
+    assert 'grep -Eq "^would (add|change) "' in block and "fail \"Gold Band workflow templates are missing" in block
+
+    m = Machine(tmp_path, {"critique": _template("critique")})
+    m.seed(_store(BUILT_IN))
+    assert m.run(check=True) == 0
+    assert "would add critique" in capsys.readouterr().out
+    assert m.run() == 0
+    # The app re-saves the file on start: built-ins upserted first, camelCase, nulls dropped.
+    store = m.read()
+    store["templates"] = [BUILT_IN, *[t for t in store["templates"] if t["id"] != "default"]]
+    m.store.write_text(json.dumps(store, indent=2))
+    assert m.run(check=True) == 0
+    assert capsys.readouterr().out.splitlines()[-1] == "workflows unchanged"

@@ -2442,10 +2442,19 @@ fi
 # Nous Research Hermes Agent. Installed on the workstation for
 # `hermes doctor` / `hermes skills list` against a local config.
 if command -v hermes >/dev/null 2>&1; then
-  run_sh 'uv tool upgrade --exclude-newer "7 days" '\''hermes-agent[mcp]'\'''
+  run_sh 'uv tool upgrade --exclude-newer "7 days" '\''hermes-agent[mcp,acp]'\'''
+  if ! bash -c '"$(uv tool dir)/hermes-agent/bin/python" -c '\''import acp'\''' >/dev/null 2>&1; then
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      fail "hermes: installed without a required extra (health check failed); setup would run: "'uv tool install --reinstall --exclude-newer "7 days" --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp,acp]'\'''
+    else
+      run_sh 'uv tool install --reinstall --exclude-newer "7 days" --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp,acp]'\'''
+      bash -c '"$(uv tool dir)/hermes-agent/bin/python" -c '\''import acp'\''' >/dev/null 2>&1 \
+        || fail "hermes: still failing its health check after reinstall"
+    fi
+  fi
   ok "hermes $(hermes --version 2>/dev/null | head -1)"
 else
-  run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp]'\'''
+  run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp,acp]'\'''
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "hermes would be installed"
   elif command -v hermes >/dev/null 2>&1; then
@@ -2943,6 +2952,11 @@ gold_band_workflows() {
     exit 1
   fi
   [ "${rc}" = 0 ] || fail "the Gold Band workflow templates did not converge (see above)"
+  # A drifted store is a failure under --check, not a log line: a machine whose
+  # templates are missing must not pass the check (it did, #768).
+  if [ "${CHECK_ONLY}" = 1 ] && [ "${rc}" = 0 ] && grep -Eq "^would (add|change) " <<< "${out}"; then
+    fail "Gold Band workflow templates are missing or out of date; quit Gold Band and run setup-workstation.sh"
+  fi
 }
 gold_band_workflows
 
