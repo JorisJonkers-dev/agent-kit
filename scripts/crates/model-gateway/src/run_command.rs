@@ -518,10 +518,11 @@ impl RunCommand<'_> {
             let is_pi = crate::run::is_pi_client(&input.client);
             hold_to_profile(config, &decision, profile, input.narrow.as_ref(), &input.client, &input.model, is_pi)?;
             // A Pi run's home holds the skills and plugins the scope lists, so one that is not in the home is refused here.
-            if let (true, Some(scope)) = (is_pi, run_scope(config, Some(profile), input.narrow.as_ref())) {
-                crate::pi_launch::resolve_scope(self.runtime.files.as_ref(), &self.runtime.env, &scope)
-                    .map_err(|reason| GatewayError::new("profile-refused", format!("profile {profile} cannot run on {}: {reason}", input.client)))?;
-            }
+            run_scope(config, Some(profile), input.narrow.as_ref())
+                .filter(|_| is_pi)
+                .map(|scope| crate::pi_launch::resolve_scope(self.runtime.files.as_ref(), &self.runtime.env, &scope))
+                .transpose()
+                .map_err(|reason| GatewayError::new("profile-refused", format!("profile {profile} cannot run on {}: {reason}", input.client)))?;
         }
         Ok(match scope {
             DataScope::Repository { key, .. } => Some(key),

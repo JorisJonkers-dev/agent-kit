@@ -208,9 +208,7 @@ fn copy_into(from: &std::path::Path, to: &std::path::Path, depth: usize) -> std:
         }
         return Ok(());
     }
-    if let Some(parent) = to.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+    std::fs::create_dir_all(to.parent().unwrap_or(to))?;
     std::fs::copy(from, to).map(|_| ())
 }
 

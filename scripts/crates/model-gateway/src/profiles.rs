@@ -224,22 +224,20 @@ pub fn unenforceable(profile: &str, client: &str, is_pi: bool, tools: &ToolScope
             open.join(", ")
         ));
     }
-    if let ToolList::Only(servers) = &tools.mcp {
-        if !servers.is_empty() {
-            return Some(format!(
-                "profile {profile} grants mcp {}, and {client} cannot enforce it: Pi has a built-in MCP client, but a confined launch reaches only the route's proxy port and starts no other program, so a listed server could never connect; mcp stays deny-all on Pi",
-                servers.join(", ")
-            ));
-        }
+    let named = |list: &ToolList| -> Vec<String> { if let ToolList::Only(items) = list { items.clone() } else { Vec::new() } };
+    let servers = named(&tools.mcp);
+    if !servers.is_empty() {
+        return Some(format!(
+            "profile {profile} grants mcp {}, and {client} cannot enforce it: Pi has a built-in MCP client, but a confined launch reaches only the route's proxy port and starts no other program, so a listed server could never connect; mcp stays deny-all on Pi",
+            servers.join(", ")
+        ));
     }
     for kind in ["skills", "plugins"] {
-        if let ToolList::Only(items) = tools.of(kind) {
-            if let Some(bad) = items.iter().find(|item| !plain_name(item)) {
-                return Some(format!(
-                    "profile {profile} lists {kind} entry {bad}, which is not a plain name: a {} is named by the folder or file it is in Pi's home, never a path",
-                    if kind == "skills" { "skill" } else { "plugin" }
-                ));
-            }
+        if let Some(bad) = named(tools.of(kind)).iter().find(|item| !plain_name(item)) {
+            return Some(format!(
+                "profile {profile} lists {kind} entry {bad}, which is not a plain name: a {} is named by the folder or file it is in Pi's home, never a path",
+                if kind == "skills" { "skill" } else { "plugin" }
+            ));
         }
     }
     None
