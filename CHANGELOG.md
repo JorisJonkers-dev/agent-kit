@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.2.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.2.0...v6.2.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **model-gateway:** bound JSON nesting, keep lone surrogates and index object keys ([#761](https://github.com/JorisJonkers-dev/agent-kit/issues/761)) ([aa27c51](https://github.com/JorisJonkers-dev/agent-kit/commit/aa27c51defcc6368add54a183c2c2b2b2aa01970))
+
 ## [6.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.1.0...v6.2.0) (2026-11-14)
 
 
