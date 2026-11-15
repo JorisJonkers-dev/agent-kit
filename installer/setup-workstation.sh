@@ -9175,7 +9175,7 @@ workspace_tools_setup() {
   fi
   [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
   out=$(bash "${KIT_ROOT}/scripts/install-workspace-tools.sh" ${mode[@]+"${mode[@]}"} \
-    agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate 2>&1) || rc=$?
+    agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate projects-layout-guard 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || warn "workspace tools: not all installed (exit ${rc}); the installed ones are unchanged"
 }
