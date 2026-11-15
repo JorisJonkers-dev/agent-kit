@@ -39,4 +39,5 @@ members = [
     "crates/estate",
     "crates/projects-layout-guard",
     "crates/pr-composer",
+    "crates/ci-helpers",
 ]

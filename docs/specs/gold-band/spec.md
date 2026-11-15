@@ -862,7 +862,7 @@ sync closes each superseded issue with a comment naming its new ticket.
 | #284 | vibe headless runs get no working web_search or web_fetch, and stall until the time limit | B4 | Rewrite: fail fast, document workaround | 117 |
 | #285 | Research delegation: fan a research question out to several model families with web access, and verify the citations | B4 | Rewrite: research front door | 87 |
 | #286 | Estate workstation skills: bootstrap, Project Intent, delivery status and rollback, kept current by a drift check | B3 | Close: superseded by this spec | 107–109 |
-| #287 | Skill sources drift check: sources.yaml, check_skill_sources.py and a weekly workflow | B3 | Rewrite (PR #386): drift check | 109 |
+| #287 | Skill sources drift check: sources.yaml, the skill-sources check and a weekly workflow | B3 | Rewrite (PR #386): drift check | 109 |
 | #288 | estate-project-intent skill: author and validate deploy-kit Project Intent | B3 | Rewrite: estate skills in both lanes | 108 |
 | #289 | estate-delivery-status skill: did my release land | B3 | Rewrite: estate skills in both lanes | 108 |
 | #290 | estate-rollback skill: plan a pause, rollback or resume without dispatching | B3 | Rewrite: estate skills in both lanes | 108 |
