@@ -6,6 +6,8 @@ assets from a local directory instead.
 
 from __future__ import annotations
 
+import functools
+import os
 import stat
 import subprocess
 import tarfile
@@ -15,6 +17,19 @@ import pytest
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = KIT_ROOT / "scripts" / "publish-installer-artifacts.sh"
+
+
+@functools.cache
+def ci_helpers_binary() -> str:
+    """The ci-helpers binary the script stamps and checks with, built once from the cargo workspace."""
+    if os.environ.get("CI_HELPERS"):
+        return os.environ["CI_HELPERS"]
+    manifest = KIT_ROOT / "scripts" / "Cargo.toml"
+    subprocess.run(["cargo", "build", "--locked", "--manifest-path", str(manifest), "-p", "ci-helpers"], check=True)
+    target = Path(os.environ.get("CARGO_TARGET_DIR", KIT_ROOT / "scripts" / "target"))
+    return str(target / "debug" / "ci-helpers")
+
+
 KIT_FILES = (
     "registry/estate-tooling.yaml",
     "registry/generated/hermes/mcp-servers.local.yaml",
@@ -30,7 +45,6 @@ KIT_FILES = (
     "installer/vibe-hooks.toml",
     "scripts/vibe-no-commit-signature.py",
     "scripts/vibe-sync-models.py",
-    "scripts/agent-kit-keys.py",
     "registry/generated/workstation-secrets.json",
     "installer/agent-kit-secret",
     "installer/vibe-study",
@@ -49,10 +63,10 @@ KIT_FILES = (
     "scripts/install-model-gateway-rust.sh",
     "scripts/install-critique-rust.sh",
     "scripts/install-build-tracker-rust.sh",
+    "scripts/install-workstation-rust.sh",
     "scripts/fold-profile-settings.py",
     "scripts/pi-merge-providers.py",
     "registry/generated/pi/providers.json",
-    "scripts/litellm-harness.py",
     "registry/generated/litellm/harnesses.json",
     "scripts/litellm_catalogue.py",
     "scripts/gold-band/build-linux.sh",
@@ -154,6 +168,7 @@ def run_step(
         "FAKE_RELEASE_STORE": str(release_store),
         "GH_TOKEN": "test-token",
         "GH_REPO": "JorisJonkers-dev/agent-kit",
+        "CI_HELPERS": ci_helpers_binary(),
     }
     return subprocess.run(
         [str(SCRIPT), step],

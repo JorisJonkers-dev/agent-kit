@@ -1,0 +1,9 @@
+[package]
+name = "workstation-kube"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Install a device's kubectl access: read-only for agents, admin behind sudo."
+
+[dependencies]
+serde_json = "=1.0.154"

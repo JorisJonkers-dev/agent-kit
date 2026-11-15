@@ -10,7 +10,7 @@ it, on the Mac and on the Linux workstation.
   through the packages proxy every workstation and CI job uses
   (`packages.jorisjonkers.dev/cargo`). There is no crate cooldown check in this
   repository (see "Resolving crates" below).
-* **The workspace.** Twenty-one members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Thirty-one members. `crates/agent-kit-setup` is the canary: a
   std-only crate whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -127,6 +127,33 @@ code-nav --root ~/Projects/owner/repo [--root DIR ...] [--limit N]
 * **Withheld.** A path with a component containing `nedap` (any case) is never
   read: a root there is refused, `admit` refuses it under a root, and every
   walk skips it, so neither tool can reach into one.
+
+## Workstation secrets, kube and LiteLLM tools
+
+Four crates replace the Python scripts of #812. Setup builds them with
+`scripts/install-workstation-rust.sh` (release build, `--locked`) into
+`~/.local/share/agent-kit/bin` before the tokens-and-keys step; setup skips that
+step with a warning when `cargo` is missing. All four start `curl` with the
+request, bearer key and cookies on its stdin, so no secret reaches argv.
+
+* `agent-kit-keys --table registry/generated/workstation-secrets.json ensure|status|write-env`
+  and `revoke NAME`: signs in to auth-api, mints and checks service tokens,
+  mints per-host LiteLLM keys, stores everything through `installer/agent-kit-secret`
+  (value on stdin; `AGENT_KIT_SECRET_TOOL` and `AGENT_KIT_PRIVATE_TOOL` name the
+  helpers) and writes `~/.config/agent-kit/env.sh`. With no `LITELLM_ADMIN_TOKEN`
+  it reads `LITELLM_MASTER_KEY` (environment, else the secret store item of that
+  name) and mints the one-hour admin token itself; the paste prompt is the last resort.
+* `litellm-harness [--table T] configure|run ...`: writes the `litellm-*` provider
+  entries of Codex (TOML, `toml_edit` keeps the owner's formatting), Hermes (YAML),
+  OpenCode (JSON) and Vibe, and runs a harness on a route with its key from the
+  secret store. Setup installs `agent-kit-litellm` as a two-line launcher for it.
+* `measure-litellm-budget [--agent vibe] [--url U] [--routes FILE]`: one
+  `GET /key/info` (and `/team/info` for a team key), key redacted in the output.
+* `workstation-kube install|check --device D ...`: a device's read-only kubeconfig
+  and sudo-gated admin tokens.
+
+The tests use a local `TcpListener` stub with the real `curl`, and fake `sh`
+scripts for the secret store, `kubectl`, `sudo` and `ssh`.
 
 ## ticket-sync
 
@@ -770,6 +797,40 @@ re-run of the old run still carries the old body). Delete the allowlist line in
 the same pull request that deletes a file; never regenerate the list to make a
 new file pass.
 
+## ci-helpers
+
+`crates/ci-helpers` is the CI helpers that were four Python scripts until #813
+(parent #802), one binary with one subcommand each. It reads YAML with
+`serde_yaml` and JSON with `serde_json`, both already in the lockfile; the
+SHA-256 for the checksum check is written in the crate, so no hashing crate
+comes with it.
+
+| Subcommand | Was | What it does |
+| --- | --- | --- |
+| `agents-md [--require] [REPO_ROOT ...]` | `scripts/check_agents_md.py` | Fails when a path, link or `path::symbol` an AGENTS.md names no longer exists. Problems go to stderr as `<root>/AGENTS.md:<line>: <message>`; exit 0 clean, 1 problems, 2 a root that is not a directory. |
+| `marketplace-bump (--base-ref REF \| --base-registry FILE) [--registry FILE] [--git-base URL]` | `scripts/check_marketplace_bump.py` | Reads each plugin the registry installs from a bumped marketplace (and each bumped skill source) at the old and the new commit; a hook, MCP or LSP server, script or shell line only the new commit has fails the run. Upstream code is read, never run. Appends the report to `$GITHUB_STEP_SUMMARY` when it is set. |
+| `skill-sources [--root DIR] [--validate \| --update SKILL \| --sync-issue] [--issue-title T]` | `scripts/check_skill_sources.py` | Checks each estate skill's `sources.yaml` against GitHub through `gh`. A failed request is a failure and never drift; `--sync-issue` keeps one open drift issue and leaves it untouched after a failed run. |
+| `verify-release-asset stamp-version TAG \| check-version TAG \| check-checksum TARBALL SHA256_FILE` | `scripts/verify_release_asset.py` | Stamps the release tag into setup-workstation.sh and checks a published asset against it and against its checksum. |
+
+What changed against the Python, and what did not:
+
+* The messages, exit codes and report lines are the ones the pytest suite
+  pinned; those tests are ported to the crate (`src/tests/`), with real `git`
+  repositories for the marketplace review and a stand-in `gh` (a trait in the
+  unit tests, a shell script for the subprocess runner) for the drift check.
+* `--update` stamps today's date in UTC (the Python used the local date) and
+  writes the file with `serde_yaml`, which prints the same block style
+  PyYAML did.
+* The drift issue's body points at `ci-helpers skill-sources --update <skill>`.
+
+Callers: the `rust-workspace` job in `.github/workflows/ci.yml` runs
+`skill-sources --validate` and `agents-md`; the `marketplace-pins` job runs
+`marketplace-bump`; `.github/workflows/skill-sources.yml` runs
+`skill-sources --sync-issue`; `scripts/publish-installer-artifacts.sh` runs
+`verify-release-asset` through `$CI_HELPERS` (a built binary, which the
+publish workflow builds) or, without it, `cargo run -p ci-helpers`. Cargo
+resolves through the packages proxy in every one of them.
+
 ## Measuring line coverage
 
 One command, from the repository root, on the Linux workstation and
@@ -999,6 +1060,79 @@ The unit tests drive `fetch` through a stub `curl` script and `verify` through
 the real `git` over a fixture repository; they cover every line except
 `src/main.rs`.
 
+## pr-composer
+
+`crates/pr-composer` holds the two helpers of the pr-composer skill, ported from
+`skills/workstation/pr-composer/scripts/` (#813). Setup installs it on PATH
+(`workspace_tools`), and the skill calls it by name:
+
+```bash
+pr-composer check-body -t TEMPLATE -b BODY [--skipped "Screenshots,Migration"]
+pr-composer mine-prs [--out PROFILE.json] [--md] DUMP.json
+```
+
+* **`check-body`** compares a drafted PR body with the repository's template:
+  invented and missing sections, changed heading levels, a changed section
+  order, dropped or truncated checklists (all failures), unfilled `«…»`
+  placeholders and leftover HTML comments (warnings). Exit 0 clean, 1 with the
+  violations printed, 2 for a bad command line or an unreadable file. The text
+  is the Python helper's, byte for byte.
+* **`mine-prs`** turns a `gh pr list --state merged --json ...` dump into a
+  house-style profile: titles, bodies, people, labels and size. It writes the
+  profile JSON (`--out`, default `<dump>.style.json`, the same layout
+  `json.dump(indent=2)` wrote) and with `--md` the summary beside it.
+* **No regex crate.** The lockfile carries none, and the helpers' behaviour on
+  odd input follows Python's backtracking (a heading whose `\s+` runs across
+  lines, a lazy `.+?`), so `src/regex.rs` is a small backtracking matcher for the
+  subset of Python `re` the helpers use, and the patterns are ported as written.
+  The only dependency is `serde_json`, already pinned for the workspace.
+* **Checked against Python.** `tests/fixtures/expected/*.txt` are what the
+  Python helper printed for the fixtures. Before the scripts were deleted, 600
+  random template and body pairs and 400 random PR dumps gave the same output
+  from both, except where Python's set iteration order broke a tie (the order
+  of equally frequent reviewers or sections, which was arbitrary there and is
+  first-seen here).
+
+## estate
+
+`crates/estate` is one binary, `estate`, with the four mechanical helpers of the
+estate skills (#813). Each replaces a Python script that sat in its skill's
+`scripts/` directory; the skill now calls `estate <subcommand>` on PATH, where
+setup installs it (`workspace_tools`, so it also ships in the release
+tarball). It takes `serde_json` only.
+
+```bash
+estate audit REPO_DIR [--latest-sha SHA] [--json]
+estate verdict [--signals FILE]
+estate intent scaffold --project NAME --owner OWNER --host HOST --audience AUDIENCE \
+    --image IMAGE --process PROCESS --port N --out DIR
+estate intent validate PATH [EXTRA_PATH ...]
+estate plan --project P --action pause|rollback|resume [--target V] [--reason R] \
+    [--pin V] [--proof-names V | --no-proof]
+```
+
+* `audit` (estate-bootstrap) is the offline check of a repository: workflow pins,
+  the one `Pipeline Complete` job, the renovate preset and retired references.
+  Output is one `<file>: <gap> (source: <doc>)` line per gap, or `no gaps`;
+  `--json` prints the list. Exit 0 when it ran, 2 for a missing directory or a
+  `--latest-sha` that is not 40 lowercase hex characters.
+* `verdict` (estate-delivery-status) reads the five signals as JSON and prints
+  `VERDICT: landed|mixed|not landed`, then a line per signal. Exit 0 for any
+  well-formed input, 2 for malformed input.
+* `intent` (estate-project-intent): `scaffold` writes a Project Intent and its
+  `base.env` without overwriting; `validate` runs `deploy-kit validate` (limit
+  300 seconds) and mirrors its exit status, 2 when deploy-kit is missing.
+* `plan` (estate-rollback) prints the plan and the exact `gh workflow run`
+  command. Its one `gh` call is a GET of the pin file; it never dispatches.
+  Exit 0 plan printed, 1 refused.
+
+Differences from the scripts: messages name `estate <subcommand>` instead of
+`<script>.py`, the tool finds `gh` and `deploy-kit` on PATH itself, and the
+output of a tool it runs is passed through after the tool finishes, stdout then
+stderr. Every other line of output is the script's. The crate tests carry the
+scripts' pytest cases and also run the refused and landed worked examples
+printed in the skills' SKILL.md.
+
 ## projects-layout-guard
 
 `crates/projects-layout-guard` is the `PreToolUse` hook of
@@ -1037,7 +1171,7 @@ is a later child of #802, and the tarball will carry it when it exists.
 * **What ships.** The `workspace_tools` of `registry/estate-tooling.yaml`
   (agent-launcher, gold-band-gate, gold-band-run-start, gold-band-findings,
   gold-band-proof, research-layout, ticket-publish, workflow-lint,
-  coverage-gate, ci-wait, litellm-gate, projects-layout-guard, agent-kit-merge) plus critique, model-gateway and
+  coverage-gate, ci-wait, litellm-gate, projects-layout-guard, estate, pr-composer, agent-kit-merge) plus critique, model-gateway and
   build-tracker. The list is `TOOLS` in `scripts/release-binaries.sh`.
 * **Targets.** `x86_64-unknown-linux-musl` (hosted `ubuntu-latest`),
   `aarch64-unknown-linux-musl` (the native `ubuntu-24.04-arm` runner) and

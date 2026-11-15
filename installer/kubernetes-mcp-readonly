@@ -5,7 +5,7 @@
 # kube context, for every agent that registers the `kubernetes` MCP server.
 #
 # The context is `<cluster>` (for example `personal`), the one scripts/
-# workstation-kube.py installs for the `<device>-ro` ServiceAccount: view
+# workstation-kube installs for the `<device>-ro` ServiceAccount: view
 # without Secrets. It is the current context, or AK_KUBE_CONTEXT when set.
 # A context named `*-admin` is refused. The server gets a throwaway kubeconfig
 # holding that one context alone, so no tool can switch to another, and it
@@ -21,7 +21,7 @@ die() { printf 'kubernetes-mcp-readonly: %s\n' "$*" >&2; exit 1; }
 command -v kubectl >/dev/null 2>&1 || die "kubectl is not on PATH"
 
 context="${AK_KUBE_CONTEXT:-$(kubectl config current-context 2>/dev/null || true)}"
-[ -n "${context}" ] || die "no current kube context; run scripts/workstation-kube.py install"
+[ -n "${context}" ] || die "no current kube context; run workstation-kube install (setup builds it into ~/.local/share/agent-kit/bin)"
 case "${context}" in
   *-admin | *-pf) die "refusing context '${context}': only the read-only context may be used" ;;
 esac

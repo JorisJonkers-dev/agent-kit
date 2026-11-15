@@ -131,7 +131,7 @@
         "provider": "gate-pr-composer-body",
         "model": "stub-model",
         "profile": "pf-builtin-dev",
-        "goal": "Run the pinned gold-band-gate wrapper around the pr-composer `check_body.py` check of the body file against the template. Answer with one fenced json block holding its exit status and nothing else.",
+        "goal": "Run the pinned gold-band-gate wrapper around the `pr-composer check-body` check of the body file against the template. Answer with one fenced json block holding its exit status and nothing else.",
         "output": {
           "kind": "json",
           "artifact": "gate-pr-composer-body-status",

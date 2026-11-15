@@ -32,32 +32,15 @@ scripts/render_agent_kit.py
 scripts/render_registry.py
 scripts/validate_manifest.py
 
-# #812 port the secrets, kube and LiteLLM scripts to Rust
-scripts/agent-kit-keys.py
-scripts/litellm-harness.py
-scripts/measure_litellm_budget.py
-scripts/workstation-kube.py
-
 # #813 port the CI helpers, the estate and pr-composer scripts, the code-nav eval adapters and the projects-layout hook
 evals/code-nav/adapters/cn.py
 evals/code-nav/adapters/vibe_layer.py
-scripts/check_agents_md.py
-scripts/check_marketplace_bump.py
-scripts/check_skill_sources.py
-scripts/verify_release_asset.py
-skills/workstation/estate-bootstrap/scripts/audit.py
-skills/workstation/estate-delivery-status/scripts/verdict.py
-skills/workstation/estate-project-intent/scripts/intent.py
-skills/workstation/estate-rollback/scripts/plan.py
-skills/workstation/pr-composer/scripts/check_body.py
-skills/workstation/pr-composer/scripts/mine_prs.py
 
 # #814 remove the Python and TypeScript toolchains: the pytest suite, its fixtures and what remains
 tests/ci_shard.py
 tests/conftest.py
 tests/fixtures/gold_band_stub_acp.py
 tests/setup_harness.py
-tests/test_agent_kit_keys.py
 tests/test_agent_kit_secret.py
 tests/test_antigravity.py
 tests/test_antigravity_merge.py
@@ -117,14 +100,11 @@ tests/test_install_path_without_kb.py
 tests/test_install_workspace_tools.py
 tests/test_linux_setup_paths.py
 tests/test_litellm_catalogue.py
-tests/test_litellm_harness.py
-tests/test_litellm_mint.py
 tests/test_litellm_models.py
 tests/test_lsp_setup.py
 tests/test_marketplace_bump.py
 tests/test_marketplace_renovate.py
 tests/test_mcp_allow.py
-tests/test_measure_litellm_budget.py
 tests/test_memory_private.py
 tests/test_memory_private_mcp.py
 tests/test_model_gateway_reach.py
@@ -158,7 +138,6 @@ tests/test_runner_workspace_trust_setup.py
 tests/test_rustup_default.py
 tests/test_setup_guide_gold_band.py
 tests/test_setup_todo.py
-tests/test_tls_trust.py
 tests/test_uv_cooldown.py
 tests/test_validate_manifest.py
 tests/test_verify_release_asset.py
@@ -167,4 +146,3 @@ tests/test_vibe_launchers.py
 tests/test_vibe_models.py
 tests/test_vibe_split_homes.py
 tests/test_work_claude_profile_setup.py
-tests/test_workstation_kube.py

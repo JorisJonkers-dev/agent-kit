@@ -65,7 +65,7 @@ def test_the_table_is_generated_from_the_registry_and_shipped() -> None:
     assert study["check"] == "https://api.mistral.ai/v1/models" and study["check_method"] == "GET"
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
     paths = publish.split("KIT_PATHS=(")[1].split(")")[0].split()
-    assert str(TABLE) in paths and "scripts/agent-kit-keys.py" in paths
+    assert str(TABLE) in paths and "scripts/install-workstation-rust.sh" in paths
 
 
 def test_every_credential_a_workstation_server_needs_is_in_the_table() -> None:
@@ -85,19 +85,26 @@ def _step(tmp_path: Path, status: str, *, interactive: bool, cloud: bool = False
     kit = tmp_path / "kit"
     (kit / "scripts").mkdir(parents=True)
     calls = tmp_path / "calls"
-    (kit / "scripts" / "agent-kit-keys.py").write_text(
-        "import sys, os, pathlib\n"
-        f"open({str(calls)!r}, 'a').write(sys.argv[-1] + '\\n')\n"
-        f"if sys.argv[-1] == 'status': print({status!r}, end='')\n"
-        "if sys.argv[-1] in ('ensure', 'write-env'):\n"
-        "    p = pathlib.Path(os.environ['HOME'], '.config/agent-kit/env.sh')\n"
-        "    p.parent.mkdir(parents=True, exist_ok=True)\n"
-        "    p.write_text('export AK_LOADED=1\\nvibe() { :; }\\n')\n"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    helper = bin_dir / "agent-kit-keys"
+    helper.write_text(
+        "#!/bin/sh\n"
+        'for last; do :; done\n'
+        f'echo "$last" >> {calls}\n'
+        f'[ "$last" = status ] && printf %b {status!r}\n'
+        'case "$last" in ensure|write-env)\n'
+        '  mkdir -p "$HOME/.config/agent-kit"\n'
+        "  printf 'export AK_LOADED=1\\nvibe() { :; }\\n' > \"$HOME/.config/agent-kit/env.sh\" ;;\n"
+        "esac\n"
+        "exit 0\n"
     )
+    helper.chmod(0o755)
     home = tmp_path / "home"
     home.mkdir()
     body = (
-        f"set -u\nKIT_ROOT={kit}\nCLOUD={int(cloud)}\nCHECK_ONLY={int(check_only)}\nPROMPT=1\nPROMPT_TTY=/dev/null\n"
+        f"set -u\nKIT_ROOT={kit}\nAGENT_KIT_BIN={bin_dir}\nworkstation_rust_setup() {{ :; }}\n"
+        f"CLOUD={int(cloud)}\nCHECK_ONLY={int(check_only)}\nPROMPT=1\nPROMPT_TTY=/dev/null\n"
         "failures=0\nwarnings=0\ntodo_failures=()\ntodo_warnings=()\n"
         + _helpers(script)
         + f"interactive() {{ {'true' if interactive else 'false'}; }}\n"
@@ -106,9 +113,6 @@ def _step(tmp_path: Path, status: str, *, interactive: bool, cloud: bool = False
         + 'printf "VIBEFN=%s\\n" "$(declare -F vibe || echo none)"\n'
     )
     env = {**os.environ, "HOME": str(home), "PATH": f"{Path(sys.executable).parent}:/usr/bin:/bin"}
-    env["PATH"] = f"{tmp_path}/py:{env['PATH']}"
-    (tmp_path / "py").mkdir()
-    (tmp_path / "py" / "python3").symlink_to(sys.executable)
     result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env=env)
     return result, calls.read_text().split() if calls.exists() else []
 

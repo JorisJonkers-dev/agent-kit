@@ -1,0 +1,15 @@
+[package]
+name = "litellm-budget"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Print a LiteLLM virtual key's budget window and reset, as the real proxy reports them."
+
+[[bin]]
+name = "measure-litellm-budget"
+path = "src/main.rs"
+
+# serde_json reads the proxy's reply; the request is made by spawning curl with
+# its config on stdin (see litellm-gate), so no HTTP client crate is needed.
+[dependencies]
+serde_json = "=1.0.154"

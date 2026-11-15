@@ -205,7 +205,9 @@ DECLARED = [
     "coverage-gate",
     "ci-wait",
     "litellm-gate",
+    "estate",
     "projects-layout-guard",
+    "pr-composer",
     "agent-kit-merge",
 ]
 

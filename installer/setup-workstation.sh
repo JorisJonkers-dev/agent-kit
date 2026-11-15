@@ -138,20 +138,38 @@ interactive() {
 # Tokens and keys first: everything after this reads them. In a terminal
 # agent-kit-keys signs you in, mints what is missing and stores it; either way
 # env.sh is rewritten and loaded, so this run registers what needs them.
+AGENT_KIT_BIN="${XDG_DATA_HOME:-${HOME:-}/.local/share}/agent-kit/bin"
+# Builds and installs the workstation's Rust tools (agent-kit-keys, litellm-harness,
+# measure-litellm-budget, workstation-kube) into ${AGENT_KIT_BIN}; a failed build leaves them as they were.
+workstation_rust_setup() {
+  local rc=0 mode=()
+  [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
+  bash "${KIT_ROOT}/scripts/install-workstation-rust.sh" ${mode[@]+"${mode[@]}"} || rc=$?
+  [ "${rc}" = 0 ] || warn "workstation tools (rust): not installed (exit ${rc})"
+}
 tokens_and_keys() {
   local table="${KIT_ROOT}/registry/generated/workstation-secrets.json"
-  local helper="${KIT_ROOT}/scripts/agent-kit-keys.py"
+  local helper="${AGENT_KIT_BIN}/agent-kit-keys"
   local var state
   if [ "${CLOUD}" = 1 ]; then
     log "tokens and keys: the cloud session brings its own"
     return 0
   fi
   log "tokens and keys"
+  workstation_rust_setup
+  if [ ! -x "${helper}" ]; then
+    warn "tokens and keys: ${helper} is not built (is cargo on PATH?); skipped"
+    return 0
+  fi
+  # The helpers the keys tool reads and writes secrets through are the kit's own,
+  # which exist before ~/.local/bin holds them.
+  export AGENT_KIT_SECRET_TOOL="${KIT_ROOT}/installer/agent-kit-secret"
+  export AGENT_KIT_PRIVATE_TOOL="${KIT_ROOT}/installer/agent-kit-private"
   if interactive; then
-    python3 "${helper}" --table "${table}" ensure <"${PROMPT_TTY}" \
+    "${helper}" --table "${table}" ensure <"${PROMPT_TTY}" \
       || warn "tokens and keys: the walk-through stopped early; run setup again to continue"
   elif [ "${CHECK_ONLY}" != 1 ]; then
-    python3 "${helper}" --table "${table}" write-env \
+    "${helper}" --table "${table}" write-env \
       || warn "tokens and keys: could not write ~/.config/agent-kit/env.sh"
   fi
   while read -r var state; do
@@ -167,7 +185,7 @@ tokens_and_keys() {
       *" unchecked") log "${var}: its host did not answer, so it was not checked" ;;
       *" ok") ok "${var}" ;;
     esac
-  done < <(python3 "${helper}" --table "${table}" status)
+  done < <("${helper}" --table "${table}" status)
   if [ -f "${HOME}/.config/agent-kit/env.sh" ]; then
     # shellcheck disable=SC1091
     . "${HOME}/.config/agent-kit/env.sh"
@@ -4245,44 +4263,43 @@ for install in installs:
     litellm_state="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit"
     litellm_launcher="${HOME}/.local/bin/agent-kit-litellm"
     litellm_marker="# managed by agent-kit setup-workstation.sh"
-    if [ "${CHECK_ONLY}" = 1 ]; then
+    if [ ! -x "${AGENT_KIT_BIN}/litellm-harness" ]; then
+      warn "litellm-harness is not built; the LiteLLM providers and launcher were not set up"
+    elif [ "${CHECK_ONLY}" = 1 ]; then
       log "would install ${litellm_launcher}"
     elif [ -e "${litellm_launcher}" ] && ! grep -qxF "${litellm_marker}" "${litellm_launcher}"; then
       warn "${litellm_launcher} exists and was not written by setup; left alone"
     else
       mkdir -p "${HOME}/.local/bin" "${litellm_state}" \
         && install -m 0644 "${KIT_ROOT}/registry/generated/litellm/harnesses.json" "${litellm_state}/litellm-harnesses.json" \
-        && install -m 0755 "${KIT_ROOT}/scripts/litellm-harness.py" "${litellm_launcher}" \
+        && printf '#!/bin/sh\n%s\nexec "%s" "$@"\n' "${litellm_marker}" "${AGENT_KIT_BIN}/litellm-harness" >"${litellm_launcher}" \
+        && chmod 0755 "${litellm_launcher}" \
         && ok "agent-kit-litellm -> ${litellm_launcher}" \
         || fail "agent-kit-litellm: could not install ${litellm_launcher}"
     fi
-    if command -v codex >/dev/null 2>&1 && [ "${CLOUD}" != 1 ]; then
-      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit --with pyyaml python \
-        "${KIT_ROOT}/scripts/litellm-harness.py" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure codex --config "${CODEX_HOME}/config.toml" ${litellm_check})"; then
+    if [ -x "${AGENT_KIT_BIN}/litellm-harness" ] && command -v codex >/dev/null 2>&1 && [ "${CLOUD}" != 1 ]; then
+      if litellm_said="$("${AGENT_KIT_BIN}/litellm-harness" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure codex --config "${CODEX_HOME}/config.toml" ${litellm_check})"; then
         ok "codex: ${litellm_said}"
       else
         fail "codex: could not write the LiteLLM providers"
       fi
     fi
-    if command -v hermes >/dev/null 2>&1 && [ "${CLOUD}" != 1 ]; then
-      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit --with pyyaml python \
-        "${KIT_ROOT}/scripts/litellm-harness.py" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure hermes --config "${HERMES_HOME:-${HOME}/.hermes}/config.yaml" ${litellm_check})"; then
+    if [ -x "${AGENT_KIT_BIN}/litellm-harness" ] && command -v hermes >/dev/null 2>&1 && [ "${CLOUD}" != 1 ]; then
+      if litellm_said="$("${AGENT_KIT_BIN}/litellm-harness" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure hermes --config "${HERMES_HOME:-${HOME}/.hermes}/config.yaml" ${litellm_check})"; then
         ok "hermes: ${litellm_said}"
       else
         fail "hermes: could not write the LiteLLM providers"
       fi
     fi
-    if command -v opencode >/dev/null 2>&1 && [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ]; then
-      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit --with pyyaml python \
-        "${KIT_ROOT}/scripts/litellm-harness.py" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure opencode --config "${OPENCODE_HOME}/opencode.json" ${litellm_check})"; then
+    if [ -x "${AGENT_KIT_BIN}/litellm-harness" ] && command -v opencode >/dev/null 2>&1 && [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ]; then
+      if litellm_said="$("${AGENT_KIT_BIN}/litellm-harness" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure opencode --config "${OPENCODE_HOME}/opencode.json" ${litellm_check})"; then
         ok "opencode: ${litellm_said}"
       else
         fail "opencode: could not write the LiteLLM providers"
       fi
     fi
-    if command -v vibe >/dev/null 2>&1 && [ "${CLOUD}" != 1 ]; then
-      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit --with pyyaml python \
-        "${KIT_ROOT}/scripts/litellm-harness.py" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure vibe --config "${litellm_state}/vibe-litellm/config.toml" ${litellm_check})"; then
+    if [ -x "${AGENT_KIT_BIN}/litellm-harness" ] && command -v vibe >/dev/null 2>&1 && [ "${CLOUD}" != 1 ]; then
+      if litellm_said="$("${AGENT_KIT_BIN}/litellm-harness" --table "${KIT_ROOT}/registry/generated/litellm/harnesses.json" configure vibe --config "${litellm_state}/vibe-litellm/config.toml" ${litellm_check})"; then
         ok "vibe: ${litellm_said}"
       else
         fail "vibe: could not write the LiteLLM providers"
@@ -9190,7 +9207,7 @@ workspace_tools_setup() {
   fi
   [ "${CHECK_ONLY}" = 1 ] && mode=(--check)
   out=$(bash "${KIT_ROOT}/scripts/install-workspace-tools.sh" ${mode[@]+"${mode[@]}"} \
-    agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate projects-layout-guard agent-kit-merge 2>&1) || rc=$?
+    agent-launcher gold-band-gate gold-band-run-start gold-band-findings gold-band-proof research-layout ticket-publish workflow-lint coverage-gate ci-wait litellm-gate estate projects-layout-guard pr-composer agent-kit-merge 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || warn "workspace tools: not all installed (exit ${rc}); the installed ones are unchanged"
 }

@@ -1,0 +1,422 @@
+{
+  "sample_size": 12,
+  "title": {
+    "conventional_commit_rate": 91.7,
+    "ticket_key_rate": 25.0,
+    "ticket_keys_seen": [
+      {
+        "value": "ABC",
+        "count": 2
+      },
+      {
+        "value": "TICKET",
+        "count": 1
+      }
+    ],
+    "ticket_plus_conventional_rate": 25.0,
+    "median_length": 17,
+    "p90_length": 24,
+    "trailing_period_rate": 16.7,
+    "lowercase_after_prefix_rate": 75.0,
+    "common_scopes": [
+      {
+        "value": "api",
+        "count": 2
+      },
+      {
+        "value": "db",
+        "count": 1
+      },
+      {
+        "value": "core",
+        "count": 1
+      },
+      {
+        "value": "github",
+        "count": 1
+      }
+    ],
+    "examples": [
+      "feat(api): add endpoint.",
+      "[ABC-12] fix(db)!: Repair index",
+      "docs: update readme",
+      "Update things",
+      "ABC-99 chore: bump",
+      "feat: lowercase title."
+    ]
+  },
+  "body": {
+    "empty_body_rate": 8.3,
+    "median_words": 34,
+    "p10_words": 6,
+    "p90_words": 34,
+    "comments_retained_rate": 50.0,
+    "checklist_rate": 58.3,
+    "checked_box_rate": 58.3,
+    "image_rate": 16.7,
+    "slack_link_rate": 8.3,
+    "issue_reference_rate": 66.7,
+    "link_keywords": [
+      {
+        "value": "closes",
+        "count": 6
+      },
+      {
+        "value": "fixes",
+        "count": 1
+      },
+      {
+        "value": "related to",
+        "count": 1
+      },
+      {
+        "value": "part of",
+        "count": 1
+      },
+      {
+        "value": "resolves",
+        "count": 1
+      },
+      {
+        "value": "fix",
+        "count": 1
+      }
+    ],
+    "preferred_link_keyword": "closes",
+    "section_frequency": [
+      {
+        "section": "summary",
+        "rate": 83.3
+      },
+      {
+        "section": "test plan",
+        "rate": 66.7
+      },
+      {
+        "section": "notes",
+        "rate": 50.0
+      },
+      {
+        "section": "risks",
+        "rate": 8.3
+      }
+    ],
+    "modal_section_order": [
+      "summary",
+      "test plan",
+      "notes"
+    ],
+    "routinely_hollow_sections": [
+      {
+        "section": "notes",
+        "hollow_rate": 100.0,
+        "seen": 6
+      },
+      {
+        "section": "summary",
+        "hollow_rate": 40.0,
+        "seen": 10
+      },
+      {
+        "section": "test plan",
+        "hollow_rate": 12.5,
+        "seen": 8
+      }
+    ]
+  },
+  "people": {
+    "top_reviewers": [
+      {
+        "value": "alice",
+        "count": 6
+      },
+      {
+        "value": "bob",
+        "count": 4
+      },
+      {
+        "value": "carol",
+        "count": 2
+      },
+      {
+        "value": "dave",
+        "count": 1
+      },
+      {
+        "value": "team-x",
+        "count": 1
+      },
+      {
+        "value": "s1",
+        "count": 1
+      }
+    ],
+    "top_approvers": [
+      {
+        "value": "alice",
+        "count": 5
+      },
+      {
+        "value": "bob",
+        "count": 2
+      },
+      {
+        "value": "carol",
+        "count": 1
+      }
+    ],
+    "top_requested": [
+      {
+        "value": "carol",
+        "count": 1
+      },
+      {
+        "value": "dave",
+        "count": 1
+      },
+      {
+        "value": "team-x",
+        "count": 1
+      },
+      {
+        "value": "s1",
+        "count": 1
+      }
+    ],
+    "top_assignees": [
+      {
+        "value": "alice",
+        "count": 1
+      },
+      {
+        "value": "bob",
+        "count": 1
+      }
+    ],
+    "median_reviewers_per_pr": 1,
+    "mean_reviewers_per_pr": 1.25,
+    "reviewer_by_path": {
+      "api/x.rs": [
+        {
+          "value": "alice",
+          "count": 2
+        },
+        {
+          "value": "bob",
+          "count": 1
+        },
+        {
+          "value": "carol",
+          "count": 1
+        },
+        {
+          "value": "dave",
+          "count": 1
+        }
+      ],
+      "api/y.rs": [
+        {
+          "value": "alice",
+          "count": 1
+        },
+        {
+          "value": "bob",
+          "count": 1
+        },
+        {
+          "value": "carol",
+          "count": 1
+        },
+        {
+          "value": "dave",
+          "count": 1
+        }
+      ],
+      "README.md": [
+        {
+          "value": "alice",
+          "count": 1
+        },
+        {
+          "value": "bob",
+          "count": 1
+        },
+        {
+          "value": "carol",
+          "count": 1
+        },
+        {
+          "value": "dave",
+          "count": 1
+        }
+      ],
+      "api/z.rs": [
+        {
+          "value": "alice",
+          "count": 2
+        },
+        {
+          "value": "carol",
+          "count": 1
+        }
+      ],
+      "db/a.sql": [
+        {
+          "value": "alice",
+          "count": 1
+        },
+        {
+          "value": "bob",
+          "count": 1
+        }
+      ],
+      "ci/x.yml": [
+        {
+          "value": "bob",
+          "count": 1
+        },
+        {
+          "value": "alice",
+          "count": 1
+        }
+      ],
+      "web/index.html": [
+        {
+          "value": "carol",
+          "count": 1
+        },
+        {
+          "value": "alice",
+          "count": 1
+        }
+      ],
+      "ci/y.yml": [
+        {
+          "value": "bob",
+          "count": 1
+        }
+      ],
+      "Cargo.toml": [
+        {
+          "value": "bob",
+          "count": 1
+        }
+      ]
+    }
+  },
+  "meta": {
+    "label_frequency": [
+      {
+        "value": "type: feat",
+        "count": 2
+      },
+      {
+        "value": "type: fix",
+        "count": 2
+      },
+      {
+        "value": "area: api",
+        "count": 1
+      },
+      {
+        "value": "type: docs",
+        "count": 1
+      },
+      {
+        "value": "area: docs",
+        "count": 1
+      },
+      {
+        "value": "type: chore",
+        "count": 1
+      },
+      {
+        "value": "version/minor",
+        "count": 1
+      },
+      {
+        "value": "type: refactor",
+        "count": 1
+      },
+      {
+        "value": "type: test",
+        "count": 1
+      },
+      {
+        "value": "type: ci",
+        "count": 1
+      },
+      {
+        "value": "type: perf",
+        "count": 1
+      },
+      {
+        "value": "type: build",
+        "count": 1
+      }
+    ],
+    "labelled_pr_rate": 91.7,
+    "required_label_families": [
+      {
+        "family": "type",
+        "coverage": 91.7,
+        "values": [
+          {
+            "value": "type: feat",
+            "count": 2
+          },
+          {
+            "value": "type: fix",
+            "count": 2
+          },
+          {
+            "value": "type: docs",
+            "count": 1
+          },
+          {
+            "value": "type: chore",
+            "count": 1
+          },
+          {
+            "value": "type: refactor",
+            "count": 1
+          },
+          {
+            "value": "type: test",
+            "count": 1
+          }
+        ]
+      }
+    ],
+    "label_families": [
+      {
+        "family": "type",
+        "coverage": 91.7
+      },
+      {
+        "family": "area",
+        "coverage": 16.7
+      },
+      {
+        "family": "version",
+        "coverage": 8.3
+      },
+      {
+        "family": "release",
+        "coverage": 8.3
+      }
+    ],
+    "median_lines_changed": 12,
+    "median_files_changed": 2,
+    "base_branches": [
+      {
+        "value": "main",
+        "count": 11
+      },
+      {
+        "value": "develop",
+        "count": 1
+      }
+    ]
+  }
+}
