@@ -33,7 +33,10 @@
 //!   The stage's orchestrator is the worker `<stage>-verdicts`, so the fan-out's
 //!   candidates leave out that node's family. A template that binds its writer and
 //!   its orchestrator to one family therefore never meets a same-family critic, and
-//!   that is how a template excludes the writer's family from a roster (#796).
+//!   that is how a template excludes the writer's family from a roster (#796). A second
+//!   critique round of a stage appends `-2` to every id of the chain
+//!   (`gate-critique-spec-fan-out-2`, `gate-critique-spec-record-2`, orchestrator
+//!   `spec-verdicts-2`) and is the same stage with the same roster.
 //! * The writer a critic reviews is each **nearest** writer upstream of it: a
 //!   writer with a path to the critic that crosses no other writer.
 //!
@@ -227,8 +230,22 @@ fn is_writer_key(key: &str) -> bool {
     WRITER_TOKENS.contains(&rest.rsplit('-').next().unwrap_or(""))
 }
 
+/// An id without the round number a second critique round of the same stage appends:
+/// `gate-critique-spec-fan-out-2` is round 2 of `gate-critique-spec-fan-out`.
+fn without_round(id: &str) -> (&str, &str) {
+    match id.rsplit_once('-') {
+        Some((head, round)) if !round.is_empty() && round.bytes().all(|b| b.is_ascii_digit()) => {
+            (head, &id[head.len()..])
+        }
+        _ => (id, ""),
+    }
+}
+
 fn is_record(id: &str) -> bool {
-    let runner = id.starts_with("gate-critique-") && id.ends_with("-record");
+    let runner = {
+        let base = without_round(id).0;
+        base.starts_with("gate-critique-") && base.ends_with("-record")
+    };
     let verdict = id
         .strip_prefix("verdict-")
         .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
@@ -321,11 +338,12 @@ fn nearest_writers<'a>(
 /// runner leaves out of that stage's roster.
 fn orchestrator_family(
     stage: &str,
+    round: &str,
     nodes: &[Value],
     bindings: &[Value],
     routing: &Routing,
 ) -> Option<String> {
-    let id = format!("{stage}-verdicts");
+    let id = format!("{stage}-verdicts{round}");
     let node = nodes.iter().find(|n| text(n, "id") == id)?;
     let (agent, model) = binding(node, bindings);
     routing.family(&agent, &model)
@@ -354,11 +372,12 @@ fn candidates(
             .filter_map(|a| labelled(text(a, "provider"), text(a, "model")))
             .collect();
     }
-    if let Some(stage) = id
+    let (base, round) = without_round(id);
+    if let Some(stage) = base
         .strip_prefix("gate-critique-")
         .and_then(|rest| rest.strip_suffix("-fan-out"))
     {
-        let orchestrator = orchestrator_family(stage, nodes, bindings, routing);
+        let orchestrator = orchestrator_family(stage, round, nodes, bindings, routing);
         return routing
             .roster(stage, instance)
             .into_iter()

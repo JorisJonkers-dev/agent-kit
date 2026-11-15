@@ -180,12 +180,18 @@ def test_every_node_has_one_model_binding_and_no_built_in_agent_id(name: str) ->
     for node in nodes.values():
         binding = by_slot[node["executionSlotId"]]
         assert (binding["agentId"], binding["modelId"]) == (node["provider"], node["model"])
-        assert node["provider"] not in {"claude", "codex", "opencode", "gemini"}
+        # Only an escalation judge may be Opus (#795, workflow-lint's opus-outside-judgment rule).
+        if not node["id"].endswith("-escalation"):
+            assert node["provider"] not in {"claude", "codex", "opencode", "gemini"}
 
 
 @pytest.mark.parametrize("name", ALL)
 def test_no_forbidden_family_is_bound_and_no_node_writes_memory(name: str) -> None:
-    lowered = (WORKFLOWS / f"{name}.json").read_text(encoding="utf-8").lower()
+    template = load(name)
+    template["workflow"]["nodes"] = [n for n in template["workflow"]["nodes"] if not n["id"].endswith("-escalation")]
+    bindings = template["modelBindings"]["bindings"]
+    template["modelBindings"]["bindings"] = [b for b in bindings if not b["executionSlotId"].endswith("-escalation")]
+    lowered = json.dumps(template).lower()
     assert "codex" not in lowered and "opus" not in lowered
     assert "memory-write" not in lowered
 

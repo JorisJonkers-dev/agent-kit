@@ -2381,3 +2381,51 @@ fn walk_fails_a_mixed_agents_node_only_when_it_routes_failures() {
     assert_eq!(walk(&info, "draft", "clean").exit, 0);
     assert_eq!(walk(&info, "draft", "needs-human").exit, 2);
 }
+
+#[test]
+fn inspect_reads_an_accept_round_from_the_agent_id() {
+    let text = r#"{"id":"accepts","nodes":[
+        {"provider":"accept-spec-1"},
+        {"provider":"accept-ticket-review-12"},
+        {"provider":"accept-spec-x"},
+        {"provider":"accept--1"},
+        {"provider":"accept-1"}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(info.roles["accept-spec-1"], Role::Accept(1));
+    assert_eq!(info.roles["accept-ticket-review-12"], Role::Accept(12));
+    assert_eq!(info.roles["accept-spec-x"], Role::Findings);
+    assert_eq!(info.roles["accept--1"], Role::Findings);
+    assert_eq!(info.roles["accept-1"], Role::Findings);
+}
+
+#[test]
+fn walk_fails_an_accept_round_like_a_verdict_round_and_scenarios_name_its_rounds() {
+    let info = graph(
+        vec![
+            node("accept-1", Some("accept-spec-1"), false),
+            node("revise", Some("vibe"), false),
+            node("accept-2", Some("accept-spec-2"), false),
+            node("check", None, true),
+        ],
+        vec![
+            edge("accept-1", "$end", "success"),
+            edge("accept-1", "revise", "failure"),
+            edge("revise", "accept-2", "success"),
+            edge("accept-2", "$end", "success"),
+            edge("accept-2", "check", "failure"),
+            edge("check", "$end", "success"),
+        ],
+        &[
+            ("accept-spec-1", Role::Accept(1)),
+            ("accept-spec-2", Role::Accept(2)),
+            ("vibe", Role::Answer),
+        ],
+    );
+    assert_eq!(walk(&info, "accept-1", "clean").exit, 0);
+    assert_eq!(walk(&info, "accept-1", "actionable=1").exit, 0);
+    assert_eq!(walk(&info, "accept-1", "actionable=2").exit, 2);
+    let names: Vec<String> = default_scenarios(&info).into_iter().map(|s| s.name).collect();
+    assert!(names.contains(&"actionable-1".to_string()), "{names:?}");
+    assert!(names.contains(&"actionable-2".to_string()), "{names:?}");
+}

@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "template": "to-spec.json",
+      "stage": "spec",
+      "writer": "spec-write",
+      "next": "$end",
+      "label": "the spec review (/review-spec)",
+      "artifact": "the spec file the spec record names",
+      "orchestrator": {
+        "provider": "vibe-study",
+        "model": "glm-5-3"
+      },
+      "escalation": {
+        "provider": "claude",
+        "model": "opus"
+      },
+      "escalation_check": {
+        "provider": "vibe",
+        "model": "glm-5-3"
+      }
+    },
+    {
+      "template": "to-tickets.json",
+      "stage": "tickets",
+      "writer": "tickets-write",
+      "next": "$end",
+      "label": "the ticket review (/review-tickets)",
+      "artifact": "tickets.json, in the same {\"tickets\":[{\"title\",\"body\",\"labels\"}]} form and with labels only from the repository's setup file",
+      "orchestrator": {
+        "provider": "vibe-study",
+        "model": "glm-5-3"
+      },
+      "escalation": {
+        "provider": "claude",
+        "model": "opus"
+      },
+      "escalation_check": {
+        "provider": "vibe",
+        "model": "glm-5-3"
+      },
+      "precheck": {
+        "command": "critique check-tickets --strict",
+        "purpose": "the tickets' dependency cycles, dangling blockers and uncited stories"
+      }
+    },
+    {
+      "template": "workflow-c.json",
+      "stage": "spec",
+      "writer": "spec-draft",
+      "next": "tickets-draft",
+      "label": "the spec review (/review-spec)",
+      "artifact": "the spec file the spec record names",
+      "orchestrator": {
+        "provider": "vibe-study",
+        "model": "glm-5-3"
+      },
+      "escalation": {
+        "provider": "claude",
+        "model": "opus"
+      },
+      "escalation_check": {
+        "provider": "vibe",
+        "model": "glm-5-3"
+      }
+    },
+    {
+      "template": "workflow-c.json",
+      "stage": "tickets",
+      "writer": "tickets-draft",
+      "next": "publication-check",
+      "label": "the ticket review (/review-tickets)",
+      "artifact": "tickets.json, in the same {\"tickets\":[{\"title\",\"body\",\"labels\"}]} form and with labels only from the repository's setup file",
+      "orchestrator": {
+        "provider": "vibe-study",
+        "model": "glm-5-3"
+      },
+      "escalation": {
+        "provider": "claude",
+        "model": "opus"
+      },
+      "escalation_check": {
+        "provider": "vibe",
+        "model": "glm-5-3"
+      },
+      "precheck": {
+        "command": "critique check-tickets --strict",
+        "purpose": "the tickets' dependency cycles, dangling blockers and uncited stories"
+      }
+    },
+    {
+      "template": "workflow-c-work.json",
+      "stage": "spec",
+      "writer": "spec-draft",
+      "next": "grant-check-tickets-draft",
+      "label": "the spec review (/review-spec)",
+      "artifact": "the spec file the spec record names",
+      "orchestrator": {
+        "provider": "codex",
+        "model": "gpt-5.5"
+      },
+      "needs_human": {
+        "provider": "claude-work",
+        "model": "sonnet"
+      },
+      "escalation": {
+        "provider": "claude-work",
+        "model": "opus"
+      },
+      "escalation_check": {
+        "provider": "claude-work",
+        "model": "sonnet"
+      },
+      "grant": {
+        "refusal": "grant-refused",
+        "prototype": "grant-check-spec-draft"
+      },
+      "routing_note": "The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family)."
+    },
+    {
+      "template": "workflow-c-work.json",
+      "stage": "tickets",
+      "writer": "tickets-draft",
+      "next": "publication-check",
+      "label": "the ticket review (/review-tickets)",
+      "artifact": "tickets.json, in the same {\"tickets\":[{\"title\",\"body\",\"labels\"}]} form and with labels only from the repository's setup file",
+      "orchestrator": {
+        "provider": "codex",
+        "model": "gpt-5.5"
+      },
+      "needs_human": {
+        "provider": "claude-work",
+        "model": "sonnet"
+      },
+      "escalation": {
+        "provider": "claude-work",
+        "model": "opus"
+      },
+      "escalation_check": {
+        "provider": "claude-work",
+        "model": "sonnet"
+      },
+      "precheck": {
+        "command": "critique check-tickets --strict",
+        "purpose": "the tickets' dependency cycles, dangling blockers and uncited stories"
+      },
+      "grant": {
+        "refusal": "grant-refused",
+        "prototype": "grant-check-spec-draft"
+      },
+      "routing_note": "The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family)."
+    }
+  ]
+}

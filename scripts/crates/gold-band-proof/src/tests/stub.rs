@@ -135,6 +135,8 @@ fn role_parse_reads_every_spelling() {
     assert_eq!(Role::parse("dynamic:"), Role::Dynamic(Vec::new()));
     assert_eq!(Role::parse("verdict:2"), Role::Verdict(2));
     assert_eq!(Role::parse("mixed"), Role::Mixed);
+    assert_eq!(Role::parse("accept:2"), Role::Accept(2));
+    assert_eq!(Role::parse("accept:x"), Role::Findings);
     assert_eq!(Role::parse("verdict:x"), Role::Findings);
     assert_eq!(Role::parse("verdict:"), Role::Findings);
     assert_eq!(Role::parse("nonsense"), Role::Findings);
@@ -154,6 +156,7 @@ fn role_text_round_trips_through_parse() {
     );
     assert_eq!(Role::Verdict(2).as_text(), "verdict:2");
     assert_eq!(Role::Mixed.as_text(), "mixed");
+    assert_eq!(Role::Accept(2).as_text(), "accept:2");
     for role in [
         Role::Findings,
         Role::Answer,
@@ -165,6 +168,7 @@ fn role_text_round_trips_through_parse() {
         Role::Dynamic(Vec::new()),
         Role::Verdict(2),
         Role::Mixed,
+        Role::Accept(2),
     ] {
         assert_eq!(Role::parse(&role.as_text()), role);
     }
@@ -1052,4 +1056,21 @@ fn the_mixed_role_answers_the_findings_document_and_ok_both() {
     let found = fenced_body(&prompt_text(&mut mixed, "needs-human"));
     assert_eq!(found["ok"], json!(true));
     assert_eq!(found["findings"].as_array().map(Vec::len), Some(1));
+}
+
+#[test]
+fn the_accept_role_answers_the_open_blocking_count_of_its_round() {
+    assert_eq!(crate::stub::accept_document(1, "actionable=1"), json!({ "open_blocking": 1 }));
+    assert_eq!(crate::stub::accept_document(2, "actionable=1"), json!({ "open_blocking": 0 }));
+    assert_eq!(crate::stub::accept_document(1, "clean"), json!({ "open_blocking": 0 }));
+    let mut first = Stub::with_role(Role::Accept(1), String::new());
+    assert_eq!(
+        fenced_body(&prompt_text(&mut first, "actionable=2")),
+        json!({ "open_blocking": 1 })
+    );
+    let mut third = Stub::with_role(Role::Accept(3), String::new());
+    assert_eq!(
+        fenced_body(&prompt_text(&mut third, "actionable=2")),
+        json!({ "open_blocking": 0 })
+    );
 }

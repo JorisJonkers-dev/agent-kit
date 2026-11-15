@@ -398,7 +398,7 @@ fn add_workers(dynamic: &mut BTreeMap<String, Vec<String>>, agent_id: &str, work
     }
 }
 
-/// The role an agent id plays: a `gate-`, `copy-`, `grant-` or `verdict-`
+/// The role an agent id plays: a `gate-`, `copy-`, `grant-`, `accept-` or `verdict-`
 /// prefix names a shim or a critic round, an id that serves an `ai-dynamic`
 /// node fans out to that node's workers, else the schema of the nodes it runs
 /// decides between open questions, an answer and findings.
@@ -430,6 +430,9 @@ fn role_for(
     if let Some(round) = verdict_round(agent_id) {
         return Role::Verdict(round);
     }
+    if let Some(round) = accept_round(agent_id) {
+        return Role::Accept(round);
+    }
     if let Some(workers) = dynamic.get(agent_id) {
         return Role::Dynamic(workers.clone());
     }
@@ -448,6 +451,15 @@ fn role_for(
 /// The critic round an agent id `verdict-<n>` names, when it names one.
 fn verdict_round(agent_id: &str) -> Option<u32> {
     agent_id.strip_prefix("verdict-")?.parse::<u32>().ok()
+}
+
+/// The critique round an agent id `accept-<stage>-<n>` names, when it names one.
+fn accept_round(agent_id: &str) -> Option<u32> {
+    let (stage, round) = agent_id.strip_prefix("accept-")?.rsplit_once('-')?;
+    if stage.is_empty() {
+        return None;
+    }
+    round.parse::<u32>().ok()
 }
 
 /// Walks the workflow graph from `entry` under `verdict` and predicts what
@@ -552,7 +564,9 @@ fn node_fails(info: &WorkflowInfo, node: &GraphNode, verdict: &str) -> bool {
         // A dynamic node plans its own fan-out and finishes every internal node.
         Role::Dynamic(_) => false,
         // Round N fails when the verdict names at least N actionable findings.
-        Role::Verdict(round) => actionable(verdict).is_some_and(|count| round <= count),
+        Role::Verdict(round) | Role::Accept(round) => {
+            actionable(verdict).is_some_and(|count| round <= count)
+        }
     }
 }
 
@@ -681,7 +695,7 @@ fn max_verdict_round(info: &WorkflowInfo) -> u32 {
     info.roles
         .values()
         .filter_map(|role| match role {
-            Role::Verdict(round) => Some(*round),
+            Role::Verdict(round) | Role::Accept(round) => Some(*round),
             _ => None,
         })
         .max()

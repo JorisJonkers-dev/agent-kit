@@ -1,0 +1,12 @@
+[package]
+name = "critique-block"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Generates the shared critique block (critique, accept, revise, escalate) into Gold Band workflow templates and checks that the templates still hold what it generates (issue #795)."
+
+# std only, plus the ordered JSON the model gateway already writes (a path
+# dependency inside this workspace), so nothing in the lockfile gains an age to
+# question (docs/RUST.md).
+[dependencies]
+model-gateway = { path = "../model-gateway" }
