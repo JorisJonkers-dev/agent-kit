@@ -17,7 +17,6 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 import render_registry  # noqa: E402
 from setup_harness import setup_run  # noqa: E402
 
-MERGE = KIT_ROOT / "scripts" / "opencode-merge-mcp.py"
 PLUGIN_SKILLS = KIT_ROOT / "scripts" / "opencode-plugin-skills.py"
 FRAGMENT = KIT_ROOT / "registry" / "generated" / "opencode" / "opencode.json"
 
@@ -32,20 +31,6 @@ def _fake_claude(tmp_path: Path, listing: list[dict]) -> dict[str, str]:
     (fake / "claude").write_text(f"#!/bin/sh\ncat <<'EOF'\n{json.dumps(listing)}\nEOF\n")
     (fake / "claude").chmod(0o755)
     return {**os.environ, "PATH": f"{fake}:{os.environ['PATH']}"}
-
-
-def test_a_second_merge_on_a_fresh_machine_writes_nothing(tmp_path: Path) -> None:
-    """F1: with no config before agent-kit, there is no user config to back up, then or later."""
-    config = tmp_path / "opencode.json"
-
-    def once() -> subprocess.CompletedProcess[str]:
-        return subprocess.run([sys.executable, str(MERGE), str(FRAGMENT), "--config", str(config)],
-                              capture_output=True, text=True, check=False)
-
-    assert once().returncode == 0
-    before = sorted(p.name for p in tmp_path.iterdir())
-    assert once().returncode == 0
-    assert sorted(p.name for p in tmp_path.iterdir()) == before
 
 
 def test_a_copy_whose_ledger_write_was_lost_is_replaced_not_left_alone(tmp_path: Path) -> None:

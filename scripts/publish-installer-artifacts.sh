@@ -65,8 +65,6 @@ KIT_PATHS=(
   registry/generated/pi/providers.json
   registry/generated/litellm/harnesses.json
   scripts/litellm_catalogue.py
-  scripts/instruction-block.py
-  scripts/package-proxy-merge.py
   scripts/gold-band/build-linux.sh
   scripts/gold-band/shell.nix
   scripts/gold-band/runtime.nix
@@ -74,8 +72,6 @@ KIT_PATHS=(
   installer/vibe-study
   installer/vibe-private
   installer/vibe-hooks.toml
-  scripts/hermes-merge-mcp.py
-  scripts/codex-add-url-mcp.py
   scripts/converge.py
   scripts/gold_band_instances.py
   scripts/gold_band_shape.py
@@ -83,10 +79,7 @@ KIT_PATHS=(
   scripts/Cargo.toml
   scripts/Cargo.lock
   scripts/crates
-  scripts/vibe-merge-mcp.py
   scripts/vibe-no-commit-signature.py
-  scripts/antigravity-merge-mcp.py
-  scripts/opencode-merge-mcp.py
   scripts/opencode-plugin-skills.py
   scripts/vibe-split-homes.py
   scripts/vibe-sync-models.py

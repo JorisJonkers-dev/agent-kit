@@ -208,6 +208,7 @@ DECLARED = [
     "estate",
     "projects-layout-guard",
     "pr-composer",
+    "agent-kit-merge",
 ]
 
 

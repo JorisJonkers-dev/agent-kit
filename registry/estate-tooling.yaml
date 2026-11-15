@@ -1148,6 +1148,8 @@ workspace_tools:
     surfaces: [workstation]
   - name: pr-composer
     surfaces: [workstation]
+  - name: agent-kit-merge
+    surfaces: [workstation]
 
 # -------------------------------------------------------------------
 # Hindsight Coding Agents: Hindsight's own plugin for Claude Code and

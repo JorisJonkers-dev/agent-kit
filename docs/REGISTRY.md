@@ -17,11 +17,11 @@ uv run pytest tests/test_registry_render.py
 | `installer/setup-workstation.sh` | this laptop, via [SETUP.md](SETUP.md) |
 | `installer/setup-container.sh` | the agents image, at build time |
 | `registry/generated/hermes/mcp-servers.local.yaml` | a workstation's local `~/.hermes/config.yaml` |
-| `registry/generated/vibe/mcp-servers.toml` | a workstation's `~/.vibe/config.toml`, via `scripts/vibe-merge-mcp.py` |
+| `registry/generated/vibe/mcp-servers.toml` | a workstation's `~/.vibe/config.toml`, via `agent-kit-merge vibe-mcp` |
 | `registry/generated/vibe/agents/critic-<model>.toml` | a workstation's `~/.vibe/agents/`, copied by setup (never `~/.vibe-private`) |
-| `registry/generated/vibe-private/mcp-servers.toml` | a workstation's `~/.vibe-private/config.toml`, via `scripts/vibe-merge-mcp.py` |
-| `registry/generated/antigravity/mcp_config.json` | a workstation's `~/.gemini/config/mcp_config.json`, via `scripts/antigravity-merge-mcp.py` |
-| `registry/generated/opencode/opencode.json` | a workstation's `~/.config/opencode/opencode.json`, via `scripts/opencode-merge-mcp.py` |
+| `registry/generated/vibe-private/mcp-servers.toml` | a workstation's `~/.vibe-private/config.toml`, via `agent-kit-merge vibe-mcp` |
+| `registry/generated/antigravity/mcp_config.json` | a workstation's `~/.gemini/config/mcp_config.json`, via `agent-kit-merge antigravity-mcp` |
+| `registry/generated/opencode/opencode.json` | a workstation's `~/.config/opencode/opencode.json`, via `agent-kit-merge opencode-mcp` |
 | `registry/generated/workstation-secrets.json` | `agent-kit-keys` (scripts/crates/agent-kit-keys), as the table of tokens and keys to get |
 | `registry/generated/litellm/routes.json` | the LiteLLM route table: agent ids, key variable names, caps and their 30-day reset, access groups (none for a free route) ([LITELLM.md](LITELLM.md)) |
 | `registry/generated/litellm/make-admin-token.sh` | the owner's one-hour LiteLLM management key setup mints the agent keys with ([LITELLM.md](LITELLM.md)) |
@@ -227,7 +227,7 @@ Two traps this catches:
   setting), each checked against `check:` before it is stored.
 - `auth: oauth` (http only, no `credential:`) is for a server that signs the
   client in itself, like n8n. Setup registers the URL alone and stores no
-  secret. On Codex it writes the entry with `scripts/codex-add-url-mcp.py`,
+  secret. On Codex it writes the entry with `agent-kit-merge codex-add-url`,
   because `codex mcp add --url` starts the sign-in at once and waits for a
   browser. Each client signs in once: `/mcp` in Claude (each profile),
   `codex mcp login <name>`, `/mcp login <name>` in Vibe,
@@ -305,7 +305,7 @@ absolute path setup prints at the end of the step:
   dist.integrity`); npm verifies every download against it, and a pin with none
   fails the step. The digest is not copied into the registry, so Renovate can
   bump a pin without leaving a stale checksum behind. npm goes through the
-  package proxy when `package-proxy-merge.py` has written the npmrc.
+  package proxy when `agent-kit-merge package-proxy` has written the npmrc.
 - `datasource: npm` on each pin lets the registry's Renovate manager bump it
   (npm tags are bare versions, so no `extractVersion` rule is needed).
 - After the install, setup resolves the entry's `binary` to its absolute

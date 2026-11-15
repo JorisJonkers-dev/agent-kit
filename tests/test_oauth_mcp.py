@@ -19,12 +19,13 @@ import pytest
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
+sys.path.insert(0, str(KIT_ROOT / "tests"))
 
 import render_registry  # noqa: E402
 import yaml  # noqa: E402
+from setup_harness import merge_binary  # noqa: E402
 
 PY = sys.executable
-MERGE = KIT_ROOT / "scripts" / "vibe-merge-mcp.py"
 URL = "https://n8n.jorisjonkers.dev/mcp-server/http"
 
 FAKE_CLAUDE = f"""#!{PY}
@@ -146,7 +147,7 @@ class Machine:
             "warn() { echo \"setup: warn $*\"; }\n"
             "fail() { echo \"setup: FAIL $*\"; failures=$((failures + 1)); }\n"
             + "".join(_fn(script, f) for f in ("run", "run_sh", "run_redacted", "claude_in_profile",
-                                               "claude_each_profile", "oauth_status"))
+                                               "claude_each_profile", "oauth_status", "agent_kit_merge"))
             + _server_block(script, _n8n()["purpose"])
             + "echo \"failures=${failures}\"\n"
         )
@@ -156,6 +157,7 @@ class Machine:
             "FAKE_LOG": str(self.log),
             "FAKE_SIGNED_IN": signed_in,
             "FAKE_CODEX_LOG": str(self.codex_log),
+            "AGENT_KIT_MERGE": merge_binary(),
         }
         if codex_unreadable:
             env["FAKE_CODEX_UNREADABLE"] = "1"
@@ -211,24 +213,10 @@ def test_a_second_setup_run_leaves_n8n_on_codex_unchanged(tmp_path: Path) -> Non
     assert machine.codex()["n8n"] == {"url": URL}
 
 
-def test_the_bundle_ships_the_codex_url_helper() -> None:
+def test_the_bundle_ships_the_crate_that_writes_the_codex_entry() -> None:
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
-    assert "scripts/codex-add-url-mcp.py" in publish
-
-
-def test_vibe_registers_n8n_with_oauth_and_no_token(tmp_path: Path) -> None:
-    fragment = tmp_path / "fragment.toml"
-    fragment.write_text(render_registry.render_vibe_mcp(_registry()))
-    config = tmp_path / "config.toml"
-    subprocess.run(
-        ["uv", "run", "--no-project", "--exclude-newer", "7 days", "--with", "tomlkit",
-          "python", str(MERGE), str(fragment),
-         "--config", str(config)],
-        capture_output=True, text=True, check=True,
-    )
-    server = next(s for s in tomllib.loads(config.read_text())["mcp_servers"] if s["name"] == "n8n")
-    assert server["url"] == URL
-    assert server["auth"] == {"type": "oauth", "scopes": []}
+    assert "scripts/crates" in publish
+    assert "agent_kit_merge codex-add-url" in render_registry.render_setup_script(_registry())
 
 
 def test_setup_stores_no_n8n_secret_in_the_keychain(tmp_path: Path) -> None:

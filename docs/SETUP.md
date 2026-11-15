@@ -59,7 +59,7 @@ Setup builds the tools the Gold Band workflows, the hooks and the CI helpers cal
 by name from the kit's own cargo workspace, and installs each into
 `~/.local/bin`: `agent-launcher`, `gold-band-gate`, `gold-band-run-start`,
 `gold-band-findings`, `gold-band-proof`, `research-layout`, `ticket-publish`,
-`workflow-lint`, `coverage-gate`, `ci-wait`, `litellm-gate`, `projects-layout-guard`, `estate` and `pr-composer`. The list is the
+`workflow-lint`, `coverage-gate`, `ci-wait`, `litellm-gate`, `projects-layout-guard`, `estate`, `pr-composer` and `agent-kit-merge`. The list is the
 registry's `workspace_tools:`; each name is a crate under `scripts/crates`
 whose binary has the same name.
 
@@ -545,7 +545,7 @@ Every `workstation` MCP server is registered into **Claude Code, Codex and
 local Hermes**. Codex gets each server via `codex mcp add`; local Hermes reads
 `~/.hermes/config.yaml` and is given the rendered workstation block (see
 `registry/generated/hermes/mcp-servers.local.yaml`) by
-`scripts/hermes-merge-mcp.py`.
+`agent-kit-merge hermes-mcp`.
 
 ### The kubernetes server runs locally
 
@@ -963,7 +963,7 @@ The two skills folders are not a duplicate: the app reads
 
 One file serves the app, the CLI and the IDE. `agy mcp add` writes one server
 at a time, so setup merges the whole fragment with
-`scripts/antigravity-merge-mcp.py` instead: a server the fragment names
+`agent-kit-merge antigravity-mcp` instead: a server the fragment names
 replaces any entry of that name, and every other server and every other
 top-level key in the file is kept. A server you turned off with
 `agy mcp disable` stays off. The first merge copies the file
@@ -1024,7 +1024,7 @@ every shell. `n8n` is left to OpenCode's own sign-in: run
 Hindsight Coding Agents installs for Claude Code and Codex only; `memory-api`
 reaches the same Shared Memory bank.
 
-`scripts/opencode-merge-mcp.py` replaces each server the fragment names, keeps
+`agent-kit-merge opencode-mcp` replaces each server the fragment names, keeps
 an `enabled` flag you set on one, and keeps every other key in the file. The
 first merge copies the file to `opencode.json.bak` and never overwrites that
 copy. The backup is taken only from a file no merge has touched, so a machine

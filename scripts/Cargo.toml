@@ -44,4 +44,5 @@ members = [
     "crates/workstation-kube",
     "crates/litellm-harness",
     "crates/litellm-budget",
+    "crates/agent-kit-merge",
 ]

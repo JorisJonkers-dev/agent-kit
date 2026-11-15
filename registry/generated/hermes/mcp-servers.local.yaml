@@ -1,7 +1,7 @@
 # GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
 #
 # WORKSTATION surface for LOCAL Hermes. Merged into
-# ~/.hermes/config.yaml by scripts/hermes-merge-mcp.py.
+# ~/.hermes/config.yaml by agent-kit-merge hermes-mcp.
 #
 mcp_servers:
   memory-api:
