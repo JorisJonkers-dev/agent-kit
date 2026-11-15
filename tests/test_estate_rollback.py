@@ -31,7 +31,10 @@ SKILL = KIT_ROOT / "skills" / "workstation" / "estate-rollback"
 SCRIPT = SKILL / "scripts" / "plan.py"
 SKILL_MD = SKILL / "SKILL.md"
 SOURCES = SKILL / "sources.yaml"
-CHECKER = KIT_ROOT / "scripts" / "check_skill_sources.py"
+CHECKER = [
+    "cargo", "run", "--quiet", "--locked", "--manifest-path", str(KIT_ROOT / "scripts" / "Cargo.toml"),
+    "-p", "ci-helpers", "--", "skill-sources",
+]
 
 REPO = "JorisJonkers-dev/estate"
 PIN_PATH = f"repos/{REPO}/contents/projects/grimoire/source.yaml"
@@ -579,7 +582,7 @@ def test_skill_md_never_dispatches_and_names_its_sources() -> None:
 
 def test_sources_yaml_is_accepted_by_the_drift_checker() -> None:
     result = subprocess.run(
-        [sys.executable, str(CHECKER), "--validate"], cwd=KIT_ROOT, capture_output=True, text=True, check=False
+        [*CHECKER, "--validate"], cwd=KIT_ROOT, capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stdout + result.stderr
 

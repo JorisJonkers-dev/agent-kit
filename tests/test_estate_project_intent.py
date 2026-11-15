@@ -30,7 +30,10 @@ SKILL = KIT_ROOT / "skills" / "workstation" / "estate-project-intent"
 SCRIPT = SKILL / "scripts" / "intent.py"
 SKILL_MD = SKILL / "SKILL.md"
 SOURCES = SKILL / "sources.yaml"
-CHECKER = KIT_ROOT / "scripts" / "check_skill_sources.py"
+CHECKER = [
+    "cargo", "run", "--quiet", "--locked", "--manifest-path", str(KIT_ROOT / "scripts" / "Cargo.toml"),
+    "-p", "ci-helpers", "--", "skill-sources",
+]
 
 REQUIRED = ("apiVersion", "kind", "schemaVersion", "project", "owner", "applications")
 
@@ -396,7 +399,7 @@ def test_skill_md_names_the_deploy_kit_spec_paths_from_sources_yaml() -> None:
 
 def test_sources_yaml_is_accepted_by_the_drift_checker() -> None:
     result = subprocess.run(
-        [sys.executable, str(CHECKER), "--validate"],
+        [*CHECKER, "--validate"],
         cwd=KIT_ROOT,
         capture_output=True,
         text=True,
