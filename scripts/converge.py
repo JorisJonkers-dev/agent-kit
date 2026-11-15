@@ -47,6 +47,11 @@ A template that fails Gold Band's editor validation (``gold_band_shape``) is ref
 other source failures, unless ``known-shape-failures.txt`` beside the templates names it (#781), when
 it is installed with a warning.
 
+The critique rules (#793, ``workflow-lint --critique``) are checked the same way against
+``known-critique-failures.txt`` when the built ``workflow-lint`` binary exists; without it the run warns
+that they were not checked (migration debt: setup converges the templates before the cargo tools are built,
+and there is no Python twin of these rules).
+
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
 
@@ -1719,6 +1724,70 @@ def _gold_band_shape_gate(directory: Path, sources: dict[str, dict[str, Any]]) -
     return warnings
 
 
+GOLD_BAND_CRITIQUE_KNOWN_FAILURES = "known-critique-failures.txt"
+
+
+def _gold_band_workflow_lint() -> Path | None:
+    """The built ``workflow-lint`` (``AGENT_KIT_WORKFLOW_LINT``, PATH, else the kit's cargo target), if any."""
+    named = os.environ.get("AGENT_KIT_WORKFLOW_LINT")
+    found = [Path(named)] if named else []
+    on_path = shutil.which("workflow-lint")
+    if on_path:
+        found.append(Path(on_path))
+    root = Path(__file__).resolve().parent
+    found += [root / "target" / kind / "workflow-lint" for kind in ("release", "debug")]
+    return next((p for p in found if p.is_file()), None)
+
+
+def _gold_band_critique_gate(directory: Path, sources: dict[str, dict[str, Any]]) -> list[str]:
+    """Refuse a template that breaks the critique rules (agent-kit#793); return the warning lines.
+
+    Runs ``workflow-lint --critique`` per template. A template named in ``known-critique-failures.txt`` is
+    tolerated with a warning; any other violator refuses the run before anything is written. Without the
+    binary nothing can be checked and one warning says so.
+    """
+    binary = _gold_band_workflow_lint()
+    if binary is None:
+        return ["warning: workflow-lint is not built; the critique rules (#793) were not checked"]
+    path = directory / GOLD_BAND_CRITIQUE_KNOWN_FAILURES
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    except (OSError, UnicodeDecodeError) as exc:
+        raise _CannotConverge(f"{path} cannot be read: {exc}") from exc
+    known = {
+        line.split()[0].removesuffix(".json") for line in lines if line.strip() and not line.lstrip().startswith("#")
+    }
+    refused: list[str] = []
+    warnings: list[str] = []
+    for wid in sources:
+        instance = "gold-band" if wid.endswith("-work") else "gold-band-personal"
+        result = subprocess.run(
+            [str(binary), "--critique", "--instance", instance, str(directory / f"{wid}.json")],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            continue
+        if result.returncode == 2:  # unreadable file, or a workflow-lint too old to know --critique
+            return [f"warning: the critique rules (#793) were not checked: {result.stderr.strip()[:200]}"]
+        found = [line for line in result.stderr.splitlines() if line.strip()]
+        if wid in known:
+            warnings.append(
+                f"warning: {wid} breaks the critique rules ({len(found)} findings) and is a known failure "
+                f"({GOLD_BAND_CRITIQUE_KNOWN_FAILURES}); installing it anyway"
+            )
+        else:
+            refused.extend(found)
+    if refused:
+        raise _CannotConverge(
+            "a template breaks the critique rules (critic-required, critic-family):\n  "
+            + "\n  ".join(refused)
+            + f"\nfix it, or (for a known failure) list it in {path}"
+        )
+    return warnings
+
+
 def _gold_band_bound_agents(source: dict[str, Any]) -> set[str]:
     bound = source["modelBindings"].get("bindings")
     agents = {b.get("agentId") for b in bound if isinstance(b, dict)} if isinstance(bound, list) else set()
@@ -1793,6 +1862,7 @@ def gold_band_workflows(args: argparse.Namespace) -> int:
         work_agents = _gold_band_work_agents(args.registry)
         sources = _gold_band_workflow_sources(args.workflows)
         shape_warnings = _gold_band_shape_gate(args.workflows, sources)
+        shape_warnings += _gold_band_critique_gate(args.workflows, sources)
         running = None if args.check else _gold_band_running(data_dir)
         if running:
             print(

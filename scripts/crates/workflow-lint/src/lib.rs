@@ -41,7 +41,14 @@
 //! saves a workflow, pinned to Gold Band commit 987fc3e2. Without the flag the
 //! shape is not checked.
 //!
-//! Usage: `workflow-lint [--shape] --instance gold-band|gold-band-personal <FILE>...`
+//! With `--critique` it runs the `critique` rule group (module [`critique`], #793):
+//! `critic-required` (every path from a node that has a model write an artifact
+//! to `$end` crosses a critique record node) and `critic-family` (no critic
+//! candidate is of the family of the writer it reviews). The module's header
+//! defines writers, record nodes, critics and family resolution. The group is
+//! its own flag because its known failures are its own list.
+//!
+//! Usage: `workflow-lint [--shape] [--critique] --instance gold-band|gold-band-personal <FILE>...`
 //! (the instance flag is required; `--instance=NAME` also works) lints every
 //! file and prefixes its
 //! problems with the file path. Exit 0 clean, printing `workflow-lint: ok`;
@@ -54,6 +61,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
+mod critique;
 mod shape;
 
 /// Rule: a node binds an agent or model the ports never allow.
@@ -367,9 +375,26 @@ pub fn lint_shape(root: &Value) -> Result<Vec<String>, String> {
     Ok(shape::shape(def, nodes, edges))
 }
 
+/// The `critique` findings of a parsed workflow (#793), as
+/// `<subject>: <rule>: <message>` lines; `Err` when the file is not
+/// workflow-shaped JSON.
+pub fn lint_critique(root: &Value, instance: Instance) -> Result<Vec<String>, String> {
+    let def = definition(root)?;
+    let nodes = field_array(def, "nodes")?;
+    let edges = field_array(def, "edges")?;
+    Ok(critique::critique(nodes, edges, bindings(root), instance))
+}
+
+/// The optional rule groups a command line asks for.
+#[derive(Clone, Copy, Default)]
+struct Groups {
+    shape: bool,
+    critique: bool,
+}
+
 /// Lints one file and prints its problems; returns its exit code (0 clean,
 /// 1 problems, 2 unreadable or invalid).
-fn lint_file(path: &Path, shown: &str, instance: Instance, shape: bool) -> i32 {
+fn lint_file(path: &Path, shown: &str, instance: Instance, groups: Groups) -> i32 {
     let text = match fs::read_to_string(path) {
         Ok(t) => t,
         Err(e) => {
@@ -385,8 +410,11 @@ fn lint_file(path: &Path, shown: &str, instance: Instance, shape: bool) -> i32 {
         }
     };
     let linted = lint(&root, instance).and_then(|mut found| {
-        if shape {
+        if groups.shape {
             found.extend(lint_shape(&root)?);
+        }
+        if groups.critique {
+            found.extend(lint_critique(&root, instance)?);
         }
         Ok(found)
     });
@@ -403,17 +431,21 @@ fn lint_file(path: &Path, shown: &str, instance: Instance, shape: bool) -> i32 {
     i32::from(!problems.is_empty())
 }
 
-/// The instance, the `--shape` flag and files a command line names; `None` on bad usage: a
+/// The instance, the rule-group flags and files a command line names; `None` on bad usage: a
 /// missing, unknown or repeated `--instance`, an unknown flag, or no file.
-fn parse_args(args: &[OsString]) -> Option<(Instance, bool, Vec<&OsString>)> {
+fn parse_args(args: &[OsString]) -> Option<(Instance, Groups, Vec<&OsString>)> {
     let mut instance = None;
-    let mut shape = false;
+    let mut groups = Groups::default();
     let mut files = Vec::new();
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         let text = arg.to_string_lossy();
         if text == "--shape" {
-            shape = true;
+            groups.shape = true;
+            continue;
+        }
+        if text == "--critique" {
+            groups.critique = true;
             continue;
         }
         let name = if text == "--instance" {
@@ -435,7 +467,7 @@ fn parse_args(args: &[OsString]) -> Option<(Instance, bool, Vec<&OsString>)> {
     if files.is_empty() {
         return None;
     }
-    Some((instance?, shape, files))
+    Some((instance?, groups, files))
 }
 
 /// Runs one command line and returns its exit code.
@@ -444,16 +476,16 @@ where
     I: IntoIterator<Item = OsString>,
 {
     let args: Vec<OsString> = args.into_iter().collect();
-    let Some((instance, shape, files)) = parse_args(&args) else {
+    let Some((instance, groups, files)) = parse_args(&args) else {
         eprintln!(
-            "usage: workflow-lint [--shape] --instance gold-band|gold-band-personal <FILE>..."
+            "usage: workflow-lint [--shape] [--critique] --instance gold-band|gold-band-personal <FILE>..."
         );
         return 2;
     };
     let mut code = 0;
     for arg in files {
         let shown = arg.to_string_lossy();
-        code = code.max(lint_file(Path::new(arg), &shown, instance, shape));
+        code = code.max(lint_file(Path::new(arg), &shown, instance, groups));
     }
     if code == 0 {
         println!("workflow-lint: ok");

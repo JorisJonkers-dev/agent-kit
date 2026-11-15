@@ -405,6 +405,60 @@ accept in every case. CI and setup tolerate exactly the listed files: any other
 template, and any new one, must pass; a listed template that now passes fails CI with
 "remove it from the list".
 
+### Every written artifact is critiqued by another family (#793)
+
+`workflow-lint --critique --instance gold-band|gold-band-personal FILE...` runs the
+`critique` rule group (`scripts/crates/workflow-lint/src/critique.rs`; its module
+header is the definition). It is its own flag and its own list, run by the same CI step
+(`scripts/check-workflow-shape.sh` does `--shape` and then `--critique`). Findings read
+`<file>: <node>: <rule>: <message>`. Gold Band's editor keeps no field for any of this,
+so nothing is declared in a template: a node is recognised from what the shipped
+templates already carry.
+
+* **Writer.** A `worker` whose `output.artifact` key, minus a leading `repair-<N>-`, ends
+  in `write`, `draft`, `summary`, `update`, `record`, `implementation` or `written`
+  (`spec-write`, `tickets-draft`, `grill-summary`, `docs-update`, `design-record`,
+  `implementation`, `repair-1-implementation`, `tests-written`), and whose binding has a
+  known model family. Gate and copy shims (`stub-model`, `pinned-command`), question
+  rounds and verdict nodes are not writers. A new template names its artifact with one of
+  those endings to be covered.
+* **Critique record node.** The runner chain's `gate-critique-<stage>-record`, or workflow-b's
+  `verdict-<N>`.
+* **`critic-required`.** Every path from a writer to `$end`, over success and failure edges,
+  crosses a record node. A path through `grant-refused` (a refused grant ends the run
+  without handing the artifact on) does not count. The finding names the shortest
+  unreviewed path.
+* **Critic.** An `ai-dynamic` node (candidates: its `availableAgents`), a worker bound to a
+  review profile (any profile but `pf-builtin-dev`; its own binding), or the runner's
+  `gate-critique-<stage>-fan-out` (candidates: that stage's clients in
+  `skills/workstation/critique/routing.json`, slots `base` and `deep` for the personal
+  instance, `work` and `deep` for the work one; routing fallbacks are not followed).
+* **`critic-family`.** No candidate of a critic is of the family of the nearest writer
+  upstream of it (a writer with a path to the critic that crosses no other writer). The
+  family comes from `routing.json`, the file the critique pipeline routes with, and there
+  is no table of the lint's own: the binding's model (provider prefix cut, `.` read as `-`)
+  matched on whole `-` segments against each client's `model` and `gateway.model`, else
+  the agent id's client kind when all its clients share a family (`claude-work` is
+  `anthropic`). A model with no family is never compared. A per-machine routing override
+  is not read.
+
+**Known failures.** `installer/gold-band/workflows/known-critique-failures.txt`
+(separate from the shape list, dated) names each violating template with the ticket that
+fixes it, one `<file> #<ticket>` per line. CI tolerates exactly those: an unlisted
+violator fails, a listed template that now passes fails with "remove it from
+`known-critique-failures.txt`", and a line without a ticket fails. Today: `to-spec`,
+`to-tickets`, `brainstorming`, `grill-me` and `grill-with-docs` have no critic (#795);
+`workflow-c` (Mistral writer, `pi-vibe-mistral-large` in the spec and tickets rosters)
+and `workflow-c-work` (Claude writer, `claude-work` in the work roster) have a
+same-family critic (#796). `workflow-b` and the critique templates pass both rules.
+
+`converge.py gold-band-workflows` runs the same check by calling the built
+`workflow-lint` (`AGENT_KIT_WORKFLOW_LINT`, `PATH`, or `scripts/target/{release,debug}`):
+listed templates install with `warning: <id> breaks the critique rules ... installing it
+anyway`, any other violator refuses the run before anything is written. Without a usable
+binary it installs and warns that the critique rules were not checked (migration debt:
+setup converges templates before the cargo tools are built, and there is no Python twin).
+
 ## The build patch: failure targets are not entries
 
 Unpatched v0.19.1 refuses 21 of the 24 shipped templates (Save, run-mode start and

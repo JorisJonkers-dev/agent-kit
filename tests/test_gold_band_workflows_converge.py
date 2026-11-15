@@ -99,6 +99,15 @@ class Machine:
 
 
 @pytest.fixture(autouse=True)
+def _clean_critique_lint(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test sees a workflow-lint that finds nothing, whatever binary this machine has."""
+    script = tmp_path_factory.mktemp("lint") / "workflow-lint"
+    script.write_text(f"#!{sys.executable}\nprint('workflow-lint: ok')\n")
+    script.chmod(0o755)
+    monkeypatch.setenv("AGENT_KIT_WORKFLOW_LINT", str(script))
+
+
+@pytest.fixture(autouse=True)
 def _not_running(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENT_KIT_GOLD_BAND_RUNNING", "0")
 
@@ -565,3 +574,92 @@ def test_the_kits_known_failures_are_exactly_the_templates_that_fail() -> None:
     sources = converge._gold_band_workflow_sources(directory)
     failing = {wid for wid, source in sources.items() if converge.gold_band_shape.shape_findings(source["workflow"])}
     assert failing == converge._gold_band_shape_known_failures(directory)
+
+
+def _fake_lint(tmp_path: Path, failing: set[str]) -> Path:
+    """A stand-in ``workflow-lint`` that reports one critique finding for each file named in ``failing``."""
+    script = tmp_path / "fake-workflow-lint"
+    script.write_text(
+        f"#!{sys.executable}\nimport sys\n"
+        f"if sys.argv[-1].rsplit('/', 1)[-1] in {sorted(failing)!r}:\n"
+        "    print('workflow-lint: ' + sys.argv[-1] + ': w: critic-required: nope', file=sys.stderr)\n"
+        "    sys.exit(1)\n"
+        "print('workflow-lint: ok')\n"
+    )
+    script.chmod(0o755)
+    return script
+
+
+def test_a_template_that_breaks_the_critique_rules_is_refused_unless_it_is_a_known_failure(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AGENT_KIT_WORKFLOW_LINT", str(_fake_lint(tmp_path, {"old.json", "new.json"})))
+    m = Machine(tmp_path, {"good": _template("good"), "old": _template("old"), "new": _template("new")})
+    (m.workflows / "known-critique-failures.txt").write_text("# #795\nold.json #795 critic-required\n")
+    assert m.run() == 3
+    out = capsys.readouterr().out
+    assert "a template breaks the critique rules" in out and "new.json: w: critic-required" in out
+    assert "old.json: w:" not in out
+    assert not m.store.exists()
+    (m.workflows / "new.json").unlink()
+    assert m.run() == 0
+    out = capsys.readouterr().out
+    assert "warning: old breaks the critique rules (1 findings) and is a known failure" in out
+    assert [t["id"] for t in m.read()["templates"]] == ["good", "old"]
+
+
+def test_without_the_binary_the_critique_rules_are_not_checked_and_say_so(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(converge, "_gold_band_workflow_lint", lambda: None)
+    m = Machine(tmp_path, {"good": _template("good")})
+    assert m.run() == 0
+    assert "workflow-lint is not built; the critique rules (#793) were not checked" in capsys.readouterr().out
+
+
+def test_a_critique_known_failures_file_that_cannot_be_read_refuses_the_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AGENT_KIT_WORKFLOW_LINT", str(_fake_lint(tmp_path, set())))
+    m = Machine(tmp_path, {"good": _template("good")})
+    (m.workflows / "known-critique-failures.txt").write_bytes(b"\xff\xfe")
+    assert m.run() == 3
+    assert "known-critique-failures.txt cannot be read" in capsys.readouterr().out
+
+
+def test_the_binary_is_found_by_environment_path_or_the_kits_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = _fake_lint(tmp_path, set())
+    monkeypatch.setenv("AGENT_KIT_WORKFLOW_LINT", str(fake))
+    assert converge._gold_band_workflow_lint() == fake
+    monkeypatch.delenv("AGENT_KIT_WORKFLOW_LINT")
+    monkeypatch.setenv("PATH", str(tmp_path))
+    (tmp_path / "workflow-lint").write_text("")
+    (tmp_path / "workflow-lint").chmod(0o755)
+    assert converge._gold_band_workflow_lint() == tmp_path / "workflow-lint"
+    (tmp_path / "workflow-lint").unlink()
+    found = converge._gold_band_workflow_lint()
+    assert found is None or found.parent.parent.name == "target"
+
+
+def test_the_kits_critique_known_failures_name_templates_with_a_ticket() -> None:
+    directory = KIT_ROOT / "installer" / "gold-band" / "workflows"
+    lines = [
+        ln
+        for ln in (directory / "known-critique-failures.txt").read_text().splitlines()
+        if ln.strip() and not ln.startswith("#")
+    ]
+    assert lines and all((directory / ln.split()[0]).is_file() and re.search(r" #\d+", ln) for ln in lines)
+
+
+def test_a_workflow_lint_that_cannot_run_the_rules_warns_instead_of_refusing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old = tmp_path / "old-workflow-lint"
+    old.write_text(f"#!{sys.executable}\nimport sys\nprint('usage: workflow-lint', file=sys.stderr)\nsys.exit(2)\n")
+    old.chmod(0o755)
+    monkeypatch.setenv("AGENT_KIT_WORKFLOW_LINT", str(old))
+    m = Machine(tmp_path, {"good": _template("good")})
+    assert m.run() == 0
+    assert "warning: the critique rules (#793) were not checked: usage: workflow-lint" in capsys.readouterr().out
