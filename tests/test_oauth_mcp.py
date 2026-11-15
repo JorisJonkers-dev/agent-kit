@@ -80,6 +80,13 @@ esac
 exit 0
 """
 
+FAKE_UV = f"""#!{PY}
+import os, sys
+args = sys.argv[1:]
+os.execv({PY!r}, [{PY!r}, *args[args.index("python") + 1:]])
+"""
+
+
 def _registry() -> dict:
     return yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text())
 
@@ -112,7 +119,7 @@ class Machine:
         self.bin = tmp_path / "bin"
         self.bin.mkdir()
         for name, body in (("claude", FAKE_CLAUDE), ("codex", FAKE_CODEX), ("security", FAKE_SECURITY),
-                           ("vibe", "#!/bin/sh\n"),
+                           ("uv", FAKE_UV), ("vibe", "#!/bin/sh\n"),
                            # The stand-in `security` stands for macOS, which is where the Keychain is read.
                            ("uname", "#!/bin/sh\necho Darwin\n")):
             (self.bin / name).write_text(body)
