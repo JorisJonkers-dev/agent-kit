@@ -58,7 +58,6 @@ skills/workstation/estate-project-intent/scripts/intent.py
 skills/workstation/estate-rollback/scripts/plan.py
 skills/workstation/pr-composer/scripts/check_body.py
 skills/workstation/pr-composer/scripts/mine_prs.py
-skills/workstation/projects-layout/hooks/projects-layout-guard.py
 
 # #814 remove the Python and TypeScript toolchains: the pytest suite, its fixtures and what remains
 tests/ci_shard.py

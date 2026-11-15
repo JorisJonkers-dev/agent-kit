@@ -1142,6 +1142,8 @@ workspace_tools:
     surfaces: [workstation]
   - name: litellm-gate
     surfaces: [workstation]
+  - name: projects-layout-guard
+    surfaces: [workstation]
 
 # -------------------------------------------------------------------
 # Hindsight Coding Agents: Hindsight's own plugin for Claude Code and
@@ -1824,7 +1826,9 @@ local_skills:
     note: >-
       Setup also writes the rule as a marked block into each client's global
       instruction file, and merges hooks/projects-layout-guard.sh into Claude
-      Code and Codex (docs/adr/0009-projects-layout-guard.md).
+      Code and Codex (docs/adr/0009-projects-layout-guard.md). The hook runs
+      the Rust projects-layout-guard that setup installs as a workspace tool,
+      and allows the call until it is installed.
 
   - name: estate-project-intent
     path: skills/workstation/estate-project-intent

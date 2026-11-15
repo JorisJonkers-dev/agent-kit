@@ -999,6 +999,32 @@ The unit tests drive `fetch` through a stub `curl` script and `verify` through
 the real `git` over a fixture repository; they cover every line except
 `src/main.rs`.
 
+## projects-layout-guard
+
+`crates/projects-layout-guard` is the `PreToolUse` hook of
+[ADR-0009](adr/0009-projects-layout-guard.md) (#813, part of #802), ported from
+`hooks/projects-layout-guard.py` with the same decisions and the same deny JSON.
+It is std-only apart from `serde_json`.
+
+* **Shape.** The payload comes on stdin. The guard tokenises a Bash command the
+  way Python's `shlex` did (a `#` starts a comment, a newline is whitespace),
+  follows `cd`, `bash -c`, `env` style wrappers and git's global options, and
+  denies a `git clone` or `gh repo clone` of a GitHub repository whose target is
+  not `~/Projects/<owner>/<repo>`, a `git worktree add` outside
+  `~/Projects/<owner>/worktrees/<repo>/`, and `EnterWorktree` with `name`.
+* **Fail open.** An unparsable payload or command, an unknown repository, a
+  `git` that cannot run or takes over two seconds, or any other error of its own
+  allows the call. `PROJECTS_LAYOUT_OFF=1` or a machine without `~/Projects`
+  makes it a no-op. `~user` is not expanded, and an unset `HOME` allows the call.
+* **Install.** It is a `workspace_tools` entry, so setup puts it in
+  `~/.local/bin` and the release tarball carries it. The skill's
+  `hooks/projects-layout-guard.sh`, the file the agents' settings name, runs it
+  (`WORKSPACE_TOOLS_BIN_DIR` moves the directory) and allows the call while it
+  is not installed.
+* **Tests.** The pytest cases became Rust tests in `src/tests.rs`: decisions
+  against a temporary `~/Projects` with real `git init` repositories, and a fake
+  `git` for the timeout.
+
 ## Release binaries
 
 Every release carries prebuilt, statically linked builds of the command-line
@@ -1011,7 +1037,7 @@ is a later child of #802, and the tarball will carry it when it exists.
 * **What ships.** The `workspace_tools` of `registry/estate-tooling.yaml`
   (agent-launcher, gold-band-gate, gold-band-run-start, gold-band-findings,
   gold-band-proof, research-layout, ticket-publish, workflow-lint,
-  coverage-gate, ci-wait, litellm-gate) plus critique, model-gateway and
+  coverage-gate, ci-wait, litellm-gate, projects-layout-guard) plus critique, model-gateway and
   build-tracker. The list is `TOOLS` in `scripts/release-binaries.sh`.
 * **Targets.** `x86_64-unknown-linux-musl` (hosted `ubuntu-latest`),
   `aarch64-unknown-linux-musl` (the native `ubuntu-24.04-arm` runner) and
