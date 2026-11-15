@@ -53,6 +53,10 @@ CATALOGUE_FILE = "model-catalog.json"
 STALE_AFTER = timedelta(hours=48)
 # The access group every key holds; a group that is not public is in it.
 CANONICAL = "canonical"
+# Provider routes no workstation key may reach through `canonical`. A group with a deployment on
+# one of these is reached only by a key holding the access group of the same name, and no
+# workstation route holds it: Claude is never used through LiteLLM from a workstation.
+WITHHELD_ROUTES = frozenset({"anthropic"})
 
 Runner = Callable[[Sequence[str]], "subprocess.CompletedProcess[str]"]
 
@@ -267,7 +271,9 @@ def canonical_groups(
     holds one of them. Otherwise a group that is not public is in ``canonical``, and a
     public group is reached only when the key holds one of the public-only access groups
     (``public_groups``; by default the ones only ``data_scope: public`` routes hold in
-    routes.json), so no group name is fixed here. A public group (a free tier) counts as
+    routes.json), so no group name is fixed here. A group with a deployment on a withheld
+    route (``WITHHELD_ROUTES``) is reached only when the key holds that route's own access
+    group, whatever else the group or the key names. A public group (a free tier) counts as
     free; another group is free when every deployment tried first is a free model.
     """
     held = set(access_groups)
@@ -278,7 +284,11 @@ def canonical_groups(
             continue
         public = group.get("public") is True
         own = group.get("access_groups")
-        if isinstance(own, list):
+        deployments = [d for d in group.get("deployments", []) if isinstance(d, dict)]
+        withheld = {str(d.get("route", "")) for d in deployments} & WITHHELD_ROUTES
+        if withheld:
+            ok = withheld <= held
+        elif isinstance(own, list):
             ok = bool(held & set(own))
         elif public:
             ok = bool(held & gates)
@@ -286,7 +296,6 @@ def canonical_groups(
             ok = CANONICAL in held
         if not ok:
             continue
-        deployments = [d for d in group.get("deployments", []) if isinstance(d, dict)]
         reached.append(
             CanonicalGroup(
                 name=name,
