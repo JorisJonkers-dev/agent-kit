@@ -1,0 +1,11 @@
+[package]
+name = "rust-migration-guard"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "CI guard for the Rust migration (#804): fails a pull request that adds or changes Python or TypeScript outside the shrink-only allowlist."
+
+# serde_json reads the pull-request event payload; it is already in the
+# lockfile at this exact version, so the lockfile gains only this member.
+[dependencies]
+serde_json = "=1.0.154"
