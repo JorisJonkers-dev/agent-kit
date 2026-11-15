@@ -1069,12 +1069,9 @@ is a later child of #802, and the tarball will carry it when it exists.
   tarballs (`sha256sum -c` format). Verify with
   `grep ' agent-kit-tools-<tag>-<target>.tar.gz$' SHA256SUMS | sha256sum -c -`
   (`shasum -a 256 -c -` on macOS).
-* **The gate.** The `Release` workflow builds only after release-please creates
-  a release, and a `crate-age` job (the same check and standards pin as
-  `crate-cooldown.yml`) runs in front of every build job: a lockfile with a
-  crate version younger than 7 days, or one whose age cannot be proven, builds
-  nothing. The builds are `--locked`, from the repository (so
-  `.cargo/config.toml`'s cooldown applies) and through the packages proxy.
+* **The trigger.** The `Release` workflow builds only after release-please
+  creates a release. The builds are `--locked`, from the repository and through
+  the packages proxy.
 * **The smoke test.** After the assets are attached, a job per target on a
   runner of that target downloads them from the release, verifies them against
   `SHA256SUMS`, and runs every binary with `--help`. The tools have no common
@@ -1082,7 +1079,7 @@ is a later child of #802, and the tarball will carry it when it exists.
   output); a missing loader, a signal or silence fails it.
 * **Dry run.** Run the `Release` workflow by hand (Actions, Run workflow, or
   `gh workflow run release.yml --ref <branch>`). release-please is skipped, the
-  tag is `dry-run-<sha7>`, the same crate-age, build and smoke jobs run, and the
+  tag is `dry-run-<sha7>`, the same build and smoke jobs run, and the
   tarballs and `SHA256SUMS` are uploaded to the run as the `release-assets`
   artifact; nothing is attached to a release. The same three commands run
   locally: `scripts/release-binaries.sh build TAG TARGET dist`, `sums dist`,

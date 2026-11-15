@@ -101,65 +101,14 @@
             { echo "tag=dry-run-${GITHUB_SHA::7}"; echo "ref=$GITHUB_SHA"; echo "publish=false"; } >> "$GITHUB_OUTPUT"
           fi
 
-  # The 7-day crate cooldown gate, in front of every build: crate-age refuses a
-  # lockfile with a crate version younger than seven days (exit 1) or one whose
-  # age cannot be proven (exit 2). The same check and the same standards pin as
-  # crate-cooldown.yml; move both together.
-  'crate-age':
-    'needs': 'plan'
-    'if': "${{ !cancelled() && needs.plan.result == 'success' }}"
-    'runs-on': 'ubuntu-latest'
-    'permissions':
-      'contents': 'read'
-    'env':
-      'CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX': 'sparse+https://packages.jorisjonkers.dev/cargo/'
-      'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
-    'steps':
-      - 'uses': 'actions/checkout@v6'
-        'with':
-          'ref': '${{ needs.plan.outputs.ref }}'
-          'path': 'agent-kit'
-      - 'name': 'Mint a token to read the standards repo'
-        'id': 'app-token'
-        'uses': 'actions/create-github-app-token@v3'
-        'with':
-          'app-id': '${{ secrets.RELEASE_APP_ID }}'
-          'private-key': '${{ secrets.RELEASE_APP_PRIVATE_KEY }}'
-          'owner': '${{ github.repository_owner }}'
-          'repositories': 'standards'
-      - 'name': 'Check out the standards repo (crate-age source)'
-        'uses': 'actions/checkout@v6'
-        'with':
-          'repository': 'JorisJonkers-dev/standards'
-          'ref': '7d0673432f10f4a515a5dc700f78daae8e389cd5'
-          'path': 'standards'
-          'token': '${{ steps.app-token.outputs.token }}'
-          'persist-credentials': false
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
-        'with':
-          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
-          'require-package-proxy': 'true'
-      - 'name': 'Rust 1.100 or newer (the cargo cooldown)'
-        'run': |
-          rustup update stable --no-self-update
-          rustup default stable
-          minor=$(rustc --version | sed -n 's/^rustc 1\.\([0-9][0-9]*\)\..*/\1/p')
-          [ "${minor:-0}" -ge 100 ] || { echo "rustc $(rustc --version) is older than 1.100" >&2; exit 1; }
-      - 'name': 'Build crate-age'
-        'working-directory': 'standards/scripts'
-        'run': 'cargo build --release --locked --bin crate-age'
-      - 'name': 'Run crate-age over the checkout'
-        'run': 'standards/scripts/target/release/crate-age --root agent-kit'
-
   # Static binaries per target: musl on Linux (x86_64 on the hosted runner,
   # aarch64 on the native arm runner, so neither needs a cross toolchain) and
   # native arm64 on macOS. scripts/release-binaries.sh builds with --locked
-  # from the repository, so .cargo/config.toml's cooldown applies, through the
-  # packages proxy; it fails a Linux binary that is not statically linked.
+  # from the repository, through the packages proxy; it fails a Linux binary that is not statically linked.
   'binaries':
     'name': 'Build ${{ matrix.target }}'
-    'needs': ['plan', 'crate-age']
-    'if': "${{ !cancelled() && needs.plan.result == 'success' && needs.crate-age.result == 'success' }}"
+    'needs': 'plan'
+    'if': "${{ !cancelled() && needs.plan.result == 'success' }}"
     'strategy':
       'fail-fast': false
       'matrix':
