@@ -813,6 +813,40 @@ re-run of the old run still carries the old body). Delete the allowlist line in
 the same pull request that deletes a file; never regenerate the list to make a
 new file pass.
 
+## ci-helpers
+
+`crates/ci-helpers` is the CI helpers that were four Python scripts until #813
+(parent #802), one binary with one subcommand each. It reads YAML with
+`serde_yaml` and JSON with `serde_json`, both already in the lockfile; the
+SHA-256 for the checksum check is written in the crate, so no hashing crate
+comes with it.
+
+| Subcommand | Was | What it does |
+| --- | --- | --- |
+| `agents-md [--require] [REPO_ROOT ...]` | `scripts/check_agents_md.py` | Fails when a path, link or `path::symbol` an AGENTS.md names no longer exists. Problems go to stderr as `<root>/AGENTS.md:<line>: <message>`; exit 0 clean, 1 problems, 2 a root that is not a directory. |
+| `marketplace-bump (--base-ref REF \| --base-registry FILE) [--registry FILE] [--git-base URL]` | `scripts/check_marketplace_bump.py` | Reads each plugin the registry installs from a bumped marketplace (and each bumped skill source) at the old and the new commit; a hook, MCP or LSP server, script or shell line only the new commit has fails the run. Upstream code is read, never run. Appends the report to `$GITHUB_STEP_SUMMARY` when it is set. |
+| `skill-sources [--root DIR] [--validate \| --update SKILL \| --sync-issue] [--issue-title T]` | `scripts/check_skill_sources.py` | Checks each estate skill's `sources.yaml` against GitHub through `gh`. A failed request is a failure and never drift; `--sync-issue` keeps one open drift issue and leaves it untouched after a failed run. |
+| `verify-release-asset stamp-version TAG \| check-version TAG \| check-checksum TARBALL SHA256_FILE` | `scripts/verify_release_asset.py` | Stamps the release tag into setup-workstation.sh and checks a published asset against it and against its checksum. |
+
+What changed against the Python, and what did not:
+
+* The messages, exit codes and report lines are the ones the pytest suite
+  pinned; those tests are ported to the crate (`src/tests/`), with real `git`
+  repositories for the marketplace review and a stand-in `gh` (a trait in the
+  unit tests, a shell script for the subprocess runner) for the drift check.
+* `--update` stamps today's date in UTC (the Python used the local date) and
+  writes the file with `serde_yaml`, which prints the same block style
+  PyYAML did.
+* The drift issue's body points at `ci-helpers skill-sources --update <skill>`.
+
+Callers: the `rust-workspace` job in `.github/workflows/ci.yml` runs
+`skill-sources --validate` and `agents-md`; the `marketplace-pins` job runs
+`marketplace-bump`; `.github/workflows/skill-sources.yml` runs
+`skill-sources --sync-issue`; `scripts/publish-installer-artifacts.sh` runs
+`verify-release-asset` through `$CI_HELPERS` (a built binary, which the
+publish workflow builds) or, without it, `cargo run -p ci-helpers`. Cargo
+resolves through the packages proxy in every one of them.
+
 ## Measuring line coverage
 
 One command, from the repository root, on the Linux workstation and

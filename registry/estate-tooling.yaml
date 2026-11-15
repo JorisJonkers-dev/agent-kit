@@ -1839,7 +1839,7 @@ local_skills:
     note: >-
       Carries the procedure and points at the canonical docs; it never copies
       them. sources.yaml records what it was checked against for
-      scripts/check_skill_sources.py.
+      scripts/crates/ci-helpers (the skill-sources check).
 
   - name: estate-delivery-status
     path: skills/workstation/estate-delivery-status
@@ -1852,7 +1852,7 @@ local_skills:
     note: >-
       Carries the procedure and points at the canonical docs; it never copies
       them. sources.yaml records what it was checked against for
-      scripts/check_skill_sources.py.
+      scripts/crates/ci-helpers (the skill-sources check).
 
   - name: estate-rollback
     path: skills/workstation/estate-rollback
@@ -1865,7 +1865,7 @@ local_skills:
     note: >-
       Carries the procedure and points at the canonical docs; it never copies
       them. sources.yaml records what it was checked against for
-      scripts/check_skill_sources.py.
+      scripts/crates/ci-helpers (the skill-sources check).
 
   - name: estate-bootstrap
     path: skills/workstation/estate-bootstrap
@@ -1879,7 +1879,7 @@ local_skills:
     note: >-
       Carries the procedure and points at the canonical docs; it never copies
       them. sources.yaml records what it was checked against for
-      scripts/check_skill_sources.py.
+      scripts/crates/ci-helpers (the skill-sources check).
 
   - name: model-gateway
     path: skills/workstation/model-gateway

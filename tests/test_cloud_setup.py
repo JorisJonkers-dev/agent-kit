@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import functools
 import hashlib
 import os
 import re
@@ -17,7 +18,26 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
 import render_registry  # noqa: E402
-from verify_release_asset import RELEASE_TAG_PLACEHOLDER, stamp_version  # noqa: E402
+
+RELEASE_TAG_PLACEHOLDER = "@AGENT_KIT_RELEASE_TAG@"
+
+
+@functools.cache
+def ci_helpers_binary() -> str:
+    """The ci-helpers binary, built once from the cargo workspace (scripts/crates/ci-helpers)."""
+    if os.environ.get("CI_HELPERS"):
+        return os.environ["CI_HELPERS"]
+    manifest = KIT_ROOT / "scripts" / "Cargo.toml"
+    subprocess.run(["cargo", "build", "--locked", "--manifest-path", str(manifest), "-p", "ci-helpers"], check=True)
+    target = Path(os.environ.get("CARGO_TARGET_DIR", KIT_ROOT / "scripts" / "target"))
+    return str(target / "debug" / "ci-helpers")
+
+
+def stamp_version(script_text: str, tag: str) -> str:
+    """The script as the release stamps it, by the same binary the release runs."""
+    result = subprocess.run([ci_helpers_binary(), "verify-release-asset", "stamp-version", tag],
+                            input=script_text, capture_output=True, text=True, check=True)
+    return result.stdout
 
 CLOUD_HELPER = KIT_ROOT / "installer" / "cloud-session.sh"
 SETUP_SCRIPT = KIT_ROOT / "installer" / "cloud" / "setup-script.sh"

@@ -467,10 +467,6 @@ scripts/workstation-kube.py
 # #813 port the CI helpers, the estate and pr-composer scripts, the code-nav eval adapters and the projects-layout hook
 evals/code-nav/adapters/cn.py
 evals/code-nav/adapters/vibe_layer.py
-scripts/check_agents_md.py
-scripts/check_marketplace_bump.py
-scripts/check_skill_sources.py
-scripts/verify_release_asset.py
 skills/workstation/estate-bootstrap/scripts/audit.py
 skills/workstation/estate-delivery-status/scripts/verdict.py
 skills/workstation/estate-project-intent/scripts/intent.py

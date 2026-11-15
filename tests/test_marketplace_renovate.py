@@ -100,7 +100,7 @@ def test_the_review_runs_on_pull_requests_outside_pipeline_complete() -> None:
     jobs = yaml.safe_load((KIT_ROOT / ".github" / "workflows" / "ci.yml").read_text())["jobs"]
     review = jobs["marketplace-pins"]
     assert review["name"] == "Marketplace Pin Review"
-    assert any("check_marketplace_bump.py --base-ref" in str(step.get("run", "")) for step in review["steps"])
+    assert any("ci-helpers -- marketplace-bump --base-ref" in str(step.get("run", "")) for step in review["steps"])
     assert "marketplace-pins" not in jobs["pipeline-complete"]["needs"]
 
 

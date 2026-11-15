@@ -40,7 +40,7 @@ CONTAINER_SETUP_SCRIPT = Path("installer/setup-container.sh")
 CLOUD_HELPER = Path("installer/cloud-session.sh")
 # Where a released setup-workstation.sh fetches its kit bundle: the release
 # assets of its own tag, which scripts/publish-installer-artifacts.sh stamps
-# in place of the placeholder (scripts/verify_release_asset.py owns both).
+# in place of the placeholder (scripts/crates/ci-helpers, verify-release-asset, owns both).
 RELEASE_DOWNLOAD_BASE = "https://github.com/JorisJonkers-dev/agent-kit/releases/download"
 RELEASE_TAG_PLACEHOLDER = "@AGENT_KIT_RELEASE_TAG@"
 SKILLS_BUNDLE_ASSET = "agent-kit-skills.tar.gz"
