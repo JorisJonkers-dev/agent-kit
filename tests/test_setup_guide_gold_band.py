@@ -64,8 +64,8 @@ def test_the_lost_guarantee_list_cites_sources_that_exist() -> None:
     block = _section(BAND, "## What a bare Gold Band node does not guarantee")
     rows = [line for line in block.splitlines() if line.startswith("| **")]
     assert len(rows) >= 10
-    sources = {Path(p).name for p in re.findall(r"`([\w./-]+\.(?:ts|md))`", block)}
+    sources = {Path(p).name for p in re.findall(r"`([\w./-]+\.(?:rs|md))`", block)}
     assert sources
-    present = {path.name for path in (KIT_ROOT / "council" / "ts" / "src").rglob("*.ts")}
-    present |= {path.name for path in (KIT_ROOT / "docs").rglob("*.md")}
+    present = {path.name for path in (KIT_ROOT / "docs").rglob("*.md")}
+    present |= {path.name for path in (KIT_ROOT / "scripts" / "crates").rglob("*.rs")}
     assert sources <= present, sorted(sources - present)
