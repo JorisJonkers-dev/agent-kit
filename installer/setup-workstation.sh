@@ -1135,7 +1135,7 @@ gateway_pointer() {
     || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"
 The model gateway is the `model-gateway` command on PATH. `model-gateway models`
 lists the client models on this machine, each with its cost class and difficulty tier.
-The `delegate` skill, which is coming later, plans delegations with it.
+The `delegate` skill plans delegations with it.
 BLOCK
 }
 
