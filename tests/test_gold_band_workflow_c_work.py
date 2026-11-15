@@ -2,7 +2,7 @@
 
 ``installer/gold-band/workflows/workflow-c-work.json`` is the personal Workflow C
 (``workflow-c.json``, left unchanged) bound to the work agents: ``claude-work`` and
-``codex``, nothing else. Each Codex node (the review orchestrators) is preceded by a grant-check node whose
+``codex``, nothing else. Each Codex node (the drafts and the review orchestrators) is preceded by a grant-check node whose
 failure edge pauses the run on a manual check, and the critique steps are the
 critique stage templates' nodes, whose runner routes a ``nedap`` repository to the
 work-only critic roster.
@@ -32,7 +32,8 @@ FIXTURE_REPO = KIT_ROOT / "tests" / "fixtures" / "gold-band" / "work-repo"
 MANIFEST = KIT_ROOT / "scripts" / "Cargo.toml"
 
 WORK_AGENTS = {"claude-work", "codex"}
-CODEX_NODES = ["spec-verdicts", "tickets-verdicts"]
+# The drafts run on Codex like the orchestrators, so the runner leaves their family out of the roster (#796).
+CODEX_NODES = ["spec-draft", "tickets-draft", "spec-verdicts", "tickets-verdicts"]
 GRANT_PAUSES = ["grant-refused"]
 MANUAL_CHECKS = [
     "grill-check-1",
@@ -145,7 +146,7 @@ def test_every_node_has_a_model_binding(template: dict[str, Any], nodes: dict[st
         assert (binding["agentId"], binding["modelId"]) == (node["provider"], node["model"])
 
 
-def test_the_codex_nodes_are_exactly_the_orchestrators(nodes: dict[str, dict[str, Any]]) -> None:
+def test_the_codex_nodes_are_exactly_the_drafts_and_the_orchestrators(nodes: dict[str, dict[str, Any]]) -> None:
     assert sorted(n for n, node in nodes.items() if "codex" in node["provider"]) == sorted(CODEX_NODES)
 
 
@@ -221,11 +222,11 @@ def test_the_other_critique_nodes_are_the_stage_template_s_own(nodes: dict[str, 
             assert nodes[node["id"]] == node
 
 
-def test_the_spec_author_and_the_review_orchestrator_are_in_different_families(
+def test_the_drafts_and_the_review_orchestrator_are_one_family_the_runner_leaves_out_of_the_roster(
     nodes: dict[str, dict[str, Any]],
 ) -> None:
     for draft, verdicts in (("spec-draft", "spec-verdicts"), ("tickets-draft", "tickets-verdicts")):
-        assert nodes[draft]["provider"] != nodes[verdicts]["provider"]
+        assert nodes[draft]["provider"] == nodes[verdicts]["provider"]
 
 
 def test_the_publish_gate_names_the_work_repository_s_setup_file(nodes: dict[str, dict[str, Any]]) -> None:

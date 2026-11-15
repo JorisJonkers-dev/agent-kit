@@ -141,7 +141,12 @@ def test_each_review_stage_is_the_critique_template_s_nodes(
 ) -> None:
     """The review nodes are the critique stage template's own, unchanged, and keep its needs-human fork."""
     for node_id, node in _stage_nodes(stage).items():
-        assert nodes[node_id] == node
+        mine = dict(nodes[node_id])
+        if node_id == f"{stage}-verdicts":
+            # The orchestrator is bound to the drafts' family (#796), so the runner's roster leaves it out.
+            mine["provider"], mine["model"] = node["provider"], node["model"]
+            mine["executionSlotId"] = node["executionSlotId"]
+        assert mine == node
     verdicts, needs_human = f"{stage}-verdicts", f"{stage}-needs-human"
     refute = f"gate-critique-{stage}-refute"
     assert (verdicts, refute, "success") in edges
@@ -212,13 +217,13 @@ def test_every_node_has_a_model_binding(template: dict[str, Any], nodes: dict[st
         assert (binding["agentId"], binding["modelId"]) == (node["provider"], node["model"])
 
 
-def test_the_spec_author_and_its_orchestrator_are_in_different_families(
+def test_the_drafts_and_their_orchestrator_are_one_family_the_runner_leaves_out_of_the_roster(
     nodes: dict[str, dict[str, Any]],
 ) -> None:
-    """The model that drafts the spec and the tickets is not the one that rules on their review."""
+    """`prepare` drops the orchestrator's family from the critics, so a writer of that family meets none (#796)."""
     for draft, verdicts in (("spec-draft", "spec-verdicts"), ("tickets-draft", "tickets-verdicts")):
-        assert nodes[draft]["provider"] != nodes[verdicts]["provider"]
-        assert nodes[draft]["model"] != nodes[verdicts]["model"]
+        assert nodes[draft]["provider"] == nodes[verdicts]["provider"]
+        assert nodes[draft]["model"] == nodes[verdicts]["model"]
 
 
 def test_no_node_writes_memory_and_no_forbidden_family_is_bound(text: str) -> None:

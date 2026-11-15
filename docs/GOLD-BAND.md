@@ -440,17 +440,27 @@ templates already carry.
   matched on whole `-` segments against each client's `model` and `gateway.model`, else
   the agent id's client kind when all its clients share a family (`claude-work` is
   `anthropic`). A model with no family is never compared. A per-machine routing override
-  is not read.
+  is not read by the lint; the run-start shim reads it (below).
+* **The orchestrator's family is not in a roster (#796).** The runner's `prepare` takes the
+  orchestrator's family and drops every client of it from the stage's roster, so the lint
+  leaves the family of the stage's `<stage>-verdicts` worker out of the fan-out's candidates.
+  This is how a template excludes its writer's family from the roster it reviews with: it binds
+  the writer and the stage's orchestrator to one family. `workflow-c` binds `spec-draft`,
+  `tickets-draft`, `spec-verdicts` and `tickets-verdicts` to Vibe GLM (Zhipu); `workflow-c-work`
+  binds all four to Codex, so its work roster is the work Claude agent alone (the work instance
+  has two families, so one writer family leaves one critic family, never two). Nothing else in
+  the template declares it, and a template whose orchestrator is of another family than its
+  writer is refused if the roster holds the writer's family.
 
 **Known failures.** `installer/gold-band/workflows/known-critique-failures.txt`
 (separate from the shape list, dated) names each violating template with the ticket that
 fixes it, one `<file> #<ticket>` per line. CI tolerates exactly those: an unlisted
 violator fails, a listed template that now passes fails with "remove it from
 `known-critique-failures.txt`", and a line without a ticket fails. Today: `to-spec`,
-`to-tickets`, `brainstorming`, `grill-me` and `grill-with-docs` have no critic (#795);
-`workflow-c` (Mistral writer, `pi-vibe-mistral-large` in the spec and tickets rosters)
-and `workflow-c-work` (Claude writer, `claude-work` in the work roster) have a
-same-family critic (#796). `workflow-b` and the critique templates pass both rules.
+`to-tickets`, `brainstorming`, `grill-me` and `grill-with-docs` have no critic (#795).
+`workflow-c` and `workflow-c-work` passed `critic-family` once their writers and orchestrators
+were bound to one family (#796; before it a Mistral writer met `pi-vibe-mistral-large` and a
+Claude writer met `claude-work`). `workflow-b` and the critique templates pass both rules.
 
 `converge.py gold-band-workflows` runs the same check by calling the built
 `workflow-lint` (`AGENT_KIT_WORKFLOW_LINT`, `PATH`, or `scripts/target/{release,debug}`):
@@ -521,10 +531,10 @@ refused check ends the run in failure before any model node starts.
 gold-band-run-start check --instance gold-band|gold-band-personal \
     --repo DIR --workflow-name NAME --run-id ID --attempt N \
     --workflow FILE --families FILE [--allowlist FILE] [--grants FILE] \
-    [--now RFC3339] --report-dir DIR
+    [--routing-override FILE] [--now RFC3339] --report-dir DIR
 ```
 
-It runs three checks and prints every problem on stderr, one per line,
+It runs four checks and prints every problem on stderr, one per line,
 prefixed `gold-band-run-start:`:
 
 * **`repository-rule`.** Against every remote (`git remote -v`). The work
@@ -542,6 +552,16 @@ prefixed `gold-band-run-start:`:
   personal default: every family, code. On a `nedap` repository the file is not
   read: only `claude-work` and `codex` are allowed. An agent id missing from the
   families file (`<agent id><TAB><family>` lines) is refused.
+* **`critic-family` (#796).** The `critic-family` rule of `workflow-lint --critique` over the
+  routing this machine runs: the routing agent-kit ships with the machine override
+  (`--routing-override FILE`, else `$HOME/.config/agent-kit/critique-routing.json`, the file the
+  runner reads) merged over it. A run whose critics can be of the family of the writer they
+  review is refused (`failed_check: critic-family`, one line per critic), so an override that
+  puts a writer's family back into a stage's roster stops the run before any model node. A
+  definition with no edge list has nothing to pair and is left to Gold Band's validator.
+  The runner drops the orchestrator's family itself (see "Every written artifact is
+  critiqued by another family"). An unreadable or malformed override file named by the flag
+  is exit 2.
 * **`grant`.** Work instance only: every bound agent id containing `codex` needs
   a live grant for the run `<workflow name>@<host/owner/repo>@<run id>` in the
   gateway's grants record (`model-gateway-grants.json`): client `codex`, that
@@ -556,7 +576,7 @@ The report, `<report-dir>/run-start.json`, is written in all three cases when
 the report directory is usable, through the shared `gold-band-report` crate:
 `run_id`, `attempt`, `command`, `exit_code`, `output_hash` (SHA-256 of the
 printed output), `timestamp` (UTC) and, only when the run did not pass,
-`failed_check` (`repository-rule`, `family-allowlist`, `grant`, `usage` or
+`failed_check` (`repository-rule`, `family-allowlist`, `critic-family`, `grant`, `usage` or
 `input`). `tests/test_gold_band_run_start.py` proves the refusals headless
 against the pinned `gold-band` binary with stub agents.
 
@@ -1014,10 +1034,13 @@ pauses on a manual check wherever the owner has to settle something:
    exist, so after a publish that stopped part way, check the tracker before
    running it again.
 
-The spec and ticket drafts are written by a different family (Vibe, Mistral)
-from the orchestrator that rules on their review (Vibe-study, DeepSeek) and
-from the critics the runner picks. No node writes memory and none binds Codex
-or Opus; the grill rounds use Vibe GLM. The work-instance variant is
+The spec and ticket drafts are written by Vibe GLM (Zhipu), the family of the
+orchestrators that rule on their review (`spec-verdicts`, `tickets-verdicts`, Vibe GLM).
+The runner leaves the orchestrator's family out of the critics' roster, so no
+critic the runner picks is of the writer's family (#796; `workflow-lint --critique`
+and the run-start `critic-family` check hold it). Before #796 the drafts were
+Mistral and met `pi-vibe-mistral-large` in the roster. No node writes memory and
+none binds Codex or Opus; the grill rounds use Vibe GLM. The work-instance variant is
 `workflow-c-work.json` (next section); this file is not changed by it.
 
 A headless run cannot continue past a manual check (`gold-band continue`
@@ -1037,12 +1060,17 @@ real model asks sensible questions.
 graph bound to the work instance's two agents, `claude-work` and `codex`, and
 nothing else. What differs from the personal file:
 
-* The grill rounds, the drafts, the needs-human checks and the publication
-  check run on `claude-work`; the two review orchestrators (`spec-verdicts`,
-  `tickets-verdicts`) run on `codex`, so the author is not the family that
-  rules on the review. Shim nodes keep their `gate-`, `copy-` agents.
+* The grill rounds, the needs-human checks and the publication check run on
+  `claude-work`; the two drafts (`spec-draft`, `tickets-draft`) and the two review
+  orchestrators (`spec-verdicts`, `tickets-verdicts`) run on `codex`. The runner
+  leaves the orchestrator's family out of the roster, so the work critic is the
+  work Claude agent and none is of the drafts' family (#796; before it the drafts
+  were `claude-work` and so was a critic). The work instance has two families, so
+  there is one critic family for a writer, not two. Shim nodes keep their `gate-`,
+  `copy-` agents.
 * Each Codex node is reached only through its grant-check node
-  (`grant-check-spec-verdicts`, `grant-check-tickets-verdicts`, the `gold-band-run-start
+  (`grant-check-spec-draft`, `grant-check-tickets-draft`, `grant-check-spec-verdicts`,
+  `grant-check-tickets-verdicts`, the `gold-band-run-start
   grant-check` shim, see "The grant-check node"). A refused grant takes the
   failure edge to a manual check (`grant-refused`, shared by both)
   that has no way on: the owner asks for a new grant and starts the run again.
@@ -1061,8 +1089,8 @@ nothing else. What differs from the personal file:
 Its tests (`tests/test_gold_band_workflow_c_work.py`) use a fixture setup file
 (`tests/fixtures/gold-band/work-repo`) naming a placeholder repository and a
 fake `gh`; no real repository is named and no issue is created. The headless
-proof adds `grant-lapse-spec-verdicts` and `grant-lapse-tickets-verdicts`, each
-pausing (exit 2) at its grant manual check.
+proof adds `grant-lapse-<node>` for each Codex node (the two drafts and the two
+orchestrators), each pausing (exit 2) at its grant manual check.
 
 ## Workflow A in the personal instance
 

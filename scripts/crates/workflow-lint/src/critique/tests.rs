@@ -22,7 +22,7 @@ fn chain(ids: &[&str]) -> Vec<Value> {
 }
 
 fn run(nodes: &[Value], edges: &[Value], instance: Instance) -> Vec<String> {
-    critique(nodes, edges, &[], instance)
+    critique(nodes, edges, &[], instance, None)
 }
 
 fn rules(found: &[String]) -> Vec<String> {
@@ -34,7 +34,7 @@ fn rules(found: &[String]) -> Vec<String> {
 
 #[test]
 fn the_family_comes_from_the_routing_file() {
-    let routing = Routing::load();
+    let routing = Routing::load(None);
     let family = |agent, model| routing.family(agent, model);
     assert_eq!(
         family("vibe", "mistral-large-4-0").as_deref(),
@@ -212,7 +212,7 @@ fn the_wrapper_binding_names_the_writer_when_the_node_has_none() {
         json!({"executionSlotId":"other","agentId":"codex","modelId":"gpt-5.5"}),
         json!({"executionSlotId":"s","agentId":"vibe","modelId":"mistral-large-4-0"}),
     ];
-    let found = critique(&[node], &[edge("w", "$end")], &bindings, Instance::Personal);
+    let found = critique(&[node], &[edge("w", "$end")], &bindings, Instance::Personal, None);
     assert_eq!(rules(&found), ["w: critic-required"]);
 }
 
@@ -385,4 +385,82 @@ fn each_refused_fixture_breaks_its_rule() {
         assert!(!found.is_empty(), "{name}");
         assert!(rules(&found).iter().all(|r| r.ends_with(rule)), "{name}");
     }
+}
+
+fn spec_review(writer: (&str, &str), orchestrator: Option<(&str, &str)>) -> (Vec<Value>, Vec<Value>) {
+    let mut nodes = vec![
+        worker("w", writer.0, writer.1, Some("spec-draft")),
+        worker("gate-critique-spec-fan-out", "g", "stub-model", None),
+    ];
+    let mut ids = vec!["w", "gate-critique-spec-fan-out"];
+    if let Some((agent, model)) = orchestrator {
+        nodes.push(worker("spec-verdicts", agent, model, Some("spec-open-findings")));
+        ids.push("spec-verdicts");
+    }
+    nodes.push(worker("gate-critique-spec-record", "g", "stub-model", None));
+    ids.extend(["gate-critique-spec-record", "$end"]);
+    (nodes, chain(&ids))
+}
+
+#[test]
+fn the_runner_leaves_the_orchestrators_family_out_of_the_roster() {
+    // A Mistral writer meets the Mistral critic of the spec roster unless the orchestrator is Mistral too.
+    let (nodes, edges) = spec_review(("vibe", "mistral-large-4-0"), None);
+    assert_eq!(rules(&run(&nodes, &edges, Instance::Personal)), ["gate-critique-spec-fan-out: critic-family"]);
+    let (nodes, edges) = spec_review(("vibe", "mistral-large-4-0"), Some(("vibe", "mistral-large-4-0")));
+    assert!(run(&nodes, &edges, Instance::Personal).is_empty());
+    // An orchestrator of another family does not help.
+    let (nodes, edges) = spec_review(
+        ("vibe", "mistral-large-4-0"),
+        Some(("vibe-study", "deepseek-v4-1-flash-1017")),
+    );
+    assert_eq!(rules(&run(&nodes, &edges, Instance::Personal)), ["gate-critique-spec-fan-out: critic-family"]);
+    // The work instance: a Codex writer and Codex orchestrator leave the Claude critic.
+    let (nodes, edges) = spec_review(("codex", "gpt-5.5"), Some(("codex", "gpt-5.5")));
+    assert!(run(&nodes, &edges, Instance::Work).is_empty());
+    let (nodes, edges) = spec_review(("codex", "gpt-5.5"), Some(("claude-work", "sonnet")));
+    assert_eq!(rules(&run(&nodes, &edges, Instance::Work)), ["gate-critique-spec-fan-out: critic-family"]);
+}
+
+#[test]
+fn a_merge_patch_changes_what_it_names_and_removes_what_is_null() {
+    let mut target = json!({"a":{"b":1,"c":2},"d":[1,2],"e":1});
+    merge_patch(&mut target, &json!({"a":{"b":null,"x":{"y":1}},"d":[3],"e":"s"}));
+    assert_eq!(target, json!({"a":{"c":2,"x":{"y":1}},"d":[3],"e":"s"}));
+    let mut scalar = json!(1);
+    merge_patch(&mut scalar, &json!({"k":1}));
+    assert_eq!(scalar, json!({"k":1}));
+    merge_patch(&mut scalar, &json!(7));
+    assert_eq!(scalar, json!(7));
+}
+
+#[test]
+fn a_machine_override_changes_the_roster_the_check_runs_over() {
+    let (nodes, edges) = spec_review(("vibe", "glm-5-3"), Some(("vibe", "glm-5-3")));
+    assert!(run(&nodes, &edges, Instance::Personal).is_empty());
+    // The override adds a writer-family critic to the base spec roster.
+    let patch = json!({"stages":{"spec":{"base":[{"client":"pi-vibe-glm","role":"spec-redteam","lenses":["fidelity"]}]}}});
+    // The orchestrator's own family is still dropped, so the writer meets no critic of it.
+    assert!(critique(&nodes, &edges, &[], Instance::Personal, Some(&patch)).is_empty());
+    let (nodes, edges) = spec_review(("vibe", "glm-5-3"), Some(("vibe-study", "deepseek-v4-1-flash-1017")));
+    let found = critique(&nodes, &edges, &[], Instance::Personal, Some(&patch));
+    // The patched base slot and the shipped deep slot are both of the writer's family.
+    assert_eq!(rules(&found), ["gate-critique-spec-fan-out: critic-family"; 2]);
+    assert!(found[0].contains("routing client pi-vibe-glm is of family zhipu"), "{}", found[0]);
+    // A patch that removes every client leaves nothing to compare.
+    let none = json!({"clients":null});
+    assert!(critique(&nodes, &edges, &[], Instance::Personal, Some(&none)).is_empty());
+}
+
+#[test]
+fn the_critic_family_findings_leave_out_the_other_rules() {
+    let (nodes, mut edges) = spec_review(("vibe", "mistral-large-4-0"), None);
+    edges.retain(|e| e["to"] != "gate-critique-spec-record");
+    edges.push(edge("gate-critique-spec-fan-out", "$end"));
+    let root = json!({"nodes": nodes, "edges": edges});
+    let all = crate::lint_critique(&root, Instance::Personal).unwrap();
+    assert_eq!(rules(&all), ["w: critic-required", "gate-critique-spec-fan-out: critic-family"]);
+    let family = crate::critic_family_findings(&root, Instance::Personal, None).unwrap();
+    assert_eq!(rules(&family), ["gate-critique-spec-fan-out: critic-family"]);
+    assert!(crate::critic_family_findings(&json!([]), Instance::Work, None).is_err());
 }

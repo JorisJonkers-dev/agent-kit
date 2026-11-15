@@ -14,6 +14,3 @@ to-tickets.json #795 critic-required: tickets-write
 brainstorming.json #795 critic-required: design-draft, design-record
 grill-me.json #795 critic-required: grill-summary
 grill-with-docs.json #795 critic-required: docs-update
-# #796: the critic roster includes the family of the writer it reviews.
-workflow-c.json #796 critic-family: mistral writer vs pi-vibe-mistral-large (spec and tickets stages, deep slot)
-workflow-c-work.json #796 critic-family: claude-work writer vs the work roster's claude-work (spec and tickets)

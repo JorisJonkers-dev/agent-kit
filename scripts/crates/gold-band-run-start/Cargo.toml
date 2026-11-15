@@ -10,4 +10,5 @@ description = "The run-start shim every Gold Band workflow opens with: repositor
 # ADR-0014, docs/RUST.md). The path dependency stays inside this workspace.
 [dependencies]
 gold-band-report = { path = "../gold-band-report" }
+workflow-lint = { path = "../workflow-lint" }
 serde_json = "=1.0.154"

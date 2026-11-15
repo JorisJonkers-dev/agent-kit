@@ -379,10 +379,39 @@ pub fn lint_shape(root: &Value) -> Result<Vec<String>, String> {
 /// `<subject>: <rule>: <message>` lines; `Err` when the file is not
 /// workflow-shaped JSON.
 pub fn lint_critique(root: &Value, instance: Instance) -> Result<Vec<String>, String> {
+    lint_critique_with(root, instance, None)
+}
+
+/// [`lint_critique`] over the routing this machine really runs: `machine_override` is the
+/// merge patch `~/.config/agent-kit/critique-routing.json` holds (`None` when there is none).
+pub fn lint_critique_with(
+    root: &Value,
+    instance: Instance,
+    machine_override: Option<&Value>,
+) -> Result<Vec<String>, String> {
     let def = definition(root)?;
     let nodes = field_array(def, "nodes")?;
     let edges = field_array(def, "edges")?;
-    Ok(critique::critique(nodes, edges, bindings(root), instance))
+    Ok(critique::critique(
+        nodes,
+        edges,
+        bindings(root),
+        instance,
+        machine_override,
+    ))
+}
+
+/// The `critic-family` findings alone, over the routing this machine runs: what the run-start
+/// shim refuses a run for (#796). The rule's name is the second field of a finding.
+pub fn critic_family_findings(
+    root: &Value,
+    instance: Instance,
+    machine_override: Option<&Value>,
+) -> Result<Vec<String>, String> {
+    Ok(lint_critique_with(root, instance, machine_override)?
+        .into_iter()
+        .filter(|finding| finding.splitn(3, ": ").nth(1) == Some("critic-family"))
+        .collect())
 }
 
 /// The optional rule groups a command line asks for.

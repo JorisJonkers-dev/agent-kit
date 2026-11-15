@@ -184,9 +184,9 @@
         "id": "spec-draft",
         "executionSlotId": "slot-spec-draft",
         "provider": "vibe",
-        "model": "mistral-large-4-0",
+        "model": "glm-5-3",
         "profile": "pf-builtin-dev",
-        "goal": "You are the spec author, from a different family than the spec's critics. Write the spec the grilling settled to the spec file the grill record names: only decisions the owner answered, no decision of your own, no ticket yet. Answer with one fenced json block holding ok and nothing else.",
+        "goal": "You are the spec author. You and the review's orchestrator are of one family (Zhipu), and the runner leaves the orchestrator's family out of the critics' roster, so no critic of the spec is of your family. Write the spec the grilling settled to the spec file the grill record names: only decisions the owner answered, no decision of your own, no ticket yet. Answer with one fenced json block holding ok and nothing else.",
         "output": {
           "kind": "json",
           "artifact": "spec-draft",
@@ -293,8 +293,8 @@
         "type": "worker",
         "id": "spec-verdicts",
         "executionSlotId": "slot-spec-verdicts",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "vibe",
+        "model": "glm-5-3",
         "profile": "pf-builtin-dev",
         "goal": "You are the orchestrator of the spec review (/review-spec). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
         "output": {
@@ -429,9 +429,9 @@
         "id": "tickets-draft",
         "executionSlotId": "slot-tickets-draft",
         "provider": "vibe",
-        "model": "mistral-large-4-0",
+        "model": "glm-5-3",
         "profile": "pf-builtin-dev",
-        "goal": "You are the ticket author. Break the reviewed spec into tickets, each one vertical slice with a title, a body and labels; use only labels from the repository's setup file (docs/agents/setup.yaml, the labels list). Write them as tickets.json beside the runner's files, in the form {\"tickets\":[{\"title\",\"body\",\"labels\"}]}. Do not create any issue and do not call the tracker. Answer with one fenced json block holding ok and nothing else.",
+        "goal": "You are the ticket author. You and the review's orchestrator are of one family (Zhipu), so no critic of the tickets is of your family. Break the reviewed spec into tickets, each one vertical slice with a title, a body and labels; use only labels from the repository's setup file (docs/agents/setup.yaml, the labels list). Write them as tickets.json beside the runner's files, in the form {\"tickets\":[{\"title\",\"body\",\"labels\"}]}. Do not create any issue and do not call the tracker. Answer with one fenced json block holding ok and nothing else.",
         "output": {
           "kind": "json",
           "artifact": "tickets-draft",
@@ -538,8 +538,8 @@
         "type": "worker",
         "id": "tickets-verdicts",
         "executionSlotId": "slot-tickets-verdicts",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "vibe",
+        "model": "glm-5-3",
         "profile": "pf-builtin-dev",
         "goal": "You are the orchestrator of the ticket review (/review-tickets). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
         "output": {
@@ -973,7 +973,7 @@
       {
         "executionSlotId": "slot-spec-draft",
         "agentId": "vibe",
-        "modelId": "mistral-large-4-0"
+        "modelId": "glm-5-3"
       },
       {
         "executionSlotId": "slot-gate-critique-spec-prepare",
@@ -997,8 +997,8 @@
       },
       {
         "executionSlotId": "slot-spec-verdicts",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
       },
       {
         "executionSlotId": "slot-spec-needs-human",
@@ -1028,7 +1028,7 @@
       {
         "executionSlotId": "slot-tickets-draft",
         "agentId": "vibe",
-        "modelId": "mistral-large-4-0"
+        "modelId": "glm-5-3"
       },
       {
         "executionSlotId": "slot-gate-critique-tickets-prepare",
@@ -1052,8 +1052,8 @@
       },
       {
         "executionSlotId": "slot-tickets-verdicts",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
       },
       {
         "executionSlotId": "slot-tickets-needs-human",

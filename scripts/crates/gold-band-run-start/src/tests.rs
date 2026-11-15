@@ -1136,3 +1136,89 @@ fn the_real_host_runs_a_command_without_a_shell() {
         "{missing}"
     );
 }
+
+// ---- critic family (#796) ----------------------------------------------
+
+/// A spec writer, the runner's fan-out gate and an orchestrator, each bound to the given agent and model.
+fn spec_review(writer: (&str, &str), orchestrator: (&str, &str)) -> String {
+    let worker = |id: &str, (agent, model): (&str, &str), artifact: &str| {
+        format!(r#"{{"type":"worker","id":"{id}","provider":"{agent}","model":"{model}","output":{{"artifact":"{artifact}"}}}}"#)
+    };
+    let nodes = [
+        worker("spec-draft", writer, "spec-draft"),
+        worker("gate-critique-spec-fan-out", ("gate", "stub-model"), "fan-out-status"),
+        worker("spec-verdicts", orchestrator, "spec-open-findings"),
+    ];
+    format!(
+        r#"{{"nodes":[{}],"edges":[{{"from":"spec-draft","to":"gate-critique-spec-fan-out","on":"success"}},
+          {{"from":"gate-critique-spec-fan-out","to":"spec-verdicts","on":"success"}}]}}"#,
+        nodes.join(",")
+    )
+}
+
+const WITH_GATE: &str = "# agent id, family\nvibe\tmistral\nvibe-study\tdeepseek\nclaude-work\tanthropic\ngate\tnone\n";
+
+fn critic_case(tag: &str, writer: (&str, &str), orchestrator: (&str, &str)) -> Case {
+    let mut c = case(tag, "gold-band-personal", &[OTHER]);
+    c.workflow(&spec_review(writer, orchestrator));
+    c.families(WITH_GATE);
+    c
+}
+
+#[test]
+fn a_critic_of_the_writers_family_refuses_the_run() {
+    let c = critic_case("critic-refused", ("vibe", "mistral-large-4-0"), ("vibe-study", "deepseek-v4-1-flash-1017"));
+    let out = c.go();
+    let err = out.refused("critic-family");
+    assert!(err.contains("gold-band-run-start: critic-family: gate-critique-spec-fan-out: critic-family: candidate routing client pi-vibe-mistral-large is of family mistral"), "{err}");
+}
+
+#[test]
+fn a_writer_and_orchestrator_of_one_family_meet_no_critic_of_it() {
+    critic_case("critic-same", ("vibe", "mistral-large-4-0"), ("vibe", "mistral-large-4-0")).go().passed();
+    // A writer of a family no roster holds passes too.
+    critic_case("critic-clear", ("claude-work", "sonnet"), ("vibe-study", "deepseek-v4-1-flash-1017")).go().passed();
+}
+
+#[test]
+fn the_machine_override_is_read_from_its_default_place_and_by_flag() {
+    let patch = r#"{"stages":{"spec":{"base":[{"client":"claude-work","role":"spec-redteam","lenses":["fidelity"]}]}}}"#;
+    let mut c = critic_case("critic-override", ("claude-work", "sonnet"), ("vibe-study", "deepseek-v4-1-flash-1017"));
+    // No override file: the shipped routing, which this writer is clear of.
+    c.go().passed();
+    // The default place: $HOME/.config/agent-kit/critique-routing.json.
+    let dir = c.dir.join("home/.config/agent-kit");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("critique-routing.json"), patch).unwrap();
+    let err = c.go().refused("critic-family").to_string();
+    assert!(err.contains("routing client claude-work is of family anthropic"), "{err}");
+    // A flag names another file: this one holds no override.
+    c.write("empty.json", "{}");
+    let empty = c.path("empty.json");
+    c.set("routing-override", &empty);
+    c.go().passed();
+    // An unreadable or malformed file named by the flag is bad input, not a pass.
+    let missing = c.path("missing.json");
+    c.set("routing-override", &missing);
+    assert!(c.go().bad_input("input").contains("missing.json: cannot read"));
+    c.write("broken.json", "{");
+    let broken = c.path("broken.json");
+    c.set("routing-override", &broken);
+    assert!(c.go().bad_input("input").contains("broken.json: not JSON"));
+}
+
+#[test]
+fn with_no_home_and_no_flag_there_is_no_override() {
+    let mut c = critic_case("critic-no-home", ("claude-work", "sonnet"), ("vibe-study", "deepseek-v4-1-flash-1017"));
+    c.host.env.clear();
+    let none = c.path("none.json");
+    c.set("allowlist", &none);
+    c.go().passed();
+}
+
+#[test]
+fn a_definition_without_an_edge_list_has_no_critic_pairs_to_check() {
+    let mut c = case("critic-no-edges", "gold-band-personal", &[OTHER]);
+    c.workflow(r#"{"nodes":[{"type":"worker","id":"draft","provider":"vibe"}]}"#);
+    c.go().passed();
+}

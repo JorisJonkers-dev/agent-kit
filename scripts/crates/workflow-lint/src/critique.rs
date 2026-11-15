@@ -28,6 +28,12 @@
 //!   `gate-critique-<stage>-fan-out` (its candidates are the clients of that
 //!   stage in `skills/workstation/critique/routing.json`, slots `base` and
 //!   `deep` for the personal instance and `work` and `deep` for the work one).
+//! * The runner never routes a critic of the **orchestrator's** family: `prepare`
+//!   takes the orchestrator's family and drops every client of it from the roster.
+//!   The stage's orchestrator is the worker `<stage>-verdicts`, so the fan-out's
+//!   candidates leave out that node's family. A template that binds its writer and
+//!   its orchestrator to one family therefore never meets a same-family critic, and
+//!   that is how a template excludes the writer's family from a roster (#796).
 //! * The writer a critic reviews is each **nearest** writer upstream of it: a
 //!   writer with a path to the critic that crosses no other writer.
 //!
@@ -87,11 +93,36 @@ struct Routing {
     stages: Value,
 }
 
+/// A JSON merge patch (RFC 7386), as the critique runner applies a routing override:
+/// an object merges key by key, `null` removes a key, anything else replaces.
+pub fn merge_patch(target: &mut Value, patch: &Value) {
+    let Some(patch) = patch.as_object() else {
+        *target = patch.clone();
+        return;
+    };
+    if !target.is_object() {
+        *target = Value::Object(serde_json::Map::new());
+    }
+    let map = target.as_object_mut().expect("made an object above");
+    for (key, value) in patch {
+        if value.is_null() {
+            map.remove(key);
+        } else {
+            merge_patch(map.entry(key.clone()).or_insert(Value::Null), value);
+        }
+    }
+}
+
 impl Routing {
-    fn load() -> Routing {
-        let root: Value = serde_json::from_str(ROUTING).expect("routing.json is JSON");
+    /// `routing.json` as shipped, with this machine's override applied over it when one is given.
+    fn load(machine_override: Option<&Value>) -> Routing {
+        let mut root: Value = serde_json::from_str(ROUTING).expect("routing.json is JSON");
+        if let Some(patch) = machine_override {
+            merge_patch(&mut root, patch);
+        }
         let mut clients = BTreeMap::new();
-        for (key, client) in root["clients"].as_object().expect("clients is an object") {
+        let shipped = serde_json::Map::new();
+        for (key, client) in root["clients"].as_object().unwrap_or(&shipped) {
             let names = [text(client, "model"), text(&client["gateway"], "model")]
                 .into_iter()
                 .filter(|n| !n.is_empty())
@@ -286,9 +317,24 @@ fn nearest_writers<'a>(
     found
 }
 
+/// The family of a stage's orchestrator, the worker `<stage>-verdicts`: the one family the
+/// runner leaves out of that stage's roster.
+fn orchestrator_family(
+    stage: &str,
+    nodes: &[Value],
+    bindings: &[Value],
+    routing: &Routing,
+) -> Option<String> {
+    let id = format!("{stage}-verdicts");
+    let node = nodes.iter().find(|n| text(n, "id") == id)?;
+    let (agent, model) = binding(node, bindings);
+    routing.family(&agent, &model)
+}
+
 /// A critic's candidates as (label, family).
 fn candidates(
     node: &Value,
+    nodes: &[Value],
     bindings: &[Value],
     routing: &Routing,
     instance: Instance,
@@ -312,9 +358,11 @@ fn candidates(
         .strip_prefix("gate-critique-")
         .and_then(|rest| rest.strip_suffix("-fan-out"))
     {
+        let orchestrator = orchestrator_family(stage, nodes, bindings, routing);
         return routing
             .roster(stage, instance)
             .into_iter()
+            .filter(|(_, family)| Some(family) != orchestrator.as_ref())
             .map(|(client, family)| (format!("routing client {client}"), family))
             .collect();
     }
@@ -332,8 +380,9 @@ pub fn critique(
     edges: &[Value],
     bindings: &[Value],
     instance: Instance,
+    machine_override: Option<&Value>,
 ) -> Vec<String> {
-    let routing = Routing::load();
+    let routing = Routing::load(machine_override);
     let writers = writers(nodes, bindings, &routing);
     let mut out = Vec::new();
     for writer in &writers {
@@ -350,7 +399,7 @@ pub fn critique(
     let writer_ids: BTreeSet<&str> = writers.iter().map(|w| w.id).collect();
     for node in nodes {
         let id = text(node, "id");
-        let found = candidates(node, bindings, &routing, instance);
+        let found = candidates(node, nodes, bindings, &routing, instance);
         let upstream = nearest_writers(id, edges, &writer_ids);
         for writer in writers.iter().filter(|w| upstream.contains(w.id)) {
             for (label, family) in found.iter().filter(|(_, f)| *f == writer.family) {
