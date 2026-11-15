@@ -282,6 +282,13 @@ into that file on the Linux workstation by a setup run
   Nothing is ever removed: the app's two built-in templates, templates you made
   and every other key of the file keep their place and value. A built-in under a
   shipped id stops the run before anything is written.
+* **Shape-checked.** A template that fails Gold Band's editor validation rules
+  (below) is refused like a malformed source file: `cannot converge: a template
+  fails Gold Band's workflow shape rules`, one `<file>: <node>: <rule>: <message>`
+  line per finding, exit 3, nothing written. The templates in
+  `installer/gold-band/workflows/known-shape-failures.txt` are tolerated for now
+  (#781) and each prints `warning: <id> fails the editor's shape rules ... installing
+  it anyway`, so setup keeps working today.
 * **Atomic.** The new store is written beside the old one (`0600`, fsynced) and
   renamed over it, with one `workflows.json.bak` holding what it replaced, so the
   app never reads half a file. A file that is not a template store, or a source
@@ -314,6 +321,85 @@ The installer bundle ships `installer/gold-band/workflows`, so a setup run from 
 release bundle installs the same templates (`tests/test_publish_installer_artifacts.py`).
 `tests/test_gold_band_workflows_converge.py` proves each rule against throw-away
 stores.
+
+## How the workflows are validated
+
+Gold Band v0.19.1 validates a workflow in one place only: the React editor
+(`web/src/components/WorkflowEditor.tsx`, `validateWorkflowForSave`, about lines
+3395-3680). The Rust runtime and the `gold-band` CLI never run it (there is no
+`validate` subcommand), so `gold-band-proof` runs a template headless and passes
+while the same template opens in the app with errors such as `Workflow has multiple
+entry nodes` or `spec-write requires a success expression when output validation is
+enabled`. The validator cannot be called headless: it is a function of the
+editor's UI state (live agent bindings, the profile catalog, the template store),
+not a library or an endpoint, and a request for a `validate` command (#418) was
+closed as not pursued. So the kit ports the rules.
+
+`workflow-lint --shape` (`scripts/crates/workflow-lint/src/shape.rs`, the `shape`
+rule group; `workflow-lint --shape --instance gold-band|gold-band-personal FILE...`)
+ports them from Gold Band commit `987fc3e298b15d725a7f0e9b609b0f77dba63a74`
+(the pinned build; `workflowGraph.ts` for `isBackwardEdge` and the success-edge
+topological order, `deriveWorkflowEntryCandidateIds` for the entry count). A finding
+reads `<file>: <node or workflow>: <rule>: <message>`, with the editor's own message,
+and the exit code is the crate's (0 clean, 1 findings, 2 unreadable). Rules:
+
+* **Entry**: exactly one node with no incoming edge, where a failure edge that
+  goes backward in the success-edge topological order does not count as incoming
+  (`entry-multiple`, `entry-missing`); at least one edge to `$end` (`end-required`);
+  at least one node (`nodes-required`).
+* **Success expression**, for a worker with `output` or `success_condition`:
+  `output.artifact` set, a `success_condition` present and parseable, the output
+  `schema` in the simplified shape and containing the condition's path
+  (`output-artifact-required`, `success-expression-required`,
+  `success-expression-invalid`, `legacy-schema`, `schema-missing-path`); and no
+  `manual_check` beside it (`manual-check-exclusive`). A `failure` edge needs a
+  worker with a `manual_check`, `output` or `success_condition`
+  (`failure-edge-unsupported`).
+* **Nodes**: unique, non-empty ids that are not `$end`, `$entry` or `$new-round`
+  (`node-id-required`, `duplicate-node-id`, `reserved-node-id`); an outgoing edge
+  (`dangling-node`); an `executionSlotId`, unique across workers (`slot-required`,
+  `slot-duplicate`) and a `profile` (`profile-required`).
+* **Edges**: both endpoints exist (`edge-source-required`, `edge-source-missing`,
+  `edge-target-required`, `edge-target-missing`), `on` is `success` or `failure`
+  (`edge-outcome-invalid`), one edge per `(from, on)` (`duplicate-edge-outcome`),
+  no success edge to `$new-round` (`success-new-round`), a `$new-round` edge names
+  its start (`new-round-entry-required`, `new-round-entry-missing`), `$end` and
+  `$new-round` are never a source (`terminal-edge-source`), and a `continue` session
+  never targets them (`continue-terminal-target`).
+* **Control**: `max_attempts` and `max_rounds`, when set, are above 0; the workflow
+  has an `id`.
+
+**Skipped, because they need the running app:** that a worker's agent and model
+exist and passed the agent doctor, its permission mode and config options, that its
+role is still in the profile catalog, that the workflow id is unique in the template
+store, and every rule of an `ai-dynamic` node. The lint runs without bindings, so
+those stay with the app. The existing rule groups (`opus-outside-judgment`,
+`memory-write-outside-judgment`, `loop-not-unrolled`, `banned-binding`) are unchanged
+and still run alongside it.
+
+**Where it runs.** CI's `Gold Band Workflow Shape` job builds `workflow-lint` and runs
+`scripts/check-workflow-shape.sh` over every file in `installer/gold-band/workflows/`
+(`*-work.json` as the work instance, the rest as the personal one). Setup's
+`converge.py gold-band-workflows` applies the same rules through
+`scripts/gold_band_shape.py`, a Python twin, because setup converges the templates
+before it builds the kit's cargo tools; `tests/test_gold_band_shape.py` fails when the
+twin and the crate disagree on the fixtures, the shipped templates and a set of odd
+definitions (it needs `WORKFLOW_LINT_BIN` or a built `scripts/target/debug/workflow-lint`).
+The fixtures are under `scripts/crates/workflow-lint/tests/fixtures/shape-valid` and
+`shape-refused` (one per rule, including the two owner-reported errors).
+
+**Known failures (#781).** Most shipped templates do not pass yet: a check node
+reached only by a failure edge counts as a second entry, and a worker that has
+`output` has no `success_condition`. They are listed in
+`installer/gold-band/workflows/known-shape-failures.txt` (dated 2026-11-15, one file
+per line, a comment pointing to #781). CI and setup tolerate exactly those files:
+any other template, and any new one, must pass; a listed template that now passes
+fails CI with "remove it from the list". Fixing the templates is #781 and waits on
+the owner's decision.
+
+Longer term (also #780): a check that runs the pinned app's own validator, so that a
+pin bump cannot drift from the port. Until then, re-read `validateWorkflowForSave`
+when the Gold Band pin moves.
 
 ## The run-start shim
 

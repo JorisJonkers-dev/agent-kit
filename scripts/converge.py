@@ -43,6 +43,10 @@ instance is not installed here, and the app's built-in templates and every
 template the kit does not ship are left exactly as they are. The store is
 replaced atomically, with one ``workflows.json.bak``.
 
+A template that fails Gold Band's editor validation (``gold_band_shape``) is refused with the
+other source failures, unless ``known-shape-failures.txt`` beside the templates names it (#781), when
+it is installed with a warning.
+
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
 
@@ -81,6 +85,7 @@ from pathlib import Path
 from typing import Any
 
 import gold_band_instances
+import gold_band_shape
 import tomlkit
 import yaml
 
@@ -1669,6 +1674,51 @@ def _gold_band_workflow_sources(directory: Path) -> dict[str, dict[str, Any]]:
     return sources
 
 
+GOLD_BAND_SHAPE_KNOWN_FAILURES = "known-shape-failures.txt"
+
+
+def _gold_band_shape_known_failures(directory: Path) -> set[str]:
+    """The template ids ``known-shape-failures.txt`` tolerates (agent-kit#781); none without the file."""
+    path = directory / GOLD_BAND_SHAPE_KNOWN_FAILURES
+    if not path.is_file():
+        return set()
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise _CannotConverge(f"{path} cannot be read: {exc}") from exc
+    return {line.strip().removesuffix(".json") for line in lines if line.strip() and not line.lstrip().startswith("#")}
+
+
+def _gold_band_shape_gate(directory: Path, sources: dict[str, dict[str, Any]]) -> list[str]:
+    """Refuse a template that fails the editor's shape rules; return the warning lines for the tolerated ones.
+
+    The rules are Gold Band's own editor validation (``gold_band_shape``, pinned to commit 987fc3e2): a template
+    that breaks one opens in the app with errors. A template named in ``known-shape-failures.txt`` is tolerated
+    for now and warned about; any other failure refuses the whole run before anything is written.
+    """
+    known = _gold_band_shape_known_failures(directory)
+    refused: list[str] = []
+    warnings: list[str] = []
+    for wid, source in sources.items():
+        findings = gold_band_shape.shape_findings(source["workflow"])
+        if not findings:
+            continue
+        if wid in known:
+            warnings.append(
+                f"warning: {wid} fails the editor's shape rules ({len(findings)} findings) and is a known "
+                f"failure ({GOLD_BAND_SHAPE_KNOWN_FAILURES}, agent-kit#781); installing it anyway"
+            )
+            continue
+        refused.extend(f"{wid}.json: {node}: {rule}: {message}" for node, rule, message in findings)
+    if refused:
+        raise _CannotConverge(
+            "a template fails Gold Band's workflow shape rules:\n  "
+            + "\n  ".join(refused)
+            + f"\nfix it, or (for a known failure) list it in {directory / GOLD_BAND_SHAPE_KNOWN_FAILURES}"
+        )
+    return warnings
+
+
 def _gold_band_bound_agents(source: dict[str, Any]) -> set[str]:
     bound = source["modelBindings"].get("bindings")
     agents = {b.get("agentId") for b in bound if isinstance(b, dict)} if isinstance(bound, list) else set()
@@ -1742,6 +1792,7 @@ def gold_band_workflows(args: argparse.Namespace) -> int:
     try:
         work_agents = _gold_band_work_agents(args.registry)
         sources = _gold_band_workflow_sources(args.workflows)
+        shape_warnings = _gold_band_shape_gate(args.workflows, sources)
         running = None if args.check else _gold_band_running(data_dir)
         if running:
             print(
@@ -1753,6 +1804,8 @@ def gold_band_workflows(args: argparse.Namespace) -> int:
     except _CannotConverge as exc:
         print(f"gold-band-workflows: cannot converge: {exc}")
         return 3
+    for warning in shape_warnings:
+        print(f"gold-band-workflows: {warning}")
     keep = _keep(args.keep)
     templates: list[dict[str, Any]] = [dict(t) for t in store["templates"]]
     slots: dict[str, int] = {}

@@ -105,3 +105,104 @@ fn codex_is_refused_in_the_personal_instance() {
     );
     assert_eq!(run_for("valid", "work-codex", "gold-band-personal"), 1);
 }
+
+const SHAPE_REFUSED: [(&str, &str); 26] = [
+    ("multiple-entries", "entry-multiple"),
+    (
+        "validated-output-without-success-condition",
+        "success-expression-required",
+    ),
+    ("no-entry", "entry-missing"),
+    ("no-end", "end-required,dangling-node"),
+    ("no-artifact", "output-artifact-required"),
+    (
+        "unparseable-success-condition",
+        "success-expression-invalid",
+    ),
+    ("schema-missing-path", "schema-missing-path"),
+    ("legacy-json-schema", "legacy-schema"),
+    ("manual-check-with-validation", "manual-check-exclusive"),
+    ("dangling-node", "dangling-node"),
+    ("edge-source-missing", "edge-source-missing"),
+    ("edge-target-missing", "edge-target-missing"),
+    ("edge-outcome-invalid", "edge-outcome-invalid"),
+    (
+        "failure-edge-without-result-decision",
+        "failure-edge-unsupported",
+    ),
+    ("duplicate-edge-outcome", "duplicate-edge-outcome"),
+    ("reserved-node-id", "reserved-node-id"),
+    ("duplicate-node-id", "duplicate-node-id"),
+    ("max-attempts-not-positive", "max-attempts-positive"),
+    ("max-rounds-not-positive", "max-rounds-positive"),
+    ("slot-missing", "slot-required"),
+    ("slot-duplicate", "slot-duplicate"),
+    ("profile-missing", "profile-required"),
+    (
+        "terminal-edge-source",
+        "terminal-edge-source,edge-source-missing",
+    ),
+    ("success-edge-to-new-round", "success-new-round"),
+    ("new-round-without-entry", "new-round-entry-required"),
+    ("continue-into-end", "continue-terminal-target"),
+];
+
+fn shape_findings(kind: &str, name: &str) -> Vec<String> {
+    let text = fs::read_to_string(fixture(kind, name)).unwrap();
+    let root: Value = serde_json::from_str(&text).unwrap();
+    workflow_lint::lint_shape(&root).unwrap()
+}
+
+fn run_shape(kind: &str, name: &str) -> i32 {
+    workflow_lint::run([
+        "--shape".into(),
+        "--instance".into(),
+        "gold-band-personal".into(),
+        fixture(kind, name).into_os_string(),
+    ])
+}
+
+#[test]
+fn the_valid_shape_fixture_passes() {
+    assert_eq!(
+        shape_findings("shape-valid", "check-round-loop"),
+        Vec::<String>::new()
+    );
+    assert_eq!(run_shape("shape-valid", "check-round-loop"), 0);
+}
+
+#[test]
+fn each_refused_shape_fixture_breaks_exactly_its_rule() {
+    for (name, rule) in SHAPE_REFUSED {
+        let found = shape_findings("shape-refused", name);
+        assert!(!found.is_empty(), "{name} passed");
+        for line in &found {
+            let mut parts = line.splitn(3, ": ");
+            let (subject, found_rule) = (parts.next().unwrap(), parts.next().unwrap());
+            assert!(!subject.is_empty(), "{name}: {line}");
+            assert!(rule.split(',').any(|r| r == found_rule), "{name}: {line}");
+        }
+        assert_eq!(run_shape("shape-refused", name), 1, "{name}");
+    }
+}
+
+#[test]
+fn the_owner_reported_messages_are_reproduced() {
+    let multiple = shape_findings("shape-refused", "multiple-entries");
+    assert_eq!(multiple.len(), 1);
+    assert!(multiple[0]
+        .starts_with("check: entry-multiple: Workflow has multiple entry nodes: gate, check."));
+    let output = shape_findings(
+        "shape-refused",
+        "validated-output-without-success-condition",
+    );
+    assert_eq!(
+        output,
+        ["write: success-expression-required: write requires a success expression when output validation is enabled."]
+    );
+}
+
+#[test]
+fn without_the_flag_the_shape_is_not_checked() {
+    assert_eq!(exit_code("shape-refused", "multiple-entries"), 0);
+}

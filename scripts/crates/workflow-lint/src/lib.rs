@@ -36,9 +36,14 @@
 //! the binding and cannot drift from the node. A binding without the marker
 //! reads memory only.
 //!
-//! Usage: `workflow-lint --instance gold-band|gold-band-personal <FILE>...`
-//! (the flag is required; `--instance=NAME` also works) lints every file and
-//! prefixes its
+//! With `--shape` the lint also runs the `shape` rule group (module
+//! [`shape`], #780): the validation Gold Band's editor applies before it
+//! saves a workflow, pinned to Gold Band commit 987fc3e2. Without the flag the
+//! shape is not checked.
+//!
+//! Usage: `workflow-lint [--shape] --instance gold-band|gold-band-personal <FILE>...`
+//! (the instance flag is required; `--instance=NAME` also works) lints every
+//! file and prefixes its
 //! problems with the file path. Exit 0 clean, printing `workflow-lint: ok`;
 //! 1 problems; 2 bad usage or an unreadable or invalid file.
 
@@ -48,6 +53,8 @@ use std::fs;
 use std::path::Path;
 
 use serde_json::Value;
+
+mod shape;
 
 /// Rule: a node binds an agent or model the ports never allow.
 const BANNED_BINDING: &str = "banned-binding";
@@ -350,9 +357,19 @@ pub fn lint(root: &Value, instance: Instance) -> Result<Vec<String>, String> {
         .collect())
 }
 
+/// The `shape` findings of a parsed workflow (the editor's validation, #780),
+/// as `<subject>: <rule>: <message>` lines; `Err` when the file is not
+/// workflow-shaped JSON.
+pub fn lint_shape(root: &Value) -> Result<Vec<String>, String> {
+    let def = definition(root)?;
+    let nodes = field_array(def, "nodes")?;
+    let edges = field_array(def, "edges")?;
+    Ok(shape::shape(def, nodes, edges))
+}
+
 /// Lints one file and prints its problems; returns its exit code (0 clean,
 /// 1 problems, 2 unreadable or invalid).
-fn lint_file(path: &Path, shown: &str, instance: Instance) -> i32 {
+fn lint_file(path: &Path, shown: &str, instance: Instance, shape: bool) -> i32 {
     let text = match fs::read_to_string(path) {
         Ok(t) => t,
         Err(e) => {
@@ -367,7 +384,13 @@ fn lint_file(path: &Path, shown: &str, instance: Instance) -> i32 {
             return 2;
         }
     };
-    let problems = match lint(&root, instance) {
+    let linted = lint(&root, instance).and_then(|mut found| {
+        if shape {
+            found.extend(lint_shape(&root)?);
+        }
+        Ok(found)
+    });
+    let problems = match linted {
         Ok(p) => p,
         Err(e) => {
             eprintln!("workflow-lint: {shown}: invalid workflow: {e}");
@@ -380,14 +403,19 @@ fn lint_file(path: &Path, shown: &str, instance: Instance) -> i32 {
     i32::from(!problems.is_empty())
 }
 
-/// The instance and files a command line names; `None` on bad usage: a
+/// The instance, the `--shape` flag and files a command line names; `None` on bad usage: a
 /// missing, unknown or repeated `--instance`, an unknown flag, or no file.
-fn parse_args(args: &[OsString]) -> Option<(Instance, Vec<&OsString>)> {
+fn parse_args(args: &[OsString]) -> Option<(Instance, bool, Vec<&OsString>)> {
     let mut instance = None;
+    let mut shape = false;
     let mut files = Vec::new();
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         let text = arg.to_string_lossy();
+        if text == "--shape" {
+            shape = true;
+            continue;
+        }
         let name = if text == "--instance" {
             Some(iter.next()?.to_string_lossy().into_owned())
         } else {
@@ -407,7 +435,7 @@ fn parse_args(args: &[OsString]) -> Option<(Instance, Vec<&OsString>)> {
     if files.is_empty() {
         return None;
     }
-    Some((instance?, files))
+    Some((instance?, shape, files))
 }
 
 /// Runs one command line and returns its exit code.
@@ -416,14 +444,16 @@ where
     I: IntoIterator<Item = OsString>,
 {
     let args: Vec<OsString> = args.into_iter().collect();
-    let Some((instance, files)) = parse_args(&args) else {
-        eprintln!("usage: workflow-lint --instance gold-band|gold-band-personal <FILE>...");
+    let Some((instance, shape, files)) = parse_args(&args) else {
+        eprintln!(
+            "usage: workflow-lint [--shape] --instance gold-band|gold-band-personal <FILE>..."
+        );
         return 2;
     };
     let mut code = 0;
     for arg in files {
         let shown = arg.to_string_lossy();
-        code = code.max(lint_file(Path::new(arg), &shown, instance));
+        code = code.max(lint_file(Path::new(arg), &shown, instance, shape));
     }
     if code == 0 {
         println!("workflow-lint: ok");

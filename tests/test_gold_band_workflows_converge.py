@@ -33,9 +33,16 @@ def _template(wid: str, agent: str = "claude", goal: str = "do it") -> dict[str,
             "id": wid,
             "entry": "one",
             "nodes": [
-                {"type": "worker", "id": "one", "executionSlotId": f"slot-{wid}", "provider": None, "goal": goal}
+                {
+                    "type": "worker",
+                    "id": "one",
+                    "executionSlotId": f"slot-{wid}",
+                    "provider": None,
+                    "profile": "pf-builtin-dev",
+                    "goal": goal,
+                }
             ],
-            "edges": [],
+            "edges": [{"from": "one", "to": "$end", "on": "success"}],
         },
         "modelBindings": {"bindings": [{"executionSlotId": f"slot-{wid}", "agentId": agent, "modelId": "m"}]},
     }
@@ -475,3 +482,87 @@ def test_setup_check_fails_when_templates_are_missing_and_a_resave_by_the_app_ke
     m.store.write_text(json.dumps(store, indent=2))
     assert m.run(check=True) == 0
     assert capsys.readouterr().out.splitlines()[-1] == "workflows unchanged"
+
+
+def _two_entry_template(wid: str) -> dict[str, Any]:
+    """The to-spec shape: a check node reached only by a failure edge is a second entry."""
+    body = _template(wid)
+    nodes = body["workflow"]["nodes"]
+    check = {**nodes[0], "id": "check", "executionSlotId": f"slot-{wid}-check", "manual_check": True}
+    nodes.insert(0, check)
+    body["workflow"]["edges"] = [
+        {"from": "one", "to": "$end", "on": "success"},
+        {"from": "one", "to": "check", "on": "failure"},
+        {"from": "check", "to": "$end", "on": "success"},
+    ]
+    nodes[1].update({"output": {"kind": "json", "artifact": "a", "schema": {"ok": True}}})
+    nodes[1]["success_condition"] = {"path": "$.ok", "equals": True}
+    return body
+
+
+def _no_success_condition_template(wid: str) -> dict[str, Any]:
+    body = _template(wid)
+    body["workflow"]["nodes"][0]["output"] = {"kind": "json", "artifact": "a", "schema": {"ok": True}}
+    return body
+
+
+def test_a_template_that_fails_the_shape_rules_is_refused_and_nothing_is_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for make in (_two_entry_template, _no_success_condition_template):
+        root = tmp_path / make.__name__
+        root.mkdir()
+        m = Machine(root, {"good": _template("good"), "bad": make("bad")})
+        assert m.run() == 3
+        out = capsys.readouterr().out
+        assert "gold-band-workflows: cannot converge: a template fails Gold Band's workflow shape rules" in out
+        assert "bad.json:" in out and "good.json" not in out
+        assert not m.store.exists()
+
+
+def test_the_refusal_names_the_node_and_the_rule(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    m = Machine(tmp_path, {"bad": _no_success_condition_template("bad")})
+    assert m.run(check=True) == 3
+    assert (
+        "bad.json: one: success-expression-required: one requires a success expression "
+        "when output validation is enabled." in capsys.readouterr().out
+    )
+    (tmp_path / "two").mkdir()
+    m2 = Machine(tmp_path / "two", {"bad": _two_entry_template("bad")})
+    assert m2.run(check=True) == 3
+    assert "bad.json: one: entry-multiple: Workflow has multiple entry nodes: check, one." in capsys.readouterr().out
+
+
+def test_a_known_failure_is_installed_with_a_warning_and_any_other_is_still_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    m = Machine(tmp_path, {"good": _template("good"), "old": _two_entry_template("old")})
+    (m.workflows / "known-shape-failures.txt").write_text("# #781\nold.json\n")
+    assert m.run() == 0
+    out = capsys.readouterr().out
+    assert "gold-band-workflows: warning: old fails the editor's shape rules (1 findings)" in out
+    assert "known failure (known-shape-failures.txt, agent-kit#781); installing it anyway" in out
+    assert [t["id"] for t in m.read()["templates"]] == ["good", "old"]
+    (tmp_path / "x").mkdir()
+    other = Machine(tmp_path / "x", {"old": _two_entry_template("old"), "new": _two_entry_template("new")})
+    (other.workflows / "known-shape-failures.txt").write_text("old.json\n")
+    assert other.run() == 3
+    out = capsys.readouterr().out
+    assert "new.json: one: entry-multiple" in out and "old.json:" not in out
+    assert not other.store.exists()
+
+
+def test_a_known_failures_file_that_cannot_be_read_refuses_the_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    m = Machine(tmp_path, {"good": _template("good")})
+    (m.workflows / "known-shape-failures.txt").write_bytes(b"\xff\xfe")
+    assert m.run() == 3
+    assert "known-shape-failures.txt cannot be read" in capsys.readouterr().out
+
+
+def test_the_kits_known_failures_are_exactly_the_templates_that_fail() -> None:
+    directory = KIT_ROOT / "installer" / "gold-band" / "workflows"
+    sources = converge._gold_band_workflow_sources(directory)
+    failing = {wid for wid, source in sources.items() if converge.gold_band_shape.shape_findings(source["workflow"])}
+    assert failing == converge._gold_band_shape_known_failures(directory)

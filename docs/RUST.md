@@ -887,7 +887,7 @@ How crate-age itself honours a waiver is defined by the standards repo
 
 ## The Gold Band workflow lint
 
-`crates/workflow-lint` is a library plus a CLI (`workflow-lint --instance gold-band|gold-band-personal <FILE>...`;
+`crates/workflow-lint` is a library plus a CLI (`workflow-lint [--shape] --instance gold-band|gold-band-personal <FILE>...`;
 exit 0 clean, 1 problems, 2 bad usage or an unreadable or invalid file) that
 later tickets call. Its one registry dependency, `serde_json`, is pinned
 exactly at a version older than the cooldown. It reads Gold Band's workflow
@@ -908,6 +908,8 @@ field, so the lint defines the smallest declaration: an agent id (a worker's
 `provider`, a strategy's provider fields, or a wrapper binding's `agentId`)
 that contains the marker `memory-write`, case-insensitive, for example
 `claude-acp+memory-write`. A binding without the marker reads memory only.
+`--shape` adds the `shape` rule group, Gold Band's editor validation ported at commit
+987fc3e2 ([GOLD-BAND.md](GOLD-BAND.md), "How the workflows are validated").
 Fixture workflows live in `crates/workflow-lint/tests/fixtures/`.
 
 ## The Gold Band run-start shim

@@ -271,13 +271,50 @@ fn the_instance_flag_is_required_and_must_name_an_instance() {
     assert_eq!(run(vec![flag("--instance=gold-band")]), 2);
     // Repeated --instance and an unknown flag are bad usage.
     assert_eq!(
-        run(vec![flag("--instance=gold-band"), flag("--instance=gold-band"), file.clone()]),
+        run(vec![
+            flag("--instance=gold-band"),
+            flag("--instance=gold-band"),
+            file.clone()
+        ]),
         2
     );
-    assert_eq!(run(vec![flag("--instance=gold-band"), flag("--bogus"), file.clone()]), 2);
+    assert_eq!(
+        run(vec![
+            flag("--instance=gold-band"),
+            flag("--bogus"),
+            file.clone()
+        ]),
+        2
+    );
     assert_eq!(run(vec![flag("--instance=gold-band"), file.clone()]), 0);
     assert_eq!(
         run(vec![file, flag("--instance"), flag("gold-band-personal")]),
         0
     );
+}
+
+#[test]
+fn shape_runs_only_with_the_flag_and_reports_with_the_file_path() {
+    let bad = r#"{"id":"w","nodes":[{"type":"worker","id":"a"}],"edges":[]}"#;
+    let path = tmp("shape-flag", bad);
+    let file = path.as_os_str().to_owned();
+    assert_eq!(go(vec![file.clone()]), 0);
+    let mut shaped = vec![OsString::from("--shape")];
+    shaped.push(OsString::from("--instance"));
+    shaped.push(OsString::from("gold-band-personal"));
+    shaped.push(file);
+    assert_eq!(run(shaped), 1);
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn shape_needs_workflow_shaped_json() {
+    assert!(lint_shape(&parse("[]")).is_err());
+    assert!(lint_shape(&parse(r#"{"nodes":[]}"#)).is_err());
+    let args = vec![
+        OsString::from("--shape"),
+        OsString::from("--instance"),
+        OsString::from("gold-band"),
+    ];
+    assert!(parse_args(&args).is_none());
 }
