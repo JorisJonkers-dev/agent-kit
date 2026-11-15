@@ -12,48 +12,6 @@
           "id": "beam-1.0-501b-a23b"
         },
         {
-          "id": "claude-fable-5"
-        },
-        {
-          "id": "claude-fable-5-1"
-        },
-        {
-          "id": "claude-fable-5-2"
-        },
-        {
-          "id": "claude-haiku-4-5"
-        },
-        {
-          "id": "claude-haiku-5-5"
-        },
-        {
-          "id": "claude-opus-4-5"
-        },
-        {
-          "id": "claude-opus-4-6"
-        },
-        {
-          "id": "claude-opus-4-7"
-        },
-        {
-          "id": "claude-opus-4-8"
-        },
-        {
-          "id": "claude-opus-5"
-        },
-        {
-          "id": "claude-opus-5-5"
-        },
-        {
-          "id": "claude-sonnet-4-6"
-        },
-        {
-          "id": "claude-sonnet-5"
-        },
-        {
-          "id": "claude-sonnet-5-5"
-        },
-        {
           "id": "codestral",
           "contextWindow": 256000
         },
@@ -195,48 +153,6 @@
           "id": "beam-1.0-501b-a23b"
         },
         {
-          "id": "claude-fable-5"
-        },
-        {
-          "id": "claude-fable-5-1"
-        },
-        {
-          "id": "claude-fable-5-2"
-        },
-        {
-          "id": "claude-haiku-4-5"
-        },
-        {
-          "id": "claude-haiku-5-5"
-        },
-        {
-          "id": "claude-opus-4-5"
-        },
-        {
-          "id": "claude-opus-4-6"
-        },
-        {
-          "id": "claude-opus-4-7"
-        },
-        {
-          "id": "claude-opus-4-8"
-        },
-        {
-          "id": "claude-opus-5"
-        },
-        {
-          "id": "claude-opus-5-5"
-        },
-        {
-          "id": "claude-sonnet-4-6"
-        },
-        {
-          "id": "claude-sonnet-5"
-        },
-        {
-          "id": "claude-sonnet-5-5"
-        },
-        {
           "id": "codestral",
           "contextWindow": 256000
         },
@@ -376,48 +292,6 @@
       "models": [
         {
           "id": "beam-1.0-501b-a23b"
-        },
-        {
-          "id": "claude-fable-5"
-        },
-        {
-          "id": "claude-fable-5-1"
-        },
-        {
-          "id": "claude-fable-5-2"
-        },
-        {
-          "id": "claude-haiku-4-5"
-        },
-        {
-          "id": "claude-haiku-5-5"
-        },
-        {
-          "id": "claude-opus-4-5"
-        },
-        {
-          "id": "claude-opus-4-6"
-        },
-        {
-          "id": "claude-opus-4-7"
-        },
-        {
-          "id": "claude-opus-4-8"
-        },
-        {
-          "id": "claude-opus-5"
-        },
-        {
-          "id": "claude-opus-5-5"
-        },
-        {
-          "id": "claude-sonnet-4-6"
-        },
-        {
-          "id": "claude-sonnet-5"
-        },
-        {
-          "id": "claude-sonnet-5-5"
         },
         {
           "id": "codestral",
@@ -718,48 +592,6 @@
           "id": "beam-1.0-501b-a23b"
         },
         {
-          "id": "claude-fable-5"
-        },
-        {
-          "id": "claude-fable-5-1"
-        },
-        {
-          "id": "claude-fable-5-2"
-        },
-        {
-          "id": "claude-haiku-4-5"
-        },
-        {
-          "id": "claude-haiku-5-5"
-        },
-        {
-          "id": "claude-opus-4-5"
-        },
-        {
-          "id": "claude-opus-4-6"
-        },
-        {
-          "id": "claude-opus-4-7"
-        },
-        {
-          "id": "claude-opus-4-8"
-        },
-        {
-          "id": "claude-opus-5"
-        },
-        {
-          "id": "claude-opus-5-5"
-        },
-        {
-          "id": "claude-sonnet-4-6"
-        },
-        {
-          "id": "claude-sonnet-5"
-        },
-        {
-          "id": "claude-sonnet-5-5"
-        },
-        {
           "id": "codestral",
           "contextWindow": 256000
         },
@@ -899,48 +731,6 @@
       "models": [
         {
           "id": "beam-1.0-501b-a23b"
-        },
-        {
-          "id": "claude-fable-5"
-        },
-        {
-          "id": "claude-fable-5-1"
-        },
-        {
-          "id": "claude-fable-5-2"
-        },
-        {
-          "id": "claude-haiku-4-5"
-        },
-        {
-          "id": "claude-haiku-5-5"
-        },
-        {
-          "id": "claude-opus-4-5"
-        },
-        {
-          "id": "claude-opus-4-6"
-        },
-        {
-          "id": "claude-opus-4-7"
-        },
-        {
-          "id": "claude-opus-4-8"
-        },
-        {
-          "id": "claude-opus-5"
-        },
-        {
-          "id": "claude-opus-5-5"
-        },
-        {
-          "id": "claude-sonnet-4-6"
-        },
-        {
-          "id": "claude-sonnet-5"
-        },
-        {
-          "id": "claude-sonnet-5-5"
         },
         {
           "id": "codestral",

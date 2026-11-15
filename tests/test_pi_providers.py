@@ -96,7 +96,14 @@ def test_route_models_are_the_canonical_chat_groups_with_their_context_window() 
     catalogue = _snapshot()
     groups = catalogue.data["groups"]
     models = render_registry.litellm_route_models(["canonical"])
-    assert _ids(models) == sorted(n for n, g in groups.items() if g["modality"] == "chat" and not g["public"])
+    withheld = litellm_catalogue.WITHHELD_ROUTES
+    assert _ids(models) == sorted(
+        n
+        for n, g in groups.items()
+        if g["modality"] == "chat"
+        and not g["public"]
+        and not {d["route"] for d in g["deployments"]} & withheld
+    )
     by_id = {model["id"]: model for model in models}
     reached = litellm_catalogue.canonical_groups(catalogue, ["canonical"], [])
     expected = {g.name: g.context_length for g in reached if g.modality == "chat"}
@@ -104,6 +111,12 @@ def test_route_models_are_the_canonical_chat_groups_with_their_context_window() 
         assert by_id[name].get("contextWindow") == length
     assert any("contextWindow" in model for model in models)
     assert all("cost" not in model for model in models), "a paid model carries no price: the catalogue has none"
+
+
+def test_no_workstation_route_lists_a_claude_model() -> None:
+    table = json.loads(render_registry.render_pi_providers(render_registry.load_registry()))
+    listed = [m["id"] for p in table["providers"] for m in p["models"]]
+    assert listed and not [i for i in listed if i.startswith("claude-")]
 
 
 def test_free_groups_carry_zero_cost_and_only_the_matching_public_route_reaches_them() -> None:

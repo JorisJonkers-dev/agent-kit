@@ -53,6 +53,19 @@ CATALOGUE = {
             "public": True,
             "deployments": [{"route": "google", "upstream_id": "gemini-3.5-flash", "order": 1}],
         },
+        "claude-haiku-5-5": {
+            "modality": "chat",
+            "public": False,
+            "deployments": [{"route": "anthropic", "upstream_id": "claude-haiku-5-5", "order": 1}],
+        },
+        "mixed-with-claude": {
+            "modality": "chat",
+            "public": False,
+            "deployments": [
+                {"route": "vibe", "upstream_id": "zai-glm-5-3", "order": 1},
+                {"route": "anthropic", "upstream_id": "claude-haiku-5-5", "order": 2},
+            ],
+        },
         "opencode-free/beam": {
             "modality": "chat",
             "public": True,
@@ -158,6 +171,19 @@ def test_a_group_naming_its_own_access_groups_is_gated_by_them() -> None:
     catalogue = cat.Catalogue(CATALOGUE, "live")
     assert [g.name for g in cat.canonical_groups(catalogue, ["opencode-free-public"], [])] == ["opencode-free/beam"]
     assert "opencode-free/beam" not in [g.name for g in cat.canonical_groups(catalogue, ["canonical"], ["x"])]
+
+
+def test_a_group_an_anthropic_deployment_serves_is_withheld_from_canonical() -> None:
+    catalogue = cat.Catalogue(CATALOGUE, "live")
+    every = ["canonical", "google-free-public", "opencode-free-public"]
+    names = [g.name for g in cat.canonical_groups(catalogue, every, ["google-free-public"])]
+    assert "claude-haiku-5-5" not in names and "mixed-with-claude" not in names
+
+
+def test_only_a_key_holding_the_anthropic_group_reaches_claude() -> None:
+    catalogue = cat.Catalogue(CATALOGUE, "live")
+    names = [g.name for g in cat.canonical_groups(catalogue, ["anthropic"], [])]
+    assert names == ["claude-haiku-5-5", "mixed-with-claude"]
 
 
 def test_the_public_only_access_groups_come_from_routes_json(tmp_path: Path) -> None:
