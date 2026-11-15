@@ -1,9 +1,9 @@
 {
-  "name": "@jorisjonkers-dev/council",
+  "name": "@jorisjonkers-dev/runners",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "TypeScript council orchestrator package scaffold.",
+  "description": "Sources of the bundled critique, model-gateway and build-tracker runners.",
   "engines": {
     "node": "v26.13.0"
   },

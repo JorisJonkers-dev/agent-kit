@@ -1,5 +1,5 @@
 """The delegate skill: its front matter, the sections that teach an orchestrator
-to plan with the model gateway, the links council's skills carry to it, and its
+to plan with the model gateway, and its
 install in every agent home.
 
 The skill is a document, so these assert on its text. The setup assertions run
@@ -26,11 +26,6 @@ SKILL = KIT_ROOT / "skills" / "workstation" / "delegate"
 SKILL_MD = SKILL / "SKILL.md"
 GATEWAY_SKILL = KIT_ROOT / "skills" / "workstation" / "model-gateway" / "SKILL.md"
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
-COUNCIL_SKILLS = [
-    KIT_ROOT / "skills" / "repo" / f"council-{stage}" / agent / "SKILL.md"
-    for stage in ("triage", "design")
-    for agent in ("claude", "codex")
-]
 SECTIONS = [
     "Plan first: `models` and `usage`",
     "Rate each task",
@@ -326,31 +321,6 @@ def test_the_money_rules_say_codex_needs_a_grant_and_openrouter_and_zen_are_neve
     assert "never `opencode/...`" in section
     assert "enforces the caps and the grants" in section
     assert "do not work around the refusal" in section
-
-
-# ---------------------------------------------------------------------------
-# 8. Council points at the skill
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("path", COUNCIL_SKILLS, ids=lambda p: f"{p.parent.parent.name}/{p.parent.name}")
-def test_council_triage_and_design_link_to_delegate_and_carry_no_rubric_of_their_own(path: Path) -> None:
-    text = path.read_text()
-    flat = " ".join(text.split())
-    assert "## Model Preference Doctrine" not in text
-    assert "## Model Choice" in text
-    assert "`delegate` skill (`skills/workstation/delegate/SKILL.md` in agent-kit)" in flat
-    assert (KIT_ROOT / "skills" / "workstation" / "delegate" / "SKILL.md").is_file()
-    for rubric in (
-        "Prefer Codex",
-        "Prefer Claude sonnet",
-        "cheap model",
-        "codex-med",
-        "codex-xhigh",
-        "Use cheap workers",
-    ):
-        assert rubric not in text, rubric
-
 
 
 # ---------------------------------------------------------------------------

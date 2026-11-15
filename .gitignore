@@ -14,13 +14,10 @@ node_modules
 .coverage
 coverage/
 *.tsbuildinfo
-council/ts-dist/
 council/ts/*.tsbuildinfo
-council/ts/toolkit-files.json
 
 # Agent directories hold only local output: scripts/render_agent_kit.py --write
-# renders the skills, agents and council context from skills/repo/, agents/
-# and council/context/, and agent sessions keep worktrees and council runs
+# renders the skills from skills/repo/, and agent sessions keep worktrees
 # here.
 /.claude/
 /.agents/

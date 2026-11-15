@@ -225,13 +225,13 @@ def test_the_skill_says_it_applies_at_the_start_of_every_multi_ticket_build() ->
     assert set(front) == {"name", "description", "disable-model-invocation"}
     assert front["name"] == "build-tracker"
     assert front["description"].startswith("Use at the start of any multi-ticket build")
-    for build in ("/implement-spec", "council run", "/flow"):
+    for build in ("/implement-spec", "/flow"):
         assert build in front["description"], build
 
 
 def test_the_skill_starts_the_build_tracker_with_init_and_the_specs_milestones() -> None:
     start = _flat(_section(_skill_text(), "### 1. "))
-    for build in ("/implement-spec", "council run", "/flow"):
+    for build in ("/implement-spec", "/flow"):
         assert build in start, build
     assert "`init --spec <ref>`" in start
     assert '`--milestone "<name>=<ticket>"`' in start
@@ -331,7 +331,7 @@ def test_the_skill_carries_no_assistant_attribution() -> None:
 
 
 POINTER_LINE = (
-    "Multi-ticket builds (/implement-spec, a council run, a /flow feature in implementation):"
+    "Multi-ticket builds (/implement-spec, a /flow feature in implementation):"
     " keep the build tracker current with the build-tracker skill."
 )
 

@@ -7,8 +7,7 @@ Two kinds of output:
   and compared by --check;
 - local: .claude/skills, .agents/skills and .claude/agents, which are
   gitignored. --write renders them into this checkout and --output into a
-  separate tree (the runtime-home package uses that). --write also renders
-  this repository's own .council/context; --output does not.
+  separate tree (the runtime-home package uses that).
 """
 
 from __future__ import annotations
@@ -31,15 +30,11 @@ REPO_SKILLS_ROOT = KIT_ROOT / "skills" / "repo"
 SKILL_SURFACES = (("claude", Path(".claude/skills")), ("codex", Path(".agents/skills")))
 AGENTS_ROOT = KIT_ROOT / "agents"
 AGENTS_DESTINATION = Path(".claude/agents")
-# This repository's own council context; rendered by --write only.
-COUNCIL_CONTEXT_ROOT = KIT_ROOT / "council" / "context"
-COUNCIL_CONTEXT_DESTINATION = Path(".council/context")
 RUNNER_RUNTIME_TEMPLATE_ROOT = KIT_ROOT / "runner" / "template"
 RUNNER_RUNTIME_DESTINATION = Path("runner/manifests/runtime")
 # installer/install.sh and installer/install-agents.sh (and the heredoc-bundle
 # rendering they alone needed) were retired in agent-kit#40.
 # setup-workstation.sh is rendered by scripts/render_registry.py instead.
-COUNCIL_SRC = KIT_ROOT / "council"
 MANIFEST_PATH = KIT_ROOT / "manifest.yaml"
 
 
@@ -94,45 +89,14 @@ def repo_skill_files(destination_root: Path) -> list[RenderedFile]:
     return files
 
 
-def template_files(destination_root: Path, *, include_self: bool = False) -> list[RenderedFile]:
-    """Every rendered file; include_self adds this repository's council context."""
+def template_files(destination_root: Path) -> list[RenderedFile]:
+    """Every rendered file."""
     files = repo_skill_files(destination_root)
-    files.extend(files_under(AGENTS_ROOT, AGENTS_DESTINATION, destination_root, committed=False))
-    if include_self:
-        files.extend(
-            files_under(COUNCIL_CONTEXT_ROOT, COUNCIL_CONTEXT_DESTINATION, destination_root, committed=False),
-        )
+    if AGENTS_ROOT.is_dir():
+        files.extend(files_under(AGENTS_ROOT, AGENTS_DESTINATION, destination_root, committed=False))
     files.extend(
         files_under(RUNNER_RUNTIME_TEMPLATE_ROOT, RUNNER_RUNTIME_DESTINATION, destination_root, committed=True),
     )
-    return files
-
-
-def council_toolkit_files() -> list[tuple[str, str]]:
-    """(relpath, mode) for the shared council toolkit under council/."""
-    files: list[tuple[str, str]] = []
-    for path in sorted(COUNCIL_SRC.rglob("*")):
-        if not path.is_file():
-            continue
-        rel_path = path.relative_to(COUNCIL_SRC)
-        if (
-            "__pycache__" in path.parts
-            or "node_modules" in rel_path.parts
-            or "coverage" in rel_path.parts
-            or path.suffix == ".pyc"
-            or path.suffix == ".map"
-            or path.name.endswith(".tsbuildinfo")
-            or (rel_path.parts and rel_path.parts[0] in {"ts", "ts-dist"})
-        ):
-            continue
-        rel = rel_path.as_posix()
-        if rel == "README.md":
-            continue
-        if rel not in {"council.mjs", "council.toml"} and (
-            not rel_path.parts or rel_path.parts[0] not in {"prompts", "schemas"}
-        ):
-            continue
-        files.append((rel, "0755" if rel == "council.mjs" else "0644"))
     return files
 
 
@@ -141,7 +105,7 @@ def render_findings(destination_root: Path, *, committed: bool) -> RenderFinding
     drifted: list[RenderedFile] = []
     missing: list[RenderedFile] = []
 
-    for rendered in template_files(destination_root, include_self=True):
+    for rendered in template_files(destination_root):
         if rendered.committed != committed:
             continue
         if not rendered.destination.exists():
@@ -190,17 +154,13 @@ def manifest_check() -> DoctorCheck:
     validator = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(validator)
-        validator.validate_council_command_surface()
-    except AssertionError as exc:
-        return DoctorCheck(name="council-command-surface", status="fail", detail=str(exc))
     except (OSError, SystemExit) as exc:
         return DoctorCheck(name="manifest", status="fail", detail=str(exc))
 
-    council_commands = getattr(validator, "REQUIRED_COUNCIL_CLI_COMMANDS_LABEL", "validated")
     return DoctorCheck(
         name="manifest",
         status="ok",
-        detail=f"kit manifest version {manifest_version()}; council command surface validated: {council_commands}",
+        detail=f"kit manifest version {manifest_version()}",
     )
 
 
@@ -243,7 +203,7 @@ def render_doctor_check(name: str, *, committed: bool, ok: str, problem: str) ->
     if not findings.missing and not findings.drifted:
         return DoctorCheck(name=name, status="ok", detail=ok)
     # A fresh clone has rendered nothing local yet; that is not a fault.
-    local_total = sum(1 for item in template_files(REPOSITORY_ROOT, include_self=True) if not item.committed)
+    local_total = sum(1 for item in template_files(REPOSITORY_ROOT) if not item.committed)
     if not committed and not findings.drifted and len(findings.missing) == local_total:
         detail = "not rendered; run scripts/render_agent_kit.py --write to use it"
         return DoctorCheck(name=name, status="ok", detail=detail)
@@ -259,7 +219,7 @@ def doctor(args: argparse.Namespace) -> int:
         render_doctor_check(
             "local-render",
             committed=False,
-            ok="local skills, agents and council context match their sources",
+            ok="local skills and agents match their sources",
             problem="warn",
         ),
     ]
@@ -279,9 +239,9 @@ def doctor(args: argparse.Namespace) -> int:
     return 0
 
 
-def render(destination_root: Path, *, include_self: bool = False) -> int:
+def render(destination_root: Path) -> int:
     rendered_count = 0
-    for rendered in template_files(destination_root, include_self=include_self):
+    for rendered in template_files(destination_root):
         source_mode = rendered.source.stat().st_mode
         mode = 0o755 if source_mode & stat.S_IXUSR else 0o644
         if rendered.destination.exists():
@@ -314,7 +274,7 @@ def main(argv: list[str]) -> int:
     if args.check:
         return check(REPOSITORY_ROOT)
     if args.write:
-        return render(REPOSITORY_ROOT, include_self=True)
+        return render(REPOSITORY_ROOT)
     if args.doctor:
         return doctor(args)
     return render(args.output.resolve())

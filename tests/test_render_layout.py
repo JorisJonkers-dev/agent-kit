@@ -24,46 +24,32 @@ def load_renderer() -> ModuleType:
 renderer = load_renderer()
 
 
-def by_destination(root: Path, *, include_self: bool = False) -> dict[str, Any]:
-    return {item.relative_path.as_posix(): item for item in renderer.template_files(root, include_self=include_self)}
+def by_destination(root: Path) -> dict[str, Any]:
+    return {item.relative_path.as_posix(): item for item in renderer.template_files(root)}
 
 
 def test_a_repo_skill_renders_its_claude_and_codex_variants(tmp_path: Path) -> None:
     files = by_destination(tmp_path)
 
-    claude = files[".claude/skills/council/SKILL.md"]
-    codex = files[".agents/skills/council/SKILL.md"]
+    claude = files[".claude/skills/kb-first/SKILL.md"]
+    codex = files[".agents/skills/kb-first/SKILL.md"]
 
-    assert claude.source == ROOT / "skills/repo/council/claude/SKILL.md"
-    assert codex.source == ROOT / "skills/repo/council/codex/SKILL.md"
+    assert claude.source == ROOT / "skills/repo/kb-first/claude/SKILL.md"
+    assert codex.source == ROOT / "skills/repo/kb-first/codex/SKILL.md"
     assert not claude.committed and not codex.committed
 
 
-def test_agents_render_into_claude_agents(tmp_path: Path) -> None:
-    item = by_destination(tmp_path)[".claude/agents/codex-med.md"]
-
-    assert item.source == ROOT / "agents/codex-med.md"
-    assert not item.committed
-
-
 def test_only_the_runner_runtime_is_committed(tmp_path: Path) -> None:
-    committed = {path for path, item in by_destination(tmp_path, include_self=True).items() if item.committed}
+    committed = {path for path, item in by_destination(tmp_path).items() if item.committed}
 
     assert committed
     assert all(path.startswith("runner/manifests/runtime/") for path in committed)
 
 
-def test_the_council_context_renders_only_for_this_checkout(tmp_path: Path) -> None:
-    assert ".council/context/pack.json" not in by_destination(tmp_path)
-    item = by_destination(tmp_path, include_self=True)[".council/context/pack.json"]
-
-    assert item.source == ROOT / "council/context/pack.json"
-
-
 def test_no_rendered_destination_is_tracked_outside_the_runner_runtime() -> None:
     listing = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True)
     tracked = set(listing.stdout.split())
-    local = {path for path, item in by_destination(ROOT, include_self=True).items() if not item.committed}
+    local = {path for path, item in by_destination(ROOT).items() if not item.committed}
 
     assert local
     assert not local & tracked
@@ -86,14 +72,14 @@ def test_check_fails_when_the_committed_runtime_drifts(tmp_path: Path) -> None:
 
 
 def test_a_stale_local_render_is_a_doctor_warning(tmp_path: Path, monkeypatch: Any) -> None:
-    renderer.render(tmp_path, include_self=True)
-    (tmp_path / ".claude/skills/council/SKILL.md").write_text("stale\n")
+    renderer.render(tmp_path)
+    (tmp_path / ".claude/skills/kb-first/SKILL.md").write_text("stale\n")
     monkeypatch.setattr(renderer, "REPOSITORY_ROOT", tmp_path)
 
     check = renderer.render_doctor_check("local-render", committed=False, ok="ok", problem="warn")
 
     assert check.status == "warn"
-    assert "drifted .claude/skills/council/SKILL.md" in check.detail
+    assert "drifted .claude/skills/kb-first/SKILL.md" in check.detail
     assert "--write" in check.detail
 
 
@@ -106,7 +92,7 @@ def test_nothing_rendered_locally_is_not_a_doctor_warning(tmp_path: Path, monkey
     assert "not rendered" in check.detail
 
 
-def test_output_renders_skills_without_this_checkouts_council_context(tmp_path: Path) -> None:
+def test_output_renders_the_skills_into_the_given_tree(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(RENDERER_PATH), "--output", str(tmp_path)],
         capture_output=True,
@@ -115,8 +101,7 @@ def test_output_renders_skills_without_this_checkouts_council_context(tmp_path: 
     )
 
     assert "rendered" in result.stdout
-    assert (tmp_path / ".claude/skills/council/SKILL.md").is_file()
-    assert not (tmp_path / ".council").exists()
+    assert (tmp_path / ".claude/skills/kb-first/SKILL.md").is_file()
 
 
 def manifest_skill_targets() -> list[dict[str, str]]:
@@ -134,10 +119,3 @@ def test_manifest_skill_targets_keep_their_consumer_destination_and_name_their_s
     for target in manifest_skill_targets():
         assert target["path"].startswith((".claude/", ".agents/")), target
         assert rendered[target["path"]].source == ROOT / target["source"], target
-
-
-def test_rendered_council_context_does_not_promise_to_keep_local_edits() -> None:
-    for fragment in sorted((ROOT / "council/context").glob("*.md")):
-        text = " ".join(fragment.read_text().split())
-        assert "preserve local edits" not in text, fragment.name
-        assert "scripts/render_agent_kit.py --write" in text, fragment.name

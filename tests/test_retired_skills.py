@@ -23,7 +23,22 @@ RENAMED = {
     "review-ticket": "review-implementation",
     "review-feature": "review-pr",
 }
-DROPPED = ("add-public-service", "deploy-status", "fleet-change", "open-pr", "prepare-rollback", "run-tests")
+DROPPED = (
+    "add-public-service",
+    "deploy-status",
+    "fleet-change",
+    "open-pr",
+    "prepare-rollback",
+    "run-tests",
+    "council",
+    "council-amend",
+    "council-design",
+    "council-grill",
+    "council-inject",
+    "council-run",
+    "council-supervise",
+    "council-triage",
+)
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
 
 

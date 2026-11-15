@@ -6,7 +6,7 @@ portable runner runtime templates.
 ## What It Is
 
 `agent-kit` owns the checked-in agent templates, generated Claude/Codex surfaces,
-council bundle, installer artifacts, and runner runtime manifests used by
+installer artifacts, and runner runtime manifests used by
 JorisJonkers-dev automation.
 
 ## Local Use
@@ -32,8 +32,8 @@ older uv ignores it without a word, so the floor is `required-version` in `pypro
 `tests/test_uv_cooldown.py` proves a younger release is not resolved.
 
 Run `uv run python scripts/render_agent_kit.py --write` after a checkout or a pull. It
-renders the gitignored `.claude/`, `.agents/` and `.council/context/` from
-`skills/repo/`, `agents/` and `council/context/`, and the committed
+renders the gitignored `.claude/` and `.agents/` from
+`skills/repo/`, and the committed
 `runner/manifests/runtime/` from `runner/template/`. Use
 `scripts/build-runtime-package.sh v0.0.0-local dist` to build the runtime-home
 bundle locally.
@@ -82,10 +82,8 @@ knowledge hooks from a machine that still has them, on every run.
 - `skills/workstation/`: skills setup installs into agent homes.
 - `skills/repo/`: repo skills, one folder per skill with a `claude/` and a
   `codex/` variant, rendered into `.claude/skills/` and `.agents/skills/`.
-- `agents/`: Claude subagent definitions, rendered into `.claude/agents/`.
-- `council/`: council driver, prompts, schemas, default config, and this
-  repository's council context (`council/context/`, rendered into
-  `.council/context/`).
+- `council/ts/`: sources of the bundled critique, model-gateway and
+  build-tracker runners (the council itself is retired).
 - `runner/template/`: source templates for the runner runtime;
   `runner/manifests/`: the rendered runtime package, its schema and validation
   fixtures.
@@ -99,8 +97,8 @@ knowledge hooks from a machine that still has them, on every run.
 - `docs/`: setup, registry, cloud, portability and critique-pipeline docs, and
   the ADRs.
 - `.github/`: workflows, the Renovate config and the security policy.
-- `.claude/`, `.agents/`, `.council/`: gitignored local output and agent
-  state (worktrees, council runs). Nothing in them is tracked.
+- `.claude/`, `.agents/`: gitignored local output and agent state
+  (worktrees). Nothing in them is tracked.
 - `manifest.yaml`: managed path, checksum, parity, and artifact ledger.
 
 ## Install

@@ -246,8 +246,7 @@ runtime:
             expectedOutputs:
               - Focused map of relevant symbols, boundaries, and dependency constraints.
               - Specific files or barrels that need updates for the implementation.
-        fullSkills:
-          - council-supervise
+        fullSkills: []
       - name: full-diagnostic
         mcpProfile: full-diagnostic
         skillCards:
@@ -264,9 +263,7 @@ runtime:
             expectedOutputs:
               - Concrete risk findings tied to files, commands, or acceptance criteria.
               - Recommendation to proceed, amend, or split based on validated evidence.
-        fullSkills:
-          - council-triage
-          - council-grill
+        fullSkills: []
   homeBundle:
     archiveRoot: "."
     homeSource: "home"

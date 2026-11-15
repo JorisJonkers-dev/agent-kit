@@ -985,7 +985,7 @@ so uninstalling the app can take your own files with it.
 [OpenCode](https://opencode.ai) is another terminal agent beside Claude Code,
 Codex and Vibe. Setup installs **OpenCode 2** from Homebrew core
 (`brew install opencode`) and configures it like the others. It is not a
-council or critique target: no runner routes work to it.
+critique target: no runner routes work to it.
 
 The opencode.ai install script, the npm `opencode-ai` package and the
 `anomalyco/tap` formula still install OpenCode 1, which reads MCP servers from
@@ -1164,8 +1164,7 @@ scripts' basenames, so those survive.
 The kit no longer carries Spec Kit: no `speckit.*` commands or skills, and no
 `.specify` scaffold. Setup still deletes the `speckit.*` commands and skills
 that older installers left in the Claude Code and Codex homes. A project that
-keeps its own `.specify/memory/constitution.md` still has it read into council
-prompts; only the seeding is gone.
+keeps its own `.specify/memory/constitution.md` keeps it; setup no longer seeds one.
 
 ## Related
 
