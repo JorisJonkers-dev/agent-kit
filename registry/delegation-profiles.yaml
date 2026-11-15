@@ -32,7 +32,9 @@
 #                          enforces it once #788 lands; it is validated now)
 #
 # A client that cannot enforce a limit the profile names is refused with the
-# reason. Only Pi enforces for now, and only the empty scope.
+# reason. Pi enforces skills and plugins listed by name (its per-run home holds
+# only those); it refuses mcp entries, `any` and anything not in its home. See
+# docs/model-gateway/integration.md.
 version: 1
 profiles:
   cheap-research:

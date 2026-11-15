@@ -2924,6 +2924,8 @@ var pi = {
       write ? PI_WRITE_SYSTEM_PROMPT : PI_READ_SYSTEM_PROMPT
     ];
     const confine = extras?.confine;
+    for (const path of confine?.skills ?? []) piArgs.push("--skill", path);
+    for (const path of confine?.extensions ?? []) piArgs.push("-e", path);
     if (confine === void 0) {
       return { args: piArgs, command: binary, cwd: paths.workDir, env: extras?.env ?? {}, stdin: prompt, timeoutMs: input.time_limit_s * 1e3 };
     }
@@ -2945,7 +2947,7 @@ var pi = {
 var LAUNCHERS = { agy, claude, codex, hermes, opencode, pi, vibe };
 
 // src/contexts/model-gateway/application/pi-launch.ts
-import { join as join5 } from "node:path";
+import { basename, join as join5 } from "node:path";
 var KEY_TIMEOUT_MS = 2e4;
 var NO_LAUNCHER = "pi: agent-launcher is not on PATH, and a Pi delegate only runs confined to its working directory; re-run agent-kit setup, which installs it";
 var FIX = "re-run agent-kit setup so it writes the LiteLLM providers into ~/.pi/agent/models.json";
@@ -3012,19 +3014,75 @@ async function launcherOf(ports) {
   }
   return void 0;
 }
-async function preparePi(ports, provider, model, agentDir) {
+async function resolveScope(ports, tools) {
+  const names = (list) => list === "any" ? [] : list;
+  const find = async (candidates) => {
+    for (const path of candidates) if (await ports.files.exists(path)) return path;
+    return void 0;
+  };
+  const skills = [];
+  const homes = [join5(homeAgentDir(ports), "skills"), join5(ports.env.get("HOME") ?? "", ".agents", "skills")];
+  for (const name of names(tools.skills)) {
+    const marked = homes.map((home) => join5(home, name, "SKILL.md"));
+    const at = await find(marked);
+    if (at === void 0) return `skill ${name} is not in Pi's home: looked for ${marked.join(" and ")}`;
+    skills.push({ from: at.slice(0, -"/SKILL.md".length), name });
+  }
+  const plugins = [];
+  const extensions = join5(homeAgentDir(ports), "extensions");
+  for (const name of names(tools.plugins)) {
+    const candidates = [join5(extensions, name), join5(extensions, `${name}.ts`), join5(extensions, `${name}.js`)];
+    const at = await find(candidates);
+    if (at === void 0) return `plugin ${name} is not in Pi's home: looked for ${candidates.slice(0, 2).join(", ")} and ${candidates[2] ?? ""}`;
+    plugins.push({ from: at, name });
+  }
+  return { plugins, skills };
+}
+async function preparePi(ports, provider, model, agentDir, scope) {
   const route = await routeOf(ports, provider, model);
   if (typeof route === "string") return route;
   const launcher = await launcherOf(ports);
   if (launcher === void 0) return NO_LAUNCHER;
+  const listed = scope === void 0 ? { plugins: [], skills: [] } : await resolveScope(ports, scope);
+  if (typeof listed === "string") return listed;
   const key = await keyOf(ports, provider, route.apiKey);
   if ("error" in key) return key.error;
   const files = ports.files;
   if (files.writeTextPrivate === void 0) return "pi: the launch has no way to write its private agent directory";
   const entry = { api: route.api, apiKey: key.value, baseUrl: route.baseUrl, models: [route.model] };
-  await files.writeTextPrivate(join5(agentDir, "settings.json"), "{}\n");
-  await files.writeTextPrivate(join5(agentDir, "models.json"), `${JSON.stringify({ providers: { [provider]: entry } }, null, 2)}
+  try {
+    await files.writeTextPrivate(join5(agentDir, "settings.json"), "{}\n");
+  } catch (error) {
+    return `pi: cannot write the launch's agent directory ${agentDir}: ${messageOf3(error)}`;
+  }
+  const copy = async (from, kind, name, folder) => {
+    const to = join5(agentDir, folder, basename(from));
+    if (files.copyTree === void 0) return `pi: the launch has no way to copy ${kind} ${name} into its agent directory`;
+    try {
+      await files.copyTree(from, to);
+      return { to };
+    } catch (error) {
+      return `pi: cannot copy ${kind} ${name} into the launch's agent directory ${agentDir}: ${messageOf3(error)}`;
+    }
+  };
+  const skills = [];
+  for (const skill of listed.skills) {
+    const done = await copy(skill.from, "skill", skill.name, "skills");
+    if (typeof done === "string") return done;
+    skills.push(done.to);
+  }
+  const extensions = [];
+  for (const plugin of listed.plugins) {
+    const done = await copy(plugin.from, "plugin", plugin.name, "extensions");
+    if (typeof done === "string") return done;
+    extensions.push(done.to);
+  }
+  try {
+    await files.writeTextPrivate(join5(agentDir, "models.json"), `${JSON.stringify({ providers: { [provider]: entry } }, null, 2)}
 `);
+  } catch (error) {
+    return `pi: cannot write the launch's agent directory ${agentDir}: ${messageOf3(error)}`;
+  }
   const bin = join5(homeAgentDir(ports), "bin");
   const path = ports.env.get("PATH");
   return {
@@ -3032,7 +3090,9 @@ async function preparePi(ports, provider, model, agentDir) {
     launcher,
     port: route.port,
     ...await ports.files.exists(bin) ? { bin } : {},
-    ...path === void 0 ? {} : { path }
+    ...path === void 0 ? {} : { path },
+    ...skills.length === 0 ? {} : { skills },
+    ...extensions.length === 0 ? {} : { extensions }
   };
 }
 
@@ -3069,10 +3129,11 @@ var ClientRun = class {
     this.ports = ports;
   }
   ports;
-  async launch(request) {
+  /** The launch, with the tool scope a delegation profile gives a Pi run: its home holds exactly the skills and plugins the scope lists. */
+  async launch(request, scope) {
     requireSupportedExtras(request.client, request.extras);
     const launcher = LAUNCHERS[request.client];
-    const confine = request.client === "pi" ? await this.confinementOf(request) : void 0;
+    const confine = request.client === "pi" ? await this.confinementOf(request, scope) : void 0;
     const extras = { ...await this.extrasOf(request), ...confine === void 0 ? {} : { confine } };
     let result2;
     try {
@@ -3088,9 +3149,9 @@ var ClientRun = class {
    * What a Pi launch runs through, or the refusal that says why it cannot: Pi
    * has no sandbox of its own, so a launch that cannot be confined never starts.
    */
-  async confinementOf(request) {
+  async confinementOf(request, scope) {
     if (request.provider === void 0) throw new ModelGatewayError("unconfined", "a pi launch must name its provider");
-    const prepared = await preparePi(this.ports, request.provider, request.model, join6(request.paths.exportDir, "pi-agent"));
+    const prepared = await preparePi(this.ports, request.provider, request.model, join6(request.paths.exportDir, "pi-agent"), scope);
     if (typeof prepared === "string") throw new ModelGatewayError("unconfined", prepared);
     return prepared;
   }
@@ -3737,7 +3798,7 @@ function invalid4(message) {
 }
 
 // src/contexts/model-gateway/application/policy.ts
-async function resolveScope(deps, repo) {
+async function resolveScope2(deps, repo) {
   if (repo === void 0) return { kind: "outside" };
   const root = await gitOrFail(repo, () => deps.git.root(repo));
   if (root === void 0) return { kind: "outside" };
@@ -3904,18 +3965,37 @@ function effectiveTools(profile, narrow) {
   const pick = (kind) => narrow?.[kind] ?? profile.tools[kind];
   return { mcp: pick("mcp"), plugins: pick("plugins"), skills: pick("skills") };
 }
+function plainName(name) {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name);
+}
 function unenforceable(profileName, client, isPi, tools) {
   const restricted = TOOL_KINDS.filter((kind) => tools[kind] !== "any");
   if (!isPi) {
     if (restricted.length === 0) return void 0;
     return `profile ${profileName} restricts ${restricted.join(", ")} (a scope is deny-all unless the profile lists it), and ${client} cannot enforce a tool scope: only Pi does`;
   }
-  const granted = TOOL_KINDS.flatMap((kind) => {
+  const open2 = TOOL_KINDS.filter((kind) => tools[kind] === "any");
+  if (open2.length > 0) {
+    return `profile ${profileName} leaves ${open2.join(", ")} open with any, and ${client} builds its per-run home only from named items: list the ${open2.join(", ")} it needs, or leave them out for deny-all`;
+  }
+  if (tools.mcp !== "any" && tools.mcp.length > 0) {
+    return `profile ${profileName} grants mcp ${tools.mcp.join(", ")}, and ${client} cannot enforce it: Pi has a built-in MCP client, but a confined launch reaches only the route's proxy port and starts no other program, so a listed server could never connect; mcp stays deny-all on Pi`;
+  }
+  for (const kind of ["skills", "plugins"]) {
     const list = tools[kind];
-    return list === "any" || list.length === 0 ? [] : [`${kind} ${list.join(", ")}`];
-  });
-  if (granted.length === 0) return void 0;
-  return `profile ${profileName} grants ${granted.join("; ")}, and ${client} cannot attach them yet: its launch home holds only the route's provider, so only the empty scope holds`;
+    const bad = list === "any" ? void 0 : list.find((item) => !plainName(item));
+    if (bad !== void 0) {
+      return `profile ${profileName} lists ${kind} entry ${bad}, which is not a plain name: a ${kind === "skills" ? "skill" : "plugin"} is named by the folder or file it is in Pi's home, never a path`;
+    }
+  }
+  return void 0;
+}
+function runScope(config, profile, narrow) {
+  const found = profile === void 0 ? void 0 : config.profiles[profile];
+  return found === void 0 ? void 0 : effectiveTools(found, narrow);
+}
+function toolsJson(scope) {
+  return { mcp: scope.mcp, plugins: scope.plugins, skills: scope.skills };
 }
 function resolveProfile(profile, available, policyReason, narrow, forRun) {
   const asked = narrow?.models ?? profile.models;
@@ -4076,7 +4156,7 @@ var ModelsCommand = class {
     const judged = sortedClients(config).some(([id, client]) => installed.has(id) && (client.litellm_route !== void 0 || runClientOf(id) === "pi"));
     const reading = judged ? await readLiteLLMCatalogue(this.deps) : {};
     const listing = judgeListing(config, listModels(config, installed, listings, await this.unavailable()), reading.catalogue);
-    const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models);
+    const decision = decidePolicy(config, await resolveScope2(this.deps, input.repo), listing.models);
     const permitted = permittedModels(listing, decision);
     return {
       policy: decision.reason,
@@ -4274,7 +4354,7 @@ ${run.summary}`.slice(0, summaryMax) };
     const entry = config.models.find((candidate) => candidate.client === input.client && candidate.model === input.model);
     const family = entry?.family ?? familyOfModelId(input.model) ?? "";
     const requested = requestedCandidate(config, input, entry, family);
-    const scope = await resolveScope(this.deps, input.repo);
+    const scope = await resolveScope2(this.deps, input.repo);
     const granted = await this.grants.liveClients(input.workflow, this.deps.clock.now());
     const decision = decidePolicy(config, scope, config.models);
     const everyone = candidatePool(config, input, decision.permissions, granted);
@@ -4441,7 +4521,7 @@ var RunCommand = class {
     const warning = await this.release(workplace);
     const linked = options.link === void 0 ? result2 : { ...result2, ...options.link };
     const released = warning === void 0 ? linked : { ...linked, cleanup_warning: warning };
-    await this.deps.ledger.append(this.ledgerRecord(released, allowed2.repository, startedMs, costClass, options.tag));
+    await this.deps.ledger.append(this.ledgerRecord(released, allowed2.repository, startedMs, costClass, options.tag, input.profile === void 0 ? void 0 : { name: input.profile, scope: runScope(config, input.profile, input.narrow) }));
     await this.caps.settle(reservation, released.cost_usd, this.deps.clock.now());
     const warnings = warningsOf(
       input.client,
@@ -4520,7 +4600,7 @@ var RunCommand = class {
     await this.deps.files.writeText(paths.promptPath, prompt);
     await this.deps.files.writeText(join9(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
 `);
-    const launched = await this.launch(run.binary, input, paths, prompt);
+    const launched = await this.launch(run.binary, input, paths, prompt, runScope(run.config, input.profile, input.narrow));
     const output = launched.output;
     const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output);
     const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason, run.watched ?? []) : void 0;
@@ -4814,7 +4894,7 @@ var RunCommand = class {
    * the caller marks; an inline run carries only what the caller declares.
    */
   async permission(input, config, family) {
-    const scope = await resolveScope(this.deps, input.repo);
+    const scope = await resolveScope2(this.deps, input.repo);
     const decision = decidePolicy(config, scope, [{ client: input.client, family, model: input.model }]);
     const permission2 = decision.permissions[0];
     if (!permission2?.permitted) {
@@ -4829,7 +4909,11 @@ var RunCommand = class {
       throw new ModelGatewayError("policy-refused", `${input.client}:${input.model} may not carry history: ${decision.reason}`);
     }
     if (input.profile !== void 0) {
-      holdToProfile(config, decidePolicy(config, scope, config.models), input, runClientOf(input.client) === "pi");
+      const isPi = runClientOf(input.client) === "pi";
+      holdToProfile(config, decidePolicy(config, scope, config.models), input, isPi);
+      const tools = runScope(config, input.profile, input.narrow);
+      const missing = isPi && tools !== void 0 ? await resolveScope(this.deps, tools) : void 0;
+      if (typeof missing === "string") throw new ModelGatewayError("profile-refused", `profile ${input.profile} cannot run on ${input.client}: ${missing}`);
     }
     return { permission: permission2, repository: scope.kind === "repository" ? scope.key : null };
   }
@@ -4938,7 +5022,7 @@ var RunCommand = class {
    * all is a failed run, not an error: the caller still gets a result and a
    * ledger line.
    */
-  async launch(binary, input, paths, prompt) {
+  async launch(binary, input, paths, prompt, scope) {
     try {
       return await this.clientRun.launch({
         binary,
@@ -4952,7 +5036,7 @@ var RunCommand = class {
         ...input.max_price_usd === void 0 ? {} : { max_price_usd: input.max_price_usd },
         ...input.provider === void 0 ? {} : { provider: input.provider },
         ...runClientOf(input.client) === "pi" ? { provider: piProvider(input.client) } : {}
-      });
+      }, scope);
     } catch (error) {
       return {
         exported: void 0,
@@ -4963,7 +5047,7 @@ var RunCommand = class {
     }
   }
   /** The run's one ledger line: what it was, what it cost and how it ended. */
-  ledgerRecord(result2, repository, startedMs, costClass, tag) {
+  ledgerRecord(result2, repository, startedMs, costClass, tag, profile) {
     return {
       at: this.deps.clock.now().toISOString(),
       client: result2.client,
@@ -4982,6 +5066,9 @@ var RunCommand = class {
       ...result2.unavailable_until === void 0 ? {} : { unavailable_until: result2.unavailable_until },
       ...result2.attempt === void 0 ? {} : { attempt: result2.attempt },
       ...result2.attempt_of === void 0 ? {} : { attempt_of: result2.attempt_of },
+      // The profile a run was held to and the tool scope it ran with.
+      ...profile === void 0 ? {} : { profile: profile.name },
+      ...profile?.scope === void 0 ? {} : { tool_scope: toolsJson(profile.scope) },
       ...tag
     };
   }
@@ -5104,7 +5191,7 @@ function createModelGatewayCommands(deps) {
 
 // src/contexts/model-gateway/adapters/fs/index.ts
 import { createHash as createHash2, randomBytes as randomBytes4 } from "node:crypto";
-import { access, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname as dirname2, join as join10 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
@@ -5166,6 +5253,10 @@ var NodeModelGatewayFiles = class {
     } catch {
       return void 0;
     }
+  }
+  async copyTree(from, to) {
+    await mkdir(dirname2(to), { recursive: true });
+    await cp(from, to, { dereference: true, recursive: true });
   }
   async writeTextPrivate(path, content) {
     await mkdir(dirname2(path), { recursive: true, mode: 448 });

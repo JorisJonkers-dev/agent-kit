@@ -11,7 +11,7 @@
 use crate::cap_guard::{run_cost_class, CapGuard, CapSource, Reservation, ReserveArgs, MIN_GRANT_TIME_LEFT_S};
 use crate::caps::Estimate;
 use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};
-use crate::config::{ClientConfig, CostClass, GatewayConfig, ModelEntry};
+use crate::config::{ClientConfig, CostClass, GatewayConfig, ModelEntry, ToolScope};
 use crate::config_parse::load_config;
 use crate::error::GatewayError;
 use crate::escalation_run::{AttemptError, AttemptOptions, AttemptedRun, Delegation, EscalatedRun};
@@ -26,7 +26,7 @@ use crate::outputs::ClientOutput;
 use crate::policy::{decide_policy, resolve_scope, DataScope, ModelPermission, PolicySubject};
 use crate::ports::{ProcessResult, Runtime};
 use crate::proof::read_proof_files;
-use crate::profiles::hold_to_profile;
+use crate::profiles::{hold_to_profile, run_scope, tools_json};
 use crate::run::{
     input_json, named_reset, price_run, read_only_proof, read_run_input, require_allowed_provider, run_failure_reason, run_id, summary_of, wrapped_prompt,
     ClientReport, LaunchExit, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens, FORBIDDEN_PROVIDERS, NO_TOKENS, PROVIDER_CLIENTS,
@@ -407,7 +407,7 @@ impl RunCommand<'_> {
             result.attempt_of = link.attempt_of.clone();
         }
         result.cleanup_warning = warning;
-        (LedgerStore { runtime: self.runtime }).append_run(&self.ledger_record(&result, repository.as_deref(), started_ms, cost_class, options.tag.as_ref()))?;
+        (LedgerStore { runtime: self.runtime }).append_run(&self.ledger_record(&result, repository.as_deref(), started_ms, cost_class, options.tag.as_ref(), (input.profile.as_deref(), run_scope(&config, input.profile.as_deref(), input.narrow.as_ref()))))?;
         caps.settle(reservation.as_ref(), result.cost_usd, self.runtime.clock.now_ms())?;
         let ledger = (LedgerStore { runtime: self.runtime }).read()?;
         let windows = plan_windows(
@@ -517,6 +517,11 @@ impl RunCommand<'_> {
             let decision = decide_policy(config, &scope, &every);
             let is_pi = crate::run::is_pi_client(&input.client);
             hold_to_profile(config, &decision, profile, input.narrow.as_ref(), &input.client, &input.model, is_pi)?;
+            // A Pi run's home holds the skills and plugins the scope lists, so one that is not in the home is refused here.
+            if let (true, Some(scope)) = (is_pi, run_scope(config, Some(profile), input.narrow.as_ref())) {
+                crate::pi_launch::resolve_scope(self.runtime.files.as_ref(), &self.runtime.env, &scope)
+                    .map_err(|reason| GatewayError::new("profile-refused", format!("profile {profile} cannot run on {}: {reason}", input.client)))?;
+            }
         }
         Ok(match scope {
             DataScope::Repository { key, .. } => Some(key),
@@ -632,7 +637,7 @@ impl RunCommand<'_> {
         files.write_text(&paths.prompt_path, &prompt).map_err(GatewayError::from_fs)?;
         let input_text = format!("{}\n", json::pretty(&input_json(input)));
         files.write_text(&join(&[run.run_dir, "input.json"]), &input_text).map_err(GatewayError::from_fs)?;
-        let (result, output, failure) = self.launch(run.binary, input, &paths, &prompt);
+        let (result, output, failure) = self.launch(run.binary, input, &paths, &prompt, run_scope(run.config, input.profile.as_deref(), input.narrow.as_ref()).as_ref());
         let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: result.stderr.clone() };
         let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
         let delegate_reason = failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report)));
@@ -680,9 +685,9 @@ impl RunCommand<'_> {
     /// The client, non-interactively, through the gateway's launch path, with the mark that stops a delegate
     /// delegating on. A launch that cannot start at all is a failed run, not an error: the caller still gets a
     /// result and a ledger line. The failure is the reason the run carries.
-    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str) -> (ProcessResult, ClientOutput, Option<String>) {
+    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str, scope: Option<&ToolScope>) -> (ProcessResult, ClientOutput, Option<String>) {
         let launched = RunClient::parse(&input.client).ok_or_else(|| ClientRunError::Spawn(format!("{} is not a client a run can launch", input.client))).and_then(|client| {
-            (ClientRun { process: self.runtime.process.as_ref(), files: self.runtime.files.as_ref(), env: &self.runtime.env }).launch(&ClientRunRequest {
+            (ClientRun { process: self.runtime.process.as_ref(), files: self.runtime.files.as_ref(), env: &self.runtime.env }).launch_scoped(&ClientRunRequest {
                 launch: LaunchRequest {
                     model: input.model.clone(),
                     time_limit_s: input.time_limit_s,
@@ -695,7 +700,7 @@ impl RunCommand<'_> {
                 prompt: prompt.to_string(),
                 paths: paths.clone(),
                 extras: RunExtras { env: Some(BTreeMap::from([(DELEGATION_MARK.to_string(), "1".to_string())])), ..RunExtras::default() },
-            })
+            }, scope)
         });
         match launched {
             Ok(outcome) => (outcome.result, outcome.output, None),
@@ -708,7 +713,7 @@ impl RunCommand<'_> {
     }
 
     /// The run's one ledger line: what it was, what it cost and how it ended.
-    fn ledger_record(&self, result: &RunResult, repository: Option<&str>, started_ms: f64, cost_class: CostClass, tag: Option<&BatchTag>) -> Value {
+    fn ledger_record(&self, result: &RunResult, repository: Option<&str>, started_ms: f64, cost_class: CostClass, tag: Option<&BatchTag>, profile: (Option<&str>, Option<ToolScope>)) -> Value {
         let mut members = vec![
             ("at", Value::Str(to_iso(self.runtime.clock.now_ms()))),
             ("client", Value::str(&result.client)),
@@ -729,6 +734,9 @@ impl RunCommand<'_> {
             ("unavailable_until", result.unavailable_until.as_deref().map(Value::str)),
             ("attempt", result.attempt.map(|attempt| Value::Num(attempt as f64))),
             ("attempt_of", result.attempt_of.as_deref().map(Value::str)),
+            // The profile a run was held to and the tool scope it ran with.
+            ("profile", profile.0.map(Value::str)),
+            ("tool_scope", profile.1.as_ref().map(tools_json)),
         ];
         members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
         // A batch's tag goes last, as the node runner spreads it.

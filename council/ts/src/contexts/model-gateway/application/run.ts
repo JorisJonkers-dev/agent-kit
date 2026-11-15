@@ -2,12 +2,13 @@ import { randomBytes } from 'node:crypto'
 import { join, sep } from 'node:path'
 
 import type { ProcessResult } from '../../../ports/index.js'
-import { ModelGatewayError, type CostClass, type GatewayConfig, type ModelEntry } from '../domain/config.js'
+import { ModelGatewayError, type CostClass, type GatewayConfig, type ModelEntry, type ToolScope } from '../domain/config.js'
 import { CannotStartError, type EscalationReport, type UnavailableResult } from '../domain/escalation.js'
 import { runRecords, type LedgerRecord } from '../domain/ledger.js'
 import { familyOfModelId, modelKey } from '../domain/models.js'
 import { decidePolicy, type ModelPermission } from '../domain/policy.js'
-import { holdToProfile } from '../domain/profiles.js'
+import { resolveScope as resolvePiScope } from './pi-launch.js'
+import { holdToProfile, runScope, toolsJson } from '../domain/profiles.js'
 import {
   FORBIDDEN_PROVIDERS,
   namedReset,
@@ -353,7 +354,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     const warning = await this.release(workplace)
     const linked: RunResult = options.link === undefined ? result : { ...result, ...options.link }
     const released: RunResult = warning === undefined ? linked : { ...linked, cleanup_warning: warning }
-    await this.deps.ledger.append(this.ledgerRecord(released, allowed.repository, startedMs, costClass, options.tag))
+    await this.deps.ledger.append(this.ledgerRecord(released, allowed.repository, startedMs, costClass, options.tag, input.profile === undefined ? undefined : { name: input.profile, scope: runScope(config, input.profile, input.narrow) }))
     await this.caps.settle(reservation, released.cost_usd, this.deps.clock.now())
     const warnings = warningsOf(
       input.client,
@@ -434,7 +435,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode, codex.worker)
     await this.deps.files.writeText(paths.promptPath, prompt)
     await this.deps.files.writeText(join(runDir, 'input.json'), `${JSON.stringify(input, null, 2)}\n`)
-    const launched = await this.launch(run.binary, input, paths, prompt)
+    const launched = await this.launch(run.binary, input, paths, prompt, runScope(run.config, input.profile, input.narrow))
     const output = launched.output
     const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output)
     const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason, run.watched ?? []) : undefined
@@ -774,7 +775,12 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
       throw new ModelGatewayError('policy-refused', `${input.client}:${input.model} may not carry history: ${decision.reason}`)
     }
     if (input.profile !== undefined) {
-      holdToProfile(config, decidePolicy(config, scope, config.models), input, runClientOf(input.client) === 'pi')
+      const isPi = runClientOf(input.client) === 'pi'
+      holdToProfile(config, decidePolicy(config, scope, config.models), input, isPi)
+      // A Pi run's home holds the skills and plugins the scope lists, so one that is not in the home is refused here.
+      const tools = runScope(config, input.profile, input.narrow)
+      const missing = isPi && tools !== undefined ? await resolvePiScope(this.deps, tools) : undefined
+      if (typeof missing === 'string') throw new ModelGatewayError('profile-refused', `profile ${input.profile} cannot run on ${input.client}: ${missing}`)
     }
     return { permission, repository: scope.kind === 'repository' ? scope.key : null }
   }
@@ -891,7 +897,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
    * all is a failed run, not an error: the caller still gets a result and a
    * ledger line.
    */
-  private async launch(binary: string, input: RunInput, paths: LaunchPaths, prompt: string): Promise<ClientRunOutcome & { failure?: string }> {
+  private async launch(binary: string, input: RunInput, paths: LaunchPaths, prompt: string, scope: ToolScope | undefined): Promise<ClientRunOutcome & { failure?: string }> {
     try {
       return await this.clientRun.launch({
         binary,
@@ -905,7 +911,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
         ...(input.max_price_usd === undefined ? {} : { max_price_usd: input.max_price_usd }),
         ...(input.provider === undefined ? {} : { provider: input.provider }),
         ...(runClientOf(input.client) === 'pi' ? { provider: piProvider(input.client) } : {}),
-      })
+      }, scope)
     } catch (error) {
       return {
         exported: undefined,
@@ -917,7 +923,14 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
   }
 
   /** The run's one ledger line: what it was, what it cost and how it ended. */
-  private ledgerRecord(result: RunResult, repository: string | null, startedMs: number, costClass: CostClass, tag?: BatchTag): LedgerRecord {
+  private ledgerRecord(
+    result: RunResult,
+    repository: string | null,
+    startedMs: number,
+    costClass: CostClass,
+    tag: BatchTag | undefined,
+    profile: { readonly name: string; readonly scope: ToolScope | undefined } | undefined,
+  ): LedgerRecord {
     return {
       at: this.deps.clock.now().toISOString(),
       client: result.client,
@@ -936,6 +949,9 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
       ...(result.unavailable_until === undefined ? {} : { unavailable_until: result.unavailable_until }),
       ...(result.attempt === undefined ? {} : { attempt: result.attempt }),
       ...(result.attempt_of === undefined ? {} : { attempt_of: result.attempt_of }),
+      // The profile a run was held to and the tool scope it ran with.
+      ...(profile === undefined ? {} : { profile: profile.name }),
+      ...(profile?.scope === undefined ? {} : { tool_scope: toolsJson(profile.scope) }),
       ...tag,
     }
   }

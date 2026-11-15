@@ -5,9 +5,9 @@
 use crate::allowlist::AllowlistEntry;
 use crate::config::{CostClass, GatewayConfig, Tier, ToolList, ToolScope};
 use crate::config_parse::parse_defaults;
-use crate::json::parse;
+use crate::json::{self, parse};
 use crate::policy::{decide_policy, DataScope, PolicyDecision, PolicySubject};
-use crate::profiles::{effective_tools, hold_to_profile, list_profiles, profile_models, require_profile, resolve_profile, unenforceable, Narrowing, ProfileModel};
+use crate::profiles::{effective_tools, hold_to_profile, list_profiles, plain_name, profile_models, require_profile, resolve_profile, run_scope, tools_json, unenforceable, Narrowing, ProfileModel};
 
 fn shipped() -> GatewayConfig {
     parse_defaults(&parse(crate::SHIPPED_DEFAULTS).expect("JSON")).expect("the shipped defaults")
@@ -215,7 +215,9 @@ fn a_client_that_cannot_enforce_a_restricted_scope_is_refused_and_pi_holds_only_
         r#"{"deny": {"description": "d", "models": ["claude:haiku", "pi-vibe:small"]},
             "open": {"description": "d", "models": ["claude:haiku"], "tools": {"mcp": "any", "skills": "any", "plugins": "any"}},
             "grants": {"description": "d", "models": ["pi-vibe:small"], "tools": {"mcp": ["github"], "skills": ["a", "b"]}},
-            "mixed": {"description": "d", "models": ["pi-vibe:small"], "tools": {"mcp": "any"}}}"#,
+            "mixed": {"description": "d", "models": ["pi-vibe:small"], "tools": {"mcp": "any"}},
+            "listed": {"description": "d", "models": ["pi-vibe:small"], "tools": {"plugins": ["hello"], "skills": ["a", "b"]}},
+            "pathy": {"description": "d", "models": ["pi-vibe:small"], "tools": {"plugins": ["../x"], "skills": ["a/b"]}}}"#,
     )
     .expect("profiles");
     let decision = decision(&config, &repository(&["anthropic", "mistral"]));
@@ -231,17 +233,33 @@ fn a_client_that_cannot_enforce_a_restricted_scope_is_refused_and_pi_holds_only_
     assert!(hold("deny", "pi-vibe", "small", true, None).is_ok());
     // A scope that is `any` everywhere restricts nothing, so any client holds it.
     assert!(hold("open", "claude", "haiku", false, None).is_ok());
-    // Pi holds no grant yet: its launch home carries only the route's provider.
-    let pi = hold("grants", "pi-vibe", "small", true, None).expect_err("pi cannot attach them");
+    // Pi cannot hold an MCP server, and says why.
+    let pi = hold("grants", "pi-vibe", "small", true, None).expect_err("pi cannot attach an MCP server");
     assert_eq!(
         pi.message,
-        "profile grants grants mcp github; skills a, b, and pi-vibe cannot attach them yet: its launch home holds only the route's provider, so only the empty scope holds"
+        "profile grants grants mcp github, and pi-vibe cannot enforce it: Pi has a built-in MCP client, but a confined launch reaches only the route's proxy port and starts no other program, so a listed server could never connect; mcp stays deny-all on Pi"
     );
-    // Narrowing takes the grants away, and the empty scope then holds.
-    let none = Narrowing { mcp: Some(vec![]), skills: Some(vec![]), ..Narrowing::default() };
+    // Narrowing takes the MCP server away, and the rest of the scope then holds: Pi builds its home from the skills.
+    let none = Narrowing { mcp: Some(vec![]), ..Narrowing::default() };
     assert!(hold("grants", "pi-vibe", "small", true, Some(&none)).is_ok());
-    // `any` kinds are not grants Pi would have to attach.
-    assert!(hold("mixed", "pi-vibe", "small", true, None).is_ok());
+    // Skills and plugins are held by name.
+    assert!(hold("listed", "pi-vibe", "small", true, None).is_ok());
+    // `any` is refused on Pi: its home is built only from named items.
+    let open = hold("mixed", "pi-vibe", "small", true, None).expect_err("any is refused on Pi");
+    assert_eq!(
+        open.message,
+        "profile mixed leaves mcp open with any, and pi-vibe builds its per-run home only from named items: list the mcp it needs, or leave them out for deny-all"
+    );
+    // A skill or plugin must be a plain name, never a path.
+    assert!(hold("pathy", "pi-vibe", "small", true, None).expect_err("a path").message.contains("lists skills entry a/b, which is not a plain name"));
+    let no_skills = Narrowing { skills: Some(vec![]), ..Narrowing::default() };
+    assert!(hold("pathy", "pi-vibe", "small", true, Some(&no_skills)).expect_err("a path").message.contains("lists plugins entry ../x, which is not a plain name: a plugin is named by"));
+    assert!(plain_name("a.b_c-1") && !plain_name(".hidden") && !plain_name(""));
+    // The scope a run holds is the profile's narrowed, in a fixed order, and none without a profile.
+    let narrowed = run_scope(&config, Some("listed"), Some(&Narrowing { skills: Some(vec!["a".to_string()]), ..Narrowing::default() })).expect("scope");
+    assert_eq!(json::compact(&tools_json(&narrowed)), r#"{"mcp":[],"plugins":["hello"],"skills":["a"]}"#);
+    assert_eq!(json::compact(&tools_json(&run_scope(&config, Some("open"), None).expect("open"))), r#"{"mcp":"any","plugins":"any","skills":"any"}"#);
+    assert!(run_scope(&config, None, None).is_none() && run_scope(&config, Some("nowhere"), None).is_none());
     // A narrowing may name a subset of what a profile grants, never more.
     let subset = Narrowing { skills: Some(vec!["a".to_string()]), mcp: Some(vec![]), ..Narrowing::default() };
     let tools = effective_tools(require_profile(&config, "grants").expect("grants"), Some(&subset));

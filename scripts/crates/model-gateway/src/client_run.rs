@@ -3,6 +3,7 @@
 //! client exported. A caller that parses its own output, as critique does,
 //! reads `result` and `exported`; a delegation reads `output` too.
 
+use crate::config::ToolScope;
 use crate::error::GatewayError;
 use crate::extras::{RunExtras, EXTRA_NAMES};
 use crate::home_mcp::home_mcp_servers;
@@ -115,9 +116,15 @@ pub struct ClientRun<'a> {
 
 impl ClientRun<'_> {
     pub fn launch(&self, request: &ClientRunRequest) -> Result<ClientRunOutcome, ClientRunError> {
+        self.launch_scoped(request, None)
+    }
+
+    /// The launch, with the tool scope a delegation profile gives a Pi run: its home holds exactly the skills
+    /// and plugins the scope lists.
+    pub fn launch_scoped(&self, request: &ClientRunRequest, scope: Option<&ToolScope>) -> Result<ClientRunOutcome, ClientRunError> {
         require_supported_extras(request.client, &request.extras)?;
         let launcher = launcher(request.client);
-        let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request)?) } else { None };
+        let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
         let extras = LaunchExtras { confine: confine.clone(), ..self.extras_of(request)? };
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
         let ran = self.process.run(&command);
@@ -136,12 +143,12 @@ impl ClientRun<'_> {
 
     /// What a Pi launch runs through, or the refusal that says why it cannot: Pi has no sandbox of its own,
     /// so a launch that cannot be confined never starts.
-    fn confinement_of(&self, request: &ClientRunRequest) -> Result<PiConfinement, GatewayError> {
+    fn confinement_of(&self, request: &ClientRunRequest, scope: Option<&ToolScope>) -> Result<PiConfinement, GatewayError> {
         let Some(provider) = request.launch.provider.as_deref() else {
             return Err(GatewayError::new("unconfined", "a pi launch must name its provider"));
         };
         let agent_dir = join(&[&request.paths.export_dir, "pi-agent"]);
-        prepare_pi(self.files, self.process, self.env, provider, &request.launch.model, &agent_dir).map_err(|message| GatewayError::new("unconfined", message))
+        prepare_pi(self.files, self.process, self.env, provider, &request.launch.model, &agent_dir, scope).map_err(|message| GatewayError::new("unconfined", message))
     }
 
     /// The caller's extras as the launcher applies them, with the client's home servers resolved.

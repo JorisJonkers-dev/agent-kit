@@ -93,6 +93,10 @@ pub struct PiConfinement {
     pub bin: Option<String>,
     pub port: u16,
     pub path: Option<String>,
+    /// The skills of the scope, each a folder the launch's agent directory holds, which Pi loads with `--skill`.
+    pub skills: Vec<String>,
+    /// The plugins (Pi extensions) of the scope, each a file or folder the launch's agent directory holds, loaded with `-e`.
+    pub extensions: Vec<String>,
 }
 
 /// What a caller adds to one launch, with the client's home servers already resolved.
@@ -505,7 +509,14 @@ fn pi_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: 
         "--system-prompt",
         if write { PI_WRITE_SYSTEM_PROMPT } else { PI_READ_SYSTEM_PROMPT },
     ]);
-    let Some(confine) = extras.and_then(|extras| extras.confine.as_ref()) else {
+    // The scope's own skills and extensions are the only ones the launch loads: the flags above switch every
+    // discovered one off, and an explicit path still loads.
+    for (flag, paths) in [("--skill", confine_of(extras).map(|confine| &confine.skills)), ("-e", confine_of(extras).map(|confine| &confine.extensions))] {
+        for path in paths.into_iter().flatten() {
+            pi_args.extend(strings(&[flag, path]));
+        }
+    }
+    let Some(confine) = confine_of(extras) else {
         return ProcessCommand {
             command: binary.to_string(),
             args: pi_args,
@@ -532,6 +543,10 @@ fn pi_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: 
         stdin: Some(prompt.to_string()),
         timeout_ms: limit_ms(input),
     }
+}
+
+fn confine_of(extras: Option<&LaunchExtras>) -> Option<&PiConfinement> {
+    extras.and_then(|extras| extras.confine.as_ref())
 }
 
 fn pi_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {

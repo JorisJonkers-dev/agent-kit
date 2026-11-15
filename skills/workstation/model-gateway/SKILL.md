@@ -947,14 +947,16 @@ A run is also refused with `profile-refused` when:
 
 - the run's client model is not one the profile leaves for this repository;
 - `narrow` widens the profile (a model, a tool or a spend it does not give);
-- the profile's tool scope names a limit the chosen client cannot enforce. Only
-  Pi enforces for now, and only the empty scope: a Pi launch home holds the
-  route's provider and nothing else, so no MCP server, plugin or skill is
-  attached. Every other client is treated as unable, so a profile that restricts
-  tools (every seed profile does, since deny-all is the default) is refused for
-  `vibe`, `claude` and the rest with the restricted kinds named; a profile that
-  grants an MCP server, plugin or skill is refused on Pi until its per-run home
-  carries them.
+- the profile's tool scope names a limit the chosen client cannot enforce. Pi
+  enforces a list of skills and plugins by name: its per-run home holds a copy
+  of exactly those and Pi loads only them (`--no-skills --no-extensions
+  --no-mcp` plus `--skill` and `-e` for each). Pi refuses an `mcp` entry (a
+  confined launch reaches only the proxy port, so a server could not connect),
+  `any`, a name that is not a plain name, and a skill or plugin that is not in
+  Pi's home. Every other client is treated as unable, so a profile that
+  restricts tools (every seed profile does, since deny-all is the default) is
+  refused for `vibe`, `claude` and the rest with the restricted kinds named.
+  The ledger line of a profile run records its `profile` and `tool_scope`.
 
 An unknown name is `unknown-profile`. `narrow` without `profile` is
 `invalid-input`.

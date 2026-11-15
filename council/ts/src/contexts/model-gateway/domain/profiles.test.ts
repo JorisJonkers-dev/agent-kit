@@ -16,7 +16,9 @@ import {
   requireNarrowing,
   requireProfile,
   resolveProfile,
-  unenforceable,
+  plainName,
+  runScope,
+  toolsJson,
   type ProfileModel,
 } from './profiles.js'
 
@@ -281,6 +283,8 @@ describe('holding a run to its profile', () => {
     deny: { description: 'd', models: ['claude:haiku', 'pi-vibe:small'] },
     grants: { description: 'd', models: ['pi-vibe:small'], tools: { mcp: ['github'], skills: ['a', 'b'] } },
     mixed: { description: 'd', models: ['pi-vibe:small'], tools: { mcp: 'any' } },
+    listed: { description: 'd', models: ['pi-vibe:small'], tools: { plugins: ['hello'], skills: ['a', 'b'] } },
+    pathy: { description: 'd', models: ['pi-vibe:small'], tools: { plugins: ['../x'], skills: ['a/b'] } },
     open: { description: 'd', models: ['claude:haiku'], tools: { mcp: 'any', plugins: 'any', skills: 'any' } },
   })
   const decision = decidePolicy(config, repository(['anthropic', 'mistral']))
@@ -307,13 +311,29 @@ describe('holding a run to its profile', () => {
     expect(() => { hold('open', 'claude', 'haiku', false); }).not.toThrow()
   })
 
-  it('refuses a grant Pi cannot attach yet, until the request narrows it away', () => {
+  it('refuses an MCP server on Pi, with the reason, until the request narrows it away', () => {
     expect(refusal(() => { hold('grants', 'pi-vibe', 'small', true); })).toBe(
-      "profile grants grants mcp github; skills a, b, and pi-vibe cannot attach them yet: its launch home holds only the route's provider, so only the empty scope holds",
+      "profile grants grants mcp github, and pi-vibe cannot enforce it: Pi has a built-in MCP client, but a confined launch reaches only the route's proxy port and starts no other program, so a listed server could never connect; mcp stays deny-all on Pi",
     )
-    expect(() => { hold('grants', 'pi-vibe', 'small', true, { mcp: [], skills: [] }); }).not.toThrow()
-    expect(() => { hold('mixed', 'pi-vibe', 'small', true); }).not.toThrow()
-    expect(unenforceable('mixed', 'pi-vibe', true, effectiveTools(requireProfile(config, 'mixed'), { mcp: ['github'] }))).toContain('mcp github')
+    expect(() => { hold('grants', 'pi-vibe', 'small', true, { mcp: [] }); }).not.toThrow()
+  })
+
+  it('holds listed skills and plugins on Pi by name, and refuses `any` and anything that is not a plain name', () => {
+    expect(() => { hold('listed', 'pi-vibe', 'small', true); }).not.toThrow()
+    expect(refusal(() => { hold('mixed', 'pi-vibe', 'small', true); })).toBe(
+      'profile mixed leaves mcp open with any, and pi-vibe builds its per-run home only from named items: list the mcp it needs, or leave them out for deny-all',
+    )
+    expect(refusal(() => { hold('pathy', 'pi-vibe', 'small', true); })).toContain('lists skills entry a/b, which is not a plain name')
+    expect(refusal(() => { hold('pathy', 'pi-vibe', 'small', true, { skills: [] }); })).toContain('lists plugins entry ../x, which is not a plain name: a plugin is named by')
+    expect(plainName('a.b_c-1')).toBe(true)
+    expect(plainName('.hidden')).toBe(false)
+  })
+
+  it('names the scope a run holds, in a fixed order, or none without a profile', () => {
+    expect(runScope(config, 'listed', { skills: ['a'] })).toEqual({ mcp: [], plugins: ['hello'], skills: ['a'] })
+    expect(Object.keys(toolsJson({ skills: ['a'], plugins: [], mcp: [] }))).toEqual(['mcp', 'plugins', 'skills'])
+    expect(runScope(config, undefined, undefined)).toBeUndefined()
+    expect(runScope(config, 'nowhere', undefined)).toBeUndefined()
   })
 
   it('refuses a model the profile does not leave, and a widening request', () => {

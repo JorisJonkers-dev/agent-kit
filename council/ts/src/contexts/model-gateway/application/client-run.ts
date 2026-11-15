@@ -1,5 +1,5 @@
 import type { ProcessResult } from '../../../ports/index.js'
-import { ModelGatewayError } from '../domain/config.js'
+import { ModelGatewayError, type ToolScope } from '../domain/config.js'
 import { EXTRA_NAMES, type ExtraName, type RunExtras } from '../domain/extras.js'
 import type { ClientOutput } from '../domain/outputs.js'
 import type { RunClient } from '../domain/run.js'
@@ -75,10 +75,11 @@ export function requireSupportedExtras(client: RunClient, extras: RunExtras): vo
 export class ClientRun {
   constructor(private readonly ports: ClientRunPorts) {}
 
-  async launch(request: ClientRunRequest): Promise<ClientRunOutcome> {
+  /** The launch, with the tool scope a delegation profile gives a Pi run: its home holds exactly the skills and plugins the scope lists. */
+  async launch(request: ClientRunRequest, scope?: ToolScope): Promise<ClientRunOutcome> {
     requireSupportedExtras(request.client, request.extras)
     const launcher = LAUNCHERS[request.client]
-    const confine = request.client === 'pi' ? await this.confinementOf(request) : undefined
+    const confine = request.client === 'pi' ? await this.confinementOf(request, scope) : undefined
     const extras = { ...(await this.extrasOf(request)), ...(confine === undefined ? {} : { confine }) }
     let result: ProcessResult
     try {
@@ -96,9 +97,9 @@ export class ClientRun {
    * What a Pi launch runs through, or the refusal that says why it cannot: Pi
    * has no sandbox of its own, so a launch that cannot be confined never starts.
    */
-  private async confinementOf(request: ClientRunRequest): Promise<PiConfinement> {
+  private async confinementOf(request: ClientRunRequest, scope: ToolScope | undefined): Promise<PiConfinement> {
     if (request.provider === undefined) throw new ModelGatewayError('unconfined', 'a pi launch must name its provider')
-    const prepared = await preparePi(this.ports, request.provider, request.model, join(request.paths.exportDir, 'pi-agent'))
+    const prepared = await preparePi(this.ports, request.provider, request.model, join(request.paths.exportDir, 'pi-agent'), scope)
     if (typeof prepared === 'string') throw new ModelGatewayError('unconfined', prepared)
     return prepared
   }

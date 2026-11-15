@@ -193,9 +193,18 @@ pub fn effective_tools(profile: &DelegationProfile, narrow: Option<&Narrowing>) 
     ToolScope { mcp: pick("mcp"), plugins: pick("plugins"), skills: pick("skills") }
 }
 
+/// Whether a skill or plugin entry is one plain name, which is the folder or file it names in Pi's home and
+/// never a path that reaches out of it.
+pub fn plain_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|first| first.is_ascii_alphanumeric()) && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+}
+
 /// The limit the chosen client cannot enforce, as a reason, or `None` when it can hold the scope. Only Pi
-/// enforces for now, and only the empty scope: its launch home holds the route's provider and nothing else, so
-/// no MCP server, plugin or skill can be attached. Every other client is unable to hold a restricted scope.
+/// enforces: its per-run home is built from the scope, so it holds a list of skills and plugins (extensions) by
+/// name, and holds mcp at none. It cannot hold `any` (its home is built only from named items) or an MCP server
+/// (the confined launch reaches only the route's proxy port and starts no other program, so a server could never
+/// connect). Every other client is unable to hold a restricted scope.
 pub fn unenforceable(profile: &str, client: &str, is_pi: bool, tools: &ToolScope) -> Option<String> {
     if !is_pi {
         let restricted: Vec<&str> = TOOL_KINDS.into_iter().filter(|kind| *tools.of(kind) != ToolList::Any).collect();
@@ -207,20 +216,47 @@ pub fn unenforceable(profile: &str, client: &str, is_pi: bool, tools: &ToolScope
             restricted.join(", ")
         ));
     }
-    let granted: Vec<String> = TOOL_KINDS
-        .into_iter()
-        .filter_map(|kind| match tools.of(kind) {
-            ToolList::Only(items) if !items.is_empty() => Some(format!("{kind} {}", items.join(", "))),
-            _ => None,
-        })
-        .collect();
-    if granted.is_empty() {
-        return None;
+    let open: Vec<&str> = TOOL_KINDS.into_iter().filter(|kind| *tools.of(kind) == ToolList::Any).collect();
+    if !open.is_empty() {
+        return Some(format!(
+            "profile {profile} leaves {} open with any, and {client} builds its per-run home only from named items: list the {} it needs, or leave them out for deny-all",
+            open.join(", "),
+            open.join(", ")
+        ));
     }
-    Some(format!(
-        "profile {profile} grants {}, and {client} cannot attach them yet: its launch home holds only the route's provider, so only the empty scope holds",
-        granted.join("; ")
-    ))
+    if let ToolList::Only(servers) = &tools.mcp {
+        if !servers.is_empty() {
+            return Some(format!(
+                "profile {profile} grants mcp {}, and {client} cannot enforce it: Pi has a built-in MCP client, but a confined launch reaches only the route's proxy port and starts no other program, so a listed server could never connect; mcp stays deny-all on Pi",
+                servers.join(", ")
+            ));
+        }
+    }
+    for kind in ["skills", "plugins"] {
+        if let ToolList::Only(items) = tools.of(kind) {
+            if let Some(bad) = items.iter().find(|item| !plain_name(item)) {
+                return Some(format!(
+                    "profile {profile} lists {kind} entry {bad}, which is not a plain name: a {} is named by the folder or file it is in Pi's home, never a path",
+                    if kind == "skills" { "skill" } else { "plugin" }
+                ));
+            }
+        }
+    }
+    None
+}
+
+/// The tool scope a run holds, or `None` when it names no profile (or one the defaults do not state).
+pub fn run_scope(config: &GatewayConfig, profile: Option<&str>, narrow: Option<&Narrowing>) -> Option<ToolScope> {
+    config.profiles.get(profile?).map(|profile| effective_tools(profile, narrow))
+}
+
+/// A tool scope as the ledger and `models` write it: each kind a list of names, or `any`.
+pub fn tools_json(scope: &ToolScope) -> Value {
+    let list = |list: &ToolList| match list {
+        ToolList::Any => Value::str("any"),
+        ToolList::Only(items) => Value::Arr(items.iter().map(|item| Value::str(item)).collect()),
+    };
+    object(vec![("mcp", list(&scope.mcp)), ("plugins", list(&scope.plugins)), ("skills", list(&scope.skills))])
 }
 
 /// The models of the profile a request may use. `available` is what the data policy permits (and, for a
@@ -327,13 +363,6 @@ pub fn hold_to_profile(
 /// Every profile, by name, as `models` lists it: what it allows among the models `models` lists as permitted
 /// (the repository's data policy and what is usable now), or why it allows nothing.
 pub fn list_profiles(config: &GatewayConfig, permitted: &[ProfileModel], policy_reason: &str) -> Value {
-    let tools = |scope: &ToolScope| {
-        let list = |list: &ToolList| match list {
-            ToolList::Any => Value::str("any"),
-            ToolList::Only(items) => Value::Arr(items.iter().map(|item| Value::str(item)).collect()),
-        };
-        object(vec![("mcp", list(&scope.mcp)), ("plugins", list(&scope.plugins)), ("skills", list(&scope.skills))])
-    };
     let strings = |items: &[String]| Value::Arr(items.iter().map(|item| Value::str(item)).collect());
     Value::Arr(
         config
@@ -345,7 +374,7 @@ pub fn list_profiles(config: &GatewayConfig, permitted: &[ProfileModel], policy_
                     ("description", Value::str(&profile.description)),
                     ("models", Value::Arr(resolution.models.iter().map(ProfileModel::to_json).collect())),
                     ("name", Value::str(&profile.name)),
-                    ("tools", tools(&profile.tools)),
+                    ("tools", tools_json(&profile.tools)),
                 ];
                 members.extend(profile.pin.as_deref().map(|pin| ("pin", Value::str(pin))));
                 members.extend(profile.ladder.as_deref().map(|ladder| ("ladder", strings(ladder))));

@@ -383,7 +383,7 @@ fn a_client_a_run_cannot_launch_is_a_launch_failure() {
     let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"claude","mode":"read-only","model":"m","prompt":"p"}"#).expect("JSON")).expect("input");
     let input = crate::run::RunInput { client: "foo".into(), ..input };
     let paths = crate::launchers::LaunchPaths::default();
-    let (result, _output, failure) = RunCommand { runtime: &machine.runtime }.launch("foo", &input, &paths, "p");
+    let (result, _output, failure) = RunCommand { runtime: &machine.runtime }.launch("foo", &input, &paths, "p", None);
     assert_eq!((failure.as_deref(), result.exit_code), (Some("launch-failed"), 1));
     assert_eq!(result.stderr, "foo is not a client a run can launch");
 }
@@ -425,4 +425,65 @@ fn a_dependent_that_starts_later_needs_its_grant_to_still_stand_and_is_held_to_w
     // Less than the run asks for: it is held to what is left.
     machine.write_grants(&[super::machine::grant(5.0, 120.0)]);
     assert_eq!(command.within_grant(&codex_input(900)).expect("held").time_limit_s, 120.0);
+}
+
+/// The shipped defaults, with the `cheap-research` profile listing one skill.
+fn defaults_with_a_skill() -> String {
+    let shipped = crate::SHIPPED_DEFAULTS;
+    let profile = shipped.find("\"cheap-research\"").expect("the seed profile");
+    let skills = profile + shipped[profile..].find("\"skills\": []").expect("its skills");
+    format!("{}\"skills\": [\"lint\"]{}", &shipped[..skills], &shipped[skills + "\"skills\": []".len()..])
+}
+
+const PI_STREAM: &str = r#"{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Looked.\nSUMMARY: fine"}],"stopReason":"stop","usage":{"input":100,"output":40,"cacheRead":30,"cost":{"total":0.002}}}}"#;
+
+/// A machine with Pi installed behind a launcher, its home holding the route's provider and a `lint` and an `other` skill.
+fn pi_machine() -> Machine {
+    let mut machine = Machine::new(&defaults_with_a_skill());
+    machine.process.install("pi");
+    machine.process.answer("agent-launcher", answer(PI_STREAM));
+    let home = format!("{}/home/.pi/agent", machine.sandbox.text());
+    std::fs::create_dir_all(format!("{home}/skills/lint")).expect("lint");
+    std::fs::create_dir_all(format!("{home}/skills/other")).expect("other");
+    std::fs::write(format!("{home}/skills/lint/SKILL.md"), "lint").expect("lint skill");
+    std::fs::write(format!("{home}/skills/other/SKILL.md"), "other").expect("other skill");
+    std::fs::write(
+        format!("{home}/models.json"),
+        r#"{"providers":{"litellm-vibe":{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{"id":"ministral-8b"}]}}}"#,
+    )
+    .expect("models");
+    machine.runtime.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), "agent-launcher".to_string());
+    machine
+}
+
+fn pi_run(extra: &str) -> String {
+    format!(r#"{{"workflow":"w","client":"pi-vibe","mode":"read-only","model":"ministral-8b","prompt":"p","escalate":false,"profile":"cheap-research"{extra}}}"#)
+}
+
+#[test]
+fn a_pi_run_under_a_profile_that_lists_a_skill_runs_and_writes_the_scope_on_its_ledger_line() {
+    let machine = pi_machine();
+
+    let result = run(&machine, &pi_run("")).expect("the run");
+
+    assert_eq!(text(&result, "status"), "ok");
+    let ledger = std::fs::read_to_string(format!("{}/state/agent-kit/model-gateway/ledger.jsonl", machine.sandbox.text())).expect("ledger");
+    assert!(ledger.contains(r#""profile":"cheap-research","tool_scope":{"mcp":[],"plugins":[],"skills":["lint"]}"#), "{ledger}");
+    // A request that narrows the skill away runs with the empty scope, and the line says so.
+    let narrowed = run(&machine, &pi_run(r#","narrow":{"skills":[]}"#)).expect("the narrowed run");
+    assert_eq!(text(&narrowed, "status"), "ok");
+    let ledger = std::fs::read_to_string(format!("{}/state/agent-kit/model-gateway/ledger.jsonl", machine.sandbox.text())).expect("ledger");
+    assert!(ledger.contains(r#""tool_scope":{"mcp":[],"plugins":[],"skills":[]}"#));
+}
+
+#[test]
+fn a_pi_run_whose_profile_lists_a_skill_the_home_lacks_is_refused_before_anything_runs() {
+    let machine = pi_machine();
+    std::fs::remove_dir_all(format!("{}/home/.pi/agent/skills/lint", machine.sandbox.text())).expect("remove the skill");
+
+    let error = run(&machine, &pi_run("")).expect_err("a skill the home lacks");
+
+    assert_eq!(error.code, "profile-refused");
+    assert!(error.message.starts_with("profile cheap-research cannot run on pi-vibe: skill lint is not in Pi's home: looked for "), "{}", error.message);
+    assert!(!std::path::Path::new(&format!("{}/state/agent-kit/model-gateway/ledger.jsonl", machine.sandbox.text())).exists());
 }

@@ -88,10 +88,55 @@ and why. Models are sorted by client, then model id.
   widen it. The refusals are `unknown-profile` and `profile-refused`, each with
   its reason: no allowed model for the repository (never a fallback), a model
   outside the profile, a widening `narrow`, and a tool scope the client cannot
-  enforce. Only Pi enforces for now, and only the empty scope; every other
-  client is refused a profile that restricts tools. The data policy runs first,
-  so a model the repository does not permit is still `policy-refused`.
+  enforce (see "Tool scope on Pi" below); every other client is refused a
+  profile that restricts tools. The data policy runs first, so a model the
+  repository does not permit is still `policy-refused`.
 - **A failing delegation stays inside its profile**: the retry, the climb and
   the fall-through are cut to the profile's models.
-- **Not yet:** a Pi per-run home that carries granted tools, Gold Band agent ids
-  per profile (#784), and spend enforcement from LiteLLM key spend (#788).
+- **Not yet:** Gold Band agent ids per profile (#784), and spend enforcement
+  from LiteLLM key spend (#788).
+
+### Tool scope on Pi (#773)
+
+A profile's `tools` is the scope a run holds, narrowed by the request. Each of
+`mcp`, `plugins` and `skills` is a list of names, or left out for deny-all:
+
+```yaml
+tools:
+  skills: [lint, review-checklist]   # folders with a SKILL.md
+  plugins: [hello]                   # Pi extensions
+  # mcp is left out: none
+```
+
+For a Pi run the gateway builds a throwaway agent directory (the launch's own
+`PI_CODING_AGENT_DIR`, removed when the run ends, since it holds the route's
+key). It holds the one-provider `models.json`, an empty `settings.json`, and a
+copy of exactly the skills and plugins the effective scope lists, and nothing
+else of the operator's. Pi is started through `agent-launcher confine` with
+`--no-extensions --no-skills --no-mcp --no-prompt-templates --no-themes
+--no-context-files --no-approve` as before, and with `--skill <copy>` and
+`-e <copy>` for each listed item, which are the only ones that load (checked
+against Pi 1.5.0: with these flags the session has no command or skill other
+than the listed ones, although `~/.pi/agent/skills`, `~/.agents/skills` and the
+home's `mcp.json` exist).
+
+- **Skills** are found as `<home agent dir>/skills/<name>/SKILL.md`, else
+  `~/.agents/skills/<name>/SKILL.md`; the whole folder is copied.
+- **Plugins** are Pi extensions, found as `<home agent dir>/extensions/<name>`,
+  `<name>.ts` or `<name>.js`, and loaded with `-e`.
+- **Refused, with the reason, as `profile-refused`** (before anything runs):
+  - an `mcp` entry. Pi has a built-in MCP client (it reads `mcp.json`), but a
+    confined launch reaches only the route's proxy port and starts no other
+    program, so a listed server could never connect. `mcp` stays deny-all on Pi
+    and `--no-mcp` is always passed;
+  - `any` for any kind: the home is built only from named items;
+  - an entry that is not a plain name (letters, digits, `.`, `_`, `-`), so a
+    path cannot reach out of the home;
+  - a skill or plugin that is not in the operator's home (the message names
+    the places it looked in).
+- Every other client cannot enforce a scope and is refused a profile that
+  restricts any kind.
+- **Ledger.** A run held to a profile writes `profile` and `tool_scope` (the
+  scope it ran with, `{"mcp":[],"plugins":[],"skills":[...]}`, `"any"` for an
+  open kind) on its ledger line. `usage` reports totals per client, day and
+  workflow, so it does not carry a per-run scope; read it from the ledger.
