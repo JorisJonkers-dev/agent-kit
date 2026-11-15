@@ -70,6 +70,29 @@ and why. Models are sorted by client, then model id.
   `availability_window_minutes` and `metered_personal_caps`
   (`per_workflow_usd` 2, `per_day_usd` 5).
 
+## Family binding and stated escalation (#494, #535)
+
+- **A delegation is bound to the family of the model it names.** `run` always
+  names a client and a model, so it always names a family (the `family` of
+  that catalogue entry). The retry, the climb and the fall-through stay inside
+  that family: only a model of it ever answers. When none can, the delegation
+  ends `failed` with the cause, or `unavailable` when no client model of the
+  cost class can start, and that message says the family is binding. It is
+  never answered by another family without being asked to.
+- **`family_binding` is the input that lifts it.** It defaults to `true`;
+  `false` lets the gateway move to a model of another family (still never into
+  a costlier cost class by itself). A value that is not a boolean is refused.
+- **An escalation across families is stated.** The summary of the answering
+  run opens with `escalated from <family> (<client>: <cause>) to <family>`,
+  naming both families and the cause, before the summary the client wrote. A
+  batch report carries the same line in the summary of the delegation that
+  escalated. A failed cross-family delegation therefore cannot be read as a
+  second opinion from the family that was asked for.
+- **Where it is implemented.** The Rust gateway
+  (`scripts/crates/model-gateway/src/escalation.rs`, `bind_family` and
+  `escalation_notice`, and `escalation_run.rs` for the `unavailable` message)
+  and the node runner print the same words.
+
 ## Delegation profiles (#773, #774)
 
 - **One concept owns the models and the tool scope.** `profiles` in
