@@ -5992,10 +5992,10 @@ RUST_COOLDOWN_MINOR = 100
 LITELLM_ENV = re.compile(r"[A-Z][A-Z0-9_]*")
 LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "budget_duration", "data_scope", "models"}
 # The public-only access groups: the free-tier deployments, whose provider may train on the
-# prompts (the Google free tier, OpenRouter's free models). Only a `data_scope: public` key may
+# prompts (the Google free tier, OpenRouter's free models, OpenCode Go's free ids). Only a `data_scope: public` key may
 # hold one, and a public key holds at least one; several public keys are allowed. The litellm
 # repository puts each free provider's deployments in its own group (litellm catalog/sync.py).
-LITELLM_PUBLIC_GROUPS = ("google-free-public", "openrouter-free-public")
+LITELLM_PUBLIC_GROUPS = ("google-free-public", "openrouter-free-public", "opencode-go-free-public")
 LITELLM_BUDGET_DURATION = "30d"
 
 
@@ -6193,7 +6193,8 @@ def litellm_route_models(access_groups: list[str], catalogue: Any = None) -> lis
             raise RegistryError(f"the LiteLLM catalogue snapshot cannot be read: {'; '.join(catalogue.warnings)}")
     known = {group for entry in catalogue.data.get("groups", {}).values() if isinstance(entry, dict)
              for group in entry.get("access_groups", [])}
-    gates = litellm_catalogue.public_access_groups(KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json")
+    # The registry being rendered, not the routes.json it renders: a group a route just gained is a gate already.
+    gates = litellm_catalogue.public_groups_of((load_registry().get("litellm") or {}).get("routes") or [])
     for group in held:
         if group != litellm_catalogue.CANONICAL and group not in gates and group not in known:
             raise RegistryError(
@@ -6204,7 +6205,8 @@ def litellm_route_models(access_groups: list[str], catalogue: Any = None) -> lis
         if entry.modality != "chat":
             continue
         # The catalogue does not say which public-only access group serves a public group, so the
-        # estate's naming stands in: a group on the openrouter route is reached by openrouter-free-public.
+        # estate's naming stands in: a group on the openrouter route is reached by openrouter-free-public,
+        # one on the opencode-go route by opencode-go-free-public.
         if entry.public and not all(any(g.startswith(f"{route}-") for g in held) for route in entry.routes):
             continue
         model: dict[str, Any] = {"id": entry.name}
