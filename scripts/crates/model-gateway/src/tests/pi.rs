@@ -578,4 +578,7 @@ fn the_listing_marks_only_verified_free_pi_models_and_keeps_every_other_class() 
     assert_eq!(classes, [CostClass::Free, CostClass::Subsidised, CostClass::MeteredPersonal, CostClass::Subsidised]);
     assert_eq!(CostClass::parse("free"), None, "no file can declare a model free");
     assert_eq!(CostClass::Free.as_str(), "free");
+    // No home to find models.json in: nothing is free.
+    let homeless = super::config::runtime(StubFiles::new(), StubGit::new(None, &[]), env(&[]));
+    assert!(!crate::sources::pi_model_is_free(&homeless, "pi-vibe", "zero"));
 }
