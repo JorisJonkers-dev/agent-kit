@@ -1,9 +1,8 @@
 """The swap of the Rust model gateway in behind the `model-gateway` command.
 
-The command prefers the installed Rust binary and falls back to the node
-runner, so a machine that has not built the binary yet keeps working, and the
-rollback needs no setup run. Everything here runs against temp directories with
-stub programs: no real cargo build, no real node, no real gateway.
+The command runs the installed Rust binary, and exits 127 when there is none (the
+node runner is retired). Everything here runs against temp directories with
+stub programs: no real cargo build, no real gateway.
 """
 
 from __future__ import annotations
@@ -44,7 +43,6 @@ def _program(path: Path, body: str) -> Path:
 def home(tmp_path: Path) -> Path:
     root = tmp_path / "home"
     root.mkdir()
-    _program(tmp_path / "bin" / "node", 'echo "node $*"')
     return root
 
 
@@ -57,10 +55,11 @@ def _install_rust(home: Path) -> Path:
     return _program(home / ".local" / "share" / "agent-kit" / "model-gateway" / "model-gateway", 'echo "rust $*"')
 
 
-def test_without_the_rust_binary_the_command_runs_the_node_runner(home: Path) -> None:
+def test_without_the_rust_binary_the_command_says_so_and_exits_127(home: Path) -> None:
     result = _gateway(home, "models", "--json", "{}")
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == f"node {home}/.claude/skills/model-gateway/model-gateway.mjs models --json {{}}\n"
+    assert result.returncode == 127
+    assert result.stdout == ""
+    assert "the Rust gateway is not installed" in result.stderr
 
 
 def test_with_the_rust_binary_installed_the_command_runs_it(home: Path) -> None:
@@ -69,26 +68,10 @@ def test_with_the_rust_binary_installed_the_command_runs_it(home: Path) -> None:
     assert result.stdout == "rust models --json {}\n"
 
 
-def test_an_unexecutable_rust_binary_falls_back_to_node(home: Path) -> None:
+def test_an_unexecutable_rust_binary_is_not_run(home: Path) -> None:
     binary = _install_rust(home)
     binary.chmod(0o644)
-    assert _gateway(home, "usage").stdout.startswith("node ")
-
-
-def test_the_environment_rolls_one_call_back_to_node(home: Path) -> None:
-    _install_rust(home)
-    assert _gateway(home, "usage", AGENT_KIT_MODEL_GATEWAY="node").stdout.startswith("node ")
-    assert _gateway(home, "usage", AGENT_KIT_MODEL_GATEWAY="rust").stdout == "rust usage\n"
-
-
-def test_the_pin_file_rolls_every_call_back_until_it_is_removed(home: Path) -> None:
-    _install_rust(home)
-    pin = home / ".config" / "agent-kit" / "model-gateway-node"
-    pin.parent.mkdir(parents=True)
-    pin.write_text("")
-    assert _gateway(home, "usage").stdout.startswith("node ")
-    pin.unlink()
-    assert _gateway(home, "usage").stdout == "rust usage\n"
+    assert _gateway(home, "usage").returncode == 127
 
 
 def test_another_rust_binary_can_be_named(home: Path, tmp_path: Path) -> None:
@@ -96,11 +79,11 @@ def test_another_rust_binary_can_be_named(home: Path, tmp_path: Path) -> None:
     assert _gateway(home, "usage", AGENT_KIT_MODEL_GATEWAY_BIN=str(other)).stdout == "other usage\n"
 
 
-def test_the_command_keeps_the_node_exec_line_the_setup_tests_pin() -> None:
+def test_the_command_is_a_managed_bash_script_with_no_node_runner() -> None:
     lines = COMMAND.read_text().splitlines()
     assert lines[0] == "#!/usr/bin/env bash"
     assert "# managed by agent-kit setup-workstation.sh" in lines
-    assert 'exec node "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills/model-gateway/model-gateway.mjs" "$@"' in lines
+    assert not any("node" in line for line in lines if not line.startswith("#"))
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +173,7 @@ def test_an_install_that_cannot_land_is_reported(kit: Kit) -> None:
 
 def test_a_directory_where_the_binary_should_be_is_not_executed(home: Path) -> None:
     (home / ".local" / "share" / "agent-kit" / "model-gateway" / "model-gateway").mkdir(parents=True)
-    assert _gateway(home, "usage").stdout.startswith("node ")
+    assert _gateway(home, "usage").returncode == 127
 
 
 def test_an_unknown_argument_builds_nothing(kit: Kit) -> None:
@@ -199,16 +182,10 @@ def test_an_unknown_argument_builds_nothing(kit: Kit) -> None:
     assert not (kit.root / "cargo-args").exists()
 
 
-def test_without_cargo_a_workspace_or_with_the_pin_the_step_is_skipped(kit: Kit, home: Path) -> None:
+def test_without_cargo_or_a_workspace_the_step_is_skipped(kit: Kit) -> None:
     assert "cargo is not on PATH" in kit.run(path=False).stdout
     (kit.root / "scripts" / "Cargo.toml").unlink()
     assert "no cargo workspace" in kit.run().stdout
-    (kit.root / "scripts" / "Cargo.toml").write_text("[workspace]\n")
-    pin = home / ".config" / "agent-kit" / "model-gateway-node"
-    pin.parent.mkdir(parents=True)
-    pin.write_text("")
-    result = kit.run()
-    assert result.returncode == 0 and "the node runner is pinned" in result.stdout
     assert not kit.dest.exists()
 
 

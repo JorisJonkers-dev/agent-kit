@@ -22,7 +22,7 @@ fn host_program(name: &str) -> PathBuf {
     path.split(':').map(|dir| Path::new(dir).join(name)).find(|candidate| candidate.exists()).unwrap_or_else(|| panic!("no {name} on PATH"))
 }
 
-/// 2026-11-03T12:00:00Z, the instant fake-clock.mjs gives the node runner.
+/// 2026-11-03T12:00:00Z, the instant the frozen goldens were made at.
 pub const FIXED_NOW: i64 = 1_793_707_200_000;
 
 pub struct FixedClock(pub i64);
@@ -42,12 +42,6 @@ impl Clock for FixedClock {
 fn shipped_folder() -> String {
     let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("..").join("skills").join("workstation").join("critique");
     std::fs::canonicalize(folder).expect("shipped folder").to_string_lossy().into_owned()
-}
-
-/// The hash of the bundled runner, which a setup check records as an input: it changes with every build, so it reads as `@RUNNER@`.
-fn runner_hash() -> &'static str {
-    static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    HASH.get_or_init(|| model_gateway::sha256::sha256_hex(&std::fs::read(Path::new(&shipped_folder()).join("critique.mjs")).expect("the bundled runner")))
 }
 
 pub fn fixtures() -> PathBuf {
@@ -288,8 +282,7 @@ impl Replay {
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);
-        let runner = runner_hash();
-        let normalise = |text: &str| text.replace(&self.sandbox.text(), "@SANDBOX@").replace(&shipped_folder(), "/assets").replace(runner, "@RUNNER@");
+        let normalise = |text: &str| text.replace(&self.sandbox.text(), "@SANDBOX@").replace(&shipped_folder(), "/assets");
         let extra: Vec<&str> = list(step, "roots").iter().filter_map(Value::as_str).collect();
         let roots: Vec<&str> = ["state", "home", "work"].into_iter().chain(extra).collect();
         let files = snapshot(&self.sandbox, &roots)

@@ -82,8 +82,6 @@ knowledge hooks from a machine that still has them, on every run.
 - `skills/workstation/`: skills setup installs into agent homes.
 - `skills/repo/`: repo skills, one folder per skill with a `claude/` and a
   `codex/` variant, rendered into `.claude/skills/` and `.agents/skills/`.
-- `council/ts/`: sources of the bundled critique, model-gateway and
-  build-tracker runners (the council itself is retired).
 - `runner/template/`: source templates for the runner runtime;
   `runner/manifests/`: the rendered runtime package, its schema and validation
   fixtures.

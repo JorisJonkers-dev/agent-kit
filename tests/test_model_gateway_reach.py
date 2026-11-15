@@ -75,12 +75,12 @@ def macos_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
 # ---------------------------------------------------------------------------
 
 
-def test_the_command_is_a_kit_command_that_runs_the_gateway_with_node() -> None:
+def test_the_command_is_a_kit_command_that_runs_the_rust_gateway() -> None:
     text = COMMAND.read_text()
     assert COMMAND.stat().st_mode & 0o777 == 0o755
     assert text.splitlines()[0] == "#!/usr/bin/env bash"
     assert "# managed by agent-kit setup-workstation.sh" in text.splitlines()
-    assert re.search(r"^exec node \"[^\"]*skills/model-gateway/model-gateway\.mjs\" \"\$@\"$", text, re.M)
+    assert "node" not in text.replace("# managed by", "")
 
 
 def test_setup_puts_the_command_on_path(macos_run: Run) -> None:
@@ -90,23 +90,21 @@ def test_setup_puts_the_command_on_path(macos_run: Run) -> None:
     assert f"ok    model-gateway -> {dest}" in macos_run.stdout
 
 
-def test_the_installed_command_runs_the_claude_copy_of_the_gateway_with_node(macos_run: Run, tmp_path: Path) -> None:
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    node = bin_dir / "node"
-    node.write_text('#!/usr/bin/env bash\necho "node $*"\n')
-    node.chmod(0o755)
+def test_the_installed_command_runs_the_rust_gateway_binary(macos_run: Run, tmp_path: Path) -> None:
+    binary = tmp_path / "gateway"
+    binary.write_text('#!/usr/bin/env bash\necho "rust $*"\n')
+    binary.chmod(0o755)
 
     result = subprocess.run(
         [str(macos_run.home / ".local" / "bin" / "model-gateway"), "models", "--json", "{}"],
         capture_output=True,
         text=True,
         check=False,
-        env={"HOME": str(macos_run.home), "PATH": f"{bin_dir}:/usr/bin:/bin"},
+        env={"HOME": str(macos_run.home), "PATH": "/usr/bin:/bin", "AGENT_KIT_MODEL_GATEWAY_BIN": str(binary)},
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout == f"node {macos_run.home}/.claude/skills/model-gateway/model-gateway.mjs models --json {{}}\n"
+    assert result.stdout == "rust models --json {}\n"
 
 
 def test_retiring_the_gateway_removes_the_command_and_its_pointers() -> None:
