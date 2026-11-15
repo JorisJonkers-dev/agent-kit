@@ -4098,7 +4098,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      security find-generic-password -s ai.mistral.vibe -a "mcp-oauth:${name}:tokens" >/dev/null 2>&1 \\')
     w('        || warn "${name}: needs sign-in (vibe): run /mcp login ${name} in Vibe"')
     w("    else")
-    w('      warn "${name}: vibe sign-in not checked: the check reads the macOS Keychain; skipped on $(uname -s)"')
+    w('      log "${name}: vibe sign-in not checked: the check reads the macOS Keychain; skipped on $(uname -s)"')
     w("    fi")
     w("  fi")
     w("}")
@@ -4736,7 +4736,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
                 f"if nix_provides {binary}; then",
                 f'  ok "{name}: provided by Nix; setup does not install or update it"',
                 f"  if copy=$(non_nix_copy {binary}); then",
-                f'    warn "{name}: ${{copy}} is not from Nix and can shadow the Nix-provided {binary}; remove it"',
+                f'    warn "{name}: ${{copy}} is not from Nix and can shadow the Nix-provided {binary};'
+                f' remove it with:  rm \\"${{copy}}\\""',
                 "  fi",
                 "else",
                 *[f"  {line}" if line else line for line in block],
@@ -5044,7 +5045,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b(f"          if copy=$(non_nix_copy {binary}); then")
             b(
                 f'            warn "{plugin}: ${{copy}} is not from Nix and can shadow '
-                f'the Nix-provided {binary}; remove it"'
+                f'the Nix-provided {binary}; remove it with:  rm \\"${{copy}}\\""'
             )
             b("          fi")
             b('        elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then')
@@ -5221,6 +5222,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b(f'{indent}  command -v {binary} >/dev/null 2>&1 \\')
             b(f'{indent}    || warn "{name}: {binary} is not on PATH; skipping"')
             b(f"{indent}fi")
+        # A binary setup installs itself (cargo's --root ~/.local) is registered by
+        # its resolved path: a client started where ~/.local/bin is not on PATH
+        # would otherwise fail to spawn it with ENOENT.
+        command = server.get("command")
+        if binary and binary == command and server.get("install") and server["transport"] == "stdio":
+            command = f'"$(command -v {command} || printf %s {command})"'
         extra = ""
         if server.get("overlay_roots"):
             if server["transport"] != "stdio":
@@ -5244,7 +5251,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             # Name BEFORE the --env flags: claude 2.x rejects the redeclared
             # order (`--env K=V` then the name) with "missing required argument
             # 'commandOrUrl'". Verified against claude 2.1.267.
-            add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip() + extra
+            add = f"claude mcp add --scope user {name}{env_flags} -- {command} {args}".rstrip() + extra
         b(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
         b(f'{indent}    ok "{name} registered (claude)"')
         b(f"{indent}  else")
@@ -5271,7 +5278,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             else:
                 args = " ".join(server.get("args") or [])
                 env_flags = _mcp_env_flags(server, credential, optional_cred)
-                add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip() + extra
+                add = f"codex mcp add {name}{env_flags} -- {command} {args}".rstrip() + extra
             b(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
         b(f'{indent}    ok "{name} registered (codex)"')
         b(f"{indent}  else")
