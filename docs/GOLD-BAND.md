@@ -388,14 +388,20 @@ definitions (it needs `WORKFLOW_LINT_BIN` or a built `scripts/target/debug/workf
 The fixtures are under `scripts/crates/workflow-lint/tests/fixtures/shape-valid` and
 `shape-refused` (one per rule, including the two owner-reported errors).
 
-**Known failures (#781).** Most shipped templates do not pass yet: a check node
-reached only by a failure edge counts as a second entry, and a worker that has
-`output` has no `success_condition`. They are listed in
-`installer/gold-band/workflows/known-shape-failures.txt` (dated 2026-11-15, one file
-per line, a comment pointing to #781). CI and setup tolerate exactly those files:
-any other template, and any new one, must pass; a listed template that now passes
-fails CI with "remove it from the list". Fixing the templates is #781 and waits on
-the owner's decision.
+**Known failures (#781).** Four templates pass (build-tracker, critique-stats, flow, research);
+the rest are listed in `installer/gold-band/workflows/known-shape-failures.txt` (one file per
+line, a comment pointing to #781). Every worker that has `output` now carries a
+`success_condition` of `{"path": "$.ok", "equals": true}` over its declared `{"ok": true}`
+output, except the two spec critics of `critique-spec-stage`, whose output is a findings
+list that no condition can accept in every case, and `grant-refused` in the work variants
+has its edge to `$end`. What remains is `entry-multiple`: a human-check node is reached only
+by a failure edge, which the editor ignores when the check sorts before its source in the
+success-edge order, so the check counts as a second entry. A check cannot be given a success
+predecessor (every round's success edge is taken, and one edge per outcome is allowed), and a
+pass-through node in front of it only moves the entry onto that node, so this needs a change
+in Gold Band's rule, not in the templates. CI and setup tolerate exactly the listed files:
+any other template, and any new one, must pass; a listed template that now passes fails CI
+with "remove it from the list".
 
 Longer term (also #780): a check that runs the pinned app's own validator, so that a
 pin bump cannot drift from the port. Until then, re-read `validateWorkflowForSave`

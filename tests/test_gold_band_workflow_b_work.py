@@ -167,7 +167,7 @@ def test_a_refused_grant_check_goes_to_a_manual_check_and_never_to_codex(
         out = _out(workflow, f"grant-check-{name}")
         assert out == {"success": name, "failure": "grant-refused"}
     assert nodes["grant-refused"].get("manual_check") is True
-    assert _out(workflow, "grant-refused") == {}
+    assert _out(workflow, "grant-refused") == {"success": "$end"}
 
 
 def test_the_repairs_are_reached_through_their_grant_check_after_a_failed_verdict(

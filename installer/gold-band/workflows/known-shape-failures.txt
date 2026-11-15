@@ -23,7 +23,6 @@ critique.json
 grill-me.json
 grill-with-docs.json
 pr-composer.json
-research.json
 to-spec.json
 to-tickets.json
 workflow-b-work.json

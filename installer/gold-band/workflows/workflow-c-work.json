@@ -193,6 +193,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -454,6 +458,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -982,6 +990,11 @@
         "from": "grant-check-tickets-verdicts",
         "to": "grant-refused",
         "on": "failure"
+      },
+      {
+        "from": "grant-refused",
+        "to": "$end",
+        "on": "success"
       }
     ]
   },

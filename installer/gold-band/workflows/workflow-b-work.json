@@ -23,6 +23,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -64,6 +68,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -260,6 +268,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -366,6 +378,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -562,6 +578,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -668,6 +688,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -864,6 +888,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -945,6 +973,10 @@
           "schema": {
             "ok": true
           }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
         }
       },
       {
@@ -1226,6 +1258,11 @@
       },
       {
         "from": "escalation-check",
+        "to": "$end",
+        "on": "success"
+      },
+      {
+        "from": "grant-refused",
         "to": "$end",
         "on": "success"
       }
