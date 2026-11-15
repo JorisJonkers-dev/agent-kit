@@ -1,0 +1,5 @@
+template sections: 4 · body sections: 3 · template checkboxes: 3 · body checkboxes: 3
+user-skipped: changelog, screenshots
+  FAIL  SECTION ORDER CHANGED. Template order: Summary → Linked issues → Test plan  |  body order: Summary → Test plan → Linked issues. Restore the template's order — link blocks in particular belong where the template puts them, not wherever they read best.
+
+1 violation(s). Fix the body and re-run before rendering the preview.

@@ -1042,6 +1042,39 @@ The unit tests drive `fetch` through a stub `curl` script and `verify` through
 the real `git` over a fixture repository; they cover every line except
 `src/main.rs`.
 
+## pr-composer
+
+`crates/pr-composer` holds the two helpers of the pr-composer skill, ported from
+`skills/workstation/pr-composer/scripts/` (#813). Setup installs it on PATH
+(`workspace_tools`), and the skill calls it by name:
+
+```bash
+pr-composer check-body -t TEMPLATE -b BODY [--skipped "Screenshots,Migration"]
+pr-composer mine-prs [--out PROFILE.json] [--md] DUMP.json
+```
+
+* **`check-body`** compares a drafted PR body with the repository's template:
+  invented and missing sections, changed heading levels, a changed section
+  order, dropped or truncated checklists (all failures), unfilled `«…»`
+  placeholders and leftover HTML comments (warnings). Exit 0 clean, 1 with the
+  violations printed, 2 for a bad command line or an unreadable file. The text
+  is the Python helper's, byte for byte.
+* **`mine-prs`** turns a `gh pr list --state merged --json ...` dump into a
+  house-style profile: titles, bodies, people, labels and size. It writes the
+  profile JSON (`--out`, default `<dump>.style.json`, the same layout
+  `json.dump(indent=2)` wrote) and with `--md` the summary beside it.
+* **No regex crate.** The lockfile carries none, and the helpers' behaviour on
+  odd input follows Python's backtracking (a heading whose `\s+` runs across
+  lines, a lazy `.+?`), so `src/regex.rs` is a small backtracking matcher for the
+  subset of Python `re` the helpers use, and the patterns are ported as written.
+  The only dependency is `serde_json`, already pinned for the workspace.
+* **Checked against Python.** `tests/fixtures/expected/*.txt` are what the
+  Python helper printed for the fixtures. Before the scripts were deleted, 600
+  random template and body pairs and 400 random PR dumps gave the same output
+  from both, except where Python's set iteration order broke a tie (the order
+  of equally frequent reviewers or sections, which was arbitrary there and is
+  first-seen here).
+
 ## Release binaries
 
 Every release carries prebuilt, statically linked builds of the command-line
@@ -1054,8 +1087,8 @@ is a later child of #802, and the tarball will carry it when it exists.
 * **What ships.** The `workspace_tools` of `registry/estate-tooling.yaml`
   (agent-launcher, gold-band-gate, gold-band-run-start, gold-band-findings,
   gold-band-proof, research-layout, ticket-publish, workflow-lint,
-  coverage-gate, ci-wait, litellm-gate) plus critique, model-gateway and
-  build-tracker. The list is `TOOLS` in `scripts/release-binaries.sh`.
+  coverage-gate, ci-wait, litellm-gate, pr-composer) plus critique,
+  model-gateway and build-tracker. The list is `TOOLS` in `scripts/release-binaries.sh`.
 * **Targets.** `x86_64-unknown-linux-musl` (hosted `ubuntu-latest`),
   `aarch64-unknown-linux-musl` (the native `ubuntu-24.04-arm` runner) and
   `aarch64-apple-darwin` (`macos-latest`). Each is built natively on a runner of

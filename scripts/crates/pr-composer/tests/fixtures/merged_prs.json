@@ -1,0 +1,379 @@
+[
+ {
+  "number": 1,
+  "title": "feat(api): add endpoint.",
+  "body": "<!-- why -->\n## Summary\n\nDid the thing and here is a long enough summary of the change for eight words.\n\n## Test plan\n\n- [x] ran it\n- [ ] more\n\n## Notes\n\nnone\n\nCloses #12\n",
+  "labels": [
+   {
+    "name": "type: feat"
+   },
+   {
+    "name": "area: api"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "alice"
+    },
+    "state": "APPROVED"
+   },
+   {
+    "author": {
+     "login": "bob"
+    },
+    "state": "COMMENTED"
+   }
+  ],
+  "reviewRequests": [
+   {
+    "login": "carol"
+   },
+   {
+    "requestedReviewer": {
+     "login": "dave"
+    }
+   },
+   {
+    "name": "team-x"
+   },
+   {
+    "slug": "s1"
+   }
+  ],
+  "assignees": [
+   {
+    "login": "alice"
+   }
+  ],
+  "files": [
+   {
+    "path": "api/x.rs"
+   },
+   {
+    "path": "api/y.rs"
+   },
+   {
+    "path": "README.md"
+   }
+  ],
+  "additions": 100,
+  "deletions": 5,
+  "changedFiles": 3,
+  "baseRefName": "main"
+ },
+ {
+  "number": 2,
+  "title": "[ABC-12] fix(db)!: Repair index",
+  "body": "## Summary\n\nshort\n\n## Test plan\n\n\n**Risks:**\n\n![shot](http://x/y.png)\nSee https://acme.slack.com/archives/C1/p123 and fixes #3. Related to #4, part of #5.\n",
+  "labels": [
+   {
+    "name": "type: fix"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "alice"
+    },
+    "state": "APPROVED"
+   },
+   {
+    "author": {
+     "login": "bob"
+    },
+    "state": "APPROVED"
+   }
+  ],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "db/a.sql"
+   }
+  ],
+  "additions": 3,
+  "deletions": 1,
+  "changedFiles": 1,
+  "baseRefName": "main"
+ },
+ {
+  "number": 3,
+  "title": "docs: update readme",
+  "body": "",
+  "labels": [
+   {
+    "name": "type: docs"
+   },
+   {
+    "name": "area: docs"
+   }
+  ],
+  "reviews": [],
+  "reviewRequests": [],
+  "assignees": [
+   {
+    "login": "bob"
+   }
+  ],
+  "files": [
+   {
+    "path": "README.md"
+   }
+  ],
+  "additions": 0,
+  "deletions": 0,
+  "changedFiles": 1,
+  "baseRefName": "main"
+ },
+ {
+  "number": 4,
+  "title": "Update things",
+  "body": "plain body with #7 only\n",
+  "labels": [],
+  "reviews": [],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [],
+  "additions": 10,
+  "deletions": 2,
+  "changedFiles": 2,
+  "baseRefName": "develop"
+ },
+ {
+  "number": 5,
+  "title": "ABC-99 chore: bump",
+  "body": "## \n## Summary\n\ntext words here\n",
+  "labels": [
+   {
+    "name": "type: chore"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "bob"
+    },
+    "state": "COMMENTED"
+   }
+  ],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "ci/x.yml"
+   },
+   {
+    "path": "ci/y.yml"
+   }
+  ],
+  "additions": 10,
+  "deletions": 2,
+  "changedFiles": 2,
+  "baseRefName": "main"
+ },
+ {
+  "number": 6,
+  "title": "feat: lowercase title.",
+  "body": "<!-- why -->\n## Summary\n\nDid the thing and here is a long enough summary of the change for eight words.\n\n## Test plan\n\n- [x] ran it\n- [ ] more\n\n## Notes\n\nnone\n\nresolves #12\n",
+  "labels": [
+   {
+    "name": "type: feat"
+   },
+   {
+    "name": "version/minor"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "alice"
+    },
+    "state": "APPROVED"
+   }
+  ],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "api/z.rs"
+   }
+  ],
+  "additions": 10,
+  "deletions": 2,
+  "changedFiles": 2,
+  "baseRefName": "main"
+ },
+ {
+  "number": 7,
+  "title": "Fix: Capital",
+  "body": "<!-- why -->\n## Summary\n\nDid the thing and here is a long enough summary of the change for eight words.\n\n## Test plan\n\n- [x] ran it\n- [ ] more\n\n## Notes\n\nnone\n\nCloses #12\n",
+  "labels": [
+   {
+    "name": "type: fix"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "carol"
+    },
+    "state": "APPROVED"
+   },
+   {
+    "author": {
+     "login": "alice"
+    },
+    "state": "COMMENTED"
+   }
+  ],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "api/z.rs"
+   },
+   {
+    "path": "web/index.html"
+   }
+  ],
+  "additions": 10,
+  "deletions": 2,
+  "changedFiles": 2,
+  "baseRefName": "main"
+ },
+ {
+  "number": 8,
+  "title": "[TICKET-1] refactor(core): thing é ü",
+  "body": "<img src=x>\n- [ ] a\n- [X] b\n## Summary\n\nx\n",
+  "labels": [
+   {
+    "name": "type: refactor"
+   }
+  ],
+  "reviews": [],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "core/a.rs"
+   }
+  ],
+  "additions": 10,
+  "deletions": 2,
+  "changedFiles": 2,
+  "baseRefName": "main"
+ },
+ {
+  "number": 9,
+  "title": "test(api): add",
+  "body": "## Summary\n\nfoo bar\n\n## Test plan\n\n##   \n\nbaz\n",
+  "labels": [
+   {
+    "name": "type: test"
+   }
+  ],
+  "reviews": [],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "api/t.rs"
+   }
+  ],
+  "additions": 10,
+  "deletions": 2,
+  "changedFiles": 2,
+  "baseRefName": "main"
+ },
+ {
+  "number": 10,
+  "title": "ci(github): tweak",
+  "body": "<!-- why -->\n## Summary\n\nDid the thing and here is a long enough summary of the change for eight words.\n\n## Test plan\n\n- [x] ran it\n- [ ] more\n\n## Notes\n\nnone\n\nCloses #12\n",
+  "labels": [
+   {
+    "name": "type: ci"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "alice"
+    },
+    "state": "APPROVED"
+   }
+  ],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "ci/x.yml"
+   }
+  ],
+  "additions": 10,
+  "deletions": 2,
+  "changedFiles": 2,
+  "baseRefName": "main"
+ },
+ {
+  "number": 11,
+  "title": "perf: fast 🚀",
+  "body": "<!-- why -->\n## Summary\n\nDid the thing and here is a long enough summary of the change for eight words.\n\n## Test plan\n\n- [x] ran it\n- [ ] more\n\n## Notes\n\nnone\n\nCloses #12\n",
+  "labels": [
+   {
+    "name": "type: perf"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "alice"
+    },
+    "state": "APPROVED"
+   }
+  ],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "api/x.rs"
+   }
+  ],
+  "additions": 10,
+  "deletions": 2,
+  "changedFiles": 2,
+  "baseRefName": "main"
+ },
+ {
+  "number": 12,
+  "title": "build: deps",
+  "body": "<!-- why -->\n## Summary\n\nDid the thing and here is a long enough summary of the change for eight words.\n\n## Test plan\n\n- [x] ran it\n- [ ] more\n\n## Notes\n\nnone\n\nCloses #12\n\nCloses #2\nfix #3\n",
+  "labels": [
+   {
+    "name": "type: build"
+   },
+   {
+    "name": "release:patch"
+   }
+  ],
+  "reviews": [
+   {
+    "author": {
+     "login": "bob"
+    },
+    "state": "APPROVED"
+   }
+  ],
+  "reviewRequests": [],
+  "assignees": [],
+  "files": [
+   {
+    "path": "Cargo.toml"
+   }
+  ],
+  "additions": 10,
+  "deletions": 2,
+  "changedFiles": 2,
+  "baseRefName": "main"
+ }
+]

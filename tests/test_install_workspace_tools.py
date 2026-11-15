@@ -205,6 +205,7 @@ DECLARED = [
     "coverage-gate",
     "ci-wait",
     "litellm-gate",
+    "pr-composer",
 ]
 
 

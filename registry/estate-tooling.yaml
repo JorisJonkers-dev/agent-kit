@@ -1142,6 +1142,8 @@ workspace_tools:
     surfaces: [workstation]
   - name: litellm-gate
     surfaces: [workstation]
+  - name: pr-composer
+    surfaces: [workstation]
 
 # -------------------------------------------------------------------
 # Hindsight Coding Agents: Hindsight's own plugin for Claude Code and
