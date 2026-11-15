@@ -290,7 +290,25 @@ into that file on the Linux workstation by a setup run
 * **Never while the app runs.** Setup stops with `Gold Band is running` (exit 1)
   and writes nothing, as for the agent map; a machine without Gold Band gets no
   file. `setup-workstation.sh --check` (or `converge.py gold-band-workflows
-  --check`) prints `would add <id>` and `would change <id>` and writes nothing.
+  --check`) prints `would add <id>` and `would change <id>` and writes nothing;
+  under `setup-workstation.sh --check` such a line is a failure, so a machine
+  whose templates are missing or drifted does not pass the check.
+
+Why a machine can lack them (#768): the step lives in setup, which refuses to
+write while the desktop app runs and stops there, and `--check` used to report
+`would add` as an ordinary log line. The converge itself writes the file the app
+reads (`context/workflows.json`; `auto-templates.json` and the per-project
+folders hold other data), and the app keeps templates it does not own when it
+re-saves the file (it only upserts its built-ins), so a converged store survives
+a restart. To apply by hand with the app closed:
+
+```sh
+cd ~/Projects/JorisJonkers-dev/agent-kit && ./installer/setup-workstation.sh
+# or only this step:
+uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-workflows \
+  --keep ~/.config/agent-kit/keep.yaml --store ~/.gold-band/context/workflows.json \
+  --workflows installer/gold-band/workflows --registry registry/estate-tooling.yaml
+```
 
 The installer bundle ships `installer/gold-band/workflows`, so a setup run from a
 release bundle installs the same templates (`tests/test_publish_installer_artifacts.py`).

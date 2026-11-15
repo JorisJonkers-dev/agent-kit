@@ -109,7 +109,7 @@ if [ "${CHECK_ONLY}" = 0 ]; then
   install_tool claude-code '2.1.319' 'npm install -g "@anthropic-ai/claude-code@${VERSION}"'
   install_tool codex '0.167.0' 'npm install -g "@openai/codex@${VERSION}"'
   install_tool uv '0.13.7' 'curl -fsSL "https://github.com/astral-sh/uv/releases/download/${VERSION}/uv-${GNU_ARCH}-unknown-linux-gnu.tar.gz" | tar -xz -C /usr/local/bin --strip-components=1 --wildcards '\''*/uv'\'' '\''*/uvx'\'''
-  install_tool hermes-agent '0.19.0' 'uv tool install --exclude-newer "7 days" --python 3.13 "hermes-agent[mcp]==${VERSION}"'
+  install_tool hermes-agent '0.19.0' 'uv tool install --exclude-newer "7 days" --python 3.13 "hermes-agent[mcp,acp]==${VERSION}"'
   install_tool olcli '0.16.1' 'npm install -g "@aloth/olcli@${VERSION}"'
   install_tool gh 'v2.103.3' 'curl -fsSL "https://github.com/cli/cli/releases/download/${VERSION}/gh_${VERSION#v}_linux_${DEB_ARCH}.tar.gz" | tar -xz -C /usr/local --strip-components=1 "gh_${VERSION#v}_linux_${DEB_ARCH}/bin/gh"'
   install_tool go '1.27.3' 'curl -fsSL "https://go.dev/dl/go${VERSION}.linux-${DEB_ARCH}.tar.gz" | tar -xz -C /usr/local && ln -sf /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/'
