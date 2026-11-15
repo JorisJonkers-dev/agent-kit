@@ -77,6 +77,7 @@ KIT_PATHS=(
   scripts/codex-add-url-mcp.py
   scripts/converge.py
   scripts/gold_band_instances.py
+  scripts/gold_band_shape.py
   scripts/install-workspace-tools.sh
   .cargo/config.toml
   scripts/Cargo.toml

@@ -1,0 +1,32 @@
+# Gold Band workflow templates that fail the editor's shape rules today
+# (workflow-lint --shape; docs/GOLD-BAND.md "How workflows are validated").
+# Recorded 2026-11-15, Gold Band pin 987fc3e2 (v0.19.1).
+#
+# Fixing them is JorisJonkers-dev/agent-kit#781, which waits on the owner's
+# decision. Until then CI (scripts/check-workflow-shape.sh) and
+# `converge.py gold-band-workflows` tolerate exactly these files and nothing
+# else: a template not listed here, or a new one, must pass. A listed template
+# that now passes fails the CI step: remove it from this list.
+#
+# One file name per line; a line that starts with # is a comment.
+brainstorming.json
+critique-adr-review.json
+critique-architecture-review.json
+critique-decision-recovery.json
+critique-decisions.json
+critique-feature-review.json
+critique-spec-stage.json
+critique-spec.json
+critique-ticket-review.json
+critique-tickets.json
+critique.json
+grill-me.json
+grill-with-docs.json
+pr-composer.json
+research.json
+to-spec.json
+to-tickets.json
+workflow-b-work.json
+workflow-b.json
+workflow-c-work.json
+workflow-c.json

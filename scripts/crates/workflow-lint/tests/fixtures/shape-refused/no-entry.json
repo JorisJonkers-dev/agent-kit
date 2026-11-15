@@ -1,0 +1,92 @@
+{
+  "workflow": {
+    "description": "fixture",
+    "version": "0.1",
+    "id": "fx",
+    "entry": "gate",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "gate",
+        "executionSlotId": "slot-gate",
+        "provider": "vibe",
+        "model": "m",
+        "profile": "pf-builtin-dev",
+        "goal": "g"
+      },
+      {
+        "type": "worker",
+        "id": "write",
+        "executionSlotId": "slot-write",
+        "provider": "vibe",
+        "model": "m",
+        "profile": "pf-builtin-dev",
+        "goal": "g",
+        "output": {
+          "kind": "json",
+          "artifact": "write-out",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "check",
+        "executionSlotId": "slot-check",
+        "provider": "vibe",
+        "model": "m",
+        "profile": "pf-builtin-dev",
+        "goal": "g",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "done",
+        "executionSlotId": "slot-done",
+        "provider": "vibe",
+        "model": "m",
+        "profile": "pf-builtin-dev",
+        "goal": "g"
+      }
+    ],
+    "edges": [
+      {
+        "from": "gate",
+        "to": "write",
+        "on": "success"
+      },
+      {
+        "from": "write",
+        "to": "check",
+        "on": "success"
+      },
+      {
+        "from": "check",
+        "to": "done",
+        "on": "success"
+      },
+      {
+        "from": "check",
+        "to": "$end",
+        "on": "failure"
+      },
+      {
+        "from": "done",
+        "to": "gate",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": []
+  }
+}
