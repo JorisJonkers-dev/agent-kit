@@ -303,8 +303,8 @@ def test_code_nav_is_a_read_only_stdio_server_over_the_personal_roots() -> None:
 
 def test_code_nav_registers_the_personal_root_for_every_agent() -> None:
     script = render_registry.render_setup_script(_registry())
-    assert f"claude mcp add --scope user code-nav -- code-nav --root {CODE_NAV_ROOT}" in script
-    assert f"codex mcp add code-nav -- code-nav --root {CODE_NAV_ROOT}" in script
+    assert f'claude mcp add --scope user code-nav -- "$(command -v code-nav || printf %s code-nav)" --root {CODE_NAV_ROOT}' in script
+    assert f'codex mcp add code-nav -- "$(command -v code-nav || printf %s code-nav)" --root {CODE_NAV_ROOT}' in script
     for generated in (
         "registry/generated/vibe/mcp-servers.toml",
         "registry/generated/opencode/opencode.json",
@@ -1428,3 +1428,8 @@ def test_a_secret_minted_by_anything_but_litellm_is_refused() -> None:
     entry["mint"] = "vault"
     with pytest.raises(render_registry.RegistryError, match="mint must be litellm"):
         render_registry.validate(data)
+
+
+def test_a_shadowing_copy_warning_names_the_command_that_removes_it() -> None:
+    script = render_registry.render_setup_script(_registry())
+    assert 'remove it with:  rm \\"${copy}\\""' in script

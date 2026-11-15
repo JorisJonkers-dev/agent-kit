@@ -1397,7 +1397,7 @@ oauth_status() {
       security find-generic-password -s ai.mistral.vibe -a "mcp-oauth:${name}:tokens" >/dev/null 2>&1 \
         || warn "${name}: needs sign-in (vibe): run /mcp login ${name} in Vibe"
     else
-      warn "${name}: vibe sign-in not checked: the check reads the macOS Keychain; skipped on $(uname -s)"
+      log "${name}: vibe sign-in not checked: the check reads the macOS Keychain; skipped on $(uname -s)"
     fi
   fi
 }
@@ -2705,7 +2705,7 @@ fi
 if nix_provides uv; then
   ok "uv: provided by Nix; setup does not install or update it"
   if copy=$(non_nix_copy uv); then
-    warn "uv: ${copy} is not from Nix and can shadow the Nix-provided uv; remove it"
+    warn "uv: ${copy} is not from Nix and can shadow the Nix-provided uv; remove it with:  rm \"${copy}\""
   fi
 else
   if command -v uv >/dev/null 2>&1; then
@@ -3404,7 +3404,7 @@ for install in installs:
           ok "typescript-lsp: typescript-language-server on PATH, plugin enabled"
           if nix_provides typescript-language-server; then
             if copy=$(non_nix_copy typescript-language-server); then
-              warn "typescript-lsp: ${copy} is not from Nix and can shadow the Nix-provided typescript-language-server; remove it"
+              warn "typescript-lsp: ${copy} is not from Nix and can shadow the Nix-provided typescript-language-server; remove it with:  rm \"${copy}\""
             fi
           elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
             copy=$(non_nix_copy typescript-language-server) || copy=""
@@ -3442,7 +3442,7 @@ for install in installs:
           ok "pyright-lsp: pyright-langserver on PATH, plugin enabled"
           if nix_provides pyright-langserver; then
             if copy=$(non_nix_copy pyright-langserver); then
-              warn "pyright-lsp: ${copy} is not from Nix and can shadow the Nix-provided pyright-langserver; remove it"
+              warn "pyright-lsp: ${copy} is not from Nix and can shadow the Nix-provided pyright-langserver; remove it with:  rm \"${copy}\""
             fi
           elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
             copy=$(non_nix_copy pyright-langserver) || copy=""
@@ -3480,7 +3480,7 @@ for install in installs:
           ok "kotlin-lsp: kotlin-lsp on PATH, plugin enabled"
           if nix_provides kotlin-lsp; then
             if copy=$(non_nix_copy kotlin-lsp); then
-              warn "kotlin-lsp: ${copy} is not from Nix and can shadow the Nix-provided kotlin-lsp; remove it"
+              warn "kotlin-lsp: ${copy} is not from Nix and can shadow the Nix-provided kotlin-lsp; remove it with:  rm \"${copy}\""
             fi
           elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
             copy=$(non_nix_copy kotlin-lsp) || copy=""
@@ -3522,7 +3522,7 @@ for install in installs:
           ok "jdtls-lsp: jdtls on PATH, plugin enabled"
           if nix_provides jdtls; then
             if copy=$(non_nix_copy jdtls); then
-              warn "jdtls-lsp: ${copy} is not from Nix and can shadow the Nix-provided jdtls; remove it"
+              warn "jdtls-lsp: ${copy} is not from Nix and can shadow the Nix-provided jdtls; remove it with:  rm \"${copy}\""
             fi
           elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
             copy=$(non_nix_copy jdtls) || copy=""
@@ -3576,7 +3576,7 @@ for install in installs:
             ok "ruby-lsp: ruby-lsp on PATH, plugin enabled"
             if nix_provides ruby-lsp; then
               if copy=$(non_nix_copy ruby-lsp); then
-                warn "ruby-lsp: ${copy} is not from Nix and can shadow the Nix-provided ruby-lsp; remove it"
+                warn "ruby-lsp: ${copy} is not from Nix and can shadow the Nix-provided ruby-lsp; remove it with:  rm \"${copy}\""
               fi
             elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
               copy=$(non_nix_copy ruby-lsp) || copy=""
@@ -3623,7 +3623,7 @@ for install in installs:
             ok "gopls-lsp: gopls on PATH, plugin enabled"
             if nix_provides gopls; then
               if copy=$(non_nix_copy gopls); then
-                warn "gopls-lsp: ${copy} is not from Nix and can shadow the Nix-provided gopls; remove it"
+                warn "gopls-lsp: ${copy} is not from Nix and can shadow the Nix-provided gopls; remove it with:  rm \"${copy}\""
               fi
             elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
               copy=$(non_nix_copy gopls) || copy=""
@@ -3670,7 +3670,7 @@ for install in installs:
             ok "rust-analyzer-lsp: rust-analyzer on PATH, plugin enabled"
             if nix_provides rust-analyzer; then
               if copy=$(non_nix_copy rust-analyzer); then
-                warn "rust-analyzer-lsp: ${copy} is not from Nix and can shadow the Nix-provided rust-analyzer; remove it"
+                warn "rust-analyzer-lsp: ${copy} is not from Nix and can shadow the Nix-provided rust-analyzer; remove it with:  rm \"${copy}\""
               fi
             elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
               copy=$(non_nix_copy rust-analyzer) || copy=""
@@ -3721,7 +3721,7 @@ for install in installs:
             ok "lua-lsp: lua-language-server on PATH, plugin enabled"
             if nix_provides lua-language-server; then
               if copy=$(non_nix_copy lua-language-server); then
-                warn "lua-lsp: ${copy} is not from Nix and can shadow the Nix-provided lua-language-server; remove it"
+                warn "lua-lsp: ${copy} is not from Nix and can shadow the Nix-provided lua-language-server; remove it with:  rm \"${copy}\""
               fi
             elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
               copy=$(non_nix_copy lua-language-server) || copy=""
@@ -3768,7 +3768,7 @@ for install in installs:
             ok "clangd-lsp: clangd on PATH, plugin enabled"
             if nix_provides clangd; then
               if copy=$(non_nix_copy clangd); then
-                warn "clangd-lsp: ${copy} is not from Nix and can shadow the Nix-provided clangd; remove it"
+                warn "clangd-lsp: ${copy} is not from Nix and can shadow the Nix-provided clangd; remove it with:  rm \"${copy}\""
               fi
             elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
               copy=$(non_nix_copy clangd) || copy=""
@@ -3849,7 +3849,7 @@ for install in installs:
             ok "csharp-lsp: csharp-ls on PATH, plugin enabled"
             if nix_provides csharp-ls; then
               if copy=$(non_nix_copy csharp-ls); then
-                warn "csharp-lsp: ${copy} is not from Nix and can shadow the Nix-provided csharp-ls; remove it"
+                warn "csharp-lsp: ${copy} is not from Nix and can shadow the Nix-provided csharp-ls; remove it with:  rm \"${copy}\""
               fi
             elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
               copy=$(non_nix_copy csharp-ls) || copy=""
@@ -3900,7 +3900,7 @@ for install in installs:
             ok "swift-lsp: sourcekit-lsp on PATH, plugin enabled"
             if nix_provides sourcekit-lsp; then
               if copy=$(non_nix_copy sourcekit-lsp); then
-                warn "swift-lsp: ${copy} is not from Nix and can shadow the Nix-provided sourcekit-lsp; remove it"
+                warn "swift-lsp: ${copy} is not from Nix and can shadow the Nix-provided sourcekit-lsp; remove it with:  rm \"${copy}\""
               fi
             elif [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
               copy=$(non_nix_copy sourcekit-lsp) || copy=""
@@ -4111,7 +4111,7 @@ for install in installs:
       rm -f "${overlay_err}"
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user code-nav >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add code-nav" claude_each_profile claude mcp add --scope user code-nav -- code-nav --root ~/Projects/JorisJonkers-dev ${overlay_roots[@]+"${overlay_roots[@]}"}; then
+        if run_redacted "claude mcp add code-nav" claude_each_profile claude mcp add --scope user code-nav -- "$(command -v code-nav || printf %s code-nav)" --root ~/Projects/JorisJonkers-dev ${overlay_roots[@]+"${overlay_roots[@]}"}; then
           ok "code-nav registered (claude)"
         else
           fail "code-nav registration failed (claude)"
@@ -4119,7 +4119,7 @@ for install in installs:
       fi
       if command -v codex >/dev/null 2>&1; then
         run codex mcp remove code-nav >/dev/null 2>&1 || true
-        if run_redacted "codex mcp add code-nav" codex mcp add code-nav -- code-nav --root ~/Projects/JorisJonkers-dev ${overlay_roots[@]+"${overlay_roots[@]}"}; then
+        if run_redacted "codex mcp add code-nav" codex mcp add code-nav -- "$(command -v code-nav || printf %s code-nav)" --root ~/Projects/JorisJonkers-dev ${overlay_roots[@]+"${overlay_roots[@]}"}; then
           ok "code-nav registered (codex)"
         else
           fail "code-nav registration failed (codex)"
@@ -4219,7 +4219,7 @@ for install in installs:
     fi
     if command -v claude >/dev/null 2>&1; then
       run claude_each_profile claude mcp remove --scope user drawio >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add drawio" claude_each_profile claude mcp add --scope user drawio -- drawio-mcp; then
+      if run_redacted "claude mcp add drawio" claude_each_profile claude mcp add --scope user drawio -- "$(command -v drawio-mcp || printf %s drawio-mcp)"; then
         ok "drawio registered (claude)"
       else
         fail "drawio registration failed (claude)"
@@ -4227,7 +4227,7 @@ for install in installs:
     fi
     if command -v codex >/dev/null 2>&1; then
       run codex mcp remove drawio >/dev/null 2>&1 || true
-      if run_redacted "codex mcp add drawio" codex mcp add drawio -- drawio-mcp; then
+      if run_redacted "codex mcp add drawio" codex mcp add drawio -- "$(command -v drawio-mcp || printf %s drawio-mcp)"; then
         ok "drawio registered (codex)"
       else
         fail "drawio registration failed (codex)"
