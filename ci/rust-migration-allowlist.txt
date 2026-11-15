@@ -471,10 +471,6 @@ scripts/check_agents_md.py
 scripts/check_marketplace_bump.py
 scripts/check_skill_sources.py
 scripts/verify_release_asset.py
-skills/workstation/estate-bootstrap/scripts/audit.py
-skills/workstation/estate-delivery-status/scripts/verdict.py
-skills/workstation/estate-project-intent/scripts/intent.py
-skills/workstation/estate-rollback/scripts/plan.py
 skills/workstation/pr-composer/scripts/check_body.py
 skills/workstation/pr-composer/scripts/mine_prs.py
 skills/workstation/projects-layout/hooks/projects-layout-guard.py

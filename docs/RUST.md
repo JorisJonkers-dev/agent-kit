@@ -1042,6 +1042,46 @@ The unit tests drive `fetch` through a stub `curl` script and `verify` through
 the real `git` over a fixture repository; they cover every line except
 `src/main.rs`.
 
+## estate
+
+`crates/estate` is one binary, `estate`, with the four mechanical helpers of the
+estate skills (#813). Each replaces a Python script that sat in its skill's
+`scripts/` directory; the skill now calls `estate <subcommand>` on PATH, where
+setup installs it (`workspace_tools`, so it also ships in the release
+tarball). It takes `serde_json` only.
+
+```bash
+estate audit REPO_DIR [--latest-sha SHA] [--json]
+estate verdict [--signals FILE]
+estate intent scaffold --project NAME --owner OWNER --host HOST --audience AUDIENCE \
+    --image IMAGE --process PROCESS --port N --out DIR
+estate intent validate PATH [EXTRA_PATH ...]
+estate plan --project P --action pause|rollback|resume [--target V] [--reason R] \
+    [--pin V] [--proof-names V | --no-proof]
+```
+
+* `audit` (estate-bootstrap) is the offline check of a repository: workflow pins,
+  the one `Pipeline Complete` job, the renovate preset and retired references.
+  Output is one `<file>: <gap> (source: <doc>)` line per gap, or `no gaps`;
+  `--json` prints the list. Exit 0 when it ran, 2 for a missing directory or a
+  `--latest-sha` that is not 40 lowercase hex characters.
+* `verdict` (estate-delivery-status) reads the five signals as JSON and prints
+  `VERDICT: landed|mixed|not landed`, then a line per signal. Exit 0 for any
+  well-formed input, 2 for malformed input.
+* `intent` (estate-project-intent): `scaffold` writes a Project Intent and its
+  `base.env` without overwriting; `validate` runs `deploy-kit validate` (limit
+  300 seconds) and mirrors its exit status, 2 when deploy-kit is missing.
+* `plan` (estate-rollback) prints the plan and the exact `gh workflow run`
+  command. Its one `gh` call is a GET of the pin file; it never dispatches.
+  Exit 0 plan printed, 1 refused.
+
+Differences from the scripts: messages name `estate <subcommand>` instead of
+`<script>.py`, the tool finds `gh` and `deploy-kit` on PATH itself, and the
+output of a tool it runs is passed through after the tool finishes, stdout then
+stderr. Every other line of output is the script's. The crate tests carry the
+scripts' pytest cases and also run the refused and landed worked examples
+printed in the skills' SKILL.md.
+
 ## Release binaries
 
 Every release carries prebuilt, statically linked builds of the command-line
@@ -1054,7 +1094,7 @@ is a later child of #802, and the tarball will carry it when it exists.
 * **What ships.** The `workspace_tools` of `registry/estate-tooling.yaml`
   (agent-launcher, gold-band-gate, gold-band-run-start, gold-band-findings,
   gold-band-proof, research-layout, ticket-publish, workflow-lint,
-  coverage-gate, ci-wait, litellm-gate) plus critique, model-gateway and
+  coverage-gate, ci-wait, litellm-gate, estate) plus critique, model-gateway and
   build-tracker. The list is `TOOLS` in `scripts/release-binaries.sh`.
 * **Targets.** `x86_64-unknown-linux-musl` (hosted `ubuntu-latest`),
   `aarch64-unknown-linux-musl` (the native `ubuntu-24.04-arm` runner) and

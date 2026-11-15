@@ -63,13 +63,13 @@ First set `sha` to the releasing commit: `gh api repos/OWNER/REPO/commits/TAG --
    `gh issue list --repo JorisJonkers-dev/estate --state open --label "area: deploy" --limit 200 --json title,url,body --jq '[.[] | select((.body // "") | contains("estate-condition: PROJECT/"))] | map({title,url})'`
    (`PROJECT` replaced by the Project name.) Issues are reported; they do not change the verdict.
 
-Write the five signals as JSON in the shape `scripts/verdict.py` reads:
+Write the five signals as JSON in the shape `estate verdict` reads:
 `{"project", "release", "sha", "signals": {"publish", "compose", "status", "deployment", "issues"}}`,
 with `url` as the link and `headSha` as the commit the signal is about (or null).
 
 ## Verdict
 
-Run `python3 -I scripts/verdict.py --signals FILE` (or pipe the JSON on stdin), from this skill's directory. The rule it applies:
+Run `estate verdict --signals FILE` (or pipe the JSON on stdin). The rule it applies:
 
 - compose is good when `clean`; status is good when `success`. Only these two decide.
 - A signal whose `headSha` is present (a 40-hex commit; an empty string counts as null) and differs from `sha`, compared case-insensitively, counts as `missing`. `sha` must be 40 hex digits.
