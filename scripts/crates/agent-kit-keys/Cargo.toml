@@ -1,0 +1,9 @@
+[package]
+name = "agent-kit-keys"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Get the workstation's tokens and keys, store them in the secret store and wire them into the shell."
+
+[dependencies]
+serde_json = "=1.0.154"

@@ -42,7 +42,7 @@ verified_at: 2026-09-09
 # -------------------------------------------------------------------
 # Workstation tokens and keys.
 #
-# What setup gets for you through scripts/agent-kit-keys.py: a `grant`
+# What setup gets for you through agent-kit-keys (scripts/crates/agent-kit-keys): a `grant`
 # entry is a service token it mints from auth-api after signing you in
 # (granting the service first when you are an admin), a `paste` entry is a
 # key you paste once, a `login` entry is one a sign-in command gets for you

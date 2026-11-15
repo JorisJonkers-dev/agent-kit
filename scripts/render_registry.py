@@ -90,9 +90,10 @@ LITELLM_ADMIN_TOKEN_SCRIPT = Path("registry/generated/litellm/make-admin-token.s
 # One Pi provider per LiteLLM route; scripts/pi-merge-providers.py merges it into Pi's models.json.
 PI_PROVIDERS = Path("registry/generated/pi/providers.json")
 PI_MERGE_PROVIDERS = Path("scripts/pi-merge-providers.py")
-# The other harnesses' LiteLLM provider entries and launcher (scripts/litellm-harness.py).
+# The other harnesses' LiteLLM provider entries and launcher (crates/litellm-harness).
 LITELLM_HARNESSES = Path("registry/generated/litellm/harnesses.json")
-LITELLM_HARNESS_SCRIPT = Path("scripts/litellm-harness.py")
+# The Rust tools (crates/litellm-harness and the rest) setup builds into ~/.local/share/agent-kit/bin.
+WORKSTATION_RUST_INSTALLER = Path("scripts/install-workstation-rust.sh")
 NIXOS_PACKAGES = Path("registry/generated/nixos/packages.nix")
 # The devWorkstation groups a NixOS package can belong to: core is always
 # installed, the others are optional. This order is the rendered order.
@@ -3542,20 +3543,38 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# Tokens and keys first: everything after this reads them. In a terminal")
     w("# agent-kit-keys signs you in, mints what is missing and stores it; either way")
     w("# env.sh is rewritten and loaded, so this run registers what needs them.")
+    w('AGENT_KIT_BIN="${XDG_DATA_HOME:-${HOME:-}/.local/share}/agent-kit/bin"')
+    w("# Builds and installs the workstation's Rust tools (agent-kit-keys, litellm-harness,")
+    w("# measure-litellm-budget, workstation-kube) into ${AGENT_KIT_BIN}; a failed build leaves them as they were.")
+    w("workstation_rust_setup() {")
+    w("  local rc=0 mode=()")
+    w('  [ "${CHECK_ONLY}" = 1 ] && mode=(--check)')
+    w(f'  bash "${{KIT_ROOT}}/{WORKSTATION_RUST_INSTALLER}" ${{mode[@]+"${{mode[@]}}"}} || rc=$?')
+    w('  [ "${rc}" = 0 ] || warn "workstation tools (rust): not installed (exit ${rc})"')
+    w("}")
     w("tokens_and_keys() {")
     w('  local table="${KIT_ROOT}/registry/generated/workstation-secrets.json"')
-    w('  local helper="${KIT_ROOT}/scripts/agent-kit-keys.py"')
+    w('  local helper="${AGENT_KIT_BIN}/agent-kit-keys"')
     w("  local var state")
     w('  if [ "${CLOUD}" = 1 ]; then')
     w('    log "tokens and keys: the cloud session brings its own"')
     w("    return 0")
     w("  fi")
     w('  log "tokens and keys"')
+    w("  workstation_rust_setup")
+    w('  if [ ! -x "${helper}" ]; then')
+    w('    warn "tokens and keys: ${helper} is not built (is cargo on PATH?); skipped"')
+    w("    return 0")
+    w("  fi")
+    w("  # The helpers the keys tool reads and writes secrets through are the kit's own,")
+    w("  # which exist before ~/.local/bin holds them.")
+    w('  export AGENT_KIT_SECRET_TOOL="${KIT_ROOT}/installer/agent-kit-secret"')
+    w('  export AGENT_KIT_PRIVATE_TOOL="${KIT_ROOT}/installer/agent-kit-private"')
     w("  if interactive; then")
-    w('    python3 "${helper}" --table "${table}" ensure <"${PROMPT_TTY}" \\')
+    w('    "${helper}" --table "${table}" ensure <"${PROMPT_TTY}" \\')
     w('      || warn "tokens and keys: the walk-through stopped early; run setup again to continue"')
     w('  elif [ "${CHECK_ONLY}" != 1 ]; then')
-    w('    python3 "${helper}" --table "${table}" write-env \\')
+    w('    "${helper}" --table "${table}" write-env \\')
     w('      || warn "tokens and keys: could not write ~/.config/agent-kit/env.sh"')
     w("  fi")
     w("  while read -r var state; do")
@@ -3574,7 +3593,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      *" unchecked") log "${var}: its host did not answer, so it was not checked" ;;')
     w('      *" ok") ok "${var}" ;;')
     w("    esac")
-    w('  done < <(python3 "${helper}" --table "${table}" status)')
+    w('  done < <("${helper}" --table "${table}" status)')
     w('  if [ -f "${HOME}/.config/agent-kit/env.sh" ]; then')
     w("    # shellcheck disable=SC1091")
     w('    . "${HOME}/.config/agent-kit/env.sh"')
@@ -6213,7 +6232,7 @@ def _pi_providers_block() -> list[str]:
 
 
 def render_litellm_harnesses(data: dict[str, Any]) -> str:
-    """The route table scripts/litellm-harness.py reads: proxy URL, and per route its provider,
+    """The route table litellm-harness reads: proxy URL, and per route its provider,
     key variable, data scope and models. Never a key."""
     section = data.get("litellm") or {}
     table = {
@@ -6241,7 +6260,7 @@ def _litellm_harness_block() -> list[str]:
     beside the table it reads, and is replaced only when setup wrote it.
     """
     table = f'"${{KIT_ROOT}}/{LITELLM_HARNESSES}"'
-    script = f'"${{KIT_ROOT}}/{LITELLM_HARNESS_SCRIPT}"'
+    script = '"${AGENT_KIT_BIN}/litellm-harness"'
     out = [
         "    # One LiteLLM provider per route (litellm-<agent>) in each harness's own config, and the",
         "    # agent-kit-litellm launcher that runs a harness on a route with its key from the secret store.",
@@ -6250,14 +6269,18 @@ def _litellm_harness_block() -> list[str]:
         '    litellm_state="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit"',
         '    litellm_launcher="${HOME}/.local/bin/agent-kit-litellm"',
         '    litellm_marker="# managed by agent-kit setup-workstation.sh"',
-        '    if [ "${CHECK_ONLY}" = 1 ]; then',
+        '    if [ ! -x "${AGENT_KIT_BIN}/litellm-harness" ]; then',
+        '      warn "litellm-harness is not built; the LiteLLM providers and launcher were not set up"',
+        '    elif [ "${CHECK_ONLY}" = 1 ]; then',
         '      log "would install ${litellm_launcher}"',
         '    elif [ -e "${litellm_launcher}" ] && ! grep -qxF "${litellm_marker}" "${litellm_launcher}"; then',
         '      warn "${litellm_launcher} exists and was not written by setup; left alone"',
         "    else",
         '      mkdir -p "${HOME}/.local/bin" "${litellm_state}" \\',
         f'        && install -m 0644 {table} "${{litellm_state}}/litellm-harnesses.json" \\',
-        f'        && install -m 0755 {script} "${{litellm_launcher}}" \\',
+        '        && printf \'#!/bin/sh\\n%s\\nexec "%s" "$@"\\n\' "${litellm_marker}" "${AGENT_KIT_BIN}/litellm-harness"'
+        ' >"${litellm_launcher}" \\',
+        '        && chmod 0755 "${litellm_launcher}" \\',
         '        && ok "agent-kit-litellm -> ${litellm_launcher}" \\',
         '        || fail "agent-kit-litellm: could not install ${litellm_launcher}"',
         "    fi",
@@ -6269,16 +6292,15 @@ def _litellm_harness_block() -> list[str]:
         ("vibe", "vibe", '"${litellm_state}/vibe-litellm/config.toml"'),
     )
     for harness, binary, config in targets:
-        guard = f"command -v {binary} >/dev/null 2>&1"
+        guard = f'[ -x "${{AGENT_KIT_BIN}}/litellm-harness" ] && command -v {binary} >/dev/null 2>&1'
         if harness == "opencode":
             guard += ' && [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ]'
         else:
             guard += ' && [ "${CLOUD}" != 1 ]'
         out += [
             f"    if {guard}; then",
-            '      if litellm_said="$(uv run --no-project --exclude-newer "7 days" --with tomlkit'
-            " --with pyyaml python \\",
-            f"        {script} --table {table} configure {harness} --config {config} ${{litellm_check}})\"; then",
+            f'      if litellm_said="$({script} --table {table} configure {harness} --config {config} '
+            '${litellm_check})"; then',
             f'        ok "{harness}: ${{litellm_said}}"',
             "      else",
             f'        fail "{harness}: could not write the LiteLLM providers"',

@@ -36,4 +36,8 @@ members = [
     "crates/research-layout",
     "crates/rust-migration-guard",
     "crates/critique-block",
+    "crates/agent-kit-keys",
+    "crates/workstation-kube",
+    "crates/litellm-harness",
+    "crates/litellm-budget",
 ]

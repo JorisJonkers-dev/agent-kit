@@ -136,13 +136,13 @@ any client can send. Pi, Claude Code, Codex, Hermes, OpenCode and Vibe send that
 (see "Running a harness on a route"); this repository ships the table, the launchers and the gate.
 
 The old sign-in edge's auth-api service token, `LITELLM_EDGE_TOKEN`, is retired: setup removes
-it from the secret store, and neither `litellm-gate` nor `measure_litellm_budget.py` sends a second
+it from the secret store, and neither `litellm-gate` nor `measure-litellm-budget` sends a second
 header any more (`--edge-token-env` is gone from `litellm-gate`).
 
 ## Running a harness on a route
 
 Each harness has one way to run a LiteLLM model with a route key read from the secret store.
-`scripts/litellm-harness.py` does it, installed as `agent-kit-litellm`; the data it uses is
+`litellm-harness` (the Rust crate `scripts/crates/litellm-harness`) does it, installed as `agent-kit-litellm`; the data it uses is
 `registry/generated/litellm/harnesses.json`, rendered from the `litellm` section of the registry
 by `scripts/render_registry.py` (the proxy URL and, per route, `litellm-<agent>`, the key
 variable, the data scope and the models its access groups reach). Pi has its own providers
@@ -208,7 +208,7 @@ Each route is a LiteLLM **team** that holds the route's access groups and budget
 has its **own key** in that team, named `<agent>@<host>` (for example `vibe@enschede-rx7900xtx-1`).
 Every host's key draws on the one team budget, and a lost machine's key is deleted alone.
 
-Setup mints them itself (`mint: litellm` in the registry, done by `scripts/agent-kit-keys.py`).
+Setup mints them itself (`mint: litellm` in the registry, done by `agent-kit-keys`).
 When a key is missing from the secret store, or LiteLLM's `GET /key/info` refuses it, setup asks
 once for a **LiteLLM admin token**: a management key that expires in one hour, which the owner
 makes with the proxy's master key:
@@ -243,14 +243,14 @@ applies to the `openrouter` key minted before it became public-only: it still li
 ## The window and reset
 
 Every capped route's team is made with `budget_duration: 30d`, so LiteLLM resets its spend
-every 30 days. `scripts/measure_litellm_budget.py` confirms it on the real proxy: one `GET /key/info` with
+every 30 days. `measure-litellm-budget` (the Rust crate `scripts/crates/litellm-budget`) confirms it on the real proxy: one `GET /key/info` with
 the agent id's key (no model call, no spend), printing only `max_budget`, `budget_duration`,
 `budget_reset_at` and `spend` (a minted key's team's, read with a second `GET /team/info`), and
 the request with the key redacted. It reads the key from the
 environment or the secret store:
 
 ```bash
-python3 scripts/measure_litellm_budget.py --agent vibe
+measure-litellm-budget --agent vibe
 ```
 
 A minted key draws on its route's team, so the window and reset are the team's. Measured on the

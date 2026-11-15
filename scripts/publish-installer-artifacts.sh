@@ -59,10 +59,10 @@ KIT_PATHS=(
   scripts/install-model-gateway-rust.sh
   scripts/install-critique-rust.sh
   scripts/install-build-tracker-rust.sh
+  scripts/install-workstation-rust.sh
   scripts/fold-profile-settings.py
   scripts/pi-merge-providers.py
   registry/generated/pi/providers.json
-  scripts/litellm-harness.py
   registry/generated/litellm/harnesses.json
   scripts/litellm_catalogue.py
   scripts/instruction-block.py
@@ -90,7 +90,6 @@ KIT_PATHS=(
   scripts/opencode-plugin-skills.py
   scripts/vibe-split-homes.py
   scripts/vibe-sync-models.py
-  scripts/agent-kit-keys.py
   registry/generated/workstation-secrets.json
   installer/gold-band/workflows
 )
