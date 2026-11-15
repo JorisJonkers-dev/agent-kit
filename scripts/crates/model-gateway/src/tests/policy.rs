@@ -279,12 +279,12 @@ fn the_models_result_prints_the_policy_the_status_and_the_listing() {
         missing: vec![MissingClient { client: "hermes".to_string(), reason: "not installed: hermes is not on PATH".to_string() }],
         skipped: vec![SkippedModel { client: "vibe".to_string(), model: "mystery".to_string(), reason: "no family".to_string() }],
     };
-    let printed = models_result_json("a nedap repository: only Codex and Claude Code, with code and history", &listing, None);
+    let printed = models_result_json("a nedap repository: only Codex and Claude Code, with code and history", &listing, &Value::Arr(Vec::new()), None);
     let keys: Vec<&str> = printed.as_object().expect("an object").entries().into_iter().map(|(key, _)| key).collect();
-    assert_eq!(keys, vec!["policy", "status", "missing", "models", "skipped"]);
+    assert_eq!(keys, vec!["policy", "status", "missing", "models", "skipped", "profiles"]);
     assert_eq!(
         pretty(&printed),
-        "{\n  \"policy\": \"a nedap repository: only Codex and Claude Code, with code and history\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    }\n  ],\n  \"models\": [\n    {\n      \"client\": \"claude\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"anthropic\",\n      \"model\": \"claude-sonnet-5-5\",\n      \"notes\": \"general\",\n      \"source\": \"declared\",\n      \"tier\": \"hard\",\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": true\n      }\n    }\n  ],\n  \"skipped\": [\n    {\n      \"client\": \"vibe\",\n      \"model\": \"mystery\",\n      \"reason\": \"no family\"\n    }\n  ]\n}"
+        "{\n  \"policy\": \"a nedap repository: only Codex and Claude Code, with code and history\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    }\n  ],\n  \"models\": [\n    {\n      \"client\": \"claude\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"anthropic\",\n      \"model\": \"claude-sonnet-5-5\",\n      \"notes\": \"general\",\n      \"source\": \"declared\",\n      \"tier\": \"hard\",\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": true\n      }\n    }\n  ],\n  \"skipped\": [\n    {\n      \"client\": \"vibe\",\n      \"model\": \"mystery\",\n      \"reason\": \"no family\"\n    }\n  ],\n  \"profiles\": []\n}"
     );
 }
 

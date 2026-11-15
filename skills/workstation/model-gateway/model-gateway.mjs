@@ -65,6 +65,17 @@ var CLIENT_FIELDS = [
   "data_scope"
 ];
 var OVERRIDE_KEYS = ["version", "clients", "disabled", "models", "settings"];
+var TOOL_KINDS = ["mcp", "plugins", "skills"];
+var PROFILE_FIELDS = [
+  "description",
+  "models",
+  "pin",
+  "ladder",
+  "distinct_families",
+  "exclude_writer_family",
+  "tools",
+  "max_spend_usd"
+];
 var ModelGatewayError = class extends Error {
   constructor(code, message) {
     super(message);
@@ -96,6 +107,7 @@ function parseDefaults(raw) {
     clients,
     disabled: parseDisabled(raw.disabled),
     models,
+    profiles: parseProfiles(raw.profiles, new Set(models.map((entry) => `${entry.client}:${entry.model}`))),
     settings: parseSettings(raw.settings),
     version: CONFIG_VERSION
   };
@@ -115,6 +127,7 @@ function applyOverride(config, raw) {
     clients: mergeClients(config.clients, raw.clients),
     disabled: raw.disabled === void 0 ? config.disabled : parseDisabled(raw.disabled),
     models: mergeModels(config.models, raw.models),
+    profiles: config.profiles,
     settings: mergeSettings(config.settings, raw.settings),
     version: CONFIG_VERSION
   };
@@ -350,6 +363,121 @@ function requireOneOf(value, allowed2, where) {
 function invalid(message) {
   return new ModelGatewayError("invalid-config", message);
 }
+function profileStrings(value, where, allowEmpty) {
+  if (!Array.isArray(value)) throw invalid(`${where} must be a list of non-empty strings`);
+  const items = value;
+  const out = [];
+  for (const item of items) {
+    if (typeof item !== "string" || item === "") throw invalid(`${where} must be a list of non-empty strings`);
+    out.push(item);
+  }
+  if (!allowEmpty && out.length === 0) throw invalid(`${where} must not be empty`);
+  if (new Set(out).size !== out.length) throw invalid(`${where} must not repeat an entry`);
+  return out;
+}
+function toolList(value, where) {
+  return value === "any" ? "any" : profileStrings(value, where, true);
+}
+function parseProfiles(raw, known) {
+  if (raw === void 0) return {};
+  if (!isObject(raw)) throw invalid("profiles must be an object keyed by profile name");
+  return Object.fromEntries(
+    Object.entries(raw).map(([name, value]) => {
+      if (!/^[a-z][a-z0-9-]*$/.test(name)) throw invalid(`profiles.${name}: a profile name is lowercase letters, digits and hyphens`);
+      if (!isObject(value)) throw invalid(`profiles.${name} must be an object`);
+      return [name, parseProfile(name, value, known)];
+    })
+  );
+}
+function parseProfile(name, raw, known) {
+  const where = `profiles.${name}`;
+  const unknownField = Object.keys(raw).find((key) => !PROFILE_FIELDS.includes(key));
+  if (unknownField !== void 0) throw invalid(`${where}.${unknownField} is not a field a profile has; choose from ${PROFILE_FIELDS.join(", ")}`);
+  if (typeof raw.description !== "string" || raw.description === "") throw invalid(`${where}.description must be a non-empty string`);
+  const models = profileStrings(raw.models, `${where}.models`, false);
+  const inCatalogue = (key, at) => {
+    if (!known.has(key)) throw invalid(`${at} names ${key}, which is no model of the catalogue`);
+  };
+  for (const key of models) inCatalogue(key, `${where}.models`);
+  const pin = raw.pin === void 0 ? void 0 : requireMember(raw.pin, models, `${where}.pin`);
+  const ladder = raw.ladder === void 0 ? void 0 : profileStrings(raw.ladder, `${where}.ladder`, false);
+  for (const key of ladder ?? []) requireMember(key, models, `${where}.ladder`);
+  const distinct = raw.distinct_families === void 0 ? void 0 : requireWhole(raw.distinct_families, `${where}.distinct_families`);
+  if (raw.exclude_writer_family !== void 0 && typeof raw.exclude_writer_family !== "boolean") {
+    throw invalid(`${where}.exclude_writer_family must be true or false`);
+  }
+  const spend = raw.max_spend_usd === void 0 ? void 0 : requirePositive(raw.max_spend_usd, `${where}.max_spend_usd`);
+  return {
+    description: raw.description,
+    models,
+    name,
+    tools: parseTools(raw.tools, `${where}.tools`),
+    ...pin === void 0 ? {} : { pin },
+    ...ladder === void 0 ? {} : { ladder },
+    ...distinct === void 0 ? {} : { distinct_families: distinct },
+    ...raw.exclude_writer_family === void 0 ? {} : { exclude_writer_family: raw.exclude_writer_family },
+    ...spend === void 0 ? {} : { max_spend_usd: spend }
+  };
+}
+function parseTools(raw, where) {
+  if (raw === void 0) return { mcp: [], plugins: [], skills: [] };
+  if (!isObject(raw)) throw invalid(`${where} must be an object`);
+  const unknownKind = Object.keys(raw).find((key) => !TOOL_KINDS.includes(key));
+  if (unknownKind !== void 0) throw invalid(`${where}.${unknownKind} is not a kind of tool; choose from ${TOOL_KINDS.join(", ")}`);
+  const kind = (name) => raw[name] === void 0 ? [] : toolList(raw[name], `${where}.${name}`);
+  return { mcp: kind("mcp"), plugins: kind("plugins"), skills: kind("skills") };
+}
+function requireMember(value, members, where) {
+  if (typeof value !== "string" || !members.includes(value)) throw invalid(`${where} must name one of the profile's models`);
+  return value;
+}
+function requireWhole(value, where) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) throw invalid(`${where} must be a whole number of at least 1`);
+  return value;
+}
+function requirePositive(value, where) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) throw invalid(`${where} must be a number above 0`);
+  return value;
+}
+
+// src/contexts/model-gateway/domain/narrowing.ts
+var NARROWING_FIELDS = ["models", "mcp", "skills", "plugins", "max_spend_usd", "writer_family"];
+function readNarrowing(raw) {
+  if (raw === void 0) return void 0;
+  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "narrow must be an object");
+  const unknownField = Object.keys(raw).find((key) => !NARROWING_FIELDS.includes(key));
+  if (unknownField !== void 0) {
+    throw new ModelGatewayError("invalid-input", `narrow.${unknownField} is not a field; choose from ${NARROWING_FIELDS.join(", ")}`);
+  }
+  const list = (name) => {
+    if (raw[name] === void 0) return void 0;
+    const value = raw[name];
+    if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item === "") || name === "models" && value.length === 0) {
+      throw new ModelGatewayError("invalid-input", `narrow.${name} must be a ${name === "models" ? "non-empty " : ""}list of non-empty strings`);
+    }
+    return value;
+  };
+  const models = list("models");
+  const mcp = list("mcp");
+  const skills = list("skills");
+  const plugins = list("plugins");
+  const spend = raw.max_spend_usd;
+  if (spend !== void 0 && (typeof spend !== "number" || !Number.isFinite(spend) || spend <= 0)) {
+    throw new ModelGatewayError("invalid-input", "narrow.max_spend_usd must be a number above 0");
+  }
+  const writer = raw.writer_family;
+  if (writer !== void 0 && (typeof writer !== "string" || writer === "")) {
+    throw new ModelGatewayError("invalid-input", "narrow.writer_family must be a non-empty string");
+  }
+  return {
+    ...models === void 0 ? {} : { models },
+    ...mcp === void 0 ? {} : { mcp },
+    ...skills === void 0 ? {} : { skills },
+    ...plugins === void 0 ? {} : { plugins },
+    ...spend === void 0 ? {} : { max_spend_usd: spend },
+    ...writer === void 0 ? {} : { writer_family: writer }
+  };
+}
 
 // src/contexts/model-gateway/domain/workflows.ts
 var WORKFLOWS_VERSION = 1;
@@ -483,6 +611,7 @@ function readRunInput(raw) {
   const provider = readOptionalString(raw.provider, "provider");
   const escalation = readEscalation(raw);
   const headless = readHeadless(raw);
+  const profiled = readProfiled(raw);
   return {
     client: raw.client,
     mode: raw.mode,
@@ -496,8 +625,15 @@ function readRunInput(raw) {
     ...repo === void 0 ? {} : { repo },
     ...escalation,
     ...writing,
-    ...headless === void 0 ? {} : { headless }
+    ...headless === void 0 ? {} : { headless },
+    ...profiled
   };
+}
+function readProfiled(raw) {
+  const profile = readOptionalString(raw.profile, "profile");
+  const narrow = readNarrowing(raw.narrow);
+  if (profile === void 0 && narrow !== void 0) throw new ModelGatewayError("invalid-input", "narrow needs a profile to narrow");
+  return { ...profile === void 0 ? {} : { profile }, ...narrow === void 0 ? {} : { narrow } };
 }
 function readHeadless(raw) {
   if (raw.headless === void 0) return void 0;
@@ -1202,9 +1338,9 @@ function listModels(config, installed, listings, unavailable = []) {
       );
     }
   }
-  const refused = /* @__PURE__ */ new Map();
+  const refused2 = /* @__PURE__ */ new Map();
   for (const refusal of unavailable) {
-    for (const key of keysOf(config, refusal.client, refusal.model)) refused.set(key, refusal.reason);
+    for (const key of keysOf(config, refusal.client, refusal.model)) refused2.set(key, refusal.reason);
   }
   const refusedKey = (model) => modelKey(model.client, model.model);
   models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
@@ -1212,10 +1348,10 @@ function listModels(config, installed, listings, unavailable = []) {
   skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
   return {
     missing,
-    models: models.filter((model) => !refused.has(refusedKey(model))),
+    models: models.filter((model) => !refused2.has(refusedKey(model))),
     skipped: [
       ...skipped,
-      ...models.filter((model) => refused.has(refusedKey(model))).map((model) => ({ client: model.client, model: model.model, reason: refused.get(refusedKey(model)) ?? "" }))
+      ...models.filter((model) => refused2.has(refusedKey(model))).map((model) => ({ client: model.client, model: model.model, reason: refused2.get(refusedKey(model)) ?? "" }))
     ].sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
   };
 }
@@ -1821,11 +1957,11 @@ var CapGuard = class {
       let all = [...entries, ...settled];
       const held = /* @__PURE__ */ new Map();
       const records = [];
-      const refused = [];
+      const refused2 = [];
       for (const item of plan) {
         const message = item.cap.kind === "grant" ? grantRefusal(all, item.cap.grant, item.estimate.usd, item.input) : capRefusal(all, item.input, item.estimate.usd, config.settings.metered_personal_caps, now);
         if (message !== void 0) {
-          refused.push({ id: item.id, message });
+          refused2.push({ id: item.id, message });
           continue;
         }
         const record = reservationRecord({
@@ -1843,7 +1979,7 @@ var CapGuard = class {
         records.push(record);
         all = [...all, record];
       }
-      return { append: refused.length === 0 ? [...settled, ...records] : settled, result: { held, refused } };
+      return { append: refused2.length === 0 ? [...settled, ...records] : settled, result: { held, refused: refused2 } };
     });
   }
   /**
@@ -3741,6 +3877,145 @@ function compare2(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+// src/contexts/model-gateway/domain/profiles.ts
+var modelKey2 = (client, model) => `${client}:${model}`;
+function refused(message) {
+  return new ModelGatewayError("profile-refused", message);
+}
+function requireNarrowing(profile, narrow) {
+  if (narrow === void 0) return;
+  for (const key of narrow.models ?? []) {
+    if (!profile.models.includes(key)) throw refused(`narrow.models names ${key}, which profile ${profile.name} does not allow: a request may narrow a profile, never widen it`);
+  }
+  for (const kind of TOOL_KINDS) {
+    const asked = narrow[kind];
+    const given = profile.tools[kind];
+    if (asked === void 0 || given === "any") continue;
+    const extra = asked.find((item) => !given.includes(item));
+    if (extra !== void 0) {
+      throw refused(`narrow.${kind} names ${extra}, which profile ${profile.name} does not grant (its ${kind} scope is ${given.length === 0 ? "deny-all" : given.join(", ")}): a request may narrow a profile, never widen it`);
+    }
+  }
+  if (profile.max_spend_usd !== void 0 && narrow.max_spend_usd !== void 0 && narrow.max_spend_usd > profile.max_spend_usd) {
+    throw refused(`narrow.max_spend_usd ${String(narrow.max_spend_usd)} is above profile ${profile.name}'s cap of ${String(profile.max_spend_usd)}: a request may narrow a profile, never widen it`);
+  }
+}
+function effectiveTools(profile, narrow) {
+  const pick = (kind) => narrow?.[kind] ?? profile.tools[kind];
+  return { mcp: pick("mcp"), plugins: pick("plugins"), skills: pick("skills") };
+}
+function unenforceable(profileName, client, isPi, tools) {
+  const restricted = TOOL_KINDS.filter((kind) => tools[kind] !== "any");
+  if (!isPi) {
+    if (restricted.length === 0) return void 0;
+    return `profile ${profileName} restricts ${restricted.join(", ")} (a scope is deny-all unless the profile lists it), and ${client} cannot enforce a tool scope: only Pi does`;
+  }
+  const granted = TOOL_KINDS.flatMap((kind) => {
+    const list = tools[kind];
+    return list === "any" || list.length === 0 ? [] : [`${kind} ${list.join(", ")}`];
+  });
+  if (granted.length === 0) return void 0;
+  return `profile ${profileName} grants ${granted.join("; ")}, and ${client} cannot attach them yet: its launch home holds only the route's provider, so only the empty scope holds`;
+}
+function resolveProfile(profile, available, policyReason, narrow, forRun) {
+  const asked = narrow?.models ?? profile.models;
+  const pinned = profile.pin === void 0 ? "" : ` (pinned to ${profile.pin})`;
+  const wanted = profile.models.filter((key) => asked.includes(key) && (profile.pin === void 0 || key === profile.pin));
+  const permitted = wanted.flatMap((key) => {
+    const found = available.find((model) => `${model.client}:${model.model}` === key);
+    return found === void 0 ? [] : [found];
+  });
+  if (permitted.length === 0) {
+    return {
+      error: `profile ${profile.name} has no allowed model${pinned}: none of its ${String(wanted.length)} models is both usable now and permitted by the data policy (${policyReason})`,
+      models: []
+    };
+  }
+  let left = permitted;
+  if (profile.exclude_writer_family === true) {
+    const writer = narrow?.writer_family;
+    if (writer === void 0 && forRun) {
+      return { error: `profile ${profile.name} leaves out the writer's family, so the request must name it as narrow.writer_family`, models: [] };
+    }
+    if (writer !== void 0) {
+      left = permitted.filter((model) => model.family !== writer);
+      if (left.length === 0) {
+        return { error: `profile ${profile.name} has no allowed model once the writer's family ${writer} is left out`, models: [] };
+      }
+    }
+  }
+  const families = [...new Set(left.map((model) => model.family))].sort();
+  if (profile.distinct_families !== void 0 && families.length < profile.distinct_families) {
+    return {
+      error: `profile ${profile.name} needs ${String(profile.distinct_families)} distinct families but only ${String(families.length)} remain (${families.join(", ")})`,
+      models: []
+    };
+  }
+  const COST_RANK = COST_CLASSES;
+  const TIER_RANK = TIERS;
+  const order = (model) => profile.models.indexOf(`${model.client}:${model.model}`);
+  const sorted = [...left].sort(
+    (a, b) => COST_RANK.indexOf(a.cost_class) - COST_RANK.indexOf(b.cost_class) || (a.tier === null ? TIER_RANK.length : TIER_RANK.indexOf(a.tier)) - (b.tier === null ? TIER_RANK.length : TIER_RANK.indexOf(b.tier)) || order(a) - order(b)
+  );
+  return { models: sorted };
+}
+function requireProfile(config, name) {
+  const profile = config.profiles[name];
+  if (profile === void 0) {
+    const known = Object.keys(config.profiles).sort();
+    throw new ModelGatewayError("unknown-profile", `no delegation profile ${name}: the defaults state ${known.length === 0 ? "none" : known.join(", ")}`);
+  }
+  return profile;
+}
+function profileModels(config, decision, run) {
+  const profile = requireProfile(config, run.profile);
+  requireNarrowing(profile, run.narrow);
+  const permitted = new Set(
+    decision.permissions.filter((permission2) => permission2.permitted).map((permission2) => modelKey2(permission2.client, permission2.model))
+  );
+  const available = config.models.flatMap((entry) => {
+    const client = config.clients[entry.client];
+    if (client === void 0 || !permitted.has(modelKey2(entry.client, entry.model))) return [];
+    return [{ client: entry.client, cost_class: client.cost_class, family: entry.family, model: entry.model, tier: entry.tier }];
+  });
+  return resolveProfile(profile, available, decision.reason, run.narrow, true);
+}
+function holdToProfile(config, decision, run, isPi) {
+  if (run.profile === void 0) return;
+  const resolution = profileModels(config, decision, { ...run, profile: run.profile });
+  if (resolution.error !== void 0) throw refused(resolution.error);
+  if (!resolution.models.some((model) => model.client === run.client && model.model === run.model)) {
+    const allowed2 = resolution.models.map((model) => modelKey2(model.client, model.model)).join(", ");
+    throw refused(`${modelKey2(run.client, run.model)} is not allowed by profile ${run.profile} here: the profile and the data policy leave ${allowed2}`);
+  }
+  const profile = requireProfile(config, run.profile);
+  const reason = unenforceable(run.profile, run.client, isPi, effectiveTools(profile, run.narrow));
+  if (reason !== void 0) throw refused(reason);
+}
+function listProfiles(config, permitted, policyReason) {
+  return Object.values(config.profiles).sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0).map((profile) => {
+    const resolution = resolveProfile(profile, permitted, policyReason, void 0, false);
+    return {
+      description: profile.description,
+      models: resolution.models.map((model) => ({
+        client: model.client,
+        cost_class: model.cost_class,
+        family: model.family,
+        model: model.model,
+        tier: model.tier
+      })),
+      name: profile.name,
+      tools: profile.tools,
+      ...profile.pin === void 0 ? {} : { pin: profile.pin },
+      ...profile.ladder === void 0 ? {} : { ladder: profile.ladder },
+      ...profile.distinct_families === void 0 ? {} : { distinct_families: profile.distinct_families },
+      ...profile.exclude_writer_family === void 0 ? {} : { exclude_writer_family: profile.exclude_writer_family },
+      ...profile.max_spend_usd === void 0 ? {} : { max_spend_usd: profile.max_spend_usd },
+      ...resolution.error === void 0 ? {} : { error: resolution.error }
+    };
+  });
+}
+
 // src/contexts/model-gateway/application/litellm-catalogue.ts
 async function readLiteLLMCatalogue(deps) {
   let path;
@@ -3802,10 +4077,12 @@ var ModelsCommand = class {
     const reading = judged ? await readLiteLLMCatalogue(this.deps) : {};
     const listing = judgeListing(config, listModels(config, installed, listings, await this.unavailable()), reading.catalogue);
     const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models);
+    const permitted = permittedModels(listing, decision);
     return {
       policy: decision.reason,
       status: "ok",
-      ...permittedModels(listing, decision),
+      ...permitted,
+      profiles: listProfiles(config, permitted.models, decision.reason),
       ...reading.warning === void 0 ? {} : { warnings: [reading.warning] }
     };
   }
@@ -3999,7 +4276,11 @@ ${run.summary}`.slice(0, summaryMax) };
     const requested = requestedCandidate(config, input, entry, family);
     const scope = await resolveScope(this.deps, input.repo);
     const granted = await this.grants.liveClients(input.workflow, this.deps.clock.now());
-    const pool = bindFamily(input, requested, candidatePool(config, input, decidePolicy(config, scope, config.models).permissions, granted));
+    const decision = decidePolicy(config, scope, config.models);
+    const everyone = candidatePool(config, input, decision.permissions, granted);
+    const profiled = input.profile === void 0 ? void 0 : profileModels(config, decision, { ...input, profile: input.profile });
+    const inProfile = (candidate) => profiled === void 0 || profiled.models.some((model) => model.client === candidate.client && model.model === candidate.model);
+    const pool = bindFamily(input, requested, everyone.filter(inProfile));
     return { pool, requested, summaryMax: config.settings.summary_max_chars };
   }
   /** Why a client cannot start, or undefined when it can: what `usage` reports as its availability. */
@@ -4546,6 +4827,9 @@ var RunCommand = class {
     }
     if (carries2.history && !permission2.may_send.history) {
       throw new ModelGatewayError("policy-refused", `${input.client}:${input.model} may not carry history: ${decision.reason}`);
+    }
+    if (input.profile !== void 0) {
+      holdToProfile(config, decidePolicy(config, scope, config.models), input, runClientOf(input.client) === "pi");
     }
     return { permission: permission2, repository: scope.kind === "repository" ? scope.key : null };
   }

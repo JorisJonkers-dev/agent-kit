@@ -3,6 +3,7 @@ import { runRecords } from '../domain/ledger.js'
 import { listModels, sortedClients, type ClientListing, type SkippedModel } from '../domain/models.js'
 import { judgeListing } from '../domain/litellm-catalogue.js'
 import { decidePolicy, permittedModels, type PolicyListing } from '../domain/policy.js'
+import { listProfiles, type ProfileListing } from '../domain/profiles.js'
 import { runClientOf } from '../domain/run.js'
 import { standingRefusals } from '../domain/usage.js'
 import { loadConfig } from './config.js'
@@ -20,6 +21,8 @@ export interface ModelsResult extends PolicyListing {
   readonly status: 'ok'
   /** One line saying why the data policy listed what it did. */
   readonly policy: string
+  /** The delegation profiles, each with the models it leaves for this repository, or why it leaves none. */
+  readonly profiles: readonly ProfileListing[]
   /**
    * What is wrong with the LiteLLM catalogue, when a client it judges is
    * installed: missing, unreadable or stale. Absent when nothing is.
@@ -54,10 +57,12 @@ export class ModelsCommand implements ModelGatewayCommand<ModelsInput, ModelsRes
     const reading = judged ? await readLiteLLMCatalogue(this.deps) : {}
     const listing = judgeListing(config, listModels(config, installed, listings, await this.unavailable()), reading.catalogue)
     const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models)
+    const permitted = permittedModels(listing, decision)
     return {
       policy: decision.reason,
       status: 'ok',
-      ...permittedModels(listing, decision),
+      ...permitted,
+      profiles: listProfiles(config, permitted.models, decision.reason),
       ...(reading.warning === undefined ? {} : { warnings: [reading.warning] }),
     }
   }

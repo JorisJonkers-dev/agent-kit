@@ -1,0 +1,86 @@
+# Delegation profiles (#773, #774): one named profile owns the models a
+# delegation may use and the tool scope it runs with.
+#
+# scripts/render_registry.py renders this file into the "profiles" section of
+# skills/workstation/model-gateway/defaults.json, which both gateways read, and
+# `render_registry.py --check` fails in CI when that section is stale. It is
+# validated against registry/delegation-profiles.schema.json, and every model
+# must be a `<client>:<model>` of the gateway's catalogue (defaults.json).
+#
+# A request names a profile and may narrow it (fewer models, fewer tools, a
+# lower spend cap), never widen it. The repository data policy always wins: it
+# is intersected with the profile, and a profile left with no allowed model for
+# a repository is an error, never a silent fallback. Public routes (pi-public)
+# are never sent a repository; a nedap repository reaches only Claude Code and
+# Codex, so a profile that lists neither has no model there.
+#
+# Fields of a profile:
+#   description            what the profile is for
+#   models                 the allowed `<client>:<model>` keys; the delegate picks
+#                          the cheapest that covers the task (cost class, then tier)
+#   pin                    optional: the one model of `models` the profile is held to
+#   ladder                 optional: models of `models` a writer climbs through on
+#                          escalation, cheapest first
+#   distinct_families      optional: how many model families the allowed models
+#                          must span once the data policy has cut them
+#   exclude_writer_family  optional: the writer's family is left out, and the
+#                          request names it as narrow.writer_family
+#   tools                  the tool scope: `mcp`, `skills` and `plugins`, each a
+#                          list of names or `any`. Omitted is deny-all (an empty
+#                          list): no MCP server, no plugin, no skill.
+#   max_spend_usd          optional: the most one run may spend (the gateway
+#                          enforces it once #788 lands; it is validated now)
+#
+# A client that cannot enforce a limit the profile names is refused with the
+# reason. Only Pi enforces for now, and only the empty scope.
+version: 1
+profiles:
+  cheap-research:
+    description: >-
+      Read-only research and lookups on the cheapest subsidised models, with no
+      tools attached.
+    models:
+      - pi-vibe:ministral-8b
+      - pi-vibe:mistral-small
+      - pi-vibe:glm-5.3-flash
+      - pi-opencode-go:qwen3.8-flash
+    max_spend_usd: 0.5
+
+  cross-critic:
+    description: >-
+      A second opinion from two model families other than the writer's. The
+      request names the writer's family as narrow.writer_family.
+    models:
+      - pi-vibe:deepseek-v4.1-flash
+      - pi-vibe:glm-5.3
+      - pi-vibe:mistral-large-4
+      - pi-opencode-go:kimi-k2.7-code
+      - pi-opencode-go:qwen3.8-flash
+    distinct_families: 2
+    exclude_writer_family: true
+    max_spend_usd: 1.0
+
+  public-free:
+    description: >-
+      Free Gemini models on the public route, for public material only: a
+      delegation that reads a repository is never sent here.
+    models:
+      - pi-public:public/gemini-3.5-flash-lite
+      - pi-public:public/gemini-3.8-flash
+    max_spend_usd: 0.25
+
+  implement-cheap:
+    description: >-
+      A cheap writer that climbs a ladder to a stronger model when the work
+      escalates.
+    models:
+      - pi-vibe:deepseek-v4.1-flash
+      - pi-vibe:glm-5.3-flash
+      - pi-vibe:mistral-large-4
+      - pi-vibe:glm-5.3
+    ladder:
+      - pi-vibe:deepseek-v4.1-flash
+      - pi-vibe:glm-5.3-flash
+      - pi-vibe:mistral-large-4
+      - pi-vibe:glm-5.3
+    max_spend_usd: 2.0

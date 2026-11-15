@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JorisJonkers-dev/agent-kit/registry/delegation-profiles.schema.json",
+  "title": "DelegationProfiles",
+  "description": "The delegation profiles registry (registry/delegation-profiles.yaml): each profile owns the models a delegation may use and its tool scope. scripts/render_registry.py renders it into the profiles section of the model gateway's defaults.json.",
+  "type": "object",
+  "required": ["version", "profiles"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z][a-z0-9-]*$": { "$ref": "#/$defs/profile" }
+      }
+    }
+  },
+  "$defs": {
+    "modelKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*:[^:\\s]+$",
+      "description": "A model of the gateway's catalogue as `<client>:<model>`."
+    },
+    "toolList": {
+      "oneOf": [
+        { "const": "any" },
+        { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      ],
+      "description": "The names a profile allows of one kind of tool, or `any`. An empty list is deny-all."
+    },
+    "profile": {
+      "type": "object",
+      "required": ["description", "models"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string", "minLength": 1 },
+        "models": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/modelKey" },
+          "description": "The allowed models; the delegate picks the cheapest that covers the task."
+        },
+        "pin": { "$ref": "#/$defs/modelKey", "description": "The one model of `models` the profile is held to." },
+        "ladder": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/modelKey" },
+          "description": "Models of `models` a writer climbs through on escalation, cheapest first."
+        },
+        "distinct_families": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many model families the allowed models must span once the data policy has cut them."
+        },
+        "exclude_writer_family": {
+          "type": "boolean",
+          "description": "The writer's family is left out; the request names it as narrow.writer_family."
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The tool scope. A kind left out is deny-all.",
+          "properties": {
+            "mcp": { "$ref": "#/$defs/toolList" },
+            "skills": { "$ref": "#/$defs/toolList" },
+            "plugins": { "$ref": "#/$defs/toolList" }
+          }
+        },
+        "max_spend_usd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The most one run may spend; held by the gateway once #788 lands."
+        }
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import { CannotStartError, type EscalationReport, type UnavailableResult } from 
 import { runRecords, type LedgerRecord } from '../domain/ledger.js'
 import { familyOfModelId, modelKey } from '../domain/models.js'
 import { decidePolicy, type ModelPermission } from '../domain/policy.js'
+import { holdToProfile } from '../domain/profiles.js'
 import {
   FORBIDDEN_PROVIDERS,
   namedReset,
@@ -771,6 +772,9 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     }
     if (carries.history && !permission.may_send.history) {
       throw new ModelGatewayError('policy-refused', `${input.client}:${input.model} may not carry history: ${decision.reason}`)
+    }
+    if (input.profile !== undefined) {
+      holdToProfile(config, decidePolicy(config, scope, config.models), input, runClientOf(input.client) === 'pi')
     }
     return { permission, repository: scope.kind === 'repository' ? scope.key : null }
   }

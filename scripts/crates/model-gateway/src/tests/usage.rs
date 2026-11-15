@@ -52,6 +52,7 @@ fn config(clients: Vec<(&str, ClientConfig)>) -> GatewayConfig {
         models: vec![],
         settings: settings(),
         disabled: vec![],
+        profiles: Default::default(),
     }
 }
 

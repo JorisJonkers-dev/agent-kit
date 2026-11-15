@@ -68,3 +68,30 @@ and why. Models are sorted by client, then model id.
   `plan_warning_ratio`, `summary_max_chars`, `max_parallel_per_client`,
   `availability_window_minutes` and `metered_personal_caps`
   (`per_workflow_usd` 2, `per_day_usd` 5).
+
+## Delegation profiles (#773, #774)
+
+- **One concept owns the models and the tool scope.** `profiles` in
+  `defaults.json` maps a name to `description`, `models` (`<client>:<model>`
+  keys of the catalogue), `tools` (`mcp`, `plugins`, `skills`, each a list or
+  `any`; a kind left out is deny-all) and the optional `pin`, `ladder`,
+  `distinct_families`, `exclude_writer_family` and `max_spend_usd`. The source
+  is `registry/delegation-profiles.yaml` with its schema beside it;
+  `python scripts/render_registry.py --write` renders it into `defaults.json`
+  and `--check` fails when the section is stale. The node runner and the Rust
+  gateway read the same section and print the same bytes.
+- **`models` lists the profiles** after `skipped`, each with the models it
+  leaves for the caller's repository (the data policy intersected with what is
+  usable now, cheapest first) or an `error` saying why it leaves none.
+- **`run` takes `profile` and `narrow`.** A request may narrow a profile (fewer
+  models, fewer tools, a lower spend cap, the writer's family left out), never
+  widen it. The refusals are `unknown-profile` and `profile-refused`, each with
+  its reason: no allowed model for the repository (never a fallback), a model
+  outside the profile, a widening `narrow`, and a tool scope the client cannot
+  enforce. Only Pi enforces for now, and only the empty scope; every other
+  client is refused a profile that restricts tools. The data policy runs first,
+  so a model the repository does not permit is still `policy-refused`.
+- **A failing delegation stays inside its profile**: the retry, the climb and
+  the fall-through are cut to the profile's models.
+- **Not yet:** a Pi per-run home that carries granted tools, Gold Band agent ids
+  per profile (#784), and spend enforcement from LiteLLM key spend (#788).

@@ -398,6 +398,28 @@ esac`)
     modelsStep({}, { write: { 'home/.config/agent-kit/model-gateway.json': text({ clients: { 'pi-vibe': { data_scope: 'private' } } }) } }),
   ]
 
+  // Delegation profiles: `models` lists each profile with what it leaves for the caller's repository, cheapest
+  // first, or why it leaves nothing: no repository, a private repository allowed Anthropic alone, a public one
+  // allowed every family, and a nedap repository.
+  const PROFILE_PROVIDERS = {
+    'litellm-vibe': piProvider('ministral-8b', 'mistral-small', 'glm-5.3-flash', 'deepseek-v4.1-flash', 'glm-5.3', 'mistral-large-4'),
+    'litellm-opencode-go': piProvider('kimi-k2.7-code', 'qwen3.8-flash'),
+    'litellm-public': piProvider('public/gemini-3.8-flash', 'public/gemini-3.5-flash-lite'),
+  }
+  const profileRepo = (name, remote, families) => ({
+    write: {
+      ...gitFiles(name, `[remote "origin"]\n\turl = https://github.com/${remote}.git\n`),
+      ...(families === undefined ? {} : allow({ version: 1, repositories: { [`github.com/${remote.toLowerCase()}`]: { families, code: true, history: false } } })),
+    },
+    mkdir: gitDirs(name),
+  })
+  scenarios['models-profiles'] = [
+    modelsStep({}, { write: { ...script('pi', 'exit 0'), ...piHome(PROFILE_PROVIDERS) }, exec: execs('pi') }),
+    repoStep('private', profileRepo('private', 'Owner/Private', ['anthropic'])),
+    repoStep('public', profileRepo('public', 'Owner/Public', ['zhipu', 'mistral', 'deepseek', 'moonshot', 'alibaba', 'google'])),
+    repoStep('nedap', profileRepo('nedap', 'Nedap/thing')),
+  ]
+
   const tokens = (input, output, cached) => ({ tokens: { input, output, cached } })
   scenarios['usage'] = [
     usageStep({}, {

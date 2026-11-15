@@ -128,6 +128,7 @@ const CONFIG: GatewayConfig = {
     },
   },
   disabled: [],
+  profiles: {},
   models: [
     { client: 'claude', family: 'anthropic', model: 'claude-sonnet-5-5', notes: 'n', tier: 'hard' },
     { client: 'codex', family: 'openai', model: 'gpt-5.5', notes: 'n', tier: 'frontier' },

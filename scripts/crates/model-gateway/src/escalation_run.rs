@@ -20,6 +20,7 @@ use crate::escalation::{
 use crate::grant_guard::GrantGuard;
 use crate::models::family_of_model_id;
 use crate::policy::{decide_policy, resolve_scope, PolicySubject};
+use crate::profiles::profile_models;
 use crate::ports::Runtime;
 use crate::run::RunInput;
 use crate::text::{dirname, join, js_slice, js_trim};
@@ -263,8 +264,17 @@ impl<'a> EscalatedRun<'a> {
             .iter()
             .map(|model| PolicySubject { client: model.client.clone(), model: model.model.clone(), family: model.family.clone() })
             .collect();
-        let permissions = decide_policy(&config, &scope, &subjects).permissions;
-        let pool = bind_family(input, &requested, candidate_pool(&config, input, &permissions, &granted));
+        let decision = decide_policy(&config, &scope, &subjects);
+        let everyone = candidate_pool(&config, input, &decision.permissions, &granted);
+        // A delegation held to a profile never moves outside it: the climb and the fall-through stay among its models.
+        let everyone = match &input.profile {
+            None => everyone,
+            Some(profile) => {
+                let allowed = profile_models(&config, &decision, profile, input.narrow.as_ref())?.models;
+                everyone.into_iter().filter(|candidate| allowed.iter().any(|model| model.client == candidate.client && model.model == candidate.model)).collect()
+            }
+        };
+        let pool = bind_family(input, &requested, everyone);
         Ok(Plan { pool, requested, summary_max: config.settings.summary_max_chars })
     }
 

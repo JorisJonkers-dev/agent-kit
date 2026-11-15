@@ -80,6 +80,7 @@ fn config() -> GatewayConfig {
         ],
         settings: settings(),
         disabled: Vec::new(),
+        profiles: Default::default(),
     }
 }
 

@@ -78,6 +78,7 @@ describe('parseDefaults', () => {
         },
       },
       disabled: [],
+      profiles: {},
       models: [
         { client: 'claude', family: 'anthropic', model: 'claude-sonnet-5-5', notes: 'general', tier: 'hard' },
         { client: 'codex', family: 'openai', model: 'gpt-5.5', notes: 'implementation', tier: 'frontier' },

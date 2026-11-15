@@ -24,6 +24,7 @@ import {
 } from '../domain/escalation.js'
 import { familyOfModelId } from '../domain/models.js'
 import { decidePolicy } from '../domain/policy.js'
+import { profileModels } from '../domain/profiles.js'
 import type { RunInput } from '../domain/run.js'
 import { loadConfig } from './config.js'
 import { GrantGuard } from './grants.js'
@@ -219,7 +220,13 @@ export class EscalatedRun {
     const requested = requestedCandidate(config, input, entry, family)
     const scope = await resolveScope(this.deps, input.repo)
     const granted = await this.grants.liveClients(input.workflow, this.deps.clock.now())
-    const pool = bindFamily(input, requested, candidatePool(config, input, decidePolicy(config, scope, config.models).permissions, granted))
+    const decision = decidePolicy(config, scope, config.models)
+    const everyone = candidatePool(config, input, decision.permissions, granted)
+    const profiled = input.profile === undefined ? undefined : profileModels(config, decision, { ...input, profile: input.profile })
+    /** A delegation held to a profile never moves outside it: the climb and the fall-through stay among its models. */
+    const inProfile = (candidate: Candidate): boolean =>
+      profiled === undefined || profiled.models.some((model) => model.client === candidate.client && model.model === candidate.model)
+    const pool = bindFamily(input, requested, everyone.filter(inProfile))
     return { pool, requested, summaryMax: config.settings.summary_max_chars }
   }
 

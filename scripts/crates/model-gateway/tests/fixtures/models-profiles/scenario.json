@@ -1,0 +1,98 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nexit 0\n",
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3-flash\"},{\"id\":\"deepseek-v4.1-flash\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"kimi-k2.7-code\"},{\"id\":\"qwen3.8-flash\"}]},\"litellm-public\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"public/gemini-3.8-flash\"},{\"id\":\"public/gemini-3.5-flash-lite\"}]}}}"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/private\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "work/private/.git/HEAD": "ref: refs/heads/main\n",
+        "work/private/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Private.git\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/private\":{\"families\":[\"anthropic\"],\"code\":true,\"history\":false}}}"
+      },
+      "mkdir": [
+        "work/private/.git/objects",
+        "work/private/.git/refs/heads"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/public\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "work/public/.git/HEAD": "ref: refs/heads/main\n",
+        "work/public/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Owner/Public.git\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/public\":{\"families\":[\"zhipu\",\"mistral\",\"deepseek\",\"moonshot\",\"alibaba\",\"google\"],\"code\":true,\"history\":false}}}"
+      },
+      "mkdir": [
+        "work/public/.git/objects",
+        "work/public/.git/refs/heads"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/work/nedap\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "work/nedap/.git/HEAD": "ref: refs/heads/main\n",
+        "work/nedap/.git/config": "[remote \"origin\"]\n\turl = https://github.com/Nedap/thing.git\n"
+      },
+      "mkdir": [
+        "work/nedap/.git/objects",
+        "work/nedap/.git/refs/heads"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

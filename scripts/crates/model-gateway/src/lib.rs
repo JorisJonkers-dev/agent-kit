@@ -41,6 +41,7 @@ pub mod outputs;
 pub mod pi_launch;
 pub mod plan;
 pub mod policy;
+pub mod profiles;
 pub mod ports;
 pub mod reserve;
 pub mod proof;

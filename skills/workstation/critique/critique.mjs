@@ -1601,6 +1601,17 @@ var CLIENT_FIELDS = [
   "data_scope"
 ];
 var OVERRIDE_KEYS = ["version", "clients", "disabled", "models", "settings"];
+var TOOL_KINDS = ["mcp", "plugins", "skills"];
+var PROFILE_FIELDS = [
+  "description",
+  "models",
+  "pin",
+  "ladder",
+  "distinct_families",
+  "exclude_writer_family",
+  "tools",
+  "max_spend_usd"
+];
 var ModelGatewayError = class extends Error {
   constructor(code, message) {
     super(message);
@@ -1632,6 +1643,7 @@ function parseDefaults(raw) {
     clients,
     disabled: parseDisabled(raw.disabled),
     models,
+    profiles: parseProfiles(raw.profiles, new Set(models.map((entry2) => `${entry2.client}:${entry2.model}`))),
     settings: parseSettings(raw.settings),
     version: CONFIG_VERSION
   };
@@ -1651,6 +1663,7 @@ function applyOverride(config, raw) {
     clients: mergeClients(config.clients, raw.clients),
     disabled: raw.disabled === void 0 ? config.disabled : parseDisabled(raw.disabled),
     models: mergeModels(config.models, raw.models),
+    profiles: config.profiles,
     settings: mergeSettings(config.settings, raw.settings),
     version: CONFIG_VERSION
   };
@@ -1885,6 +1898,82 @@ function requireOneOf(value, allowed2, where) {
 }
 function invalid(message) {
   return new ModelGatewayError("invalid-config", message);
+}
+function profileStrings(value, where, allowEmpty) {
+  if (!Array.isArray(value)) throw invalid(`${where} must be a list of non-empty strings`);
+  const items = value;
+  const out = [];
+  for (const item of items) {
+    if (typeof item !== "string" || item === "") throw invalid(`${where} must be a list of non-empty strings`);
+    out.push(item);
+  }
+  if (!allowEmpty && out.length === 0) throw invalid(`${where} must not be empty`);
+  if (new Set(out).size !== out.length) throw invalid(`${where} must not repeat an entry`);
+  return out;
+}
+function toolList(value, where) {
+  return value === "any" ? "any" : profileStrings(value, where, true);
+}
+function parseProfiles(raw, known) {
+  if (raw === void 0) return {};
+  if (!isObject(raw)) throw invalid("profiles must be an object keyed by profile name");
+  return Object.fromEntries(
+    Object.entries(raw).map(([name, value]) => {
+      if (!/^[a-z][a-z0-9-]*$/.test(name)) throw invalid(`profiles.${name}: a profile name is lowercase letters, digits and hyphens`);
+      if (!isObject(value)) throw invalid(`profiles.${name} must be an object`);
+      return [name, parseProfile(name, value, known)];
+    })
+  );
+}
+function parseProfile(name, raw, known) {
+  const where = `profiles.${name}`;
+  const unknownField = Object.keys(raw).find((key2) => !PROFILE_FIELDS.includes(key2));
+  if (unknownField !== void 0) throw invalid(`${where}.${unknownField} is not a field a profile has; choose from ${PROFILE_FIELDS.join(", ")}`);
+  if (typeof raw.description !== "string" || raw.description === "") throw invalid(`${where}.description must be a non-empty string`);
+  const models = profileStrings(raw.models, `${where}.models`, false);
+  const inCatalogue = (key2, at) => {
+    if (!known.has(key2)) throw invalid(`${at} names ${key2}, which is no model of the catalogue`);
+  };
+  for (const key2 of models) inCatalogue(key2, `${where}.models`);
+  const pin = raw.pin === void 0 ? void 0 : requireMember(raw.pin, models, `${where}.pin`);
+  const ladder = raw.ladder === void 0 ? void 0 : profileStrings(raw.ladder, `${where}.ladder`, false);
+  for (const key2 of ladder ?? []) requireMember(key2, models, `${where}.ladder`);
+  const distinct = raw.distinct_families === void 0 ? void 0 : requireWhole(raw.distinct_families, `${where}.distinct_families`);
+  if (raw.exclude_writer_family !== void 0 && typeof raw.exclude_writer_family !== "boolean") {
+    throw invalid(`${where}.exclude_writer_family must be true or false`);
+  }
+  const spend = raw.max_spend_usd === void 0 ? void 0 : requirePositive(raw.max_spend_usd, `${where}.max_spend_usd`);
+  return {
+    description: raw.description,
+    models,
+    name,
+    tools: parseTools(raw.tools, `${where}.tools`),
+    ...pin === void 0 ? {} : { pin },
+    ...ladder === void 0 ? {} : { ladder },
+    ...distinct === void 0 ? {} : { distinct_families: distinct },
+    ...raw.exclude_writer_family === void 0 ? {} : { exclude_writer_family: raw.exclude_writer_family },
+    ...spend === void 0 ? {} : { max_spend_usd: spend }
+  };
+}
+function parseTools(raw, where) {
+  if (raw === void 0) return { mcp: [], plugins: [], skills: [] };
+  if (!isObject(raw)) throw invalid(`${where} must be an object`);
+  const unknownKind = Object.keys(raw).find((key2) => !TOOL_KINDS.includes(key2));
+  if (unknownKind !== void 0) throw invalid(`${where}.${unknownKind} is not a kind of tool; choose from ${TOOL_KINDS.join(", ")}`);
+  const kind = (name) => raw[name] === void 0 ? [] : toolList(raw[name], `${where}.${name}`);
+  return { mcp: kind("mcp"), plugins: kind("plugins"), skills: kind("skills") };
+}
+function requireMember(value, members, where) {
+  if (typeof value !== "string" || !members.includes(value)) throw invalid(`${where} must name one of the profile's models`);
+  return value;
+}
+function requireWhole(value, where) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) throw invalid(`${where} must be a whole number of at least 1`);
+  return value;
+}
+function requirePositive(value, where) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) throw invalid(`${where} must be a number above 0`);
+  return value;
 }
 
 // src/contexts/model-gateway/domain/workflows.ts
