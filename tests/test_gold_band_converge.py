@@ -143,7 +143,7 @@ def test_the_first_run_adds_the_declared_agents_and_keeps_the_other_keys_in_orde
     assert "added opencode" in out
     assert "added vibe" in out
     doc = json.loads(machine.settings.read_text())
-    assert list(doc) == ["editor", "agents", "window"]
+    assert list(doc) == ["editor", "agents", "window", "desktopUpdaterUrlOverride", "settingsSchemaVersion"]
     assert doc["editor"] == {"theme": "dark"}
     assert doc["window"] == {"width": 900}
     assert doc["agents"] == {"opencode": OPENCODE_ENTRY, "vibe": VIBE_ENTRY}
@@ -158,7 +158,7 @@ def test_a_settings_file_without_an_agents_key_gains_one_at_the_end(
     machine = Machine(tmp_path, monkeypatch, settings={"editor": {"theme": "dark"}})
     assert machine.run() == 0
     doc = json.loads(machine.settings.read_text())
-    assert list(doc) == ["editor", "agents"]
+    assert list(doc) == ["editor", "agents", "desktopUpdaterUrlOverride", "settingsSchemaVersion"]
     assert doc["agents"] == {"opencode": OPENCODE_ENTRY, "vibe": VIBE_ENTRY}
 
 
@@ -577,7 +577,8 @@ def test_keys_setup_does_not_declare_are_unchanged_and_the_quiet_ones_stay_off(
     machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, **QUIET})
     assert machine.run() == 0
     written = json.loads(machine.settings.read_text())
-    assert {key: value for key, value in written.items() if key != "agents"} == QUIET
+    kit_owned = ("agents", "settingsSchemaVersion", "desktopUpdaterUrlOverride")
+    assert {key: value for key, value in written.items() if key not in kit_owned} == QUIET
     assert written["agents"]
 
 
@@ -586,13 +587,12 @@ def test_a_fresh_settings_file_holds_only_the_agent_map_so_nothing_is_enabled(
 ) -> None:
     machine = Machine(tmp_path, monkeypatch)
     assert machine.run() == 0
-    assert list(json.loads(machine.settings.read_text())) == ["agents"]
+    keys = list(json.loads(machine.settings.read_text()))
+    assert keys == ["agents", "desktopUpdaterUrlOverride", "settingsSchemaVersion"]
 
 
 @pytest.mark.parametrize("existing", [False, True])
-def test_the_data_directory_is_owner_only(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bool
-) -> None:
+def test_the_data_directory_is_owner_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bool) -> None:
     machine = Machine(tmp_path, monkeypatch, settings={"agents": {}} if existing else None)
     if existing:
         machine.settings.parent.chmod(0o755)
@@ -627,7 +627,7 @@ LOUD = {
 }
 
 
-def test_setup_turns_metrics_task_board_and_connectors_off_and_leaves_the_updater_override(
+def test_setup_turns_metrics_task_board_and_connectors_off_and_points_the_updater_nowhere(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, **LOUD})
@@ -635,7 +635,8 @@ def test_setup_turns_metrics_task_board_and_connectors_off_and_leaves_the_update
     written = json.loads(machine.settings.read_text())
     assert written["desktopMetricsEnabled"] is False
     assert written["desktopMulticaEnabled"] is False
-    assert written["desktopUpdaterUrlOverride"] == "https://updates.example/latest.json"
+    assert written["desktopUpdaterUrlOverride"] == converge.GOLD_BAND_UPDATER_DISABLED_URL
+    assert converge.GOLD_BAND_UPDATER_DISABLED_URL.startswith("https://127.0.0.1:")
     assert [c["enabled"] for c in written["imIntegrations"]["channels"]] == [False, False]
     assert written["desktopMetricsBaseUrl"] == "https://m.example"
     assert written["logLevel"] == "debug"
@@ -650,7 +651,7 @@ def test_absent_quiet_keys_stay_absent_and_check_mode_writes_nothing(
     machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, "logLevel": "info"})
     assert machine.run() == 0
     written = json.loads(machine.settings.read_text())
-    assert not {k for k in written if k.startswith(("desktop", "im", "feedback"))}
+    assert {k for k in written if k.startswith(("desktop", "im", "feedback"))} == {"desktopUpdaterUrlOverride"}
     machine.settings.write_text(json.dumps({"agents": {}, **LOUD}))
     before = machine.settings.read_bytes()
     assert machine.run(check=True) == 0
@@ -778,9 +779,7 @@ def test_a_skipped_agents_existing_entry_is_left_alone(tmp_path: Path, monkeypat
     assert machine.agents() == {"agy": {"icon": "mine"}}
 
 
-def test_a_linux_section_overrides_the_binary_and_the_adapter(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_a_linux_section_overrides_the_binary_and_the_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     agent = {**AGY, "os": {**AGY["os"], "linux": {"binary": "agy-linux", "adapter": {"command": "agy-linux"}}}}
     monkeypatch.setenv("AGENT_KIT_GOLD_BAND_HOST", "linux")
     machine = Machine(tmp_path, monkeypatch, binaries=("agy-linux",), registry=_registry([agent], allowed=("agy",)))
@@ -882,3 +881,62 @@ def test_a_section_command_from_binary_needs_a_binary_somewhere(
     machine = _agy_machine(tmp_path, monkeypatch, "mac", agent)
     assert machine.run() == 1
     assert "agy os.mac: command_from_binary needs a binary" in capsys.readouterr().out
+
+
+def test_the_schema_version_is_written_at_the_pinned_value_and_tied_to_the_pin() -> None:
+    assert converge.GOLD_BAND_SETTINGS_SCHEMA_VERSION == 12
+    registry = yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text())
+    assert registry["gold_band"]["tag"] == converge.GOLD_BAND_PIN_TAG
+    build = (KIT_ROOT / "scripts" / "gold-band" / "build-linux.sh").read_text()
+    assert f"\nPIN_TAG={converge.GOLD_BAND_PIN_TAG}\n" in build
+
+
+def test_a_legacy_settings_file_gains_the_schema_version_and_keeps_its_agents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
+    assert machine.run() == 0
+    assert "set settingsSchemaVersion 12" in capsys.readouterr().out
+    doc = json.loads(machine.settings.read_text())
+    assert doc["settingsSchemaVersion"] == 12
+    assert doc["agents"] == {"opencode": OPENCODE_ENTRY, "vibe": VIBE_ENTRY}
+
+
+def test_an_older_schema_version_is_raised(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}, "settingsSchemaVersion": 8})
+    assert machine.run() == 0
+    assert json.loads(machine.settings.read_text())["settingsSchemaVersion"] == 12
+
+
+def test_an_equal_or_higher_schema_version_is_never_lowered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for have in (12, 13):
+        machine_dir = tmp_path / str(have)
+        machine_dir.mkdir()
+        machine = Machine(machine_dir, monkeypatch, settings={"agents": {}, "settingsSchemaVersion": have})
+        assert machine.run() == 0
+        assert json.loads(machine.settings.read_text())["settingsSchemaVersion"] == have
+        assert "set settingsSchemaVersion" not in capsys.readouterr().out
+
+
+def test_check_reports_the_schema_version_without_writing_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
+    before = machine.settings.read_bytes()
+    assert machine.run(check=True) == 0
+    assert "set settingsSchemaVersion 12" in capsys.readouterr().out
+    assert machine.settings.read_bytes() == before
+
+
+def test_the_updater_endpoint_is_converged_when_absent_and_a_second_run_changes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    machine = Machine(tmp_path, monkeypatch, settings={"agents": {}})
+    assert machine.run() == 0
+    written = json.loads(machine.settings.read_text())
+    assert written["desktopUpdaterUrlOverride"] == converge.GOLD_BAND_UPDATER_DISABLED_URL
+    capsys.readouterr()
+    assert machine.run() == 0
+    assert "settings unchanged" in capsys.readouterr().out

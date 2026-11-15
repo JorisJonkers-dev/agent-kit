@@ -811,9 +811,12 @@ python "${KIT_ROOT}/scripts/converge.py" gold-band-roles
 python "${KIT_ROOT}/scripts/converge.py" gold-band-workflows
 ```
 
-The result is `~/.local/bin/gold-band`, `~/.local/bin/gold-band-desktop`, and
+The result is `~/.local/bin/gold-band`, `~/.local/bin/gold-band-desktop`, the
+`gold-band-launch` wrapper (it supplies the WebKit/GTK libraries on NixOS), a
+`gold-band.desktop` entry with its icons under `${XDG_DATA_HOME:-~/.local/share}`
+so the app is findable in GNOME ([GOLD-BAND.md](GOLD-BAND.md#what-a-setup-run-does)), and
 `${GOLD_BAND_HOME:-~}/.gold-band/settings.json` holding exactly the declared
-agents plus the keep file's, with the personal instance's MCP servers as
+agents plus the keep file's (and `settingsSchemaVersion` at the pinned release's value), with the personal instance's MCP servers as
 `contextServers`, and the kit's workflow templates
 (`installer/gold-band/workflows/*.json`) in
 `${GOLD_BAND_HOME:-~}/.gold-band/context/workflows.json`
