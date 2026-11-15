@@ -177,7 +177,10 @@ def test_it_builds_both_binaries_from_the_pin_and_reports_version_and_commit(tmp
     assert record["gold-band"]["sha256"] and record["gold-band-desktop"]["sha256"]
     assert f"built from commit {host.commit}" in done.stdout
     cargo = [c for c in calls_of(host) if c.startswith("cargo")]
-    assert cargo == ["cargo build --release -p gold-band --bin gold-band", "cargo build --release -p gold-band-desktop"]
+    assert cargo == [
+        "cargo build --release -p gold-band --bin gold-band",
+        "cargo build --release -p gold-band-desktop --features tauri/custom-protocol",
+    ]
 
 
 def test_cargo_resolves_through_the_packages_proxy_not_gold_bands_mirror(tmp_path: Path) -> None:

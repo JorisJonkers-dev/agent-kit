@@ -39,6 +39,7 @@
 # third-party mirror, which would bypass the cooldown) by one that resolves
 # only through the packages proxy, which hides versions younger than 7 days,
 # with cargo's own 7-day cooldown on top (docs/RUST.md).
+# The desktop binary is built with tauri/custom-protocol so it embeds web/dist instead of loading a dev server.
 # The web UI is built with npm through the packages proxy. On NixOS the system
 # libraries a Tauri app links against come from `shell.nix` beside this file.
 # docs/GOLD-BAND.md has the details.
@@ -202,10 +203,14 @@ grep -q '^\[registries\.jorisjonkers-packages\]' "$CREDENTIALS" 2>/dev/null \
 
 work="$CACHE/$commit"
 src="$work/src"
+# The previous build's target directory is kept across the re-extract, so a rebuild is incremental.
+rm -rf "$work/target.keep"
+[ -d "$src/target" ] && mv "$src/target" "$work/target.keep"
 rm -rf "$src"
 mkdir -p "$src" "$(dirname "$STATE")"
 git -C "$CLONE" archive "$commit" >"$work/src.tar"
 tar -x -C "$src" -f "$work/src.tar"
+[ -d "$work/target.keep" ] && mv "$work/target.keep" "$src/target"
 version=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' "$src/Cargo.toml" | head -1)
 say "building Gold Band $version at $commit"
 
@@ -276,7 +281,9 @@ npm ci --no-audit --no-fund
 npm run web:build
 # The lockfile at the pin is stale for Gold Band's own two crates, so no --locked.
 cargo build --release -p gold-band --bin gold-band
-cargo build --release -p gold-band-desktop
+# tauri/custom-protocol is what `tauri build` (upstream's release) turns on: without it the
+# binary is a dev build that loads devUrl http://localhost:1420 instead of the embedded web/dist.
+cargo build --release -p gold-band-desktop --features tauri/custom-protocol
 BUILD
 if command -v cargo >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && pkg-config --exists webkit2gtk-4.1 2>/dev/null; then
   run() { bash "$build_script" "$src"; }
