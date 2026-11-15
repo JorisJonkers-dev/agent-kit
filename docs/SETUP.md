@@ -59,7 +59,7 @@ Setup builds the tools the Gold Band workflows, the hooks and the CI helpers cal
 by name from the kit's own cargo workspace, and installs each into
 `~/.local/bin`: `agent-launcher`, `gold-band-gate`, `gold-band-run-start`,
 `gold-band-findings`, `gold-band-proof`, `research-layout`, `ticket-publish`,
-`workflow-lint`, `coverage-gate`, `ci-wait` and `litellm-gate`. The list is the
+`workflow-lint`, `coverage-gate`, `ci-wait`, `litellm-gate`, `projects-layout-guard`, `estate` and `pr-composer`. The list is the
 registry's `workspace_tools:`; each name is a crate under `scripts/crates`
 whose binary has the same name.
 

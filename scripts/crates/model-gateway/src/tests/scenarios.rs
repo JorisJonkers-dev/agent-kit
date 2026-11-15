@@ -141,11 +141,11 @@ impl Numbered {
     }
 }
 
-/// The ledger the scan visits before the other files, as in regenerate-fixtures.mjs.
+/// The ledger the scan visits before the other files, as the goldens were made.
 const LEDGER_FILE: &str = "state/agent-kit/model-gateway/ledger.jsonl";
 
 /// Numbers the random parts of run ids (`@RAND1@`, ...) and temporary directories (`@TMP1@`, ...) by first appearance, as
-/// regenerate-fixtures.mjs does: stdout, stderr, the ledger, every file in name order, then the names. The output, the file names
+/// the goldens were made: stdout, stderr, the ledger, every file in name order, then the names. The output, the file names
 /// and the file texts are rewritten, so two runs of one second keep their own names.
 pub fn mask_randoms(outcome: Outcome) -> Outcome {
     let mut runs = Numbered::default();
@@ -181,7 +181,7 @@ fn host_program(name: &str) -> PathBuf {
     path.split(':').map(|dir| Path::new(dir).join(name)).find(|candidate| candidate.exists()).unwrap_or_else(|| panic!("no {name} on PATH"))
 }
 
-/// 2026-11-03T12:00:00Z, the instant fake-clock.mjs gives the node runner.
+/// 2026-11-03T12:00:00Z, the instant the frozen goldens were made at.
 pub const FIXED_NOW: i64 = 1_793_707_200_000;
 
 pub struct FixedClock(pub i64);

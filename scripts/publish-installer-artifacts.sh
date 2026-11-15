@@ -99,12 +99,20 @@ RETIRED_NAMES=(install.sh install-agents.sh)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # REPO_ROOT is the checkout holding the PAYLOAD (installer/, skills/), which
 # in CI is a release tag and may not carry this tooling script's own sibling
-# helper. HELPER always resolves next to this script instead, so staging a
-# historical tag still finds it.
+# helper. The helper (the ci-helpers binary, verify-release-asset) always
+# resolves next to this script instead, so staging a historical tag still finds
+# it: $CI_HELPERS names a built binary, and without it cargo builds one from the
+# workspace beside this script.
 REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 STAGE_DIR="${STAGE_DIR:-$(mktemp -d)}"
 FETCHED_DIR="${STAGE_DIR}/fetched"
-HELPER="${SCRIPT_DIR}/verify_release_asset.py"
+helper() {
+  if [ -n "${CI_HELPERS:-}" ]; then
+    "${CI_HELPERS}" verify-release-asset "$@"
+  else
+    cargo run --quiet --locked --manifest-path "${SCRIPT_DIR}/Cargo.toml" -p ci-helpers -- verify-release-asset "$@"
+  fi
+}
 
 log() { printf 'publish-installer-artifacts: %s\n' "$*"; }
 die() { printf 'publish-installer-artifacts: %s\n' "$*" >&2; exit 1; }
@@ -140,7 +148,7 @@ cmd_stage() {
   rm -rf "${STAGE_DIR:?}"
   mkdir -p "${STAGE_DIR}"
 
-  python3 "${HELPER}" stamp-version "${TAG_NAME}" \
+  helper stamp-version "${TAG_NAME}" \
     < "${REPO_ROOT}/installer/${SCRIPT_NAME}" \
     > "${STAGE_DIR}/${SCRIPT_NAME}"
   head -1 "${STAGE_DIR}/${SCRIPT_NAME}" | grep -qx '#!/usr/bin/env bash' \
@@ -178,7 +186,7 @@ cmd_verify_script() {
   require_env TAG_NAME
   local fetched
   fetched="$(gh_download "${SCRIPT_NAME}")"
-  python3 "${HELPER}" check-version "${TAG_NAME}" < "${fetched}" \
+  helper check-version "${TAG_NAME}" < "${fetched}" \
     || die "the ${SCRIPT_NAME} release asset's version token does not match release ${TAG_NAME}"
   log "verified the ${SCRIPT_NAME} release asset carries ${TAG_NAME}"
 }
@@ -186,7 +194,7 @@ cmd_verify_script() {
 cmd_verify_skills() {
   local fetched
   fetched="$(gh_download "${SKILLS_TARBALL}")"
-  python3 "${HELPER}" check-checksum "${fetched}" "${STAGE_DIR}/${SKILLS_CHECKSUM}" \
+  helper check-checksum "${fetched}" "${STAGE_DIR}/${SKILLS_CHECKSUM}" \
     || die "the ${SKILLS_TARBALL} release asset does not match its checksum"
   log "verified the ${SKILLS_TARBALL} release asset matches its checksum"
 }

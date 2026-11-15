@@ -1,6 +1,6 @@
 ---
 name: critique
-description: Shared files of the critique pipeline (the bundled runner, prompts, roles, lenses, finding schema and default routing) that the critique stage skills such as /review-spec drive. Not a workflow of its own; use the stage skill instead.
+description: Shared files of the critique pipeline (the launcher, prompts, roles, lenses, finding schema and default routing) that the critique stage skills such as /review-spec drive. Not a workflow of its own; use the stage skill instead.
 ---
 
 # critique
@@ -18,8 +18,7 @@ for a review of the decision records), which tells you how to drive it.
 | path | what it is |
 |---|---|
 | `README.md` | the owner's guide to the pipeline: what runs when, depth, budget, the gates, the kill switch and routing; `/flow explain` reads it |
-| `critique` | the launcher: the Rust runner when setup has installed it, else `critique.mjs`; `AGENT_KIT_CRITIQUE=node` or `~/.config/agent-kit/critique-node` keeps the node runner |
-| `critique.mjs` | the node runner, one self-contained Node file built from `council/ts` |
+| `critique` | the launcher: runs the Rust runner setup installed (exits 127 until it is); `AGENT_KIT_CRITIQUE_BIN` names another binary |
 | `routing.json` | the default routing: which critic clients, roles and lenses each stage runs at base and deep depth, with their caps and depth signals, and risk triage's risk paths, size threshold and triage model |
 | `prompts/` | the shared preamble and the output contract every critic prompt carries, and the triage model's yes/no prompt |
 | `roles/` | the role bodies, such as `spec-redteam`, `adr-reviewer` and `decision-recoverer` |

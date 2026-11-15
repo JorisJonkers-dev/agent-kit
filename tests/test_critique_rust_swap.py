@@ -1,11 +1,10 @@
 """The swap of the Rust critique runner in behind the critique skill's launcher.
 
-`skills/workstation/critique/critique` prefers the installed Rust binary, with
-the skill directory as its assets, and falls back to the node runner beside it,
-so a machine that has not built the binary keeps working and the rollback needs
-no setup run; the hooks and every skill call the launcher. Everything here runs
-against temp directories with stub programs: no real cargo build, no real node,
-no real runner.
+`skills/workstation/critique/critique` runs the installed Rust binary, with
+the skill directory as its assets, and exits 127 with a message when it is not
+installed (the node runner is retired); the hooks and every skill call the
+launcher. Everything here runs against temp directories with stub programs: no
+real cargo build, no real runner.
 """
 
 from __future__ import annotations
@@ -48,11 +47,9 @@ def _program(path: Path, body: str) -> Path:
 def home(tmp_path: Path) -> Path:
     root = tmp_path / "home"
     root.mkdir()
-    _program(tmp_path / "bin" / "node", 'echo "node $*"')
     skill = root / ".claude" / "skills" / "critique"
     skill.mkdir(parents=True)
     shutil.copy(LAUNCHER, skill / "critique")
-    (skill / "critique.mjs").write_text("// bundle\n")
     return root
 
 
@@ -67,10 +64,11 @@ def _install_rust(home: Path) -> Path:
     return _program(binary, 'echo "rust $* assets=$AGENT_KIT_CRITIQUE_ASSETS"')
 
 
-def test_without_the_rust_binary_the_launcher_runs_the_node_runner_beside_it(home: Path) -> None:
+def test_without_the_rust_binary_the_launcher_says_so_and_exits_127(home: Path) -> None:
     result = _critique(home, "stats", "--json", "{}")
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == f"node {home}/.claude/skills/critique/critique.mjs stats --json {{}}\n"
+    assert result.returncode == 127
+    assert result.stdout == ""
+    assert "the Rust runner is not installed" in result.stderr
 
 
 def test_with_the_rust_binary_installed_the_launcher_runs_it_with_the_skill_as_its_assets(home: Path) -> None:
@@ -79,25 +77,9 @@ def test_with_the_rust_binary_installed_the_launcher_runs_it_with_the_skill_as_i
     assert result.stdout == f"rust stats --json {{}} assets={home}/.claude/skills/critique\n"
 
 
-def test_an_unexecutable_rust_binary_falls_back_to_node(home: Path) -> None:
+def test_an_unexecutable_rust_binary_is_not_run(home: Path) -> None:
     _install_rust(home).chmod(0o644)
-    assert _critique(home, "stats").stdout.startswith("node ")
-
-
-def test_the_environment_rolls_one_call_back_to_node(home: Path) -> None:
-    _install_rust(home)
-    assert _critique(home, "stats", AGENT_KIT_CRITIQUE="node").stdout.startswith("node ")
-    assert _critique(home, "stats", AGENT_KIT_CRITIQUE="rust").stdout.startswith("rust stats")
-
-
-def test_the_pin_file_rolls_every_call_back_until_it_is_removed(home: Path) -> None:
-    _install_rust(home)
-    pin = home / ".config" / "agent-kit" / "critique-node"
-    pin.parent.mkdir(parents=True)
-    pin.write_text("")
-    assert _critique(home, "stats").stdout.startswith("node ")
-    pin.unlink()
-    assert _critique(home, "stats").stdout.startswith("rust stats")
+    assert _critique(home, "stats").returncode == 127
 
 
 def test_another_rust_binary_can_be_named(home: Path, tmp_path: Path) -> None:
@@ -229,7 +211,7 @@ def test_an_install_that_cannot_land_is_reported(kit: Kit) -> None:
 
 def test_a_directory_where_the_binary_should_be_is_not_executed(home: Path) -> None:
     (home / ".local" / "share" / "agent-kit" / "critique" / "critique").mkdir(parents=True)
-    assert _critique(home, "stats").stdout.startswith("node ")
+    assert _critique(home, "stats").returncode == 127
 
 
 def test_an_unknown_argument_builds_nothing(kit: Kit) -> None:
@@ -238,16 +220,10 @@ def test_an_unknown_argument_builds_nothing(kit: Kit) -> None:
     assert not (kit.root / "cargo-args").exists()
 
 
-def test_without_cargo_a_workspace_or_with_the_pin_the_step_is_skipped(kit: Kit, home: Path) -> None:
+def test_without_cargo_or_a_workspace_the_step_is_skipped(kit: Kit) -> None:
     assert "cargo is not on PATH" in kit.run(path=False).stdout
     (kit.root / "scripts" / "Cargo.toml").unlink()
     assert "no cargo workspace" in kit.run().stdout
-    (kit.root / "scripts" / "Cargo.toml").write_text("[workspace]\n")
-    pin = home / ".config" / "agent-kit" / "critique-node"
-    pin.parent.mkdir(parents=True)
-    pin.write_text("")
-    result = kit.run()
-    assert result.returncode == 0 and "the node runner is pinned" in result.stdout
     assert not kit.dest.exists()
 
 

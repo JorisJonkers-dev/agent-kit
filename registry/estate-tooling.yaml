@@ -1142,6 +1142,12 @@ workspace_tools:
     surfaces: [workstation]
   - name: litellm-gate
     surfaces: [workstation]
+  - name: estate
+    surfaces: [workstation]
+  - name: projects-layout-guard
+    surfaces: [workstation]
+  - name: pr-composer
+    surfaces: [workstation]
 
 # -------------------------------------------------------------------
 # Hindsight Coding Agents: Hindsight's own plugin for Claude Code and
@@ -1635,14 +1641,15 @@ local_skills:
   - name: critique
     path: skills/workstation/critique
     purpose: >-
-      The critique pipeline's shared files: the bundled runner, the prompt
+      The critique pipeline's shared files: the launcher, the prompt
       preamble, roles, lenses, finding schema and default routing that the
       critique skills drive.
     agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
-      critique.mjs is built from council/ts by its build and pinned in
-      manifest.yaml's critique.files.
+      The launcher runs the Rust runner that setup builds and installs
+      (scripts/install-critique-rust.sh); there is no node runner. The
+      launcher is pinned in manifest.yaml's critique.files.
 
   - name: review-grill
     path: skills/workstation/review-grill
@@ -1809,11 +1816,8 @@ local_skills:
     note: >-
       The skill's build-tracker launcher runs the Rust crate that setup
       builds and installs as ~/.local/bin/build-tracker
-      (scripts/install-build-tracker-rust.sh), and falls back to
-      build-tracker.mjs until it is installed. build-tracker.mjs is built
-      from council/ts by its build and pinned in manifest.yaml's
-      build_tracker.files, the way the critique runner is pinned in
-      critique.files; it stays as the fallback.
+      (scripts/install-build-tracker-rust.sh); there is no node bundle.
+      The launcher is pinned in manifest.yaml's build_tracker.files.
 
   - name: projects-layout
     path: skills/workstation/projects-layout
@@ -1826,7 +1830,9 @@ local_skills:
     note: >-
       Setup also writes the rule as a marked block into each client's global
       instruction file, and merges hooks/projects-layout-guard.sh into Claude
-      Code and Codex (docs/adr/0009-projects-layout-guard.md).
+      Code and Codex (docs/adr/0009-projects-layout-guard.md). The hook runs
+      the Rust projects-layout-guard that setup installs as a workspace tool,
+      and allows the call until it is installed.
 
   - name: estate-project-intent
     path: skills/workstation/estate-project-intent
@@ -1839,7 +1845,7 @@ local_skills:
     note: >-
       Carries the procedure and points at the canonical docs; it never copies
       them. sources.yaml records what it was checked against for
-      scripts/check_skill_sources.py.
+      scripts/crates/ci-helpers (the skill-sources check).
 
   - name: estate-delivery-status
     path: skills/workstation/estate-delivery-status
@@ -1852,7 +1858,7 @@ local_skills:
     note: >-
       Carries the procedure and points at the canonical docs; it never copies
       them. sources.yaml records what it was checked against for
-      scripts/check_skill_sources.py.
+      scripts/crates/ci-helpers (the skill-sources check).
 
   - name: estate-rollback
     path: skills/workstation/estate-rollback
@@ -1865,7 +1871,7 @@ local_skills:
     note: >-
       Carries the procedure and points at the canonical docs; it never copies
       them. sources.yaml records what it was checked against for
-      scripts/check_skill_sources.py.
+      scripts/crates/ci-helpers (the skill-sources check).
 
   - name: estate-bootstrap
     path: skills/workstation/estate-bootstrap
@@ -1879,7 +1885,7 @@ local_skills:
     note: >-
       Carries the procedure and points at the canonical docs; it never copies
       them. sources.yaml records what it was checked against for
-      scripts/check_skill_sources.py.
+      scripts/crates/ci-helpers (the skill-sources check).
 
   - name: model-gateway
     path: skills/workstation/model-gateway
@@ -1891,9 +1897,10 @@ local_skills:
     agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
-      model-gateway.mjs is built from council/ts by its build and pinned in
-      manifest.yaml's model_gateway.files, the way the critique runner is
-      pinned in critique.files. The delegate skill drives it.
+      The `model-gateway` command runs the Rust gateway that setup builds
+      (scripts/install-model-gateway-rust.sh); there is no node runner. The
+      shipped defaults are pinned in manifest.yaml's model_gateway.files.
+      The delegate skill drives it.
 
   - name: delegate
     path: skills/workstation/delegate

@@ -1,5 +1,5 @@
 //! The depth choice and the roster resolution over generated routing files, requests and readiness, compared with what
-//! the node runner makes of them (tests/gen-roster-corpus.mjs), as the JSON the manifest freezes, so the order of keys
+//! the node runner makes of them, as the JSON the manifest freezes, so the order of keys
 //! counts. `CRITIQUE_ROSTER_CORPUS` names a bigger corpus to replay.
 
 use crate::depth::{choose_depth, DepthEvidence, DepthSignalsConfig};

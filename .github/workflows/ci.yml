@@ -36,10 +36,6 @@
       - 'run': 'uv run ruff check .'
       - 'run': 'uv run mypy'
         'if': '${{ !cancelled() }}'
-      - 'run': 'uv run python scripts/check_skill_sources.py --validate'
-        'if': '${{ !cancelled() }}'
-      - 'run': 'uv run python scripts/check_agents_md.py'
-        'if': '${{ !cancelled() }}'
       # A test that asserts wall time runs here, on an otherwise idle runner;
       # the shards leave it out.
       - 'run': 'uv run pytest -m timing'
@@ -55,6 +51,11 @@
     # A shard takes about three minutes; a hung test fails it instead of
     # holding the merge for the six-hour default.
     'timeout-minutes': 20
+    # A few tests build the ci-helpers binary (cargo resolves through the
+    # authenticated packages proxy, as in the Rust jobs).
+    'env':
+      'CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX': 'sparse+https://packages.jorisjonkers.dev/cargo/'
+      'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
     'steps':
       - 'uses': 'actions/checkout@v6'
       - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
@@ -93,9 +94,6 @@
         'with':
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
-      - 'uses': 'pnpm/action-setup@v4'
-        'with':
-          'package_json_file': 'council/ts/package.json'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
       - 'run': 'uv sync --frozen'
       - 'run': 'uv run python scripts/render_agent_kit.py --check'
@@ -116,33 +114,6 @@
         'if': '${{ !cancelled() }}'
       - 'run': 'scripts/build-runtime-package.sh v0.0.0-ci dist'
       - 'run': 'tar -tzf dist/agent-kit-runtime-home-v0.0.0-ci.tar.gz >/dev/null'
-
-  'node':
-    'name': 'Node CI'
-    'runs-on': 'ubuntu-latest'
-    'steps':
-      - 'uses': 'actions/checkout@v6'
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@48fcba8b143567e12716f4b77b9a3ab211719ffd' # v0.50.1
-        'with':
-          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
-          'require-package-proxy': 'true'
-      - 'uses': 'pnpm/action-setup@v4'
-        'with':
-          'package_json_file': 'council/ts/package.json'
-      - 'uses': 'actions/setup-node@v6'
-        'with':
-          'node-version': '22'
-          'cache': 'pnpm'
-          'cache-dependency-path': 'council/ts/pnpm-lock.yaml'
-      # The build tracker's online checks: the pinned Mermaid hash against
-      # the CDN file, and the graph rendered from a local file in headless
-      # Chrome. Opt-in on a workstation. The ubuntu runner image ships
-      # google-chrome on PATH; BUILD_TRACKER_REQUIRE_CHROME makes the browser
-      # tests fail rather than skip if it ever stops shipping one.
-      - 'run': 'cd council/ts && pnpm install --frozen-lockfile && pnpm run build && pnpm test'
-        'env':
-          'BUILD_TRACKER_ONLINE': '1'
-          'BUILD_TRACKER_REQUIRE_CHROME': '1'
 
   # The actionlint job. It was named `workflow-lint` / 'Workflow Lint' like the
   # Gold Band `workflow-lint` crate (next job), so the two read as one. Neither
@@ -369,9 +340,11 @@
           'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
           'require-package-proxy': 'true'
       - 'run': 'git fetch --quiet --depth 1 origin "${BASE_SHA}"'
-      - 'uses': 'astral-sh/setup-uv@v8.2.0'
-      - 'run': 'uv sync --frozen'
-      - 'run': 'uv run python scripts/check_marketplace_bump.py --base-ref "${BASE_SHA}"'
+      - 'name': 'Review the marketplace pin bump'
+        'env':
+          'CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX': 'sparse+https://packages.jorisjonkers.dev/cargo/'
+          'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
+        'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p ci-helpers -- marketplace-bump --base-ref "${BASE_SHA}"'
 
   # The registry's NixOS package list names nixpkgs attributes by path. This
   # fails when one of them is not in the nixpkgs revision nixos-modules pins,
@@ -449,6 +422,12 @@
       # carry an output directory (docs/REGISTRY.md).
       - 'name': 'Validate the reach-level support record'
         'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p agent-launcher -- validate registry/reach-levels.yaml'
+      # Every estate skill's sources.yaml is well formed, and every AGENTS.md
+      # names only paths and symbols that exist (docs/RUST.md, "ci-helpers").
+      - 'name': 'Validate the estate skill sources'
+        'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p ci-helpers -- skill-sources --validate'
+      - 'name': 'AGENTS.md names only things that exist'
+        'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p ci-helpers -- agents-md'
       # Line coverage of the workspace must stay at 100 percent (docs/RUST.md).
       # rustc's own instrumentation plus the llvm-tools component of the same
       # toolchain, so no further crate is involved and the profile format
@@ -463,7 +442,6 @@
     'if': 'always()'
     'needs':
       - 'nixos-packages'
-      - 'node'
       - 'python'
       - 'python-lint'
       - 'python-tests'

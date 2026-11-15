@@ -1,5 +1,5 @@
 //! The tree sampler, the drop summary and the repository sample over generated trees, limits and pieces, compared with
-//! what the node runner makes of the same input (tests/gen-samples-corpus.mjs). `CRITIQUE_SAMPLES_CORPUS` names a
+//! what the node runner makes of the same input. `CRITIQUE_SAMPLES_CORPUS` names a
 //! bigger corpus to replay.
 
 use crate::drop_summary::{drop_summary_bound, summarise_drops, Drop};

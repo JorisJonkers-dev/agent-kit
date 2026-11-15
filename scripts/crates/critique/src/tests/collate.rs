@@ -35,7 +35,7 @@ fn collate_corpus() {
 const PAIRS: &str = include_str!("../../tests/fixtures/collate-pairs.txt");
 
 /// Every ordered pair of one-character ASCII strings, with and without `numeric`, against node's answers
-/// (`tests/gen-collate-pairs.mjs`): the whole primary and tertiary order of ASCII, not a random sample of it.
+///: the whole primary and tertiary order of ASCII, not a random sample of it.
 #[test]
 fn every_ascii_pair_collates_as_node_does() {
     let lines: Vec<&str> = PAIRS.lines().collect();

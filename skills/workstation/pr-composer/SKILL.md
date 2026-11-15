@@ -1,7 +1,7 @@
 ---
 name: pr-composer
 description: Compose a pull request that matches the repository's own conventions — discovers the repo PR template, mines the last 100 merged PRs for house style, pulls in linked issues and Slack threads, suggests reviewers/assignees/project boards, and renders a visual preview that must be explicitly confirmed before anything is pushed or created. Use this skill whenever the user is opening, drafting, describing, retitling, or updating a pull request or merge request, mentions a PR template, asks "what should I write in this PR", asks for help with a PR body, wants reviewers or a project board set on a PR, or is about to run `gh pr create` — even if they don't say the word "skill" or ask for a template explicitly.
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/collect.sh *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/mine_prs.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/check_body.py *) Bash(git log *) Bash(git diff *) Bash(git status *) Bash(git rev-parse *) Bash(git branch *) Bash(gh repo view *) Bash(gh pr list *) Bash(gh pr view *) Bash(gh issue view *) Bash(gh issue list *) Bash(gh label list *) Bash(gh project list *)
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/collect.sh *) Bash(pr-composer mine-prs *) Bash(pr-composer check-body *) Bash(git log *) Bash(git diff *) Bash(git status *) Bash(git rev-parse *) Bash(git branch *) Bash(gh repo view *) Bash(gh pr list *) Bash(gh pr view *) Bash(gh issue view *) Bash(gh issue list *) Bash(gh label list *) Bash(gh project list *)
 ---
 
 # PR Composer
@@ -48,7 +48,7 @@ bash ${CLAUDE_SKILL_DIR}/scripts/collect.sh /tmp/pr-ctx
 Then mine the history dump into a style profile rather than reading 100 PR bodies yourself — it's cheaper and the numbers are more honest than an impression:
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/mine_prs.py /tmp/pr-ctx/merged_prs.json --out /tmp/pr-ctx/style.json --md
+pr-composer mine-prs /tmp/pr-ctx/merged_prs.json --out /tmp/pr-ctx/style.json --md
 ```
 
 Read `/tmp/pr-ctx/style.md` (short) and the template file. `${CLAUDE_SKILL_DIR}/references/gh-reference.md` has the exact commands for anything the collector couldn't get, plus the project-board GraphQL and scope-refresh incantations.
@@ -87,7 +87,7 @@ Fill the template. Where a fact is not in evidence — test results you haven't 
 
 Placeholders are a feature. Count them and surface the count in the preview. Invented specifics are the one failure mode that makes this skill worse than writing the PR by hand, because they read as verified.
 
-**Fill the template; don't improve it.** Four rules, all of them checked mechanically by `check_body.py` in the next step:
+**Fill the template; don't improve it.** Four rules, all of them checked mechanically by `pr-composer check-body` in the next step:
 
 1. No section that isn't in the template. If you want a `Verification` or `Notes` heading and the template doesn't have one, the answer is no — put the content under whichever existing heading covers it, or ask.
 2. No reordering. Link blocks especially: if the template opens with links, they open the body, however much better they'd read at the bottom.
@@ -110,7 +110,7 @@ Derive these alongside the body:
 First validate the body against the template:
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/check_body.py \
+pr-composer check-body \
   --template /tmp/pr-ctx/template.md --body /tmp/pr-ctx/body.md \
   --skipped "Screenshots"
 ```
@@ -186,7 +186,7 @@ Apply commands and re-render only what changed plus the footer, so the terminal 
 
 Two exceptions where the full card comes back:
 
-- **Any edit that touches the body.** Rewrite `body.md`, re-run `check_body.py`, then render the full body again. Reporting the write as a diff of the file is not a preview — the user cannot approve a PR from a list of removed lines.
+- **Any edit that touches the body.** Rewrite `body.md`, re-run `pr-composer check-body`, then render the full body again. Reporting the write as a diff of the file is not a preview — the user cannot approve a PR from a list of removed lines.
 - **Before asking to create**, after a batch of edits. When the user hands you several changes at once, apply them all, then show one complete card. Don't narrate each fix as you go and then ask for confirmation on a card nobody has seen in its final state.
 
 Skipping is real: a skipped section is omitted from the body entirely, not filled with "N/A" — unless the style profile shows this repo does write "N/A" under unused headings, in which case match the repo.

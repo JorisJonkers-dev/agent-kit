@@ -10,5 +10,5 @@ conventions and holds the repository-specific rules. Read it first.
 - `registry/estate-tooling.yaml` is the source of what setup installs;
   `installer/setup-workstation.sh` is generated from it, so edit the registry
   and re-render with `scripts/render_registry.py`, never the generated file.
-- `scripts/check_agents_md.py` is the lint that keeps this file honest: it fails
-  when a path or symbol named here no longer exists.
+- `scripts/crates/ci-helpers` (`ci-helpers agents-md`) is the lint that keeps
+  this file honest: it fails when a path or symbol named here no longer exists.

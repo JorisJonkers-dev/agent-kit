@@ -1,0 +1,13 @@
+[package]
+name = "ci-helpers"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The CI helpers (#813, parent #802): the AGENTS.md lint, the marketplace pin review, the estate skill sources drift check and the release asset checks, ported from Python."
+
+# serde_json, serde and serde_yaml are in the lockfile at these exact
+# versions already, so the lockfile gains only this member.
+[dependencies]
+serde = "=1.0.229"
+serde_json = "=1.0.154"
+serde_yaml = "=0.9.34"

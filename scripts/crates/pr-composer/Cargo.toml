@@ -1,0 +1,11 @@
+[package]
+name = "pr-composer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The pr-composer skill's two helpers: check-body compares a drafted pull request body with the repository's template, mine-prs turns a merged-PR dump into a house-style profile (issue #813)."
+
+# serde_json reads the merged-PR dump; it is already in the lockfile at this
+# exact version, so the lockfile gains only this member.
+[dependencies]
+serde_json = "=1.0.154"

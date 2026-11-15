@@ -74,7 +74,7 @@ client in `skills/workstation/critique/routing.json` names its route's `data_sco
 `data_scope: public` is routed only to a repository whose entry in the machine's critique allowlist
 says `"public": true` (set with `critique allow`, off for every new entry). For any other repository
 the roster drops it with the reason `data-scope`, it is never kept as a fallback, and a refute round
-passes it over. The check lives in both runners (`council/ts` and `scripts/crates/critique`), each
+passes it over. The check lives in `scripts/crates/critique`, each
 with tests.
 
 There is no route for OpenCode Zen's free models: OpenCode's docs say they answer HTTP 403 to
@@ -325,7 +325,7 @@ Readers:
   free one `"free": true`, and refuses a run on a refused model (`model-not-usable`). A model the
   catalogue does not list is listed as before. See the gateway's SKILL.md.
 - **The model gateway's Pi clients** (`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`,
-  `pi-public`: one per route in `registry/generated/litellm/routes.json`, but `openrouter`) list the
+  `pi-public`: one per route in `registry/generated/litellm/routes.json`, but `openrouter`; `pi-local` has no models until a `local` deployment is probed usable) list the
   models the home's `~/.pi/agent/models.json` gives the route's `litellm-<route>` provider, which
   setup wrote from `canonical_groups`, and judge each canonical group by its deployments in the live
   catalogue: usable when one deployment is, skipped with the provider's reason when every probed
@@ -342,8 +342,16 @@ Readers:
 
 - **The Pi provider table** (`registry/generated/pi/providers.json`, rendered by
   `scripts/render_registry.py`) takes each route's models from `canonical_groups()`; no model list is
-  kept by hand any more (the old `registry/litellm-access-groups.json` is gone). Only chat groups are
-  listed. Each Pi model entry carries `contextWindow` (the group's `context_length`: the smallest among
+  kept by hand any more (the old `registry/litellm-access-groups.json` is gone). Only chat groups with
+  at least one deployment the catalogue probed `usable` are listed (`usable_group_names()`; a
+  deployment's probe is `<route>/<upstream_id>`, and a blocked, error, unknown or not-chat probe does
+  not count), so a group with no usable deployment, such as a Gemini transcribe or robotics model,
+  is not offered. The `local` route lists only groups with a deployment on the `local` route (its
+  `canonical` access group also reaches the cloud models, which the local server does not serve), and
+  a `data_scope: public` route lists only public groups (`public` holds `canonical` so a Gemini model
+  can fall over to a paid deployment, not to offer paid models). A route left with no model has no
+  Pi provider at all (today `litellm-local`: the catalogue has no `local` deployment), and setup
+  removes one it wrote before. Each Pi model entry carries `contextWindow` (the group's `context_length`: the smallest among
   its first-tried deployments, left out when unknown) and, for a free group, an all-zero `cost`. The
   catalogue holds no price, only whether a model is free, so a paid model has no `cost` entry.
   The render must give the same text on every machine for `--check`, so it reads the checked-in
