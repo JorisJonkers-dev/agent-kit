@@ -48,6 +48,35 @@
     {"client": "pi", "model": "public/gemini-3.8-flash", "family": "google", "tier": "routine", "notes": "Fast long-context reader; public material only."},
     {"client": "pi", "model": "public/gemini-3.5-flash-lite", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries and lookups; public material only."}
   ],
+  "profiles": {
+    "cheap-research": {
+      "description": "Read-only research and lookups on the cheapest subsidised models, with no tools attached.",
+      "models": ["pi-vibe:ministral-8b", "pi-vibe:mistral-small", "pi-vibe:glm-5.3-flash", "pi-opencode-go:qwen3.8-flash"],
+      "tools": {"mcp": [], "skills": [], "plugins": []},
+      "max_spend_usd": 0.5
+    },
+    "cross-critic": {
+      "description": "A second opinion from two model families other than the writer's. The request names the writer's family as narrow.writer_family.",
+      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3", "pi-vibe:mistral-large-4", "pi-opencode-go:kimi-k2.7-code", "pi-opencode-go:qwen3.8-flash"],
+      "distinct_families": 2,
+      "exclude_writer_family": true,
+      "tools": {"mcp": [], "skills": [], "plugins": []},
+      "max_spend_usd": 1.0
+    },
+    "public-free": {
+      "description": "Free Gemini models on the public route, for public material only: a delegation that reads a repository is never sent here.",
+      "models": ["pi-public:public/gemini-3.5-flash-lite", "pi-public:public/gemini-3.8-flash"],
+      "tools": {"mcp": [], "skills": [], "plugins": []},
+      "max_spend_usd": 0.25
+    },
+    "implement-cheap": {
+      "description": "A cheap writer that climbs a ladder to a stronger model when the work escalates.",
+      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3"],
+      "ladder": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3"],
+      "tools": {"mcp": [], "skills": [], "plugins": []},
+      "max_spend_usd": 2.0
+    }
+  },
   "settings": {
     "plan_warning_ratio": 0.8,
     "summary_max_chars": 1500,

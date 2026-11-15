@@ -1,0 +1,220 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":5}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"narrow\":{\"models\":[\"x\"]}}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"cheap-research\",\"narrow\":\"x\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"cheap-research\",\"narrow\":{\"surprise\":1}}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"cheap-research\",\"narrow\":{\"models\":[]}}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"cheap-research\",\"narrow\":{\"models\":[1]}}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"cheap-research\",\"narrow\":{\"mcp\":\"x\"}}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"cheap-research\",\"narrow\":{\"skills\":[\"\"]}}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"cheap-research\",\"narrow\":{\"max_spend_usd\":0}}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"cheap-research\",\"narrow\":{\"max_spend_usd\":\"1\"}}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "run",
+        "--json",
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"ministral-8b\",\"prompt\":\"p\",\"profile\":\"cheap-research\",\"narrow\":{\"writer_family\":\"\"}}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}

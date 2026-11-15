@@ -1,4 +1,5 @@
 import { isObject, ModelGatewayError, type ModelPrices } from './config.js'
+import { readNarrowing, type Narrowing } from './narrowing.js'
 import { requireWorkflowName } from './workflows.js'
 
 /** What a run may do: read the repository, or change it in a worktree of its own. */
@@ -84,6 +85,10 @@ export interface RunInput {
   readonly headless?: boolean
   /** How many attempts the delegation gets in all, the first included; 3 unless the caller says otherwise. */
   readonly max_attempts?: number
+  /** The delegation profile the run is held to: its allowed models and its tool scope. */
+  readonly profile?: string
+  /** What the request takes away from the profile; it never adds. */
+  readonly narrow?: Narrowing
 }
 
 /** Reads a run's input, or says what is wrong with it. */
@@ -112,6 +117,7 @@ export function readRunInput(raw: unknown): RunInput {
   const provider = readOptionalString(raw.provider, 'provider')
   const escalation = readEscalation(raw)
   const headless = readHeadless(raw)
+  const profiled = readProfiled(raw)
   return {
     client: raw.client,
     mode: raw.mode,
@@ -126,7 +132,16 @@ export function readRunInput(raw: unknown): RunInput {
     ...escalation,
     ...writing,
     ...(headless === undefined ? {} : { headless }),
+    ...profiled,
   }
+}
+
+/** The profile a run names and what it narrows it to; narrowing without a profile has nothing to narrow. */
+function readProfiled(raw: Record<string, unknown>): { profile?: string; narrow?: Narrowing } {
+  const profile = readOptionalString(raw.profile, 'profile')
+  const narrow = readNarrowing(raw.narrow)
+  if (profile === undefined && narrow !== undefined) throw new ModelGatewayError('invalid-input', 'narrow needs a profile to narrow')
+  return { ...(profile === undefined ? {} : { profile }), ...(narrow === undefined ? {} : { narrow }) }
 }
 
 /** Whether nobody is there to answer, which changes nothing about the run but what the orchestrator does with a refusal. */

@@ -148,7 +148,48 @@ export interface GatewayConfig {
   readonly settings: Settings
   /** The `<client>:<model>` keys the owner left out. */
   readonly disabled: readonly string[]
+  /** The delegation profiles the shipped defaults state, by name; a machine file does not add or change them. */
+  readonly profiles: Readonly<Record<string, DelegationProfile>>
 }
+
+/** The three kinds of tool a profile scopes. */
+export const TOOL_KINDS = ['mcp', 'plugins', 'skills'] as const
+export type ToolKind = (typeof TOOL_KINDS)[number]
+
+/** The names a profile allows of one kind of tool, or `any` for no limit. An empty list is deny-all. */
+export type ToolList = readonly string[] | 'any'
+
+export type ToolScope = Readonly<Record<ToolKind, ToolList>>
+
+/** One delegation profile, as the shipped defaults state it. */
+export interface DelegationProfile {
+  readonly name: string
+  readonly description: string
+  /** The `<client>:<model>` keys the profile allows, each a model of the catalogue. */
+  readonly models: readonly string[]
+  /** The one model the profile is pinned to, one of `models`. */
+  readonly pin?: string
+  /** The models of `models` a writer climbs through, cheapest first. */
+  readonly ladder?: readonly string[]
+  /** How many distinct model families the allowed models must span. */
+  readonly distinct_families?: number
+  /** The writer's family is left out of the allowed models, so a critic is never of the writer's family. */
+  readonly exclude_writer_family?: boolean
+  readonly tools: ToolScope
+  /** The most a run under the profile may spend, in USD; held from #788, validated now. */
+  readonly max_spend_usd?: number
+}
+
+const PROFILE_FIELDS = [
+  'description',
+  'models',
+  'pin',
+  'ladder',
+  'distinct_families',
+  'exclude_writer_family',
+  'tools',
+  'max_spend_usd',
+] as const
 
 export type ModelGatewayErrorCode =
   /** The run named an extra its client cannot apply, such as an MCP server for a client that attaches none. */
@@ -180,6 +221,10 @@ export type ModelGatewayErrorCode =
   | 'not-supported-yet'
   /** The data policy refuses the run's client model, or what it claims to carry. */
   | 'policy-refused'
+  /** The run's profile refuses it: a model it does not allow here, a request that widens it, or a limit the client cannot enforce. */
+  | 'profile-refused'
+  /** The run names a delegation profile the defaults do not state. */
+  | 'unknown-profile'
   /**
    * The run names a provider this machine does not let the client run on, or
    * one the owner forbade outright (OpenRouter), or an OpenCode model whose
@@ -275,6 +320,7 @@ export function parseDefaults(raw: unknown): GatewayConfig {
     clients,
     disabled: parseDisabled(raw.disabled),
     models,
+    profiles: parseProfiles(raw.profiles, new Set(models.map((entry) => `${entry.client}:${entry.model}`))),
     settings: parseSettings(raw.settings),
     version: CONFIG_VERSION,
   }
@@ -309,6 +355,7 @@ export function applyOverride(config: GatewayConfig, raw: unknown): GatewayConfi
     clients: mergeClients(config.clients, raw.clients),
     disabled: raw.disabled === undefined ? config.disabled : parseDisabled(raw.disabled),
     models: mergeModels(config.models, raw.models),
+    profiles: config.profiles,
     settings: mergeSettings(config.settings, raw.settings),
     version: CONFIG_VERSION,
   }
@@ -589,3 +636,90 @@ function requireOneOf<T extends string>(value: unknown, allowed: readonly T[], w
 function invalid(message: string): ModelGatewayError {
   return new ModelGatewayError('invalid-config', message)
 }
+
+function profileStrings(value: unknown, where: string, allowEmpty: boolean): readonly string[] {
+  if (!Array.isArray(value)) throw invalid(`${where} must be a list of non-empty strings`)
+  const items: readonly unknown[] = value
+  const out: string[] = []
+  for (const item of items) {
+    if (typeof item !== 'string' || item === '') throw invalid(`${where} must be a list of non-empty strings`)
+    out.push(item)
+  }
+  if (!allowEmpty && out.length === 0) throw invalid(`${where} must not be empty`)
+  if (new Set(out).size !== out.length) throw invalid(`${where} must not repeat an entry`)
+  return out
+}
+
+function toolList(value: unknown, where: string): ToolList {
+  return value === 'any' ? 'any' : profileStrings(value, where, true)
+}
+
+/** Reads the profiles of the shipped defaults; `known` holds the `<client>:<model>` keys of the catalogue. */
+export function parseProfiles(raw: unknown, known: ReadonlySet<string>): Readonly<Record<string, DelegationProfile>> {
+  if (raw === undefined) return {}
+  if (!isObject(raw)) throw invalid('profiles must be an object keyed by profile name')
+  return Object.fromEntries(
+    Object.entries(raw).map(([name, value]) => {
+      if (!/^[a-z][a-z0-9-]*$/.test(name)) throw invalid(`profiles.${name}: a profile name is lowercase letters, digits and hyphens`)
+      if (!isObject(value)) throw invalid(`profiles.${name} must be an object`)
+      return [name, parseProfile(name, value, known)]
+    }),
+  )
+}
+
+function parseProfile(name: string, raw: JsonObject, known: ReadonlySet<string>): DelegationProfile {
+  const where = `profiles.${name}`
+  const unknownField = Object.keys(raw).find((key) => !(PROFILE_FIELDS as readonly string[]).includes(key))
+  if (unknownField !== undefined) throw invalid(`${where}.${unknownField} is not a field a profile has; choose from ${PROFILE_FIELDS.join(', ')}`)
+  if (typeof raw.description !== 'string' || raw.description === '') throw invalid(`${where}.description must be a non-empty string`)
+  const models = profileStrings(raw.models, `${where}.models`, false)
+  const inCatalogue = (key: string, at: string): void => {
+    if (!known.has(key)) throw invalid(`${at} names ${key}, which is no model of the catalogue`)
+  }
+  for (const key of models) inCatalogue(key, `${where}.models`)
+  const pin = raw.pin === undefined ? undefined : requireMember(raw.pin, models, `${where}.pin`)
+  const ladder = raw.ladder === undefined ? undefined : profileStrings(raw.ladder, `${where}.ladder`, false)
+  for (const key of ladder ?? []) requireMember(key, models, `${where}.ladder`)
+  const distinct = raw.distinct_families === undefined ? undefined : requireWhole(raw.distinct_families, `${where}.distinct_families`)
+  if (raw.exclude_writer_family !== undefined && typeof raw.exclude_writer_family !== 'boolean') {
+    throw invalid(`${where}.exclude_writer_family must be true or false`)
+  }
+  const spend = raw.max_spend_usd === undefined ? undefined : requirePositive(raw.max_spend_usd, `${where}.max_spend_usd`)
+  return {
+    description: raw.description,
+    models,
+    name,
+    tools: parseTools(raw.tools, `${where}.tools`),
+    ...(pin === undefined ? {} : { pin }),
+    ...(ladder === undefined ? {} : { ladder }),
+    ...(distinct === undefined ? {} : { distinct_families: distinct }),
+    ...(raw.exclude_writer_family === undefined ? {} : { exclude_writer_family: raw.exclude_writer_family }),
+    ...(spend === undefined ? {} : { max_spend_usd: spend }),
+  }
+}
+
+/** The tool scope: every kind is deny-all unless the profile lists it (or says `any`). */
+function parseTools(raw: unknown, where: string): ToolScope {
+  if (raw === undefined) return { mcp: [], plugins: [], skills: [] }
+  if (!isObject(raw)) throw invalid(`${where} must be an object`)
+  const unknownKind = Object.keys(raw).find((key) => !(TOOL_KINDS as readonly string[]).includes(key))
+  if (unknownKind !== undefined) throw invalid(`${where}.${unknownKind} is not a kind of tool; choose from ${TOOL_KINDS.join(', ')}`)
+  const kind = (name: ToolKind): ToolList => (raw[name] === undefined ? [] : toolList(raw[name], `${where}.${name}`))
+  return { mcp: kind('mcp'), plugins: kind('plugins'), skills: kind('skills') }
+}
+
+function requireMember(value: unknown, members: readonly string[], where: string): string {
+  if (typeof value !== 'string' || !members.includes(value)) throw invalid(`${where} must name one of the profile's models`)
+  return value
+}
+
+function requireWhole(value: unknown, where: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) throw invalid(`${where} must be a whole number of at least 1`)
+  return value
+}
+
+function requirePositive(value: unknown, where: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw invalid(`${where} must be a number above 0`)
+  return value
+}
+

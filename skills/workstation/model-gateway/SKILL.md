@@ -270,6 +270,8 @@ Everything that can refuse the run happens before anything is launched:
   `repo` is inline-only: it works in a fresh empty temporary directory, never
   inside a repository, and `carries` may not claim code or history the policy
   does not allow.
+- `unknown-profile` and `profile-refused` — the run names a delegation profile
+  (below) the defaults do not state, or the profile refuses it, with the reason.
 - `write-needs-repository` — a writing run names no `repo`.
 - `provider-not-allowed` — a Hermes run must name a `provider`, and it must be
   one this machine lists in `clients.hermes.providers` (empty by default, so
@@ -902,6 +904,60 @@ a delegate that edits the project's test entry point (the `test` script in
 run code of its own choosing, with your privileges and outside the worktree.
 Send a writing delegation only to a client model you trust with that, and read
 the staged diff before you commit it.
+
+## Delegation profiles
+
+A delegation profile is one named bundle that owns the models a delegation may
+use and the tool scope it runs with. The shipped profiles are `cheap-research`,
+`cross-critic` (two model families other than the writer's), `public-free` and
+`implement-cheap` (a cheap writer with a ladder to a stronger model). They live
+in `registry/delegation-profiles.yaml` and are rendered into the `profiles`
+section of `defaults.json` by `scripts/render_registry.py`; a machine override
+does not add or change them.
+
+`models` lists them under `profiles`, each with its `description`, `tools`,
+`models` and the optional `pin`, `ladder`, `distinct_families`,
+`exclude_writer_family` and `max_spend_usd`. A profile's `models` are the ones
+usable now that the repository's data policy permits, cheapest first (cost
+class, then tier, then the profile's own order): the delegate picks the first
+that covers the task. When none is left the profile carries an `error` saying
+why, and an empty `models`.
+
+`run` (and a batch delegation) takes `profile`, the name of a profile, and an
+optional `narrow` object that may only take something away:
+
+- `models`: a subset of the profile's `<client>:<model>` keys.
+- `mcp`, `skills`, `plugins`: a subset of what the profile grants (every kind is
+  deny-all unless the profile lists it or says `any`).
+- `max_spend_usd`: at or below the profile's cap. The field is validated now;
+  the gateway enforces it once the LiteLLM key spend is read (#788).
+- `writer_family`: the family of the writer whose work a critic reads. A profile
+  with `exclude_writer_family` (`cross-critic`) needs it and leaves that family
+  out; the remaining models must still span `distinct_families`.
+
+The data policy always wins: it is intersected with the profile. A profile left
+with no allowed model for the repository is `profile-refused`, never a silent
+fallback to another model. `public-free` runs on the public route, which is
+never sent a repository, so it has a model only for inline work; a nedap
+repository reaches only Claude Code and Codex, and a private repository only
+the families its entry names. A delegation that fails stays inside its profile:
+the retry, the climb and the fall-through use only its models.
+
+A run is also refused with `profile-refused` when:
+
+- the run's client model is not one the profile leaves for this repository;
+- `narrow` widens the profile (a model, a tool or a spend it does not give);
+- the profile's tool scope names a limit the chosen client cannot enforce. Only
+  Pi enforces for now, and only the empty scope: a Pi launch home holds the
+  route's provider and nothing else, so no MCP server, plugin or skill is
+  attached. Every other client is treated as unable, so a profile that restricts
+  tools (every seed profile does, since deny-all is the default) is refused for
+  `vibe`, `claude` and the rest with the restricted kinds named; a profile that
+  grants an MCP server, plugin or skill is refused on Pi until its per-run home
+  carries them.
+
+An unknown name is `unknown-profile`. `narrow` without `profile` is
+`invalid-input`.
 
 ## The data policy
 

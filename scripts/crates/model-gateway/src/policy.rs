@@ -213,7 +213,7 @@ pub fn permitted_model_json(model: &PermittedModel) -> Value {
 }
 
 /// The `models` command's result: the policy line, the status, and the listing.
-pub fn models_result_json(policy_reason: &str, listing: &PolicyListing, warning: Option<&str>) -> Value {
+pub fn models_result_json(policy_reason: &str, listing: &PolicyListing, profiles: &Value, warning: Option<&str>) -> Value {
     let missing = listing
         .missing
         .iter()
@@ -237,6 +237,7 @@ pub fn models_result_json(policy_reason: &str, listing: &PolicyListing, warning:
         ("missing", Value::Arr(missing)),
         ("models", Value::Arr(listing.models.iter().map(permitted_model_json).collect())),
         ("skipped", Value::Arr(skipped)),
+        ("profiles", profiles.clone()),
     ]
     .into_iter()
     .chain(warning.map(|warning| ("warnings", Value::Arr(vec![Value::str(warning)]))))

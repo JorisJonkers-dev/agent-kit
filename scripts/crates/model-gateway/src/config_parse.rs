@@ -6,12 +6,12 @@
 //! error that names what is wrong rather than a surprise later.
 
 use crate::config::{
-    ClientConfig, CostClass, GatewayConfig, MeteredPersonalCaps, ModelEntry, ModelPrices, ModelSource, PlanLimit, PlanWindow, Settings, Tier, CONFIG_VERSION,
+    ClientConfig, CostClass, DelegationProfile, GatewayConfig, MeteredPersonalCaps, ModelEntry, ModelPrices, ModelSource, PlanLimit, PlanWindow, Settings, Tier, ToolList, ToolScope, CONFIG_VERSION, TOOL_KINDS,
 };
 use crate::error::GatewayError;
 use crate::json::{self, Object, Value};
 use crate::ports::Runtime;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The fields a client has; a machine file that names another is refused, not quietly ignored.
 const CLIENT_FIELDS: [&str; 9] =
@@ -54,7 +54,9 @@ pub fn parse_defaults(raw: &Value) -> Result<GatewayConfig, GatewayError> {
     };
     let disabled = parse_disabled(object.get("disabled"))?;
     let settings = parse_settings(settings_raw)?;
-    Ok(GatewayConfig { version: CONFIG_VERSION, clients, models, settings, disabled })
+    let known: BTreeSet<String> = models.iter().map(|entry| format!("{}:{}", entry.client, entry.model)).collect();
+    let profiles = parse_profiles(object.get("profiles"), &known)?;
+    Ok(GatewayConfig { version: CONFIG_VERSION, clients, models, settings, disabled, profiles })
 }
 
 /// A defaults entry whose `client` is no client of its own but the prefix of
@@ -101,7 +103,7 @@ pub fn apply_override(config: &GatewayConfig, raw: &Value) -> Result<GatewayConf
     };
     let models = merge_models(&config.models, object.get("models"))?;
     let settings = merge_settings(&config.settings, object.get("settings"))?;
-    Ok(GatewayConfig { version: CONFIG_VERSION, clients, models, settings, disabled })
+    Ok(GatewayConfig { version: CONFIG_VERSION, clients, models, settings, disabled, profiles: config.profiles.clone() })
 }
 
 /// The shipped defaults with this machine's override applied over them. A
@@ -547,4 +549,133 @@ fn is_integer(number: f64) -> bool {
 
 fn invalid(message: impl Into<String>) -> GatewayError {
     GatewayError::new("invalid-config", message)
+}
+
+/// The fields a profile has; one it does not is refused, not quietly ignored.
+const PROFILE_FIELDS: [&str; 8] = ["description", "models", "pin", "ladder", "distinct_families", "exclude_writer_family", "tools", "max_spend_usd"];
+
+/// Reads the profiles of the shipped defaults; `known` holds the `<client>:<model>` keys of the catalogue.
+fn parse_profiles(raw: Option<&Value>, known: &BTreeSet<String>) -> Result<BTreeMap<String, DelegationProfile>, GatewayError> {
+    let Some(raw) = raw else {
+        return Ok(BTreeMap::new());
+    };
+    let Some(object) = raw.as_object() else {
+        return Err(invalid("profiles must be an object keyed by profile name"));
+    };
+    let mut profiles = BTreeMap::new();
+    for (name, value) in object.entries() {
+        let named = name.chars().next().is_some_and(|first| first.is_ascii_lowercase())
+            && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        if !named {
+            return Err(invalid(format!("profiles.{name}: a profile name is lowercase letters, digits and hyphens")));
+        }
+        let Some(profile) = value.as_object() else {
+            return Err(invalid(format!("profiles.{name} must be an object")));
+        };
+        profiles.insert(name.to_string(), parse_profile(name, profile, known)?);
+    }
+    Ok(profiles)
+}
+
+fn parse_profile(name: &str, raw: &Object, known: &BTreeSet<String>) -> Result<DelegationProfile, GatewayError> {
+    let where_ = format!("profiles.{name}");
+    if let Some((key, _)) = raw.entries().into_iter().find(|(key, _)| !PROFILE_FIELDS.contains(key)) {
+        return Err(invalid(format!("{where_}.{key} is not a field a profile has; choose from {}", PROFILE_FIELDS.join(", "))));
+    }
+    let description = match raw.get("description") {
+        Some(Value::Str(text)) if !text.is_empty() => text.clone(),
+        _ => return Err(invalid(format!("{where_}.description must be a non-empty string"))),
+    };
+    let models = profile_strings(raw.get("models"), &format!("{where_}.models"), false)?;
+    for key in &models {
+        if !known.contains(key) {
+            return Err(invalid(format!("{where_}.models names {key}, which is no model of the catalogue")));
+        }
+    }
+    let pin = match raw.get("pin") {
+        None => None,
+        value => Some(require_member(value, &models, &format!("{where_}.pin"))?),
+    };
+    let ladder = match raw.get("ladder") {
+        None => None,
+        value => {
+            let ladder = profile_strings(value, &format!("{where_}.ladder"), false)?;
+            for key in &ladder {
+                require_member(Some(&Value::str(key)), &models, &format!("{where_}.ladder"))?;
+            }
+            Some(ladder)
+        }
+    };
+    let distinct_families = match raw.get("distinct_families") {
+        None => None,
+        value => {
+            let count = require_number(value, &format!("{where_}.distinct_families"));
+            match count {
+                Ok(count) if is_integer(count) && count >= 1.0 => Some(count),
+                _ => return Err(invalid(format!("{where_}.distinct_families must be a whole number of at least 1"))),
+            }
+        }
+    };
+    let exclude_writer_family = match raw.get("exclude_writer_family") {
+        None => None,
+        Some(Value::Bool(flag)) => Some(*flag),
+        Some(_) => return Err(invalid(format!("{where_}.exclude_writer_family must be true or false"))),
+    };
+    let max_spend_usd = match raw.get("max_spend_usd") {
+        None => None,
+        Some(Value::Num(cap)) if cap.is_finite() && *cap > 0.0 => Some(*cap),
+        Some(_) => return Err(invalid(format!("{where_}.max_spend_usd must be a number above 0"))),
+    };
+    let tools = parse_tools(raw.get("tools"), &format!("{where_}.tools"))?;
+    Ok(DelegationProfile { name: name.to_string(), description, models, pin, ladder, distinct_families, exclude_writer_family, tools, max_spend_usd })
+}
+
+/// The tool scope: every kind is deny-all unless the profile lists it (or says `any`).
+fn parse_tools(raw: Option<&Value>, where_: &str) -> Result<ToolScope, GatewayError> {
+    let Some(raw) = raw else {
+        return Ok(ToolScope { mcp: ToolList::Only(Vec::new()), plugins: ToolList::Only(Vec::new()), skills: ToolList::Only(Vec::new()) });
+    };
+    let Some(object) = raw.as_object() else {
+        return Err(invalid(format!("{where_} must be an object")));
+    };
+    if let Some((key, _)) = object.entries().into_iter().find(|(key, _)| !TOOL_KINDS.contains(key)) {
+        return Err(invalid(format!("{where_}.{key} is not a kind of tool; choose from mcp, plugins, skills")));
+    }
+    let kind = |name: &str| -> Result<ToolList, GatewayError> {
+        match object.get(name) {
+            None => Ok(ToolList::Only(Vec::new())),
+            Some(Value::Str(text)) if text == "any" => Ok(ToolList::Any),
+            value => Ok(ToolList::Only(profile_strings(value, &format!("{where_}.{name}"), true)?)),
+        }
+    };
+    Ok(ToolScope { mcp: kind("mcp")?, plugins: kind("plugins")?, skills: kind("skills")? })
+}
+
+/// A list of non-empty strings that repeats none, and holds at least one unless `allow_empty`.
+fn profile_strings(value: Option<&Value>, where_: &str, allow_empty: bool) -> Result<Vec<String>, GatewayError> {
+    let Some(Value::Arr(items)) = value else {
+        return Err(invalid(format!("{where_} must be a list of non-empty strings")));
+    };
+    let mut strings: Vec<String> = Vec::new();
+    for item in items {
+        match item {
+            Value::Str(text) if !text.is_empty() => strings.push(text.clone()),
+            _ => return Err(invalid(format!("{where_} must be a list of non-empty strings"))),
+        }
+    }
+    if !allow_empty && strings.is_empty() {
+        return Err(invalid(format!("{where_} must not be empty")));
+    }
+    let unique: BTreeSet<&String> = strings.iter().collect();
+    if unique.len() != strings.len() {
+        return Err(invalid(format!("{where_} must not repeat an entry")));
+    }
+    Ok(strings)
+}
+
+fn require_member(value: Option<&Value>, members: &[String], where_: &str) -> Result<String, GatewayError> {
+    match value {
+        Some(Value::Str(text)) if members.contains(text) => Ok(text.clone()),
+        _ => Err(invalid(format!("{where_} must name one of the profile's models"))),
+    }
 }

@@ -1,0 +1,143 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"unknown-profile\",\"message\":\"no delegation profile nowhere: the defaults state cheap-research, cross-critic, implement-cheap, public-free\"}\n",
+      "stderr": "model-gateway run: no delegation profile nowhere: the defaults state cheap-research, cross-critic, implement-cheap, public-free\n",
+      "files": {
+        "home/": null,
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"pi-vibe:glm-5.3 is not allowed by profile cheap-research here: the profile and the data policy leave pi-vibe:ministral-8b, pi-vibe:mistral-small, pi-vibe:glm-5.3-flash, pi-opencode-go:qwen3.8-flash\"}\n",
+      "stderr": "model-gateway run: pi-vibe:glm-5.3 is not allowed by profile cheap-research here: the profile and the data policy leave pi-vibe:ministral-8b, pi-vibe:mistral-small, pi-vibe:glm-5.3-flash, pi-opencode-go:qwen3.8-flash\n",
+      "files": {
+        "home/": null,
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"narrow.models names pi-vibe:glm-5.3, which profile cheap-research does not allow: a request may narrow a profile, never widen it\"}\n",
+      "stderr": "model-gateway run: narrow.models names pi-vibe:glm-5.3, which profile cheap-research does not allow: a request may narrow a profile, never widen it\n",
+      "files": {
+        "home/": null,
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"narrow.mcp names github, which profile cheap-research does not grant (its mcp scope is deny-all): a request may narrow a profile, never widen it\"}\n",
+      "stderr": "model-gateway run: narrow.mcp names github, which profile cheap-research does not grant (its mcp scope is deny-all): a request may narrow a profile, never widen it\n",
+      "files": {
+        "home/": null,
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"narrow.max_spend_usd 5 is above profile cheap-research's cap of 0.5: a request may narrow a profile, never widen it\"}\n",
+      "stderr": "model-gateway run: narrow.max_spend_usd 5 is above profile cheap-research's cap of 0.5: a request may narrow a profile, never widen it\n",
+      "files": {
+        "home/": null,
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"profile cross-critic leaves out the writer's family, so the request must name it as narrow.writer_family\"}\n",
+      "stderr": "model-gateway run: profile cross-critic leaves out the writer's family, so the request must name it as narrow.writer_family\n",
+      "files": {
+        "home/": null,
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"profile cross-critic has no allowed model once the writer's family zhipu is left out\"}\n",
+      "stderr": "model-gateway run: profile cross-critic has no allowed model once the writer's family zhipu is left out\n",
+      "files": {
+        "home/": null,
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"profile cross-critic needs 2 distinct families but only 1 remain (zhipu)\"}\n",
+      "stderr": "model-gateway run: profile cross-critic needs 2 distinct families but only 1 remain (zhipu)\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"zhipu\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"profile cheap-research has no allowed model: none of its 1 models is both usable now and permitted by the data policy (github.com/jorisjonkers-dev/demo: the entry allows zhipu)\"}\n",
+      "stderr": "model-gateway run: profile cheap-research has no allowed model: none of its 1 models is both usable now and permitted by the data policy (github.com/jorisjonkers-dev/demo: the entry allows zhipu)\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"zhipu\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"pi-public:public/gemini-3.8-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\"}\n",
+      "stderr": "model-gateway run: pi-public:public/gemini-3.8-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\n",
+      "files": {
+        "home/": null,
+        "home/.config/": null,
+        "home/.config/agent-kit/": null,
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"google\"],\"code\":true,\"history\":false}}}",
+        "home/.pi/": null,
+        "home/.pi/agent/": null,
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"}]}}}",
+        "work/": null,
+        "tmp/": null
+      }
+    }
+  ]
+}

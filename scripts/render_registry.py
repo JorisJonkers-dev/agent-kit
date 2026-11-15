@@ -24,6 +24,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+import delegation_profiles
 import gold_band_instances
 import litellm_catalogue
 import yaml
@@ -6413,8 +6414,15 @@ def render_nixos_packages(data: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _defaults_with_profiles() -> str:
+    """The gateway's defaults.json with its profiles section rendered from registry/delegation-profiles.yaml."""
+    current = (KIT_ROOT / delegation_profiles.DEFAULTS_PATH).read_text()
+    return delegation_profiles.render_defaults(delegation_profiles.load_profiles(), current)
+
+
 def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
     return {
+        delegation_profiles.DEFAULTS_PATH: (_defaults_with_profiles(), 0o644),
         SETUP_SCRIPT: (render_setup_script(data), 0o755),
         CONTAINER_SETUP_SCRIPT: (render_container_setup_script(data), 0o755),
         HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),
@@ -6478,8 +6486,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         data = load_registry()
+        profiles = delegation_profiles.load_profiles()
+        delegation_profiles.validate(profiles, json.loads((KIT_ROOT / delegation_profiles.DEFAULTS_PATH).read_text()))
         refused = gold_band_instances.validate(data, args.overlay)
-    except (RegistryError, gold_band_instances.InstanceError) as exc:
+    except (RegistryError, delegation_profiles.ProfilesError, gold_band_instances.InstanceError) as exc:
         print(f"registry invalid: {exc}", file=sys.stderr)
         return 1
     if refused:

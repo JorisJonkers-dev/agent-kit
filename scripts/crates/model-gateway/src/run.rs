@@ -7,6 +7,7 @@
 use crate::config::ModelPrices;
 use crate::error::GatewayError;
 use crate::json::{self, Object, Value};
+use crate::profiles::{read_narrowing, Narrowing};
 use crate::text::{js_slice, js_trim, js_trim_start};
 use crate::timestamps::to_iso;
 use crate::workflows::require_name;
@@ -127,6 +128,10 @@ pub struct RunInput {
     pub headless: Option<bool>,
     /// How many attempts the delegation gets in all, the first included; 3 unless the caller says otherwise.
     pub max_attempts: Option<f64>,
+    /// The delegation profile the run is held to: its allowed models and its tool scope.
+    pub profile: Option<String>,
+    /// What the request takes away from the profile; it never adds.
+    pub narrow: Option<Narrowing>,
     /// The members that sit last in the object the node runner holds, in order: an attempt on a candidate moves
     /// `provider` there, and a reservation adds `max_price_usd` there when the caller named none.
     pub tail: Vec<&'static str>,
@@ -188,6 +193,11 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
         Some(Value::Bool(flag)) => Some(*flag),
         Some(_) => return Err(GatewayError::invalid_input("headless must be true or false")),
     };
+    let profile = read_optional_string(raw.get("profile"), "profile")?;
+    let narrow = read_narrowing(raw.get("narrow"))?;
+    if profile.is_none() && narrow.is_some() {
+        return Err(GatewayError::invalid_input("narrow needs a profile to narrow"));
+    }
     Ok(RunInput {
         workflow,
         client,
@@ -205,6 +215,8 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
         family_binding,
         headless,
         max_attempts,
+        profile,
+        narrow,
         tail: Vec::new(),
     })
 }
@@ -234,6 +246,8 @@ pub fn input_json(input: &RunInput) -> Value {
             optional("base", input.base.as_deref().map(Value::str)),
             optional("check", input.check.as_deref().map(Value::str)),
             optional("headless", input.headless.map(Value::Bool)),
+            optional("profile", input.profile.as_deref().map(Value::str)),
+            optional("narrow", input.narrow.as_ref().map(Narrowing::to_json)),
         ]
         .into_iter()
         .flatten(),

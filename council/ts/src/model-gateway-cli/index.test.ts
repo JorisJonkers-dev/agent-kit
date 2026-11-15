@@ -395,6 +395,7 @@ describe('model-gateway models', () => {
         },
       ],
       policy: `${KEY}: the entry allows anthropic, openai`,
+      profiles: expect.any(Array) as unknown,
       skipped: [],
       status: 'ok',
     })
@@ -707,6 +708,7 @@ describe('the shipped defaults', () => {
     const shipped: unknown = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8'))
 
     expect(shipped).toEqual({
+      profiles: expect.any(Object) as unknown,
       clients: {
         agy: { binary: 'agy', cost_class: 'subsidised', families: ['google'], model_source: 'live' },
         claude: { binary: 'claude', cost_class: 'subsidised', model_source: 'declared' },
@@ -1124,6 +1126,7 @@ describe('models: the clients whose models the gateway declares', () => {
         },
       ],
       policy: 'no repository: only inline content, to subsidised and metered-personal clients',
+      profiles: expect.any(Array) as unknown,
       skipped: [],
       status: 'ok',
     })
@@ -7713,5 +7716,120 @@ describe('model-gateway run: the live LiteLLM catalogue', () => {
     await writeFile(join(w.home, '.cache', 'agent-kit', 'litellm-catalogue.json'), '{"providers": {}, "updated_at": "2026-11-03T09:17:01Z"}')
 
     expect(printed(await w.run(w.input())).status).toBe('ok')
+  })
+})
+
+/** The shipped defaults with delegation profiles of the clients these tests can launch. */
+async function withProfiles(profiles: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return { ...(JSON.parse(await shippedWithoutOpenCode()) as Record<string, unknown>), profiles }
+}
+
+const SCOPE_ANY = { mcp: 'any', plugins: 'any', skills: 'any' }
+
+describe('model-gateway models: delegation profiles', () => {
+  it('lists every profile with the models it leaves for the caller, cheapest first, or why it leaves none', async () => {
+    const w = await workspace()
+    await w.writeDefaults(
+      JSON.stringify(
+        await withProfiles({
+          claudes: { description: 'Claude models', models: ['claude:claude-opus-5-5', 'claude:claude-haiku-5-5'], tools: SCOPE_ANY },
+          pi: { description: 'Pi models', models: ['pi-vibe:glm-5.3'] },
+        }),
+      ),
+    )
+
+    const result = await w.run('models', '--json', '{}')
+
+    const profiles = printed(result).profiles as { name: string; models: { model: string; tier: string }[]; error?: string }[]
+    expect(profiles.map((profile) => profile.name)).toEqual(['claudes', 'pi'])
+    expect(profiles[0]?.models.map((entry) => `${entry.model}:${entry.tier}`)).toEqual(['claude-haiku-5-5:routine', 'claude-opus-5-5:frontier'])
+    expect(profiles[0]).toMatchObject({ tools: { mcp: 'any', plugins: 'any', skills: 'any' } })
+    expect(profiles[1]?.models).toEqual([])
+    expect(profiles[1]?.error).toContain('profile pi has no allowed model')
+  })
+
+  it('lists no model of a profile for a nedap repository unless the profile names Claude Code or Codex', async () => {
+    const w = await workspace({
+      repositories: { [REPO]: repository([{ name: 'origin', url: 'git@github.com:Nedap/widgets.git' }]) },
+    })
+    await w.writeDefaults(
+      JSON.stringify(
+        await withProfiles({
+          claudes: { description: 'Claude models', models: ['claude:claude-haiku-5-5'], tools: SCOPE_ANY },
+          pi: { description: 'Pi models', models: ['pi-vibe:glm-5.3'] },
+        }),
+      ),
+    )
+
+    const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
+
+    const profiles = printed(result).profiles as { name: string; models: unknown[]; error?: string }[]
+    expect(profiles.map((profile) => profile.models.length)).toEqual([1, 0])
+    expect(profiles[1]?.error).toContain('a nedap repository')
+  })
+})
+
+describe('model-gateway run: delegation profiles', () => {
+  const profiles = {
+    bound: { description: 'Zhipu only', models: ['vibe:glm-5-3'], tools: SCOPE_ANY },
+    denied: { description: 'Deny-all tools', models: ['vibe:glm-5-3'] },
+    ladder: { description: 'Two models', models: ['vibe:glm-5-3', 'claude:claude-opus-5-5'], tools: SCOPE_ANY },
+  }
+  const ready = async (extra: RunWorkspaceOptions = {}): Promise<RunWorkspace> =>
+    readyRun({ defaults: await withProfiles(profiles), ...extra })
+
+  it('runs a delegation under a profile and keeps the profile and its narrowing in the run input', async () => {
+    const w = await ready()
+
+    const result = await w.run(w.input({ narrow: { models: ['vibe:glm-5-3'], max_spend_usd: 0.5 }, profile: 'bound' }))
+
+    expect(printed(result).status).toBe('ok')
+    const input = JSON.parse(await readFile(join(runDirOf(w, result), 'input.json'), 'utf8')) as Record<string, unknown>
+    expect(input).toMatchObject({ narrow: { max_spend_usd: 0.5, models: ['vibe:glm-5-3'] }, profile: 'bound' })
+  })
+
+  it('refuses a profile that restricts tools on a client that cannot enforce them, naming the limits', async () => {
+    const w = await ready()
+
+    expect(printed(await w.run(w.input({ profile: 'denied' })))).toEqual({
+      code: 'profile-refused',
+      message:
+        'profile denied restricts mcp, plugins, skills (a scope is deny-all unless the profile lists it), and vibe cannot enforce a tool scope: only Pi does',
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses an unknown profile, a model outside it, a widening request and a narrowing with no profile', async () => {
+    const w = await ready({ allowlist: allowlist(ALL_FAMILIES, true, true) })
+
+    expect(printed(await w.run(w.input({ profile: 'nowhere' }))).code).toBe('unknown-profile')
+    expect(printed(await w.run(w.input({ model: 'mistral-large-latest', profile: 'bound' })))).toMatchObject({
+      code: 'profile-refused',
+      message: expect.stringContaining('vibe:mistral-large-latest is not allowed by profile bound here') as string,
+    })
+    expect(printed(await w.run(w.input({ narrow: { models: ['claude:claude-opus-5-5'] }, profile: 'bound' }))).code).toBe('profile-refused')
+    expect(printed(await w.run(w.input({ narrow: { models: ['vibe:glm-5-3'] } })))).toMatchObject({
+      code: 'invalid-input',
+      message: 'narrow needs a profile to narrow',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('leaves the data policy first: a model the repository does not permit is a policy refusal', async () => {
+    const w = await ready({ allowlist: allowlist(['mistral'], true, true) })
+
+    expect(printed(await w.run(w.input({ profile: 'bound' }))).code).toBe('policy-refused')
+  })
+
+  it('keeps a failing delegation inside its profile: the climb never leaves it', async () => {
+    const inside = await ready({ allowlist: allowlist(ALL_FAMILIES, true, true), scripts: [FAILS, FAILS] })
+    const result = await inside.run(delegation(inside, { profile: 'bound' }))
+    expect(printed(result)).toMatchObject({ escalation: 'exhausted', status: 'failed' })
+    expect(attemptedModels(result)).toEqual(['vibe:glm-5-3', 'vibe:glm-5-3'])
+
+    const climbing = await ready({ allowlist: allowlist(ALL_FAMILIES, true, true), scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS] })
+    const climbed = await climbing.run(delegation(climbing, { profile: 'ladder' }))
+    expect(attemptedModels(climbed)).toEqual(['vibe:glm-5-3', 'vibe:glm-5-3', 'claude:claude-opus-5-5'])
   })
 })

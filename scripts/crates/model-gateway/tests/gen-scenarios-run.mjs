@@ -328,6 +328,48 @@ export function addRunScenarios(scenarios, step) {
     )),
   ]
 
+  // Delegation profiles: a run names a profile and may narrow it, never widen it; the data policy is
+  // intersected with the profile, and a profile with no allowed model for the repository is an error.
+  const PROFILE_HOME = piHome({
+    'litellm-vibe': piProvider('literal-key', 'ministral-8b', 'mistral-small', 'glm-5.3', 'mistral-large-4'),
+    'litellm-opencode-go': piProvider('literal-key', 'qwen3.8-flash'),
+  })
+  const profiled = (input, extra) =>
+    run({ client: 'pi-vibe', mode: 'read-only', model: 'ministral-8b', prompt: 'Look it up.', escalate: false, profile: 'cheap-research', ...input }, extra)
+  scenarios['run-profile'] = [
+    profiled({}, merge(clients('pi'), confined, PROFILE_HOME, behaves('pi', { out: piOut() }))),
+    profiled({ model: 'mistral-small', narrow: { models: ['pi-vibe:mistral-small'], max_spend_usd: 0.1, mcp: [] } }, { now: '2026-11-03T12:01:00Z' }),
+    profiled({ repo: REPO, narrow: { skills: [], plugins: [] } }, merge(repo('mistral'), { now: '2026-11-03T12:02:00Z' })),
+    profiled({ profile: 'implement-cheap', model: 'glm-5.3' }, { now: '2026-11-03T12:03:00Z' }),
+    profiled({ profile: 'cross-critic', model: 'glm-5.3', narrow: { writer_family: 'mistral' }, repo: REPO }, merge(allowlist('zhipu', 'mistral', 'deepseek'), { now: '2026-11-03T12:04:00Z' })),
+    // A run that fails is retried and climbed inside its profile.
+    profiled({ escalate: undefined, model: 'mistral-small' }, merge(
+      behaves('pi', { out: piOut('partial', { stopReason: 'error', errorMessage: 'upstream said 500' }) }),
+      { now: '2026-11-03T12:05:00Z' },
+    )),
+  ]
+  scenarios['run-profile-refusals'] = [
+    profiled({ profile: 'nowhere' }, merge(clients('pi'), confined, PROFILE_HOME)),
+    profiled({ model: 'glm-5.3' }, { now: '2026-11-03T12:01:00Z' }),
+    profiled({ narrow: { models: ['pi-vibe:glm-5.3'] } }, { now: '2026-11-03T12:02:00Z' }),
+    profiled({ narrow: { mcp: ['github'] } }, { now: '2026-11-03T12:03:00Z' }),
+    profiled({ narrow: { max_spend_usd: 5 } }, { now: '2026-11-03T12:04:00Z' }),
+    profiled({ profile: 'cross-critic', model: 'glm-5.3' }, { now: '2026-11-03T12:05:00Z' }),
+    profiled({ profile: 'cross-critic', model: 'glm-5.3', narrow: { writer_family: 'zhipu', models: ['pi-vibe:glm-5.3'] } }, { now: '2026-11-03T12:06:00Z' }),
+    profiled({ profile: 'cross-critic', model: 'glm-5.3', repo: REPO, narrow: { writer_family: 'mistral' } }, merge(repo('zhipu'), { now: '2026-11-03T12:07:00Z' })),
+    profiled({ model: 'glm-5.3', repo: REPO, narrow: { models: ['pi-opencode-go:qwen3.8-flash'] } }, merge(allowlist('zhipu'), { now: '2026-11-03T12:08:00Z' })),
+    profiled({ profile: 'public-free', model: 'public/gemini-3.8-flash', client: 'pi-public', repo: REPO }, merge(allowlist('google'), { now: '2026-11-03T12:09:00Z' })),
+  ]
+  const profileInput = (change) => run(JSON.stringify({ workflow: 'w', client: 'pi-vibe', mode: 'read-only', model: 'ministral-8b', prompt: 'p', ...change }))
+  scenarios['run-profile-input'] = [
+    profileInput({ profile: '' }), profileInput({ profile: 5 }), profileInput({ narrow: { models: ['x'] } }),
+    profileInput({ profile: 'cheap-research', narrow: 'x' }), profileInput({ profile: 'cheap-research', narrow: { surprise: 1 } }),
+    profileInput({ profile: 'cheap-research', narrow: { models: [] } }), profileInput({ profile: 'cheap-research', narrow: { models: [1] } }),
+    profileInput({ profile: 'cheap-research', narrow: { mcp: 'x' } }), profileInput({ profile: 'cheap-research', narrow: { skills: [''] } }),
+    profileInput({ profile: 'cheap-research', narrow: { max_spend_usd: 0 } }), profileInput({ profile: 'cheap-research', narrow: { max_spend_usd: '1' } }),
+    profileInput({ profile: 'cheap-research', narrow: { writer_family: '' } }),
+  ]
+
   // Pi never runs unconfined: no launcher, no provider for the route, a key the store cannot give, a models
   // file that cannot be read or a key that is a shell command all end the run as launch-failed before Pi starts.
   scenarios['run-pi-unconfined'] = [

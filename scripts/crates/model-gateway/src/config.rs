@@ -198,6 +198,53 @@ impl Settings {
     }
 }
 
+/// The kinds of tool a profile scopes, in the order the output names them.
+pub const TOOL_KINDS: [&str; 3] = ["mcp", "plugins", "skills"];
+
+/// The names a profile allows of one kind of tool: some, or `any` for no limit. An empty list is deny-all.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ToolList {
+    Any,
+    Only(Vec<String>),
+}
+
+/// A profile's tool scope: deny-all unless it lists a kind or says `any`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ToolScope {
+    pub mcp: ToolList,
+    pub plugins: ToolList,
+    pub skills: ToolList,
+}
+
+impl ToolScope {
+    /// The list of one kind, by its name in `TOOL_KINDS`.
+    pub fn of(&self, kind: &str) -> &ToolList {
+        match kind {
+            "mcp" => &self.mcp,
+            "plugins" => &self.plugins,
+            _ => &self.skills,
+        }
+    }
+}
+
+/// One delegation profile, as the shipped defaults state it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DelegationProfile {
+    pub name: String,
+    pub description: String,
+    /// The `<client>:<model>` keys the profile allows, each a model of the catalogue.
+    pub models: Vec<String>,
+    pub pin: Option<String>,
+    /// The models of `models` a writer climbs through, cheapest first.
+    pub ladder: Option<Vec<String>>,
+    pub distinct_families: Option<f64>,
+    /// The writer's family is left out of the allowed models.
+    pub exclude_writer_family: Option<bool>,
+    pub tools: ToolScope,
+    /// The most a run may spend, in USD; held from #788, validated now.
+    pub max_spend_usd: Option<f64>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct GatewayConfig {
     pub version: f64,
@@ -207,4 +254,6 @@ pub struct GatewayConfig {
     pub settings: Settings,
     /// The `<client>:<model>` keys the owner left out.
     pub disabled: Vec<String>,
+    /// The delegation profiles the shipped defaults state, by name; a machine file does not add or change them.
+    pub profiles: BTreeMap<String, DelegationProfile>,
 }

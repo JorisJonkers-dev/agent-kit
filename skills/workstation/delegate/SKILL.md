@@ -35,6 +35,12 @@ model-gateway usage --json '{}'
   another client in the same or a cheaper cost class, or keep it.
 - A model with `"tier": null` is never picked: nobody has judged what it
   handles well.
+- `models` also lists the delegation `profiles`, each with the models it leaves
+  for this repository (cheapest first) or the reason it leaves none. A profile
+  owns the allowed models and the tool scope; name one as `profile` on the run
+  and plan from its models instead of the whole list. Narrowing is the
+  gateway's to check (`narrow`), and a refusal names its reason. Planning
+  whole delegations from profiles comes later; today you read the list.
 
 ## Rate each task
 

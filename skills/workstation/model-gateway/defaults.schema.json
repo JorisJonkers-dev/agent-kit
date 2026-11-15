@@ -30,9 +30,53 @@
       "type": "array",
       "items": { "$ref": "#/$defs/model" }
     },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The delegation profiles, rendered from registry/delegation-profiles.yaml by scripts/render_registry.py. A machine override does not add or change them.",
+      "patternProperties": {
+        "^[a-z][a-z0-9-]*$": { "$ref": "#/$defs/profile" }
+      }
+    },
     "settings": { "$ref": "#/$defs/settings" }
   },
   "$defs": {
+    "modelKey": {
+      "type": "string",
+      "minLength": 3,
+      "description": "A model of the catalogue as `<client>:<model>`."
+    },
+    "toolList": {
+      "oneOf": [
+        { "const": "any" },
+        { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      ],
+      "description": "The names a profile allows of one kind of tool, or `any`. An empty list is deny-all."
+    },
+    "profile": {
+      "type": "object",
+      "required": ["description", "models", "tools"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string", "minLength": 1 },
+        "models": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/modelKey" } },
+        "pin": { "$ref": "#/$defs/modelKey" },
+        "ladder": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/modelKey" } },
+        "distinct_families": { "type": "integer", "minimum": 1 },
+        "exclude_writer_family": { "type": "boolean" },
+        "tools": {
+          "type": "object",
+          "required": ["mcp", "skills", "plugins"],
+          "additionalProperties": false,
+          "properties": {
+            "mcp": { "$ref": "#/$defs/toolList" },
+            "skills": { "$ref": "#/$defs/toolList" },
+            "plugins": { "$ref": "#/$defs/toolList" }
+          }
+        },
+        "max_spend_usd": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
     "client": {
       "type": "object",
       "required": ["binary", "cost_class", "model_source"],

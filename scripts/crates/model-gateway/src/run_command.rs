@@ -26,6 +26,7 @@ use crate::outputs::ClientOutput;
 use crate::policy::{decide_policy, resolve_scope, DataScope, ModelPermission, PolicySubject};
 use crate::ports::{ProcessResult, Runtime};
 use crate::proof::read_proof_files;
+use crate::profiles::hold_to_profile;
 use crate::run::{
     input_json, named_reset, price_run, read_only_proof, read_run_input, require_allowed_provider, run_failure_reason, run_id, summary_of, wrapped_prompt,
     ClientReport, LaunchExit, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens, FORBIDDEN_PROVIDERS, NO_TOKENS, PROVIDER_CLIENTS,
@@ -506,6 +507,16 @@ impl RunCommand<'_> {
         }
         if carries.1 && !permission.may_send.history {
             return Err(GatewayError::new("policy-refused", format!("{}:{} may not carry history: {}", input.client, input.model, decision.reason)));
+        }
+        if let Some(profile) = &input.profile {
+            let every: Vec<PolicySubject> = config
+                .models
+                .iter()
+                .map(|model| PolicySubject { client: model.client.clone(), model: model.model.clone(), family: model.family.clone() })
+                .collect();
+            let decision = decide_policy(config, &scope, &every);
+            let is_pi = crate::run::is_pi_client(&input.client);
+            hold_to_profile(config, &decision, profile, input.narrow.as_ref(), &input.client, &input.model, is_pi)?;
         }
         Ok(match scope {
             DataScope::Repository { key, .. } => Some(key),

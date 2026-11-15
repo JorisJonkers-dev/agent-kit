@@ -16,6 +16,7 @@ use crate::launchers::DELEGATION_MARK;
 use crate::locations;
 use crate::models::{self, ClientListing};
 use crate::policy::{self, PolicySubject};
+use crate::profiles::{list_profiles, ProfileModel};
 use crate::ports::Runtime;
 use crate::sources;
 use crate::state_file::Workflows;
@@ -128,7 +129,20 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
         .map(|model| PolicySubject { client: model.client.clone(), model: model.model.clone(), family: model.family.clone() })
         .collect();
     let decision = policy::decide_policy(&config, &scope, &subjects);
-    Ok(policy::models_result_json(&decision.reason, &policy::permitted_models(listing, &decision), reading.warning.as_deref()))
+    let permitted = policy::permitted_models(listing, &decision);
+    let available: Vec<ProfileModel> = permitted
+        .models
+        .iter()
+        .map(|model| ProfileModel {
+            client: model.listed.client.clone(),
+            model: model.listed.model.clone(),
+            family: model.listed.family.clone(),
+            tier: model.listed.tier,
+            cost_class: model.listed.cost_class,
+        })
+        .collect();
+    let profiles = list_profiles(&config, &available, &decision.reason);
+    Ok(policy::models_result_json(&decision.reason, &permitted, &profiles, reading.warning.as_deref()))
 }
 
 /// `models` takes the path of the repository the caller works in, when it has one.

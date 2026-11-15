@@ -1,0 +1,112 @@
+{
+  "steps": [
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"profile must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: profile must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"profile must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: profile must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow needs a profile to narrow\"}\n",
+      "stderr": "model-gateway run: narrow needs a profile to narrow\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow must be an object\"}\n",
+      "stderr": "model-gateway run: narrow must be an object\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow.surprise is not a field; choose from models, mcp, skills, plugins, max_spend_usd, writer_family\"}\n",
+      "stderr": "model-gateway run: narrow.surprise is not a field; choose from models, mcp, skills, plugins, max_spend_usd, writer_family\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow.models must be a non-empty list of non-empty strings\"}\n",
+      "stderr": "model-gateway run: narrow.models must be a non-empty list of non-empty strings\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow.models must be a non-empty list of non-empty strings\"}\n",
+      "stderr": "model-gateway run: narrow.models must be a non-empty list of non-empty strings\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow.mcp must be a list of non-empty strings\"}\n",
+      "stderr": "model-gateway run: narrow.mcp must be a list of non-empty strings\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow.skills must be a list of non-empty strings\"}\n",
+      "stderr": "model-gateway run: narrow.skills must be a list of non-empty strings\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow.max_spend_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway run: narrow.max_spend_usd must be a number above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow.max_spend_usd must be a number above 0\"}\n",
+      "stderr": "model-gateway run: narrow.max_spend_usd must be a number above 0\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    },
+    {
+      "exit": 1,
+      "stdout": "{\"status\":\"error\",\"code\":\"invalid-input\",\"message\":\"narrow.writer_family must be a non-empty string\"}\n",
+      "stderr": "model-gateway run: narrow.writer_family must be a non-empty string\n",
+      "files": {
+        "home/": null,
+        "work/": null
+      }
+    }
+  ]
+}
