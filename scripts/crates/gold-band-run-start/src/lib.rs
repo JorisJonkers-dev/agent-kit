@@ -11,16 +11,20 @@
 //!   repository with no remote. The personal instance (`gold-band-personal`)
 //!   refuses any `nedap`-owned remote and allows no remote at all, so a new
 //!   repository can be bootstrapped (ADR-0011);
-//! * `family-allowlist`: the family of every agent id the workflow binds (a
-//!   worker's `provider`, the authoring wrapper's `modelBindings` joined by
-//!   `executionSlotId`, an `ai-dynamic` node's `agentStrategy`), against the
-//!   repository's allowlist entry, including its `code` permission. A
-//!   workflow with a worker or `ai-dynamic` node sends code. The `history`
-//!   permission is never required. A repository with no entry gets the
-//!   personal default (every family, code). On a `nedap` repository the
-//!   entry file is not consulted at all (ADR-0007): only the agent ids
-//!   `claude-work` and `codex` are allowed, whatever an entry says. An agent
-//!   id missing from the families file is refused;
+//! * `family-allowlist` (#783): the family of every model the workflow binds, resolved
+//!   from the bound model, not the agent id: each (agent id, model) pair of a worker
+//!   (`provider`, `model`), of the authoring wrapper's `modelBindings` joined by
+//!   `executionSlotId` (`agentId`, `modelId`) and of an `ai-dynamic` node's
+//!   `agentStrategy` (including `availableAgents`), against the repository's allowlist
+//!   entry, including its `code` permission. The family comes from `routing.json`
+//!   through the `model-family` crate, the resolution `workflow-lint --critique` uses
+//!   (so a Pi agent on a GLM model is `zhipu` and on a Mistral model `mistral`); a binding the
+//!   routing cannot place falls back to its agent id in the families file, and a binding
+//!   neither places is refused. A workflow with a worker or `ai-dynamic` node sends code. The
+//!   `history` permission is never required. A repository with no entry gets the personal
+//!   default (every family, code). On a `nedap` repository the entry file is not consulted
+//!   at all (ADR-0007): only the agent ids `claude-work` and `codex`, and only models of
+//!   their families (`anthropic`, `openai`), are allowed, whatever an entry says;
 //! * `grant`: in the work instance only, a live gateway grant for this run
 //!   for every bound Codex agent id (an agent id containing `codex`, case
 //!   insensitive). The run is named `<workflow>@<repository>@<run id>`, read
@@ -73,6 +77,7 @@ use std::fs;
 use std::path::Path;
 
 use gold_band_report::{parse_rfc3339, rfc3339, Clock, Report, SystemClock};
+use model_family::Routing;
 use serde_json::Value;
 
 /// The crate's name, which prefixes every message line.
@@ -102,6 +107,8 @@ const CHECK_INPUT: &str = "input";
 const WORK_OWNER: &str = "nedap";
 /// The agent ids a `nedap` repository may reach (ADR-0007, ADR-0011).
 const NEDAP_AGENTS: [&str; 2] = ["claude-work", "codex"];
+/// The model families those agent ids run (the routing's `anthropic` and `openai`).
+const NEDAP_FAMILIES: [&str; 2] = ["anthropic", "openai"];
 /// The gateway client a Codex agent id runs as.
 const CODEX_CLIENT: &str = "codex";
 /// The gateway executable `grant-check` runs when nothing names another.
@@ -573,9 +580,13 @@ fn check(opts: &Options, host: &dyn Host) -> Result<Vec<Problem>, String> {
     let remotes = read_remotes(&opts.repo, host)?;
     let workflow = read_workflow(&opts.workflow)?;
     let families = read_families(&opts.families)?;
+    let routing_override = read_routing_override(opts, host)?;
+    let routing = Routing::load(routing_override.as_ref());
     let mut problems = repository_problems(opts.instance, &remotes);
-    problems.extend(family_problems(opts, host, &remotes, &workflow, &families)?);
-    problems.extend(critic_family_problems(opts, host)?);
+    problems.extend(family_problems(
+        opts, host, &remotes, &workflow, &families, &routing,
+    )?);
+    problems.extend(critic_family_problems(opts, routing_override.as_ref())?);
     if opts.instance == Instance::Work {
         problems.extend(grant_problems(opts, host, &remotes, &workflow)?);
     }
@@ -635,8 +646,10 @@ fn read_routing_override(opts: &Options, host: &dyn Host) -> Result<Option<Value
 
 /// The critic-family check (#796): the `critic-family` findings of the workflow over the routing
 /// this machine runs, one problem each.
-fn critic_family_problems(opts: &Options, host: &dyn Host) -> Result<Vec<Problem>, String> {
-    let routing = read_routing_override(opts, host)?;
+fn critic_family_problems(
+    opts: &Options,
+    routing: Option<&Value>,
+) -> Result<Vec<Problem>, String> {
     // `read_workflow` has already parsed this file once, so it is JSON here.
     let value: Value = serde_json::from_str(&read_text(&opts.workflow)?).unwrap_or(Value::Null);
     let instance = match opts.instance {
@@ -645,7 +658,7 @@ fn critic_family_problems(opts: &Options, host: &dyn Host) -> Result<Vec<Problem
     };
     // A definition with no edge list has no graph to pair writers with critics; Gold Band's own
     // validator refuses it, so the check has nothing to say about it.
-    let found = workflow_lint::critic_family_findings(&value, instance, routing.as_ref())
+    let found = workflow_lint::critic_family_findings(&value, instance, routing)
         .unwrap_or_default();
     Ok(found
         .into_iter()
@@ -653,10 +666,11 @@ fn critic_family_problems(opts: &Options, host: &dyn Host) -> Result<Vec<Problem
         .collect())
 }
 
-/// One agent id a node binds.
+/// One agent id and model a node binds. The model is empty when the binding names none.
 struct Bound {
     node: String,
     agent: String,
+    model: String,
 }
 
 /// A workflow as the checks see it: the agent ids its nodes bind, and
@@ -691,42 +705,61 @@ fn read_workflow(path: &str) -> Result<Workflow, String> {
     for node in nodes {
         let kind = node.get("type").and_then(Value::as_str).unwrap_or("");
         let id = text_of(node, "id").unwrap_or("?").to_string();
-        let mut agents: Vec<&str> = Vec::new();
-        agents.extend(text_of(node, "provider"));
+        // Each (agent id, model) pair a node binds; a pair may name only one of the two.
+        let mut agents: Vec<(&str, &str)> = Vec::new();
+        agents.push((
+            text_of(node, "provider").unwrap_or(""),
+            text_of(node, "model").unwrap_or(""),
+        ));
         if let Some(slot) = text_of(node, "executionSlotId") {
             agents.extend(
                 bindings
                     .iter()
                     .filter(|b| text_of(b, "executionSlotId") == Some(slot))
-                    .filter_map(|b| text_of(b, "agentId")),
+                    .map(|b| {
+                        (
+                            text_of(b, "agentId").unwrap_or(""),
+                            text_of(b, "modelId").unwrap_or(""),
+                        )
+                    }),
             );
         }
         if let Some(strategy) = node.get("agentStrategy") {
             // Every binding field is read whatever the node kind or mode
             // says, so a strategy cannot hide a binding.
-            agents.extend(text_of(strategy, "provider"));
-            agents.extend(text_of(strategy, "bootstrapProvider"));
+            let provider = text_of(strategy, "provider").unwrap_or("");
+            let bootstrap = text_of(strategy, "bootstrapProvider").unwrap_or("");
+            agents.push((provider, text_of(strategy, "model").unwrap_or("")));
+            agents.push((bootstrap, text_of(strategy, "bootstrapModel").unwrap_or("")));
+            // The acceptance model has no provider of its own: it runs on the strategy's.
+            let acceptance = if provider.is_empty() { bootstrap } else { provider };
+            agents.push((acceptance, text_of(strategy, "acceptanceModel").unwrap_or("")));
             for available in strategy
                 .get("availableAgents")
                 .and_then(Value::as_array)
                 .into_iter()
                 .flatten()
             {
-                agents.extend(text_of(available, "provider"));
+                agents.push((
+                    text_of(available, "provider").unwrap_or(""),
+                    text_of(available, "model").unwrap_or(""),
+                ));
             }
         }
+        agents.retain(|(agent, model)| !agent.is_empty() || !model.is_empty());
         // A worker or ai-dynamic node sends code; so does any node that binds
         // an agent, whatever its kind.
         workflow.sends_code |= kind == "worker" || kind == "ai-dynamic" || !agents.is_empty();
-        for agent in agents {
+        for (agent, model) in agents {
             if !workflow
                 .bound
                 .iter()
-                .any(|b| b.node == id && b.agent == agent)
+                .any(|b| b.node == id && b.agent == agent && b.model == model)
             {
                 workflow.bound.push(Bound {
                     node: id.clone(),
                     agent: agent.to_string(),
+                    model: model.to_string(),
                 });
             }
         }
@@ -809,14 +842,37 @@ fn config_path(host: &dyn Host, file: &str) -> Result<String, String> {
     Ok(format!("{base}/agent-kit/{file}"))
 }
 
-/// The family check: every bound agent against the repository's entry, and
-/// the code permission.
+/// The family of one binding: the model's, from the routing file the critique pipeline routes
+/// with (so a Pi agent bound to a Mistral model is `mistral` and bound to a GLM model is
+/// `zhipu`); a binding the routing cannot place falls back to its agent id in the families file.
+fn bound_family(
+    routing: &Routing,
+    families: &BTreeMap<String, String>,
+    bound: &Bound,
+) -> Option<String> {
+    routing
+        .family(&bound.agent, &bound.model)
+        .or_else(|| families.get(&bound.agent).cloned())
+}
+
+/// The binding as a message names it: `agent vibe`, or `agent pi, model litellm-vibe/glm-5.3`.
+fn shown(bound: &Bound) -> String {
+    match (bound.agent.is_empty(), bound.model.is_empty()) {
+        (_, true) => format!("agent {}", bound.agent),
+        (true, false) => format!("model {}", bound.model),
+        (false, false) => format!("agent {}, model {}", bound.agent, bound.model),
+    }
+}
+
+/// The family check: every bound agent and model against the repository's entry, and
+/// the code permission. The family is the bound model's (see [`bound_family`]).
 fn family_problems(
     opts: &Options,
     host: &dyn Host,
     remotes: &[Remote],
     workflow: &Workflow,
     families: &BTreeMap<String, String>,
+    routing: &Routing,
 ) -> Result<Vec<Problem>, String> {
     let mut out = Vec::new();
     let nedap = remotes.iter().any(Remote::is_nedap);
@@ -836,12 +892,14 @@ fn family_problems(
         }
     }
     for bound in &workflow.bound {
-        let Some(family) = families.get(&bound.agent) else {
+        let Some(family) = bound_family(routing, families, bound) else {
             out.push(problem(
                 CHECK_FAMILY,
                 format!(
-                    "node {}: agent {} has no family in {}",
-                    bound.node, bound.agent, opts.families
+                    "node {}: {} has no family in the routing or in {}",
+                    bound.node,
+                    shown(bound),
+                    opts.families
                 ),
             ));
             continue;
@@ -850,18 +908,29 @@ fn family_problems(
             out.push(problem(
                 CHECK_FAMILY,
                 format!(
-                    "node {}: agent {} is not allowed on a {WORK_OWNER} repository (only claude-work and codex, whatever an entry says)",
-                    bound.node, bound.agent
+                    "node {}: {} is not allowed on a {WORK_OWNER} repository (only claude-work and codex, whatever an entry says)",
+                    bound.node,
+                    shown(bound)
+                ),
+            ));
+        } else if nedap && !NEDAP_FAMILIES.contains(&family.as_str()) {
+            out.push(problem(
+                CHECK_FAMILY,
+                format!(
+                    "node {}: {} is of family {family}; a {WORK_OWNER} repository allows only the families of claude-work and codex",
+                    bound.node,
+                    shown(bound)
                 ),
             ));
         }
         for (key, entry) in &entries {
-            if !entry.families.iter().any(|f| f == family) {
+            if !entry.families.iter().any(|f| *f == family) {
                 out.push(problem(
                     CHECK_FAMILY,
                     format!(
-                        "node {}: family {family} (agent {}) is not allowed by entry {key}",
-                        bound.node, bound.agent
+                        "node {}: family {family} ({}) is not allowed by entry {key}",
+                        bound.node,
+                        shown(bound)
                     ),
                 ));
             }

@@ -12,3 +12,4 @@ description = "The run-start shim every Gold Band workflow opens with: repositor
 gold-band-report = { path = "../gold-band-report" }
 workflow-lint = { path = "../workflow-lint" }
 serde_json = "=1.0.154"
+model-family = { path = "../model-family" }
