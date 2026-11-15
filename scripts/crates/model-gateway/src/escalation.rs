@@ -314,7 +314,7 @@ pub fn climb_order(from: &Candidate, pool: &[Candidate]) -> Vec<Candidate> {
     };
     let above = tier_rank(tier);
     ordered(pool, |candidate, candidate_tier| {
-        candidate_key(&candidate.client, &candidate.model) != candidate_key(&from.client, &from.model) && candidate.cost_class == CostClass::Subsidised && tier_rank(candidate_tier) > above
+        candidate_key(&candidate.client, &candidate.model) != candidate_key(&from.client, &from.model) && matches!(candidate.cost_class, CostClass::Subsidised | CostClass::Free) && tier_rank(candidate_tier) > above
     })
 }
 

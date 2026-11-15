@@ -150,7 +150,7 @@ impl<'a> EscalatedRun<'a> {
         input: &RunInput,
         attempt: &mut dyn FnMut(&RunInput, &AttemptOptions) -> Result<R, AttemptError>,
     ) -> Result<Delegation<R>, GatewayError> {
-        if input.escalate == Some(false) {
+        if input.escalate == Some(false) || input.free_only == Some(true) {
             let only = attempt(input, &AttemptOptions::default()).map_err(AttemptError::into_gateway)?;
             let attempts = vec![summary_of(&only)];
             return Ok(Delegation::Run(Escalated { run: only, report: EscalationReport { attempts, ..EscalationReport::default() } }));

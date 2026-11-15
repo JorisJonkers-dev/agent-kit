@@ -38,7 +38,7 @@ pub struct CatalogueDeployment {
 /// One canonical model name the proxy serves, and what serves it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatalogueGroup {
-    /// A public group is a free tier.
+    /// A public group is a free tier: who may send the prompt, never the price.
     pub public: bool,
     pub deployments: Vec<CatalogueDeployment>,
 }
@@ -187,15 +187,14 @@ fn deployment_probe<'a>(catalogue: &'a LiteLlmCatalogue, deployment: &CatalogueD
 }
 
 /// What the catalogue says of a canonical group: its route and probe are those of a usable deployment, else of the
-/// first the catalogue knows, and it is free when the group is public or every deployment tried first is a free
-/// model. `None` when the catalogue probed none of its deployments.
+/// first the catalogue knows, and it is free only when every deployment, fallbacks included, is a model its provider
+/// marks free: a public group is a free tier that still bills once its quota is gone. `None` when the catalogue
+/// probed none of its deployments.
 fn group_probe(catalogue: &LiteLlmCatalogue, group: &CatalogueGroup) -> Option<(String, CatalogueProbe)> {
     let known: Vec<(&CatalogueDeployment, &CatalogueProbe)> =
         group.deployments.iter().filter_map(|deployment| deployment_probe(catalogue, deployment).map(|probe| (deployment, probe))).collect();
     let (deployment, probe) = known.iter().find(|(_, probe)| probe.status == "usable").or_else(|| known.first())?;
-    let first = group.deployments.iter().map(|deployment| deployment.order).min().unwrap_or(0);
-    let free = group.public
-        || group.deployments.iter().filter(|deployment| deployment.order == first).all(|deployment| deployment_probe(catalogue, deployment).is_some_and(|probe| probe.free));
+    let free = group.deployments.iter().all(|deployment| deployment_probe(catalogue, deployment).is_some_and(|probe| probe.free));
     Some((deployment.route.clone(), CatalogueProbe { free, ..(*probe).clone() }))
 }
 

@@ -132,6 +132,9 @@ pub struct RunInput {
     pub profile: Option<String>,
     /// What the request takes away from the profile; it never adds.
     pub narrow: Option<Narrowing>,
+    /// Refuse before anything runs unless the model is `free` (its Pi provider entry prices every field at zero);
+    /// no retry, climb or fall-through moves the run to another model.
+    pub free_only: Option<bool>,
     /// The members that sit last in the object the node runner holds, in order: an attempt on a candidate moves
     /// `provider` there, and a reservation adds `max_price_usd` there when the caller named none.
     pub tail: Vec<&'static str>,
@@ -198,6 +201,7 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
     if profile.is_none() && narrow.is_some() {
         return Err(GatewayError::invalid_input("narrow needs a profile to narrow"));
     }
+    let free_only = read_flag(raw.get("free_only"), "free_only")?;
     Ok(RunInput {
         workflow,
         client,
@@ -217,6 +221,7 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
         max_attempts,
         profile,
         narrow,
+        free_only,
         tail: Vec::new(),
     })
 }
@@ -248,6 +253,7 @@ pub fn input_json(input: &RunInput) -> Value {
             optional("headless", input.headless.map(Value::Bool)),
             optional("profile", input.profile.as_deref().map(Value::str)),
             optional("narrow", input.narrow.as_ref().map(Narrowing::to_json)),
+            optional("free_only", input.free_only.map(Value::Bool)),
         ]
         .into_iter()
         .flatten(),

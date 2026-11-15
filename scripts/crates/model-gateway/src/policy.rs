@@ -80,7 +80,7 @@ pub struct PolicySubject {
 const NEDAP_CLIENTS: [&str; 2] = ["claude", "codex"];
 
 /// The cost classes a delegation outside any repository may reach.
-const INLINE_COST_CLASSES: [CostClass; 2] = [CostClass::Subsidised, CostClass::MeteredPersonal];
+const INLINE_COST_CLASSES: [CostClass; 3] = [CostClass::Free, CostClass::Subsidised, CostClass::MeteredPersonal];
 
 const NOTHING: SendPermission = SendPermission { code: false, history: false };
 const EVERYTHING: SendPermission = SendPermission { code: true, history: true };

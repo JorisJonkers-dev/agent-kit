@@ -523,8 +523,8 @@ fn require_one_of(value: Option<&Value>, allowed: &[&str], where_: &str) -> Resu
 }
 
 fn cost_class(value: &Value, where_: &str) -> Result<CostClass, GatewayError> {
-    let index = require_one_of(Some(value), &CostClass::ALL.map(CostClass::as_str), where_)?;
-    Ok(CostClass::ALL[index])
+    let index = require_one_of(Some(value), &CostClass::DECLARABLE.map(CostClass::as_str), where_)?;
+    Ok(CostClass::DECLARABLE[index])
 }
 
 fn model_source(value: &Value, where_: &str) -> Result<ModelSource, GatewayError> {

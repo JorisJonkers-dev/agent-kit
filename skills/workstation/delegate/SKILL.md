@@ -70,7 +70,9 @@ Split a task until each piece fits one fresh context window and one tier.
 ## Choose the model
 
 For each task, pick the cheapest cost class whose model covers its tier, in this
-order: subsidised, then metered-personal, then metered-employer.
+order: free, then subsidised, then metered-personal, then metered-employer. A request for
+free models only sets `free_only: true`, which refuses anything that is not `free` rather than
+falling back.
 
 - A model covers a tier when its own tier is at least the task's.
 - Prefer Pi. Within a class, take a `pi-<route>` client over any other client

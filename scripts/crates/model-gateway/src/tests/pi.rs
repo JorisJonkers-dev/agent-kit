@@ -523,3 +523,62 @@ impl Process for Watching<'_> {
         self.programs.run(command)
     }
 }
+
+fn pi_models(cost: &str) -> String {
+    format!(r#"{{"providers":{{"litellm-vibe":{{"models":[{{"id":"m"{cost}}}]}}}}}}"#)
+}
+
+#[test]
+fn a_pi_model_is_free_only_when_every_field_of_its_cost_is_zero() {
+    use crate::sources::pi_entry_is_free;
+    let free = |cost: &str| pi_entry_is_free(&pi_models(cost), "litellm-vibe", "m");
+    assert!(free(r#","cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0}"#));
+    assert!(!free(r#","cost":{"input":0,"output":0.5}"#), "one priced field makes it paid");
+    assert!(!free(r#","cost":{"input":0,"output":"0"}"#), "a non-number is not a zero");
+    assert!(!free(r#","cost":{}"#), "an empty cost verifies nothing");
+    assert!(!free(r#","cost":3"#));
+    assert!(!free(""), "no cost is not free");
+    assert!(!pi_entry_is_free(&pi_models(r#","cost":{"input":0}"#), "litellm-vibe", "other"));
+    assert!(!pi_entry_is_free(&pi_models(r#","cost":{"input":0}"#), "litellm-other", "m"));
+    assert!(!pi_entry_is_free("not json", "litellm-vibe", "m"));
+    assert!(!pi_entry_is_free(r#"{"providers":{"litellm-vibe":{}}}"#, "litellm-vibe", "m"));
+}
+
+#[test]
+fn the_listing_marks_only_verified_free_pi_models_and_keeps_every_other_class() {
+    use super::config::{runtime, StubFiles, StubGit};
+    use crate::config::{CostClass, ModelSource};
+    use crate::models::{ListedModel, ModelListing};
+    let listed = |client: &str, model: &str, cost_class: CostClass| ListedModel {
+        client: client.to_string(),
+        model: model.to_string(),
+        family: "f".to_string(),
+        cost_class,
+        tier: None,
+        notes: String::new(),
+        source: ModelSource::Live,
+        free: false,
+    };
+    let files = StubFiles::new().with(
+        "/h/.pi/agent/models.json",
+        r#"{"providers":{"litellm-vibe":{"models":[{"id":"zero","cost":{"input":0,"output":0}},{"id":"paid","cost":{"input":1,"output":0}}]}}}"#,
+    );
+    let runtime = runtime(files, StubGit::new(None, &[]), env(&[("HOME", "/h")]));
+    let listing = ModelListing {
+        models: vec![
+            listed("pi-vibe", "zero", CostClass::Subsidised),
+            listed("pi-vibe", "paid", CostClass::Subsidised),
+            listed("pi-vibe", "zero", CostClass::MeteredPersonal),
+            listed("claude", "zero", CostClass::Subsidised),
+        ],
+        missing: Vec::new(),
+        skipped: Vec::new(),
+    };
+    let classes: Vec<CostClass> = crate::sources::mark_free(&runtime, listing).models.iter().map(|model| model.cost_class).collect();
+    assert_eq!(classes, [CostClass::Free, CostClass::Subsidised, CostClass::MeteredPersonal, CostClass::Subsidised]);
+    assert_eq!(CostClass::parse("free"), None, "no file can declare a model free");
+    assert_eq!(CostClass::Free.as_str(), "free");
+    // No home to find models.json in: nothing is free.
+    let homeless = super::config::runtime(StubFiles::new(), StubGit::new(None, &[]), env(&[]));
+    assert!(!crate::sources::pi_model_is_free(&homeless, "pi-vibe", "zero"));
+}

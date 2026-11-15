@@ -58,7 +58,8 @@ and why. Models are sorted by client, then model id.
   `"<client>:<model>"` keys left out of `models`. An unreadable or invalid
   override is `invalid-config` and names the file.
 - **The enums are closed.** `cost_class` is `subsidised`,
-  `metered-personal` or `metered-employer`; `tier` is `trivial`, `routine`,
+  `metered-personal` or `metered-employer` in files, and `models` also prints
+  `free` for a Pi model whose provider entry prices every field at zero; `tier` is `trivial`, `routine`,
   `hard` or `frontier`; `model_source` is `live`, `config` or `declared`. A
   new value is a schema change, not a data change.
 - **`vibe` and `agy` model entries are catalogue entries.** Their tier and
