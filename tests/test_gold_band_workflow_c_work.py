@@ -2,8 +2,8 @@
 
 ``installer/gold-band/workflows/workflow-c-work.json`` is the personal Workflow C
 (``workflow-c.json``, left unchanged) bound to the work agents: ``claude-work`` and
-``codex``, nothing else. Each Codex node (the drafts and the review orchestrators) is preceded by a grant-check node whose
-failure edge pauses the run on a manual check, and the critique steps are the
+``codex``, nothing else. Each Codex node (the drafts and the review orchestrators) is preceded by a
+grant-check node whose failure edge pauses the run on a manual check, and the critique steps are the
 critique stage templates' nodes, whose runner routes a ``nedap`` repository to the
 work-only critic roster.
 

@@ -134,6 +134,7 @@ fn role_parse_reads_every_spelling() {
     );
     assert_eq!(Role::parse("dynamic:"), Role::Dynamic(Vec::new()));
     assert_eq!(Role::parse("verdict:2"), Role::Verdict(2));
+    assert_eq!(Role::parse("mixed"), Role::Mixed);
     assert_eq!(Role::parse("verdict:x"), Role::Findings);
     assert_eq!(Role::parse("verdict:"), Role::Findings);
     assert_eq!(Role::parse("nonsense"), Role::Findings);
@@ -152,6 +153,7 @@ fn role_text_round_trips_through_parse() {
         "dynamic:vibe,claude"
     );
     assert_eq!(Role::Verdict(2).as_text(), "verdict:2");
+    assert_eq!(Role::Mixed.as_text(), "mixed");
     for role in [
         Role::Findings,
         Role::Answer,
@@ -162,6 +164,7 @@ fn role_text_round_trips_through_parse() {
         Role::Dynamic(vec!["vibe".to_string(), "claude".to_string()]),
         Role::Dynamic(Vec::new()),
         Role::Verdict(2),
+        Role::Mixed,
     ] {
         assert_eq!(Role::parse(&role.as_text()), role);
     }
@@ -1038,4 +1041,15 @@ fn the_grant_role_answers_zero_until_the_verdict_lapses_its_grant() {
         report(1)
     );
     let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_mixed_role_answers_the_findings_document_and_ok_both() {
+    let mut mixed = Stub::with_role(Role::Mixed, String::new());
+    let clean = fenced_body(&prompt_text(&mut mixed, "clean"));
+    assert_eq!(clean["ok"], json!(true));
+    assert_eq!(clean["findings"], json!([]));
+    let found = fenced_body(&prompt_text(&mut mixed, "needs-human"));
+    assert_eq!(found["ok"], json!(true));
+    assert_eq!(found["findings"].as_array().map(Vec::len), Some(1));
 }

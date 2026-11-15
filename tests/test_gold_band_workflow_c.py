@@ -222,7 +222,8 @@ def test_the_drafts_and_their_orchestrator_are_one_family_the_runner_leaves_out_
 ) -> None:
     """`prepare` drops the orchestrator's family from the critics, so a writer of that family meets none (#796)."""
     for draft, verdicts in (("spec-draft", "spec-verdicts"), ("tickets-draft", "tickets-verdicts")):
-        assert nodes[draft]["provider"] == nodes[verdicts]["provider"]
+        # One model family, on two agent ids: the proof gives an agent id one role, so the orchestrator has its own.
+        assert nodes[draft]["provider"] != nodes[verdicts]["provider"]
         assert nodes[draft]["model"] == nodes[verdicts]["model"]
 
 

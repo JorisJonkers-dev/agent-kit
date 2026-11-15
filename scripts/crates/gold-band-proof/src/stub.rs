@@ -111,6 +111,10 @@ pub enum Role {
     /// internal node with a `dynamic-node-completion`, and answers any other
     /// prompt as [`Role::Answer`] does.
     Dynamic(Vec<String>),
+    /// An agent that runs findings nodes and answer nodes both (the work
+    /// instance's Codex writes drafts and rules on reviews): the findings
+    /// document with `ok: true` beside it, which every node it serves accepts.
+    Mixed,
     /// The verdict node of critic round N: answer how many findings are
     /// actionable, `{"actionable": 0}` or `{"actionable": 1}`.
     Verdict(u32),
@@ -126,6 +130,9 @@ impl Role {
         }
         if text == "questions" {
             return Role::Questions;
+        }
+        if text == "mixed" {
+            return Role::Mixed;
         }
         if let Some(name) = text.strip_prefix("gate:").filter(|name| !name.is_empty()) {
             return Role::Gate(name.to_string());
@@ -160,6 +167,7 @@ impl Role {
             Role::Findings => "findings".to_string(),
             Role::Answer => "answer".to_string(),
             Role::Questions => "questions".to_string(),
+            Role::Mixed => "mixed".to_string(),
             Role::Gate(name) => format!("gate:{}", name),
             Role::Copy(name) => format!("copy:{}", name),
             Role::Grant(name) => format!("grant:{}", name),
@@ -458,6 +466,11 @@ impl Stub {
     fn answer(&self, verdict: &str, prompt: &str) -> String {
         match &self.role {
             Role::Findings => fenced_findings(verdict),
+            Role::Mixed => {
+                let mut document = findings_document(verdict);
+                document["ok"] = json!(true);
+                fenced(&document)
+            }
             Role::Answer => fenced(&json!({ "ok": true })),
             Role::Questions => fenced_questions(verdict),
             Role::Gate(name) => fenced(&self.gate_answer(verdict, name)),

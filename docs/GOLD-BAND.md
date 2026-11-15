@@ -445,8 +445,9 @@ templates already carry.
   orchestrator's family and drops every client of it from the stage's roster, so the lint
   leaves the family of the stage's `<stage>-verdicts` worker out of the fan-out's candidates.
   This is how a template excludes its writer's family from the roster it reviews with: it binds
-  the writer and the stage's orchestrator to one family. `workflow-c` binds `spec-draft`,
-  `tickets-draft`, `spec-verdicts` and `tickets-verdicts` to Vibe GLM (Zhipu); `workflow-c-work`
+  the writer and the stage's orchestrator to one family. `workflow-c` binds `spec-draft` and
+  `tickets-draft` to Vibe GLM (Zhipu) and `spec-verdicts` and `tickets-verdicts` to Vibe-study GLM (a
+  separate agent id, since the headless proof gives one agent id one role); `workflow-c-work`
   binds all four to Codex, so its work roster is the work Claude agent alone (the work instance
   has two families, so one writer family leaves one critic family, never two). Nothing else in
   the template declares it, and a template whose orchestrator is of another family than its
@@ -1035,7 +1036,7 @@ pauses on a manual check wherever the owner has to settle something:
    running it again.
 
 The spec and ticket drafts are written by Vibe GLM (Zhipu), the family of the
-orchestrators that rule on their review (`spec-verdicts`, `tickets-verdicts`, Vibe GLM).
+orchestrators that rule on their review (`spec-verdicts`, `tickets-verdicts`, Vibe-study GLM).
 The runner leaves the orchestrator's family out of the critics' roster, so no
 critic the runner picks is of the writer's family (#796; `workflow-lint --critique`
 and the run-start `critic-family` check hold it). Before #796 the drafts were
