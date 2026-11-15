@@ -118,6 +118,11 @@ pub enum Role {
     /// The verdict node of critic round N: answer how many findings are
     /// actionable, `{"actionable": 0}` or `{"actionable": 1}`.
     Verdict(u32),
+    /// The accept node of critique round N (`accept-<stage>-<n>`): answer how
+    /// many blocking findings are still open, `{"open_blocking": 0}` or
+    /// `{"open_blocking": 1}`. The verdict `actionable=K` leaves one open in
+    /// rounds `1` to `K`.
+    Accept(u32),
 }
 
 impl Role {
@@ -158,6 +163,12 @@ impl Role {
         {
             return Role::Verdict(round);
         }
+        if let Some(round) = text
+            .strip_prefix("accept:")
+            .and_then(|round| round.parse::<u32>().ok())
+        {
+            return Role::Accept(round);
+        }
         Role::Findings
     }
 
@@ -173,6 +184,7 @@ impl Role {
             Role::Grant(name) => format!("grant:{}", name),
             Role::Dynamic(workers) => format!("dynamic:{}", workers.join(",")),
             Role::Verdict(round) => format!("verdict:{}", round),
+            Role::Accept(round) => format!("accept:{}", round),
         }
     }
 }
@@ -229,6 +241,13 @@ pub fn questions_document(verdict: &str) -> Value {
 /// The open questions document for a verdict, wrapped in a json code fence.
 pub fn fenced_questions(verdict: &str) -> String {
     fenced(&questions_document(verdict))
+}
+
+/// The accept document for a round: one blocking finding open while the round
+/// is within the count the verdict names (`actionable=K`), none after it.
+pub fn accept_document(round: u32, verdict: &str) -> Value {
+    let open = verdict_document(round, verdict)["actionable"].clone();
+    json!({ "open_blocking": open })
 }
 
 /// The verdict document for a round: one actionable finding while the round is
@@ -478,6 +497,7 @@ impl Stub {
             Role::Grant(name) => fenced(&grant_answer(verdict, name)),
             Role::Dynamic(workers) => self.dynamic_answer(prompt, workers),
             Role::Verdict(round) => fenced(&verdict_document(*round, verdict)),
+            Role::Accept(round) => fenced(&accept_document(*round, verdict)),
         }
     }
 

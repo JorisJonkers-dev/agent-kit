@@ -38,4 +38,5 @@ members = [
     "crates/memory-bank",
     "crates/research-layout",
     "crates/rust-migration-guard",
+    "crates/critique-block",
 ]

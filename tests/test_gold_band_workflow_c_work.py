@@ -33,14 +33,28 @@ MANIFEST = KIT_ROOT / "scripts" / "Cargo.toml"
 
 WORK_AGENTS = {"claude-work", "codex"}
 # The drafts run on Codex like the orchestrators, so the runner leaves their family out of the roster (#796).
-CODEX_NODES = ["spec-draft", "tickets-draft", "spec-verdicts", "tickets-verdicts"]
+# The generated critique block (#795) adds the second round's orchestrators and the revise nodes, bound the same way.
+CODEX_NODES = [
+    "spec-draft",
+    "tickets-draft",
+    "spec-verdicts",
+    "tickets-verdicts",
+    "spec-verdicts-2",
+    "tickets-verdicts-2",
+    "spec-revise-1",
+    "tickets-revise-1",
+]
 GRANT_PAUSES = ["grant-refused"]
 MANUAL_CHECKS = [
     "grill-check-1",
     "grill-check-2",
     "grill-check-3",
     "spec-needs-human",
+    "spec-needs-human-2",
+    "spec-escalation-check",
     "tickets-needs-human",
+    "tickets-needs-human-2",
+    "tickets-escalation-check",
     "publication-check",
     *GRANT_PAUSES,
 ]
@@ -69,7 +83,7 @@ def personal() -> dict[str, Any]:
 
 
 def _is_shim(node_id: str) -> bool:
-    return node_id.startswith(("gate-", "copy-", "grant-check-"))
+    return node_id.startswith(("gate-", "copy-", "grant-check-", "accept-"))
 
 
 def _reachable(edges: list[tuple[str, str, str]], entry: str, without: set[str]) -> set[str]:

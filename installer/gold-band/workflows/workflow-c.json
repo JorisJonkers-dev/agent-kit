@@ -426,6 +426,321 @@
       },
       {
         "type": "worker",
+        "id": "accept-spec-1",
+        "executionSlotId": "slot-accept-spec-1",
+        "provider": "accept-spec-1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned accept shim for round 1 of the spec review (/review-spec): it reads the round's record report in the run directory and answers open_blocking, the number of accepted findings of blocking severity still open, as one fenced json block and nothing else. The round is accepted when it is 0.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-open-blocking-1",
+          "schema": {
+            "open_blocking": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.open_blocking",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-revise-1",
+        "executionSlotId": "slot-spec-revise-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the author of the spec review (/review-spec). Round 1 of the spec review (/review-spec) left accepted findings: read the round's record report and its accepted findings in the run directory and apply exactly those to the spec file the spec record names, nothing the findings do not call for and no finding that was not accepted. Fresh critics review the result next. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-revise-1-write",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-prepare-2",
+        "executionSlotId": "slot-gate-critique-spec-prepare-2",
+        "provider": "gate-critique-spec-prepare-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique prepare --strict` for the stage for the spec review (/review-spec) and answer with its exit status as one fenced json block and nothing else. This is round 2: pass the first round's run directory as previous_run_dir, so fresh critics review the revised artifact and the first round's findings are not raised again.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-prepare-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-spec-prepare-2",
+        "executionSlotId": "slot-copy-critique-spec-prepare-2",
+        "provider": "copy-critique-spec-prepare-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the prepare gate of the spec review (/review-spec) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-prepare-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-fan-out-2",
+        "executionSlotId": "slot-gate-critique-spec-fan-out-2",
+        "provider": "gate-critique-spec-fan-out-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique fan-out --strict` for the stage for the spec review (/review-spec) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-fan-out-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-spec-fan-out-2",
+        "executionSlotId": "slot-copy-critique-spec-fan-out-2",
+        "provider": "copy-critique-spec-fan-out-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the fan-out gate of the spec review (/review-spec) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-fan-out-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-verdicts-2",
+        "executionSlotId": "slot-spec-verdicts-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the orchestrator of the spec review (/review-spec). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-open-findings-2",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-needs-human-2",
+        "executionSlotId": "slot-spec-needs-human-2",
+        "provider": "vibe-study",
+        "model": "deepseek-v4-1-flash-1017",
+        "profile": "pf-builtin-dev",
+        "goal": "Some finding of the spec review (/review-spec) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-refute-2",
+        "executionSlotId": "slot-gate-critique-spec-refute-2",
+        "provider": "gate-critique-spec-refute-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique refute --strict` for the stage for the spec review (/review-spec) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-refute-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-spec-refute-2",
+        "executionSlotId": "slot-copy-critique-spec-refute-2",
+        "provider": "copy-critique-spec-refute-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the refute gate of the spec review (/review-spec) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-refute-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-spec-record-2",
+        "executionSlotId": "slot-gate-critique-spec-record-2",
+        "provider": "gate-critique-spec-record-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique record --strict` for the stage for the spec review (/review-spec) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-record-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-spec-record-2",
+        "executionSlotId": "slot-copy-critique-spec-record-2",
+        "provider": "copy-critique-spec-record-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the record gate of the spec review (/review-spec) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-spec-record-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "accept-spec-2",
+        "executionSlotId": "slot-accept-spec-2",
+        "provider": "accept-spec-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned accept shim for round 2 of the spec review (/review-spec): it reads the round's record report in the run directory and answers open_blocking, the number of accepted findings of blocking severity still open, as one fenced json block and nothing else. The round is accepted when it is 0.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-open-blocking-2",
+          "schema": {
+            "open_blocking": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.open_blocking",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-escalation",
+        "executionSlotId": "slot-spec-escalation",
+        "provider": "claude",
+        "model": "opus",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the escalation judge for the spec review (/review-spec). Both critique rounds ended with accepted blocking findings still open, so nothing passes automatically. Read the two rounds' record reports and the artifact and state to the owner, in one short paragraph, which findings are still open, whether the author or the findings are at fault and what you recommend. Do not edit any file. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-escalation-judgment",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-escalation-check",
+        "executionSlotId": "slot-spec-escalation-check",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "the spec review (/review-spec) could not be accepted in two rounds: read the escalation judge's paragraph and state it to the owner. Do not write any file; the manual check after your answer is where the owner decides, and the run ends here whatever the owner decides: no later stage runs on this artifact automatically.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
         "id": "tickets-draft",
         "executionSlotId": "slot-tickets-draft",
         "provider": "vibe",
@@ -442,6 +757,51 @@
         "success_condition": {
           "path": "$.ok",
           "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-tickets-precheck",
+        "executionSlotId": "slot-gate-tickets-precheck",
+        "provider": "gate-tickets-precheck",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique check-tickets --strict` (the mechanical pre-check: the tickets' dependency cycles, dangling blockers and uncited stories) before the critics of the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-tickets-precheck-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-tickets-precheck",
+        "executionSlotId": "slot-copy-tickets-precheck",
+        "provider": "copy-tickets-precheck",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the pre-check gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-tickets-precheck-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
         }
       },
       {
@@ -671,6 +1031,366 @@
       },
       {
         "type": "worker",
+        "id": "accept-tickets-1",
+        "executionSlotId": "slot-accept-tickets-1",
+        "provider": "accept-tickets-1",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned accept shim for round 1 of the ticket review (/review-tickets): it reads the round's record report in the run directory and answers open_blocking, the number of accepted findings of blocking severity still open, as one fenced json block and nothing else. The round is accepted when it is 0.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-open-blocking-1",
+          "schema": {
+            "open_blocking": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.open_blocking",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-revise-1",
+        "executionSlotId": "slot-tickets-revise-1",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the author of the ticket review (/review-tickets). Round 1 of the ticket review (/review-tickets) left accepted findings: read the round's record report and its accepted findings in the run directory and apply exactly those to tickets.json, in the same {\"tickets\":[{\"title\",\"body\",\"labels\"}]} form and with labels only from the repository's setup file, nothing the findings do not call for and no finding that was not accepted. Fresh critics review the result next. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-revise-1-write",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-tickets-precheck-2",
+        "executionSlotId": "slot-gate-tickets-precheck-2",
+        "provider": "gate-tickets-precheck-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique check-tickets --strict` (the mechanical pre-check: the tickets' dependency cycles, dangling blockers and uncited stories) before the critics of the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-tickets-precheck-2-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-tickets-precheck-2",
+        "executionSlotId": "slot-copy-tickets-precheck-2",
+        "provider": "copy-tickets-precheck-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the pre-check gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-tickets-precheck-2-report",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-tickets-prepare-2",
+        "executionSlotId": "slot-gate-critique-tickets-prepare-2",
+        "provider": "gate-critique-tickets-prepare-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique prepare --strict` for the stage for the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else. This is round 2: pass the first round's run directory as previous_run_dir, so fresh critics review the revised artifact and the first round's findings are not raised again.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-prepare-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-tickets-prepare-2",
+        "executionSlotId": "slot-copy-critique-tickets-prepare-2",
+        "provider": "copy-critique-tickets-prepare-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the prepare gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-prepare-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-tickets-fan-out-2",
+        "executionSlotId": "slot-gate-critique-tickets-fan-out-2",
+        "provider": "gate-critique-tickets-fan-out-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique fan-out --strict` for the stage for the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-fan-out-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-tickets-fan-out-2",
+        "executionSlotId": "slot-copy-critique-tickets-fan-out-2",
+        "provider": "copy-critique-tickets-fan-out-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the fan-out gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-fan-out-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-verdicts-2",
+        "executionSlotId": "slot-tickets-verdicts-2",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the orchestrator of the ticket review (/review-tickets). The runner's fan-out left each critic's findings in its run directory. Check every finding's evidence against the packet, rule on each one, and write the verdicts file beside the runner's files; add nothing the findings do not support. Answer with one fenced json block holding the findings you could not settle on your own and nothing else: an empty list when every finding has a verdict.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-open-findings-2",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-needs-human-2",
+        "executionSlotId": "slot-tickets-needs-human-2",
+        "provider": "vibe-study",
+        "model": "deepseek-v4-1-flash-1017",
+        "profile": "pf-builtin-dev",
+        "goal": "Some finding of the ticket review (/review-tickets) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-tickets-refute-2",
+        "executionSlotId": "slot-gate-critique-tickets-refute-2",
+        "provider": "gate-critique-tickets-refute-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique refute --strict` for the stage for the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-refute-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-tickets-refute-2",
+        "executionSlotId": "slot-copy-critique-tickets-refute-2",
+        "provider": "copy-critique-tickets-refute-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the refute gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-refute-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "gate-critique-tickets-record-2",
+        "executionSlotId": "slot-gate-critique-tickets-record-2",
+        "provider": "gate-critique-tickets-record-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate wrapper around `critique record --strict` for the stage for the ticket review (/review-tickets) and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-record-status-2",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "copy-critique-tickets-record-2",
+        "executionSlotId": "slot-copy-critique-tickets-record-2",
+        "provider": "copy-critique-tickets-record-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-gate verify copier for the record gate of the ticket review (/review-tickets) and answer with the report it prints as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "gate-critique-tickets-record-report-2",
+          "schema": {
+            "run_id": "string",
+            "attempt": 1,
+            "command": "string",
+            "exit_code": 0,
+            "output_hash": "string",
+            "timestamp": "string"
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "accept-tickets-2",
+        "executionSlotId": "slot-accept-tickets-2",
+        "provider": "accept-tickets-2",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned accept shim for round 2 of the ticket review (/review-tickets): it reads the round's record report in the run directory and answers open_blocking, the number of accepted findings of blocking severity still open, as one fenced json block and nothing else. The round is accepted when it is 0.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-open-blocking-2",
+          "schema": {
+            "open_blocking": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.open_blocking",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-escalation",
+        "executionSlotId": "slot-tickets-escalation",
+        "provider": "claude",
+        "model": "opus",
+        "profile": "pf-builtin-dev",
+        "goal": "You are the escalation judge for the ticket review (/review-tickets). Both critique rounds ended with accepted blocking findings still open, so nothing passes automatically. Read the two rounds' record reports and the artifact and state to the owner, in one short paragraph, which findings are still open, whether the author or the findings are at fault and what you recommend. Do not edit any file. Answer with one fenced json block holding ok and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "tickets-escalation-judgment",
+          "schema": {
+            "ok": true
+          }
+        },
+        "success_condition": {
+          "path": "$.ok",
+          "equals": true
+        }
+      },
+      {
+        "type": "worker",
+        "id": "tickets-escalation-check",
+        "executionSlotId": "slot-tickets-escalation-check",
+        "provider": "vibe",
+        "model": "glm-5-3",
+        "profile": "pf-builtin-dev",
+        "goal": "the ticket review (/review-tickets) could not be accepted in two rounds: read the escalation judge's paragraph and state it to the owner. Do not write any file; the manual check after your answer is where the owner decides, and the run ends here whatever the owner decides: no later stage runs on this artifact automatically.",
+        "manual_check": true
+      },
+      {
+        "type": "worker",
         "id": "publication-check",
         "executionSlotId": "slot-publication-check",
         "provider": "vibe-study",
@@ -787,11 +1507,6 @@
         "on": "success"
       },
       {
-        "from": "spec-draft",
-        "to": "gate-critique-spec-prepare",
-        "on": "success"
-      },
-      {
         "from": "gate-critique-spec-prepare",
         "to": "copy-critique-spec-prepare",
         "on": "success"
@@ -817,16 +1532,6 @@
         "on": "success"
       },
       {
-        "from": "spec-verdicts",
-        "to": "spec-needs-human",
-        "on": "failure"
-      },
-      {
-        "from": "spec-needs-human",
-        "to": "gate-critique-spec-refute",
-        "on": "success"
-      },
-      {
         "from": "gate-critique-spec-refute",
         "to": "copy-critique-spec-refute",
         "on": "success"
@@ -843,11 +1548,121 @@
       },
       {
         "from": "copy-critique-spec-record",
+        "to": "accept-spec-1",
+        "on": "success"
+      },
+      {
+        "from": "spec-verdicts",
+        "to": "spec-needs-human",
+        "on": "failure"
+      },
+      {
+        "from": "spec-needs-human",
+        "to": "gate-critique-spec-refute",
+        "on": "success"
+      },
+      {
+        "from": "accept-spec-1",
         "to": "tickets-draft",
         "on": "success"
       },
       {
-        "from": "tickets-draft",
+        "from": "accept-spec-1",
+        "to": "spec-revise-1",
+        "on": "failure"
+      },
+      {
+        "from": "gate-critique-spec-prepare-2",
+        "to": "copy-critique-spec-prepare-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-spec-prepare-2",
+        "to": "gate-critique-spec-fan-out-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-spec-fan-out-2",
+        "to": "copy-critique-spec-fan-out-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-spec-fan-out-2",
+        "to": "spec-verdicts-2",
+        "on": "success"
+      },
+      {
+        "from": "spec-verdicts-2",
+        "to": "gate-critique-spec-refute-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-spec-refute-2",
+        "to": "copy-critique-spec-refute-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-spec-refute-2",
+        "to": "gate-critique-spec-record-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-spec-record-2",
+        "to": "copy-critique-spec-record-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-spec-record-2",
+        "to": "accept-spec-2",
+        "on": "success"
+      },
+      {
+        "from": "spec-verdicts-2",
+        "to": "spec-needs-human-2",
+        "on": "failure"
+      },
+      {
+        "from": "spec-needs-human-2",
+        "to": "gate-critique-spec-refute-2",
+        "on": "success"
+      },
+      {
+        "from": "accept-spec-2",
+        "to": "tickets-draft",
+        "on": "success"
+      },
+      {
+        "from": "spec-revise-1",
+        "to": "gate-critique-spec-prepare-2",
+        "on": "success"
+      },
+      {
+        "from": "accept-spec-2",
+        "to": "spec-escalation",
+        "on": "failure"
+      },
+      {
+        "from": "spec-escalation",
+        "to": "spec-escalation-check",
+        "on": "success"
+      },
+      {
+        "from": "spec-escalation-check",
+        "to": "$end",
+        "on": "success"
+      },
+      {
+        "from": "spec-draft",
+        "to": "gate-critique-spec-prepare",
+        "on": "success"
+      },
+      {
+        "from": "gate-tickets-precheck",
+        "to": "copy-tickets-precheck",
+        "on": "success"
+      },
+      {
+        "from": "copy-tickets-precheck",
         "to": "gate-critique-tickets-prepare",
         "on": "success"
       },
@@ -877,16 +1692,6 @@
         "on": "success"
       },
       {
-        "from": "tickets-verdicts",
-        "to": "tickets-needs-human",
-        "on": "failure"
-      },
-      {
-        "from": "tickets-needs-human",
-        "to": "gate-critique-tickets-refute",
-        "on": "success"
-      },
-      {
         "from": "gate-critique-tickets-refute",
         "to": "copy-critique-tickets-refute",
         "on": "success"
@@ -903,7 +1708,122 @@
       },
       {
         "from": "copy-critique-tickets-record",
+        "to": "accept-tickets-1",
+        "on": "success"
+      },
+      {
+        "from": "tickets-verdicts",
+        "to": "tickets-needs-human",
+        "on": "failure"
+      },
+      {
+        "from": "tickets-needs-human",
+        "to": "gate-critique-tickets-refute",
+        "on": "success"
+      },
+      {
+        "from": "accept-tickets-1",
         "to": "publication-check",
+        "on": "success"
+      },
+      {
+        "from": "accept-tickets-1",
+        "to": "tickets-revise-1",
+        "on": "failure"
+      },
+      {
+        "from": "gate-tickets-precheck-2",
+        "to": "copy-tickets-precheck-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-tickets-precheck-2",
+        "to": "gate-critique-tickets-prepare-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-tickets-prepare-2",
+        "to": "copy-critique-tickets-prepare-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-tickets-prepare-2",
+        "to": "gate-critique-tickets-fan-out-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-tickets-fan-out-2",
+        "to": "copy-critique-tickets-fan-out-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-tickets-fan-out-2",
+        "to": "tickets-verdicts-2",
+        "on": "success"
+      },
+      {
+        "from": "tickets-verdicts-2",
+        "to": "gate-critique-tickets-refute-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-tickets-refute-2",
+        "to": "copy-critique-tickets-refute-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-tickets-refute-2",
+        "to": "gate-critique-tickets-record-2",
+        "on": "success"
+      },
+      {
+        "from": "gate-critique-tickets-record-2",
+        "to": "copy-critique-tickets-record-2",
+        "on": "success"
+      },
+      {
+        "from": "copy-critique-tickets-record-2",
+        "to": "accept-tickets-2",
+        "on": "success"
+      },
+      {
+        "from": "tickets-verdicts-2",
+        "to": "tickets-needs-human-2",
+        "on": "failure"
+      },
+      {
+        "from": "tickets-needs-human-2",
+        "to": "gate-critique-tickets-refute-2",
+        "on": "success"
+      },
+      {
+        "from": "accept-tickets-2",
+        "to": "publication-check",
+        "on": "success"
+      },
+      {
+        "from": "tickets-revise-1",
+        "to": "gate-tickets-precheck-2",
+        "on": "success"
+      },
+      {
+        "from": "accept-tickets-2",
+        "to": "tickets-escalation",
+        "on": "failure"
+      },
+      {
+        "from": "tickets-escalation",
+        "to": "tickets-escalation-check",
+        "on": "success"
+      },
+      {
+        "from": "tickets-escalation-check",
+        "to": "$end",
+        "on": "success"
+      },
+      {
+        "from": "tickets-draft",
+        "to": "gate-tickets-precheck",
         "on": "success"
       },
       {
@@ -1026,9 +1946,94 @@
         "modelId": "stub-model"
       },
       {
+        "executionSlotId": "slot-accept-spec-1",
+        "agentId": "accept-spec-1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-spec-revise-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-prepare-2",
+        "agentId": "gate-critique-spec-prepare-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-spec-prepare-2",
+        "agentId": "copy-critique-spec-prepare-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-fan-out-2",
+        "agentId": "gate-critique-spec-fan-out-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-spec-fan-out-2",
+        "agentId": "copy-critique-spec-fan-out-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-spec-verdicts-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-spec-needs-human-2",
+        "agentId": "vibe-study",
+        "modelId": "deepseek-v4-1-flash-1017"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-refute-2",
+        "agentId": "gate-critique-spec-refute-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-spec-refute-2",
+        "agentId": "copy-critique-spec-refute-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-spec-record-2",
+        "agentId": "gate-critique-spec-record-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-spec-record-2",
+        "agentId": "copy-critique-spec-record-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-accept-spec-2",
+        "agentId": "accept-spec-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-spec-escalation",
+        "agentId": "claude",
+        "modelId": "opus"
+      },
+      {
+        "executionSlotId": "slot-spec-escalation-check",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
         "executionSlotId": "slot-tickets-draft",
         "agentId": "vibe",
         "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-gate-tickets-precheck",
+        "agentId": "gate-tickets-precheck",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-tickets-precheck",
+        "agentId": "copy-tickets-precheck",
+        "modelId": "stub-model"
       },
       {
         "executionSlotId": "slot-gate-critique-tickets-prepare",
@@ -1079,6 +2084,91 @@
         "executionSlotId": "slot-copy-critique-tickets-record",
         "agentId": "copy-critique-tickets-record",
         "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-accept-tickets-1",
+        "agentId": "accept-tickets-1",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-tickets-revise-1",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-gate-tickets-precheck-2",
+        "agentId": "gate-tickets-precheck-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-tickets-precheck-2",
+        "agentId": "copy-tickets-precheck-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-tickets-prepare-2",
+        "agentId": "gate-critique-tickets-prepare-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-tickets-prepare-2",
+        "agentId": "copy-critique-tickets-prepare-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-tickets-fan-out-2",
+        "agentId": "gate-critique-tickets-fan-out-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-tickets-fan-out-2",
+        "agentId": "copy-critique-tickets-fan-out-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-tickets-verdicts-2",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
+      },
+      {
+        "executionSlotId": "slot-tickets-needs-human-2",
+        "agentId": "vibe-study",
+        "modelId": "deepseek-v4-1-flash-1017"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-tickets-refute-2",
+        "agentId": "gate-critique-tickets-refute-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-tickets-refute-2",
+        "agentId": "copy-critique-tickets-refute-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-gate-critique-tickets-record-2",
+        "agentId": "gate-critique-tickets-record-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-copy-critique-tickets-record-2",
+        "agentId": "copy-critique-tickets-record-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-accept-tickets-2",
+        "agentId": "accept-tickets-2",
+        "modelId": "stub-model"
+      },
+      {
+        "executionSlotId": "slot-tickets-escalation",
+        "agentId": "claude",
+        "modelId": "opus"
+      },
+      {
+        "executionSlotId": "slot-tickets-escalation-check",
+        "agentId": "vibe",
+        "modelId": "glm-5-3"
       },
       {
         "executionSlotId": "slot-publication-check",

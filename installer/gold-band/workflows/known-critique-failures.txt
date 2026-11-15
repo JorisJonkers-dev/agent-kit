@@ -8,9 +8,7 @@
 # fails CI ("remove it from the list"). One line per file: `<file> #<ticket that fixes it>`, then
 # the rules it breaks as a comment. A line that starts with # is a comment.
 #
-# #795: spec, tickets, brainstorming and grill templates have no critic stage.
-to-spec.json #795 critic-required: spec-write
-to-tickets.json #795 critic-required: tickets-write
+# #795: brainstorming and the grill templates have no critic stage (consolidated by #798 and #794).
 brainstorming.json #795 critic-required: design-draft, design-record
 grill-me.json #795 critic-required: grill-summary
 grill-with-docs.json #795 critic-required: docs-update

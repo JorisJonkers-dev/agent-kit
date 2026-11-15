@@ -464,3 +464,26 @@ fn the_critic_family_findings_leave_out_the_other_rules() {
     assert_eq!(rules(&family), ["gate-critique-spec-fan-out: critic-family"]);
     assert!(crate::critic_family_findings(&json!([]), Instance::Work, None).is_err());
 }
+
+#[test]
+fn a_later_round_of_a_stage_is_the_same_stage_with_the_same_roster() {
+    assert_eq!(without_round("gate-critique-spec-fan-out-2"), ("gate-critique-spec-fan-out", "-2"));
+    assert_eq!(without_round("gate-critique-spec-fan-out"), ("gate-critique-spec-fan-out", ""));
+    assert_eq!(without_round("spec-verdicts-"), ("spec-verdicts-", ""));
+    assert_eq!(without_round("plain"), ("plain", ""));
+    assert!(is_record("gate-critique-spec-record-2"));
+    assert!(!is_record("gate-critique-spec-record-x"));
+    // The second round's fan-out is checked, and its orchestrator is the round's own.
+    let nodes = [
+        worker("w", "vibe", "glm-5-3", Some("spec-draft")),
+        worker("gate-critique-spec-fan-out-2", "g", "stub-model", None),
+        worker("spec-verdicts-2", "vibe", "glm-5-3", Some("spec-open-findings-2")),
+        worker("gate-critique-spec-record-2", "g", "stub-model", None),
+    ];
+    let edges = chain(&["w", "gate-critique-spec-fan-out-2", "spec-verdicts-2", "gate-critique-spec-record-2", "$end"]);
+    assert!(run(&nodes, &edges, Instance::Personal).is_empty());
+    let mut other = nodes.to_vec();
+    other[2] = worker("spec-verdicts", "vibe", "glm-5-3", Some("spec-open-findings"));
+    let found = run(&other, &edges, Instance::Personal);
+    assert_eq!(rules(&found), ["gate-critique-spec-fan-out-2: critic-family"; 1]);
+}

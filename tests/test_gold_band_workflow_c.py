@@ -30,7 +30,11 @@ MANUAL_CHECKS = [
     "grill-check-2",
     "grill-check-3",
     "spec-needs-human",
+    "spec-needs-human-2",
+    "spec-escalation-check",
     "tickets-needs-human",
+    "tickets-needs-human-2",
+    "tickets-escalation-check",
     "publication-check",
 ]
 
@@ -158,9 +162,13 @@ def test_the_spec_review_feeds_the_ticket_draft_and_the_ticket_review_the_public
     edges: list[tuple[str, str, str]],
 ) -> None:
     assert ("spec-draft", "gate-critique-spec-prepare", "success") in edges
-    assert ("copy-critique-spec-record", "tickets-draft", "success") in edges
-    assert ("tickets-draft", "gate-critique-tickets-prepare", "success") in edges
-    assert ("copy-critique-tickets-record", "publication-check", "success") in edges
+    assert ("tickets-draft", "gate-tickets-precheck", "success") in edges
+    # Only an accept node hands an artifact on (#795), after the second round as after the first.
+    for stage, following in (("spec", "tickets-draft"), ("tickets", "publication-check")):
+        assert sorted(f for f, t, _ in edges if t == following and f.startswith(("accept-", "copy-critique-"))) == [
+            f"accept-{stage}-1",
+            f"accept-{stage}-2",
+        ]
 
 
 def test_the_publish_gate_is_reachable_only_through_the_publication_check(
@@ -183,7 +191,12 @@ def test_the_publish_gate_names_the_tracker_the_setup_file_gives(nodes: dict[str
 
 
 def test_the_last_copier_ends_the_run_and_only_it(edges: list[tuple[str, str, str]]) -> None:
-    assert [frm for frm, to, _ in edges if to == "$end"] == ["copy-workflow-c-publish"]
+    # A stage that fails its second critique round ends at its escalation check, not on the publish gate.
+    assert [frm for frm, to, _ in edges if to == "$end"] == [
+        "spec-escalation-check",
+        "tickets-escalation-check",
+        "copy-workflow-c-publish",
+    ]
 
 
 def test_no_shim_node_has_a_failure_edge(edges: list[tuple[str, str, str]]) -> None:
@@ -229,7 +242,12 @@ def test_the_drafts_and_their_orchestrator_are_one_family_the_runner_leaves_out_
 
 def test_no_node_writes_memory_and_no_forbidden_family_is_bound(text: str) -> None:
     """The personal instance binds neither Codex nor Opus, and no node holds a memory-write binding."""
-    lowered = text.lower()
+    # Only an escalation judge may be Opus (#795), through the Claude agent.
+    kept = json.loads(text)
+    kept["workflow"]["nodes"] = [n for n in kept["workflow"]["nodes"] if not n["id"].endswith("-escalation")]
+    bindings = kept["modelBindings"]["bindings"]
+    kept["modelBindings"]["bindings"] = [b for b in bindings if not b["executionSlotId"].endswith("-escalation")]
+    lowered = json.dumps(kept).lower()
     for family in FORBIDDEN_FAMILIES:
         assert family not in lowered
     assert "memory-write" not in lowered
