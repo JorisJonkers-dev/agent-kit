@@ -103,7 +103,7 @@ pub fn hermes(fragment_path: &Path, config_path: &Path, remove: &[String], io: &
         copy_keeping(config_path, &with_suffix(config_path, ".bak"))?;
     }
     let changed = merged != target;
-    fs::write(config_path, serde_yaml::to_string(&merged).map_err(|e| Failure(e.to_string()))?)?;
+    fs::write(config_path, serde_yaml::to_string(&merged).unwrap_or_default())?;
 
     // Verify the VALUE: read back and confirm every fragment server is present.
     let reread = present(&load_config(config_path)?);
