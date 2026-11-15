@@ -80,7 +80,6 @@ KIT_PATHS=(
   scripts/gold_band_instances.py
   scripts/gold_band_shape.py
   scripts/install-workspace-tools.sh
-  .cargo/config.toml
   scripts/Cargo.toml
   scripts/Cargo.lock
   scripts/crates

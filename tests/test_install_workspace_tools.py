@@ -20,7 +20,6 @@ INSTALLER = KIT_ROOT / "scripts" / "install-workspace-tools.sh"
 REGISTRY = KIT_ROOT / "registry" / "estate-tooling.yaml"
 TOOLS = ("bash", "sh", "env", "dirname", "cmp", "mkdir", "mktemp", "cp", "chmod", "mv", "rm", "cat", "printf", "grep")
 NAMES = ("agent-launcher", "gold-band-gate", "ci-wait")
-COOLDOWN = '[registry]\nglobal-min-publish-age = "7 days"\n'
 
 
 def _program(path: Path, body: str) -> Path:
@@ -31,14 +30,12 @@ def _program(path: Path, body: str) -> Path:
 
 
 class Kit:
-    """A kit with a workspace manifest and cooldown config, and a stub cargo that 'builds' every -p package."""
+    """A kit with a workspace manifest, and a stub cargo that 'builds' every -p package."""
 
     def __init__(self, tmp_path: Path) -> None:
         self.root = tmp_path / "kit"
         (self.root / "scripts").mkdir(parents=True)
         (self.root / "scripts" / "Cargo.toml").write_text("[workspace]\n")
-        (self.root / ".cargo").mkdir()
-        (self.root / ".cargo" / "config.toml").write_text(COOLDOWN)
         self.home = tmp_path / "home"
         self.home.mkdir()
         self.dest = self.home / ".local" / "bin"
@@ -90,7 +87,7 @@ def test_the_installer_builds_every_name_in_one_locked_build_and_installs_each(k
         assert f"installed {kit.dest / name}" in result.stdout
         assert os.access(kit.dest / name, os.X_OK)
     where, *args = (kit.root / "cargo-args").read_text().split()
-    assert where == str(kit.root), "the build runs from the kit, so its .cargo/config.toml (the cooldown) applies"
+    assert where == str(kit.root), "the build runs from the kit"
     assert args[:2] == ["build", "--quiet"] and "--release" in args and "--locked" in args
     assert [args[i + 1] for i, arg in enumerate(args) if arg == "-p"] == list(NAMES)
     assert args[args.index("--manifest-path") + 1] == f"{kit.root}/scripts/Cargo.toml"
@@ -163,16 +160,6 @@ def test_an_unwritable_directory_fails_the_install_not_the_others(kit: Kit) -> N
     assert result.returncode == 1 and "could not install" in result.stdout
 
 
-def test_a_kit_without_the_cooldown_setting_is_refused_and_builds_nothing(kit: Kit) -> None:
-    (kit.root / ".cargo" / "config.toml").write_text("[net]\nretry = 3\n")
-    result = kit.run(*NAMES)
-    assert result.returncode == 1 and "7-day crate cooldown would not apply" in result.stdout
-    assert not (kit.root / "cargo-args").exists()
-    (kit.root / ".cargo" / "config.toml").unlink()
-    assert kit.run(*NAMES).returncode == 1
-    assert not (kit.root / "cargo-args").exists()
-
-
 def test_without_cargo_or_a_workspace_the_step_is_skipped(kit: Kit) -> None:
     assert "cargo is not on PATH" in kit.run(*NAMES, path=False).stdout
     (kit.root / "scripts" / "Cargo.toml").unlink()
@@ -237,7 +224,7 @@ def test_setup_runs_the_installer_with_the_declared_names_and_the_bundle_ships_e
     assert call in setup
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
     shipped = publish.split("KIT_PATHS=(")[1].split(")")[0].split()
-    needed = ("scripts/install-workspace-tools.sh", ".cargo/config.toml", "scripts/Cargo.toml", "scripts/Cargo.lock")
+    needed = ("scripts/install-workspace-tools.sh", "scripts/Cargo.toml", "scripts/Cargo.lock")
     for path in (*needed, "scripts/crates"):
         assert path in shipped, path
 

@@ -425,7 +425,7 @@ def test_a_fresh_root_gets_the_uv_pip_and_cargo_configs(tmp_path: Path) -> None:
     assert cargo["source"][CARGO_REGISTRY]["registry"] == CARGO_INDEX
     assert cargo["registries"][CARGO_REGISTRY]["index"] == CARGO_INDEX
     assert cargo["registry"]["global-credential-providers"] == ["cargo:token"]
-    assert cargo["registry"]["global-min-publish-age"] == "7 days"
+    assert "global-min-publish-age" not in cargo["registry"]
     credentials = tomllib.loads(_cargo_credentials(scratch).read_text())
     assert credentials["registries"][CARGO_REGISTRY]["token"] == f"Bearer {KEY}"
     _assert_mode_600(_cargo_credentials(scratch))

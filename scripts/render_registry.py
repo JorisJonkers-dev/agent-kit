@@ -114,8 +114,7 @@ SKILL_AGENT_HOMES = {
 # A `pinned_npm:` CLI installs behind a release cutoff this many days deep,
 # computed at setup time (issue #337): npm's --before resolves every package --
 # transitive ones included -- as the registry stood at that moment, so nothing
-# published inside the window can install. The same discipline as the 7-day
-# crate cooldown (standards ADR-0014, docs/RUST.md).
+# published inside the window can install.
 PIN_CUTOFF_DAYS = 7
 # The generated cutoff computation: now minus the cutoff, UTC, printed in
 # npm's own publish-time format so the --before flag and the age check
@@ -128,7 +127,7 @@ PIN_CUTOFF_PY = (
 # A pin's own publish-time check, run against `npm view <pkg>@<version> time
 # --json` on stdin: prints that time (argv: the cutoff, then the version) and
 # exits 0 only when the version is no younger than the cutoff. An age that
-# cannot be proven exits 1, so the step fails closed, like crate-age does.
+# cannot be proven exits 1, so the step fails closed.
 PIN_AGE_PY = """import json, sys
 from datetime import datetime
 
@@ -2247,7 +2246,7 @@ def _workspace_tools_step(data: dict[str, Any], w: Any) -> None:
     if not names:
         return
     w("# The kit's own command-line tools (registry workspace_tools:), built from its pinned")
-    w("# cargo workspace behind the 7-day crate cooldown and installed into ~/.local/bin. A failed")
+    w("# cargo workspace and installed into ~/.local/bin. A failed")
     w("# build or smoke check leaves every installed tool as it was.")
     w("workspace_tools_setup() {")
     w("  local rc=0 mode=() out line")
@@ -2823,7 +2822,6 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w(f"    printf '[source.jorisjonkers-packages]\\nregistry = \"{cargo_url}\"\\n\\n'")
     w(f"    printf '[registries.jorisjonkers-packages]\\nindex = \"{cargo_url}\"\\n\\n'")
     w("    printf '[registry]\\nglobal-credential-providers = [\"cargo:token\"]\\n'")
-    w("    printf 'global-min-publish-age = \"7 days\"\\n'")
     w("  } | python3 \"${helper}\" \"${cargo_config}\" packages-proxy --validate toml \\")
     w('    --refuse "${guard}" >/dev/null')
     w("  case $? in")
@@ -3294,7 +3292,7 @@ def _pinned_npm_cli_block(cli: dict[str, Any], pin: dict[str, Any]) -> list[str]
     ``PIN_CUTOFF_DAYS`` days can install. Each pin's own publish time is
     proven against the same cutoff before anything installs; a pin younger
     than the window, or one whose age cannot be proven, fails the step with
-    nothing installed, the way crate-age fails a young crate closed. The step
+    nothing installed. The step
     ends by resolving the entry's binary to its absolute installed path and
     printing it, which is the adapter command the Gold Band declaration
     uses (the registry's ``gold_band:`` section holds the placeholder).
@@ -3632,60 +3630,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    ok "rustup: default toolchain stable with clippy, rustfmt and rust-src"')
     w("  else")
     w('    warn "rustup: setting the default toolchain failed; run rustup default stable"')
-    w("  fi")
-    w("  return 0")
-    w("}")
-    w("")
-    w("# Cargo honours registry.global-min-publish-age (the 7-day crate cooldown")
-    w("# setup writes into ~/.cargo/config.toml) from Rust 1.100; an older cargo")
-    w("# ignores it with a warning. A default on the stable channel is updated to")
-    w("# reach it; a default pinned to an older release is reported, not moved.")
-    w("# --- rust cooldown toolchain")
-    w("rust_cooldown_toolchain() {")
-    w("  command -v rustup >/dev/null 2>&1 || return 0")
-    w("  local version minor default")
-    w("  version=$(rustc --version 2>/dev/null) || version=")
-    w('  minor=$(printf \'%s\\n\' "${version}" | sed -n \'s/^rustc 1\\.\\([0-9][0-9]*\\)\\..*/\\1/p\')')
-    w(f'  if [ -n "${{minor}}" ] && [ "${{minor}}" -ge {RUST_COOLDOWN_MINOR} ]; then')
-    w('    ok "rust: ${version%% (*} honours the 7-day crate cooldown"')
-    w("    return 0")
-    w("  fi")
-    w("  default=$(rustup default 2>/dev/null) || default=")
-    w('  case "${default%% *}" in')
-    w("    stable-*) ;;")
-    w("    # No default yet: on NixOS rustup_default_toolchain sets stable just before;")
-    w("    # elsewhere there is nothing to update.")
-    w('    "")')
-    w('      [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ] && [ -z "${version}" ] || {')
-    w('        log "rust: no default toolchain; the crate cooldown needs Rust 1.100 or newer"')
-    w("        return 0")
-    w("      }")
-    w("      ;;")
-    w("    *)")
-    w(
-        f'      fail "rust: ${{version:-no rustc}} is older than 1.{RUST_COOLDOWN_MINOR} and the default toolchain '
-        'is ${default%% *}, not stable; cargo ignores the crate cooldown (rustup default stable)"'
-    )
-    w("      return 0")
-    w("      ;;")
-    w("  esac")
-    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
-    w(
-        f'    log "would run: rustup update stable (${{version:-no rustc}} is older than '
-        f'1.{RUST_COOLDOWN_MINOR}, which the crate cooldown needs)"'
-    )
-    w("    return 0")
-    w("  fi")
-    w("  run rustup update stable >/dev/null 2>&1 || true")
-    w("  version=$(rustc --version 2>/dev/null) || version=")
-    w('  minor=$(printf \'%s\\n\' "${version}" | sed -n \'s/^rustc 1\\.\\([0-9][0-9]*\\)\\..*/\\1/p\')')
-    w(f'  if [ -n "${{minor}}" ] && [ "${{minor}}" -ge {RUST_COOLDOWN_MINOR} ]; then')
-    w('    ok "rust: updated stable to ${version%% (*}; cargo honours the 7-day crate cooldown"')
-    w("  else")
-    w(
-        f'    fail "rust: rustup update stable left ${{version:-no rustc}}, older than '
-        f'1.{RUST_COOLDOWN_MINOR}; cargo ignores the crate cooldown"'
-    )
     w("  fi")
     w("  return 0")
     w("}")
@@ -4904,7 +4848,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# On NixOS rustup arrives from Nix with no default toolchain: cargo fails")
     w("# until it is set, with or without Claude Code on this machine.")
     w("rustup_default_toolchain")
-    w("rust_cooldown_toolchain")
     w("")
     w("# Before anything touches a Vibe home (MCP merge, converge, skills), and")
     w("# whether or not vibe is on PATH yet.")
@@ -5985,9 +5928,6 @@ def _has_plugin_pins(data: dict[str, Any]) -> bool:
     """Plugins are pinned through their marketplaces, so drift is checked when there are any."""
     return bool(_entries(data, "marketplaces") and _entries(data, "plugins"))
 
-
-# The Rust minor release from which cargo honours registry.global-min-publish-age.
-RUST_COOLDOWN_MINOR = 100
 
 LITELLM_ENV = re.compile(r"[A-Z][A-Z0-9_]*")
 LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "budget_duration", "data_scope", "models"}

@@ -296,13 +296,11 @@ absolute path setup prints at the end of the step:
   scripts are off (`--ignore-scripts`), and the cutoff is computed at setup
   time as now minus 7 days, UTC: npm's `--before` resolves every package --
   transitive ones included -- as the registry stood at that moment, so
-  nothing published in the last 7 days can install (issue #337; the same
-  discipline as the 7-day crate cooldown, standards ADR-0014).
+  nothing published in the last 7 days can install (issue #337).
 - Before installing, setup checks each pin's own publish time
   (`npm view <pkg>@<version> time --json`) against the same cutoff. A pin
   younger than 7 days fails the step and installs nothing, and so does a pin
-  whose publish time cannot be proven: the step fails closed, the way
-  crate-age does.
+  whose publish time cannot be proven: the step fails closed.
 - Each pin must also publish a `sha512` tarball digest (`npm view <pkg>@<version>
   dist.integrity`); npm verifies every download against it, and a pin with none
   fails the step. The digest is not copied into the registry, so Renovate can

@@ -45,7 +45,6 @@ KIT_FILES = (
     "scripts/crates/gold-band-registry/Cargo.toml",
     "scripts/crates/gold-band-registry/src/lib.rs",
     "scripts/install-workspace-tools.sh",
-    ".cargo/config.toml",
     "scripts/Cargo.toml",
     "scripts/Cargo.lock",
     "installer/antigravity-mcp-proxy",

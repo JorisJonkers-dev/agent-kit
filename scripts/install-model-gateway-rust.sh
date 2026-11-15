@@ -34,7 +34,7 @@ if ! command -v cargo >/dev/null 2>&1; then say "skipped, cargo is not on PATH; 
 if [ "$CHECK" = 1 ]; then say "would build and install $DEST_DIR/model-gateway"; exit 0; fi
 
 target=${CARGO_TARGET_DIR:-$KIT/scripts/target}
-# From the kit, so its .cargo/config.toml (the crate gate) applies whatever the caller's directory.
+# From the kit, so cargo reads the workspace whatever the caller's directory.
 cd "$KIT"
 if ! cargo build --release --locked -p model-gateway --manifest-path "$MANIFEST" >&2; then
   say "the build failed; the installed gateway is unchanged"
