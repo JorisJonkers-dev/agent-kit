@@ -2343,3 +2343,41 @@ fn scenario_workflow_names_a_file_it_cannot_write() {
         "{error}"
     );
 }
+
+#[test]
+fn inspect_gives_an_agent_that_answers_and_reviews_the_mixed_role() {
+    let text = r#"{"id":"mixed","nodes":[
+        {"id":"draft","provider":"codex","output":{"schema":{"ok":true}}},
+        {"id":"verdicts","provider":"codex","output":{"schema":{"findings":[]}}},
+        {"id":"only-review","provider":"vibe-study","output":{"schema":{"findings":[]}}},
+        {"id":"ask","provider":"vibe","output":{"schema":{"open_questions":[]}}},
+        {"id":"also-review","provider":"vibe","output":{"schema":{"findings":[]}}},
+        {"id":"bare","provider":"pi"}
+    ]}"#;
+    let info = inspect(text).expect("inspected");
+    assert_eq!(info.roles["codex"], Role::Mixed);
+    assert_eq!(info.roles["vibe-study"], Role::Findings);
+    // Open questions come first: an agent that asks them answers as the questions agent.
+    assert_eq!(info.roles["vibe"], Role::Questions);
+    assert_eq!(info.roles["pi"], Role::Findings);
+}
+
+#[test]
+fn walk_fails_a_mixed_agents_node_only_when_it_routes_failures() {
+    let info = graph(
+        vec![
+            node("draft", Some("codex"), false),
+            node("verdicts", Some("codex"), false),
+            node("check", None, true),
+        ],
+        vec![
+            edge("draft", "verdicts", "success"),
+            edge("verdicts", "$end", "success"),
+            edge("verdicts", "check", "failure"),
+            edge("check", "$end", "success"),
+        ],
+        &[("codex", Role::Mixed)],
+    );
+    assert_eq!(walk(&info, "draft", "clean").exit, 0);
+    assert_eq!(walk(&info, "draft", "needs-human").exit, 2);
+}

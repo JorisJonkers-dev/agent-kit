@@ -181,12 +181,32 @@
       },
       {
         "type": "worker",
+        "id": "grant-check-spec-draft",
+        "executionSlotId": "slot-grant-check-spec-draft",
+        "provider": "grant-spec-draft",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node spec-draft (--node spec-draft) of Workflow C for the work instance, which holds one Codex node start against the run's grant, and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-spec-verdicts-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
         "id": "spec-draft",
         "executionSlotId": "slot-spec-draft",
-        "provider": "claude-work",
-        "model": "sonnet",
+        "provider": "codex",
+        "model": "gpt-5.5",
         "profile": "pf-builtin-dev",
-        "goal": "You are the spec author, from a different family than the review's orchestrator. Write the spec the grilling settled to the spec file the grill record names: only decisions the owner answered, no decision of your own, no ticket yet. Answer with one fenced json block holding ok and nothing else.",
+        "goal": "You are the spec author. You and the review's orchestrator are of one family (OpenAI), and the runner leaves the orchestrator's family out of the critics' roster, so the work critic is the work Claude agent and none is of your family. Write the spec the grilling settled to the spec file the grill record names: only decisions the owner answered, no decision of your own, no ticket yet. Answer with one fenced json block holding ok and nothing else.",
         "output": {
           "kind": "json",
           "artifact": "spec-draft",
@@ -446,12 +466,32 @@
       },
       {
         "type": "worker",
+        "id": "grant-check-tickets-draft",
+        "executionSlotId": "slot-grant-check-tickets-draft",
+        "provider": "grant-tickets-draft",
+        "model": "stub-model",
+        "profile": "pf-builtin-dev",
+        "goal": "Run the pinned gold-band-run-start grant-check wrapper for the Codex node tickets-draft (--node tickets-draft) of Workflow C for the work instance, which holds one Codex node start against the run's grant, and answer with its exit status as one fenced json block and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "grant-check-spec-verdicts-status",
+          "schema": {
+            "exit_code": 0
+          }
+        },
+        "success_condition": {
+          "path": "$.exit_code",
+          "equals": 0
+        }
+      },
+      {
+        "type": "worker",
         "id": "tickets-draft",
         "executionSlotId": "slot-tickets-draft",
-        "provider": "claude-work",
-        "model": "sonnet",
+        "provider": "codex",
+        "model": "gpt-5.5",
         "profile": "pf-builtin-dev",
-        "goal": "You are the ticket author. Break the reviewed spec into tickets, each one vertical slice with a title, a body and labels; use only labels from the repository's setup file (docs/agents/setup.yaml, the labels list). Write them as tickets.json beside the runner's files, in the form {\"tickets\":[{\"title\",\"body\",\"labels\"}]}. Do not create any issue and do not call the tracker. Answer with one fenced json block holding ok and nothing else.",
+        "goal": "You are the ticket author. You and the review's orchestrator are of one family (OpenAI), so no critic of the tickets is of your family. Break the reviewed spec into tickets, each one vertical slice with a title, a body and labels; use only labels from the repository's setup file (docs/agents/setup.yaml, the labels list). Write them as tickets.json beside the runner's files, in the form {\"tickets\":[{\"title\",\"body\",\"labels\"}]}. Do not create any issue and do not call the tracker. Answer with one fenced json block holding ok and nothing else.",
         "output": {
           "kind": "json",
           "artifact": "tickets-draft",
@@ -793,7 +833,7 @@
       },
       {
         "from": "grill-round-1",
-        "to": "spec-draft",
+        "to": "grant-check-spec-draft",
         "on": "success"
       },
       {
@@ -808,7 +848,7 @@
       },
       {
         "from": "grill-round-2",
-        "to": "spec-draft",
+        "to": "grant-check-spec-draft",
         "on": "success"
       },
       {
@@ -823,7 +863,7 @@
       },
       {
         "from": "grill-round-3",
-        "to": "spec-draft",
+        "to": "grant-check-spec-draft",
         "on": "success"
       },
       {
@@ -833,8 +873,18 @@
       },
       {
         "from": "grill-check-3",
+        "to": "grant-check-spec-draft",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-spec-draft",
         "to": "spec-draft",
         "on": "success"
+      },
+      {
+        "from": "grant-check-spec-draft",
+        "to": "grant-refused",
+        "on": "failure"
       },
       {
         "from": "spec-draft",
@@ -893,8 +943,18 @@
       },
       {
         "from": "copy-critique-spec-record",
+        "to": "grant-check-tickets-draft",
+        "on": "success"
+      },
+      {
+        "from": "grant-check-tickets-draft",
         "to": "tickets-draft",
         "on": "success"
+      },
+      {
+        "from": "grant-check-tickets-draft",
+        "to": "grant-refused",
+        "on": "failure"
       },
       {
         "from": "tickets-draft",
@@ -1046,9 +1106,14 @@
         "modelId": "sonnet"
       },
       {
+        "executionSlotId": "slot-grant-check-spec-draft",
+        "agentId": "grant-spec-draft",
+        "modelId": "stub-model"
+      },
+      {
         "executionSlotId": "slot-spec-draft",
-        "agentId": "claude-work",
-        "modelId": "sonnet"
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
       },
       {
         "executionSlotId": "slot-gate-critique-spec-prepare",
@@ -1106,9 +1171,14 @@
         "modelId": "stub-model"
       },
       {
+        "executionSlotId": "slot-grant-check-tickets-draft",
+        "agentId": "grant-tickets-draft",
+        "modelId": "stub-model"
+      },
+      {
         "executionSlotId": "slot-tickets-draft",
-        "agentId": "claude-work",
-        "modelId": "sonnet"
+        "agentId": "codex",
+        "modelId": "gpt-5.5"
       },
       {
         "executionSlotId": "slot-gate-critique-tickets-prepare",

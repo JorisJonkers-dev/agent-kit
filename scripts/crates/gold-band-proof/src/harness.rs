@@ -163,6 +163,7 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
     let mut has_manual_check = false;
     let mut answers = BTreeSet::new();
     let mut questions = BTreeSet::new();
+    let mut findings = BTreeSet::new();
     let mut dynamic: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut nodes = Vec::new();
     if let Some(Value::Array(entries)) = definition.get("nodes") {
@@ -193,6 +194,9 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
                 }
                 if answers_with_ok(object) {
                     answers.insert(provider.to_string());
+                }
+                if lists_findings(object) {
+                    findings.insert(provider.to_string());
                 }
             }
             if let Some(strategy) = strategy {
@@ -252,7 +256,7 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
         .map(|agent_id| {
             (
                 agent_id.clone(),
-                role_for(agent_id, &answers, &questions, &dynamic),
+                role_for(agent_id, &answers, &questions, &findings, &dynamic),
             )
         })
         .collect();
@@ -273,6 +277,14 @@ pub fn inspect(workflow_json: &str) -> Result<WorkflowInfo, String> {
 fn answers_with_ok(node: &Map<String, Value>) -> bool {
     match node.get("output").and_then(|output| output.get("schema")) {
         Some(Value::Object(schema)) => !schema.contains_key("findings"),
+        _ => false,
+    }
+}
+
+/// Whether a node's `output.schema` is a JSON object holding a `findings` key.
+fn lists_findings(node: &Map<String, Value>) -> bool {
+    match node.get("output").and_then(|output| output.get("schema")) {
+        Some(Value::Object(schema)) => schema.contains_key("findings"),
         _ => false,
     }
 }
@@ -394,6 +406,7 @@ fn role_for(
     agent_id: &str,
     answers: &BTreeSet<String>,
     questions: &BTreeSet<String>,
+    findings: &BTreeSet<String>,
     dynamic: &BTreeMap<String, Vec<String>>,
 ) -> Role {
     if let Some(name) = agent_id
@@ -423,7 +436,9 @@ fn role_for(
     if questions.contains(agent_id) {
         return Role::Questions;
     }
-    if answers.contains(agent_id) {
+    if answers.contains(agent_id) && findings.contains(agent_id) {
+        Role::Mixed
+    } else if answers.contains(agent_id) {
         Role::Answer
     } else {
         Role::Findings
@@ -531,7 +546,7 @@ fn node_fails(info: &WorkflowInfo, node: &GraphNode, verdict: &str) -> bool {
         // A critic or questions agent also runs nodes with no success
         // condition (a drafting node), so only a node that routes failures
         // (a merge, a grill round) is taken to fail.
-        Role::Findings => verdict == NEEDS_HUMAN && routes_failure(info, node),
+        Role::Findings | Role::Mixed => verdict == NEEDS_HUMAN && routes_failure(info, node),
         Role::Questions => verdict == OPEN_QUESTIONS && routes_failure(info, node),
         Role::Answer => false,
         // A dynamic node plans its own fan-out and finishes every internal node.

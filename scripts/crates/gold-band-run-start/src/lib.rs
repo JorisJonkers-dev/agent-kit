@@ -27,6 +27,15 @@
 //!   from the gateway's own grants record (ADR-0008, ADR-0014). The cap is
 //!   counted in Codex node starts by the per-node grant check, not here.
 //!
+//! * `critic-family` (#796): no critic the workflow's runner can route to is of
+//!   the family of the writer whose artifact it reviews. It is the `critic-family`
+//!   rule of `workflow-lint --critique`, run over the routing this machine really
+//!   uses: the routing agent-kit ships with `~/.config/agent-kit/critique-routing.json`
+//!   (or `--routing-override FILE`) merged over it, so an override that puts a
+//!   writer's family back in a stage's roster refuses the run. The runner leaves the
+//!   orchestrator's family out of a roster, so a template meets the rule by binding
+//!   its writer and its orchestrator to one family.
+//!
 //! The second subcommand, `grant-check`, is the per-node check the workflow
 //! runs through this same pinned wrapper before every Codex node, "for the
 //! grant alone". It reserves ONE Codex node start against the run's grant in
@@ -44,7 +53,7 @@
 //! gold-band-run-start check --instance gold-band|gold-band-personal
 //!     --repo DIR --workflow-name NAME --run-id ID --attempt N
 //!     --workflow FILE --families FILE [--allowlist FILE] [--grants FILE]
-//!     [--now RFC3339] --report-dir DIR
+//!     [--routing-override FILE] [--now RFC3339] --report-dir DIR
 //! gold-band-run-start grant-check --repo DIR --workflow-name NAME --run-id ID
 //!     --attempt N --node NODE --report-dir DIR [--gateway CMD]
 //! ```
@@ -82,6 +91,7 @@ const GRANT_CHECK: &str = "grant-check";
 const CHECK_REPOSITORY: &str = "repository-rule";
 const CHECK_FAMILY: &str = "family-allowlist";
 const CHECK_GRANT: &str = "grant";
+const CHECK_CRITIC_FAMILY: &str = "critic-family";
 const CHECK_GRANT_LAPSED: &str = "grant-lapsed";
 const CHECK_GRANT_NO_START: &str = "grant-no-start-left";
 const CHECK_GRANT_RESERVE: &str = "grant-reserve";
@@ -215,6 +225,7 @@ struct Options {
     families: String,
     allowlist: Option<String>,
     grants: Option<String>,
+    routing_override: Option<String>,
     now: Option<u64>,
     report_dir: String,
 }
@@ -251,7 +262,7 @@ fn problem(check: &'static str, text: String) -> Problem {
 }
 
 /// The value flags `check` takes.
-const FLAGS: [&str; 11] = [
+const FLAGS: [&str; 12] = [
     "instance",
     "repo",
     "workflow-name",
@@ -261,6 +272,7 @@ const FLAGS: [&str; 11] = [
     "families",
     "allowlist",
     "grants",
+    "routing-override",
     "now",
     "report-dir",
 ];
@@ -283,7 +295,7 @@ fn usage(subcommand: &str) -> String {
             "usage: {NAME} {GRANT_CHECK} --repo DIR --workflow-name NAME --run-id ID --attempt N --node NODE --report-dir DIR [--gateway CMD]"
         ),
         _ => format!(
-            "usage: {NAME} {CHECK} --instance gold-band|gold-band-personal --repo DIR --workflow-name NAME --run-id ID --attempt N --workflow FILE --families FILE [--allowlist FILE] [--grants FILE] [--now RFC3339] --report-dir DIR"
+            "usage: {NAME} {CHECK} --instance gold-band|gold-band-personal --repo DIR --workflow-name NAME --run-id ID --attempt N --workflow FILE --families FILE [--allowlist FILE] [--grants FILE] [--routing-override FILE] [--now RFC3339] --report-dir DIR"
         ),
     }
 }
@@ -353,6 +365,7 @@ fn options(found: &BTreeMap<String, String>) -> Result<Options, String> {
         families: get("families")?,
         allowlist: found.get("allowlist").cloned(),
         grants: found.get("grants").cloned(),
+        routing_override: found.get("routing-override").cloned(),
         now,
         report_dir: get("report-dir")?,
     })
@@ -562,6 +575,7 @@ fn check(opts: &Options, host: &dyn Host) -> Result<Vec<Problem>, String> {
     let families = read_families(&opts.families)?;
     let mut problems = repository_problems(opts.instance, &remotes);
     problems.extend(family_problems(opts, host, &remotes, &workflow, &families)?);
+    problems.extend(critic_family_problems(opts, host)?);
     if opts.instance == Instance::Work {
         problems.extend(grant_problems(opts, host, &remotes, &workflow)?);
     }
@@ -596,6 +610,47 @@ fn repository_problems(instance: Instance, remotes: &[Remote]) -> Vec<Problem> {
         out.extend(text.map(|t| problem(CHECK_REPOSITORY, t)));
     }
     out
+}
+
+/// The critique routing override of this machine, as the runner finds it: the file named by the
+/// flag, else `$HOME/.config/agent-kit/critique-routing.json`. No file, and no `HOME` to look
+/// under, mean no override.
+fn read_routing_override(opts: &Options, host: &dyn Host) -> Result<Option<Value>, String> {
+    let path = match (&opts.routing_override, host.env("HOME")) {
+        (Some(path), _) => path.clone(),
+        (None, Some(home)) => format!("{home}/.config/agent-kit/critique-routing.json"),
+        (None, None) => return Ok(None),
+    };
+    let text = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound && opts.routing_override.is_none() => {
+            return Ok(None)
+        }
+        Err(e) => return Err(format!("{path}: cannot read: {e}")),
+    };
+    serde_json::from_str(&text)
+        .map(Some)
+        .map_err(|e| format!("{path}: not JSON: {e}"))
+}
+
+/// The critic-family check (#796): the `critic-family` findings of the workflow over the routing
+/// this machine runs, one problem each.
+fn critic_family_problems(opts: &Options, host: &dyn Host) -> Result<Vec<Problem>, String> {
+    let routing = read_routing_override(opts, host)?;
+    // `read_workflow` has already parsed this file once, so it is JSON here.
+    let value: Value = serde_json::from_str(&read_text(&opts.workflow)?).unwrap_or(Value::Null);
+    let instance = match opts.instance {
+        Instance::Work => workflow_lint::Instance::Work,
+        Instance::Personal => workflow_lint::Instance::Personal,
+    };
+    // A definition with no edge list has no graph to pair writers with critics; Gold Band's own
+    // validator refuses it, so the check has nothing to say about it.
+    let found = workflow_lint::critic_family_findings(&value, instance, routing.as_ref())
+        .unwrap_or_default();
+    Ok(found
+        .into_iter()
+        .map(|finding| problem(CHECK_CRITIC_FAMILY, finding))
+        .collect())
 }
 
 /// One agent id a node binds.

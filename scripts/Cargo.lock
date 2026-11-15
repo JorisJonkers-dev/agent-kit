@@ -97,6 +97,7 @@ version = "0.1.0"
 dependencies = [
  "gold-band-report",
  "serde_json",
+ "workflow-lint",
 ]
 
 [[package]]

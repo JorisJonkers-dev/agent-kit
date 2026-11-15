@@ -23,6 +23,7 @@ a temporary directory:
   | `findings` | anything else | the findings document for the verdict |
   | `questions` | a node whose `output.schema` has an `open_questions` key | `{"open_questions": []}`, or one open question under the verdict `open-questions` |
   | `answer` | a node whose `output.schema` is an object without a `findings` key | `{"ok": true}` |
+  | `mixed` | an agent that runs both answer nodes and `findings` nodes (the work instance's `codex`: drafts and review orchestrators) | the findings document with `"ok": true` beside it |
   | `dynamic:<agent ids>` | an agent id an `ai-dynamic` node's `agentStrategy` names | for an AI-DYNAMIC internal prompt, the node's `dynamic-node-completion`: the bootstrap fans out to one worker per listed agent id (two when it lists one) and every other internal node ends; any other prompt gets `{"ok": true}` |
   | `verdict:<n>` | `verdict-<n>` | `{"actionable": 1}` under the verdict `actionable=K` when `n <= K`, else `{"actionable": 0}` |
   | `gate:<name>` | `gate-<name>` | `{"exit_code": N}`, the exit code `gold-band-gate run` earned |
