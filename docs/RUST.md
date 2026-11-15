@@ -540,7 +540,7 @@ AGENT_KIT_BUILD_TRACKER=node sh <build-tracker dir>/build-tracker ...   # one ca
 touch ~/.config/agent-kit/build-tracker-node                            # every call, until removed
 ```
 
-`tests/test_build_tracker_rust_swap.py` covers the launcher and the installer with stub
+`tests/test_build_tracker_setup.py` covers the launcher and the installer with stub
 programs.
 
 ## model-gateway
