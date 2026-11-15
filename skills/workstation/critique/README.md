@@ -32,7 +32,7 @@ public-only LiteLLM route (below) is never routed to a private repository.
 | `plan` | `/critique-plan` | `/improve-codebase-architecture` (a refactor) / `/to-spec`; takes the decisions stage's place | DeepSeek Flash (`plan-critic`, `incremental-safety`), Mistral Large (`plan-critic`, `evidence-anchoring`) | GLM (`plan-critic`, `coupling` and `test-seams`) | Plan fixes that change only how, or in what order, the plan reaches its target; a question for any fix that changes the target, an ADR's standing or accepts an irreversible step; a second round after more than three accepted critical findings |
 | `spec` | `/review-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
 | `tickets` | `/review-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
-| `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
+| `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`, Spec axis) and GLM (Standards axis) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
 | `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Large with `adr-reviewer` and `adr-record`, Gemini Flash with `adr-reviewer` and `decision-log` | GLM with `adr-reviewer`, both lenses | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
 | `decision-recovery` | `/recover-decisions` | on demand, outside any feature | DeepSeek Flash, Mistral Large (`decision-recoverer`) | none | Recovered decisions the code embodies and no record states, each traced to two sites of the code; a question for any that is significant and new, ten at most, and an ADR written from your answer |
@@ -227,6 +227,8 @@ in `lenses/`.
 - `aggregates`: each invariant held by its root, and one transaction per aggregate.
 - `coupling`: modules that depend on another's internals, or share one decision.
 - `test-seams`: behaviour testable at a seam with no real database, network or clock.
+- `spec-conformance`: the change delivers each criterion of the ticket and its spec, and nothing more (the Spec axis of a code review).
+- `standards`: the change follows the repository's documented coding standards (the Standards axis of a code review).
 - `quality-scenarios`: quality claims with a stimulus and a number, and a check for each structural decision.
 - `adr-record`: one decision record at a time, for its content and never
   its headings: a sentence that states the decision, a rejected alternative

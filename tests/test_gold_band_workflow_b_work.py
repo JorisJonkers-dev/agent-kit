@@ -1,12 +1,14 @@
-"""Workflow B in the work instance (issue #462).
+"""Workflow B v2 in the work instance (issues #462 and #797).
 
 The template at ``installer/gold-band/workflows/workflow-b-work.json`` is
-Workflow B bound to the work instance's two agents only: the work Claude agent
-(``claude-work``, Anthropic) and Codex (``codex``, OpenAI). The personal
-``workflow-b.json`` is untouched. Author and reviewer are always of different
-families: Claude writes the tests and reviews, Codex writes the code and the
-repairs. Every Codex node (the writer and both repairs) is preceded by a
-grant-check node (#460), and that node's failure edge leads to a manual check.
+Workflow B v2 bound to the work instance's two agents only: the work Claude agent
+(``claude-work``, Anthropic) and Codex (``codex``, OpenAI). It has the shape of the
+personal ``workflow-b.json`` (unrolled TDD slices, a test critic, gate repair edges,
+the runner's ticket-review stage). Claude plans and writes each slice's test and
+reviews the code, Codex writes the code, the repairs, the writer's self-review and,
+because two families cannot make three, the test critic. Every Codex node is
+preceded by a grant-check node (#460), and that node's failure edge leads to a
+manual check.
 
 The static tests read the template as a file. The headless proof runs each
 Codex node's stretch of the real template (its grant-check node, the Codex node
@@ -51,9 +53,33 @@ RUN_NAME = f"{WORKFLOW_NAME}@github.com/nedap/healthcare@{RUN_ID}"
 #: The work instance's two agents and their families (the families file's mapping).
 FAMILY = {"claude-work": "anthropic", "codex": "openai"}
 #: The stub agent ids the gate shim and the verdicts run as, as in the personal template.
-SHIM_PREFIXES = ("gate-", "copy-", "verdict-", "grant-")
-#: Every node that binds Codex, and the grant-check node that must precede it.
-CODEX_NODES = ["writer", "repair-1", "repair-2"]
+SHIM_PREFIXES = ("gate-", "copy-", "verdict-", "grant-", "accept-")
+#: Every node that binds Codex, and the grant-check node that must precede it: the three slices'
+#: test critics and writers, the two repairs, the self-review and the review stage's own Codex nodes.
+CODEX_NODES = [
+    "test-critic-1",
+    "writer-s1",
+    "test-critic-2",
+    "writer-s2",
+    "test-critic-3",
+    "writer-s3",
+    "repair-1",
+    "repair-2",
+    "self-review",
+    "ticket-review-verdicts",
+    "ticket-review-revise-1",
+    "ticket-review-verdicts-2",
+]
+WRITERS = ["writer-s1", "writer-s2", "writer-s3", "repair-1", "repair-2", "self-review"]
+AUTHORS = [
+    "slice-plan",
+    "test-author-s1",
+    "test-author-s2",
+    "test-author-s3",
+    "test-revise-1",
+    "test-revise-2",
+    "test-revise-3",
+]
 
 
 @pytest.fixture(scope="module")
@@ -118,26 +144,34 @@ def test_only_the_work_agents_and_the_shim_stubs_are_bound(
             assert agent in FAMILY or _is_shim(agent), (node["id"], agent)
 
 
-def test_author_and_reviewer_are_always_of_different_families(
+def test_author_and_reviewer_are_of_different_families_where_two_families_allow(
     nodes: dict[str, dict[str, Any]],
 ) -> None:
-    """The writer and its repairs are one family; the test author and every critic another.
+    """Codex writes code, Claude writes the tests; the test critic is Codex (the author's competitor).
 
-    Each round has one critic worker, not an ai-dynamic fan-out: Gold Band refuses a fan-out of
-    fewer than two nodes, and the work instance has one other family to fan out to.
+    The work instance has two families, so a test critic cannot differ from both the test author and
+    the writer: it differs from the author (which the lint checks) and the writer is the tests' consumer.
     """
-    writers = {FAMILY[nodes[n]["provider"]] for n in CODEX_NODES}
-    assert writers == {"openai"}
-    assert FAMILY[nodes["test-author"]["provider"]] != "openai"
-    for round_ in (1, 2, 3):
-        critic = nodes[f"critics-{round_}"]
+    assert {FAMILY[nodes[n]["provider"]] for n in WRITERS} == {"openai"}
+    assert {FAMILY[nodes[n]["provider"]] for n in AUTHORS} == {"anthropic"}
+    for slice_ in (1, 2, 3):
+        critic = nodes[f"test-critic-{slice_}"]
         assert critic["type"] == "worker"
-        assert FAMILY[critic["provider"]] == "anthropic"
+        assert FAMILY[critic["provider"]] == "openai"
         assert critic["profile"] == "pf-diff-reviewer"
-        assert f"findings/critics-{round_}.json" in critic["goal"] and "quote" in critic["goal"]
+        assert f"findings/test-critic-{slice_}.json" in critic["goal"] and "quote" in critic["goal"]
 
 
-def test_codex_is_bound_only_by_the_writer_and_its_two_repairs(
+def test_the_code_review_leaves_the_orchestrator_s_family_out_so_claude_reviews_both_axes() -> None:
+    routing = json.loads((KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json").read_text())
+    work = routing["stages"]["ticket-review"]["work"]
+    families = {routing["clients"][e["client"]]["family"]: e["lenses"] for e in work}
+    assert set(families) == {"openai", "anthropic"}
+    # The orchestrator is Codex, the writer's family, so the runner drops it: the work Claude agent is left.
+    assert families["anthropic"][:2] == ["spec-conformance", "standards"]
+
+
+def test_codex_is_bound_only_by_the_writers_the_test_critics_and_the_review_stage_s_codex_nodes(
     nodes: dict[str, dict[str, Any]],
 ) -> None:
     codex = [n["id"] for n in nodes.values() if "codex" in _agents(n)]
@@ -170,12 +204,15 @@ def test_a_refused_grant_check_goes_to_a_manual_check_and_never_to_codex(
     assert _out(workflow, "grant-refused") == {"success": "$end"}
 
 
-def test_the_repairs_are_reached_through_their_grant_check_after_a_failed_verdict(
+def test_a_failed_gate_reaches_a_repair_through_its_grant_check_and_a_failed_review_the_writer(
     workflow: dict[str, Any],
 ) -> None:
-    assert _out(workflow, "verdict-1")["failure"] == "grant-check-repair-1"
-    assert _out(workflow, "verdict-2")["failure"] == "grant-check-repair-2"
-    assert _out(workflow, "verdict-3")["failure"] == "workflow-b-escalation"
+    for gate in ("build", "test", "lint", "coverage"):
+        assert _out(workflow, f"gate-{gate}")["failure"] == "grant-check-repair-1"
+        assert _out(workflow, f"gate-{gate}-r1")["failure"] == "grant-check-repair-2"
+        assert _out(workflow, f"gate-{gate}-r2")["failure"] == "gates-escalation"
+    assert _out(workflow, "accept-ticket-review-1")["failure"] == "grant-check-ticket-review-revise-1"
+    assert _out(workflow, "accept-ticket-review-2")["failure"] == "ticket-review-escalation"
 
 
 def test_every_worker_binds_the_agent_and_model_its_slot_names(
@@ -189,16 +226,19 @@ def test_every_worker_binds_the_agent_and_model_its_slot_names(
         assert (binding["agentId"], binding["modelId"]) == (node["provider"], node["model"])
 
 
-def test_the_work_variant_keeps_workflow_bs_gates_repairs_and_escalation(
+def test_the_work_variant_keeps_workflow_bs_slices_gates_review_and_escalation(
     workflow: dict[str, Any], nodes: dict[str, dict[str, Any]]
 ) -> None:
     personal = json.loads(PERSONAL.read_text())["workflow"]
     shared = {n["id"] for n in personal["nodes"]}
     assert shared <= set(nodes)
     assert set(nodes) - shared == {"grant-refused", *(f"grant-check-{n}" for n in CODEX_NODES)}
-    assert [e for e in workflow["edges"] if e["from"].startswith(("gate-", "copy-")) and e["on"] != "success"] == []
-    assert nodes["workflow-b-escalation"]["model"] == "opus"
-    assert [n for n in nodes if "opus" in json.dumps(nodes[n]).lower()] == ["workflow-b-escalation"]
+    # A copier has no failure edge; a gate's goes to a repair (through its grant check), an escalation or a check.
+    failing = {e["from"] for e in workflow["edges"] if e["from"].startswith("copy-") and e["on"] != "success"}
+    assert failing == set()
+    assert nodes["ticket-review-escalation"]["model"] == "opus"
+    opus = [n for n in nodes if "opus" in json.dumps(nodes[n]).lower()]
+    assert opus == ["gates-escalation", "ticket-review-escalation"]
 
 
 # ---- the headless proof: a missing grant refuses, a live grant lets Codex run ----
@@ -246,7 +286,14 @@ def _stretch(template: dict[str, Any], codex_node: str) -> dict[str, Any]:
     """The real template cut to one Codex node: its grant-check node, the node, the manual check."""
     workflow = template["workflow"]
     keep = {f"grant-check-{codex_node}", codex_node, "grant-refused"}
-    nodes = [dict(n) for n in workflow["nodes"] if n["id"] in keep]
+    # The throw-away machine holds the builtin profile only, so a test critic's review profile is cut to it:
+    # this proof is about the grant check before the node, not about the profile the node reads with.
+    nodes = [{**n, "profile": "pf-builtin-dev"} for n in workflow["nodes"] if n["id"] in keep]
+    for node in nodes:
+        if node["id"] == codex_node:
+            # The review orchestrator answers with a findings list in the real template; the stub answers ok.
+            node["output"] = {"kind": "json", "artifact": f"{codex_node}-stretch", "schema": {"ok": True}}
+            node["success_condition"] = {"path": "$.ok", "equals": True}
     edges = [e for e in workflow["edges"] if e["from"] in keep and e["to"] in keep]
     edges.append({"from": codex_node, "to": "$end", "on": "success"})
     slots = {n["executionSlotId"] for n in nodes}
@@ -325,7 +372,7 @@ def test_a_live_grant_lets_the_codex_node_run_after_reserving_one_start(
 @needs_headless
 def test_a_grant_with_no_start_left_refuses_the_next_codex_node(work: WorkMachine, template: dict[str, Any]) -> None:
     work.grant(1)
-    assert _run(work, template, "writer")[0] == 0
+    assert _run(work, template, "writer-s1")[0] == 0
     code, markers, said = _run(work, template, "repair-1")
     assert code == 2, said
     assert not markers["codex"].exists(), "Codex ran past its last start"

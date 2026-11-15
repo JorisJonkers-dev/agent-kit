@@ -150,6 +150,60 @@
         "prototype": "grant-check-spec-draft"
       },
       "routing_note": "The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family)."
+    },
+    {
+      "template": "workflow-b.json",
+      "stage": "ticket-review",
+      "writer": "self-review",
+      "next": "gate-build-r3",
+      "label": "the ticket's code review (/review-implementation)",
+      "artifact": "the ticket's change, read on two axes: Standards (this repository's documented coding standards) and Spec (what the ticket and its spec ask)",
+      "orchestrator": {
+        "provider": "pi",
+        "model": "litellm-vibe-study/deepseek-v4.1-flash"
+      },
+      "needs_human": {
+        "provider": "pi",
+        "model": "litellm-vibe/glm-5.3"
+      },
+      "escalation": {
+        "provider": "claude",
+        "model": "opus"
+      },
+      "escalation_check": {
+        "provider": "pi",
+        "model": "litellm-vibe/glm-5.3"
+      },
+      "routing_note": "The writer is DeepSeek and the test author Mistral: the orchestrator is bound to the writer's family, so the runner drops it from the roster, and the base depth reviews with the Spec and Standards critics of the other families (Gemini and GLM); do not ask for the deep depth, whose critic is the test author's family."
+    },
+    {
+      "template": "workflow-b-work.json",
+      "stage": "ticket-review",
+      "writer": "self-review",
+      "next": "gate-build-r3",
+      "label": "the ticket's code review (/review-implementation)",
+      "artifact": "the ticket's change, read on two axes: Standards (this repository's documented coding standards) and Spec (what the ticket and its spec ask)",
+      "orchestrator": {
+        "provider": "codex",
+        "model": "gpt-5.5"
+      },
+      "needs_human": {
+        "provider": "claude-work",
+        "model": "sonnet"
+      },
+      "escalation": {
+        "provider": "claude-work",
+        "model": "opus"
+      },
+      "escalation_check": {
+        "provider": "claude-work",
+        "model": "sonnet"
+      },
+      "grant": {
+        "refusal": "grant-refused",
+        "prototype": "grant-check-writer-s1"
+      },
+      "routing_note": "The repository's remote is owned by nedap, so the runner routes this stage to the work-only critic roster (Codex under the run's grant and the work Claude agent, never the orchestrator's own family), and the work Claude agent covers the Spec and Standards axes alone; do not ask for the deep depth, whose critic is not a work agent."
     }
   ]
 }

@@ -114,8 +114,83 @@ fn the_spec_stage_template_ends_with_exit_0_and_pauses_with_exit_2() {
     assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
 }
 
+/// What both Workflow B v2 templates prove besides the work variant's grant checks: the unrolled
+/// slices with their test critics, the gate repair edges, the review stage and its escalations.
+fn assert_workflow_b_v2(stdout: &str) {
+    assert!(
+        stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+    // A test critic finding sends one slice's test back to the test author and the run goes on; a
+    // review round with open blocking findings is repaired once and reviewed again.
+    assert!(
+        stdout.contains("actionable-1: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+    // The second failed review round reaches the escalation node and pauses (exit 2); the run
+    // never ends on the control limit.
+    for round in ["actionable-2", "actionable-3"] {
+        assert!(
+            stdout.contains(&format!("{round}: expected exit 2, got 2 (paused/")),
+            "{stdout}"
+        );
+    }
+    // A failed gate goes to a repair node, not to the end of the run.
+    for gate in ["build", "test", "lint", "coverage"] {
+        assert!(
+            stdout.contains(&format!(
+                "gate-fail-{gate}: expected exit 0, got 0 (completed/success)"
+            )),
+            "{stdout}"
+        );
+        assert!(
+            stdout.contains(&format!(
+                "gate-fail-{gate}-and-{gate}-r1: expected exit 0, got 0 (completed/success)"
+            )),
+            "{stdout}"
+        );
+        // The same gate failing after both repairs reaches the gate escalation and pauses.
+        assert!(
+            stdout.contains(&format!(
+                "gate-fail-{gate}-and-{gate}-r1-and-{gate}-r2: expected exit 2, got 2 (paused/"
+            )),
+            "{stdout}"
+        );
+        // After the code review a failed final gate pauses at the final check.
+        assert!(
+            stdout.contains(&format!(
+                "gate-fail-{gate}-r3: expected exit 2, got 2 (paused/"
+            )),
+            "{stdout}"
+        );
+    }
+    // A failing finding check or runner gate has no failure edge and ends the run.
+    for gate in [
+        "findings-1",
+        "findings-2",
+        "findings-3",
+        "critique-ticket-review-prepare",
+        "critique-ticket-review-fan-out",
+        "critique-ticket-review-refute",
+        "critique-ticket-review-record",
+    ] {
+        assert!(
+            stdout.contains(&format!(
+                "gate-fail-{gate}: expected exit 1, got 1 (completed/failure)"
+            )),
+            "{stdout}"
+        );
+    }
+    // The run resumes after the gate escalation's manual check into the code review.
+    assert!(
+        stdout.contains("after-gates-check.clean: expected exit 0, got 0 (completed/success)"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+}
+
 #[test]
-fn workflow_b_repairs_twice_then_escalates_to_a_manual_check_and_fails_closed_on_a_gate() {
+fn workflow_b_slices_repairs_gates_and_reviews_with_escalations_and_fails_closed_on_a_gate() {
     let Some(gold_band) = gold_band() else { return };
     let records = scratch("workflow-b");
     let output = prove(&workflow_b(), &records, &[], &gold_band);
@@ -126,34 +201,7 @@ fn workflow_b_repairs_twice_then_escalates_to_a_manual_check_and_fails_closed_on
         "{stdout}\n{}",
         text(&output.stderr)
     );
-    assert!(
-        stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
-        "{stdout}"
-    );
-    // A repair that clears the findings ends the run in success.
-    for round in ["actionable-1", "actionable-2"] {
-        assert!(
-            stdout.contains(&format!(
-                "{round}: expected exit 0, got 0 (completed/success)"
-            )),
-            "{stdout}"
-        );
-    }
-    // The second failed repair reaches the escalation node and pauses (exit 2);
-    // the run never ends on the control limit.
-    assert!(
-        stdout.contains("actionable-3: expected exit 2, got 2 (paused/none)"),
-        "{stdout}"
-    );
-    for gate in ["build", "test", "lint", "coverage", "findings-1"] {
-        assert!(
-            stdout.contains(&format!(
-                "gate-fail-{gate}: expected exit 1, got 1 (completed/failure)"
-            )),
-            "{stdout}"
-        );
-    }
-    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+    assert_workflow_b_v2(&stdout);
 }
 
 #[test]
@@ -200,36 +248,26 @@ fn workflow_b_work_pauses_at_a_refused_grant_check_before_any_codex_node() {
         "{stdout}\n{}",
         text(&output.stderr)
     );
-    assert!(
-        stdout.contains("clean: expected exit 0, got 0 (completed/success)"),
-        "{stdout}"
-    );
-    // A lapsed grant fails the grant-check node, whose failure edge leads to a manual check.
-    assert!(
-        stdout.contains("grant-lapse-writer: expected exit 2, got 2 (paused/"),
-        "{stdout}"
-    );
-    for round in ["actionable-1", "actionable-2"] {
+    // A lapsed grant fails the grant-check node, whose failure edge leads to a manual check,
+    // before each of the twelve Codex nodes the run reaches without a failure.
+    for node in [
+        "writer-s1",
+        "writer-s2",
+        "writer-s3",
+        "test-critic-1",
+        "test-critic-2",
+        "test-critic-3",
+        "self-review",
+        "ticket-review-verdicts",
+    ] {
         assert!(
             stdout.contains(&format!(
-                "{round}: expected exit 0, got 0 (completed/success)"
+                "grant-lapse-{node}: expected exit 2, got 2 (paused/"
             )),
             "{stdout}"
         );
     }
-    assert!(
-        stdout.contains("actionable-3: expected exit 2, got 2 (paused/none)"),
-        "{stdout}"
-    );
-    for gate in ["build", "test", "lint", "coverage", "findings-1"] {
-        assert!(
-            stdout.contains(&format!(
-                "gate-fail-{gate}: expected exit 1, got 1 (completed/failure)"
-            )),
-            "{stdout}"
-        );
-    }
-    assert!(stdout.contains("gold-band-proof: passed"), "{stdout}");
+    assert_workflow_b_v2(&stdout);
 }
 
 #[test]
@@ -556,18 +594,18 @@ fn every_wave_3_template_ends_in_its_expected_state() {
 }
 
 #[test]
-fn a_run_that_expects_success_from_a_failing_gate_fails_the_proof() {
+fn a_run_that_expects_success_from_a_failing_finding_check_fails_the_proof() {
     let Some(gold_band) = gold_band() else { return };
     let records = scratch("workflow-b-wrong");
     let output = prove(
         &workflow_b(),
         &records,
-        &["--scenario", "gate-fail-test:gate-fail=test:0"],
+        &["--scenario", "finding-check:gate-fail=findings-1:0"],
         &gold_band,
     );
     assert_eq!(output.status.code(), Some(1), "{}", text(&output.stdout));
     assert!(
-        text(&output.stderr).contains("gate-fail-test: expected exit 0, got 1"),
+        text(&output.stderr).contains("finding-check: expected exit 0, got 1"),
         "{}",
         text(&output.stderr)
     );

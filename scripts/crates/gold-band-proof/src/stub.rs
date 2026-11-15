@@ -293,7 +293,7 @@ pub(crate) fn report_document(exit_code: i32) -> Value {
 /// failing, else `true`. The copier derives its `--command` from the same
 /// function, so the two always agree.
 fn gate_command(verdict: &str, name: &str) -> Vec<String> {
-    let failing = verdict.trim().strip_prefix("gate-fail=") == Some(name);
+    let failing = crate::harness::gate_fail_names(verdict).contains(&name);
     if failing {
         vec!["false".to_string()]
     } else {
