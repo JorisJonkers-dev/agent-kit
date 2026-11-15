@@ -10,6 +10,7 @@ exit codes (1 too young, 2 unprovable) come from the standards repo.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import platform
@@ -500,3 +501,27 @@ def test_retire_removes_every_installed_file_and_keeps_the_binaries(tmp_path: Pa
     assert not (host.bin_dir / "gold-band-launch").exists()
     assert not list((host.root / "share").rglob("gold-band*"))
     assert (host.bin_dir / "gold-band-desktop").exists()
+
+
+def test_a_binary_replaced_behind_the_record_is_rebuilt_not_called_built(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    assert host.run().returncode == 0
+    desktop = host.bin_dir / "gold-band-desktop"
+    desktop.write_text("#!/bin/sh\necho some updater's appimage\n")
+    before = len([c for c in calls_of(host) if c.startswith("cargo")])
+    done = host.run()
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "already built" not in done.stdout
+    assert len([c for c in calls_of(host) if c.startswith("cargo")]) == before + 2
+    record = json.loads(host.state.read_text())
+    assert record["gold-band-desktop"]["sha256"] == hashlib.sha256(desktop.read_bytes()).hexdigest()
+    assert "appimage" not in desktop.read_text()
+
+
+def test_a_missing_binary_is_rebuilt(tmp_path: Path) -> None:
+    host = make_host(tmp_path)
+    assert host.run().returncode == 0
+    (host.bin_dir / "gold-band").unlink()
+    done = host.run()
+    assert "already built" not in done.stdout
+    assert (host.bin_dir / "gold-band").exists()

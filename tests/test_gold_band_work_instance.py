@@ -179,7 +179,7 @@ def test_without_an_overlay_the_agents_alone_are_converged(tmp_path: Path, monke
     mac = Mac(tmp_path, monkeypatch, overlay=None)
 
     assert mac.run() == 0
-    assert set(mac.document()) == {"agents", "settingsSchemaVersion"}
+    assert set(mac.document()) == {"agents", "settingsSchemaVersion", "desktopUpdaterUrlOverride"}
 
     assert mac.run(overlay=False) == 0
 
@@ -188,7 +188,7 @@ def test_an_overlay_without_servers_or_settings_adds_no_keys(tmp_path: Path, mon
     mac = Mac(tmp_path, monkeypatch, overlay={"instances": {"gold-band": {"agents": ["codex"]}}})
 
     assert mac.run() == 0
-    assert set(mac.document()) == {"agents", "settingsSchemaVersion"}
+    assert set(mac.document()) == {"agents", "settingsSchemaVersion", "desktopUpdaterUrlOverride"}
 
 
 def test_an_overlay_the_crate_refuses_writes_nothing(

@@ -68,9 +68,16 @@ die() { say "$*" >&2; exit 1; }
 [ "$(uname -s)" = Linux ] || die "this builder is for Linux; the Mac build is its own ticket"
 [ "$(uname -m)" = x86_64 ] || die "only Linux x86_64 is supported here (this host is $(uname -m))"
 
+# A binary replaced behind the record (the app's own updater once did) is not "built".
 recorded() {
-  [ -f "$STATE" ] && grep -q "\"commit\": \"$commit\"" "$STATE" \
-    && [ -x "$BIN_DIR/gold-band" ] && [ -x "$BIN_DIR/gold-band-desktop" ]
+  local name want have
+  [ -f "$STATE" ] && grep -q "\"commit\": \"$commit\"" "$STATE" || return 1
+  for name in gold-band gold-band-desktop; do
+    [ -x "$BIN_DIR/$name" ] || return 1
+    want=$(grep "\"$name\": {" "$STATE" | sed -n 's/.*"sha256": "\([0-9a-f]*\)".*/\1/p')
+    have=$(sha256sum "$BIN_DIR/$name" | cut -d' ' -f1)
+    [ -n "$want" ] && [ "$want" = "$have" ] || return 1
+  done
 }
 # The icons of the pinned source's src-tauri/icons, installed as gold-band.* into
 # hicolor under the directory of their real size (the SVG under scalable).
