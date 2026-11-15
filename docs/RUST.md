@@ -10,7 +10,7 @@ it, on the Mac and on the Linux workstation.
   through the packages proxy every workstation and CI job uses
   (`packages.jorisjonkers.dev/cargo`). There is no crate cooldown check in this
   repository (see "Resolving crates" below).
-* **The workspace.** Twenty-one members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Thirty-one members. `crates/agent-kit-setup` is the canary: a
   std-only crate whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -127,6 +127,33 @@ code-nav --root ~/Projects/owner/repo [--root DIR ...] [--limit N]
 * **Withheld.** A path with a component containing `nedap` (any case) is never
   read: a root there is refused, `admit` refuses it under a root, and every
   walk skips it, so neither tool can reach into one.
+
+## Workstation secrets, kube and LiteLLM tools
+
+Four crates replace the Python scripts of #812. Setup builds them with
+`scripts/install-workstation-rust.sh` (release build, `--locked`) into
+`~/.local/share/agent-kit/bin` before the tokens-and-keys step; setup skips that
+step with a warning when `cargo` is missing. All four start `curl` with the
+request, bearer key and cookies on its stdin, so no secret reaches argv.
+
+* `agent-kit-keys --table registry/generated/workstation-secrets.json ensure|status|write-env`
+  and `revoke NAME`: signs in to auth-api, mints and checks service tokens,
+  mints per-host LiteLLM keys, stores everything through `installer/agent-kit-secret`
+  (value on stdin; `AGENT_KIT_SECRET_TOOL` and `AGENT_KIT_PRIVATE_TOOL` name the
+  helpers) and writes `~/.config/agent-kit/env.sh`. With no `LITELLM_ADMIN_TOKEN`
+  it reads `LITELLM_MASTER_KEY` (environment, else the secret store item of that
+  name) and mints the one-hour admin token itself; the paste prompt is the last resort.
+* `litellm-harness [--table T] configure|run ...`: writes the `litellm-*` provider
+  entries of Codex (TOML, `toml_edit` keeps the owner's formatting), Hermes (YAML),
+  OpenCode (JSON) and Vibe, and runs a harness on a route with its key from the
+  secret store. Setup installs `agent-kit-litellm` as a two-line launcher for it.
+* `measure-litellm-budget [--agent vibe] [--url U] [--routes FILE]`: one
+  `GET /key/info` (and `/team/info` for a team key), key redacted in the output.
+* `workstation-kube install|check --device D ...`: a device's read-only kubeconfig
+  and sudo-gated admin tokens.
+
+The tests use a local `TcpListener` stub with the real `curl`, and fake `sh`
+scripts for the secret store, `kubectl`, `sudo` and `ssh`.
 
 ## ticket-sync
 

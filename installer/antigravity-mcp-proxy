@@ -7,7 +7,7 @@ header value is literal, so a token in ``headers`` would be a token on disk.
 Shared Memory therefore reaches Antigravity through this local stdio command.
 It reads the token from the agent-kit secret store at start-up -- through
 ``agent-kit-secret``, the macOS Keychain or the Linux Secret Service, the same
-entry ``scripts/agent-kit-keys.py`` writes; there is no file fallback -- and proxies newline-delimited JSON-RPC
+entry ``agent-kit-keys`` writes; there is no file fallback -- and proxies newline-delimited JSON-RPC
 from stdin to ``--url``.
 
 The token stays in memory: it is never written to disk, printed, or put in

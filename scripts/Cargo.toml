@@ -40,4 +40,8 @@ members = [
     "crates/projects-layout-guard",
     "crates/pr-composer",
     "crates/ci-helpers",
+    "crates/agent-kit-keys",
+    "crates/workstation-kube",
+    "crates/litellm-harness",
+    "crates/litellm-budget",
 ]

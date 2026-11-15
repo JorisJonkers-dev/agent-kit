@@ -82,7 +82,7 @@ whose binary has the same name.
 ## Credentials
 
 Setup gets them for you first, before anything that needs them
-(`scripts/agent-kit-keys.py`, driven by `workstation_secrets:` in the
+(`agent-kit-keys`, the Rust crate `scripts/crates/agent-kit-keys`, driven by `workstation_secrets:` in the
 registry):
 
 1. It signs you in to auth.jorisjonkers.dev once (username or email,
@@ -466,9 +466,9 @@ token and watch its host refuse it; nothing prints a token:
 
 ```bash
 cd ~/Projects/JorisJonkers-dev/agent-kit
-python3 scripts/agent-kit-keys.py --table registry/generated/workstation-secrets.json status          # HINDSIGHT_API_TOKEN ok
-python3 scripts/agent-kit-keys.py --table registry/generated/workstation-secrets.json revoke HINDSIGHT_API_TOKEN   # asks password and TOTP
-python3 scripts/agent-kit-keys.py --table registry/generated/workstation-secrets.json status          # HINDSIGHT_API_TOKEN invalid
+agent-kit-keys --table registry/generated/workstation-secrets.json status          # HINDSIGHT_API_TOKEN ok
+agent-kit-keys --table registry/generated/workstation-secrets.json revoke HINDSIGHT_API_TOKEN   # asks password and TOTP
+agent-kit-keys --table registry/generated/workstation-secrets.json status          # HINDSIGHT_API_TOKEN invalid
 ```
 
 `status` asks the token's own host (`hindsight-api.jorisjonkers.dev`) with the stored
@@ -556,7 +556,7 @@ Each agent starts [`installer/kubernetes-mcp-readonly`](../installer/kubernetes-
 (setup puts it on `PATH`), which:
 
 - takes the current kube context, or `AK_KUBE_CONTEXT`, which must be the
-  read-only context `workstation-kube.py` installs (`<cluster>`, for example
+  read-only context `workstation-kube` installs (`<cluster>`, for example
   `personal`; ServiceAccount `<device>-ro`, view without Secrets). A context
   ending in `-admin` or `-pf` is refused;
 - gives the server a throwaway kubeconfig holding that one context, so no tool
