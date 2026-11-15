@@ -9,14 +9,6 @@
 # that now passes fails the CI step: remove it from this list.
 #
 # One file name per line; a line that starts with # is a comment.
-brainstorming.json
+# critique-spec-stage: spec-critic-vibe and spec-critic-agy output a findings list that no
+# success_condition can accept in every case (success-expression-required).
 critique-spec-stage.json
-grill-me.json
-grill-with-docs.json
-pr-composer.json
-to-spec.json
-to-tickets.json
-workflow-b-work.json
-workflow-b.json
-workflow-c-work.json
-workflow-c.json
