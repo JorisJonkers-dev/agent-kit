@@ -110,13 +110,13 @@ def test_critique_stats_is_declared_for_every_agent_and_built() -> None:
 
 
 def test_setup_installs_critique_stats_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
-    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    """The skill finds the runner at ../critique/critique, so both land side by side."""
     source = KIT_ROOT / "skills" / "workstation" / "critique-stats" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
         assert (skills / "critique-stats" / "SKILL.md").read_bytes() == source.read_bytes(), home
-        assert (skills / "critique-stats" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "critique-stats" / ".." / "critique" / "critique").is_file(), home
 
 
 def test_routing_carries_the_stats_thresholds() -> None:
@@ -128,7 +128,7 @@ def test_the_shared_skill_carries_the_runner_prompts_lenses_schema_and_routing()
     root = KIT_ROOT / "skills" / "workstation" / "critique"
     for path in (
         "SKILL.md",
-        "critique.mjs",
+        "critique",
         "routing.json",
         "prompts/preamble.md",
         "prompts/triage.md",
@@ -147,7 +147,7 @@ def test_setup_copies_the_whole_critique_skill_into_every_agent_home(macos_run: 
         dest = macos_run.home / home / "skills" / "critique"
         got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
         assert got == want, home
-        assert (dest / "critique.mjs").read_bytes() == (source / "critique.mjs").read_bytes(), home
+        assert (dest / "critique").read_bytes() == (source / "critique").read_bytes(), home
 
 
 def test_critique_spec_is_built_so_it_is_no_longer_pending() -> None:
@@ -157,13 +157,13 @@ def test_critique_spec_is_built_so_it_is_no_longer_pending() -> None:
 
 
 def test_setup_installs_critique_spec_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
-    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    """The skill finds the runner at ../critique/critique, so both land side by side."""
     source = KIT_ROOT / "skills" / "workstation" / "review-spec" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
         assert (skills / "review-spec" / "SKILL.md").read_bytes() == source.read_bytes(), home
-        assert (skills / "review-spec" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "review-spec" / ".." / "critique" / "critique").is_file(), home
     assert "review-spec: not built yet" not in macos_run.stdout
 
 
@@ -184,13 +184,13 @@ def test_check_tickets_says_it_applies_after_to_tickets_and_before_the_first_imp
 
 
 def test_setup_installs_check_tickets_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
-    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    """The skill finds the runner at ../critique/critique, so both land side by side."""
     source = KIT_ROOT / "skills" / "workstation" / "review-tickets" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
         assert (skills / "review-tickets" / "SKILL.md").read_bytes() == source.read_bytes(), home
-        assert (skills / "review-tickets" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "review-tickets" / ".." / "critique" / "critique").is_file(), home
 
 
 def test_shipped_routing_defines_the_tickets_stage() -> None:
@@ -266,13 +266,13 @@ def test_review_feature_says_it_applies_after_all_tickets_landed_and_before_the_
 
 
 def test_setup_installs_review_feature_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
-    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    """The skill finds the runner at ../critique/critique, so both land side by side."""
     source = KIT_ROOT / "skills" / "workstation" / "review-pr" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
         assert (skills / "review-pr" / "SKILL.md").read_bytes() == source.read_bytes(), home
-        assert (skills / "review-pr" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "review-pr" / ".." / "critique" / "critique").is_file(), home
 
 
 def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_reserve() -> None:
@@ -322,13 +322,13 @@ def test_critique_adrs_loads_when_the_owner_asks_for_a_review_of_the_decision_lo
 
 
 def test_setup_installs_critique_adrs_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
-    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    """The skill finds the runner at ../critique/critique, so both land side by side."""
     source = KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
         assert (skills / "critique-adrs" / "SKILL.md").read_bytes() == source.read_bytes(), home
-        assert (skills / "critique-adrs" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "critique-adrs" / ".." / "critique" / "critique").is_file(), home
 
 
 def test_critique_adrs_runs_the_adr_review_stage_on_every_record_or_the_named_ones() -> None:
@@ -562,13 +562,13 @@ def test_review_ticket_says_a_degraded_run_leaves_the_commit_blocked() -> None:
 
 
 def test_setup_installs_review_ticket_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
-    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    """The skill finds the runner at ../critique/critique, so both land side by side."""
     source = KIT_ROOT / "skills" / "workstation" / "review-implementation" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
         assert (skills / "review-implementation" / "SKILL.md").read_bytes() == source.read_bytes(), home
-        assert (skills / "review-implementation" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "review-implementation" / ".." / "critique" / "critique").is_file(), home
 
 
 def test_flow_is_declared_for_every_agent() -> None:
@@ -653,14 +653,14 @@ def test_the_pipeline_readme_names_every_stage_and_lens_it_explains() -> None:
 
 
 def test_setup_installs_flow_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
-    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    """The skill finds the runner at ../critique/critique, so both land side by side."""
     source = KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
         assert (skills / "flow" / "SKILL.md").read_bytes() == source.read_bytes(), home
-        assert (skills / "flow" / ".." / "critique" / "critique.mjs").is_file(), home
-        assert (skills / "flow" / ".." / "build-tracker" / "build-tracker.mjs").is_file(), home
+        assert (skills / "flow" / ".." / "critique" / "critique").is_file(), home
+        assert (skills / "flow" / ".." / "build-tracker" / "build-tracker").is_file(), home
 
 
 # ---------------------------------------------------------------------------
@@ -825,11 +825,11 @@ def _manifest() -> dict:
 
 def test_the_critique_runner_is_pinned_in_the_manifest() -> None:
     files = {f["path"]: f for f in _manifest()["critique"]["files"]}
-    runner = files["skills/workstation/critique/critique.mjs"]
+    runner = files["skills/workstation/critique/critique"]
     assert runner["mode"] == "0755"
     for path, entry in files.items():
         digest = hashlib.sha256((KIT_ROOT / path).read_bytes()).hexdigest()
-        assert entry["sha256"] == digest, f"{path}: rebuild council/ts and update manifest.yaml critique.files"
+        assert entry["sha256"] == digest, f"{path}: update manifest.yaml critique.files"
 
 
 def test_the_manifest_pins_every_file_the_skill_ships_but_its_skill_md() -> None:

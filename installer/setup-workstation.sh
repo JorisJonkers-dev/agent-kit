@@ -4902,9 +4902,9 @@ else
   fi
 fi
 
-# The critique pipeline's shared files: the bundled runner, the
-# prompt preamble, roles, lenses, finding schema and default
-# routing that the critique skills drive.
+# The critique pipeline's shared files: the launcher, the prompt
+# preamble, roles, lenses, finding schema and default routing that
+# the critique skills drive.
 src="${KIT_ROOT}/skills/workstation/critique"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "critique: ${src}/SKILL.md is missing; nothing to install"
@@ -9137,7 +9137,7 @@ purge_leaked_runner_workspace_trust /workspace
 log "critique hooks"
 critique_hooks install
 # The critique runner's Rust build: the skill's launcher prefers it once it is
-# installed, and runs critique.mjs until then, so a failed build changes nothing.
+# installed (there is no node runner), so a failed build changes nothing.
 critique_rust_setup() {
   local rc=0 mode=()
   if [ "${CLOUD}" = 1 ]; then

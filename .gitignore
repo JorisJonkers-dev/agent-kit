@@ -14,7 +14,6 @@ node_modules
 .coverage
 coverage/
 *.tsbuildinfo
-council/ts/*.tsbuildinfo
 
 # Agent directories hold only local output: scripts/render_agent_kit.py --write
 # renders the skills from skills/repo/, and agent sessions keep worktrees

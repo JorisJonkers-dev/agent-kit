@@ -14,16 +14,13 @@ the vibe critic agents keep their pinned models.
 
 | Path | What it is |
 | --- | --- |
-| `council/ts/src/contexts/model-gateway/` | The bounded context: `domain/`, `application/`, `adapters/`, layered as `contexts/build-tracker/` is. |
-| `council/ts/src/model-gateway-cli/index.ts` | The CLI entry, exporting `runModelGatewayCli(argv, runtime)` and `defaultModelGatewayRuntime()`, as `src/build-tracker-cli/index.ts` does. |
-| `skills/workstation/model-gateway/model-gateway.mjs` | The bundle `council/ts/scripts/build.mjs` writes (mode 0755). Pinned in `manifest.yaml`'s `model_gateway.files`. |
+| `scripts/crates/model-gateway/` | The Rust gateway. The `model-gateway` command on PATH (`installer/model-gateway`) runs the binary setup builds. |
 | `skills/workstation/model-gateway/defaults.json` | The shipped defaults. |
 | `skills/workstation/model-gateway/defaults.schema.json` | The schema `defaults.json` is validated against by `scripts/validate_manifest.py`. |
 | `skills/workstation/model-gateway/SKILL.md` | The skill's text. Setup installs the whole folder in every agent home. |
 
-`model_gateway.files` pins the bundle and both JSON files, and leaves
-`SKILL.md` out, exactly as `build_tracker.files` does. `pnpm run build` in
-`council/ts` rebuilds the bundle: update its sha256 in the same commit.
+`model_gateway.files` pins both JSON files and leaves `SKILL.md` out, exactly as
+`build_tracker.files` does.
 
 ## The command
 
@@ -122,10 +119,8 @@ and why. Models are sorted by client, then model id.
 
 ### Tool scope on Pi (#773)
 
-Implemented in the Rust gateway only. The node runner (`model-gateway.mjs`) is
-migration debt: where the launcher still falls back to it, a Pi run under a
-profile that lists skills or plugins is refused as before, and its ledger line
-has no `profile` or `tool_scope`.
+Implemented in the Rust gateway, which is the only gateway now that the node
+runner is retired.
 
 A profile's `tools` is the scope a run holds, narrowed by the request. Each of
 `mcp`, `plugins` and `skills` is a list of names, or left out for deny-all:

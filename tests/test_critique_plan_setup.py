@@ -69,7 +69,7 @@ def test_setup_installs_it_beside_the_shared_skill_in_every_agent_home(macos_run
     for home in HOMES:
         skills = macos_run.home / home / "skills"
         assert (skills / "critique-plan" / "SKILL.md").read_bytes() == SKILL.read_bytes(), home
-        assert (skills / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "critique" / "critique").is_file(), home
         assert (skills / "critique" / "roles" / "plan-critic.md").is_file(), home
         for lens in ("incremental-safety", "evidence-anchoring"):
             assert (skills / "critique" / "lenses" / f"{lens}.md").is_file(), (home, lens)
@@ -165,11 +165,9 @@ def test_the_role_names_one_rule_of_its_own_and_fixes_no_severity() -> None:
 
 
 def test_the_runner_knows_exactly_the_rules_the_lenses_declare() -> None:
-    source = (
-        KIT_ROOT / "council" / "ts" / "src" / "contexts" / "critique" / "domain" / "refactoring-plan.ts"
-    ).read_text()
-    block = source.split("export const PLAN_RULES = [", 1)[1].split("] as const", 1)[0]
-    known = re.findall(r"'([a-z0-9-]+)'", block)
+    source = (KIT_ROOT / "scripts" / "crates" / "critique" / "src" / "refactoring_plan.rs").read_text()
+    block = source.split("pub const PLAN_RULES: [&str; ", 1)[1].split("];", 1)[0]
+    known = re.findall(r'"([a-z0-9-]+)"', block)
     assert known[: len(SAFETY) + len(ANCHORING) + 1] == [*SAFETY, *ANCHORING, "plan-consequence"]
     for lens in ("coupling", "test-seams"):
         assert {i for i, _ in _checks(CRITIQUE / "lenses" / f"{lens}.md")} <= set(known), lens
