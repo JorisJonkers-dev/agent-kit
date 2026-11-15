@@ -600,15 +600,29 @@ prefixed `gold-band-run-start:`:
   remote. The personal instance (`gold-band-personal`) refuses any
   `nedap`-owned remote and allows no remote at all. A remote with no
   `host/owner/repo` is refused: its owner cannot be shown.
-* **`family-allowlist`.** The family of every agent id the workflow binds (a
-  worker's `provider`, the `modelBindings` joined by `executionSlotId`, an
-  ai-dynamic node's strategy) against the repository's entry in
+* **`family-allowlist`.** The family of every model the workflow binds (#783): each
+  (agent id, model) pair of a worker (`provider` and `model`), of the `modelBindings`
+  joined by `executionSlotId` (`agentId` and `modelId`) and of an ai-dynamic node's
+  strategy (`provider` and `model`, `bootstrapProvider` and `bootstrapModel`, the
+  `acceptanceModel` on the strategy's provider, and every `availableAgents` entry's
+  `provider` and `model`), against the repository's entry in
   `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json` (or
   `~/.config/agent-kit/`), and the entry's `code` permission, since a workflow
   with a worker sends code. `history` is never required. No entry means the
-  personal default: every family, code. On a `nedap` repository the file is not
-  read: only `claude-work` and `codex` are allowed. An agent id missing from the
-  families file (`<agent id><TAB><family>` lines) is refused.
+  personal default: every family, code. The family is the model's, so a Pi agent
+  (one id, several families) is checked per model: `pi` on `litellm-vibe/glm-5.3` is
+  `zhipu` and on `litellm-vibe/mistral-large-4.0` is `mistral`, and a candidate list
+  is refused for each entry whose family the repository does not allow. It resolves
+  through the `model-family` crate, the same resolution as `workflow-lint --critique`
+  and read from the same `routing.json` (with the machine override of `critic-family`
+  merged over it): the model with its provider prefix cut and `.` read as `-`, matched
+  on whole `-` segments, longest first, against each client's `model` and
+  `gateway.model`; else the agent id's client kind when all its clients share one family
+  (`claude-work` is `anthropic`). A binding the routing cannot place falls back to its agent
+  id in the families file (`<agent id><TAB><family>` lines); one neither places is refused.
+  On a `nedap` repository the file is not read: only the agent ids `claude-work` and `codex`
+  are allowed, and (per model) only their families, `anthropic` and `openai`, so
+  `claude-work` bound to a Mistral model is refused too.
 * **`critic-family` (#796).** The `critic-family` rule of `workflow-lint --critique` over the
   routing this machine runs: the routing agent-kit ships with the machine override
   (`--routing-override FILE`, else `$HOME/.config/agent-kit/critique-routing.json`, the file the
@@ -904,10 +918,10 @@ gold-band-proof run --workflow installer/gold-band/workflows/workflow-b.json \
   linker flags, so the run is started inside the shell that provides them.
 
 What a live run still does not have: the run-start shim is not a node of
-Workflow B, and its family check keys a family on the agent id, so it refuses
-a Pi node (three families on one id) and a pinned shim (no family); a
-model-aware family file is a follow-up. The report directory is writable by the
-model agents of the run (the operating-system write limit of ticket #432 is not
+Workflow B (its family check resolves the family from the bound model since #783,
+so a Pi node is no longer refused for sharing an id; a pinned shim has no family and
+is refused unless the families file places its agent id). The report directory is
+writable by the model agents of the run (the operating-system write limit of ticket #432 is not
 applied to Gold Band's adapters yet), so a gate is only as trustworthy as the
 agents beside it.
 

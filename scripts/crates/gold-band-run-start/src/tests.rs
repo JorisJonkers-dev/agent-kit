@@ -1222,3 +1222,140 @@ fn a_definition_without_an_edge_list_has_no_critic_pairs_to_check() {
     c.workflow(r#"{"nodes":[{"type":"worker","id":"draft","provider":"vibe"}]}"#);
     c.go().passed();
 }
+
+// ---- family of the bound model (#783) ----------------------------------
+
+const GLM: &str = "litellm-vibe/glm-5.3";
+const MISTRAL: &str = "litellm-vibe/mistral-large-4.0";
+
+fn pi_worker(id: &str, model: &str) -> String {
+    format!(r#"{{"type":"worker","id":"{id}","provider":"pi","model":"{model}"}}"#)
+}
+
+fn personal_with(tag: &str, workflow: &str, families: &str) -> Case {
+    let mut c = case(tag, "gold-band-personal", &[OTHER]);
+    c.workflow(workflow);
+    c.families("# no agent is placed by its id here\n");
+    c.allowlist(&allowlist_of(
+        "github.com/jorisjonkers-dev/agent-kit",
+        &entry(true, families),
+    ));
+    c
+}
+
+#[test]
+fn a_pi_node_is_checked_by_the_family_of_its_model_not_its_agent_id() {
+    // One agent id, two families: pi on a Mistral model is allowed, pi on a GLM model is not.
+    let workflow = format!(
+        r#"{{"nodes":[{},{}],"edges":[]}}"#,
+        pi_worker("fast", MISTRAL),
+        pi_worker("deep", GLM)
+    );
+    let c = personal_with("pi-two-families", &workflow, r#""mistral""#);
+    let text = c.go().refused("family-allowlist").to_string();
+    assert_eq!(text.lines().count(), 1, "{text}");
+    assert!(
+        text.contains(&format!("node deep: family zhipu (agent pi, model {GLM}) is not allowed by entry github.com/jorisjonkers-dev/agent-kit")),
+        "{text}"
+    );
+    // The entry that allows both families passes the same workflow.
+    personal_with("pi-both-allowed", &workflow, r#""mistral","zhipu""#)
+        .go()
+        .passed();
+}
+
+#[test]
+fn a_candidate_list_is_refused_for_one_family_and_allowed_when_all_are_allowed() {
+    let workflow = format!(
+        r#"{{"nodes":[{{"type":"ai-dynamic","id":"pick","agentStrategy":{{"mode":"dynamic","bootstrapProvider":"pi","bootstrapModel":"{GLM}","acceptanceModel":"{GLM}",
+          "availableAgents":[{{"provider":"pi","model":"{GLM}"}},{{"provider":"claude","model":"sonnet"}}]}}}}],"edges":[]}}"#
+    );
+    // `claude` is not in the (empty) families file: only the model places it.
+    let refused = personal_with("list-refused", &workflow, r#""anthropic""#);
+    let text = refused.go().refused("family-allowlist").to_string();
+    let lines: Vec<&str> = text.lines().collect();
+    // The bootstrap, acceptance and candidate bindings of one agent and model are one binding.
+    assert_eq!(lines.len(), 1, "{text}");
+    assert!(lines[0].contains(&format!("node pick: family zhipu (agent pi, model {GLM}) is not allowed")), "{text}");
+    personal_with("list-allowed", &workflow, r#""anthropic","zhipu""#)
+        .go()
+        .passed();
+}
+
+#[test]
+fn a_model_the_routing_cannot_place_falls_back_to_its_agent_id_in_the_families_file() {
+    let workflow = format!(
+        r#"{{"nodes":[{}],"edges":[]}}"#,
+        pi_worker("odd", "litellm-vibe/unlisted-model-1")
+    );
+    let mut c = personal_with("fallback-file", &workflow, r#""mistral""#);
+    // Neither the routing nor the file places it: refused, naming the model.
+    let text = c.go().refused("family-allowlist").to_string();
+    assert!(text.contains("node odd: agent pi, model litellm-vibe/unlisted-model-1 has no family in the routing or in"), "{text}");
+    // The families file places the agent id: its family applies.
+    c.families("pi\tmistral\n");
+    c.go().passed();
+    c.families("pi\tzhipu\n");
+    assert!(c.go().refused("family-allowlist").contains("family zhipu"));
+}
+
+#[test]
+fn every_model_field_of_a_node_is_bound_and_a_model_alone_names_a_binding() {
+    let workflow = format!(
+        r#"{{"workflow":{{"nodes":[
+          {{"type":"worker","id":"slot","executionSlotId":"s","provider":"pi","model":"{MISTRAL}"}},
+          {{"type":"ai-dynamic","id":"a","agentStrategy":{{"provider":"pi","model":"{GLM}","acceptanceModel":"{GLM}"}}}},
+          {{"type":"ai-dynamic","id":"b","agentStrategy":{{"bootstrapProvider":"pi","acceptanceModel":"{GLM}"}}}},
+          {{"type":"ai-dynamic","id":"c","agentStrategy":{{"acceptanceModel":"{GLM}"}}}}],"edges":[]}},
+         "modelBindings":{{"bindings":[{{"executionSlotId":"s","agentId":"pi","modelId":"{GLM}"}}]}}}}"#
+    );
+    let c = personal_with("model-fields", &workflow, r#""mistral""#);
+    let text = c.go().refused("family-allowlist").to_string();
+    for expected in [
+        format!("node slot: family zhipu (agent pi, model {GLM})"),
+        format!("node a: family zhipu (agent pi, model {GLM})"),
+        format!("node b: family zhipu (agent pi, model {GLM})"),
+        format!("node c: family zhipu (model {GLM})"),
+    ] {
+        assert!(text.contains(&expected), "{expected}\n{text}");
+    }
+    // The model of node a is listed once (the model and the acceptance model are one binding).
+    assert_eq!(text.matches("node a:").count(), 1, "{text}");
+}
+
+#[test]
+fn a_nedap_repository_keeps_claude_work_and_codex_and_their_families() {
+    let mut c = case("nedap-models", "gold-band", &[NEDAP]);
+    c.families("# nothing\n");
+    c.workflow(&format!(
+        r#"{{"nodes":[
+          {{"type":"worker","id":"a","provider":"claude-work","model":"sonnet"}},
+          {{"type":"worker","id":"b","provider":"codex","model":"gpt-5.5"}}],"edges":[]}}"#
+    ));
+    c.grants(&grants_of(&[grant(RUN_NAME, "codex", LIVE, None)]));
+    c.go().passed();
+    // A Pi node is refused whatever its model is of.
+    c.workflow(&format!(
+        r#"{{"nodes":[{}],"edges":[]}}"#,
+        pi_worker("p", MISTRAL)
+    ));
+    let text = c.go().refused("family-allowlist").to_string();
+    assert!(text.contains("node p: agent pi, model litellm-vibe/mistral-large-4.0 is not allowed on a nedap repository"), "{text}");
+    assert_eq!(text.lines().count(), 1, "{text}");
+    // An allowed agent id bound to a model of another family is refused as well.
+    c.workflow(
+        r#"{"nodes":[{"type":"worker","id":"w","provider":"claude-work","model":"mistral-large-4.0"}],"edges":[]}"#,
+    );
+    let text = c.go().refused("family-allowlist").to_string();
+    assert!(text.contains("node w: agent claude-work, model mistral-large-4.0 is of family mistral; a nedap repository allows only the families of claude-work and codex"), "{text}");
+}
+
+#[test]
+fn the_critic_family_rule_compares_the_families_of_models_on_one_agent_id() {
+    // A Pi writer on a GLM model: the shipped roster holds a zhipu critic, the orchestrator is another family.
+    let c = critic_case("critic-pi", ("pi", GLM), ("vibe-study", "deepseek-v4-1-flash-1017"));
+    let err = c.go().refused("critic-family").to_string();
+    assert!(err.contains("is of family zhipu, the family of writer spec-draft (pi/litellm-vibe/glm-5.3)"), "{err}");
+    // Bound with its orchestrator to one family, the same Pi writer meets no critic of it.
+    critic_case("critic-pi-same", ("pi", GLM), ("pi", GLM)).go().passed();
+}
