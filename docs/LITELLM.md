@@ -51,7 +51,7 @@ provider's deployments in a public-only access group of its own, never in `canon
 | `google-free-public` | the Google free tier first, then the paid deployments of the same model | `public/<canonical>` | `public` |
 | `openrouter-free-public` | OpenRouter's free `:free` models, each alone | `openrouter/<canonical>` | `openrouter` |
 | `opencode-go-free-public` | OpenCode Go's free `-free` ids, each alone | `opencode-go-free/<canonical>` | `openrouter` |
-| `free` | every free deployment of every provider, each alone: OpenRouter's `:free` models (beside `openrouter-free-public`) and each Google free-tier chat model as `google-free/<canonical>` (without the paid fallbacks `public/<canonical>` has) | `openrouter/<canonical>`, `google-free/<canonical>` | `free` |
+| `free` | every free deployment of every provider, each alone: OpenRouter's `:free` models and OpenCode Go's `-free` ids (each beside its own group) and each Google free-tier chat model as `google-free/<canonical>` (without the paid fallbacks `public/<canonical>` has) | `openrouter/<canonical>`, `opencode-go-free/<canonical>`, `google-free/<canonical>` | `free` |
 
 The `free` group is the one key for "all free things" (agent-kit#848). It is its own group of
 deployments, not a shared name: LiteLLM grants a key a model name, so a deployment carries
@@ -61,8 +61,7 @@ retry. A model the account blocks, such as an OpenRouter free model behind the a
 training-data setting, is not usable, so it is not deployed and stays out until the setting allows
 it. The `free` route is `data_scope: public`: it is never routed to a repository. The groups are
 the litellm repository's (litellm#47); until its catalogue refresh lands the groups, the `free`
-key lists no Pi models. OpenCode Go's `-free` ids are not in it yet (the catalogue does not mark
-them free).
+key lists no Pi models.
 
 Per-provider groups stay because LiteLLM grants a key a model name, so a
 shared group would hand each free provider's key the others' models. The `openrouter` key holds
