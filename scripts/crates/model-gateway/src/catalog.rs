@@ -11,9 +11,18 @@ use crate::json::{self, object, Object, Value};
 use crate::litellm_catalogue::{deployment_probe, family_from, group_probe, names_of, tier_from, CatalogueGroup, LiteLlmCatalogue};
 use crate::models::model_part;
 use crate::model_facts;
-use crate::ports::Runtime;
+use crate::ports::{ProcessCommand, Runtime};
 use crate::run::is_pi_client;
 use std::collections::BTreeSet;
+
+/// The LiteLLM routes the estate mints keys for, with each key's monthly cap (`registry/generated/litellm/routes.json`).
+const SHIPPED_ROUTES: &str = include_str!("../../../../registry/generated/litellm/routes.json");
+
+/// The program that asks the proxy for a key's spend (`measure-litellm-budget`, the litellm-budget crate).
+const BUDGET_PROGRAM: &str = "measure-litellm-budget";
+
+/// How long the spend lookup may take before the pool's spend is `unknown`.
+const BUDGET_TIMEOUT_MS: u64 = 15_000;
 
 /// The status of a deployment the catalogue holds no probe for.
 const UNPROBED: &str = "unprobed";
@@ -37,6 +46,20 @@ pub struct DeploymentRow {
     pub upstream: String,
     pub status: String,
     pub reason: String,
+    /// The LiteLLM key (its environment variable) whose budget pool the deployment draws on, when the route has one.
+    pub pool: Option<String>,
+}
+
+/// A key's budget pool: what the registry caps it at, and what it has spent when the proxy says.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Pool {
+    pub key: String,
+    pub route: String,
+    /// The monthly cap in EUR; `None` for a key with no cap.
+    pub cap_eur: Option<f64>,
+    pub duration: Option<String>,
+    /// The spend so far in the current window; `None` until the proxy has answered, which prints as `unknown`.
+    pub spend_eur: Option<f64>,
 }
 
 /// One canonical model.
@@ -64,6 +87,8 @@ pub struct View {
     pub warnings: Vec<String>,
     pub missing: Vec<(String, String)>,
     pub rows: Vec<Row>,
+    /// The budget pool of every key a shown deployment draws on, by key.
+    pub pools: Vec<Pool>,
 }
 
 /// A text filter: a non-empty string, or nothing.
@@ -108,6 +133,66 @@ fn group_names(group_name: &str, group: &CatalogueGroup) -> BTreeSet<String> {
     names
 }
 
+/// The LiteLLM routes of the registry.
+fn registry_routes() -> Vec<RegistryRoute> {
+    parse_routes(SHIPPED_ROUTES)
+}
+
+/// One route of the registry: `(route, key variable, monthly cap, budget duration)`.
+type RegistryRoute = (String, String, Option<f64>, Option<String>);
+
+/// The routes a `routes.json` text names; text that is not that names none.
+pub(crate) fn parse_routes(text: &str) -> Vec<RegistryRoute> {
+    let Ok(Value::Obj(table)) = json::parse(text) else {
+        return Vec::new();
+    };
+    let Some(Value::Arr(routes)) = table.get("routes") else {
+        return Vec::new();
+    };
+    routes
+        .iter()
+        .filter_map(Value::as_object)
+        .filter_map(|route| {
+            let text = |key: &str| route.get(key).and_then(Value::as_str).map(str::to_string);
+            let cap = match route.get("budget_eur") {
+                Some(Value::Num(cap)) => Some(*cap),
+                _ => None,
+            };
+            Some((text("agent")?, text("key_env")?, cap, text("budget_duration")))
+        })
+        .collect()
+}
+
+/// The key a route's deployments are reached through on the proxy, when the registry mints one for the route.
+fn route_key(route: &str) -> Option<String> {
+    registry_routes().into_iter().find(|(agent, ..)| agent == route).map(|(_, key, ..)| key)
+}
+
+/// The pools of the keys the rows' deployments draw on, in the order the rows first name them. Spend is not read here.
+pub(crate) fn pools_of(rows: &[Row]) -> Vec<Pool> {
+    let routes = registry_routes();
+    let mut pools: Vec<Pool> = Vec::new();
+    for key in rows.iter().flat_map(|row| &row.deployments).filter_map(|deployment| deployment.pool.as_deref()) {
+        if pools.iter().any(|pool| pool.key == key) {
+            continue;
+        }
+        if let Some((route, key, cap_eur, duration)) = routes.iter().find(|(_, known, ..)| known == key) {
+            pools.push(Pool { key: key.clone(), route: route.clone(), cap_eur: *cap_eur, duration: duration.clone(), spend_eur: None });
+        }
+    }
+    pools
+}
+
+/// What the proxy says a route's key has spent: the `spend:` line of `measure-litellm-budget --agent ROUTE`, or
+/// nothing when the program is not installed, the proxy is unreachable or the answer holds no number.
+pub(crate) fn spend_of(runtime: &Runtime, route: &str) -> Option<f64> {
+    runtime.process.resolve(BUDGET_PROGRAM)?;
+    let mut command = ProcessCommand::new(BUDGET_PROGRAM, &["--agent", route]);
+    command.timeout_ms = Some(BUDGET_TIMEOUT_MS);
+    let done = runtime.process.run(&command).ok().filter(|done| done.exit_code == 0 && !done.timed_out)?;
+    done.stdout.lines().find_map(|line| line.trim().strip_prefix("spend:")?.trim().parse::<f64>().ok())
+}
+
 /// A group's deployments in fallback order (lowest `order` first, the catalogue's order among equals).
 fn deployment_rows(catalogue: &LiteLlmCatalogue, group: &CatalogueGroup) -> Vec<DeploymentRow> {
     let mut rows: Vec<DeploymentRow> = group
@@ -123,6 +208,7 @@ fn deployment_rows(catalogue: &LiteLlmCatalogue, group: &CatalogueGroup) -> Vec<
                 upstream: deployment.upstream.clone(),
                 status: probe.map_or_else(|| UNPROBED.to_string(), |probe| probe.status.clone()),
                 reason: probe.map_or_else(|| "the catalogue holds no probe for it".to_string(), |probe| probe.reason.clone()),
+                pool: route_key(&deployment.route),
             }
         })
         .collect();
@@ -291,6 +377,7 @@ fn loose_rows(gathered: &Gathered, covered: &BTreeSet<String>) -> Vec<Row> {
                             upstream: text("upstream_id"),
                             status: UNPROBED.to_string(),
                             reason: String::new(),
+                            pool: route_key(&text("route")),
                         }
                     })
                     .collect(),
@@ -327,7 +414,12 @@ fn passes(row: &Row, filter: &Filter) -> bool {
 /// The catalog for the repository the caller works in, narrowed by the filter.
 pub fn view(input: &Object, runtime: &Runtime) -> Result<View, GatewayError> {
     let filter = read_filter(input)?;
-    Ok(build(&commands::gather(input, runtime, false, true)?, &filter))
+    let mut view = build(&commands::gather(input, runtime, false, true)?, &filter);
+    // Only a capped pool's spend is read: the question a cap answers is how much of it is left.
+    for pool in view.pools.iter_mut().filter(|pool| pool.cap_eur.is_some()) {
+        pool.spend_eur = spend_of(runtime, &pool.route);
+    }
+    Ok(view)
 }
 
 /// The catalog over what the gateway gathered, narrowed by the filter.
@@ -344,12 +436,14 @@ pub fn build(gathered: &Gathered, filter: &Filter) -> View {
     rows.extend(loose_rows(gathered, &covered));
     rows.retain(|row| passes(row, filter));
     rows.sort_by(|left, right| left.model.cmp(&right.model));
+    let pools = pools_of(&rows);
     View {
         policy: gathered.policy_reason.clone(),
         updated_at: gathered.reading.catalogue.as_ref().map(|catalogue| catalogue.updated_at.clone()),
         warnings: gathered.reading.warning.iter().cloned().collect(),
         missing: gathered.permitted.missing.iter().map(|missing| (missing.client.clone(), missing.reason.clone())).collect(),
         rows,
+        pools,
     }
 }
 
@@ -372,7 +466,27 @@ impl DeploymentRow {
             ("upstream_id", Value::str(&self.upstream)),
             ("status", Value::str(&self.status)),
             ("reason", Value::str(&self.reason)),
+            ("pool", self.pool.as_deref().map_or(Value::Null, Value::str)),
         ])
+    }
+}
+
+impl Pool {
+    fn to_json(&self) -> Value {
+        object(vec![
+            ("key", Value::str(&self.key)),
+            ("route", Value::str(&self.route)),
+            ("monthly_cap_eur", self.cap_eur.map_or_else(|| Value::str("none"), Value::Num)),
+            ("budget_duration", self.duration.as_deref().map_or(Value::Null, Value::str)),
+            ("spend_eur", self.spend_eur.map_or_else(|| Value::str("unknown"), Value::Num)),
+        ])
+    }
+
+    /// The pool's line of the table.
+    pub(crate) fn line(&self) -> String {
+        let cap = self.cap_eur.map_or("no cap".to_string(), |cap| format!("cap {} EUR per {}", json::number_text(cap), self.duration.as_deref().unwrap_or("window")));
+        let spend = self.spend_eur.map_or("unknown".to_string(), json::number_text);
+        format!("budget pool {} (route {}): {cap}, spend {spend}\n", self.key, self.route)
     }
 }
 
@@ -404,6 +518,7 @@ impl View {
             ("updated_at", self.updated_at.as_deref().map_or(Value::Null, Value::str)),
             ("warnings", strings(&self.warnings)),
             ("missing", Value::Arr(missing)),
+            ("pools", Value::Arr(self.pools.iter().map(Pool::to_json).collect())),
             ("models", Value::Arr(self.rows.iter().map(Row::to_json).collect())),
         ])
     }
@@ -424,8 +539,9 @@ impl View {
             for deployment in &row.deployments {
                 let key = deployment.key.as_deref().map_or(String::new(), |key| format!(", key {key}"));
                 let reason = if deployment.reason.is_empty() { String::new() } else { format!(": {}", deployment.reason) };
+                let pool = deployment.pool.as_deref().map_or(String::new(), |pool| format!(", pool {pool}"));
                 out.push_str(&format!(
-                    "    {}. {} via route {}{key} as {} [{}{reason}]\n",
+                    "    {}. {} via route {}{key}{pool} as {} [{}{reason}]\n",
                     deployment.order, deployment.provider, deployment.route, deployment.upstream, deployment.status
                 ));
             }
@@ -435,6 +551,9 @@ impl View {
             if !row.reason.is_empty() {
                 out.push_str(&format!("    reason: {}\n", row.reason));
             }
+        }
+        for pool in &self.pools {
+            out.push_str(&pool.line());
         }
         for (client, reason) in &self.missing {
             out.push_str(&format!("missing client {client}: {reason}\n"));
