@@ -127,7 +127,8 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   `defaults.json` maps a name to `description`, `models` (`<client>:<model>`
   keys of the catalogue), `tools` (`mcp`, `plugins`, `skills`, each a list or
   `any`; a kind left out is deny-all) and the optional `pin`, `ladder`,
-  `distinct_families`, `exclude_writer_family` and `max_spend_usd`. The source
+  `distinct_families`, `exclude_writer_family`, `max_spend_usd` and
+  `unenforced_clients`. The source
   is `registry/delegation-profiles.yaml` with its schema beside it;
   `python scripts/render_registry.py --write` renders it into `defaults.json`
   and `--check` fails when the section is stale. The node runner and the Rust
@@ -143,6 +144,20 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   enforce (see "Tool scope on Pi" below); every other client is refused a
   profile that restricts tools. The data policy runs first, so a model the
   repository does not permit is still `policy-refused`.
+- **Roles are profiles, and `--harness` chooses where one runs (#855).**
+  `research`, `implement`, `critique`, `red-team`, `refute` and `triage` are
+  profiles in the same registry, each deny-all on tools, capped per run and cut
+  by the data policy (a repository never reaches `pi-public`, `pi-openrouter` or
+  `pi-free`). `run --profile ROLE --harness H` (or `profile` and `harness` in the
+  input) replaces `client` and `model`: the gateway keeps the profile's models
+  for the repository that are on the harness (`pi` is every Pi route, `pi-<route>`
+  one, `claude`, `codex`, `agy` and `vibe` themselves) and runs the cheapest. A
+  harness with none (hermes has no model configured) is `profile-refused` with
+  the models that are left. Only Pi enforces a scope: a profile lists in
+  `unenforced_clients` the other clients it accepts on the strength of their own
+  read-only launch, and a client it does not list is refused as before.
+  `scripts/crates/model-gateway/src/harness.rs` holds the choice; the
+  `run-roles` scenario holds the goldens.
 - **A failing delegation stays inside its profile**: the retry, the climb and
   the fall-through are cut to the profile's models.
 - **Not yet:** Gold Band agent ids per profile (#784), and spend enforcement

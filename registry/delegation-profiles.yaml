@@ -30,6 +30,11 @@
 #                          list): no MCP server, no plugin, no skill.
 #   max_spend_usd          optional: the most one run may spend (the gateway
 #                          enforces it once #788 lands; it is validated now)
+#   unenforced_clients     optional: non-Pi clients the profile may run on although
+#                          the gateway cannot enforce its tool scope there. Naming a
+#                          client is the profile author's explicit statement that the
+#                          client's own read-only launch stands in for the scope; a
+#                          client left out stays refused with the reason.
 #
 # A client that cannot enforce a limit the profile names is refused with the
 # reason. Pi enforces skills and plugins listed by name (its per-run home holds
@@ -87,3 +92,127 @@ profiles:
       - pi-vibe:mistral-large-4
       - pi-vibe:glm-5.3
     max_spend_usd: 2.0
+
+# The delegation roles (#855). Each is a profile, so `model-gateway run --profile
+# <role>` holds a run to the role's models, deny-all tool scope (no MCP server, no
+# skill, no plugin: the minimum allowance is nothing) and per-run spend cap. Pi is
+# the default harness and the only one whose scope the gateway enforces;
+# `--harness <h>` picks another (claude, codex, agy, vibe, hermes, or a Pi route
+# such as pi-opencode-go for OpenCode Go through Pi). The data policy is
+# intersected with every role: a repository never reaches the public routes
+# (pi-public, pi-openrouter, pi-free), which are listed only so public-data work
+# can use them. A free model is accepted only if the catalogue marks it free; a
+# billed one is refused with free-only-refused before anything runs.
+
+  research:
+    description: >-
+      Read-only research over public sources and lookups: cheap models, with the
+      free public routes (pi-free, pi-openrouter) for work that carries no
+      repository. No tools attached.
+    models:
+      - pi-vibe:ministral-8b
+      - pi-vibe:mistral-small
+      - pi-vibe:glm-5.3-flash
+      - pi-opencode-go:qwen3.8-flash
+      - pi-free:qwen3.8-flash
+      - pi-free:mistral-small
+      - pi-openrouter:qwen3.8-flash
+      - pi-openrouter:mistral-small
+      - agy:gemini-3.8-flash-low
+      - vibe:mistral-small-latest
+      - claude:claude-haiku-5-5
+    unenforced_clients: [agy, vibe, claude]
+    max_spend_usd: 0.5
+
+  implement:
+    description: >-
+      Writes in a worktree, test first. A cheap writer with a ladder to a
+      stronger model on escalation. The write run is the gateway's own worktree
+      and check; no tool beyond the client's file edit.
+    models:
+      - pi-vibe:deepseek-v4.1-flash
+      - pi-vibe:glm-5.3-flash
+      - pi-vibe:mistral-large-4
+      - pi-vibe:glm-5.3
+      - pi-opencode-go:kimi-k2.7-code
+      - claude:claude-sonnet-5-5
+      - codex:gpt-5.5
+    ladder:
+      - pi-vibe:deepseek-v4.1-flash
+      - pi-vibe:glm-5.3-flash
+      - pi-vibe:mistral-large-4
+      - pi-vibe:glm-5.3
+    unenforced_clients: [claude, codex]
+    max_spend_usd: 2.0
+
+  critique:
+    description: >-
+      Independent read-only review from two model families other than the
+      writer's. The request names the writer's family as narrow.writer_family.
+    models:
+      - pi-vibe:deepseek-v4.1-flash
+      - pi-vibe:glm-5.3
+      - pi-vibe:mistral-large-4
+      - pi-opencode-go:kimi-k2.7-code
+      - pi-opencode-go:qwen3.8-flash
+      - agy:gemini-3.8-flash-high
+      - claude:claude-sonnet-5-5
+      - codex:gpt-5.5
+    distinct_families: 2
+    exclude_writer_family: true
+    unenforced_clients: [agy, claude, codex]
+    max_spend_usd: 1.0
+
+  red-team:
+    description: >-
+      Adversarial and read-only: tries to break the artifact, attack the spec and
+      find the unsafe assumptions, and reports findings with the evidence for
+      each (the input, the command or the line that shows it), never a fix or an
+      edit. Two families other than the writer's, so the attack is not made by
+      the author's own blind spots. The request names the writer's family as
+      narrow.writer_family.
+    models:
+      - pi-vibe:glm-5.3
+      - pi-vibe:mistral-large-4
+      - pi-vibe:deepseek-v4.1-flash
+      - pi-opencode-go:kimi-k2.7-code
+      - pi-opencode-go:mimo-v2.6-pro
+      - agy:gemini-3.8-flash-high
+      - claude:claude-sonnet-5-5
+      - codex:gpt-5.5
+    distinct_families: 2
+    exclude_writer_family: true
+    unenforced_clients: [agy, claude, codex]
+    max_spend_usd: 1.5
+
+  refute:
+    description: >-
+      Read-only check of one claim or finding: tries to refute it from the
+      evidence and answers confirmed or refuted with the reason. A family other
+      than the one that raised the claim. The request names it as
+      narrow.writer_family.
+    models:
+      - pi-vibe:glm-5.3
+      - pi-vibe:mistral-large-4
+      - pi-opencode-go:kimi-k2.7-code
+      - agy:gemini-3.8-flash-medium
+      - claude:claude-haiku-5-5
+    distinct_families: 2
+    exclude_writer_family: true
+    unenforced_clients: [agy, claude]
+    max_spend_usd: 0.5
+
+  triage:
+    description: >-
+      Read-only sorting of issues, findings or logs into labelled buckets on the
+      cheapest models, free public routes included for material that is public.
+    models:
+      - pi-vibe:ministral-8b
+      - pi-vibe:ministral-3b
+      - pi-vibe:mistral-small
+      - pi-free:mistral-small
+      - pi-openrouter:mistral-small
+      - agy:gemini-3.8-flash-low
+      - claude:claude-haiku-5-5
+    unenforced_clients: [agy, claude]
+    max_spend_usd: 0.25

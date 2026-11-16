@@ -51,7 +51,10 @@ pub fn run(command: Command, _name: &str, input: &Object, runtime: &Runtime) -> 
         Command::GrantList => grant_list(input, runtime),
         Command::GrantReserve => crate::reserve::reserve(input, runtime),
         Command::WorktreesClean => crate::worktrees::clean(input, runtime),
-        Command::Run => crate::run_command::RunCommand { runtime }.run(&Value::Obj(input.clone())),
+        Command::Run => {
+            let chosen = crate::harness::choose(input, runtime)?;
+            crate::run_command::RunCommand { runtime }.run(&Value::Obj(chosen))
+        }
         Command::Batch => {
             let runs = crate::run_command::RunCommand { runtime };
             crate::batch_command::BatchCommand { runtime, runs: &runs }.run(&Value::Obj(input.clone()))
@@ -151,7 +154,14 @@ pub fn gather(input: &Object, runtime: &Runtime, free_only: bool, read_catalogue
         .collect();
     let decision = policy::decide_policy(&config, &scope, &subjects);
     let permitted = policy::permitted_models(listing, &decision);
-    let available: Vec<ProfileModel> = permitted
+    let available = available_models(&permitted);
+    let profiles = list_profiles(&config, &available, &decision.reason);
+    Ok(Gathered { config, reading, permitted, profiles, policy_reason: decision.reason })
+}
+
+/// The models of a permitted listing as a profile picks among them.
+pub fn available_models(permitted: &policy::PolicyListing) -> Vec<ProfileModel> {
+    permitted
         .models
         .iter()
         .map(|model| ProfileModel {
@@ -161,9 +171,7 @@ pub fn gather(input: &Object, runtime: &Runtime, free_only: bool, read_catalogue
             tier: model.listed.tier,
             cost_class: model.listed.cost_class,
         })
-        .collect();
-    let profiles = list_profiles(&config, &available, &decision.reason);
-    Ok(Gathered { config, reading, permitted, profiles, policy_reason: decision.reason })
+        .collect()
 }
 
 /// `models` takes the path of the repository the caller works in, when it has one.
