@@ -5,8 +5,11 @@
   "roles": ["research", "implement", "critique", "red-team", "refute", "triage"],
   "harnesses": ["pi", "pi-opencode-go", "claude", "codex", "agy", "vibe", "hermes"],
   "expected": {
-    "stub": {},
+    "stub": {
+      "vibe": {"status": "blocked", "why": "explicit only: no profile lists a vibe model, so a profile run never picks the Vibe CLI; a run that names client vibe still runs"}
+    },
     "live": {
+      "vibe": {"status": "blocked", "why": "explicit only: no profile lists a vibe model, so a profile run never picks the Vibe CLI; a run that names client vibe still runs"},
       "codex": {"status": "blocked", "why": "metered-employer: needs a repo whose allowlist names openai, and a grant for the harness-matrix workflow (model-gateway grant write)"}
     }
   }

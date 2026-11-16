@@ -206,10 +206,10 @@
     "merge_commits": 50
   },
   "fallbacks": {
-    "pi-vibe-mistral-large": ["pi-opencode-go-mistral-large", "vibe-mistral-large"],
-    "pi-vibe-glm": ["pi-opencode-go-glm", "vibe-glm"],
-    "pi-vibe-deepseek-flash": ["pi-opencode-go-deepseek-flash", "vibe-deepseek-flash"],
-    "agy-gemini-flash-high": ["pi-vibe-glm", "vibe-glm", "pi-public-gemini-flash"],
+    "pi-vibe-mistral-large": ["pi-opencode-go-mistral-large"],
+    "pi-vibe-glm": ["pi-opencode-go-glm"],
+    "pi-vibe-deepseek-flash": ["pi-opencode-go-deepseek-flash"],
+    "agy-gemini-flash-high": ["pi-vibe-glm", "pi-public-gemini-flash"],
     "pi-free-nemotron-ultra": ["pi-free-north-mini-code"],
     "pi-free-gemma": ["pi-free-opencode-go-beam"]
   },
