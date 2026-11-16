@@ -14,8 +14,10 @@ name = "agent-kit-merge"
 version = "0.1.0"
 dependencies = [
  "regex",
+ "serde_json",
  "serde_yaml",
  "toml_edit",
+ "workflow-lint",
 ]
 
 [[package]]

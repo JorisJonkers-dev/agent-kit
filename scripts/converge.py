@@ -21,24 +21,7 @@ refused whole when it fails; it is read, never copied into the registry.
 
 ``gold-band-roles`` converges in Rust too: ``agent-kit-merge converge gold-band-roles``.
 
-``gold-band-workflows``: the workflow templates of the personal instance's
-``context/workflows.json`` (the app's user-level template store), one template per
-``installer/gold-band/workflows/*.json``. A template the store lacks is added; one
-whose ``workflow`` or ``modelBindings`` differ from the file is replaced in
-place, keeping its name and ``createdAt``; one the keep file names (by workflow
-id, or ``<id>.json``) is never touched. A file bound to an agent of the work
-instance is not installed here, and the app's built-in templates and every
-template the kit does not ship are left exactly as they are. The store is
-replaced atomically, with one ``workflows.json.bak``.
-
-A template that fails Gold Band's editor validation (``gold_band_shape``) is refused with the
-other source failures, unless ``known-shape-failures.txt`` beside the templates names it (#781), when
-it is installed with a warning.
-
-The critique rules (#793, ``workflow-lint --critique``) are checked the same way against
-``known-critique-failures.txt`` when the built ``workflow-lint`` binary exists; without it the run warns
-that they were not checked (migration debt: setup converges the templates before the cargo tools are built,
-and there is no Python twin of these rules).
+``gold-band-workflows`` converges in Rust too: ``agent-kit-merge converge gold-band-workflows``.
 
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
@@ -48,8 +31,6 @@ Usage::
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
         --keep PATH [--settings PATH] [--instance ID] [--overlay PATH] [--registry PATH] [--kit DIR] \\
         [--skills-root DIR] [--check]
-    uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py \\
-        gold-band-workflows --keep PATH [--store PATH] [--workflows DIR] [--registry PATH] [--check]
 """
 
 from __future__ import annotations
@@ -62,14 +43,12 @@ import shlex
 import shutil
 import subprocess
 import sys
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import gold_band_instances
-import gold_band_shape
 import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
@@ -144,10 +123,6 @@ GOLD_BAND_MAC_PATH = re.compile(
     r"/Applications\b|/opt/homebrew|/usr/local/Cellar|/Library/|/Users/|homebrew|\.app/", re.I
 )
 GOLD_BAND_ADAPTER_FIELDS = ("displayName", "command", "args", "env")
-GOLD_BAND_WORKFLOWS_DIR = KIT_ROOT / "installer" / "gold-band" / "workflows"
-GOLD_BAND_WORKFLOW_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-GOLD_BAND_WORKFLOW_BUILT_INS = frozenset({"default", "default-lightweight"})
-GOLD_BAND_WORKFLOW_STORE_VERSION = "0.1"
 # The app strips adapter.command and adapter.args from a built-in id when it
 # saves settings.json and re-injects them on load, so setup writes neither.
 GOLD_BAND_BUILT_INS = frozenset({
@@ -1201,318 +1176,6 @@ def _gold_band_write_settings(settings: Path, document: dict[str, Any]) -> None:
         raise
 
 
-def _gold_band_workflow_store_path() -> Path:
-    """``${GOLD_BAND_HOME:-~}/.gold-band/context/workflows.json``: the app's user-level template store."""
-    return _gold_band_settings_path().parent / "context" / "workflows.json"
-
-
-def _gold_band_work_agents(path: Path) -> set[str]:
-    """The agent ids the registry gives the work instance: a workflow bound to one is not the personal instance's."""
-    try:
-        data = yaml.safe_load(path.read_text())
-    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
-        raise _CannotConverge(f"{path} cannot be read: {exc}") from exc
-    instances = data.get("gold_band_instances") if isinstance(data, dict) else None
-    work = instances.get(GOLD_BAND_WORK_INSTANCE) if isinstance(instances, dict) else None
-    agents = work.get("agents") if isinstance(work, dict) else None
-    if not isinstance(agents, list) or not all(isinstance(name, str) for name in agents):
-        raise _CannotConverge(f"{path}: gold_band_instances.{GOLD_BAND_WORK_INSTANCE}.agents must be a list of ids")
-    return set(agents)
-
-
-def _gold_band_workflow_sources(directory: Path) -> dict[str, dict[str, Any]]:
-    """Every ``*.json`` of ``directory`` as workflow id -> ``{workflow, modelBindings}``; one bad file refuses all."""
-    if not directory.is_dir():
-        raise _CannotConverge(f"{directory} is not a directory")
-    sources: dict[str, dict[str, Any]] = {}
-    for path in sorted(directory.glob("*.json"), key=lambda each: each.stem):
-        try:
-            body = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, ValueError) as exc:
-            raise _CannotConverge(f"{path} cannot be read: {exc}") from exc
-        workflow = body.get("workflow") if isinstance(body, dict) else None
-        bindings = body.get("modelBindings") if isinstance(body, dict) else None
-        if not isinstance(workflow, dict) or not isinstance(bindings, dict):
-            raise _CannotConverge(f"{path} must hold a `workflow` object and a `modelBindings` object")
-        wid = workflow.get("id")
-        if not isinstance(wid, str) or not GOLD_BAND_WORKFLOW_ID.fullmatch(wid) or wid != path.stem:
-            raise _CannotConverge(f"{path}: the workflow id must be the file's own name ({path.stem!r}), got {wid!r}")
-        if wid in GOLD_BAND_WORKFLOW_BUILT_INS:
-            raise _CannotConverge(f"{path}: {wid!r} is the id of a built-in template of the app")
-        sources[wid] = {"workflow": workflow, "modelBindings": bindings}
-    return sources
-
-
-GOLD_BAND_SHAPE_KNOWN_FAILURES = "known-shape-failures.txt"
-
-
-def _gold_band_shape_known_failures(directory: Path) -> set[str]:
-    """The template ids ``known-shape-failures.txt`` tolerates (agent-kit#781); none without the file."""
-    path = directory / GOLD_BAND_SHAPE_KNOWN_FAILURES
-    if not path.is_file():
-        return set()
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError) as exc:
-        raise _CannotConverge(f"{path} cannot be read: {exc}") from exc
-    return {line.strip().removesuffix(".json") for line in lines if line.strip() and not line.lstrip().startswith("#")}
-
-
-def _gold_band_shape_gate(directory: Path, sources: dict[str, dict[str, Any]]) -> list[str]:
-    """Refuse a template that fails the editor's shape rules; return the warning lines for the tolerated ones.
-
-    The rules are Gold Band's own editor validation (``gold_band_shape``, pinned to commit 987fc3e2): a template
-    that breaks one opens in the app with errors. A template named in ``known-shape-failures.txt`` is tolerated
-    for now and warned about; any other failure refuses the whole run before anything is written.
-    """
-    known = _gold_band_shape_known_failures(directory)
-    refused: list[str] = []
-    warnings: list[str] = []
-    for wid, source in sources.items():
-        findings = gold_band_shape.shape_findings(source["workflow"])
-        if not findings:
-            continue
-        if wid in known:
-            warnings.append(
-                f"warning: {wid} fails the editor's shape rules ({len(findings)} findings) and is a known "
-                f"failure ({GOLD_BAND_SHAPE_KNOWN_FAILURES}, agent-kit#781); installing it anyway"
-            )
-            continue
-        refused.extend(f"{wid}.json: {node}: {rule}: {message}" for node, rule, message in findings)
-    if refused:
-        raise _CannotConverge(
-            "a template fails Gold Band's workflow shape rules:\n  "
-            + "\n  ".join(refused)
-            + f"\nfix it, or (for a known failure) list it in {directory / GOLD_BAND_SHAPE_KNOWN_FAILURES}"
-        )
-    return warnings
-
-
-GOLD_BAND_CRITIQUE_KNOWN_FAILURES = "known-critique-failures.txt"
-
-
-def _gold_band_workflow_lint() -> Path | None:
-    """The built ``workflow-lint`` (``AGENT_KIT_WORKFLOW_LINT``, PATH, else the kit's cargo target), if any."""
-    named = os.environ.get("AGENT_KIT_WORKFLOW_LINT")
-    found = [Path(named)] if named else []
-    on_path = shutil.which("workflow-lint")
-    if on_path:
-        found.append(Path(on_path))
-    root = Path(__file__).resolve().parent
-    found += [root / "target" / kind / "workflow-lint" for kind in ("release", "debug")]
-    return next((p for p in found if p.is_file()), None)
-
-
-def _gold_band_critique_gate(directory: Path, sources: dict[str, dict[str, Any]]) -> list[str]:
-    """Refuse a template that breaks the critique rules (agent-kit#793); return the warning lines.
-
-    Runs ``workflow-lint --critique`` per template. A template named in ``known-critique-failures.txt`` is
-    tolerated with a warning; any other violator refuses the run before anything is written. Without the
-    binary nothing can be checked and one warning says so.
-    """
-    binary = _gold_band_workflow_lint()
-    if binary is None:
-        return ["warning: workflow-lint is not built; the critique rules (#793) were not checked"]
-    path = directory / GOLD_BAND_CRITIQUE_KNOWN_FAILURES
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
-    except (OSError, UnicodeDecodeError) as exc:
-        raise _CannotConverge(f"{path} cannot be read: {exc}") from exc
-    known = {
-        line.split()[0].removesuffix(".json") for line in lines if line.strip() and not line.lstrip().startswith("#")
-    }
-    refused: list[str] = []
-    warnings: list[str] = []
-    for wid in sources:
-        instance = "gold-band" if wid.endswith("-work") else "gold-band-personal"
-        result = subprocess.run(
-            [str(binary), "--critique", "--instance", instance, str(directory / f"{wid}.json")],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            continue
-        if result.returncode == 2:  # unreadable file, or a workflow-lint too old to know --critique
-            return [f"warning: the critique rules (#793) were not checked: {result.stderr.strip()[:200]}"]
-        found = [line for line in result.stderr.splitlines() if line.strip()]
-        if wid in known:
-            warnings.append(
-                f"warning: {wid} breaks the critique rules ({len(found)} findings) and is a known failure "
-                f"({GOLD_BAND_CRITIQUE_KNOWN_FAILURES}); installing it anyway"
-            )
-        else:
-            refused.extend(found)
-    if refused:
-        raise _CannotConverge(
-            "a template breaks the critique rules (critic-required, critic-family):\n  "
-            + "\n  ".join(refused)
-            + f"\nfix it, or (for a known failure) list it in {path}"
-        )
-    return warnings
-
-
-def _gold_band_bound_agents(source: dict[str, Any]) -> set[str]:
-    bound = source["modelBindings"].get("bindings")
-    agents = {b.get("agentId") for b in bound if isinstance(b, dict)} if isinstance(bound, list) else set()
-    workers = {
-        node.get("provider")
-        for node in source["workflow"].get("nodes") or []
-        if isinstance(node, dict) and node.get("type") == "worker"
-    }
-    return {name for name in agents | workers if isinstance(name, str)}
-
-
-def _gold_band_without_nulls(value: Any) -> Any:
-    """The comparison form: the app drops a ``null`` field it re-saves, so a missing key equals a null one."""
-    if isinstance(value, dict):
-        return {k: _gold_band_without_nulls(v) for k, v in value.items() if v is not None}
-    if isinstance(value, list):
-        return [_gold_band_without_nulls(v) for v in value]
-    return value
-
-
-def _gold_band_workflow_store(path: Path) -> dict[str, Any]:
-    """The store as it is, or a new empty one; a file that is not a store is refused, never replaced."""
-    if not path.exists():
-        return {
-            "version": GOLD_BAND_WORKFLOW_STORE_VERSION,
-            "lastUsedTemplateId": None,
-            "lastCreatedWorkflow": None,
-            "templates": [],
-        }
-    try:
-        store = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise _CannotConverge(f"{path} cannot be read: {exc}") from exc
-    templates = store.get("templates") if isinstance(store, dict) else None
-    if not isinstance(templates, list) or not all(isinstance(t, dict) for t in templates):
-        raise _CannotConverge(f"{path} is not a workflow template store (no `templates` list); nothing was written")
-    return dict(store)
-
-
-def _gold_band_workflow_write(path: Path, store: dict[str, Any]) -> None:
-    """Replace ``path`` atomically (staged beside it, fsynced, renamed), keeping one backup of what it held."""
-    # The data directory and the context directory under it, when this run makes them, are owner-only.
-    for directory in (path.parent.parent, path.parent):
-        if not directory.exists():
-            directory.mkdir(mode=0o700, parents=True)
-            os.chmod(directory, 0o700)
-    backup = path.with_name(path.name + ".bak")
-    staged = path.with_name(path.name + ".agent-kit-tmp")
-    staged_backup = path.with_name(path.name + ".bak.agent-kit-tmp")
-    try:
-        if path.is_file():
-            shutil.copy2(path, staged_backup)
-            os.chmod(staged_backup, 0o600)
-            os.replace(staged_backup, backup)
-        staged.unlink(missing_ok=True)
-        fd = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(json.dumps(store, indent=2, ensure_ascii=False) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(staged, path)
-    except BaseException:
-        staged.unlink(missing_ok=True)
-        staged_backup.unlink(missing_ok=True)
-        raise
-
-
-def gold_band_workflows(args: argparse.Namespace) -> int:
-    store_path = args.store or _gold_band_workflow_store_path()
-    data_dir = store_path.parent.parent
-    try:
-        work_agents = _gold_band_work_agents(args.registry)
-        sources = _gold_band_workflow_sources(args.workflows)
-        shape_warnings = _gold_band_shape_gate(args.workflows, sources)
-        shape_warnings += _gold_band_critique_gate(args.workflows, sources)
-        running = None if args.check else _gold_band_running(data_dir)
-        if running:
-            print(
-                f"gold-band-workflows: Gold Band instance {running} is running; "
-                "quit it and re-run setup (nothing was written)"
-            )
-            return GOLD_BAND_RUNNING_EXIT
-        store = _gold_band_workflow_store(store_path)
-    except _CannotConverge as exc:
-        print(f"gold-band-workflows: cannot converge: {exc}")
-        return 3
-    for warning in shape_warnings:
-        print(f"gold-band-workflows: {warning}")
-    keep = _keep(args.keep)
-    templates: list[dict[str, Any]] = [dict(t) for t in store["templates"]]
-    slots: dict[str, int] = {}
-    for position, template in enumerate(templates):
-        workflow = template.get("workflow")
-        inner = workflow.get("id") if isinstance(workflow, dict) else None
-        for key in (template.get("id"), inner):
-            if isinstance(key, str):
-                slots.setdefault(key, position)
-
-    added_word, changed_word = ("would add", "would change") if args.check else ("added", "changed")
-    now = f"{int(time.time())}Z"
-    lines: list[str] = []
-    changed = False
-    for wid, source in sources.items():
-        foreign = sorted(_gold_band_bound_agents(source) & work_agents)
-        if foreign:
-            lines.append(f"skipped {wid} (bound to the work instance's {', '.join(foreign)})")
-            continue
-        index = slots.get(wid)
-        if index is not None and templates[index].get("isBuiltIn") is True:
-            print(f"gold-band-workflows: {wid}: the existing template is a built-in; nothing was written")
-            return 1
-        if wid in keep or f"{wid}.json" in keep:
-            lines.append(f"kept {wid} (keep file)")
-            continue
-        if index is None:
-            templates.append(
-                {
-                    "id": wid,
-                    "name": wid,
-                    "isBuiltIn": False,
-                    "workflow": source["workflow"],
-                    "modelBindings": source["modelBindings"],
-                    "createdAt": now,
-                    "updatedAt": now,
-                }
-            )
-            slots[wid] = len(templates) - 1
-            lines.append(f"{added_word} {wid}")
-            changed = True
-            continue
-        held = templates[index]
-        same = _gold_band_without_nulls(held.get("workflow")) == _gold_band_without_nulls(source["workflow"]) and (
-            _gold_band_without_nulls(held.get("modelBindings")) == _gold_band_without_nulls(source["modelBindings"])
-        )
-        if same:
-            continue
-        templates[index] = {**held, "workflow": source["workflow"], "modelBindings": source["modelBindings"],
-                            "updatedAt": now}
-        lines.append(f"{changed_word} {wid}")
-        changed = True
-
-    for line in lines:
-        print(line)
-    if not changed:
-        print("workflows unchanged")
-        return 0
-    if args.check:
-        return 0
-
-    # The one write group: the guard runs again right before it.
-    running = _gold_band_running(data_dir)
-    if running:
-        return _gold_band_stopped("gold-band-workflows", running, [], [store_path.name])
-    try:
-        _gold_band_workflow_write(store_path, {**store, "templates": templates})
-    except OSError as exc:
-        print(f"gold-band-workflows: cannot converge: {exc}; the old store is in place")
-        return 3
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Converge agent surfaces to the registry and the keep file")
     sub = parser.add_subparsers(dest="surface", required=True)
@@ -1525,17 +1188,12 @@ def main(argv: list[str] | None = None) -> int:
     # directories go: beside settings.json unless the owner moves them.
     g.add_argument("--kit", type=Path, default=KIT_ROOT)
     g.add_argument("--skills-root", type=Path, default=None)
-    w = sub.add_parser("gold-band-workflows")
-    w.add_argument("--store", type=Path, default=None)
-    w.add_argument("--workflows", type=Path, default=GOLD_BAND_WORKFLOWS_DIR)
-    w.add_argument("--registry", type=Path, default=REGISTRY_PATH)
-    for each in (g, w):
+    for each in (g,):
         each.add_argument("--keep", type=Path, required=True)
         each.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
     surfaces: dict[str, Callable[[argparse.Namespace], int]] = {
         "gold-band": gold_band,
-        "gold-band-workflows": gold_band_workflows,
     }
     return surfaces[args.surface](args)
 

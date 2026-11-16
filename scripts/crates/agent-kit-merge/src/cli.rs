@@ -22,7 +22,8 @@ commands:
   converge plugins --keep PATH [--declared-markets NAME,...] [--declared-plugins ID,...]
                   [--retired-markets NAME,...] [--retired-plugins ID,...] [--check]
   converge gold-band-roles --keep PATH --registry PATH [--profiles DIR] [--critique DIR]
-                  [--closing PATH] [--check]";
+                  [--closing PATH] [--check]
+  converge gold-band-workflows --keep PATH --registry PATH [--store PATH] [--workflows DIR] [--check]";
 
 struct Parsed {
     positional: Vec<String>,
@@ -109,7 +110,7 @@ fn required(parsed: &Parsed, flags: &[&str]) -> Result<(), Failure> {
 /// `converge mcp|plugins`.
 fn converge_command(rest: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner, processes: &dyn crate::gold_band::Processes) -> Result<i32, Failure> {
     let Some((surface, rest)) = rest.split_first() else {
-        return Err(Failure("converge: expected mcp, plugins or gold-band-roles".to_string()));
+        return Err(Failure("converge: expected mcp, plugins, gold-band-roles or gold-band-workflows".to_string()));
     };
     match surface.as_str() {
         "mcp" => {
@@ -161,7 +162,21 @@ fn converge_command(rest: &[String], io: &mut Io, env: Env, runner: &mut dyn Run
             };
             crate::gold_band_roles::run(&args, processes, io, env)
         }
-        other => Err(Failure(format!("converge: unknown surface {other:?}; expected mcp, plugins or gold-band-roles"))),
+        "gold-band-workflows" => {
+            let parsed = parse(rest, &["--keep", "--registry", "--store", "--workflows"], &["--check"], 0)?;
+            required(&parsed, &["--keep", "--registry"])?;
+            let path = |flag: &str| parsed.last(flag).map(PathBuf::from);
+            let args = crate::gold_band_workflows::WorkflowArgs {
+                keep: PathBuf::from(parsed.last("--keep").unwrap_or_default()),
+                registry: PathBuf::from(parsed.last("--registry").unwrap_or_default()),
+                store: path("--store"),
+                workflows: path("--workflows"),
+                check: !parsed.switches.is_empty(),
+            };
+            let now = env("AGENT_KIT_NOW").unwrap_or_else(crate::gold_band_workflows::now_stamp);
+            crate::gold_band_workflows::run(&args, &now, processes, io, env)
+        }
+        other => Err(Failure(format!("converge: unknown surface {other:?}; expected mcp, plugins, gold-band-roles or gold-band-workflows"))),
     }
 }
 

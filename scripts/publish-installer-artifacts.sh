@@ -74,7 +74,6 @@ KIT_PATHS=(
   installer/vibe-hooks.toml
   scripts/converge.py
   scripts/gold_band_instances.py
-  scripts/gold_band_shape.py
   scripts/install-workspace-tools.sh
   scripts/Cargo.toml
   scripts/Cargo.lock

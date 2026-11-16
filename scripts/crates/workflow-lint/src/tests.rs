@@ -318,3 +318,10 @@ fn shape_needs_workflow_shaped_json() {
     ];
     assert!(parse_args(&args).is_none());
 }
+
+#[test]
+fn a_definition_without_nodes_or_edges_is_shaped_as_empty() {
+    let found = crate::shape_of_definition(&serde_json::json!({"id": "w", "nodes": 5}));
+    assert!(found.iter().any(|line| line.contains("nodes-required")), "{found:?}");
+    assert_eq!(crate::shape_of_definition(&serde_json::json!({"id": "w", "nodes": [], "edges": []})), crate::shape::shape(&serde_json::json!({"id": "w"}), &[], &[]));
+}

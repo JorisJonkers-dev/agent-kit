@@ -151,13 +151,6 @@
         'run': 'cargo build --locked --manifest-path "$GITHUB_WORKSPACE/scripts/Cargo.toml" -p workflow-lint'
       - 'name': 'Lint every template against the editor shape rules'
         'run': 'scripts/check-workflow-shape.sh "$RUNNER_TEMP/shape-target/debug/workflow-lint"'
-      # Setup applies the same rules through scripts/gold_band_shape.py; this
-      # fails when the Python twin and the crate disagree.
-      - 'uses': 'astral-sh/setup-uv@v8.2.0'
-      - 'run': 'uv sync --frozen'
-      - 'run': 'uv run pytest tests/test_gold_band_shape.py'
-        'env':
-          'WORKFLOW_LINT_BIN': '${{ runner.temp }}/shape-target/debug/workflow-lint'
 
   # No new or changed Python or TypeScript outside the shrink-only allowlist
   # (#804, parent #802: the repository is going 100% Rust). The guard reads
