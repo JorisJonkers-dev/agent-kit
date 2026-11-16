@@ -248,9 +248,11 @@ Without a token setup says which keys it skipped and changes nothing on the prox
 
 A minted key takes its team's access groups (`models: ["all-team-models"]`), so changing a
 route's groups in the registry is a team update on the next setup run with a token, and needs
-no new key. A key minted before that holds its groups itself: delete it from the store
-(`agent-kit-secret delete LITELLM_<ROUTE>_KEY`) and run setup with a token to mint it anew. This
-applies to the `openrouter` key minted before it became public-only: it still lists `canonical`.
+no new key. A key minted before that holds its groups itself, so a team change never reaches
+it (the `openrouter` key minted before the route became public-only still listed `canonical`, and
+every free model answered `403 key_model_access_denied`). Setup reads each stored key's own
+`/key/info`, and a key that names anything but `all-team-models` is minted again on a run with a
+token (`LITELLM_<ROUTE>_KEY: the key is scoped to ..., not to its team's models; minting it again`).
 
 ## The window and reset
 

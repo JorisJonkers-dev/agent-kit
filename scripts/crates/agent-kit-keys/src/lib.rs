@@ -344,6 +344,17 @@ fn ensure_litellm(ctx: &mut Ctx, table: &[Value], todo: &BTreeSet<String>, keys:
         let env = env_of(entry)?;
         if todo.contains(env) {
             wanted.push(env.to_string());
+            continue;
+        }
+        // A stored key that names its own access groups misses every team change: mint it again.
+        let stored = keys.get(ctx, env)?;
+        if stored.is_empty() || !is_safe(&stored) {
+            continue;
+        }
+        let proxy = field(entry.get("litellm").unwrap_or(&Value::Null), "proxy");
+        if let Ok(Some(scope)) = litellm::LiteLLM::new(proxy, &stored).narrower_than_team(ctx) {
+            ctx.say(&format!("{env}: the key is scoped to {scope}, not to its team's models; minting it again"));
+            wanted.push(env.to_string());
         }
     }
     wanted.sort();

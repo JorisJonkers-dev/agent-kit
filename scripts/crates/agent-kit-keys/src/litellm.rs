@@ -160,6 +160,20 @@ impl LiteLLM {
         Ok(code == 200)
     }
 
+    /// Whether this client's own key is scoped narrower than its team: a key minted before keys took
+    /// `all-team-models` names its access groups itself, so a team change never reaches it. `false` when the
+    /// proxy does not say.
+    pub fn narrower_than_team(&self, ctx: &Ctx) -> R<Option<String>> {
+        let (code, reply) = self.call(ctx, "GET", "/key/info", None)?;
+        let models = reply.get("info").and_then(|info| info.get("models")).and_then(Value::as_array);
+        Ok(match models {
+            Some(models) if code == 200 && models.iter().any(|m| m.as_str() != Some(TEAM_MODELS)) => {
+                Some(models.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", "))
+            }
+            _ => None,
+        })
+    }
+
     pub fn mint(&self, ctx: &Ctx, team_id: &str, alias: &str) -> R<String> {
         // The key takes its team's access groups (LiteLLM's all-team-models), so a team change needs no new key.
         let body = json!({
