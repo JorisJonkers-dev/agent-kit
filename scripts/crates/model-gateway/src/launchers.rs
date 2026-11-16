@@ -454,6 +454,9 @@ pub const PI_READ_SYSTEM_PROMPT: &str =
 pub const PI_WRITE_SYSTEM_PROMPT: &str =
     "You are a delegate that changes the files of your working directory. Read, search, edit and write only those files, run no command, and answer exactly as the user message asks.";
 
+/// The variables the launcher must pass through to a confined Pi: the ones `pi_command` sets for the launch.
+pub const PI_KEPT_ENV: [&str; 2] = ["PI_CODING_AGENT_DIR", "TMPDIR"];
+
 /// The grants a confined Pi run is started with: what it may read or write, Pi itself, and the proxy's port.
 pub fn pi_grants(input: &LaunchRequest, paths: &LaunchPaths, binary: &str, confine: &PiConfinement) -> Vec<String> {
     let mut grants = Vec::new();
@@ -528,6 +531,12 @@ fn pi_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: 
     };
     let mut args = strings(&["confine"]);
     args.extend(pi_grants(input, paths, binary, confine));
+    // The launcher clears the environment down to its own short list; Pi finds the launch's agent directory
+    // and its temporary files only through the variables named here, so each must be named or Pi falls back
+    // to the real home's `~/.pi/agent` (#870).
+    for name in PI_KEPT_ENV {
+        args.extend(strings(&["--env", name]));
+    }
     args.extend(strings(&["--", binary]));
     args.append(&mut pi_args);
     let searched = [confine.bin.as_deref(), confine.path.as_deref()].into_iter().flatten().filter(|part| !part.is_empty()).collect::<Vec<_>>().join(":");
