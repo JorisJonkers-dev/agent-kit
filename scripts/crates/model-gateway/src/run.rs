@@ -132,7 +132,7 @@ pub struct RunInput {
     pub profile: Option<String>,
     /// What the request takes away from the profile; it never adds.
     pub narrow: Option<Narrowing>,
-    /// Refuse before anything runs unless the model is `free` (its Pi provider entry prices every field at zero);
+    /// Refuse before anything runs unless the model is `free` (the catalogue marks it free, else its Pi entry prices every field at zero);
     /// no retry, climb or fall-through moves the run to another model.
     pub free_only: Option<bool>,
     /// The members that sit last in the object the node runner holds, in order: an attempt on a candidate moves

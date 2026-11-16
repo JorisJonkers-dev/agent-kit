@@ -437,3 +437,19 @@ pub fn place_unlisted(runtime: &Runtime, config: &GatewayConfig, client: &str, m
 fn group_serving<'a>(catalogue: &'a LiteLlmCatalogue, upstream: &str) -> Option<&'a str> {
     catalogue.groups.iter().find(|(_, group)| group.deployments.iter().any(|deployment| deployment.upstream == upstream)).map(|(name, _)| name.as_str())
 }
+
+/// Whether the catalogue marks a client model free, or `None` when it has no word on it.
+fn free_flag(config: &GatewayConfig, catalogue: &LiteLlmCatalogue, client: &str, model: &str) -> Option<bool> {
+    judged(config, catalogue, client, model).map(|(_, probe)| probe.free)
+}
+
+/// The one definition of free: the catalogue's free flag, true for a group only when every deployment, fallbacks
+/// included, is a model its provider marks free. Setup writes that flag into Pi's `models.json` as a price of zero
+/// in every field, so where the catalogue cannot be read or has no word on the model, that zero price stands in; a
+/// catalogue that calls the model billed always wins over a price in the file.
+pub fn is_free(runtime: &Runtime, config: &GatewayConfig, catalogue: Option<&LiteLlmCatalogue>, client: &str, model: &str) -> bool {
+    match catalogue.and_then(|catalogue| free_flag(config, catalogue, client, model)) {
+        Some(free) => free,
+        None => crate::sources::pi_model_is_free(runtime, client, model),
+    }
+}

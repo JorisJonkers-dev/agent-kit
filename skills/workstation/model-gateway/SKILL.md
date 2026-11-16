@@ -122,13 +122,21 @@ Pi is the preferred client: `pi-vibe`, `pi-vibe-study`, `pi-opencode-go`,
 `pi-local` and `pi-public`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
 all started by the one `pi` program, each on its route's key, which sits in the
 route's own team and budget. There is no `pi-openrouter`: the owner forbade
-OpenRouter. All are `subsidised`, except a model that is verifiably `free`
-(below). A Pi model is
-`free` (the `cost_class` `models` prints, ahead of `subsidised`) only when its
-entry in that provider carries a `cost` object whose every field is a number 0;
-a missing, empty, partial or non-numeric `cost` keeps `subsidised`. No
-configuration or ledger file can declare `free`. A free model is held to the
-caps and the plan limit exactly like a `subsidised` one (neither applies).
+OpenRouter. All are `subsidised`, except a model that is `free` (below).
+
+**One definition of free.** A model is `free` when the live LiteLLM catalogue
+marks it free: for a Pi model, its canonical group, free only when every
+deployment of the group, fallbacks included, is a model its provider marks free
+(a free tier that still bills once its quota is gone is not). Setup writes the
+same flag into Pi's `models.json` as a `cost` of 0 in every field, for every
+catalogue-free model; where the catalogue cannot be read or has no word on a
+model, that zero price (every field a number 0; a missing, empty, partial or
+non-numeric `cost` is not free) stands in. A catalogue that calls the model
+billed always wins over a price in the file. No configuration or ledger file
+can declare `free`. `models` prints a free model with `"free": true` and the
+cost class `free` (ahead of `subsidised`), and `models --free` (or
+`{"free": true}` in the input) lists only the free ones. A free model is held to
+the caps and the plan limit exactly like a `subsidised` one (neither applies).
 Each lists the models the home's
 `~/.pi/agent/models.json` (or `PI_CODING_AGENT_DIR`) gives its
 `litellm-<route>` provider, which setup writes from the live catalogue's
@@ -275,7 +283,7 @@ fall-through below), `family_binding` (default `true`; see below),
 changes nothing else: a run marked headless is refused and launched exactly
 like any other) and `free_only` (a boolean; see below).
 `free_only: true` refuses the run, before anything starts, with code
-`free-only-refused` unless the model is `free`; it also turns off the retry,
+`free-only-refused` unless the model is `free` (the one definition above); it also turns off the retry,
 the climb and the fall-through, so a free-only run never moves to another
 model. A non-boolean is `invalid-input`.
 `workflow` is required (`code: "invalid-input"`), and is a name: a letter or

@@ -1,0 +1,65 @@
+{
+  "steps": [
+    {
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      },
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nexit 0\n",
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"beam-1.0-501b-a23b\"},{\"id\":\"qwen3.8-flash\",\"cost\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0}},{\"id\":\"kimi-k2.7-code\",\"cost\":{\"input\":0,\"output\":0}},{\"id\":\"hy3\"}]}}}",
+        "cache/agent-kit/litellm-catalogue.json": "{\"version\":1,\"updated_at\":\"2026-11-03T11:17:01Z\",\"providers\":{\"opencode-go\":{\"models\":[{\"id\":\"opencode-go/beam-free\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":true,\"modality\":\"chat\",\"canonical_id\":\"reflection/beam-1.0-501b-a23b\"}},{\"id\":\"opencode-go/qwen3.8-flash\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":false,\"modality\":\"chat\",\"canonical_id\":\"alibaba/qwen3.8-flash\"}},{\"id\":\"opencode-go/hy3\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":false,\"modality\":\"chat\",\"canonical_id\":\"tencent/hy3\"}}]}},\"groups\":{\"beam-1.0-501b-a23b\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"beam-free\",\"order\":1,\"weight\":1}]},\"qwen3.8-flash\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"qwen3.8-flash\",\"order\":1,\"weight\":1}]},\"hy3\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"hy3\",\"order\":1,\"weight\":1}]}}}"
+      },
+      "exec": [
+        "bin/pi"
+      ]
+    },
+    {
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      },
+      "argv": [
+        "models",
+        "--free",
+        "--json",
+        "{}"
+      ]
+    },
+    {
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      },
+      "argv": [
+        "models",
+        "--json",
+        "{\"free\":true}"
+      ]
+    },
+    {
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      },
+      "argv": [
+        "models",
+        "--json",
+        "{\"free\":\"yes\"}"
+      ]
+    }
+  ]
+}

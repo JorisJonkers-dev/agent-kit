@@ -8,7 +8,8 @@
 
 use crate::json::{self, Object, Value};
 use crate::locations::{pi_models_path, vibe_available_cache_path, vibe_config_path};
-use crate::config::CostClass;
+use crate::config::{CostClass, GatewayConfig};
+use crate::litellm_catalogue::LiteLlmCatalogue;
 use crate::models::{
     hermes_default_model, is_vibe_model_id, parse_antigravity_models, parse_opencode_models, parse_vibe_available,
     vibe_models, ClientListing, ClientModel, ListedModel, ModelListing,
@@ -165,18 +166,16 @@ pub fn pi_model_is_free(runtime: &Runtime, client: &str, model: &str) -> bool {
     runtime.files.read_text(&path).is_ok_and(|text| pi_entry_is_free(&text, &crate::run::pi_provider(client), model))
 }
 
-/// The listing with every Pi model that is verifiably free moved from `subsidised` to `free`; any other class is kept.
-pub fn mark_free(runtime: &Runtime, listing: ModelListing) -> ModelListing {
+/// The listing with every free model marked and, when it is on a subsidised client, moved to the `free` class; any
+/// other class is kept. Free is `litellm_catalogue::is_free`: the catalogue's flag, else Pi's zero price.
+pub fn mark_free(runtime: &Runtime, config: &GatewayConfig, catalogue: Option<&LiteLlmCatalogue>, listing: ModelListing) -> ModelListing {
     let models = listing
         .models
         .into_iter()
         .map(|model| {
-            let free = model.cost_class == CostClass::Subsidised && pi_model_is_free(runtime, &model.client, &model.model);
-            if free {
-                ListedModel { cost_class: CostClass::Free, ..model }
-            } else {
-                model
-            }
+            let free = crate::litellm_catalogue::is_free(runtime, config, catalogue, &model.client, &model.model);
+            let cost_class = if free && model.cost_class == CostClass::Subsidised { CostClass::Free } else { model.cost_class };
+            ListedModel { free, cost_class, ..model }
         })
         .collect();
     ModelListing { models, ..listing }

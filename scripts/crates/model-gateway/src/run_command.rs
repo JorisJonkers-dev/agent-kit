@@ -503,10 +503,13 @@ impl RunCommand<'_> {
         if carries.1 && !permission.may_send.history {
             return Err(GatewayError::new("policy-refused", format!("{}:{} may not carry history: {}", input.client, input.model, decision.reason)));
         }
-        if input.free_only == Some(true) && !crate::sources::pi_model_is_free(self.runtime, &input.client, &input.model) {
+        if input.free_only == Some(true) && !self.is_free(config, &input.client, &input.model) {
             return Err(GatewayError::new(
                 "free-only-refused",
-                format!("{}:{} is not free: its Pi provider entry does not price every field at zero, and a free-only run never falls back to another model", input.client, input.model),
+                format!(
+                    "{}:{} is not free: the LiteLLM catalogue does not mark it free (every deployment of it must be), and a free-only run never falls back to another model",
+                    input.client, input.model
+                ),
             ));
         }
         if let Some(profile) = &input.profile {
@@ -529,6 +532,12 @@ impl RunCommand<'_> {
             DataScope::Repository { key, .. } => Some(key),
             _ => None,
         })
+    }
+
+    /// Whether a client model is free: the catalogue's flag, else Pi's zero price where the catalogue is silent.
+    fn is_free(&self, config: &GatewayConfig, client: &str, model: &str) -> bool {
+        let reading = crate::litellm_catalogue::read_catalogue(self.runtime);
+        crate::litellm_catalogue::is_free(self.runtime, config, reading.catalogue.as_ref(), client, model)
     }
 
     /// Whether the run must work in a throwaway directory: a client model goes in place only when its read-only

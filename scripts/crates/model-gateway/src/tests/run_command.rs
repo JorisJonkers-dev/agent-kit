@@ -520,3 +520,28 @@ fn a_free_only_run_on_a_free_model_runs_and_a_run_that_does_not_ask_is_unchanged
     let error = run(&paid, &pi_run(r#","free_only":"yes""#)).expect_err("not a flag");
     assert_eq!(error.code, "invalid-input");
 }
+
+fn with_vibe_catalogue(machine: &Machine, free: bool) {
+    let dir = format!("{}/home/.cache/agent-kit", machine.sandbox.text());
+    std::fs::create_dir_all(&dir).expect("cache");
+    std::fs::write(
+        format!("{dir}/litellm-catalogue.json"),
+        format!(
+            r#"{{"updated_at":"2026-11-03T11:17:01Z","providers":{{"vibe":{{"models":[{{"id":"vibe/ministral-8b","metadata":{{"status":"usable","free":{free},"modality":"chat"}}}}]}}}},"groups":{{"ministral-8b":{{"modality":"chat","deployments":[{{"route":"vibe","upstream_id":"ministral-8b","order":1}}]}}}}}}"#
+        ),
+    )
+    .expect("catalogue");
+}
+
+#[test]
+fn a_free_only_run_follows_the_catalogues_free_flag_not_the_price_in_the_pi_file() {
+    // Free by the catalogue with no price in models.json: accepted.
+    let flagged = pi_free_machine("");
+    with_vibe_catalogue(&flagged, true);
+    assert_eq!(text(&run(&flagged, &pi_run(r#","free_only":true"#)).expect("the flagged run"), "status"), "ok");
+    // Billed by the catalogue though models.json prices it at zero: refused.
+    let billed = pi_free_machine(r#","cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0}"#);
+    with_vibe_catalogue(&billed, false);
+    let error = run(&billed, &pi_run(r#","free_only":true"#)).expect_err("a billed model");
+    assert_eq!(error.code, "free-only-refused");
+}
