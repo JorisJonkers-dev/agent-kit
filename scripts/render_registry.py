@@ -6192,7 +6192,8 @@ def litellm_route_models(
         # estate's naming stands in: a group on the openrouter route is reached by openrouter-free-public,
         # one on the opencode-go route by opencode-go-free-public. A group that names its own access
         # groups (the `free` ones) was already matched exactly by canonical_groups().
-        if entry.public and not entry.access_groups and not all(any(g.startswith(f"{route}-") for g in held) for route in entry.routes):
+        named = all(any(g.startswith(f"{route}-") for g in held) for route in entry.routes)
+        if entry.public and not entry.access_groups and not named:
             continue
         model: dict[str, Any] = {"id": entry.name}
         if entry.context_length is not None:
