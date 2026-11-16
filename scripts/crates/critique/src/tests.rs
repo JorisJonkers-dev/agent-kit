@@ -2,6 +2,7 @@
 
 mod adrs;
 mod assets_plan;
+mod check_routing;
 mod cli;
 mod code_corpus;
 mod cold_read;

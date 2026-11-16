@@ -17,7 +17,7 @@ skill directory installed beside this one (`../critique/critique` from the
 folder this file is in). Each command takes one JSON object and prints one:
 
 ```sh
-sh <critique dir>/critique <prepare|fan-out|refute|record|allow|check-adrs|check-rewrite|cold-read> --json '<object>'
+sh <critique dir>/critique <prepare|fan-out|refute|record|allow|check-adrs|check-rewrite|check-routing|cold-read> --json '<object>'
 sh <critique dir>/critique <command> --input <file.json>
 ```
 

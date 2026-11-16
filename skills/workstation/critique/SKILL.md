@@ -28,7 +28,7 @@ for a review of the decision records), which tells you how to drive it.
 The runner takes one command and one JSON object, and prints one JSON object:
 
 ```sh
-sh <this directory>/critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|cold-read|stats|triage|state|setup> --input FILE
+sh <this directory>/critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|check-routing|cold-read|stats|triage|state|setup> --input FILE
 sh <this directory>/critique --help
 ```
 

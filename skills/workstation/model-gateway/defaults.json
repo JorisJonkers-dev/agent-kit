@@ -47,7 +47,7 @@
     {"client": "pi", "model": "mimo-v2.6-flash", "family": "xiaomi", "tier": "routine", "notes": "Xiaomi’s MiMo flash variant; untried as a delegate."},
     {"client": "pi", "model": "qwen3.8-flash", "family": "alibaba", "tier": "routine", "notes": "Fast Qwen; routine edits and summaries."},
     {"client": "pi", "model": "minimax-m3.1-flash", "family": "minimax", "tier": "routine", "notes": "Fast MiniMax; routine edits and summaries."},
-    {"client": "pi", "model": "public/gemini-3.8-flash", "family": "google", "tier": "routine", "notes": "Fast long-context reader; public material only."},
+    {"client": "pi", "model": "public/gemini-3.6-flash", "family": "google", "tier": "routine", "notes": "Fast long-context reader; public material only."},
     {"client": "pi", "model": "public/gemini-3.5-flash-lite", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries and lookups; public material only."}
   ],
   "profiles": {
@@ -67,7 +67,7 @@
     },
     "public-gemini": {
       "description": "Gemini free-tier models on the public route, for public material only: a delegation that reads a repository is never sent here. Not free: the proxy bills them once the free-tier quota is used, and max_spend_usd bounds that.",
-      "models": ["pi-public:public/gemini-3.5-flash-lite", "pi-public:public/gemini-3.8-flash"],
+      "models": ["pi-public:public/gemini-3.5-flash-lite", "pi-public:public/gemini-3.6-flash"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 0.25
     },
