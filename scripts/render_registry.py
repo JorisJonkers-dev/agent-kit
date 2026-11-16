@@ -3237,21 +3237,15 @@ def _gold_band_step(w: Any, data: dict[str, Any]) -> None:
     w('    log "gold band roles: Gold Band is not installed, its profiles are left alone"')
     w("    return 0")
     w("  fi")
-    w("  if ! command -v uv >/dev/null 2>&1; then")
-    w('    warn "uv is not on PATH; the Gold Band roles are not converged"')
-    w("    return 0")
-    w("  fi")
     w('  local band_home="${GOLD_BAND_HOME:-}"')
     w('  [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"')
     w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"')
     w('    --profiles "${band_home}/.gold-band/context/profiles")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
-    w(
-        '  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
-        '"${KIT_ROOT}/scripts/converge.py" gold-band-roles \\'
-    )
+    w('  out=$(agent_kit_merge_current converge gold-band-roles \\')
     w('    "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?')
     w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  if [ "${rc}" = 127 ]; then warn "agent-kit-merge is not available; the Gold Band roles are not converged"; return 0; fi')
     w('  if [ "${rc}" = 4 ]; then')
     w('    fail "Gold Band is running: setup stopped before its remaining write groups; quit it and re-run setup"')
     w('    exit 1')

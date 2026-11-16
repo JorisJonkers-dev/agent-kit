@@ -88,23 +88,35 @@ def test_a_cloud_session_is_not_converged(tmp_path: Path) -> None:
     assert _converge_calls(run.calls) == []
 
 
-_FAILING_ROLES_UV = (
-    'echo "uv $*" >> "$0.calls"; case "$*" in *gold-band-roles*) echo "gold-band-roles: running"; exit 3;; esac'
-)
+def _logged_merge(root: Path, *, fail: bool = False) -> dict[str, str]:
+    """An AGENT_KIT_MERGE that logs the roles call to the run's calls.log and answers it, and runs the real binary
+    for every other command."""
+    from setup_harness import merge_binary
+
+    root.mkdir(parents=True, exist_ok=True)
+    answer = 'echo "gold-band-roles: cannot converge: x"; exit 3' if fail else "exit 0"
+    wrapper = root / "merge-wrapper"
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        f'case "$*" in *gold-band-roles*) echo "agent-kit-merge $*" >> "{root}/calls.log"; {answer} ;; esac\n'
+        f'exec "{merge_binary()}" "$@"\n'
+    )
+    wrapper.chmod(0o755)
+    return {"AGENT_KIT_MERGE": str(wrapper)}
 
 
 def _roles_calls(calls: list[str]) -> list[str]:
-    return [call for call in calls if "converge.py gold-band-roles" in call]
+    return [call for call in calls if "converge gold-band-roles" in call]
 
 
 def test_roles_are_left_alone_without_gold_band(tmp_path: Path) -> None:
-    run = setup_run(tmp_path, "Linux")
+    run = setup_run(tmp_path, "Linux", extra_env=_logged_merge(tmp_path))
     assert "gold band roles: Gold Band is not installed, its profiles are left alone" in run.stdout
     assert _roles_calls(run.calls) == []
 
 
 def test_roles_are_converged_into_the_instance_profiles(tmp_path: Path) -> None:
-    run = setup_run(tmp_path, "Linux", prepare_home=_installed)
+    run = setup_run(tmp_path, "Linux", prepare_home=_installed, extra_env=_logged_merge(tmp_path))
     (call,) = _roles_calls(run.calls)
     assert f"--keep {run.home}/.config/agent-kit/keep.yaml" in call
     assert f"--profiles {run.home}/.gold-band/context/profiles" in call
@@ -114,13 +126,14 @@ def test_roles_are_converged_into_the_instance_profiles(tmp_path: Path) -> None:
 
 def test_the_roles_follow_the_moved_instance(tmp_path: Path) -> None:
     data = tmp_path / "instance"
-    run = setup_run(tmp_path, "Linux", prepare_home=_installed, extra_env={"GOLD_BAND_HOME": str(data)})
+    env = {"GOLD_BAND_HOME": str(data), **_logged_merge(tmp_path)}
+    run = setup_run(tmp_path, "Linux", prepare_home=_installed, extra_env=env)
     (call,) = _roles_calls(run.calls)
     assert f"--profiles {data}/.gold-band/context/profiles" in call
 
 
 def test_check_mode_reports_the_roles_only(tmp_path: Path) -> None:
-    run = setup_run(tmp_path, "Linux", prepare_home=_installed, args=("--check",))
+    run = setup_run(tmp_path, "Linux", prepare_home=_installed, args=("--check",), extra_env=_logged_merge(tmp_path))
     (call,) = _roles_calls(run.calls)
     assert " --check " in f"{call} "
 
@@ -130,15 +143,16 @@ def test_a_failed_roles_converge_fails_the_run(tmp_path: Path) -> None:
         tmp_path,
         "Linux",
         prepare_home=_installed,
-        stubs={"uv": _FAILING_ROLES_UV},
+        extra_env=_logged_merge(tmp_path, fail=True),
     )
     assert "the Gold Band roles did not converge (see above)" in run.stdout + run.stderr
     assert run.returncode != 0
 
 
 def test_the_mac_and_a_cloud_session_do_not_converge_roles(tmp_path: Path) -> None:
-    mac = setup_run(tmp_path / "mac", "Darwin", prepare_home=_installed)
-    cloud = setup_run(tmp_path / "cloud", "Linux", prepare_home=_installed, args=("--cloud",))
+    mac = setup_run(tmp_path / "mac", "Darwin", prepare_home=_installed, extra_env=_logged_merge(tmp_path / "mac"))
+    cloud_env = _logged_merge(tmp_path / "cloud")
+    cloud = setup_run(tmp_path / "cloud", "Linux", prepare_home=_installed, args=("--cloud",), extra_env=cloud_env)
     assert _roles_calls(mac.calls) == []
     assert _roles_calls(cloud.calls) == []
 

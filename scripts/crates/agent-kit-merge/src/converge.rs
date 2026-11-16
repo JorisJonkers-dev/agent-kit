@@ -269,7 +269,7 @@ fn same_path(left: &Path, right: &Path) -> bool {
 }
 
 /// The keep file's `keep:` names; nothing when the file or the list is missing.
-fn keep(path: &Path, io: &mut Io) -> Result<Result<BTreeSet<String>, i32>, Failure> {
+pub(crate) fn keep(path: &Path, io: &mut Io) -> Result<Result<BTreeSet<String>, i32>, Failure> {
     if !path.is_file() {
         return Ok(Ok(BTreeSet::new()));
     }
