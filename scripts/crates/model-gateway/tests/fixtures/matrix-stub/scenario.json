@@ -1,0 +1,264 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/pi.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/pi.n\" ] && read n < \"$D/pi.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/pi.n\"\npick() { if [ -f \"$C/pi.$1.$n\" ]; then echo \"$C/pi.$1.$n\"; else echo \"$C/pi.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/pi.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/agent-launcher": "#!/bin/sh\nD=\"$HOME/calls\"\nmkdir -p \"$D\"\n{\n  echo \"launcher $*\"\n  echo \"env PATH=$PATH\"\n  echo \"env PI_CODING_AGENT_DIR=${PI_CODING_AGENT_DIR-<unset>}\"\n  echo \"env TMPDIR=${TMPDIR-<unset>}\"\n  echo \"agent settings.json: $(cat \"$PI_CODING_AGENT_DIR/settings.json\")\"\n  echo \"agent models.json: $(cat \"$PI_CODING_AGENT_DIR/models.json\")\"\n} >> \"$D/launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/agent-kit-secret": "#!/bin/sh\ncase \"$2\" in\n  MISSING) echo \"no such secret\" >&2; exit 1 ;;\n  *) echo \"secret-for-$2\" ;;\nesac\n",
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"ministral-3b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3\"},{\"id\":\"glm-5.3-flash\"},{\"id\":\"mistral-large-4\"},{\"id\":\"deepseek-v4.1-flash\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"literal-key\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"qwen3.8-flash\"},{\"id\":\"kimi-k2.7-code\"},{\"id\":\"mimo-v2.6-pro\"}]}}}",
+        "home/canned/pi.out": "{\"type\":\"tool_execution_start\",\"toolName\":\"read\",\"args\":{\"path\":\"README.md\"}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"ignored\"}]}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Looked.\\nSUMMARY: pi is fine\"}],\"stopReason\":\"stop\",\"usage\":{\"input\":100,\"output\":40,\"cacheRead\":30,\"cost\":{\"total\":0.002}}}}\n",
+        "bin/claude": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/claude.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/claude.n\" ] && read n < \"$D/claude.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/claude.n\"\npick() { if [ -f \"$C/claude.$1.$n\" ]; then echo \"$C/claude.$1.$n\"; else echo \"$C/claude.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/claude.txt\"\ncat > \"$D/claude.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/canned/claude.out": "{\"type\":\"result\",\"result\":\"Reviewed.\\nSUMMARY: claude is fine\",\"total_cost_usd\":0.05,\"usage\":{\"input_tokens\":10,\"cache_read_input_tokens\":20,\"cache_creation_input_tokens\":5,\"output_tokens\":30}}\n",
+        "bin/codex": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/codex.txt\"; echo \"signed in with an api key\"; exit 0 ;;\nesac\nn=0\n[ -f \"$D/codex.n\" ] && read n < \"$D/codex.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/codex.n\"\npick() { if [ -f \"$C/codex.$1.$n\" ]; then echo \"$C/codex.$1.$n\"; else echo \"$C/codex.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/codex.txt\"\ncat > \"$D/codex.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/canned/codex.out": "{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Checked.\\nSUMMARY: codex is fine\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":5000,\"cached_input_tokens\":1000,\"output_tokens\":400}}\n",
+        "home/.config/agent-kit/model-gateway-grants.json": "{\"version\":1,\"grants\":[{\"id\":\"g1\",\"workflow\":\"harness-matrix\",\"client\":\"codex\",\"cap_usd\":5,\"question\":\"q\",\"answer\":\"a\",\"written_at\":\"2026-11-03T12:00:00.000Z\",\"expires_at\":\"2026-11-04T12:00:00Z\"}]}",
+        "bin/agy": "#!/bin/sh\nD=\"$HOME/calls\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  models)\n    printf 'Fetching available models...\\n'\n    printf 'gemini-3.8-flash-high\\tGemini High\\n'\n    printf 'gemini-3.8-flash-medium\\tGemini Medium\\n'\n    printf 'gemini-3.8-flash-low\\tGemini Low\\n'\n    exit 0 ;;\nesac\necho \"agy $*\" >> \"$D/agy.txt\"\ncat > /dev/null\ncat \"$HOME/canned/agy.out\"\n",
+        "home/canned/agy.out": "{\"response\":\"Read the files.\\nSUMMARY: agy is fine\",\"status\":\"SUCCESS\",\"usage\":{\"input_tokens\":900,\"output_tokens\":90,\"cache_read_tokens\":300}}\n",
+        "bin/vibe": "#!/bin/sh\nD=\"$HOME/calls\"\nmkdir -p \"$D\"\ncase \"$*\" in\n  *model-gateway-probe*)\n    echo \"Error: unknown model 'model-gateway-probe'. Available: mistral-small-latest, mistral-large-latest, glm-5-3, deepseek-v4-1-flash-1017.\" >&2\n    exit 1 ;;\nesac\necho \"vibe $*\" >> \"$D/vibe.txt\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n  esac\n  prev=$a\ndone\nif [ -n \"$outdir\" ]; then mkdir -p \"$outdir\"; cat \"$HOME/canned/vibe.export\" > \"$outdir/export.json\"; fi\ncat \"$HOME/canned/vibe.out\"\n",
+        "home/canned/vibe.out": "[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The plan reads well.\\nSUMMARY: plan is fine\"}]}]\n",
+        "home/canned/vibe.export": "{\"usage\":{\"input_tokens\":1000,\"output_tokens\":200,\"cached_input_tokens\":400},\"cost_usd\":0.0123}\n",
+        "repo/README.md": "demo\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"alibaba\",\"moonshot\",\"xiaomi\",\"google\",\"anthropic\",\"openai\"],\"code\":true,\"history\":false}}}"
+      },
+      "exec": [
+        "bin/pi",
+        "bin/agent-launcher",
+        "bin/agent-kit-secret",
+        "bin/claude",
+        "bin/codex",
+        "bin/agy",
+        "bin/vibe"
+      ],
+      "shims": [
+        "git",
+        "env",
+        "cat",
+        "mkdir",
+        "sleep",
+        "rm",
+        "mv"
+      ],
+      "mkdir": [
+        "tmp"
+      ],
+      "remove": [
+        "home/canned/pi.out",
+        "home/canned/pi.err",
+        "home/canned/pi.exit",
+        "home/canned/pi.export",
+        "home/canned/pi.usage",
+        "home/canned/pi.sleep",
+        "home/canned/pi.act"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "-b",
+          "main",
+          "@SANDBOX@/repo"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "remote",
+          "add",
+          "origin",
+          "https://github.com/JorisJonkers-dev/demo.git"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "@SANDBOX@/repo",
+          "commit",
+          "-q",
+          "-m",
+          "init"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"harnesses\":[\"claude\",\"codex\"],\"roles\":[\"red-team\",\"research\"],\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"hermes\",\"pi\"],\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"claude\"],\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"roles\":[\"nowhere\"],\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"harnesses\":\"pi\",\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"harnesses\":[\"pi\",3],\"repo\":\"@SANDBOX@/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"live\":1}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"repo\":3}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    }
+  ]
+}
