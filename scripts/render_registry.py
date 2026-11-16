@@ -5971,7 +5971,7 @@ LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "budget_duration", "data
 # prompts (the Google free tier, OpenRouter's free models, OpenCode Go's free ids). Only a `data_scope: public` key may
 # hold one, and a public key holds at least one; several public keys are allowed. The litellm
 # repository puts each free provider's deployments in its own group (litellm catalog/sync.py).
-LITELLM_PUBLIC_GROUPS = ("google-free-public", "openrouter-free-public", "opencode-go-free-public")
+LITELLM_PUBLIC_GROUPS = ("google-free-public", "openrouter-free-public", "opencode-go-free-public", "free")
 LITELLM_BUDGET_DURATION = "30d"
 
 
@@ -6190,8 +6190,10 @@ def litellm_route_models(
                 continue
         # The catalogue does not say which public-only access group serves a public group, so the
         # estate's naming stands in: a group on the openrouter route is reached by openrouter-free-public,
-        # one on the opencode-go route by opencode-go-free-public.
-        if entry.public and not all(any(g.startswith(f"{route}-") for g in held) for route in entry.routes):
+        # one on the opencode-go route by opencode-go-free-public. A group that names its own access
+        # groups (the `free` ones) was already matched exactly by canonical_groups().
+        named = all(any(g.startswith(f"{route}-") for g in held) for route in entry.routes)
+        if entry.public and not entry.access_groups and not named:
             continue
         model: dict[str, Any] = {"id": entry.name}
         if entry.context_length is not None:

@@ -13,6 +13,7 @@ token numbers are never used; the proxy's refusal is the only budget signal.
 | `vibe-study` | `LITELLM_VIBE_STUDY_KEY` | 127.50 EUR | `canonical` | every canonical model |
 | `opencode-go` | `LITELLM_OPENCODE_GO_KEY` | 60 EUR | `canonical` | every canonical model |
 | `openrouter` | `LITELLM_OPENROUTER_KEY` | none | `openrouter-free-public`, `opencode-go-free-public` | The free models only: OpenRouter's `:free` models and OpenCode Go's `-free` ids, nothing paid; **public work only** |
+| `free` | `LITELLM_FREE_KEY` | none | `free` | every free model of every provider (OpenRouter's `:free` models, the Google free tier), each alone, never `canonical`: nothing paid, and a refusal fails instead of billing; **public work only** |
 | `local` | `LITELLM_LOCAL_KEY` | none | `canonical`, `local/*` | every canonical model, and `local/<id>` for any id the GPU workstation's server (free) serves, such as `local/qwen3:32b`; the key has no cap, so use it for local models only |
 | `public` | `LITELLM_PUBLIC_KEY` | 5 EUR | `google-free-public`, `canonical` | the free-tier Google models, and the paid fallbacks; **public work only** |
 
@@ -50,8 +51,19 @@ provider's deployments in a public-only access group of its own, never in `canon
 | `google-free-public` | the Google free tier first, then the paid deployments of the same model | `public/<canonical>` | `public` |
 | `openrouter-free-public` | OpenRouter's free `:free` models, each alone | `openrouter/<canonical>` | `openrouter` |
 | `opencode-go-free-public` | OpenCode Go's free `-free` ids, each alone | `opencode-go-free/<canonical>` | `openrouter` |
+| `free` | every free deployment of every provider, each alone: OpenRouter's `:free` models and OpenCode Go's `-free` ids (each beside its own group) and each Google free-tier chat model as `google-free/<canonical>` (without the paid fallbacks `public/<canonical>` has) | `openrouter/<canonical>`, `opencode-go-free/<canonical>`, `google-free/<canonical>` | `free` |
 
-One group per provider, not one shared free group: LiteLLM grants a key a model name, so a
+The `free` group is the one key for "all free things" (agent-kit#848). It is its own group of
+deployments, not a shared name: LiteLLM grants a key a model name, so a deployment carries
+`free` beside its provider group and the Google free tier gets a name with no paid deployment
+behind it. A request the free tier refuses (quota, cooldown, a 4xx) is a failure, never a paid
+retry. A model the account blocks, such as an OpenRouter free model behind the account's
+training-data setting, is not usable, so it is not deployed and stays out until the setting allows
+it. The `free` route is `data_scope: public`: it is never routed to a repository. The groups are
+the litellm repository's (litellm#47); until its catalogue refresh lands the groups, the `free`
+key lists no Pi models.
+
+Per-provider groups stay because LiteLLM grants a key a model name, so a
 shared group would hand each free provider's key the others' models. The `openrouter` key holds
 its own group and **not** `canonical`, so it reaches nothing paid and carries no cap. `public`
 also holds `canonical`, so a Gemini model falls over to the paid deployments when the free tier
@@ -105,7 +117,7 @@ Mistral's four keys: `vibe` (255 EUR) and `vibe-study` (127.50 EUR) are Vibe-sco
 ### Names the litellm repository must match
 
 `canonical` (every paid and local deployment), the public-only groups `google-free-public`,
-`openrouter-free-public` and `opencode-go-free-public` (the free-tier deployments,
+`openrouter-free-public`, `opencode-go-free-public` and `free` (the free-tier deployments,
 `LITELLM_PUBLIC_GROUPS` in `scripts/render_registry.py`), the agent ids / key aliases above, and the
 canonical model names the gateway defaults use (`registry/litellm-catalogue.json` lists what
 the catalogue serves).
@@ -360,7 +372,7 @@ Readers:
   `render_registry.py --write`. The catalogue does not say which public-only access group serves a
   public group, so the estate's naming stands in: a public group on route `<r>` is listed for a key
   holding an access group named `<r>-...` (`openrouter-free-public` for `openrouter/*`,
-  `google-free-public` for `public/*`).
+  `google-free-public` for `public/*`). A group that names its own access groups in the catalogue (the `free` ones: `google-free/*`, `openrouter/*`) is reached by exactly those.
 
 A missing or stale catalogue is a warning, never a failed run: the gateway lists unchecked when
 it has none and still uses a stale one (older than two days) with a warning.

@@ -82,7 +82,7 @@ def test_every_route_renders_one_provider_with_its_models() -> None:
     assert table["base_url"] == data["litellm"]["base_url"]
     assert table["api"] == "openai-completions"
     # A route with no usable model (local, until a local/* model is probed) has no provider.
-    listed = [r for r in routes if r["agent"] != "local"]
+    listed = [r for r in routes if r["agent"] not in ("local", "free")]
     assert [p["name"] for p in table["providers"]] == [f"litellm-{r['agent']}" for r in listed]
     assert [p["key_env"] for p in table["providers"]] == [r["key_env"] for r in listed]
     for provider in table["providers"]:
@@ -152,6 +152,50 @@ def test_the_openrouter_route_reaches_the_opencode_go_free_ids_at_zero_cost() ->
     assert [(m["id"], m.get("cost")) for m in reached] == [("opencode-go-free/beam-1.0", zero)]
     # The public key holds canonical and Google's free tier, never the OpenCode free group.
     assert render_registry.litellm_route_models(["google-free-public", "canonical"], catalogue) == []
+
+
+def test_the_free_route_reaches_every_free_group_and_nothing_with_a_paid_fallback() -> None:
+    def _usable(route: str, upstream: str) -> dict[str, Any]:
+        return {"id": f"{route}/{upstream}", "metadata": {"status": "usable", "free": route == "openrouter"}}
+
+    def _group(route: str, upstream: str, own: list[str] | None) -> dict[str, Any]:
+        group: dict[str, Any] = {
+            "modality": "chat",
+            "public": True,
+            "deployments": [{"route": route, "upstream_id": upstream, "order": 1}],
+        }
+        if own:
+            group["access_groups"] = own
+        return group
+
+    catalogue = litellm_catalogue.Catalogue(
+        {
+            "updated_at": "2026-11-16T12:00:00Z",
+            "providers": {
+                "openrouter": {"models": [_usable("openrouter", "glm:free")]},
+                "google": {"models": [_usable("google", "gemini-2.5-flash")]},
+                "vibe": {"models": [_usable("vibe", "gemini-2.5-flash")]},
+            },
+            "groups": {
+                "openrouter/glm": _group("openrouter", "glm:free", ["openrouter-free-public", "free"]),
+                "google-free/gemini-2.5-flash": _group("google", "gemini-2.5-flash", ["free"]),
+                # Google's free tier with the paid deployment behind it: never in the free group.
+                "public/gemini-2.5-flash": {
+                    **_group("google", "gemini-2.5-flash", None),
+                    "deployments": [
+                        {"route": "google", "upstream_id": "gemini-2.5-flash", "order": 1},
+                        {"route": "vibe", "upstream_id": "gemini-2.5-flash", "order": 2},
+                    ],
+                },
+            },
+        },
+        "live",
+    )
+    registry = render_registry.load_registry()
+    route = next(r for r in registry["litellm"]["routes"] if r["agent"] == "free")
+    assert route["models"] == ["free"] and route["data_scope"] == "public" and route["budget_eur"] is None
+    reached = render_registry.litellm_route_models(route["models"], catalogue, route)
+    assert [m["id"] for m in reached] == ["google-free/gemini-2.5-flash", "openrouter/glm"]
 
 
 def test_free_groups_carry_zero_cost_and_only_the_matching_public_route_reaches_them() -> None:

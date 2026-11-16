@@ -88,6 +88,8 @@ class CanonicalGroup:
     routes: tuple[str, ...]
     # The smallest context window among the deployments tried first; None when none is known.
     context_length: int | None = None
+    # The access groups the group names itself in the catalogue (a gated or free group); empty otherwise.
+    access_groups: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -339,6 +341,7 @@ def canonical_groups(
                 public=public,
                 routes=tuple(dict.fromkeys(str(d.get("route", "")) for d in deployments)),
                 context_length=_group_context_length(catalogue, deployments),
+                access_groups=tuple(str(g) for g in own) if isinstance(own, list) else (),
             )
         )
     return reached

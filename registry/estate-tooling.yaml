@@ -134,6 +134,14 @@ workstation_secrets:
     check: "https://litellm.jorisjonkers.dev/key/info"
     check_method: GET
     export: false
+  # The one key for "all free models" (access group `free`): every free model of every provider,
+  # each alone, with no paid fallback, so a request the free tier refuses fails instead of billing.
+  # Public, non-sensitive work only, like LITELLM_PUBLIC_KEY. No cap: it reaches nothing paid.
+  - env: LITELLM_FREE_KEY
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
+    export: false
   - env: LITELLM_LOCAL_KEY
     mint: litellm
     check: "https://litellm.jorisjonkers.dev/key/info"
@@ -241,6 +249,15 @@ litellm:
       budget_duration: 30d
       data_scope: public
       models: ["google-free-public", "canonical"]
+    # Every free model of every provider (OpenRouter's `:free` models, the Google free tier, ...):
+    # the `free` access group alone, never `canonical`, so no paid deployment is reachable and a
+    # refusal stays a failure. Public work only; no cap because nothing here bills.
+    - agent: free
+      key_env: LITELLM_FREE_KEY
+      budget_eur: null
+      budget_duration: null
+      data_scope: public
+      models: ["free"]
 
 # -------------------------------------------------------------------
 # The packages proxy.
