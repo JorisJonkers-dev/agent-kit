@@ -15,6 +15,9 @@
 //! its fakes through it needs no lock (#880). [`lock`] and [`write_executable`]
 //! stay for the crates that serialise their own spawns.
 
+// Each crate includes this file and uses only what its tests need.
+#![allow(dead_code)]
+
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
