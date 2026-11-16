@@ -11,7 +11,9 @@
     "pi-vibe-study":  {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-opencode-go": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-local":       {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
-    "pi-public":      {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"}
+    "pi-public":      {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
+    "pi-openrouter":  {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
+    "pi-free":        {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"}
   },
   "models": [
     {"client": "claude", "model": "claude-opus-5-5",   "family": "anthropic", "tier": "frontier", "notes": "Strongest Claude; design, hard debugging, review of risky changes."},

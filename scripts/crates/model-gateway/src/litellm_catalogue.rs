@@ -206,8 +206,11 @@ pub fn names_of(config: &GatewayConfig, client: &str, model: &str) -> Vec<String
 
 /// The probe of one deployment: the model its route lists under the id the group is served by.
 fn deployment_probe<'a>(catalogue: &'a LiteLlmCatalogue, deployment: &CatalogueDeployment) -> Option<&'a CatalogueProbe> {
+    // The upstream id is the route's own id for the model, which may itself begin with the route's name
+    // (`openrouter/free` on the `openrouter` route), so it is looked up as it stands first.
+    let named = format!("{}/{}", deployment.route, deployment.upstream);
     let bare = deployment.upstream.strip_prefix(&format!("{}/", deployment.route)).unwrap_or(&deployment.upstream);
-    probe_for(catalogue, &deployment.route, &[format!("{}/{bare}", deployment.route)])
+    probe_for(catalogue, &deployment.route, &[named, format!("{}/{bare}", deployment.route)])
 }
 
 /// What the catalogue says of a canonical group: its route and probe are those of a usable deployment, else of the
@@ -220,7 +223,10 @@ fn group_probe(catalogue: &LiteLlmCatalogue, group: &CatalogueGroup) -> Option<(
     let (deployment, probe) = known.iter().find(|(_, probe)| probe.status == "usable").or_else(|| known.first())?;
     let free = group.deployments.iter().all(|deployment| deployment_probe(catalogue, deployment).is_some_and(|probe| probe.free));
     let modality = group.modality.clone().or_else(|| probe.modality.clone());
-    Some((deployment.route.clone(), CatalogueProbe { free, modality, ..(*probe).clone() }))
+    // A route's own id is `<vendor>/<model>` where the vendor is the model's maker (`baidu/ernie-5.5-flash-preview:free`),
+    // which stands in for the canonical id the probe does not carry.
+    let canonical = probe.canonical.clone().or_else(|| Some(deployment.upstream.clone()).filter(|upstream| upstream.contains('/')));
+    Some((deployment.route.clone(), CatalogueProbe { free, modality, canonical, ..(*probe).clone() }))
 }
 
 /// Where the catalogue places a client model: the route and probe that judge it. A Pi client's model is a canonical

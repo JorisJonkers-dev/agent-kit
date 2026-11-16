@@ -54,6 +54,11 @@ and why. Models are sorted by client, then model id.
   merge for `metered_personal_caps`, and `disabled`, a list of
   `"<client>:<model>"` keys left out of `models`. An unreadable or invalid
   override is `invalid-config` and names the file.
+- **OpenRouter runs through one client.** `pi-openrouter` (and `pi-free`, for
+  the `free` route) have `data_scope: public` and run models priced at zero only:
+  `models` skips a billed one with the reason, `run` refuses it with
+  `openrouter-billed` (`free-only-refused` on `pi-free`), and every other client
+  still refuses `openrouter` as a provider or an `openrouter/` model id.
 - **The enums are closed.** `cost_class` is `subsidised`,
   `metered-personal` or `metered-employer` in files, and `models` also prints
   `free` for a model the live LiteLLM catalogue marks free (for a Pi model, a group whose every deployment is free; Pi's zero `cost` stands in only where the catalogue cannot say); `tier` is `trivial`, `routine`,

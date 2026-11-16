@@ -12,7 +12,7 @@ use crate::config::{CostClass, GatewayConfig};
 use crate::litellm_catalogue::LiteLlmCatalogue;
 use crate::models::{
     hermes_default_model, is_vibe_model_id, parse_antigravity_models, parse_opencode_models, parse_vibe_available,
-    vibe_models, ClientListing, ClientModel, ListedModel, ModelListing,
+    vibe_models, ClientListing, ClientModel, ListedModel, ModelListing, SkippedModel,
 };
 use crate::ports::{ProcessResult, Runtime};
 
@@ -179,6 +179,19 @@ pub fn mark_free(runtime: &Runtime, config: &GatewayConfig, catalogue: Option<&L
         })
         .collect();
     ModelListing { models, ..listing }
+}
+
+/// Why a model of the OpenRouter client that is not free is never offered.
+pub const OPENROUTER_BILLED: &str = "this client runs models priced at zero only (OpenRouter is allowed for no other), and the catalogue does not mark this one free";
+
+/// The listing with every model of a free-only client (`pi-openrouter`, `pi-free`) that is not free moved to `skipped`. Call it after `mark_free`.
+pub fn hold_openrouter_to_free(listing: ModelListing) -> ModelListing {
+    let (kept, billed): (Vec<ListedModel>, Vec<ListedModel>) =
+        listing.models.into_iter().partition(|model| !crate::run::FREE_ONLY_CLIENTS.contains(&model.client.as_str()) || model.free);
+    let mut skipped = listing.skipped;
+    skipped.extend(billed.into_iter().map(|model| SkippedModel { client: model.client, model: model.model, reason: OPENROUTER_BILLED.to_string() }));
+    skipped.sort_by(|left, right| left.client.cmp(&right.client).then_with(|| left.model.cmp(&right.model)));
+    ModelListing { models: kept, skipped, ..listing }
 }
 
 /// Hermes' own configuration: `hermes model` is an interactive picker, so the

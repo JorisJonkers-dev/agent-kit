@@ -119,10 +119,10 @@ prices until it is removed from `defaults.json`.
 ### Pi: one client per LiteLLM route
 
 Pi is the preferred client: `pi-vibe`, `pi-vibe-study`, `pi-opencode-go`,
-`pi-local` and `pi-public`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
+`pi-local`, `pi-public`, `pi-openrouter` and `pi-free`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
 all started by the one `pi` program, each on its route's key, which sits in the
-route's own team and budget. There is no `pi-openrouter`: the owner forbade
-OpenRouter. All are `subsidised`, except a model that is `free` (below).
+route's own team and budget. `pi-openrouter` and `pi-free` are the free-only
+clients (below). All are `subsidised`, except a model that is `free` (below).
 
 **One definition of free.** A model is `free` when the live LiteLLM catalogue
 marks it free: for a Pi model, its canonical group, free only when every
@@ -155,6 +155,19 @@ the group is offered when one of its deployments is usable, is named in
 probed is blocked or failed, is marked `"free": true` when it is public or every
 deployment tried first is a free model, and is offered unchecked when the
 catalogue probed none of them.
+
+**Free-only clients.** The owner allows OpenRouter for free models only, with
+public data only, so OpenRouter runs through exactly one client, `pi-openrouter`
+(the `openrouter` route; `pi-free` is the same for the `free` route). Both have
+`"data_scope": "public"` and hold their models to the one definition of free:
+`models` lists a free model and names a billed or unpriced one in `skipped`
+with the reason, `run` refuses a billed `pi-openrouter` model with code
+`openrouter-billed` (a billed `pi-free` model with `free-only-refused`) before
+anything starts, and a delegation that names a `repo` is refused on them like
+on `pi-public`, since the models may train on what they are sent. Every other
+client still refuses OpenRouter: a model named `openrouter/...`, or a Hermes or
+OpenCode run on the `openrouter` provider, is `provider-not-allowed`, and no
+machine file opens it.
 
 `pi-public` has `"data_scope": "public"` (a client field, `any` by default):
 that route is for public work only, so a delegation that reads a repository is
@@ -315,7 +328,8 @@ Everything that can refuse the run happens before anything is launched:
   one this machine lists in `clients.hermes.providers` (empty by default, so
   every Hermes run is refused until the owner names one). `openrouter` is
   refused whatever the configuration says, and so is a model id that starts
-  with `openrouter/`: the owner forbade OpenRouter. An OpenCode model is named
+  with `openrouter/`, on every client but `pi-openrouter` (free models only).
+  An OpenCode model is named
   `<provider>/<model>`, and only the providers `clients.opencode.providers`
   names (default `["opencode-go"]`) are allowed; every other provider is
   refused, and so is `opencode/<model>`, OpenCode's pay-per-token Zen, even
@@ -1046,7 +1060,7 @@ and merges over the shipped defaults:
   may name (`provider-not-allowed` otherwise; `["opencode-go"]` by default) and
   the ones a Hermes run may name (`hermes --provider`; empty by default, so no
   Hermes run is allowed until the owner lists one). `openrouter` stays refused
-  whatever it says.
+  whatever it says; only `pi-openrouter` runs it, for free models.
 - `clients.<id>.plan_limits` is what that client's plan allows, window by
   window: a list of `{"window": "5h"|"day"|"week"|"month", "limit_usd": n}`,
   or `{"window": ..., "limit_runs": n}` for a plan that is not billed in
