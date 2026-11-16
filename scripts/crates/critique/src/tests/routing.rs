@@ -42,3 +42,41 @@ fn only_a_public_scope_pi_client_is_barred_and_only_from_a_private_repository() 
     assert_eq!([data_scope_bar(&public, false), data_scope_bar(&public, true)], [true, false]);
     assert_eq!([data_scope_bar(&any, false), data_scope_bar(&vibe, false)], [false, false]);
 }
+
+/// Routing whose spec stage's free roster is `free` and whose `pi-free` client and fallbacks are as given.
+fn free_routing(free_client: &str, free_slots: &str, fallbacks: &str) -> Result<crate::routing::Routing, String> {
+    let slot = |client: &str| format!(r#"{{"client":"{client}","role":"gap-critic","lenses":[],"max_price_usd":0.05,"time_limit_s":240}}"#);
+    let text = format!(
+        r#"{{"version":1,"clients":{{"pi-free":{free_client},"pi-also-free":{{"kind":"pi","provider":"litellm-openrouter","model":"openrouter/b","family":"cohere","data_scope":"public","free":true}},"pi-paid":{{"kind":"pi","provider":"litellm-public","model":"public/c","family":"google","data_scope":"public"}}}},"fallbacks":{{{fallbacks}}},"stages":{{"spec":{{"distinct_families":true,"base":[{}],"free":[{free_slots}]}}}}}}"#,
+        slot("pi-paid")
+    );
+    crate::routing::parse_routing(&parse(&text).expect("json")).map_err(|error| error.0)
+}
+
+const FREE_CLIENT: &str = r#"{"kind":"pi","provider":"litellm-openrouter","model":"openrouter/a","family":"nvidia","data_scope":"public","free":true}"#;
+
+#[test]
+fn a_free_roster_holds_free_pi_clients_whose_fallbacks_are_free_too() {
+    let slot = r#"{"client":"pi-free","role":"gap-critic","lenses":[],"max_price_usd":0.05,"time_limit_s":240}"#;
+    let routing = free_routing(FREE_CLIENT, slot, r#""pi-free":["pi-also-free"],"pi-paid":["pi-free"]"#).expect("routing");
+    let stage = &routing.stages[0].1;
+    assert_eq!(stage.free.iter().map(|slot| slot.client.as_str()).collect::<Vec<_>>(), ["pi-free"]);
+    assert!(matches!(&routing.clients[0].1, CriticClient::Pi(pi) if pi.free));
+    // A paid client may fall back to a free one; it is the free roster's clients that may not fall back to a paid one.
+    assert_eq!(free_routing(FREE_CLIENT, slot, r#""pi-free":["pi-paid"]"#).expect_err("paid fallback"), "fallbacks.pi-free names pi-paid, which is not a free pi client: the client is in a free-only roster");
+    let paid_slot = slot.replace("pi-free", "pi-paid");
+    assert_eq!(free_routing(FREE_CLIENT, &paid_slot, "").expect_err("paid slot"), "stages.spec.free names pi-paid, which is not a free pi client: a free-only roster holds nothing else");
+    let private = FREE_CLIENT.replace("\"public\"", "\"any\"");
+    assert_eq!(free_routing(&private, slot, "").expect_err("free on a private route"), "free must be false unless data_scope is public: a free-only roster is for public material alone");
+    let unmarked = FREE_CLIENT.replace(",\"free\":true", "");
+    assert!(matches!(free_routing(&unmarked, "", "").expect("routing").clients[0].1, CriticClient::Pi(ref pi) if !pi.free));
+}
+
+#[test]
+fn a_free_runs_refuters_are_its_free_slots_and_their_fallbacks_only() {
+    let slot = r#"{"client":"pi-free","role":"gap-critic","lenses":[],"max_price_usd":0.05,"time_limit_s":240}"#;
+    let routing = free_routing(FREE_CLIENT, slot, r#""pi-free":["pi-also-free"]"#).expect("routing");
+    let names = |free: bool| crate::refute_round::refuter_candidates(&routing, "spec", false, free).expect("candidates").into_iter().map(|candidate| candidate.client).collect::<Vec<_>>();
+    assert_eq!(names(true), ["pi-free", "pi-also-free"]);
+    assert_eq!(names(false), ["pi-paid"]);
+}

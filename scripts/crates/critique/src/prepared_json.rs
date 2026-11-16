@@ -41,6 +41,9 @@ pub fn client_value(client: &CriticClient) -> Value {
         }
         CriticClient::Pi(pi) => {
             pairs.extend([("binary", Value::str(&pi.binary)), ("data_scope", Value::str(&pi.data_scope)), ("family", Value::str(&pi.family)), ("kind", Value::str("pi")), ("model", Value::str(&pi.model)), ("provider", Value::str(&pi.provider))]);
+            if pi.free {
+                pairs.push(("free", Value::Bool(true)));
+            }
             None
         }
     };

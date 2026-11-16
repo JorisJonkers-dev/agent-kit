@@ -16,6 +16,8 @@ pub struct RosterRequest<'a> {
     pub adr: bool,
     /// Whether the repository's allowlist entry says it is public; a repository is private unless it does.
     pub public_repository: bool,
+    /// Whether the run asked for the stage's free-only roster, which replaces base, adr and deep.
+    pub free: bool,
 }
 
 /// Whether a client may run in this run: ready, and within its quota. A client past the Antigravity quota is set up
@@ -72,9 +74,12 @@ fn slot_candidates(routing: &Routing, client: &str) -> Vec<String> {
     std::iter::once(client.to_string()).chain(fallbacks).collect()
 }
 
-/// A stage's slots in the order they fill: base, then the ADR critics when the artifact holds a record, then deep at
+/// A stage's slots in the order they fill: the free roster alone for a free-only run, else base, then the ADR critics when the artifact holds a record, then deep at
 /// deep depth.
 fn slots_at<'a>(stage: &'a StageRouting, request: &RosterRequest) -> Vec<(&'a RosterSlot, bool)> {
+    if request.free {
+        return stage.free.iter().map(|slot| (slot, false)).collect();
+    }
     let mut slots: Vec<(&RosterSlot, bool)> = stage.base.iter().map(|slot| (slot, false)).collect();
     if request.adr {
         slots.extend(stage.adr.iter().map(|slot| (slot, false)));
@@ -185,7 +190,8 @@ pub fn resolve_roster(routing: &Routing, request: &RosterRequest, readiness: &Ha
         }
         critics.extend(chosen);
     }
-    Ok(Roster { critics, depth: request.depth.to_string(), distinct_families: stage.distinct_families, dropped })
+    let depth = if request.free { "base" } else { request.depth };
+    Ok(Roster { critics, depth: depth.to_string(), distinct_families: stage.distinct_families, dropped })
 }
 
 /// The gateway client a stage's Codex work slot is granted under: the one its routing names, else its kind.

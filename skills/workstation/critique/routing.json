@@ -64,6 +64,38 @@
       "family": "google",
       "data_scope": "public"
     },
+    "pi-free-nemotron-ultra": {
+      "kind": "pi",
+      "provider": "litellm-openrouter",
+      "model": "openrouter/nemotron-3-ultra-550b-a55b",
+      "family": "nvidia",
+      "data_scope": "public",
+      "free": true
+    },
+    "pi-free-gemma": {
+      "kind": "pi",
+      "provider": "litellm-openrouter",
+      "model": "openrouter/gemma-4-26b-a4b-it",
+      "family": "google",
+      "data_scope": "public",
+      "free": true
+    },
+    "pi-free-north-mini-code": {
+      "kind": "pi",
+      "provider": "litellm-openrouter",
+      "model": "openrouter/north-mini-code",
+      "family": "cohere",
+      "data_scope": "public",
+      "free": true
+    },
+    "pi-free-opencode-go-beam": {
+      "kind": "pi",
+      "provider": "litellm-openrouter",
+      "model": "opencode-go-free/beam-1.0-501b-a23b",
+      "family": "reflection",
+      "data_scope": "public",
+      "free": true
+    },
     "vibe-mistral-large": {
       "kind": "vibe",
       "binary": "vibe",
@@ -177,7 +209,9 @@
     "pi-vibe-mistral-large": ["pi-opencode-go-mistral-large", "vibe-mistral-large"],
     "pi-vibe-glm": ["pi-opencode-go-glm", "vibe-glm"],
     "pi-vibe-deepseek-flash": ["pi-opencode-go-deepseek-flash", "vibe-deepseek-flash"],
-    "agy-gemini-flash-high": ["pi-vibe-glm", "vibe-glm", "pi-public-gemini-flash"]
+    "agy-gemini-flash-high": ["pi-vibe-glm", "vibe-glm", "pi-public-gemini-flash"],
+    "pi-free-nemotron-ultra": ["pi-free-north-mini-code"],
+    "pi-free-gemma": ["pi-free-opencode-go-beam"]
   },
   "packet": {
     "cap_bytes": 153600,
@@ -194,6 +228,22 @@
   "stages": {
     "decisions": {
       "distinct_families": true,
+      "free": [
+        {
+          "client": "pi-free-nemotron-ultra",
+          "role": "gap-critic",
+          "lenses": ["unasked-questions"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 240
+        },
+        {
+          "client": "pi-free-gemma",
+          "role": "gap-critic",
+          "lenses": ["unasked-questions", "failure-modes"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 240
+        }
+      ],
       "work": [
         {
           "client": "codex-work",
@@ -266,6 +316,22 @@
     },
     "spec": {
       "distinct_families": true,
+      "free": [
+        {
+          "client": "pi-free-nemotron-ultra",
+          "role": "spec-redteam",
+          "lenses": ["fidelity", "testability"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        },
+        {
+          "client": "pi-free-gemma",
+          "role": "spec-redteam",
+          "lenses": ["failure-modes", "security"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        }
+      ],
       "work": [
         {
           "client": "codex-work",
@@ -337,6 +403,15 @@
     },
     "tickets": {
       "distinct_families": true,
+      "free": [
+        {
+          "client": "pi-free-nemotron-ultra",
+          "role": "ticket-linter",
+          "lenses": ["testability"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        }
+      ],
       "work": [
         {
           "client": "codex-work",
@@ -395,6 +470,22 @@
     },
     "ticket-review": {
       "distinct_families": true,
+      "free": [
+        {
+          "client": "pi-free-nemotron-ultra",
+          "role": "diff-reviewer",
+          "lenses": ["spec-conformance", "failure-modes", "security"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 480
+        },
+        {
+          "client": "pi-free-gemma",
+          "role": "diff-reviewer",
+          "lenses": ["standards"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 480
+        }
+      ],
       "work": [
         {
           "client": "codex-work",
@@ -443,6 +534,22 @@
     },
     "feature-review": {
       "distinct_families": true,
+      "free": [
+        {
+          "client": "pi-free-nemotron-ultra",
+          "role": "feature-reviewer",
+          "lenses": ["integration"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 720
+        },
+        {
+          "client": "pi-free-gemma",
+          "role": "feature-reviewer",
+          "lenses": ["failure-modes"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 720
+        }
+      ],
       "work": [
         {
           "client": "codex-work",
@@ -497,6 +604,22 @@
     },
     "plan": {
       "distinct_families": true,
+      "free": [
+        {
+          "client": "pi-free-nemotron-ultra",
+          "role": "plan-critic",
+          "lenses": ["incremental-safety"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        },
+        {
+          "client": "pi-free-gemma",
+          "role": "plan-critic",
+          "lenses": ["evidence-anchoring"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        }
+      ],
       "work": [
         {
           "client": "codex-work",
@@ -574,6 +697,22 @@
     },
     "architecture-review": {
       "distinct_families": true,
+      "free": [
+        {
+          "client": "pi-free-nemotron-ultra",
+          "role": "architecture-critic",
+          "lenses": ["dependency-direction", "coupling"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        },
+        {
+          "client": "pi-free-gemma",
+          "role": "architecture-critic",
+          "lenses": ["domain-language", "aggregates"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        }
+      ],
       "work": [
         {
           "client": "codex-work",
@@ -648,6 +787,22 @@
     },
     "decision-recovery": {
       "distinct_families": true,
+      "free": [
+        {
+          "client": "pi-free-nemotron-ultra",
+          "role": "decision-recoverer",
+          "lenses": [],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        },
+        {
+          "client": "pi-free-gemma",
+          "role": "decision-recoverer",
+          "lenses": [],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        }
+      ],
       "work": [
         {
           "client": "codex-work",
@@ -686,6 +841,22 @@
     },
     "adr-review": {
       "distinct_families": true,
+      "free": [
+        {
+          "client": "pi-free-nemotron-ultra",
+          "role": "adr-reviewer",
+          "lenses": ["adr-record"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        },
+        {
+          "client": "pi-free-gemma",
+          "role": "adr-reviewer",
+          "lenses": ["decision-log"],
+          "max_price_usd": 0.05,
+          "time_limit_s": 600
+        }
+      ],
       "work": [
         {
           "client": "codex-work",

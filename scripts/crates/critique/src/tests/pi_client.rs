@@ -8,7 +8,7 @@ use crate::routing::PiCriticClient;
 use model_gateway::ports::ProcessResult;
 
 fn config() -> PiCriticClient {
-    PiCriticClient { binary: "pi".to_string(), provider: "litellm-vibe-study".to_string(), model: "glm-5-3".to_string(), family: "zhipu".to_string(), data_scope: "any".to_string() }
+    PiCriticClient { binary: "pi".to_string(), provider: "litellm-vibe-study".to_string(), model: "glm-5-3".to_string(), family: "zhipu".to_string(), data_scope: "any".to_string(), free: false }
 }
 
 fn result(stdout: &str, timed_out: bool) -> ProcessResult {

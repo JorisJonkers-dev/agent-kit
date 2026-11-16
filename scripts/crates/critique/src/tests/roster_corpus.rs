@@ -103,7 +103,7 @@ fn replay_roster(input: &Value) -> Value {
     let allowed = strings(given, "allowedFamilies");
     let stage = text(given, "stage");
     let orchestrator = text(given, "orchestratorFamily");
-    let request = RosterRequest { stage: &stage, depth: &text(given, "depth"), allowed_families: &allowed, orchestrator_family: &orchestrator, adr: field(given, "adr").is_some(), public_repository: field(given, "publicRepository").is_some() };
+    let request = RosterRequest { stage: &stage, depth: &text(given, "depth"), allowed_families: &allowed, orchestrator_family: &orchestrator, adr: field(given, "adr").is_some(), public_repository: field(given, "publicRepository").is_some(), free: false };
     let mut readiness: HashMap<String, Availability> = HashMap::new();
     if let Some(Value::Obj(object)) = field(input, "readiness") {
         for (name, entry) in object.entries() {

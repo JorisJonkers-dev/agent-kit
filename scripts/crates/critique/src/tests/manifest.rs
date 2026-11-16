@@ -102,6 +102,7 @@ fn full_manifest() -> RunManifest {
         packet_dir: "runs/r1/packet".to_string(),
         allowed_families: vec!["mistral".to_string(), "google".to_string()],
         public_repository: true,
+        free_roster: true,
         artifact: ArtifactSource { tracker: "github".to_string(), reference: "o/r#1".to_string(), labels: vec!["bug".to_string()] },
         flow: "flow-1".to_string(),
         limits: CritiqueLimits {
@@ -184,6 +185,7 @@ fn full_text() -> String {
         ("depth", r#""deep""#),
         ("depth_choice", DEPTH_CHOICE),
         ("dropped", DROPPED_LIST),
+        ("free_roster", "true"),
         ("packet_files", PACKET_FILES),
         ("plan_warnings", r#"["plan at 80%"]"#),
         ("previous_run_id", r#""r0""#),
@@ -305,7 +307,7 @@ fn json_that_does_not_parse_or_is_no_object_is_an_error() {
 
 #[test]
 fn a_manifest_names_the_first_wrong_field() {
-    assert_eq!(error(&[("allowed_families", r#"["nope"]"#)]), "allowed_families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai");
+    assert_eq!(error(&[("allowed_families", r#"["nope"]"#)]), "allowed_families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection");
     assert_eq!(error(&[("artifact", "5")]), "artifact must be a JSON object");
     assert_eq!(error(&[("artifact", r#"{"labels":[],"reference":"o/r#1","tracker":"jira"}"#)]), "artifact.tracker must be one of github, local-markdown, none");
     assert_eq!(error(&[("artifact", r#"{"labels":[1],"reference":"o/r#1","tracker":"github"}"#)]), "artifact.labels[0] must be a string");

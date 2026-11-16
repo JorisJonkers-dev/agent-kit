@@ -71,6 +71,9 @@ pub struct PiCriticClient {
     /// The route's data scope, as `routes.json` has it: `public` for a route whose key is for public work only,
     /// `any` for the rest. A `public` client never reviews a private repository.
     pub data_scope: String,
+    /// Whether the client's model is free on its route: no charge for a launch, so a free-only roster may name it.
+    /// Only a client on a `public` route is free, since a free route's models are for public material alone.
+    pub free: bool,
 }
 
 /// The data scopes a Pi client's route can have.
@@ -204,6 +207,9 @@ pub struct StageRouting {
     pub deep: Vec<RosterSlot>,
     /// The stage's work-only roster, which a `nedap` repository uses instead of base and deep.
     pub work: Vec<RosterSlot>,
+    /// The stage's free-only roster, which a run that names `"roster": "free"` uses instead of base and deep: only free
+    /// Pi clients, and only for a repository recorded as public.
+    pub free: Vec<RosterSlot>,
     /// The critics added at either depth when the artifact holds a decision record; only the decisions stage reads it.
     pub adr: Vec<RosterSlot>,
     /// What makes the stage go deep when the caller names no depth.
@@ -252,6 +258,7 @@ pub fn parse_routing(value: &Value) -> Result<Routing, ShapeError> {
     let limits = read_limits(&file)?;
     let packet = if file.has("packet") { read_packet_limits(&file.object("packet")?)? } else { default_packet_limits() };
     let stages = file.entries("stages", |stage, name| read_stage_routing(stage, name, &clients))?;
+    free_fallbacks(&stages, &fallbacks, &clients)?;
     let cold_read = if file.has("cold_read") { Some(read_cold_read_routing(&file.object("cold_read")?, &clients)?) } else { None };
     file.literal("version", 1.0)?;
     let stats = if file.has("stats") { Some(read_stats_thresholds(&file.object("stats")?)?) } else { None };
@@ -273,10 +280,11 @@ fn read_stage_routing(stage: &Fields<'_>, name: &str, clients: &[(String, Critic
     let adr = only_open_clients(&optional_slots(stage, "adr")?, clients, &format!("stages.{name}.adr"))?;
     let deep = only_open_clients(&optional_slots(stage, "deep")?, clients, &format!("stages.{name}.deep"))?;
     let work = only_work_clients(&optional_slots(stage, "work")?, clients, &format!("stages.{name}.work"))?;
+    let free = only_free_clients(&optional_slots(stage, "free")?, clients, &format!("stages.{name}.free"))?;
     let depth_signals = if stage.has("depth_signals") { read_depth_signals_config(&stage.object("depth_signals")?, name)? } else { no_depth_signals() };
     let distinct_families = stage.boolean("distinct_families")?;
     let ticket_size = if stage.has("ticket_size") { read_ticket_size(&stage.object("ticket_size")?)? } else { default_ticket_size() };
-    Ok(StageRouting { distinct_families, base, deep, work, adr, depth_signals, ticket_size })
+    Ok(StageRouting { distinct_families, base, deep, work, free, adr, depth_signals, ticket_size })
 }
 
 /// A stage's optional roster: the slots it names, or none when it names none.
@@ -314,6 +322,29 @@ fn only_work_clients(slots: &[RosterSlot], clients: &[(String, CriticClient)], p
     }
 }
 
+/// Whether the client routing defines under `name` is a free Pi client.
+fn is_free(clients: &[(String, CriticClient)], name: &str) -> bool {
+    matches!(client_named(clients, name), Some(CriticClient::Pi(pi)) if pi.free)
+}
+
+fn only_free_clients(slots: &[RosterSlot], clients: &[(String, CriticClient)], place: &str) -> Result<Vec<RosterSlot>, ShapeError> {
+    match slots.iter().find(|slot| !is_free(clients, &slot.client)) {
+        Some(paid) => Err(ShapeError(format!("{place} names {}, which is not a free pi client: a free-only roster holds nothing else", paid.client))),
+        None => Ok(slots.to_vec()),
+    }
+}
+
+/// The fallbacks of the clients a free roster names, refused when any of them is not free: a free roster costs nothing.
+fn free_fallbacks(stages: &[(String, StageRouting)], fallbacks: &[(String, Vec<String>)], clients: &[(String, CriticClient)]) -> Result<(), ShapeError> {
+    let named: Vec<&str> = stages.iter().flat_map(|(_, stage)| stage.free.iter().map(|slot| slot.client.as_str())).collect();
+    for (client, names) in fallbacks.iter().filter(|(client, _)| named.contains(&client.as_str())) {
+        if let Some(paid) = names.iter().find(|name| !is_free(clients, name)) {
+            return Err(ShapeError(format!("fallbacks.{client} names {paid}, which is not a free pi client: the client is in a free-only roster")));
+        }
+    }
+    Ok(())
+}
+
 /// The fallbacks, refused when any of them names a work client: a work client has no fallbacks.
 fn open_fallbacks(fallbacks: &[(String, Vec<String>)], clients: &[(String, CriticClient)]) -> Result<Vec<(String, Vec<String>)>, ShapeError> {
     for (client, names) in fallbacks {
@@ -332,6 +363,15 @@ fn read_stats_thresholds(fields: &Fields<'_>) -> Result<StatsThresholds, ShapeEr
     })
 }
 
+/// A Pi client's `free` mark: false when it names none, and never true on a route that is not public-only.
+fn read_free(fields: &Fields<'_>) -> Result<bool, ShapeError> {
+    let free = fields.has("free") && fields.boolean("free")?;
+    if free && fields.string("data_scope")? != "public" {
+        return Err(ShapeError("free must be false unless data_scope is public: a free-only roster is for public material alone".to_string()));
+    }
+    Ok(free)
+}
+
 /// One critic client: its kind, the binary it launches, the model it pins and the gateway model it may be pinned to.
 pub fn read_critic_client(fields: &Fields<'_>) -> Result<CriticClient, ShapeError> {
     let kind = fields.one_of("kind", &CLIENT_KINDS)?;
@@ -340,6 +380,7 @@ pub fn read_critic_client(fields: &Fields<'_>) -> Result<CriticClient, ShapeErro
             binary: if fields.has("binary") { fields.string("binary")? } else { "pi".to_string() },
             data_scope: fields.one_of("data_scope", &DATA_SCOPES)?,
             family: fields.one_of("family", &MODEL_FAMILIES)?,
+            free: read_free(fields)?,
             model: fields.string("model")?,
             provider: fields.matching("provider", is_litellm_provider, "a LiteLLM route's Pi provider, litellm-<route>")?,
         }));

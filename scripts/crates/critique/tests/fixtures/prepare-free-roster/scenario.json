@@ -1,0 +1,117 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "write": {
+        "repos/k1/docs/agents/issue-tracker.md": "# Issue tracker: Local Markdown\n\nTickets live in .scratch.\n",
+        "repos/k1/docs/spec.md": "# Spec\n\n## User Stories\n\n1. one\n"
+      },
+      "shims": [
+        "env",
+        "mkdir",
+        "git"
+      ],
+      "git": [
+        [
+          "init",
+          "-q",
+          "--template=",
+          "repos/k1"
+        ],
+        [
+          "-C",
+          "repos/k1",
+          "remote",
+          "add",
+          "origin",
+          "git@github.com:JorisJonkers-dev/example.git"
+        ],
+        [
+          "-C",
+          "repos/k1",
+          "add",
+          "-A"
+        ],
+        [
+          "-C",
+          "repos/k1",
+          "commit",
+          "-q",
+          "-m",
+          "base #12"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\",\"roster\":\"free\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"nvidia\",\"google\",\"cohere\",\"reflection\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "bin/pi": "#!/bin/sh\n# Signed in; lists every routed model but gemma, so its free fallback takes the slot.\ncase \"$*\" in\n  *--list-models*) [ \"$3\" = openrouter/gemma-4-26b-a4b-it ] || echo \"litellm-openrouter $3\" ;;\n  *) echo '{\"status\":\"ready\"}' ;;\nesac\n",
+        "home/.pi/agent/models.json": "{\n  \"providers\": {\n    \"litellm-openrouter\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_OPENROUTER_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"id\": \"openrouter/nemotron-3-ultra-550b-a55b\",\n          \"cost\": {\n            \"input\": 0,\n            \"output\": 0,\n            \"cacheRead\": 0,\n            \"cacheWrite\": 0\n          }\n        },\n        {\n          \"id\": \"openrouter/gemma-4-26b-a4b-it\",\n          \"cost\": {\n            \"input\": 0,\n            \"output\": 0,\n            \"cacheRead\": 0,\n            \"cacheWrite\": 0\n          }\n        },\n        {\n          \"id\": \"openrouter/north-mini-code\",\n          \"cost\": {\n            \"input\": 0,\n            \"output\": 0,\n            \"cacheRead\": 0,\n            \"cacheWrite\": 0\n          }\n        },\n        {\n          \"id\": \"opencode-go-free/beam-1.0-501b-a23b\",\n          \"cost\": {\n            \"input\": 0,\n            \"output\": 0,\n            \"cacheRead\": 0,\n            \"cacheWrite\": 0\n          }\n        }\n      ]\n    }\n  }\n}\n",
+        "bin/agent-launcher": "#!/bin/sh\nexit 0\n"
+      },
+      "exec": [
+        "bin/pi",
+        "bin/agent-launcher"
+      ],
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\",\"roster\":\"free\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"nvidia\",\"google\",\"cohere\",\"reflection\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\",\"public\":true}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"free\":[]}}}\n"
+      },
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\",\"roster\":\"free\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "remove": [
+        "home/.config/agent-kit/critique-routing.json"
+      ],
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\",\"roster\":\"paid\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "roots": [
+        "repos/k1/.git/critique"
+      ]
+    }
+  ]
+}
