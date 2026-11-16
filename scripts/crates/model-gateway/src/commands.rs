@@ -99,6 +99,7 @@ fn ok_object(key: &str, value: Value) -> Value {
 /// Lists every client model this machine can use now for the repository the caller works in, and the clients it cannot.
 fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayError> {
     let repo = read_repo(input)?;
+    let free_only = read_free(input)?;
     let config = load_config(runtime)?;
     let mut installed = BTreeSet::new();
     for (id, client) in &config.clients {
@@ -117,10 +118,11 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
     let unavailable = standing_refusals(runtime, now);
     let judges = config.clients.iter().any(|(id, client)| installed.contains(id) && (client.litellm_route.is_some() || crate::run::is_pi_client(id)));
     let reading = if judges { crate::litellm_catalogue::read_catalogue(runtime) } else { Default::default() };
-    let listing = sources::mark_free(
-        runtime,
-        crate::litellm_catalogue::judge_listing(&config, models::list_models(&config, &installed, &listings, &unavailable), reading.catalogue.as_ref()),
-    );
+    let judged = crate::litellm_catalogue::judge_listing(&config, models::list_models(&config, &installed, &listings, &unavailable), reading.catalogue.as_ref());
+    let mut listing = sources::mark_free(runtime, &config, reading.catalogue.as_ref(), judged);
+    if free_only {
+        listing.models.retain(|model| model.free);
+    }
     let scope = policy::resolve_scope(runtime, repo.as_deref())?;
     let subjects: Vec<PolicySubject> = listing
         .models
@@ -150,6 +152,15 @@ fn read_repo(input: &Object) -> Result<Option<String>, GatewayError> {
         None => Ok(None),
         Some(Value::Str(repo)) if !repo.is_empty() => Ok(Some(repo.clone())),
         Some(_) => Err(GatewayError::invalid_input("repo must be a non-empty string")),
+    }
+}
+
+/// `models` takes `"free": true` to list only the free models, `false` or nothing to list them all.
+fn read_free(input: &Object) -> Result<bool, GatewayError> {
+    match input.get("free") {
+        None => Ok(false),
+        Some(Value::Bool(free)) => Ok(*free),
+        Some(_) => Err(GatewayError::invalid_input("free must be true or false")),
     }
 }
 

@@ -9,7 +9,8 @@ pub const CONFIG_VERSION: f64 = 1.0;
 /// What a run on a client costs the owner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CostClass {
-    /// A model whose Pi provider entry prices every field at zero. Never a guess: only a verified zero price.
+    /// A model the live catalogue marks free (every deployment of it), or, where the catalogue is silent, whose Pi
+    /// provider entry prices every field at zero. Never a guess.
     Free,
     Subsidised,
     MeteredPersonal,

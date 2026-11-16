@@ -7,7 +7,7 @@ use crate::json::{self, Object, Value};
 use crate::ports::Runtime;
 
 /// The usage text, exactly as the node runner prints it.
-pub const USAGE: &str = r#"usage: model-gateway models --json '{"repo": "/path/to/repo"}'
+pub const USAGE: &str = r#"usage: model-gateway models --json '{"repo": "/path/to/repo"}' [--free]
        model-gateway usage --json '{"days": 7, "workflow": "spec-293"}'
        model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
                                  "model": "glm-5-3", "mode": "read-only",
@@ -44,7 +44,8 @@ listed what it did. Without "repo", or outside any repository, only inline
 content may be sent. A client model whose own answer said it cannot run — the
 quota of the account, which says when it resets, or a model the account
 cannot use — is not offered: the ledger remembers it until then, and models
-names it in "skipped" with the reason.
+names it in "skipped" with the reason. A free model carries "free": true and the
+cost class "free"; --free (or "free": true in the input) lists only those.
 
 usage reports every client it knows: whether it is installed, whether its own
 status command says it is signed in, whether its last run in the availability
@@ -216,22 +217,27 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
         let message = format!("unknown subcommand {}; the gateway has {COMMAND_NAMES}", unknown_subcommand(argv));
         return failure("unknown-command", &message, None, &[]);
     };
-    // `grant write` also takes `--max-starts N`, which sets the grant's max_starts beside the JSON object.
+    // `grant write` also takes `--max-starts N`, which sets the grant's max_starts beside the JSON object, and
+    // `models` takes `--free`, which sets its `free` filter.
     let split = if named.name == "grant write" { without_max_starts(named.args) } else { Some((named.args.to_vec(), None)) };
-    let Some((args, max_starts)) = split else {
+    let Some((mut args, max_starts)) = split else {
         return usage_failure(named.name);
     };
+    let free = named.name == "models" && args.iter().any(|arg| arg == "--free");
+    if free {
+        args.retain(|arg| arg != "--free");
+    }
     let Some(input) = parse_arguments(&args) else {
         return usage_failure(named.name);
     };
-    match run_command(&named, input, max_starts, runtime) {
+    match run_command(&named, input, max_starts, free, runtime) {
         Ok(result) => CliResult { exit_code: 0, stdout: format!("{}\n", json::pretty(&result)), stderr: String::new() },
         Err(error) => failure(&error.code, &error.message, Some(named.name), &error.problems),
     }
 }
 
 /// Reads the input the arguments name, parses it and runs the subcommand over it.
-fn run_command(named: &Named<'_>, input: Input<'_>, max_starts: Option<Value>, runtime: &Runtime) -> Result<Value, GatewayError> {
+fn run_command(named: &Named<'_>, input: Input<'_>, max_starts: Option<Value>, free: bool, runtime: &Runtime) -> Result<Value, GatewayError> {
     let text = match input {
         Input::Json(text) => text.to_string(),
         Input::File(path) => runtime
@@ -241,6 +247,9 @@ fn run_command(named: &Named<'_>, input: Input<'_>, max_starts: Option<Value>, r
     let mut object = parse_input(&text)?;
     if let Some(max_starts) = max_starts {
         object.set("max_starts", max_starts);
+    }
+    if free {
+        object.set("free", Value::Bool(true));
     }
     commands::run(named.command, named.name, &object, runtime)
 }

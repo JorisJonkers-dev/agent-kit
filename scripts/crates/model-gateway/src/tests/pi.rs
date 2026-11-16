@@ -574,11 +574,49 @@ fn the_listing_marks_only_verified_free_pi_models_and_keeps_every_other_class() 
         missing: Vec::new(),
         skipped: Vec::new(),
     };
-    let classes: Vec<CostClass> = crate::sources::mark_free(&runtime, listing).models.iter().map(|model| model.cost_class).collect();
+    let config = crate::config_parse::load_config(&runtime).expect("the shipped defaults load");
+    let classes: Vec<CostClass> = crate::sources::mark_free(&runtime, &config, None, listing).models.iter().map(|model| model.cost_class).collect();
     assert_eq!(classes, [CostClass::Free, CostClass::Subsidised, CostClass::MeteredPersonal, CostClass::Subsidised]);
     assert_eq!(CostClass::parse("free"), None, "no file can declare a model free");
     assert_eq!(CostClass::Free.as_str(), "free");
     // No home to find models.json in: nothing is free.
     let homeless = super::config::runtime(StubFiles::new(), StubGit::new(None, &[]), env(&[]));
     assert!(!crate::sources::pi_model_is_free(&homeless, "pi-vibe", "zero"));
+}
+
+#[test]
+fn free_is_the_catalogues_flag_and_pi_prices_stand_in_only_where_the_catalogue_is_silent() {
+    use super::config::{runtime, StubFiles, StubGit};
+    use crate::litellm_catalogue::{is_free, parse_catalogue};
+    let zero = r#","cost":{"input":0,"output":0}"#;
+    let files = StubFiles::new().with(
+        "/h/.pi/agent/models.json",
+        &format!(
+            r#"{{"providers":{{"litellm-vibe":{{"models":[{{"id":"flagged"}},{{"id":"billed"{zero}}},{{"id":"silent"{zero}}},{{"id":"silent-paid"}}]}}}}}}"#
+        ),
+    );
+    let runtime = runtime(files, StubGit::new(None, &[]), env(&[("HOME", "/h")]));
+    let config = crate::config_parse::load_config(&runtime).expect("the shipped defaults load");
+    let catalogue = |text: &str| parse_catalogue(&crate::json::parse(text).expect("json")).expect("catalogue");
+    let probe = |name: &str, free: bool| format!(r#"{{"id":"vibe/{name}","metadata":{{"status":"usable","free":{free},"modality":"chat"}}}}"#);
+    let grp = |name: &str| format!(r#""{name}":{{"modality":"chat","deployments":[{{"route":"vibe","upstream_id":"{name}","order":1}}]}}"#);
+    let text = format!(
+        r#"{{"updated_at":"2026-11-03T11:17:01Z","providers":{{"vibe":{{"models":[{},{}]}}}},"groups":{{{},{}}}}}"#,
+        probe("flagged", true),
+        probe("billed", false),
+        grp("flagged"),
+        grp("billed")
+    );
+    let known = catalogue(&text);
+    let free = |client: &str, model: &str, catalogue: Option<&crate::litellm_catalogue::LiteLlmCatalogue>| is_free(&runtime, &config, catalogue, client, model);
+    // The catalogue's flag decides, with no price in the file.
+    assert!(free("pi-vibe", "flagged", Some(&known)));
+    // A catalogue that calls it billed wins over a zero price in the file.
+    assert!(!free("pi-vibe", "billed", Some(&known)));
+    // The catalogue has no word on it, or there is none: the zero price decides.
+    assert!(free("pi-vibe", "silent", Some(&known)));
+    assert!(!free("pi-vibe", "silent-paid", Some(&known)));
+    assert!(free("pi-vibe", "silent", None));
+    assert!(!free("pi-vibe", "flagged", None));
+    assert!(!free("claude", "claude-opus-5-5", Some(&known)));
 }

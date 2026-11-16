@@ -56,7 +56,7 @@ and why. Models are sorted by client, then model id.
   override is `invalid-config` and names the file.
 - **The enums are closed.** `cost_class` is `subsidised`,
   `metered-personal` or `metered-employer` in files, and `models` also prints
-  `free` for a Pi model whose provider entry prices every field at zero; `tier` is `trivial`, `routine`,
+  `free` for a model the live LiteLLM catalogue marks free (for a Pi model, a group whose every deployment is free; Pi's zero `cost` stands in only where the catalogue cannot say); `tier` is `trivial`, `routine`,
   `hard` or `frontier`; `model_source` is `live`, `config` or `declared`. A
   new value is a schema change, not a data change.
 - **`vibe` and `agy` model entries are catalogue entries.** Their tier and
