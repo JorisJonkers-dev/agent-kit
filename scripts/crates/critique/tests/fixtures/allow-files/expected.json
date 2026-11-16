@@ -222,8 +222,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"invalid-allowlist\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories.a.families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai\",\"status\":\"error\"}\n",
-      "stderr": "critique allow: @SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories.a.families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai\n",
+      "stdout": "{\"code\":\"invalid-allowlist\",\"message\":\"@SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories.a.families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: @SANDBOX@/home/.config/agent-kit/critique-allowlist.json: repositories.a.families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection\n",
       "files": {
         "home/": null,
         "home/.config/": null,

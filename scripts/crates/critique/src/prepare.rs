@@ -47,6 +47,9 @@ use model_gateway::sha256::sha256_hex;
 use model_gateway::timestamps::to_iso;
 use std::collections::HashMap;
 
+/// The rosters a run may ask for: the stage's own, or its free-only one.
+const ROSTERS: [&str; 2] = ["default", "free"];
+
 struct PrepareInput {
     stage: String,
     orchestrator_family: String,
@@ -79,6 +82,9 @@ struct PrepareInput {
     ticket: Option<String>,
     /// The plan stage's plan file; `None` means the one the draft's tracker convention names.
     plan: Option<String>,
+    /// Whether the run asked for the free-only roster (`"roster": "free"`): only free models, so only a repository the
+    /// owner recorded as public.
+    free: bool,
 }
 
 /// Reads the input in the order the node runner evaluates its fields, so the first wrong field is the one reported.
@@ -95,6 +101,7 @@ fn read_input(raw: &Value) -> Result<PrepareInput, CritiqueError> {
     let head = fields.optional_string("head").map_err(shape)?.unwrap_or_else(|| "HEAD".to_string());
     let orchestrator_family = fields.one_of("orchestrator_family", &ORCHESTRATOR_FAMILIES).map_err(shape)?;
     let plan = fields.optional_string("plan").map_err(shape)?;
+    let free = fields.has("roster") && fields.one_of("roster", &ROSTERS).map_err(shape)? == "free";
     let previous_run_dir = if fields.has("previous_run_dir") { Some(fields.string("previous_run_dir").map_err(shape)?) } else { None };
     let references = if fields.has("references") { Some(fields.strings("references").map_err(shape)?) } else { None };
     let repo = fields.string("repo").map_err(shape)?;
@@ -106,7 +113,7 @@ fn read_input(raw: &Value) -> Result<PrepareInput, CritiqueError> {
     })?;
     let ticket = fields.optional_string("ticket").map_err(shape)?;
     let workflow = fields.optional_string("workflow").map_err(shape)?;
-    Ok(PrepareInput { stage, orchestrator_family, repo, spec, workflow, feature, decision_summary, comments, references, adrs, flow, previous_run_dir, depth, base, head, staged, ticket, plan })
+    Ok(PrepareInput { stage, orchestrator_family, repo, spec, workflow, feature, decision_summary, comments, references, adrs, flow, previous_run_dir, depth, base, head, staged, ticket, plan, free })
 }
 
 /// What the stage critiques, whose labels and text its depth signals read.
@@ -236,6 +243,12 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
             None => return Ok(refusal("not-opted-in", &format!("{} has no family allowlist entry on this machine; record one with allow", repository.key))),
         }
     };
+    if input.free && !entry.public {
+        return Ok(refusal(
+            "not-public",
+            &format!("the free-only roster is for public material only, and {} is not recorded as public; record it with allow and \"public\": true, or leave roster out", repository.key),
+        ));
+    }
     if needs_code_permission(&stage) && !entry.code {
         return Ok(refusal(
             "code-not-allowed",
@@ -263,6 +276,9 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
         }
     };
     let stage_routes = stage_routing(&routing, &stage)?;
+    if input.free && stage_routes.free.is_empty() {
+        return Ok(refusal("no-free-roster", &format!("routing names no free-only roster for the {stage} stage")));
+    }
     let check_text = contents.ticket_check.as_ref().map(|_| contents.files.iter().map(|file| file.text.as_str()).collect::<Vec<_>>().join("\n\n"));
     let evidence = match (&contents.ticket_check, &check_text) {
         (Some(check), Some(text)) => DepthEvidence { text, labels: &contents.artifact.labels, tickets: Some(check.tickets.len()), ..DepthEvidence::default() },
@@ -283,7 +299,7 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     let allowed: Vec<String> = entry.families.clone();
     let roster = match &grant {
         Some(grant) => work_roster(runtime, &routing, &input, &stage, grant)?,
-        None => open_roster(runtime, &routing, &RosterRequest { stage: &stage, depth: &depth, allowed_families: &allowed, orchestrator_family: &input.orchestrator_family, adr: contents.holds_adr, public_repository: entry.public })?,
+        None => open_roster(runtime, &routing, &RosterRequest { stage: &stage, depth: &depth, allowed_families: &allowed, orchestrator_family: &input.orchestrator_family, adr: contents.holds_adr, public_repository: entry.public, free: input.free })?,
     };
     let plan_warnings = if roster.critics.iter().any(|critic| matches!(critic.client_config, CriticClient::Vibe(_))) { plan_limit(runtime, "vibe")?.warnings } else { Vec::new() };
     let run_id = fresh_run_id(runtime, &repository, &stage);
@@ -323,6 +339,9 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     manifest.set("packet_files", Value::Arr(packet_files.iter().map(|file| file.value.clone()).collect()));
     if entry.public {
         manifest.set("public_repository", Value::Bool(true));
+    }
+    if input.free {
+        manifest.set("free_roster", Value::Bool(true));
     }
     if !plan_warnings.is_empty() {
         manifest.set("plan_warnings", strings_value(&plan_warnings));

@@ -25,10 +25,17 @@ pub struct RefuterCandidate {
 /// Every client a stage routes, in the order a refuter is chosen: the base slots, then the deep slots whatever the
 /// run's depth, each slot's client followed by its fallbacks. A client named twice keeps its first place. A `nedap`
 /// repository's run (`work`) has only the stage's work slots, which have no fallbacks: no other client may see its
-/// code.
-pub fn refuter_candidates(routing: &Routing, stage: &str, work: bool) -> Result<Vec<RefuterCandidate>, CritiqueError> {
+/// code. A free-only run (`free`) has only the stage's free slots and their fallbacks, which routing holds to free
+/// clients: a refuter of a free run costs nothing either.
+pub fn refuter_candidates(routing: &Routing, stage: &str, work: bool, free: bool) -> Result<Vec<RefuterCandidate>, CritiqueError> {
     let routes = stage_routing(routing, stage)?;
-    let slots: Vec<&RosterSlot> = if work { routes.work.iter().collect() } else { routes.base.iter().chain(routes.deep.iter()).collect() };
+    let slots: Vec<&RosterSlot> = if work {
+        routes.work.iter().collect()
+    } else if free {
+        routes.free.iter().collect()
+    } else {
+        routes.base.iter().chain(routes.deep.iter()).collect()
+    };
     let mut candidates: Vec<RefuterCandidate> = Vec::new();
     for slot in slots {
         let mut names = vec![slot.client.clone()];

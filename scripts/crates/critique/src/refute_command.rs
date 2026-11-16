@@ -147,7 +147,7 @@ fn round(runtime: &Runtime, manifest: &RunManifest, merged: &FanOutResult, targe
         role: role.clone(),
         schema: read_asset(runtime, FINDING_SCHEMA)?,
     };
-    let candidates = refuter_candidates(&load_routing(runtime)?, &manifest.stage, manifest.work.is_some())?;
+    let candidates = refuter_candidates(&load_routing(runtime)?, &manifest.stage, manifest.work.is_some(), manifest.free_roster)?;
     let blocked = blocked(runtime, manifest, &candidates)?;
     let packet = index_packet(&read_frozen_packet(runtime, manifest)?, manifest.ticket_check.as_ref().map_or(&[][..], |check| &check.ticket_ids));
     let round = Round {

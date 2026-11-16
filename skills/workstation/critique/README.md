@@ -610,6 +610,27 @@ applies the same bar as the run it follows. No public-scope client leads a
 slot in the shipped routing: `pi-public-gemini-flash` is only a last fallback,
 so it runs for a public repository when everything before it could not.
 
+**Free-only roster.** A run costs nothing when its critics are free Pi models on
+a public-only LiteLLM route. Such a client carries `"free": true` (allowed only
+with `"data_scope": "public"`), and a stage's `free` slots, parallel to `work`,
+name only free clients; a free client's fallbacks are free clients too. The
+shipped routing has four, all on `litellm-openrouter` (the route behind `pi-openrouter`
+and `pi-free`'s catalogue): `pi-free-nemotron-ultra` (nvidia), `pi-free-gemma`
+(google), `pi-free-north-mini-code` (cohere) and `pi-free-opencode-go-beam`
+(reflection, OpenCode Go's free model), each stage's `free` roster mirrors its base
+roster's roles and lenses, and `pi-free-north-mini-code` and `pi-free-opencode-go-beam`
+are the fallbacks of the first two. A run asks for it with `"roster": "free"` in
+the prepare input. Free models are for public material only, so prepare refuses
+(`not-public`) unless the repository's allowlist entry has `"public": true`,
+the owner's own mark (`critique allow --json '{"repo": ..., "families": ["nvidia",
+"google", "cohere", "reflection"], "public": true}'`), and refuses
+`no-free-roster` for a stage routing gives no free slots. Nothing else changes: the same
+read-only tripwire, quote check, writer-family exclusion (the orchestrator's family
+never critiques) and refute round, except that the round draws only on the stage's free
+clients, so it costs nothing either (the manifest records `free_roster: true`).
+`critique check-routing` also holds each free client to the catalogue: its model must
+be one the snapshot calls free.
+
 **Decide what to change** with `/critique-stats`: from the ledger
 (`~/.local/share/agent-kit/critique/ledger.jsonl`, metadata only) it reports
 each critic client's precision, unique catches, fabrication, cost and

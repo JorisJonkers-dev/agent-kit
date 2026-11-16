@@ -7,7 +7,7 @@ use model_gateway::json::{self, Object, Value};
 use model_gateway::timestamps;
 
 /// The families an allowlist entry may name: every family a client serves.
-pub const ALLOWLIST_FAMILIES: [&str; 6] = ["mistral", "zhipu", "deepseek", "google", "anthropic", "openai"];
+pub use crate::family::ALLOWLIST_FAMILIES;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry {

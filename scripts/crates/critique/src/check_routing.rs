@@ -6,7 +6,9 @@
 //!
 //! What is read: the shipped `defaults.json` profiles (`<client>:<model>` keys of the `pi-<route>` clients) and the
 //! shipped `routing.json` Pi clients that a stage slot or a fallback names. Pi names a model by its canonical group,
-//! which the catalogue judges by its deployments (a group with one usable deployment is usable).
+//! which the catalogue judges by its deployments (a group with one usable deployment is usable). A client routing marks
+//! `free` must also be a group the catalogue calls free: a free-only roster costs nothing, so a model the snapshot does
+//! not know or calls billed fails the check, unlike a paid client's unknown model.
 
 use crate::error::CritiqueError;
 use crate::fields::Fields;
@@ -44,7 +46,7 @@ pub fn profile_problems(catalogue: &LiteLlmCatalogue, defaults: &Value) -> Vec<S
 pub fn routing_problems(catalogue: &LiteLlmCatalogue, routing: &Routing) -> Vec<String> {
     let mut named: Vec<&str> = Vec::new();
     for (_, stage) in &routing.stages {
-        for slot in stage.base.iter().chain(&stage.deep).chain(&stage.adr).chain(&stage.work) {
+        for slot in stage.base.iter().chain(&stage.deep).chain(&stage.adr).chain(&stage.work).chain(&stage.free) {
             named.push(&slot.client);
         }
     }
@@ -61,8 +63,21 @@ pub fn routing_problems(catalogue: &LiteLlmCatalogue, routing: &Routing) -> Vec<
         if let Some(reason) = group_problem(catalogue, &pi.model) {
             problems.push(format!("routing client {name}: {} on {} cannot run: {reason}", pi.model, pi.provider));
         }
+        if let Some(reason) = pi.free.then(|| not_free(catalogue, &pi.model)).flatten() {
+            problems.push(format!("routing client {name}: {} on {} is marked free but {reason}", pi.model, pi.provider));
+        }
     }
     problems
+}
+
+/// Why the catalogue does not confirm a canonical group free, or `None` when it does: a group is free only when every
+/// deployment is a model its provider marks free.
+fn not_free(catalogue: &LiteLlmCatalogue, model: &str) -> Option<String> {
+    match catalogue.groups.get(model).and_then(|group| group_probe(catalogue, group)) {
+        None => Some("the LiteLLM catalogue has no probe of it, so nothing says it is free".to_string()),
+        Some((_, probe)) if !probe.free => Some("the LiteLLM catalogue does not mark every deployment of it free".to_string()),
+        Some(_) => None,
+    }
 }
 
 /// The check over the shipped profiles and routing, with the catalogue the input names.
