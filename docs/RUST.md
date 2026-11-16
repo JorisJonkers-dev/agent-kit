@@ -1264,7 +1264,20 @@ agent-kit-merge vibe-mcp        FRAGMENT [--key mcp_servers|hooks] [--config PAT
 agent-kit-merge codex-add-url   CONFIG NAME URL
 agent-kit-merge instruction-block FILE NAME [--remove]     # body on stdin
 agent-kit-merge package-proxy   FILE NAME [--remove] [--validate toml|ini] [--refuse REGEX] [--mode MODE]
+agent-kit-merge converge mcp    --keep PATH --claude-home DIR [--claude DIR ...] [--codex PATH] [--vibe PATH] \
+                                [--vibe-private PATH] [--opencode PATH] [--declared SURFACE=NAME,... ...] \
+                                [--retired NAME,...] [--private NAME,...] [--check]
+agent-kit-merge converge plugins --keep PATH [--declared-markets NAME,...] [--declared-plugins ID,...] \
+                                [--retired-markets NAME,...] [--retired-plugins ID,...] [--check]
 ```
+
+`converge mcp` and `converge plugins` are the first slice of the converge port
+(#810): they replace `scripts/converge.py mcp` and `plugins`, with the same
+output lines and exit codes, and run `claude` and `codex` the way the script
+did. One layout difference: removing a Vibe server keeps the remaining
+`[[mcp_servers]]` where they were, where `tomlkit` moved them to the end of the
+file. The Gold Band steps (`gold-band`, `gold-band-roles`,
+`gold-band-workflows`) are still `scripts/converge.py`.
 
 Behaviour, exit codes and output lines are those of the scripts. JSON and TOML
 merges write the bytes the Python tools wrote, so a re-run over a file they

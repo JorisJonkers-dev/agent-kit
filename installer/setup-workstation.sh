@@ -1419,11 +1419,7 @@ converge_mcp() {
   [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ] && command -v opencode >/dev/null 2>&1 \
     && args+=(--opencode "${OPENCODE_HOME}/opencode.json")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
-  if ! command -v uv >/dev/null 2>&1; then
-    warn "uv is not on PATH; MCP servers not converged"
-    return 0
-  fi
-  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \
+  out=$(agent_kit_merge converge mcp \
     "${args[@]}" \
     --declared claude=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
     --declared codex=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
@@ -1432,6 +1428,7 @@ converge_mcp() {
     --declared opencode=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf \
     --retired memory-mcp,vuetify --private memory-private 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" = 127 ]; then warn "agent-kit-merge is not available; MCP servers not converged"; return 0; fi
   [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
 }
 
@@ -1440,16 +1437,13 @@ converge_plugins() {
   local out rc=0 line
   local args=(--keep "${HOME}/.config/agent-kit/keep.yaml")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
-  if ! command -v uv >/dev/null 2>&1; then
-    warn "uv is not on PATH; plugins not converged"
-    return 0
-  fi
-  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" plugins \
+  out=$(agent_kit_merge converge plugins \
     "${args[@]}" --declared-markets agent-kit-official,caveman,drawio,kubernetes-skill,ai-software-architect \
     --declared-plugins caveman@caveman,drawio@drawio,frontend-design@agent-kit-official,mattpocock-skills@agent-kit-official,security-guidance@agent-kit-official,kubernetes-skill@kubernetes-skill,github@agent-kit-official,ai-software-architect@ai-software-architect,typescript-lsp@agent-kit-official,pyright-lsp@agent-kit-official,kotlin-lsp@agent-kit-official,jdtls-lsp@agent-kit-official,ruby-lsp@agent-kit-official,gopls-lsp@agent-kit-official,rust-analyzer-lsp@agent-kit-official,lua-lsp@agent-kit-official,clangd-lsp@agent-kit-official,php-lsp@agent-kit-official,csharp-lsp@agent-kit-official,swift-lsp@agent-kit-official,liquid-lsp@agent-kit-official \
     --retired-markets hindsight \
     --retired-plugins hindsight-memory@hindsight 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" = 127 ]; then warn "agent-kit-merge is not available; plugins not converged"; return 0; fi
   [ "${rc}" = 0 ] || fail "plugins did not converge (see above)"
 }
 
