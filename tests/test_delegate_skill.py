@@ -183,7 +183,9 @@ def test_the_choice_prefers_pi_and_keeps_the_public_route_off_repositories() -> 
     section = _section("Choose the model")
     assert "Prefer Pi" in section
     assert "`pi-<route>` client over any other client" in section
-    assert "`pi-public` is the one Pi client the data policy never lists for a repository" in section
+    flat = " ".join(section.split())
+    assert "`pi-public`, `pi-openrouter` and `pi-free` are the Pi clients the data policy never lists for a repository" in flat
+    assert "`pi-openrouter` and `pi-free` run free models only" in flat
 
 
 def test_the_choice_rule_is_cheapest_class_then_capability_notes() -> None:
@@ -313,10 +315,11 @@ def test_claude_subagents_and_the_workflow_tool_are_for_claude_chosen_tasks_only
 # ---------------------------------------------------------------------------
 
 
-def test_the_money_rules_say_codex_needs_a_grant_and_openrouter_and_zen_are_never_used() -> None:
+def test_the_money_rules_say_codex_needs_a_grant_and_openrouter_is_free_only_and_zen_is_never_used() -> None:
     section = _section("Money rules")
     assert "Codex is metered-employer: never without a live grant" in section
-    assert "OpenRouter is never used" in section
+    assert "OpenRouter only through `pi-openrouter` and `pi-free`, free models and public data only" in " ".join(section.split())
+    assert "OpenRouter is never used" not in section
     assert "`opencode-go/...`" in section
     assert "never `opencode/...`" in section
     assert "enforces the caps and the grants" in section
@@ -369,7 +372,8 @@ def test_work_moves_off_a_busy_client_only_to_the_same_or_a_cheaper_class() -> N
 
 def test_the_choice_step_restates_the_model_bans() -> None:
     section = _section("Choose the model")
-    assert "excluding OpenRouter entirely" in section
+    assert "excluding OpenRouter entirely" not in section
+    assert "any OpenRouter model that does not come through `pi-openrouter` or `pi-free`" in " ".join(section.split())
     assert "any `opencode/...` model (only `opencode-go/...`)" in section
     assert "never a model with `tier: null`" in section
 
