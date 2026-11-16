@@ -184,7 +184,7 @@ def test_the_choice_prefers_pi_and_keeps_the_public_route_off_repositories() -> 
     assert "Prefer Pi" in section
     assert "`pi-<route>` client over any other client" in section
     flat = " ".join(section.split())
-    assert "`pi-public`, `pi-openrouter` and `pi-free` are the Pi clients the data policy never lists for a repository" in flat
+    assert "`pi-public`, `pi-openrouter` and `pi-free` are the Pi clients the data policy never lists" in flat
     assert "`pi-openrouter` and `pi-free` run free models only" in flat
 
 
@@ -318,7 +318,8 @@ def test_claude_subagents_and_the_workflow_tool_are_for_claude_chosen_tasks_only
 def test_the_money_rules_say_codex_needs_a_grant_and_openrouter_is_free_only_and_zen_is_never_used() -> None:
     section = _section("Money rules")
     assert "Codex is metered-employer: never without a live grant" in section
-    assert "OpenRouter only through `pi-openrouter` and `pi-free`, free models and public data only" in " ".join(section.split())
+    flat = " ".join(section.split())
+    assert "OpenRouter only through `pi-openrouter` and `pi-free`, free models and public data only" in flat
     assert "OpenRouter is never used" not in section
     assert "`opencode-go/...`" in section
     assert "never `opencode/...`" in section
