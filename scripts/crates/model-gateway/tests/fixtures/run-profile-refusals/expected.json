@@ -54,8 +54,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"narrow.max_spend_usd 5 is above profile cheap-research's cap of 0.5: a request may narrow a profile, never widen it\"}\n",
-      "stderr": "model-gateway run: narrow.max_spend_usd 5 is above profile cheap-research's cap of 0.5: a request may narrow a profile, never widen it\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"narrow.max_spend_usd 5 is above profile cheap-research's cap of 1.5: a request may narrow a profile, never widen it\"}\n",
+      "stderr": "model-gateway run: narrow.max_spend_usd 5 is above profile cheap-research's cap of 1.5: a request may narrow a profile, never widen it\n",
       "files": {
         "home/": null,
         "home/.pi/": null,

@@ -6158,6 +6158,10 @@ def render_litellm_admin_token_script(data: dict[str, Any]) -> str:
     ])
 
 
+# The output tokens Pi may spend on one answer of a LiteLLM model, reasoning included (Pi's own default is 16384).
+PI_MAX_TOKENS = 32768
+
+
 def litellm_route_models(
     access_groups: list[str], catalogue: Any = None, route: dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
@@ -6205,6 +6209,9 @@ def litellm_route_models(
         model: dict[str, Any] = {"id": entry.name}
         if entry.context_length is not None:
             model["contextWindow"] = entry.context_length
+        # Pi's default is 16384 output tokens, and a reasoning model spends its thinking from them, so a long
+        # review was cut short. Twice that, never more than half the context.
+        model["maxTokens"] = min(PI_MAX_TOKENS, entry.context_length // 2) if entry.context_length else PI_MAX_TOKENS
         if entry.free:
             model["cost"] = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
         models.append(model)
