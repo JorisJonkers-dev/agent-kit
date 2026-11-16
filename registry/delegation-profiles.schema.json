@@ -69,6 +69,13 @@
             "plugins": { "$ref": "#/$defs/toolList" }
           }
         },
+        "unenforced_clients": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9]+$" },
+          "description": "Non-Pi clients the profile may run on although the gateway cannot enforce its tool scope there; the client's own read-only launch stands in for it."
+        },
         "max_spend_usd": {
           "type": "number",
           "exclusiveMinimum": 0,

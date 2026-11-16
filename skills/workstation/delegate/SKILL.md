@@ -39,8 +39,21 @@ model-gateway usage --json '{}'
   for this repository (cheapest first) or the reason it leaves none. A profile
   owns the allowed models and the tool scope; name one as `profile` on the run
   and plan from its models instead of the whole list. Narrowing is the
-  gateway's to check (`narrow`), and a refusal names its reason. Planning
-  whole delegations from profiles comes later; today you read the list.
+  gateway's to check (`narrow`), and a refusal names its reason.
+- The delegation roles are profiles: `research`, `implement`, `critique`,
+  `red-team`, `refute` and `triage`. Name the role and the harness instead of a
+  client and model, and the gateway picks the cheapest model the role leaves on
+  that harness:
+  `model-gateway run --profile red-team --harness pi --json '{"workflow": "...", "mode": "read-only", "prompt": "...", "repo": "<repo root>", "narrow": {"writer_family": "<the writer's family>"}}'`.
+  Pi is the default harness; `--harness` takes `claude`, `codex`, `agy`, `vibe`
+  or `hermes`, or a Pi route such as `pi-opencode-go` (OpenCode Go through Pi).
+  A role with `exclude_writer_family` (`critique`, `red-team`, `refute`) needs
+  `narrow.writer_family`. `red-team` is adversarial and read-only: it tries to
+  break the artifact, attack the spec and find unsafe assumptions, and reports
+  findings with evidence, not fixes. Every role is deny-all on tools, capped per
+  run, and cut by the data policy: a repository never reaches `pi-public`,
+  `pi-openrouter` or `pi-free`, which `research` and `triage` list for
+  public-data work only.
 
 ## Rate each task
 

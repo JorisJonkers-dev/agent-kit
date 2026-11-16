@@ -28,3 +28,4 @@ mod litellm_catalogue;
 mod pi;
 mod profiles;
 mod catalog;
+mod matrix;

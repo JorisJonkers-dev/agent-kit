@@ -10,6 +10,7 @@ use crate::ports::Runtime;
 pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/to/repo"}' | --input FILE] [--free]
        model-gateway catalog [--repo PATH] [--route ROUTE] [--status STATUS] [--modality MODALITY] [--free] [--json]
        model-gateway usage --json '{"days": 7, "workflow": "spec-293"}'
+       model-gateway matrix [--json '{"live": true, "roles": ["red-team"], "harnesses": ["pi"], "repo": "/path"}']
        model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
                                  "model": "glm-5-3", "mode": "read-only",
                                  "prompt": "read this", "repo": "/path/to/repo"}'
@@ -17,6 +18,9 @@ pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/
                                  "model": "claude-sonnet-5-5", "mode": "write",
                                  "prompt": "add the flag", "repo": "/path/to/repo",
                                  "base": "main", "check": "npm test"}'
+       model-gateway run --profile red-team --harness pi --json '{"workflow": "spec-293",
+                                 "mode": "read-only", "prompt": "...",
+                                 "narrow": {"writer_family": "anthropic"}}'
        model-gateway batch --json '{"workflow": "spec-293", "delegations": [
                                  {"id": "a", "client": "vibe", "model": "glm-5-3",
                                   "mode": "read-only", "prompt": "read this", "repo": "/path/to/repo"},
@@ -35,6 +39,12 @@ pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/
        model-gateway worktrees clean --json '{"workflow": "spec-293"}'
        model-gateway <command> --input FILE
 
+matrix runs every delegation role on every harness once, on a trivial fixture
+(carrying "repo" when it is given), and prints each cell's status (pass, blocked or
+fail), exit, latency, cost and error text with the role by harness table. It
+exits 1 when a cell does not do what docs/model-gateway/harness-matrix.json
+says it should: "live": true judges against the owner's machine, otherwise the
+stub proof's expectations apply, where every harness is a stub program.
 Each command reads one JSON object, from --json or from FILE, and prints one
 JSON object. models lists every client model this machine can use now for the
 repository the caller works in, with its client, model id, family, cost class,
@@ -81,6 +91,13 @@ hermes), "model", "mode", "prompt", and optionally "repo", "carries" (code and
 history), "time_limit_s" (900 by default), "max_price_usd" (Vibe only),
 "provider" (which a hermes run must name, and which this machine must allow),
 "escalate", "family_binding" and "max_attempts".
+Instead of "client" and "model", a run may name a delegation role: --profile
+ROLE (or "profile") and --harness H (or "harness"), where the role is a
+delegation profile (research, implement, critique, red-team, refute, triage, or
+any other `models` lists) and the harness is pi (the default route of a role),
+claude, codex, agy, vibe, hermes or a Pi route such as pi-opencode-go. The
+gateway picks the cheapest model the role leaves on that harness for the
+repository, and refuses with the reason when it leaves none.
 The workflow's life, the data policy and the client model's read-only proof are
 checked before anything is launched; a model without a passing proof (every one
 but a proven Vibe or Antigravity model) works in a throwaway worktree of the
@@ -194,12 +211,13 @@ An error prints "status": "error" with its "code" and exits 1.
 "#;
 
 /// The subcommands the gateway has, and the command each one runs.
-const COMMANDS: [(&str, Command); 12] = [
+const COMMANDS: [(&str, Command); 13] = [
     ("batch", Command::Batch),
     ("catalog", Command::Catalog),
     ("grant list", Command::GrantList),
     ("grant reserve", Command::GrantReserve),
     ("grant write", Command::GrantWrite),
+    ("matrix", Command::Matrix),
     ("models", Command::Models),
     ("run", Command::Run),
     ("usage", Command::Usage),
@@ -211,7 +229,7 @@ const COMMANDS: [(&str, Command); 12] = [
 
 /// The subcommands, as an error names them.
 const COMMAND_NAMES: &str =
-    "models, catalog, run, batch, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean";
+    "models, catalog, run, batch, matrix, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean";
 
 /// What one run prints and how it exits.
 pub struct CliResult {
@@ -238,17 +256,26 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
     let Some((mut args, max_starts)) = split else {
         return usage_failure(named.name);
     };
+    // `run` takes `--profile ROLE` and `--harness H`, which set its `profile` and `harness` beside the JSON object.
+    let mut flags: Flags = Vec::new();
+    if named.name == "run" {
+        let Some((rest, found)) = without_flags(&args, &["profile", "harness"]) else {
+            return usage_failure(named.name);
+        };
+        args = rest;
+        flags = found;
+    }
     let free = named.name == "models" && args.iter().any(|arg| arg == "--free");
     if free {
         args.retain(|arg| arg != "--free");
     }
     // `models` with no arguments is `models --json '{}'`: it has no required input.
-    let given = if named.name == "models" && args.is_empty() { Some(Input::Json("{}")) } else { parse_arguments(&args) };
+    let given = if matches!(named.name, "models" | "matrix") && args.is_empty() { Some(Input::Json("{}")) } else { parse_arguments(&args) };
     let Some(input) = given else {
         return usage_failure(named.name);
     };
-    match run_command(&named, input, max_starts, free, runtime) {
-        Ok(result) => CliResult { exit_code: 0, stdout: format!("{}\n", json::pretty(&result)), stderr: String::new() },
+    match run_command(&named, input, (max_starts, free, flags), runtime) {
+        Ok(result) => CliResult { exit_code: i32::from(named.name == "matrix" && result.as_object().and_then(|object| object.get("status")).and_then(Value::as_str) == Some("regressed")), stdout: format!("{}\n", json::pretty(&result)), stderr: String::new() },
         Err(error) => failure(&error.code, &error.message, Some(named.name), &error.problems),
     }
 }
@@ -288,7 +315,12 @@ fn catalog_usage() -> CliResult {
 }
 
 /// Reads the input the arguments name, parses it and runs the subcommand over it.
-fn run_command(named: &Named<'_>, input: Input<'_>, max_starts: Option<Value>, free: bool, runtime: &Runtime) -> Result<Value, GatewayError> {
+/// What the command line sets beside the JSON object: `--max-starts`, `--free` and `run`'s `--profile` and `--harness`.
+type Flags = Vec<(&'static str, String)>;
+type Extras = (Option<Value>, bool, Flags);
+
+fn run_command(named: &Named<'_>, input: Input<'_>, extras: Extras, runtime: &Runtime) -> Result<Value, GatewayError> {
+    let (max_starts, free, flags) = extras;
     let text = match input {
         Input::Json(text) => text.to_string(),
         Input::File(path) => runtime
@@ -302,6 +334,9 @@ fn run_command(named: &Named<'_>, input: Input<'_>, max_starts: Option<Value>, f
     if free {
         object.set("free", Value::Bool(true));
     }
+    for (name, value) in flags {
+        object.set(name, Value::str(&value));
+    }
     commands::run(named.command, named.name, &object, runtime)
 }
 
@@ -313,6 +348,26 @@ fn usage_failure(name: &str) -> CliResult {
         _ => "",
     };
     failure("invalid-input", &format!("{name} takes one of --json '<object>' or --input <file>{extra}"), Some(name), &[])
+}
+
+/// The arguments without the `--<name> VALUE` pairs of `names`, and those pairs; `None` when one is repeated or
+/// has no value.
+fn without_flags(args: &[String], names: &[&'static str]) -> Option<(Vec<String>, Flags)> {
+    let mut rest = args.to_vec();
+    let mut found = Vec::new();
+    for name in names {
+        let flag = format!("--{name}");
+        let Some(at) = rest.iter().position(|arg| *arg == flag) else {
+            continue;
+        };
+        let value = rest.get(at + 1)?.clone();
+        rest.drain(at..at + 2);
+        if rest.contains(&flag) {
+            return None;
+        }
+        found.push((*name, value));
+    }
+    Some((rest, found))
 }
 
 /// The arguments of `grant write` without a `--max-starts N` pair, and that N as a number (anything that is not

@@ -251,6 +251,9 @@ pub struct DelegationProfile {
     pub tools: ToolScope,
     /// The most a run may spend, in USD; held from #788, validated now.
     pub max_spend_usd: Option<f64>,
+    /// Non-Pi clients the profile may run on although the gateway cannot enforce its tool scope there: the
+    /// profile's own statement that the client's read-only launch stands in for the scope.
+    pub unenforced_clients: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
