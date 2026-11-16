@@ -133,3 +133,55 @@ fn a_run_on_a_model_only_the_catalogue_knows_is_placed_or_refused_with_the_reaso
     let unread = place_unlisted(&with(StubFiles::new()), &config, "pi-opencode-go", "beam-free").expect_err("no catalogue");
     assert!(unread.message.ends_with("machine override"), "{}", unread.message);
 }
+
+#[test]
+fn a_listed_model_carries_its_cost_and_the_providers_that_serve_it_in_fallback_order() {
+    use crate::json::{parse, Value};
+    use crate::model_facts::annotate;
+    let config = shipped();
+    let catalogue = crate::litellm_catalogue::parse_catalogue(
+        &parse(
+            r#"{"updated_at":"2026-11-03T11:17:01Z","providers":{},"groups":{"glm-5.3":{"deployments":[
+                {"route":"opencode-go","upstream_id":"glm-5.3","order":2},{"route":"vibe","upstream_id":"zai-glm-5-3","order":1}]}}}"#,
+        )
+        .expect("json"),
+    )
+    .expect("catalogue");
+    let listed = parse(
+        r#"{"status":"ok","models":[
+            {"client":"pi-vibe","model":"glm-5.3","cost_class":"subsidised"},
+            {"client":"pi-vibe","model":"free-one","cost_class":"free","free":true},
+            {"client":"pi-vibe","model":"nobody-knows","cost_class":"subsidised"},
+            {"client":"codex","model":"gpt-5.5","cost_class":"metered-employer"},
+            {"client":"opencode","model":"opencode-go/kimi-k2.7-code","cost_class":"subsidised"},
+            {"client":"claude","model":"claude-opus-5-5","cost_class":"subsidised"},
+            7]}"#,
+    )
+    .expect("json");
+    let out = annotate(&config, Some(&catalogue), listed.clone());
+    let models = match out.as_object().and_then(|object| object.get("models")) {
+        Some(Value::Arr(models)) => models.clone(),
+        _ => panic!("models"),
+    };
+    let field = |index: usize, key: &str| crate::json::compact(models[index].as_object().and_then(|object| object.get(key)).expect(key));
+    // A Pi group takes the price of the model its first deployment serves, and lists every deployment in order.
+    assert_eq!(field(0, "cost"), r#"{"class":"subsidised","input_per_mtok":1.4,"output_per_mtok":4.4}"#);
+    assert_eq!(
+        field(0, "providers"),
+        r#"[{"provider":"vibe","upstream_id":"zai-glm-5-3","route":"vibe"},{"provider":"opencode-go","upstream_id":"glm-5.3","route":"vibe"}]"#
+    );
+    // Free says zero, explicitly; a model nobody prices says unknown, and one no group serves has no provider.
+    assert_eq!(field(1, "cost"), r#"{"class":"free","input_per_mtok":0,"output_per_mtok":0}"#);
+    assert_eq!(field(2, "cost"), r#"{"class":"subsidised","input_per_mtok":"unknown","output_per_mtok":"unknown"}"#);
+    assert_eq!(field(2, "providers"), "[]");
+    // Another client's model is priced by its own defaults entry and served by its route or its model's provider.
+    assert_eq!(field(3, "cost"), r#"{"class":"metered-employer","input_per_mtok":1.25,"output_per_mtok":10}"#);
+    assert_eq!(field(3, "providers"), r#"[{"provider":"codex","upstream_id":"gpt-5.5","route":"codex"}]"#);
+    assert_eq!(field(4, "providers"), r#"[{"provider":"opencode-go","upstream_id":"opencode-go/kimi-k2.7-code","route":"opencode-go"}]"#);
+    assert_eq!(field(5, "cost"), r#"{"class":"subsidised","input_per_mtok":"unknown","output_per_mtok":"unknown"}"#);
+    // Without a catalogue a Pi model has no provider to name; a result that lists no models, or an odd entry, is left as it is.
+    let bare = annotate(&config, None, listed);
+    assert!(crate::json::compact(&bare.as_object().and_then(|object| object.get("models")).map(|models| match models { Value::Arr(items) => items[0].clone(), _ => Value::Null }).expect("first")).contains(r#""providers":[]"#));
+    assert_eq!(annotate(&config, None, Value::Null), Value::Null);
+    assert_eq!(crate::json::compact(&annotate(&config, None, parse(r#"{"status":"ok"}"#).expect("json"))), r#"{"status":"ok"}"#);
+}

@@ -31,8 +31,10 @@ line>"}` and exits 1. #294 implements only `models`; any other subcommand is
 `unknown-command`.
 
 `models` takes `{}` today (later tickets add `repo`) and returns one entry per
-client model with `client`, `model`, `family`, `cost_class`, `tier`, `notes`
-and `source`, plus a `missing` list naming each client that is not installed
+client model with `client`, `model`, `family`, `cost_class`, `tier`, `notes`,
+`source`, `cost` (the class and the input and output price per million tokens,
+`0` for a free model and `"unknown"` where nobody states one) and `providers`
+(each provider serving it in fallback order, with the route that reaches it), plus a `missing` list naming each client that is not installed
 and why. Models are sorted by client, then model id.
 
 ## Choices later tickets rely on
