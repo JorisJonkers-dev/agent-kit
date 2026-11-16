@@ -252,9 +252,14 @@ tier, context length, free flag, cost (the class, then the input and output pric
 per million tokens, `unknown` where nobody states one, `0` for a free model) and
 status, then indented lines for what serves it and what runs it. `--json` prints
 one JSON object (`status`, `policy`, `updated_at`, `warnings`, `missing`,
-`models`) whose entries carry `model`, `modality`, `family`, `tier`,
+`pools`, `models`) whose entries carry `model`, `modality`, `family`, `tier`,
 `context_length`, `free`, `cost` (as `models` gives it), `status`, `reason`,
-`deployments`, `clients` and `profiles`.
+`deployments`, `clients` and `profiles`. Each deployment names the `pool` (the
+route's LiteLLM key) it draws on, or `null`. Each `pools` entry gives `key`,
+`route`, `monthly_cap_eur` (`"none"` for an uncapped key), `budget_duration` and
+`spend_eur`, which `measure-litellm-budget --agent ROUTE` reports for a capped
+key and which is `"unknown"` when that program is missing or the proxy does not
+answer. The table prints the same as a `budget pool` line per key.
 
 A deployment is one provider that serves the model: its `order` (fallback order,
 lowest first), `provider` (Mistral, Google, Anthropic, OpenRouter, OpenCode Go or

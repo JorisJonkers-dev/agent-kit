@@ -213,11 +213,11 @@ fn the_table_has_a_line_per_model_then_its_deployments_clients_and_reason() {
     for expected in [
         "glm-5.3  ",
         "subsidised 1.4/4.4",
-        "    1. Mistral via route vibe, key VIBE_API_KEY as zai-glm-5-3 [usable]\n",
-        "    2. OpenCode Go via route opencode-go, key OPENCODE_GO_API_KEY as glm-5.3 [usable]\n",
+        "    1. Mistral via route vibe, key VIBE_API_KEY, pool LITELLM_VIBE_KEY as zai-glm-5-3 [usable]\n",
+        "    2. OpenCode Go via route opencode-go, key OPENCODE_GO_API_KEY, pool LITELLM_OPENCODE_GO_KEY as glm-5.3 [usable]\n",
         "    runs on: pi-opencode-go, pi-vibe; profiles: a-profile, b-profile\n",
         "    runs on: nothing; profiles: none\n",
-        "    1. Mistral via route vibe, key VIBE_API_KEY as embed-1 [not-chat: an embedding model]\n",
+        "    1. Mistral via route vibe, key VIBE_API_KEY, pool LITELLM_VIBE_KEY as embed-1 [not-chat: an embedding model]\n",
         "    reason: an embedding model; pi-vibe, pi-opencode-go: r1; pi-public: r2\n",
         "200000",
         "free 0/0",
@@ -303,4 +303,98 @@ fn the_command_works_without_a_catalogue_and_refuses_flags_it_does_not_have() {
     assert_eq!(crate::catalog::view(&wrong, &runtime).expect_err("a filter of the wrong kind").code, "invalid-input");
     let bad = crate::commands::run(crate::commands::Command::Catalog, "catalog", &crate::json::Object::new(), &runtime).expect("the command runs");
     assert!(crate::json::compact(&bad).starts_with(r#"{"status":"ok","policy":"#));
+}
+
+/// A process that answers `measure-litellm-budget` as the test says.
+struct Budget {
+    installed: bool,
+    reply: Result<crate::ports::ProcessResult, String>,
+}
+
+impl crate::ports::Process for Budget {
+    fn resolve(&self, binary: &str) -> Option<String> {
+        (self.installed && binary == "measure-litellm-budget").then(|| format!("/bin/{binary}"))
+    }
+    fn exec(&self, _command: &str, _args: &[&str], _timeout_ms: Option<u64>) -> Result<crate::ports::ProcessResult, String> {
+        unreachable!("the spend lookup runs a command")
+    }
+    fn run(&self, command: &crate::ports::ProcessCommand) -> Result<crate::ports::ProcessResult, String> {
+        assert_eq!((command.command.as_str(), command.args[0].as_str(), command.timeout_ms), ("measure-litellm-budget", "--agent", Some(15_000)));
+        self.reply.clone()
+    }
+}
+
+fn answered(stdout: &str, exit_code: i32, timed_out: bool) -> Result<crate::ports::ProcessResult, String> {
+    Ok(crate::ports::ProcessResult { stdout: stdout.into(), stderr: String::new(), exit_code, timed_out })
+}
+
+fn with_process(sandbox: &Sandbox, process: Budget) -> Runtime {
+    Runtime { process: Box::new(process), ..sandbox_runtime(sandbox, Some(CATALOGUE)) }
+}
+
+#[test]
+fn a_deployment_names_the_pool_of_its_routes_key_and_the_pool_has_its_monthly_cap() {
+    let view = build(&gathered(Some(CATALOGUE), profiles()), &Filter::default());
+    let glm = row(&view, "glm-5.3");
+    assert_eq!(glm.deployments.iter().map(|d| d.pool.as_deref()).collect::<Vec<_>>(), [Some("LITELLM_VIBE_KEY"), Some("LITELLM_OPENCODE_GO_KEY")]);
+    assert_eq!(row(&view, "claude-opus-5-5").deployments[0].pool, None);
+    let pools: Vec<String> = view.pools.iter().map(|pool| format!("{} {} {:?} {:?} {:?}", pool.key, pool.route, pool.cap_eur, pool.duration, pool.spend_eur)).collect();
+    assert_eq!(pools, ["LITELLM_OPENCODE_GO_KEY opencode-go Some(60.0) Some(\"30d\") None", "LITELLM_VIBE_KEY vibe Some(255.0) Some(\"30d\") None"]);
+    let table = view.to_table();
+    assert!(table.contains("budget pool LITELLM_VIBE_KEY (route vibe): cap 255 EUR per 30d, spend unknown\n"), "{table}");
+    let json = crate::json::compact(&view.to_json());
+    assert!(json.contains(r#"{"key":"LITELLM_VIBE_KEY","route":"vibe","monthly_cap_eur":255,"budget_duration":"30d","spend_eur":"unknown"}"#), "{json}");
+    assert!(json.contains(r#""pool":null"#), "{json}");
+}
+
+#[test]
+fn a_pool_without_a_cap_says_so_and_a_route_the_registry_does_not_know_has_no_pool() {
+    let routes = r#"{"routes":[{"agent":"vibe","key_env":"K","budget_eur":null,"budget_duration":null},{"agent":"x","key_env":"Y"},{"agent":"z"},{"key_env":"W"},7]}"#;
+    assert_eq!(
+        crate::catalog::parse_routes(routes),
+        [("vibe".to_string(), "K".to_string(), None, None), ("x".to_string(), "Y".to_string(), None, None)]
+    );
+    for text in ["not json", "{}", "[]"] {
+        assert!(crate::catalog::parse_routes(text).is_empty(), "{text}");
+    }
+    let pool = crate::catalog::Pool { key: "K".into(), route: "vibe".into(), cap_eur: None, duration: None, spend_eur: Some(1.5) };
+    assert_eq!(pool.line(), "budget pool K (route vibe): no cap, spend 1.5\n");
+    let windowless = crate::catalog::Pool { cap_eur: Some(5.0), ..pool };
+    assert_eq!(windowless.line(), "budget pool K (route vibe): cap 5 EUR per window, spend 1.5\n");
+}
+
+#[test]
+fn spend_is_what_the_proxy_reports_and_unknown_when_it_cannot_be_asked() {
+    let sandbox = Sandbox::new();
+    let reported = "request:\n  GET x\nbudget:\n  max_budget: 255.0\n  spend: 12.5\n";
+    let spend = |installed: bool, reply: Result<crate::ports::ProcessResult, String>| crate::catalog::spend_of(&with_process(&sandbox, Budget { installed, reply }), "vibe");
+    assert_eq!(spend(true, answered(reported, 0, false)), Some(12.5));
+    assert_eq!(spend(false, answered(reported, 0, false)), None);
+    assert_eq!(spend(true, Err("no".into())), None);
+    assert_eq!(spend(true, answered(reported, 1, false)), None);
+    assert_eq!(spend(true, answered(reported, 0, true)), None);
+    assert_eq!(spend(true, answered("  spend: null\n", 0, false)), None);
+}
+
+#[test]
+fn the_command_reads_the_spend_of_a_capped_pool_only_and_prints_unknown_otherwise() {
+    let sandbox = Sandbox::new();
+    let known = with_process(&sandbox, Budget { installed: true, reply: answered("  spend: 12.5\n", 0, false) });
+    let table = cli(&known, &["catalog", "--route", "vibe"]);
+    assert!(table.stdout.contains("budget pool LITELLM_VIBE_KEY (route vibe): cap 255 EUR per 30d, spend 12.5\n"), "{}", table.stdout);
+    let down = with_process(&sandbox, Budget { installed: false, reply: Err("never run".into()) });
+    let table = cli(&down, &["catalog", "--route", "vibe"]);
+    assert!(table.stdout.contains("cap 255 EUR per 30d, spend unknown\n"), "{}", table.stdout);
+}
+
+#[test]
+fn a_deployment_naming_a_key_the_registry_does_not_mint_adds_no_pool() {
+    let mut view = build(&gathered(Some(CATALOGUE), profiles()), &Filter::default());
+    for deployment in view.rows.iter_mut().flat_map(|row| row.deployments.iter_mut()) {
+        deployment.pool = Some("LITELLM_UNMINTED_KEY".into());
+    }
+    assert!(crate::catalog::pools_of(&view.rows).is_empty());
+    view.pools = vec![crate::catalog::Pool { key: "K".into(), route: "vibe".into(), cap_eur: None, duration: None, spend_eur: None }];
+    let json = crate::json::compact(&view.to_json());
+    assert!(json.contains(r#"{"key":"K","route":"vibe","monthly_cap_eur":"none","budget_duration":null,"spend_eur":"unknown"}"#), "{json}");
 }
