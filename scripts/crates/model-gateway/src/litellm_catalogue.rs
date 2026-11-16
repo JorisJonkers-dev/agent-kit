@@ -58,6 +58,8 @@ pub struct LiteLlmCatalogue {
     pub routes: BTreeMap<String, Vec<(String, CatalogueProbe)>>,
     /// The canonical groups the proxy serves, by name; empty when the catalogue lists none.
     pub groups: BTreeMap<String, CatalogueGroup>,
+    /// The environment variable of the key each provider route is reached with, by route; a route that names none is absent.
+    pub keys: BTreeMap<String, String>,
 }
 
 /// A catalogue older than this means the sync, or setup's fetch, has stopped: two days, against an hourly sync.
@@ -75,7 +77,12 @@ pub fn parse_catalogue(raw: &Value) -> Result<LiteLlmCatalogue, String> {
         return Err("no providers object".to_string());
     };
     let mut routes = BTreeMap::new();
+    let mut keys = BTreeMap::new();
     for (route, provider) in providers.entries() {
+        let key_env = provider.as_object().and_then(|provider| provider.get("metadata")).and_then(Value::as_object).and_then(|meta| meta.get("key_env"));
+        if let Some(Value::Str(key)) = key_env {
+            keys.insert(route.to_string(), key.clone());
+        }
         let Some(Value::Arr(items)) = provider.as_object().and_then(|provider| provider.get("models")) else {
             return Err(format!("provider {route} has no models list"));
         };
@@ -91,7 +98,7 @@ pub fn parse_catalogue(raw: &Value) -> Result<LiteLlmCatalogue, String> {
         }
         routes.insert(route.to_string(), models);
     }
-    Ok(LiteLlmCatalogue { updated_at: updated_at.clone(), routes, groups: parse_groups(object.get("groups")) })
+    Ok(LiteLlmCatalogue { updated_at: updated_at.clone(), routes, groups: parse_groups(object.get("groups")), keys })
 }
 
 /// The canonical groups of a catalogue; a group or deployment that is not well formed is passed over.
@@ -205,7 +212,7 @@ pub fn names_of(config: &GatewayConfig, client: &str, model: &str) -> Vec<String
 }
 
 /// The probe of one deployment: the model its route lists under the id the group is served by.
-fn deployment_probe<'a>(catalogue: &'a LiteLlmCatalogue, deployment: &CatalogueDeployment) -> Option<&'a CatalogueProbe> {
+pub fn deployment_probe<'a>(catalogue: &'a LiteLlmCatalogue, deployment: &CatalogueDeployment) -> Option<&'a CatalogueProbe> {
     // The upstream id is the route's own id for the model, which may itself begin with the route's name
     // (`openrouter/free` on the `openrouter` route), so it is looked up as it stands first.
     let named = format!("{}/{}", deployment.route, deployment.upstream);
@@ -217,7 +224,7 @@ fn deployment_probe<'a>(catalogue: &'a LiteLlmCatalogue, deployment: &CatalogueD
 /// first the catalogue knows, and it is free only when every deployment, fallbacks included, is a model its provider
 /// marks free: a public group is a free tier that still bills once its quota is gone. `None` when the catalogue
 /// probed none of its deployments.
-fn group_probe(catalogue: &LiteLlmCatalogue, group: &CatalogueGroup) -> Option<(String, CatalogueProbe)> {
+pub fn group_probe(catalogue: &LiteLlmCatalogue, group: &CatalogueGroup) -> Option<(String, CatalogueProbe)> {
     let known: Vec<(&CatalogueDeployment, &CatalogueProbe)> =
         group.deployments.iter().filter_map(|deployment| deployment_probe(catalogue, deployment).map(|probe| (deployment, probe))).collect();
     let (deployment, probe) = known.iter().find(|(_, probe)| probe.status == "usable").or_else(|| known.first())?;
@@ -272,7 +279,7 @@ const HARD_WORDS: [&str; 6] = ["pro", "large", "ultra", "super", "max", "plus"];
 
 /// The family of a model the catalogue knows by `canonical` (`vendor/name`) or, failing that, by its own id: a
 /// family the gateway already names by the id's prefix, else the vendor's slug, else the id's first word.
-fn family_from(canonical: Option<&str>, model: &str) -> String {
+pub fn family_from(canonical: Option<&str>, model: &str) -> String {
     let id = canonical.unwrap_or(model);
     if let Some(family) = family_of(model_part(id)).or_else(|| family_of(model_part(model))) {
         return family.to_string();
@@ -287,7 +294,7 @@ fn family_from(canonical: Option<&str>, model: &str) -> String {
 
 /// The tier a model's name suggests, never above `hard`: the catalogue carries no capability, so a model with no
 /// `defaults.json` entry is placed on its name alone, `routine` unless the name says small or large.
-fn tier_from(model: &str) -> Tier {
+pub fn tier_from(model: &str) -> Tier {
     let lower = model_part(model).to_ascii_lowercase();
     let words: Vec<&str> = lower.split(|char: char| !char.is_ascii_alphanumeric()).collect();
     if words.iter().any(|word| TRIVIAL_WORDS.contains(word)) {

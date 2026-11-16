@@ -28,6 +28,7 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
     Batch,
+    Catalog,
     GrantList,
     GrantReserve,
     GrantWrite,
@@ -44,6 +45,7 @@ pub enum Command {
 pub fn run(command: Command, _name: &str, input: &Object, runtime: &Runtime) -> Result<Value, GatewayError> {
     match command {
         Command::Models => models_command(input, runtime),
+        Command::Catalog => crate::catalog::run(input, runtime),
         Command::Usage => usage_command(input, runtime),
         Command::GrantWrite => grant_write(input, runtime),
         Command::GrantList => grant_list(input, runtime),
@@ -96,10 +98,28 @@ fn ok_object(key: &str, value: Value) -> Value {
     Value::Obj(object)
 }
 
+/// Everything `models` and `catalog` are built from: the listing the data policy permits, the profiles over it and
+/// the live LiteLLM catalogue.
+pub struct Gathered {
+    pub config: GatewayConfig,
+    pub reading: crate::litellm_catalogue::CatalogueReading,
+    pub permitted: policy::PolicyListing,
+    pub profiles: Value,
+    pub policy_reason: String,
+}
+
 /// Lists every client model this machine can use now for the repository the caller works in, and the clients it cannot.
 fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayError> {
-    let repo = read_repo(input)?;
     let free_only = read_free(input)?;
+    let gathered = gather(input, runtime, free_only, false)?;
+    let result = policy::models_result_json(&gathered.policy_reason, &gathered.permitted, &gathered.profiles, gathered.reading.warning.as_deref());
+    Ok(crate::model_facts::annotate(&gathered.config, gathered.reading.catalogue.as_ref(), result))
+}
+
+/// Lists the client models, judges them by the catalogue and holds them to the data policy of the caller's repository.
+/// The catalogue is read when a client judges by it, or always when `read_catalogue` is set.
+pub fn gather(input: &Object, runtime: &Runtime, free_only: bool, read_catalogue: bool) -> Result<Gathered, GatewayError> {
+    let repo = read_repo(input)?;
     let config = load_config(runtime)?;
     let mut installed = BTreeSet::new();
     for (id, client) in &config.clients {
@@ -117,7 +137,7 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
     let now = runtime.clock.now_ms();
     let unavailable = standing_refusals(runtime, now);
     let judges = config.clients.iter().any(|(id, client)| installed.contains(id) && (client.litellm_route.is_some() || crate::run::is_pi_client(id)));
-    let reading = if judges { crate::litellm_catalogue::read_catalogue(runtime) } else { Default::default() };
+    let reading = if judges || read_catalogue { crate::litellm_catalogue::read_catalogue(runtime) } else { Default::default() };
     let judged = crate::litellm_catalogue::judge_listing(&config, models::list_models(&config, &installed, &listings, &unavailable), reading.catalogue.as_ref());
     let mut listing = sources::hold_openrouter_to_free(sources::mark_free(runtime, &config, reading.catalogue.as_ref(), judged));
     if free_only {
@@ -143,8 +163,7 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
         })
         .collect();
     let profiles = list_profiles(&config, &available, &decision.reason);
-    let result = policy::models_result_json(&decision.reason, &permitted, &profiles, reading.warning.as_deref());
-    Ok(crate::model_facts::annotate(&config, reading.catalogue.as_ref(), result))
+    Ok(Gathered { config, reading, permitted, profiles, policy_reason: decision.reason })
 }
 
 /// `models` takes the path of the repository the caller works in, when it has one.

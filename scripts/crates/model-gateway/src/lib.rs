@@ -14,6 +14,7 @@ pub mod batch;
 pub mod batch_command;
 pub mod cap_guard;
 pub mod caps;
+pub mod catalog;
 pub mod client_run;
 pub mod cli;
 pub mod commands;

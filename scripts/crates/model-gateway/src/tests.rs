@@ -27,3 +27,4 @@ mod batch_command;
 mod litellm_catalogue;
 mod pi;
 mod profiles;
+mod catalog;
