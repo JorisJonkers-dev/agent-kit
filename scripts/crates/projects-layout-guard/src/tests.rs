@@ -705,3 +705,16 @@ mod helpers {
         assert_eq!(short_spec("a b/c"), None);
     }
 }
+
+#[test]
+fn help_prints_the_usage_so_the_install_smoke_check_sees_it_start() {
+    for flag in ["--help", "-h"] {
+        let mut out = Vec::new();
+        let code = run_cli(&[flag.to_string()], &b""[..], &mut out, |_| None);
+        assert_eq!(code, 0);
+        assert_eq!(String::from_utf8(out).unwrap(), format!("{USAGE}\n"));
+    }
+    let mut out = Vec::new();
+    assert_eq!(run_cli(&[], &b""[..], &mut out, |_| None), 0);
+    assert!(out.is_empty());
+}

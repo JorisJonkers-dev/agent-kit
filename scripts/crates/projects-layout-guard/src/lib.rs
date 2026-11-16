@@ -373,6 +373,26 @@ pub fn run(input: &str, ctx: &Ctx) -> Option<String> {
     }
 }
 
+/// What `--help` prints: the hook is run by the agent, so a person sees this only when checking that it starts.
+pub const USAGE: &str = "usage: projects-layout-guard < PAYLOAD
+A PreToolUse hook: reads the agent's tool call as JSON on stdin and prints a deny
+when it clones or adds a worktree outside ~/Projects/<owner>/<repo> and
+~/Projects/<owner>/worktrees/<repo>/<name>. It always exits 0.";
+
+/// The command line: `--help` or `-h` prints [`USAGE`]; anything else runs the hook.
+pub fn run_cli(
+    args: &[String],
+    stdin: impl Read,
+    mut stdout: impl Write,
+    env: impl Fn(&str) -> Option<String>,
+) -> i32 {
+    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
+        let _ = writeln!(stdout, "{USAGE}");
+        return 0;
+    }
+    run_main(stdin, stdout, env)
+}
+
 /// The executable: reads the payload from `stdin`, prints a deny to `stdout`,
 /// and always returns 0. `env` reads one environment variable.
 pub fn run_main(
