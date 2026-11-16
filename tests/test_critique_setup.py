@@ -226,7 +226,7 @@ def test_shipped_routing_puts_pi_critics_over_litellm_in_every_base_and_deep_slo
     assert all(c["provider"].startswith("litellm-") for c in pi.values())
     for name in ("pi-vibe-mistral-large", "pi-vibe-glm", "pi-vibe-deepseek-flash"):
         behind = routing["fallbacks"][name]
-        assert behind and all(clients[c]["kind"] == "pi" for c in behind), f"{name} falls back to a Vibe login: {behind}"
+        assert behind and all(clients[c]["kind"] == "pi" for c in behind), f"{name} falls back off Pi: {behind}"
     assert not [c for names in routing["fallbacks"].values() for c in names if clients[c]["kind"] == "vibe"]
     assert any(clients[c]["kind"] == "agy" for stage in routing["stages"].values() for c in _slots(stage))
 
