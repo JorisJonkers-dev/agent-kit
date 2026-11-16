@@ -3,9 +3,11 @@
 //! `claude`, `codex`, `agy`, `vibe` and `hermes` name themselves, and `pi-<route>` names a Pi route (OpenCode Go
 //! through Pi is `pi-opencode-go`). The model is the cheapest the profile leaves on that harness for the
 //! repository, so the data policy, the writer family and the narrowing apply exactly as for any profile run.
+//! `hermes` runs the cheapest model the profile leaves on a Pi route Hermes may reach (one for any data), on its
+//! own LiteLLM provider of that route.
 
 use crate::commands::{available_models, gather};
-use crate::config::DelegationProfile;
+use crate::config::{DelegationProfile, GatewayConfig};
 use crate::error::GatewayError;
 use crate::json::{Object, Value};
 use crate::ports::Runtime;
@@ -43,26 +45,48 @@ pub fn choose(input: &Object, runtime: &Runtime) -> Result<Object, GatewayError>
     let gathered = gather(input, runtime, false, false)?;
     let found = require_profile(&gathered.config, profile)?;
     require_narrowing(found, narrow.as_ref())?;
-    let chosen = pick(&available_models(&gathered.permitted), &gathered.policy_reason, harness, narrow.as_ref(), found)?;
+    let (chosen, provider) = pick(&gathered.config, &available_models(&gathered.permitted), &gathered.policy_reason, harness, narrow.as_ref(), found)?;
     let mut object = input.clone();
     object.remove("harness");
     object.set("client", Value::str(&chosen.client));
     object.set("model", Value::str(&chosen.model));
+    if let Some(provider) = provider {
+        object.set("provider", Value::str(&provider));
+    }
     Ok(object)
 }
 
-fn pick(available: &[ProfileModel], reason: &str, harness: &str, narrow: Option<&Narrowing>, profile: &DelegationProfile) -> Result<ProfileModel, GatewayError> {
+/// The model the profile leaves on the harness, and the provider a Hermes run names.
+fn pick(
+    config: &GatewayConfig,
+    available: &[ProfileModel],
+    reason: &str,
+    harness: &str,
+    narrow: Option<&Narrowing>,
+    profile: &DelegationProfile,
+) -> Result<(ProfileModel, Option<String>), GatewayError> {
     let name = &profile.name;
     let resolution = resolve_profile(profile, available, reason, narrow, true);
     if let Some(error) = resolution.error {
         return Err(GatewayError::new("profile-refused", error));
     }
     let left: Vec<String> = resolution.models.iter().map(|model| format!("{}:{}", model.client, model.model)).collect();
-    resolution.models.into_iter().find(|model| on_harness(&model.client, harness)).ok_or_else(|| {
+    let found = if harness == crate::run::HERMES {
+        resolution.models.into_iter().find_map(|model| {
+            let provider = crate::run::pi_provider(&model.client);
+            crate::run::is_pi_client(&model.client)
+                .then(|| crate::run::hermes_route(config, &provider))
+                .flatten()
+                .map(|_| (ProfileModel { client: crate::run::HERMES.to_string(), ..model }, Some(provider)))
+        })
+    } else {
+        resolution.models.into_iter().find(|model| on_harness(&model.client, harness)).map(|model| (model, None))
+    };
+    found.ok_or_else(|| {
         GatewayError::new(
             "profile-refused",
             format!(
-                "profile {name} has no usable model on harness {harness} here (a harness with no model configured, such as hermes, has none): the profile and the data policy leave {}",
+                "profile {name} has no usable model on harness {harness} here (hermes takes a Pi route's model, on a route for any data): the profile and the data policy leave {}",
                 left.join(", ")
             ),
         )

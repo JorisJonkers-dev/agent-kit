@@ -633,10 +633,13 @@ fn parse_profile(name: &str, raw: &Object, known: &BTreeSet<String>) -> Result<D
         value => {
             let clients = profile_strings(value, &format!("{where_}.unenforced_clients"), false)?;
             for client in &clients {
-                let named = models.iter().any(|key| key.split_once(':').is_some_and(|(owner, _)| owner == client));
+                // Hermes runs a Pi route's models, so a profile with a Pi model may name it.
+                let named = models.iter().any(|key| {
+                    key.split_once(':').is_some_and(|(owner, _)| owner == client || (client == crate::run::HERMES && crate::run::is_pi_client(owner)))
+                });
                 if crate::run::is_pi_client(client) || !named {
                     return Err(invalid(format!(
-                        "{where_}.unenforced_clients names {client}, which must be a client other than Pi that one of the profile's models runs on"
+                        "{where_}.unenforced_clients names {client}, which must be a client other than Pi that one of the profile's models runs on (hermes: a profile with a Pi model)"
                     )));
                 }
             }

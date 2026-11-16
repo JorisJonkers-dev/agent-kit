@@ -338,13 +338,17 @@ pub fn hold_to_profile(
     narrow: Option<&Narrowing>,
     client: &str,
     model: &str,
+    provider: Option<&str>,
     is_pi: bool,
 ) -> Result<(), GatewayError> {
     let resolution = profile_models(config, decision, name, narrow)?;
     if let Some(error) = resolution.error {
         return Err(refused(error));
     }
-    if !resolution.models.iter().any(|allowed| allowed.client == client && allowed.model == model) {
+    // A Hermes run on a route's provider runs the model the profile allows on that route's Pi client.
+    let route = if client == crate::run::HERMES { provider.and_then(|provider| crate::run::hermes_route(config, provider)) } else { None };
+    let allowed_as = route.as_deref().unwrap_or(client);
+    if !resolution.models.iter().any(|allowed| allowed.client == allowed_as && allowed.model == model) {
         let allowed: Vec<String> = resolution.models.iter().map(ProfileModel::key).collect();
         return Err(refused(format!(
             "{client}:{model} is not allowed by profile {name} here: the profile and the data policy leave {}",

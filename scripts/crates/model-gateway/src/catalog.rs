@@ -164,7 +164,7 @@ pub(crate) fn parse_routes(text: &str) -> Vec<RegistryRoute> {
 }
 
 /// The key a route's deployments are reached through on the proxy, when the registry mints one for the route.
-fn route_key(route: &str) -> Option<String> {
+pub(crate) fn route_key(route: &str) -> Option<String> {
     registry_routes().into_iter().find(|(agent, ..)| agent == route).map(|(_, key, ..)| key)
 }
 

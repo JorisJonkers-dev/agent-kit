@@ -20,12 +20,13 @@ fn result(text: &str) -> Result<Value, GatewayError> {
 }
 
 #[test]
-fn the_shipped_baseline_is_read_and_expects_hermes_blocked_everywhere() {
+fn the_shipped_baseline_is_read_and_expects_hermes_to_pass_and_codex_blocked_live() {
     let shipped = read_baseline(SHIPPED_BASELINE).expect("shipped");
     assert_eq!(shipped.roles.len(), 6);
     assert_eq!(shipped.harnesses.len(), 7);
     for role in &shipped.roles {
-        assert_eq!(shipped.expect(false, role, "hermes").status, Status::Blocked);
+        assert_eq!(shipped.expect(false, role, "hermes").status, Status::Pass);
+        assert_eq!(shipped.expect(true, role, "hermes").status, Status::Pass);
         assert_eq!(shipped.expect(false, role, "claude"), Expectation { status: Status::Pass, why: None });
         assert_eq!(shipped.expect(true, role, "codex").status, Status::Blocked);
     }
