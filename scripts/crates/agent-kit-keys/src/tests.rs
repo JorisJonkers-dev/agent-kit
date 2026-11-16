@@ -1636,14 +1636,10 @@ fn proxy_reply(s: &mut ProxyState, r: &Request) -> Reply {
     let (path, query) = r.path.split_once('?').unwrap_or((r.path.as_str(), ""));
     s.calls.push(format!("{} {path}", r.method));
     if path == "/key/info" {
-        return reply(
-            if s.keys.contains_key(&r.bearer()) {
-                200
-            } else {
-                401
-            },
-            json!({}),
-        );
+        return match s.keys.get(&r.bearer()) {
+            Some(key) => reply(200, json!({"info": {"models": key["models"]}})),
+            None => reply(401, json!({})),
+        };
     }
     if s.html_ok && path == "/html" {
         return Reply {
@@ -2295,4 +2291,41 @@ fn a_failure_passes_through_the_helper_that_is_not_for_it() {
         Fail::Stop("b".into()).refused(),
         Err(Fail::Stop(_))
     ));
+}
+
+#[test]
+fn a_stored_key_scoped_narrower_than_its_team_is_minted_again() {
+    let (mut w, proxy, todo) = ensure_world(&[]);
+    w.env.insert("LITELLM_ADMIN_TOKEN".into(), ADMIN.into());
+    // An old key that names its own access groups, one that follows its team, and a stored value the proxy refuses.
+    let host = w.ctx("").0.host_name();
+    let host_alias = |agent: &str| format!("{agent}@{host}");
+    {
+        let mut s = proxy.lock().unwrap();
+        s.keys.insert("sk-old".into(), json!({"key_alias": host_alias("vibe"), "models": ["canonical"]}));
+        s.keys.insert("sk-team".into(), json!({"key_alias": host_alias("local"), "models": ["all-team-models"]}));
+    }
+    w.put("LITELLM_VIBE_KEY", "sk-old");
+    w.put("LITELLM_LOCAL_KEY", "sk-team");
+    let (said, got) = ensure_litellm_run(&w, &todo, "");
+    assert!(got.is_ok());
+    assert!(said.contains("LITELLM_VIBE_KEY: the key is scoped to canonical, not to its team's models; minting it again"), "{said}");
+    assert!(!said.contains("LITELLM_LOCAL_KEY: the key is scoped"), "{said}");
+    let stored = w.stored();
+    assert_ne!(stored["LITELLM_VIBE_KEY"].trim(), "sk-old");
+    assert_eq!(stored["LITELLM_LOCAL_KEY"].trim(), "sk-team");
+    let s = proxy.lock().unwrap();
+    assert!(!s.keys.contains_key("sk-old"));
+    assert_eq!(s.keys[stored["LITELLM_VIBE_KEY"].trim()]["models"], json!(["all-team-models"]));
+}
+
+#[test]
+fn a_stored_key_the_proxy_does_not_describe_or_that_is_unsafe_is_left_alone() {
+    let (w, proxy, todo) = ensure_world(&[]);
+    w.put("LITELLM_VIBE_KEY", "sk-unknown");
+    w.put("LITELLM_LOCAL_KEY", "bad key!");
+    let (said, got) = ensure_litellm_run(&w, &todo, "");
+    assert!(got.is_ok());
+    assert!(said.is_empty(), "{said}");
+    assert_eq!(proxy.lock().unwrap().calls, ["GET /key/info"]);
 }
