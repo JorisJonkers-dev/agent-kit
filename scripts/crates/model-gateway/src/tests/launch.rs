@@ -426,9 +426,12 @@ fn runs_antigravity_without_the_sandbox_as_one_json_object_with_the_effort_its_m
 
     assert_eq!(
         read.first().args,
-        strings(&["--print", "read this", "--model", "gemini-3.8-flash-high", "--output-format", "json", "--effort", "high", "--mode", "plan", "--print-timeout", "900s"])
+        strings(&["--print", &format!("{}\n\nread this", crate::launchers::AGY_PLAN_NOTE), "--model", "gemini-3.8-flash-high", "--output-format", "json", "--effort", "high", "--mode", "plan", "--print-timeout", "900s", "--settings", crate::launchers::AGY_PLAN_SETTINGS])
     );
     assert_eq!(flag(&write.first(), "--mode").as_deref(), Some("accept-edits"));
+    assert_eq!(flag(&write.first(), "--settings"), None);
+    // A writing run may ask for its tools through accept-edits, so its prompt is the caller's alone.
+    assert_eq!(flag(&write.first(), "--print").as_deref(), Some("read this"));
 }
 
 #[test]
