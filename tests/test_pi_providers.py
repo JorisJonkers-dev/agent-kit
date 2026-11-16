@@ -81,10 +81,14 @@ def test_every_route_renders_one_provider_with_its_models() -> None:
     routes = data["litellm"]["routes"]
     assert table["base_url"] == data["litellm"]["base_url"]
     assert table["api"] == "openai-completions"
-    # A route with no usable model (local, until a local/* model is probed) has no provider.
-    listed = [r for r in routes if r["agent"] not in ("local", "free")]
-    assert [p["name"] for p in table["providers"]] == [f"litellm-{r['agent']}" for r in listed]
-    assert [p["key_env"] for p in table["providers"]] == [r["key_env"] for r in listed]
+    # A route with no usable model has no provider: local has none until a local/* model is probed, and free
+    # none until a free group is. The routes that do have models keep the registry's order and key.
+    names = [p["name"] for p in table["providers"]]
+    expected = [f"litellm-{r['agent']}" for r in routes]
+    assert [name for name in expected if name in names] == names
+    assert {name for name in expected if name not in names} <= {"litellm-local", "litellm-free"}
+    keys = {f"litellm-{r['agent']}": r["key_env"] for r in routes}
+    assert [p["key_env"] for p in table["providers"]] == [keys[name] for name in names]
     for provider in table["providers"]:
         assert provider["models"], provider["name"]
         assert _ids(provider["models"]) == sorted(set(_ids(provider["models"])))
@@ -117,7 +121,8 @@ def test_route_models_are_the_canonical_chat_groups_with_their_context_window() 
     for name, length in expected.items():
         assert by_id[name].get("contextWindow") == length
     assert any("contextWindow" in model for model in models)
-    assert all("cost" not in model for model in models), "a paid model carries no price: the catalogue has none"
+    free = {n for n, g in groups.items() if all(d["route"] == "local" for d in g["deployments"])}
+    assert all("cost" not in model for model in models if model["id"] not in free), "a paid model carries no price"
 
 
 def test_no_workstation_route_lists_a_claude_model() -> None:
@@ -422,7 +427,9 @@ def test_the_rendered_table_lists_nothing_unusable_or_cloud_on_local_and_public(
     usable = _usable_names(catalogue)
     table = json.loads(render_registry.render_pi_providers(render_registry.load_registry()))
     providers = {p["name"]: p["models"] for p in table["providers"]}
-    assert "litellm-local" not in providers
+    # The local route may have no models (none probed usable): when it has, they are local deployments only.
+    for name in _ids(providers.get("litellm-local", [])):
+        assert {d["route"] for d in catalogue.data["groups"][name]["deployments"]} == {"local"}, name
     for name, models in providers.items():
         assert set(_ids(models)) <= usable, name
     assert all(catalogue.data["groups"][i]["public"] for i in _ids(providers["litellm-public"]))

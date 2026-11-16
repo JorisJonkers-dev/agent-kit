@@ -62,7 +62,7 @@ profiles:
     exclude_writer_family: true
     max_spend_usd: 1.0
 
-  public-free:
+  public-gemini:
     description: >-
       Gemini free-tier models on the public route, for public material only: a
       delegation that reads a repository is never sent here. Not free: the proxy

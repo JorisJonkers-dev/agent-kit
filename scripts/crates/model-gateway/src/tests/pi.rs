@@ -299,6 +299,13 @@ fn a_bare_pi_command_is_what_the_builder_gives_when_nothing_confines_it_and_the_
     assert_eq!(confined.env.get("PATH").map(String::as_str), Some("/b"));
 }
 
+fn a_route_without_a_provider(text: &str) -> String {
+    match parse_pi_listing(text, "litellm-local", "/m.json") {
+        ClientListing::Reason(reason) => reason,
+        ClientListing::Models(_) => panic!("a listing"),
+    }
+}
+
 #[test]
 fn the_listing_of_a_models_file_is_its_providers_models_or_why_it_has_none() {
     let models = |text: &str| parse_pi_listing(text, "litellm-vibe", "/m.json");
@@ -309,9 +316,12 @@ fn the_listing_of_a_models_file_is_its_providers_models_or_why_it_has_none() {
     assert_eq!(ids(models(&provider("k"))), ["other", "glm-5.3"]);
     assert_eq!(ids(models(r#"{"providers": {"litellm-vibe": {"models": [{"id": 7}, {"id": ""}, 3, {"id": "x"}]}}}"#)), ["x"]);
     assert_eq!(ids(models("not json")), ["listing failed: /m.json is not JSON"]);
-    for text in ["[]", r#"{"providers": {"litellm-vibe": {}}}"#, r#"{"providers": {}}"#] {
-        assert!(ids(models(text))[0].contains("has no litellm-vibe provider with models"), "{text}");
+    for text in ["[]", r#"{"providers": {"litellm-vibe": {}}}"#, r#"{"providers": {}}"#, r#"{"providers": {"other": {"models": []}}}"#] {
+        assert!(ids(models(text))[0].ends_with("has no litellm-vibe provider with models: re-run agent-kit setup, which writes it"), "{text}");
     }
+    // Where setup wrote the other routes, a route without a provider is absent on purpose: running setup again changes nothing.
+    let local = a_route_without_a_provider(r#"{"providers": {"litellm-vibe": {"models": [{"id": "x"}]}}}"#);
+    assert_eq!(local, "listing failed: /m.json has no litellm-local provider: setup writes one only for a route with a usable model, and the local route has none");
 }
 
 #[test]

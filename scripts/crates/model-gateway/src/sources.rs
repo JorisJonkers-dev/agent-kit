@@ -122,9 +122,18 @@ pub fn parse_pi_listing(text: &str, provider: &str, path: &str) -> ClientListing
     let Ok(parsed) = json::parse(text) else {
         return ClientListing::Reason(format!("listing failed: {path} is not JSON"));
     };
-    let models = parsed.as_object().and_then(|object| object.get("providers")).and_then(Value::as_object).and_then(|providers| providers.get(provider)).and_then(Value::as_object).and_then(|entry| entry.get("models"));
+    let providers = parsed.as_object().and_then(|object| object.get("providers")).and_then(Value::as_object);
+    let models = providers.and_then(|providers| providers.get(provider)).and_then(Value::as_object).and_then(|entry| entry.get("models"));
     let Some(Value::Arr(models)) = models else {
-        return ClientListing::Reason(format!("listing failed: {path} has no {provider} provider with models: re-run agent-kit setup, which writes it"));
+        // Setup writes a provider only for a route that has a usable model (the local route has none until a local model
+        // is probed), so where it wrote the others, this one is absent on purpose and running setup again changes nothing.
+        let written = providers.is_some_and(|providers| providers.entries().iter().any(|(name, _)| *name != provider && name.starts_with("litellm-")));
+        let route = provider.strip_prefix("litellm-").unwrap_or(provider);
+        return ClientListing::Reason(if written {
+            format!("listing failed: {path} has no {provider} provider: setup writes one only for a route with a usable model, and the {route} route has none")
+        } else {
+            format!("listing failed: {path} has no {provider} provider with models: re-run agent-kit setup, which writes it")
+        });
     };
     ClientListing::Models(
         models

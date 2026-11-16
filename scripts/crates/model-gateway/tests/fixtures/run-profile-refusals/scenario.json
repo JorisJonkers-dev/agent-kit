@@ -235,7 +235,7 @@
       "argv": [
         "run",
         "--json",
-        "{\"workflow\":\"w\",\"client\":\"pi-public\",\"mode\":\"read-only\",\"model\":\"public/gemini-3.8-flash\",\"prompt\":\"Look it up.\",\"escalate\":false,\"profile\":\"public-free\",\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"workflow\":\"w\",\"client\":\"pi-public\",\"mode\":\"read-only\",\"model\":\"public/gemini-3.8-flash\",\"prompt\":\"Look it up.\",\"escalate\":false,\"profile\":\"public-gemini\",\"repo\":\"@SANDBOX@/repo\"}"
       ],
       "path": [
         "bin"

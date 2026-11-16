@@ -71,7 +71,7 @@ const EVERY_FAMILY: [&str; 6] = ["zhipu", "mistral", "deepseek", "moonshot", "al
 fn the_shipped_defaults_state_the_four_seed_profiles() {
     let config = shipped();
     let names: Vec<&str> = config.profiles.keys().map(String::as_str).collect();
-    assert_eq!(names, vec!["cheap-research", "cross-critic", "implement-cheap", "public-free"]);
+    assert_eq!(names, vec!["cheap-research", "cross-critic", "implement-cheap", "public-gemini"]);
     for profile in config.profiles.values() {
         assert_eq!(profile.tools, ToolScope { mcp: ToolList::Only(vec![]), plugins: ToolList::Only(vec![]), skills: ToolList::Only(vec![]) });
         assert!(profile.max_spend_usd.is_some());
@@ -85,7 +85,7 @@ fn the_shipped_defaults_state_the_four_seed_profiles() {
 fn every_seed_profile_has_a_model_with_no_repository_or_a_public_one_and_none_for_a_private_or_nedap_one() {
     let config = shipped();
     let writer = Narrowing { writer_family: Some("mistral".to_string()), ..Narrowing::default() };
-    for name in ["cheap-research", "cross-critic", "implement-cheap", "public-free"] {
+    for name in ["cheap-research", "cross-critic", "implement-cheap", "public-gemini"] {
         let narrow = (name == "cross-critic").then_some(&writer);
         // No repository: only inline content, to subsidised clients.
         assert!(pi_models(&config, name, &DataScope::Outside, narrow).error.is_none(), "{name} outside");
@@ -99,7 +99,7 @@ fn every_seed_profile_has_a_model_with_no_repository_or_a_public_one_and_none_fo
         assert!(nedap.error.expect("an error").contains("a nedap repository"));
         // A public repository allowed every family: the profiles on a private route get it, the public route never does.
         let public = pi_models(&config, name, &repository(&EVERY_FAMILY), narrow);
-        assert_eq!(public.models.is_empty(), name == "public-free", "{name} public");
+        assert_eq!(public.models.is_empty(), name == "public-gemini", "{name} public");
     }
 }
 
@@ -204,7 +204,7 @@ fn a_profile_that_is_not_stated_is_unknown_and_the_error_says_what_is() {
     let config = shipped();
     let error = require_profile(&config, "nowhere").expect_err("unknown");
     assert_eq!(error.code, "unknown-profile");
-    assert!(error.message.ends_with("the defaults state cheap-research, cross-critic, implement-cheap, public-free"));
+    assert!(error.message.ends_with("the defaults state cheap-research, cross-critic, implement-cheap, public-gemini"));
     let none = custom("{}").expect("none");
     assert!(require_profile(&none, "x").expect_err("unknown").message.ends_with("the defaults state none"));
 }
