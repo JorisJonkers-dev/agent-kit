@@ -7,7 +7,7 @@ use crate::json::{self, Object, Value};
 use crate::ports::Runtime;
 
 /// The usage text, exactly as the node runner prints it.
-pub const USAGE: &str = r#"usage: model-gateway models --json '{"repo": "/path/to/repo"}' [--free]
+pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/to/repo"}' | --input FILE] [--free]
        model-gateway catalog [--repo PATH] [--route ROUTE] [--status STATUS] [--modality MODALITY] [--free] [--json]
        model-gateway usage --json '{"days": 7, "workflow": "spec-293"}'
        model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
@@ -242,7 +242,9 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
     if free {
         args.retain(|arg| arg != "--free");
     }
-    let Some(input) = parse_arguments(&args) else {
+    // `models` with no arguments is `models --json '{}'`: it has no required input.
+    let given = if named.name == "models" && args.is_empty() { Some(Input::Json("{}")) } else { parse_arguments(&args) };
+    let Some(input) = given else {
         return usage_failure(named.name);
     };
     match run_command(&named, input, max_starts, free, runtime) {
@@ -305,7 +307,11 @@ fn run_command(named: &Named<'_>, input: Input<'_>, max_starts: Option<Value>, f
 
 /// The error for arguments that are not one of `--json` or `--input`.
 fn usage_failure(name: &str) -> CliResult {
-    let extra = if name == "grant write" { ", and may take --max-starts <whole number>" } else { "" };
+    let extra = match name {
+        "grant write" => ", and may take --max-starts <whole number>",
+        "models" => ", or no arguments",
+        _ => "",
+    };
     failure("invalid-input", &format!("{name} takes one of --json '<object>' or --input <file>{extra}"), Some(name), &[])
 }
 
