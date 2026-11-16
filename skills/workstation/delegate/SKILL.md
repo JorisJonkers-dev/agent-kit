@@ -78,12 +78,17 @@ falling back.
 - Prefer Pi. Within a class, take a `pi-<route>` client over any other client
   whose model covers the tier: Pi runs confined to its working directory, on a
   LiteLLM route's own budget. Take another client only when no Pi model covers
-  the tier or the family the task needs. `pi-public` is the one Pi client the
-  data policy never lists for a repository: use it only for a task with no
-  `repo` and nothing private in the prompt.
-- Within one class, choose by the models' capability notes, excluding
-  OpenRouter entirely and any `opencode/...` model (only `opencode-go/...`),
-  and never a model with `tier: null`.
+  the tier or the family the task needs. `pi-public`, `pi-openrouter` and
+  `pi-free` are the Pi clients the data policy never lists for a repository:
+  use one only for public-data work, a task with no `repo` and nothing private
+  in the prompt. `pi-openrouter` and `pi-free` run free models only (the owner
+  allows free OpenRouter models, nothing billed): they are the first choice for
+  such a task, since a free model is the cheapest class, and the gateway refuses
+  a billed model on them.
+- Within one class, choose by the models' capability notes, excluding any
+  `opencode/...` model (only `opencode-go/...`) and any OpenRouter model that
+  does not come through `pi-openrouter` or `pi-free`, and never a model with
+  `tier: null`.
 - metered-employer (Codex) is not a routine last rung. It is eligible only when
   a live grant already covers the workflow, obtained by asking the owner first.
   Otherwise skip that rung and follow "When nothing covers a tier".
@@ -168,7 +173,8 @@ the Workflow tool for those tasks.
 ## Money rules
 
 - Codex is metered-employer: never without a live grant.
-- OpenRouter is never used.
+- OpenRouter only through `pi-openrouter` and `pi-free`, free models and public
+  data only, never through any other client or a billed model.
 - OpenCode only through its `opencode-go/...` models, never `opencode/...`.
 - The family you name is binding: a delegation to a model of one family is never
   answered by another. If no model of that family can answer it ends failed (or `unavailable`, when none can start) with
