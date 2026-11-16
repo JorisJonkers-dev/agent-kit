@@ -4,12 +4,14 @@
 //! repository.
 
 use super::*;
+
+#[path = "../../../test-support/fake_exe.rs"]
+mod fake_exe;
 use crate::fetch::{adopt, fetch, read_plan, Failure, Limits, LOG};
 use crate::html::page_text;
 use crate::layout::{note_quotes, MARKER};
 use crate::verify::{changed_notes, verify};
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -482,8 +484,7 @@ case "$url" in
   *) printf '<html><body><p>The page at %s says:</p><p>Retries  back off\nexponentially.</p></body></html>' "$url" > "$out";;
 esac
 "#;
-    fs::write(&path, script).unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    fake_exe::write_script(&path, script);
     path.to_string_lossy().into_owned()
 }
 

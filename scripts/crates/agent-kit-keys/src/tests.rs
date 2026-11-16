@@ -51,9 +51,11 @@ impl Buf {
     }
 }
 
+#[path = "../../../test-support/fake_exe.rs"]
+mod fake_exe;
+
 fn script(path: &Path, body: &str) {
-    std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    fake_exe::write_script(path, &format!("#!/bin/sh\n{body}\n"));
 }
 
 const FAKE_SECRET: &str = r#"cmd=$1; var=$2; d=$FAKE_STORE

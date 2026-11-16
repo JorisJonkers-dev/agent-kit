@@ -7,15 +7,20 @@
 //! for writing ("Text file busy", ETXTBSY). The writer's own fd is close-on-exec,
 //! but a test thread that forks while another thread has the file open gets a
 //! copy of that fd, which lives until that child reaches its exec. Renaming
-//! the file into place does not help, since the check is on the inode. So the
-//! write and every fork in the test binary are serialised: a test that writes
-//! or runs a fake program holds [`lock`] for its whole body, and
-//! [`write_executable`] demands the guard as proof.
+//! the file into place does not help, since the check is on the inode.
+//!
+//! [`write_script`] avoids the race outright: a child `sh` writes the file and
+//! makes it executable, so this process never holds it open and no fork of
+//! another test thread can carry a writer into its child. A crate that writes
+//! its fakes through it needs no lock (#880). [`lock`] and [`write_executable`]
+//! stay for the crates that serialise their own spawns.
 
-use std::fs::{self, OpenOptions};
+// Each crate includes this file and uses only what its tests need.
+#![allow(dead_code)]
+
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
+use std::process::{Command, Stdio};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 static EXEC: Mutex<()> = Mutex::new(());
@@ -25,19 +30,20 @@ pub fn lock() -> MutexGuard<'static, ()> {
     EXEC.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Write `text` to `path` as an executable: to a temporary name, synced and
-/// closed, then renamed into place, so the final name never has a writer.
+/// Write `text` to `path` as an executable.
 pub fn write_executable(_held: &MutexGuard<'static, ()>, path: &Path, text: &str) {
-    let tmp = path.with_extension("partial");
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o755)
-        .open(&tmp)
+    write_script(path, text);
+}
+
+/// Write `text` to `path` as an executable through a child `sh`, so no descriptor of the file is ever open in this
+/// process: it can be run at once, from any thread, without ETXTBSY.
+pub fn write_script(path: &Path, text: &str) {
+    let mut child = Command::new("/bin/sh")
+        .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+        .arg(path)
+        .stdin(Stdio::piped())
+        .spawn()
         .unwrap();
-    file.write_all(text.as_bytes()).unwrap();
-    file.sync_all().unwrap();
-    drop(file);
-    fs::rename(&tmp, path).unwrap();
+    child.stdin.take().unwrap().write_all(text.as_bytes()).unwrap();
+    assert!(child.wait().unwrap().success(), "could not write {}", path.display());
 }

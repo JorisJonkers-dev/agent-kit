@@ -1,4 +1,7 @@
 use super::*;
+
+#[path = "../../../test-support/fake_exe.rs"]
+mod fake_exe;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const KEY: &str = "sk-test-route-key-0123456789";
@@ -23,8 +26,9 @@ impl Tmp {
         path
     }
     fn script(&self, name: &str, body: &str) -> String {
-        let path = self.file(name, &format!("#!/bin/sh\n{body}\n"));
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let path = self.path(name);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fake_exe::write_script(&path, &format!("#!/bin/sh\n{body}\n"));
         path.display().to_string()
     }
 }
