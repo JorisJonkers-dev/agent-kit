@@ -71,11 +71,23 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     let text = runtime.files.read_text(&path).map_err(CritiqueError::from_fs)?;
     let invalid = |message: String| CritiqueError::new("invalid-input", format!("check-routing input: {path}: {message}"));
     let catalogue = parse_catalogue(&json::parse(&text).map_err(&invalid)?).map_err(&invalid)?;
-    let defaults = json::parse(model_gateway::SHIPPED_DEFAULTS).map_err(|message| CritiqueError::unexpected(format!("defaults.json: {message}")))?;
-    let routing = parse_routing(&json::parse(model_gateway::SHIPPED_ROUTING).map_err(|message| CritiqueError::unexpected(format!("routing.json: {message}")))?)
-        .map_err(|error| error.into_error("invalid-routing", "routing.json"))?;
-    let mut problems = profile_problems(&catalogue, &defaults);
-    problems.extend(routing_problems(&catalogue, &routing));
+    check(&catalogue, model_gateway::SHIPPED_DEFAULTS, model_gateway::SHIPPED_ROUTING)
+}
+
+/// One shipped file read as JSON; text that is not JSON names the file.
+fn shipped(name: &str, text: &str) -> Result<Value, CritiqueError> {
+    match json::parse(text) {
+        Ok(value) => Ok(value),
+        Err(message) => Err(CritiqueError::unexpected(format!("{name}: {message}"))),
+    }
+}
+
+/// The check of `defaults` and `routing` (the text of the two shipped files) against a catalogue.
+pub fn check(catalogue: &LiteLlmCatalogue, defaults: &str, routing: &str) -> Result<Value, CritiqueError> {
+    let defaults = shipped("defaults.json", defaults)?;
+    let routing = parse_routing(&shipped("routing.json", routing)?).map_err(|error| error.into_error("invalid-routing", "routing.json"))?;
+    let mut problems = profile_problems(catalogue, &defaults);
+    problems.extend(routing_problems(catalogue, &routing));
     let mut result = Object::new();
     result.set("problems", Value::Arr(problems.iter().map(|problem| Value::str(problem)).collect()));
     result.set("status", Value::str(if problems.is_empty() { "passed" } else { "failed" }));

@@ -3,7 +3,7 @@
 
 use super::cli::runtime;
 use super::scenarios::Sandbox;
-use crate::check_routing::{profile_problems, routing_problems, run};
+use crate::check_routing::{check, profile_problems, routing_problems, run};
 use crate::error::CritiqueError;
 use crate::routing::parse_routing;
 use model_gateway::json::{parse, Value};
@@ -137,4 +137,14 @@ fn check_routing_refuses_input_it_cannot_read() {
     assert_eq!(error(format!("{{\"catalogue\":\"{}/missing.json\"}}", sandbox.text())).code, "unexpected");
     assert_eq!(error(format!("{{\"catalogue\":\"{broken}\"}}")).code, "invalid-input");
     assert_eq!(error(format!("{{\"catalogue\":\"{not_catalogue}\"}}")), CritiqueError::new("invalid-input", format!("check-routing input: {not_catalogue}: not a JSON object")));
+}
+
+#[test]
+fn a_shipped_file_that_is_not_what_it_should_be_is_named() {
+    let found = catalogue(&[("good", "usable")]);
+    let defaults = model_gateway::SHIPPED_DEFAULTS;
+    let routing = model_gateway::SHIPPED_ROUTING;
+    assert_eq!(check(&found, "{", routing).expect_err("bad defaults").code, "unexpected");
+    assert_eq!(check(&found, defaults, "{").expect_err("bad routing").code, "unexpected");
+    assert_eq!(check(&found, defaults, "{}").expect_err("incomplete routing").code, "invalid-routing");
 }
