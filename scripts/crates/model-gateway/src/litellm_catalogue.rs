@@ -9,11 +9,13 @@
 //! refused with the provider's own reason, and a free one is marked. A model
 //! the catalogue does not know is offered as before.
 
-use crate::config::GatewayConfig;
+use crate::config::{GatewayConfig, Tier};
 use crate::error::GatewayError;
 use crate::json::{self, Value};
 use crate::locations;
-use crate::models::{ListedModel, ModelListing, SkippedModel};
+use crate::models::{
+    cost_class_for, family_of, model_part, open_code_provider, ListedModel, ModelListing, SkippedModel, FAMILY_UNKNOWN,
+};
 use crate::ports::Runtime;
 use crate::timestamps;
 use std::collections::BTreeMap;
@@ -24,6 +26,11 @@ pub struct CatalogueProbe {
     pub status: String,
     pub reason: String,
     pub free: bool,
+    /// What the model does (`chat`, `embedding`, ...); `None` when the catalogue does not say.
+    pub modality: Option<String>,
+    /// The vendor-qualified id the model goes by everywhere (`reflection/beam-1.0-501b-a23b`), when the catalogue names it.
+    pub canonical: Option<String>,
+    pub context_length: Option<i64>,
 }
 
 /// One deployment behind a canonical group: the provider route and the id it serves the group's model under.
@@ -40,6 +47,7 @@ pub struct CatalogueDeployment {
 pub struct CatalogueGroup {
     /// A public group is a free tier: who may send the prompt, never the price.
     pub public: bool,
+    pub modality: Option<String>,
     pub deployments: Vec<CatalogueDeployment>,
 }
 
@@ -112,7 +120,9 @@ fn parse_groups(raw: Option<&Value>) -> BTreeMap<String, CatalogueGroup> {
                 Some(CatalogueDeployment { route: route.to_string(), upstream: upstream.to_string(), order })
             })
             .collect();
-        groups.insert(name.to_string(), CatalogueGroup { public: matches!(group.get("public"), Some(Value::Bool(true))), deployments });
+        let public = matches!(group.get("public"), Some(Value::Bool(true)));
+        let modality = group.get("modality").and_then(Value::as_str).map(str::to_string);
+        groups.insert(name.to_string(), CatalogueGroup { public, modality, deployments });
     }
     groups
 }
@@ -127,7 +137,21 @@ fn probe_of(route: &str, item: &Value) -> Option<(String, CatalogueProbe)> {
     let text = |key: &str| meta.and_then(|meta| meta.get(key)).and_then(Value::as_str).map(str::to_string);
     let id = id.strip_prefix(&format!("{route}/")).unwrap_or(id).to_string();
     let free = matches!(meta.and_then(|meta| meta.get("free")), Some(Value::Bool(true)));
-    Some((id, CatalogueProbe { status: text("status").unwrap_or_else(|| "unknown".to_string()), reason: text("reason").unwrap_or_default(), free }))
+    let context_length = match meta.and_then(|meta| meta.get("context_length")) {
+        Some(Value::Num(length)) => Some(*length as i64),
+        _ => None,
+    };
+    Some((
+        id,
+        CatalogueProbe {
+            status: text("status").unwrap_or_else(|| "unknown".to_string()),
+            reason: text("reason").unwrap_or_default(),
+            free,
+            modality: text("modality"),
+            canonical: text("canonical_id"),
+            context_length,
+        },
+    ))
 }
 
 /// A warning when the catalogue is older than two days, or names no instant; `None` when it is fresh.
@@ -195,7 +219,8 @@ fn group_probe(catalogue: &LiteLlmCatalogue, group: &CatalogueGroup) -> Option<(
         group.deployments.iter().filter_map(|deployment| deployment_probe(catalogue, deployment).map(|probe| (deployment, probe))).collect();
     let (deployment, probe) = known.iter().find(|(_, probe)| probe.status == "usable").or_else(|| known.first())?;
     let free = group.deployments.iter().all(|deployment| deployment_probe(catalogue, deployment).is_some_and(|probe| probe.free));
-    Some((deployment.route.clone(), CatalogueProbe { free, ..(*probe).clone() }))
+    let modality = group.modality.clone().or_else(|| probe.modality.clone());
+    Some((deployment.route.clone(), CatalogueProbe { free, modality, ..(*probe).clone() }))
 }
 
 /// Where the catalogue places a client model: the route and probe that judge it. A Pi client's model is a canonical
@@ -215,31 +240,131 @@ fn refusal(config: &GatewayConfig, catalogue: &LiteLlmCatalogue, client: &str, m
     judged(config, catalogue, client, model).filter(|(_, probe)| probe.status != "usable").map(|(route, probe)| not_usable_reason(&route, &probe))
 }
 
-/// The listing with the catalogue applied; without a catalogue it is unchanged.
+/// Where the catalogue places a model that `defaults.json` has no entry for and whose id names no known family.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Placement {
+    pub family: String,
+    pub tier: Tier,
+    pub notes: String,
+}
+
+/// The family a vendor's catalogue slug stands for, where the gateway's own family differs from the slug.
+const VENDOR_FAMILIES: [(&str, &str); 8] = [
+    ("moonshotai", "moonshot"),
+    ("z-ai", "zhipu"),
+    ("zhipuai", "zhipu"),
+    ("mistralai", "mistral"),
+    ("deepseek-ai", "deepseek"),
+    ("x-ai", "xai"),
+    ("qwen", "alibaba"),
+    ("meta-llama", "meta"),
+];
+
+/// The words of a model id that mark it small, and the ones that mark it large.
+const TRIVIAL_WORDS: [&str; 6] = ["lite", "mini", "nano", "tiny", "micro", "small"];
+const HARD_WORDS: [&str; 6] = ["pro", "large", "ultra", "super", "max", "plus"];
+
+/// The family of a model the catalogue knows by `canonical` (`vendor/name`) or, failing that, by its own id: a
+/// family the gateway already names by the id's prefix, else the vendor's slug, else the id's first word.
+fn family_from(canonical: Option<&str>, model: &str) -> String {
+    let id = canonical.unwrap_or(model);
+    if let Some(family) = family_of(model_part(id)).or_else(|| family_of(model_part(model))) {
+        return family.to_string();
+    }
+    if let Some((vendor, _)) = canonical.and_then(|canonical| canonical.split_once('/')) {
+        let vendor = vendor.to_ascii_lowercase();
+        return VENDOR_FAMILIES.iter().find(|(slug, _)| *slug == vendor).map_or(vendor.clone(), |(_, family)| family.to_string());
+    }
+    let word: String = model_part(model).to_ascii_lowercase().chars().take_while(char::is_ascii_alphabetic).collect();
+    if word.is_empty() { "unknown".to_string() } else { word }
+}
+
+/// The tier a model's name suggests, never above `hard`: the catalogue carries no capability, so a model with no
+/// `defaults.json` entry is placed on its name alone, `routine` unless the name says small or large.
+fn tier_from(model: &str) -> Tier {
+    let lower = model_part(model).to_ascii_lowercase();
+    let words: Vec<&str> = lower.split(|char: char| !char.is_ascii_alphanumeric()).collect();
+    if words.iter().any(|word| TRIVIAL_WORDS.contains(word)) {
+        Tier::Trivial
+    } else if words.iter().any(|word| HARD_WORDS.contains(word)) {
+        Tier::Hard
+    } else {
+        Tier::Routine
+    }
+}
+
+/// How the catalogue places a client model no `defaults.json` entry covers: a chat model it knows takes its family
+/// from its canonical id and its tier from its name. `None` when the catalogue does not know the model, and the
+/// catalogue's own reason when it lists the model as something other than chat.
+pub fn place_from_catalogue(config: &GatewayConfig, catalogue: &LiteLlmCatalogue, client: &str, model: &str) -> Option<Result<Placement, String>> {
+    let (_, probe) = judged(config, catalogue, client, model)?;
+    if let Some(modality) = probe.modality.as_deref().filter(|modality| *modality != "chat") {
+        return Some(Err(format!("the LiteLLM catalogue lists it as {modality}, not a chat model")));
+    }
+    let canonical = probe.canonical.as_deref();
+    let context = probe.context_length.map_or(String::new(), |length| format!(", {length} tokens of context"));
+    Some(Ok(Placement {
+        family: family_from(canonical, model),
+        tier: tier_from(canonical.unwrap_or(model)),
+        notes: format!("Placed from the LiteLLM catalogue ({}{context}), not from defaults.json: its tier is a guess from its name.", canonical.unwrap_or(model)),
+    }))
+}
+
+/// A skipped model the catalogue places, as the listing offers it; `None` when the client may not reach its family.
+fn placed_model(config: &GatewayConfig, skipped: &SkippedModel, placement: Placement, free: bool) -> Option<ListedModel> {
+    let client = config.clients.get(&skipped.client)?;
+    if client.families.as_ref().is_some_and(|families| !families.contains(&placement.family)) {
+        return None;
+    }
+    let provider = if skipped.client == "opencode" { open_code_provider(&skipped.model) } else { None };
+    Some(ListedModel {
+        client: skipped.client.clone(),
+        model: skipped.model.clone(),
+        family: placement.family,
+        cost_class: cost_class_for(client, provider.as_deref()),
+        tier: Some(placement.tier),
+        notes: placement.notes,
+        source: client.model_source,
+        free,
+    })
+}
+
+/// The listing with the catalogue applied; without a catalogue it is unchanged. A model the gateway skipped for want
+/// of a family and a tier is placed from the catalogue when the catalogue knows it and calls it usable chat.
 pub fn judge_listing(config: &GatewayConfig, listing: ModelListing, catalogue: Option<&LiteLlmCatalogue>) -> ModelListing {
     let Some(catalogue) = catalogue else {
         return listing;
     };
     // A model skipped for another reason that the catalogue also refuses is skipped for the provider's reason.
-    let mut skipped: Vec<SkippedModel> = listing
-        .skipped
-        .into_iter()
-        .map(|entry| match refusal(config, catalogue, &entry.client, &entry.model) {
-            Some(reason) => SkippedModel { reason, ..entry },
-            None => entry,
-        })
-        .collect();
-    let mut models: Vec<ListedModel> = Vec::new();
-    for model in listing.models {
+    let mut skipped: Vec<SkippedModel> = Vec::new();
+    let mut models = listing.models;
+    for entry in listing.skipped {
+        if let Some(reason) = refusal(config, catalogue, &entry.client, &entry.model) {
+            skipped.push(SkippedModel { reason, ..entry });
+            continue;
+        }
+        if entry.reason != FAMILY_UNKNOWN {
+            skipped.push(entry);
+            continue;
+        }
+        match place_from_catalogue(config, catalogue, &entry.client, &entry.model) {
+            Some(Ok(placement)) => models.extend(placed_model(config, &entry, placement, false)),
+            Some(Err(reason)) => skipped.push(SkippedModel { reason, ..entry }),
+            None => skipped.push(entry),
+        }
+    }
+    models.sort_by(|left, right| left.client.cmp(&right.client).then_with(|| left.model.cmp(&right.model)));
+    let mut judged_models: Vec<ListedModel> = Vec::new();
+    for model in models {
         if let Some(reason) = refusal(config, catalogue, &model.client, &model.model) {
             skipped.push(SkippedModel { client: model.client, model: model.model, reason });
             continue;
         }
         let free = judged(config, catalogue, &model.client, &model.model).is_some_and(|(_, probe)| probe.free);
-        models.push(ListedModel { free, ..model });
+        judged_models.push(ListedModel { free, ..model });
     }
     skipped.sort_by(|left, right| left.client.cmp(&right.client).then_with(|| left.model.cmp(&right.model)));
-    ModelListing { models, missing: listing.missing, skipped }
+    ModelListing { models: judged_models, missing: listing.missing, skipped }
 }
 
 /// The catalogue this machine holds, if it holds a readable one, and what is wrong with it, if anything.
@@ -286,4 +411,29 @@ pub fn require_usable(runtime: &Runtime, config: &GatewayConfig, client: &str, m
         Some(reason) => Err(GatewayError::new("model-not-usable", format!("{client}:{model} cannot run: {reason}"))),
         None => Ok(()),
     }
+}
+
+/// The family of a client model no `defaults.json` entry covers and whose id names none, from the catalogue; the
+/// refusal says why when the catalogue cannot place it. A Pi client names a model by its canonical group, so an
+/// upstream id such as `beam-free` is answered with the group that serves it.
+pub fn place_unlisted(runtime: &Runtime, config: &GatewayConfig, client: &str, model: &str) -> Result<String, GatewayError> {
+    let reading = read_catalogue(runtime);
+    let placed = reading.catalogue.as_ref().and_then(|catalogue| place_from_catalogue(config, catalogue, client, model));
+    match placed {
+        Some(Ok(placement)) => Ok(placement.family),
+        Some(Err(reason)) => Err(GatewayError::new("unknown-model", format!("{client}:{model} is not a model the gateway can place: {reason}"))),
+        None => {
+            let group = reading.catalogue.as_ref().filter(|_| crate::run::is_pi_client(client)).and_then(|catalogue| group_serving(catalogue, model));
+            let hint = group.map_or(String::new(), |group| format!("; Pi names it {group}, the group that serves it"));
+            Err(GatewayError::new(
+                "unknown-model",
+                format!("{client}:{model} is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override{hint}"),
+            ))
+        }
+    }
+}
+
+/// The canonical group one of whose deployments serves the upstream id.
+fn group_serving<'a>(catalogue: &'a LiteLlmCatalogue, upstream: &str) -> Option<&'a str> {
+    catalogue.groups.iter().find(|(_, group)| group.deployments.iter().any(|deployment| deployment.upstream == upstream)).map(|(name, _)| name.as_str())
 }

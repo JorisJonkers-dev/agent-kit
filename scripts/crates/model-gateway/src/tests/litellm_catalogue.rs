@@ -34,3 +34,102 @@ fn a_client_with_no_route_is_never_refused_on_the_catalogue() {
     assert!(require_usable(&runtime, &config, "claude", "claude-opus-5-5").is_ok());
     assert!(require_usable(&runtime, &config, "nobody", "x").is_ok());
 }
+
+fn catalogue_of(models: &[(&str, &str)], groups: &str) -> crate::litellm_catalogue::LiteLlmCatalogue {
+    let listed: Vec<String> = models.iter().map(|(id, meta)| format!("{{\"id\":\"opencode-go/{id}\",\"metadata\":{meta}}}")).collect();
+    let text = format!("{{\"updated_at\":\"2026-11-03T11:17:01Z\",\"providers\":{{\"opencode-go\":{{\"models\":[{}]}}}},\"groups\":{groups}}}", listed.join(","));
+    crate::litellm_catalogue::parse_catalogue(&crate::json::parse(&text).expect("json")).expect("catalogue")
+}
+
+fn shipped() -> crate::config::GatewayConfig {
+    let runtime = runtime(StubFiles::new(), StubGit::new(None, &[]), super::config::home_env("/home/someone"));
+    crate::config_parse::load_config(&runtime).expect("the shipped defaults load")
+}
+
+fn usable(extra: &str) -> String {
+    format!("{{\"status\":\"usable\",\"free\":false,\"modality\":\"chat\"{extra}}}")
+}
+
+#[test]
+fn a_model_with_no_defaults_entry_takes_its_family_from_its_canonical_id_and_its_tier_from_its_name() {
+    use crate::config::Tier;
+    use crate::litellm_catalogue::place_from_catalogue;
+    let config = shipped();
+    let catalogue = catalogue_of(
+        &[
+            ("zzz", &usable(",\"canonical_id\":\"moonshotai/zzz\"")),
+            ("vendorless", &usable(",\"canonical_id\":\"newco/vendorless\"")),
+            ("tiny-lite", &usable(",\"canonical_id\":\"acme/tiny-lite\",\"context_length\":8000")),
+            ("big-pro", &usable("")),
+            ("9", &usable("")),
+            ("claude-fast", &usable("")),
+            ("note", "{\"status\":\"usable\",\"free\":false,\"modality\":\"embedding\"}"),
+        ],
+        "{\"g\":{\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"zzz\",\"order\":1}]}}",
+    );
+    let place = |model: &str| place_from_catalogue(&config, &catalogue, "opencode", model);
+    let zzz = place("opencode-go/zzz").expect("known").expect("chat");
+    assert_eq!((zzz.family.as_str(), zzz.tier), ("moonshot", Tier::Routine));
+    assert_eq!(place("opencode-go/vendorless").expect("known").expect("chat").family, "newco");
+    // A group that names no modality takes its deployment's.
+    let grouped = place_from_catalogue(&config, &catalogue, "pi-opencode-go", "g").expect("known").expect("chat");
+    assert_eq!(grouped.family, "moonshot");
+    let tiny = place("opencode-go/tiny-lite").expect("known").expect("chat");
+    assert_eq!((tiny.family.as_str(), tiny.tier), ("acme", Tier::Trivial));
+    assert!(tiny.notes.contains("8000 tokens of context"));
+    let big = place("opencode-go/big-pro").expect("known").expect("chat");
+    assert_eq!((big.family.as_str(), big.tier), ("big", Tier::Hard));
+    assert_eq!(place("opencode-go/9").expect("known").expect("chat").family, "unknown");
+    assert_eq!(place("opencode-go/claude-fast").expect("known").expect("chat").family, "anthropic");
+    assert_eq!(place("opencode-go/note"), Some(Err("the LiteLLM catalogue lists it as embedding, not a chat model".to_string())));
+    assert_eq!(place("opencode-go/never-heard-of"), None);
+}
+
+#[test]
+fn a_skipped_model_the_client_may_not_reach_or_nobody_knows_stays_out_of_the_listing() {
+    use crate::config::ModelSource;
+    use crate::litellm_catalogue::judge_listing;
+    use crate::models::{ModelListing, SkippedModel, FAMILY_UNKNOWN};
+    let mut config = shipped();
+    let skipped = |client: &str, model: &str| SkippedModel { client: client.into(), model: model.into(), reason: FAMILY_UNKNOWN.into() };
+    let catalogue = catalogue_of(&[("hy3", &usable("")), ("kimi-x", &usable(""))], "{}");
+    let listing = || ModelListing { models: vec![], missing: vec![], skipped: vec![skipped("opencode", "opencode-go/hy3"), skipped("nobody", "opencode-go/hy3")] };
+    let judged = judge_listing(&config, listing(), Some(&catalogue));
+    // OpenCode lists it on the subsidised provider, with the tier its name suggests.
+    assert_eq!(judged.models.len(), 1);
+    assert_eq!((judged.models[0].client.as_str(), judged.models[0].source), ("opencode", ModelSource::Live));
+    assert_eq!(judged.models[0].cost_class, crate::config::CostClass::Subsidised);
+    assert_eq!(judged.skipped, vec![skipped("nobody", "opencode-go/hy3")]);
+    // A client restricted to other families never sees it.
+    config.clients.get_mut("opencode").expect("client").families = Some(vec!["google".to_string()]);
+    let barred = judge_listing(&config, listing(), Some(&catalogue));
+    assert!(barred.models.is_empty());
+    // Skipped for another reason, it stays skipped for that reason.
+    let other = ModelListing { skipped: vec![SkippedModel { reason: "other".into(), ..skipped("opencode", "opencode-go/hy3") }], ..listing() };
+    assert_eq!(judge_listing(&config, other, Some(&catalogue)).skipped[0].reason, "other");
+}
+
+#[test]
+fn a_run_on_a_model_only_the_catalogue_knows_is_placed_or_refused_with_the_reason() {
+    use crate::litellm_catalogue::place_unlisted;
+    let config = shipped();
+    let catalogue = "{\"updated_at\":\"2026-11-03T11:17:01Z\",\"providers\":{\"opencode-go\":{\"models\":[\
+        {\"id\":\"opencode-go/beam-free\",\"metadata\":{\"status\":\"usable\",\"free\":true,\"modality\":\"chat\",\"canonical_id\":\"reflection/beam-1.0-501b-a23b\"}},\
+        {\"id\":\"opencode-go/embed-1\",\"metadata\":{\"status\":\"usable\",\"free\":false,\"modality\":\"embedding\"}}]}},\
+        \"groups\":{\"beam-1.0-501b-a23b\":{\"modality\":\"chat\",\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"beam-free\",\"order\":1}]}}}";
+    let path = "/cache/agent-kit/litellm-catalogue.json";
+    let env = HashMap::from([("XDG_CACHE_HOME".to_string(), "/cache".to_string())]);
+    let with = |files: StubFiles| runtime(files, StubGit::new(None, &[]), env.clone());
+    let known = with(StubFiles::new().with(path, catalogue));
+    assert_eq!(place_unlisted(&known, &config, "pi-opencode-go", "beam-1.0-501b-a23b"), Ok("reflection".to_string()));
+    assert_eq!(place_unlisted(&known, &config, "opencode", "opencode-go/beam-free"), Ok("reflection".to_string()));
+    let embedding = place_unlisted(&known, &config, "opencode", "opencode-go/embed-1").expect_err("not chat");
+    assert_eq!(embedding.code, "unknown-model");
+    assert!(embedding.message.ends_with("the LiteLLM catalogue lists it as embedding, not a chat model"), "{}", embedding.message);
+    let alias = place_unlisted(&known, &config, "pi-opencode-go", "beam-free").expect_err("an upstream id");
+    assert!(alias.message.ends_with("machine override; Pi names it beam-1.0-501b-a23b, the group that serves it"), "{}", alias.message);
+    let nowhere = place_unlisted(&known, &config, "pi-opencode-go", "nothing").expect_err("unknown");
+    assert!(nowhere.message.ends_with("machine override"), "{}", nowhere.message);
+    let unread = place_unlisted(&with(StubFiles::new()), &config, "pi-opencode-go", "beam-free").expect_err("no catalogue");
+    assert!(unread.message.ends_with("machine override"), "{}", unread.message);
+}

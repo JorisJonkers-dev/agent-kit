@@ -91,10 +91,13 @@ A listed model takes its family, tier and notes from the catalogue entry that
 matches its id. A model the catalogue does not know is still listed, with its
 family worked out from its id, `"tier": null` and no notes: the `delegate`
 skill must not pick a null-tier model, because nobody has judged what it
-handles well. A model whose family the gateway cannot work out is not offered
-at all: it is named in `skipped` with the reason, so it never vanishes
-silently, and adding it to the catalogue in `defaults.json` or the machine
-override brings it back.
+handles well. A model whose family the gateway cannot work out from its id is
+placed from the live LiteLLM catalogue instead (see "The live LiteLLM
+catalogue"): any usable chat model the catalogue knows is listed, so
+`defaults.json` entries are overrides, not a precondition. Only a model the
+catalogue does not know either is left out: it is named in `skipped` with the
+reason, so it never vanishes silently, and adding it to the catalogue in
+`defaults.json` or the machine override brings it back.
 
 A listing that fails, or a configuration that cannot be read, leaves that
 client out and names it in `missing` with the reason; the other clients are
@@ -174,6 +177,22 @@ in `skipped` with the provider's own reason, and any other status (`error`,
 `budget-exhausted`, `unprobed`, ...) is skipped with that status. A model the
 catalogue marks free carries `"free": true`. A model the catalogue does not
 list is offered as before, on the client's own answer.
+
+A model with no `defaults.json` entry whose id names no known family is placed
+from the catalogue, for a Pi client by its canonical group and for another
+client by its route's listing: its family is the one the gateway already names
+by the id's prefix, else the vendor of its canonical id
+(`reflection/beam-1.0-501b-a23b` is family `reflection`), else the id's first
+word; its tier is a guess from the name (`routine`; `trivial` for a name with
+`lite`, `mini`, `nano`, `tiny`, `micro` or `small`; `hard` for `pro`, `large`,
+`ultra`, `super`, `max` or `plus`, never above `hard`), and its notes say so; a
+`defaults.json` entry overrides all three. Only chat models are placed: one the
+catalogue lists under another modality is named in `skipped` with the
+catalogue's own reason, and a model it calls blocked or failed is refused as
+before. `run` places a model the same way, so `run` accepts a model that
+`models` lists. A Pi run names the canonical group (`beam-1.0-501b-a23b`), not
+the upstream id it is served under (`beam-free`); the refusal for the upstream
+id names the group.
 
 A missing, unreadable or malformed catalogue is never an error: the models
 are listed unchecked and the result carries `warnings` saying so. A catalogue
