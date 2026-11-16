@@ -587,12 +587,13 @@ item that is not available, since no read-only proof is wired for Pi yet.
 base and deep slot is a Pi client over the LiteLLM `vibe` route, or `agy`:
 `pi-vibe-mistral-large` (mistral), `pi-vibe-glm` (zhipu),
 `pi-vibe-deepseek-flash` (deepseek) and `agy-gemini-flash-high` (google), so
-each stage still has one critic per family and `distinct_families` holds. The
-Vibe-login clients (`vibe-mistral-large`, `vibe-glm`, `vibe-deepseek-flash`) are
-the fallbacks behind them, after a Pi client on the `opencode-go` route
-(`pi-opencode-go-*`, the same models on another route and budget), so a
-machine with no Pi, no route key or no Landlock runs as it did before.
-`agy-gemini-flash-high` falls back to `pi-vibe-glm`, `vibe-glm` and, last,
+each stage still has one critic per family and `distinct_families` holds. Each
+Pi client falls back to a Pi client on the `opencode-go` route (`pi-opencode-go-*`,
+the same models on another route and budget), and nothing further: the
+Vibe-login clients (`vibe-mistral-large`, `vibe-glm`, `vibe-deepseek-flash`)
+spend the owner's Mistral account and run only when an owner's routing override
+names them, so a slot whose Pi clients cannot run stays empty.
+`agy-gemini-flash-high` falls back to `pi-vibe-glm` and, last,
 `pi-public-gemini-flash`. The work roster, the triage model and the cold
 read are unchanged.
 

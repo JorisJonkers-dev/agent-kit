@@ -97,10 +97,13 @@ every client but OpenCode itself, so a route through the proxy would serve nothi
 Set in the litellm repository (litellm#20); recorded here because the agent ids depend on it.
 
 1. A model Vibe serves (including GLM 5.3, GLM 5.3 Flash, DeepSeek V4.1 Flash): `vibe` and
-   `vibe-study` at 2:1, then `vibe-api` and `vibe-study-api` at 2:1, then stop. **No other
-   provider serves a model Vibe serves**, OpenCode Go included.
-2. Models only the general Mistral keys serve (audio, OCR, embeddings): `vibe-api` and
-   `vibe-study-api` at 2:1.
+   `vibe-study` at 2:1, then stop. **No other provider serves a model Vibe serves**, OpenCode
+   Go and the general Mistral keys included (litellm#49: once the plans are out, the request
+   fails instead of spending the general keys).
+2. Models only the general Mistral keys serve (audio, OCR, embeddings and the rest of the broad
+   list): `vibe-api` and `vibe-study-api` at 2:1. They are the last resort: a model any other
+   route serves is never deployed on them, and a caller reaches them otherwise only by naming
+   `vibe-api/<id>`.
 3. Claude only through the `anthropic` key.
 4. Gemini: Google free tier first, only inside `google-free-public`.
 5. OpenCode Go only for models no Mistral, Google or Anthropic key serves. Its base is

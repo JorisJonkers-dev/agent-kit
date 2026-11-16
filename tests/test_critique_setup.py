@@ -211,7 +211,7 @@ def _slots(stage: dict) -> list[str]:
 
 def test_shipped_routing_puts_pi_critics_over_litellm_in_every_base_and_deep_slot() -> None:
     """#737: every stage's base and deep critics are Pi clients on a LiteLLM route (or agy), spread over at
-    least three model families, with the Vibe-login clients kept behind them as fallbacks."""
+    least three model families, and no fallback reaches a Vibe login: the Vibe CLI runs only when routing names it."""
     routing = json.loads(ROUTING.read_text())
     clients = routing["clients"]
     for name, stage in routing["stages"].items():
@@ -226,7 +226,8 @@ def test_shipped_routing_puts_pi_critics_over_litellm_in_every_base_and_deep_slo
     assert all(c["provider"].startswith("litellm-") for c in pi.values())
     for name in ("pi-vibe-mistral-large", "pi-vibe-glm", "pi-vibe-deepseek-flash"):
         behind = routing["fallbacks"][name]
-        assert any(clients[c]["kind"] == "vibe" for c in behind), f"{name} keeps no Vibe login behind it"
+        assert behind and all(clients[c]["kind"] == "pi" for c in behind), f"{name} falls back to a Vibe login: {behind}"
+    assert not [c for names in routing["fallbacks"].values() for c in names if clients[c]["kind"] == "vibe"]
     assert any(clients[c]["kind"] == "agy" for stage in routing["stages"].values() for c in _slots(stage))
 
 

@@ -16,14 +16,16 @@ prerequisite and not a bug) or `fail` (it should work and does not). Blocked cel
 <!-- matrix:start -->
 | role | pi | pi-opencode-go | claude | codex | agy | vibe | hermes |
 |---|---|---|---|---|---|---|---|
-| research | pass | pass | pass | blocked [1] | pass | pass | pass |
-| implement | pass | pass | pass | blocked [1] | pass | pass | pass |
-| critique | pass | pass | pass | blocked [1] | pass | pass | pass |
-| red-team | pass | pass | pass | blocked [1] | pass | pass | pass |
-| refute | pass | pass | pass | blocked [1] | pass | pass | pass |
-| triage | pass | pass | pass | blocked [1] | pass | pass | pass |
+| research | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
+| implement | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
+| critique | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
+| red-team | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
+| refute | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
+| triage | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
 
 [1] codex: metered-employer: needs a repo whose allowlist names openai, and a grant for the harness-matrix workflow (model-gateway grant write)
+
+[2] vibe: explicit only: no profile lists a vibe model, so a profile run never picks the Vibe CLI; a run that names client vibe still runs
 <!-- matrix:end -->
 
 The same file, `docs/model-gateway/harness-matrix.json`, is what the proof judges against; a Rust test keeps
@@ -75,6 +77,9 @@ cell to pass; the live proof expects the blocked cells listed above.
   public-only or free-only routes) and runs it as `hermes -m <model> --provider litellm-<route>`, the provider
   setup writes into `~/.hermes/config.yaml`. The profile check holds the run to that Pi entry, and every role
   names hermes in `unenforced_clients`, since the gateway cannot enforce a tool scope on it.
+- **vibe** is explicit only: the Vibe CLI spends the owner's Mistral account, so no profile lists a `vibe:` model
+  and `--harness vibe` finds none. A run that names `"client": "vibe"` and a model still runs. The Vibe plans stay
+  reachable through Pi as `pi-vibe` and `pi-vibe-study`.
 - **agy** passes on a machine where it is signed in. On one where it is not, its runs fail with the sign-in
   error, which the proof reports as blocked (and, as the baseline expects a pass, as a regression to resolve by
   signing in).

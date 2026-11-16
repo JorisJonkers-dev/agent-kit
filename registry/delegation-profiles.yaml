@@ -40,6 +40,11 @@
 # reason. Pi enforces skills and plugins listed by name (its per-run home holds
 # only those); it refuses mcp entries, `any` and anything not in its home. See
 # docs/model-gateway/integration.md.
+#
+# No profile lists a `vibe:` model: the Vibe CLI spends the owner's Mistral account,
+# which is kept for work that asks for it, so a profile never picks it. A run that
+# names `"client": "vibe"` and a model still runs. The Vibe plans stay reachable
+# through Pi as `pi-vibe:` and `pi-vibe-study:` (the LiteLLM vibe routes).
 version: 1
 profiles:
   cheap-research:
@@ -119,7 +124,6 @@ profiles:
       - pi-openrouter:qwen3.8-flash
       - pi-openrouter:mistral-small
       - agy:gemini-3.8-flash-low
-      - vibe:mistral-small-latest
       - claude:claude-haiku-5-5
       - codex:gpt-5.5
       - pi-opencode-go:deepseek-v4.1-flash
@@ -127,7 +131,7 @@ profiles:
       - pi-opencode-go:mimo-v2.6-flash
       - pi-opencode-go:minimax-m3.1-flash
       - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
-    unenforced_clients: [agy, vibe, claude, codex, hermes]
+    unenforced_clients: [agy, claude, codex, hermes]
     max_spend_usd: 1.5
 
   implement:
@@ -141,7 +145,6 @@ profiles:
       - pi-vibe:mistral-large-4
       - pi-vibe:glm-5.3
       - pi-opencode-go:kimi-k2.7-code
-      - vibe:glm-5-3
       - agy:gemini-3.8-flash-high
       - claude:claude-sonnet-5-5
       - codex:gpt-5.5
@@ -153,7 +156,7 @@ profiles:
       - pi-vibe:glm-5.3-flash
       - pi-vibe:mistral-large-4
       - pi-vibe:glm-5.3
-    unenforced_clients: [vibe, agy, claude, codex, hermes]
+    unenforced_clients: [agy, claude, codex, hermes]
     max_spend_usd: 6
 
   critique:
@@ -166,7 +169,6 @@ profiles:
       - pi-vibe:mistral-large-4
       - pi-opencode-go:kimi-k2.7-code
       - pi-opencode-go:qwen3.8-flash
-      - vibe:mistral-large-latest
       - agy:gemini-3.8-flash-high
       - claude:claude-sonnet-5-5
       - codex:gpt-5.5
@@ -177,7 +179,7 @@ profiles:
       - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
     distinct_families: 2
     exclude_writer_family: true
-    unenforced_clients: [vibe, agy, claude, codex, hermes]
+    unenforced_clients: [agy, claude, codex, hermes]
     max_spend_usd: 3
 
   red-team:
@@ -194,7 +196,6 @@ profiles:
       - pi-vibe:deepseek-v4.1-flash
       - pi-opencode-go:kimi-k2.7-code
       - pi-opencode-go:mimo-v2.6-pro
-      - vibe:mistral-large-latest
       - agy:gemini-3.8-flash-high
       - claude:claude-sonnet-5-5
       - codex:gpt-5.5
@@ -205,7 +206,7 @@ profiles:
       - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
     distinct_families: 2
     exclude_writer_family: true
-    unenforced_clients: [vibe, agy, claude, codex, hermes]
+    unenforced_clients: [agy, claude, codex, hermes]
     max_spend_usd: 4.5
 
   refute:
@@ -218,7 +219,6 @@ profiles:
       - pi-vibe:glm-5.3
       - pi-vibe:mistral-large-4
       - pi-opencode-go:kimi-k2.7-code
-      - vibe:mistral-large-latest
       - agy:gemini-3.8-flash-medium
       - claude:claude-haiku-5-5
       - codex:gpt-5.5
@@ -228,7 +228,7 @@ profiles:
       - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
     distinct_families: 2
     exclude_writer_family: true
-    unenforced_clients: [vibe, agy, claude, codex, hermes]
+    unenforced_clients: [agy, claude, codex, hermes]
     max_spend_usd: 1.5
 
   triage:
@@ -242,12 +242,11 @@ profiles:
       - pi-free:mistral-small
       - pi-openrouter:mistral-small
       - pi-opencode-go:qwen3.8-flash
-      - vibe:mistral-small-latest
       - agy:gemini-3.8-flash-low
       - claude:claude-haiku-5-5
       - codex:gpt-5.5
       - pi-opencode-go:mimo-v2.6-flash
       - pi-opencode-go:minimax-m3.1-flash
       - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
-    unenforced_clients: [vibe, agy, claude, codex, hermes]
+    unenforced_clients: [agy, claude, codex, hermes]
     max_spend_usd: 0.75
