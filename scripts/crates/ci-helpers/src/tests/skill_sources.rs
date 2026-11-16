@@ -7,7 +7,6 @@ use crate::skill_sources::{
 };
 use std::collections::HashMap;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::time::Duration;
 
@@ -681,9 +680,12 @@ fn transient_failures() {
 }
 
 /// A stand-in `gh` shell script that runs `body`.
+#[path = "../../../../test-support/fake_exe.rs"]
+mod fake_exe;
+
 fn stub(tmp: &Tmp, body: &str) -> String {
-    let path = tmp.write("gh", &format!("#!/bin/sh\n{body}\n"));
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    let path = tmp.join("gh");
+    fake_exe::write_script(&path, &format!("#!/bin/sh\n{body}\n"));
     path.display().to_string()
 }
 

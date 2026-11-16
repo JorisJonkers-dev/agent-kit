@@ -176,9 +176,8 @@ fn without_sandbox_exec_the_backend_refuses() {
 }
 
 fn fake(root: &Path, name: &str, text: &str) -> SandboxExec {
-    let held = fake_exe::lock();
     let path = root.join(name);
-    fake_exe::write_executable(&held, &path, text);
+    fake_exe::write_script(&path, text);
     SandboxExec::at(path)
 }
 
