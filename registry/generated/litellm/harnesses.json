@@ -9,6 +9,9 @@
       "data_scope": "any",
       "models": [
         {
+          "id": "beam-1.0-501b-a23b"
+        },
+        {
           "id": "codestral",
           "contextWindow": 256000
         },
@@ -126,15 +129,6 @@
         },
         {
           "id": "qwen3.8-flash"
-        },
-        {
-          "id": "qwen3:32b",
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
         },
         {
           "id": "step-5-preview"
@@ -156,6 +150,9 @@
       "data_scope": "any",
       "models": [
         {
+          "id": "beam-1.0-501b-a23b"
+        },
+        {
           "id": "codestral",
           "contextWindow": 256000
         },
@@ -273,15 +270,6 @@
         },
         {
           "id": "qwen3.8-flash"
-        },
-        {
-          "id": "qwen3:32b",
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
         },
         {
           "id": "step-5-preview"
@@ -303,6 +291,9 @@
       "data_scope": "any",
       "models": [
         {
+          "id": "beam-1.0-501b-a23b"
+        },
+        {
           "id": "codestral",
           "contextWindow": 256000
         },
@@ -422,15 +413,6 @@
           "id": "qwen3.8-flash"
         },
         {
-          "id": "qwen3:32b",
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
-        },
-        {
           "id": "step-5-preview"
         },
         {
@@ -449,15 +431,6 @@
       "key_env": "LITELLM_OPENROUTER_KEY",
       "data_scope": "public",
       "models": [
-        {
-          "id": "opencode-go-free/beam-1.0-501b-a23b",
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
-        },
         {
           "id": "openrouter/dots-3-note-preview",
           "contextWindow": 512000,
@@ -499,7 +472,7 @@
           }
         },
         {
-          "id": "openrouter/gemma-4-26b-a4b-it",
+          "id": "openrouter/gemma-4-31b-it",
           "contextWindow": 262144,
           "cost": {
             "input": 0,
@@ -605,17 +578,7 @@
       "provider": "litellm-local",
       "key_env": "LITELLM_LOCAL_KEY",
       "data_scope": "any",
-      "models": [
-        {
-          "id": "qwen3:32b",
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
-        }
-      ]
+      "models": []
     },
     {
       "agent": "public",
