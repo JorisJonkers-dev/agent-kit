@@ -1,0 +1,25 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nexit 0\n",
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"beam-1.0-501b-a23b\"},{\"id\":\"hy3\"},{\"id\":\"longcat-2.0\"},{\"id\":\"qwen3.8-flash\"},{\"id\":\"embed-1\"},{\"id\":\"gated-free\"},{\"id\":\"mystery\"}]}}}",
+        "cache/agent-kit/litellm-catalogue.json": "{\"version\":1,\"updated_at\":\"2026-11-03T11:17:01Z\",\"providers\":{\"opencode-go\":{\"models\":[{\"id\":\"opencode-go/beam-free\",\"metadata\":{\"name\":\"beam-free\",\"context_length\":null,\"free\":true,\"modality\":\"chat\",\"status\":\"usable\",\"reason\":\"\",\"canonical_id\":\"reflection/beam-1.0-501b-a23b\"}},{\"id\":\"opencode-go/hy3\",\"metadata\":{\"name\":\"hy3\",\"context_length\":256000,\"free\":false,\"modality\":\"chat\",\"status\":\"usable\",\"reason\":\"\",\"canonical_id\":\"tencent/hy3\"}},{\"id\":\"opencode-go/longcat-2.0\",\"metadata\":{\"name\":\"longcat-2.0\",\"context_length\":null,\"free\":false,\"modality\":\"chat\",\"status\":\"usable\",\"reason\":\"\",\"canonical_id\":\"meituan/longcat-2.0\"}},{\"id\":\"opencode-go/qwen3.8-flash\",\"metadata\":{\"name\":\"qwen3.8-flash\",\"context_length\":null,\"free\":false,\"modality\":\"chat\",\"status\":\"usable\",\"reason\":\"\",\"canonical_id\":\"alibaba/qwen3.8-flash\"}},{\"id\":\"opencode-go/embed-1\",\"metadata\":{\"name\":\"embed-1\",\"context_length\":null,\"free\":false,\"modality\":\"embedding\",\"status\":\"usable\",\"reason\":\"\",\"canonical_id\":\"acme/embed-1\"}},{\"id\":\"opencode-go/gated-free\",\"metadata\":{\"name\":\"gated-free\",\"context_length\":null,\"free\":true,\"modality\":\"chat\",\"status\":\"blocked\",\"reason\":\"Allow paid endpoints that train on request data.\"}}]}},\"groups\":{\"beam-1.0-501b-a23b\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"beam-free\",\"order\":1,\"weight\":1}]},\"hy3\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"hy3\",\"order\":1,\"weight\":1}]},\"longcat-2.0\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"longcat-2.0\",\"order\":1,\"weight\":1}]},\"qwen3.8-flash\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"qwen3.8-flash\",\"order\":1,\"weight\":1}]},\"embed-1\":{\"modality\":\"embedding\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"embed-1\",\"order\":1,\"weight\":1}]},\"gated-free\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"gated-free\",\"order\":1,\"weight\":1}]},\"mystery\":{\"modality\":\"chat\",\"public\":false,\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"mystery\",\"order\":1,\"weight\":1}]}}}"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

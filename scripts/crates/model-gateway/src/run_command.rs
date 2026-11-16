@@ -472,14 +472,9 @@ impl RunCommand<'_> {
         require_provider(input, &client)?;
         let entry = catalogue_entry(&config, &input.client, &input.model)?;
         crate::litellm_catalogue::require_usable(self.runtime, &config, &input.client, &input.model)?;
-        let Some(family) = entry.as_ref().map(|entry| entry.family.clone()).or_else(|| family_of_model_id(&input.model).map(str::to_string)) else {
-            return Err(GatewayError::new(
-                "unknown-model",
-                format!(
-                    "{}:{} is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override",
-                    input.client, input.model
-                ),
-            ));
+        let family = match entry.as_ref().map(|entry| entry.family.clone()).or_else(|| family_of_model_id(&input.model).map(str::to_string)) {
+            Some(family) => family,
+            None => crate::litellm_catalogue::place_unlisted(self.runtime, &config, &input.client, &input.model)?,
         };
         let root = match &input.repo {
             Some(repo) => Some(self.repository_root(repo)?),
