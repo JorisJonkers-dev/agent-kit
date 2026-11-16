@@ -271,7 +271,15 @@ fn read_only_settings(tools: &[String]) -> String {
 /// fresh sandboxed session, with slash commands off, the schema the caller
 /// gives and every tool family it did not name denied. A run without it prints
 /// one JSON object in plan mode (accept-edits for a writing run), with the
-/// effort its model id names. Its stdin is closed either way.
+/// effort its model id names; a plan-mode prompt starts with [`AGY_PLAN_NOTE`]. Its stdin is closed either way.
+/// What a read-only Antigravity run is told first: it cannot be asked for permission, so a tool that needs it ends the
+/// run with no answer.
+pub(crate) const AGY_PLAN_NOTE: &str = "This run cannot ask for permission: a tool call that needs it (a shell command, an MCP server, a file change) is denied and ends the run with no answer. Do not call such a tool; answer from what this message and the files you may read give you.";
+
+/// What a read-only Antigravity run may do without asking: read and search files. A directory the owner never
+/// trusted (a delegation worktree) otherwise needs permission even to read, which headless mode denies.
+pub(crate) const AGY_PLAN_SETTINGS: &str = r#"{"permissions":{"allow":["read_file(*)","list_dir(*)","grep_search(*)","find_by_name(*)"]}}"#;
+
 fn agy_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let print_timeout = format!("{}s", json::number_text(input.time_limit_s));
     let args = match extras {
@@ -283,9 +291,14 @@ fn agy_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt:
             args.extend(strings(&["--settings", &read_only_settings(&extras.tools)]));
             args
         }
+        _ if input.mode == Some(RunMode::Write) => {
+            strings(&["--print", prompt, "--model", &input.model, "--output-format", "json", "--effort", effort_of(&input.model), "--mode", "accept-edits", "--print-timeout", &print_timeout])
+        }
         _ => {
-            let mode = if input.mode == Some(RunMode::Write) { "accept-edits" } else { "plan" };
-            strings(&["--print", prompt, "--model", &input.model, "--output-format", "json", "--effort", effort_of(&input.model), "--mode", mode, "--print-timeout", &print_timeout])
+            // Headless plan mode denies a tool that needs permission and then ends the turn with an empty answer,
+            // which a high-effort model reaches by reaching for memory or a shell first; the note keeps it answering.
+            let prompt = format!("{AGY_PLAN_NOTE}\n\n{prompt}");
+            strings(&["--print", &prompt, "--model", &input.model, "--output-format", "json", "--effort", effort_of(&input.model), "--mode", "plan", "--print-timeout", &print_timeout, "--settings", AGY_PLAN_SETTINGS])
         }
     };
     ProcessCommand { command: binary.to_string(), args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), timeout_ms: graced_ms(input), stdin: None }
