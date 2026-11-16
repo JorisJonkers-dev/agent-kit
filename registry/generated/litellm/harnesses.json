@@ -629,6 +629,13 @@
           "id": "public/gemma-4-31b-it"
         }
       ]
+    },
+    {
+      "agent": "free",
+      "provider": "litellm-free",
+      "key_env": "LITELLM_FREE_KEY",
+      "data_scope": "public",
+      "models": []
     }
   ]
 }

@@ -1207,6 +1207,7 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
     # The free routes (openrouter, local) reach nothing paid: no cap; public is small.
     assert caps == {
         "vibe": 255, "vibe-study": 127.5, "opencode-go": 60, "openrouter": None, "local": None, "public": 5,
+        "free": None,
     }
     # A key holds access groups of canonical models, not a provider wildcard each. The free local
     # route alone adds its own wildcard, so local/<id> answers before the catalogue deploys it.
@@ -1217,6 +1218,8 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
         "openrouter": ["openrouter-free-public", "opencode-go-free-public"],
         "local": ["canonical", "local/*"],
         "public": ["google-free-public", "canonical"],
+        # Every free model of every provider, no paid fallback: never canonical.
+        "free": ["free"],
     }
     for route in table["routes"]:
         wildcards = [model for model in route["models"] if "*" in model or "/" in model]
@@ -1275,7 +1278,7 @@ def test_every_public_only_group_is_held_by_public_keys_only() -> None:
     for route in routes:
         holds_public = bool(set(route["models"]) & set(render_registry.LITELLM_PUBLIC_GROUPS))
         assert holds_public == (route["data_scope"] == "public"), route["agent"]
-    assert sorted(r["agent"] for r in routes if r["data_scope"] == "public") == ["openrouter", "public"]
+    assert sorted(r["agent"] for r in routes if r["data_scope"] == "public") == ["free", "openrouter", "public"]
 
 
 def test_the_free_route_key_is_minted_unexported() -> None:

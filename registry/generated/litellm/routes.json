@@ -64,6 +64,16 @@
         "google-free-public",
         "canonical"
       ]
+    },
+    {
+      "agent": "free",
+      "key_env": "LITELLM_FREE_KEY",
+      "budget_eur": null,
+      "budget_duration": null,
+      "data_scope": "public",
+      "models": [
+        "free"
+      ]
     }
   ]
 }

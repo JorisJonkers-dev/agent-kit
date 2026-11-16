@@ -278,7 +278,8 @@ def test_the_shipped_pi_clients_are_one_per_litellm_route_and_only_the_public_on
     clients = json.loads(DEFAULTS.read_text())["clients"]
     shipped = {name.removeprefix("pi-"): client for name, client in clients.items() if name.startswith("pi-")}
     # No openrouter client: the owner forbade OpenRouter, so the gateway never runs on it.
-    assert set(shipped) == {route["agent"] for route in routes} - {"openrouter"}
+    # No free client yet either: it comes with the gateway's cost and provider fields (#849, #850).
+    assert set(shipped) == {route["agent"] for route in routes} - {"openrouter", "free"}
     for route in routes:
         client = shipped.get(route["agent"])
         if client is not None:
