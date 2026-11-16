@@ -708,13 +708,15 @@ mod helpers {
 
 #[test]
 fn help_prints_the_usage_so_the_install_smoke_check_sees_it_start() {
-    for flag in ["--help", "-h"] {
+    // One closure for every call, so the generic function has one instantiation for coverage to count.
+    let env = |_: &str| None;
+    let cli = |args: &[&str]| {
         let mut out = Vec::new();
-        let code = run_cli(&[flag.to_string()], &b""[..], &mut out, |_| None);
-        assert_eq!(code, 0);
-        assert_eq!(String::from_utf8(out).unwrap(), format!("{USAGE}\n"));
-    }
-    let mut out = Vec::new();
-    assert_eq!(run_cli(&[], &b""[..], &mut out, |_| None), 0);
-    assert!(out.is_empty());
+        let args: Vec<String> = args.iter().map(|arg| arg.to_string()).collect();
+        let code = run_cli(&args, &b""[..], &mut out, env);
+        (code, String::from_utf8(out).unwrap())
+    };
+    assert_eq!(cli(&["--help"]), (0, format!("{USAGE}\n")));
+    assert_eq!(cli(&["-h"]), (0, format!("{USAGE}\n")));
+    assert_eq!(cli(&[]), (0, String::new()));
 }
