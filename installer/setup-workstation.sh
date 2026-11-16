@@ -2815,7 +2815,10 @@ gold_band_roles() {
   out=$(agent_kit_merge_current converge gold-band-roles \
     "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
-  if [ "${rc}" = 127 ]; then warn "agent-kit-merge is not available; the Gold Band roles are not converged"; return 0; fi
+  if [ "${rc}" = 127 ]; then
+    warn "agent-kit-merge is not available; the Gold Band roles are not converged"
+    return 0
+  fi
   if [ "${rc}" = 4 ]; then
     fail "Gold Band is running: setup stopped before its remaining write groups; quit it and re-run setup"
     exit 1
