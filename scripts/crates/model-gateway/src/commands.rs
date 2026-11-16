@@ -32,6 +32,7 @@ pub enum Command {
     GrantList,
     GrantReserve,
     GrantWrite,
+    Matrix,
     Models,
     Run,
     Usage,
@@ -45,6 +46,7 @@ pub enum Command {
 pub fn run(command: Command, _name: &str, input: &Object, runtime: &Runtime) -> Result<Value, GatewayError> {
     match command {
         Command::Models => models_command(input, runtime),
+        Command::Matrix => crate::matrix::run(input, runtime),
         Command::Catalog => crate::catalog::run(input, runtime),
         Command::Usage => usage_command(input, runtime),
         Command::GrantWrite => grant_write(input, runtime),

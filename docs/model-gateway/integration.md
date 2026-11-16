@@ -158,6 +158,10 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   read-only launch, and a client it does not list is refused as before.
   `scripts/crates/model-gateway/src/harness.rs` holds the choice; the
   `run-roles` scenario holds the goldens.
+- **`matrix` proves them (#856).** `model-gateway matrix` runs each role on each
+  harness once and judges the cells against `docs/model-gateway/harness-matrix.json`;
+  the stub proof is the `matrix-stub` scenario in CI, `{"live": true}` is the owner's
+  machine, and `docs/model-gateway/harness-matrix.md` is the table.
 - **A failing delegation stays inside its profile**: the retry, the climb and
   the fall-through are cut to the profile's models.
 - **Not yet:** Gold Band agent ids per profile (#784), and spend enforcement

@@ -10,6 +10,7 @@ use crate::ports::Runtime;
 pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/to/repo"}' | --input FILE] [--free]
        model-gateway catalog [--repo PATH] [--route ROUTE] [--status STATUS] [--modality MODALITY] [--free] [--json]
        model-gateway usage --json '{"days": 7, "workflow": "spec-293"}'
+       model-gateway matrix [--json '{"live": true, "roles": ["red-team"], "harnesses": ["pi"], "repo": "/path"}']
        model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
                                  "model": "glm-5-3", "mode": "read-only",
                                  "prompt": "read this", "repo": "/path/to/repo"}'
@@ -38,6 +39,12 @@ pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/
        model-gateway worktrees clean --json '{"workflow": "spec-293"}'
        model-gateway <command> --input FILE
 
+matrix runs every delegation role on every harness once, on a trivial fixture
+(carrying "repo" when it is given), and prints each cell's status (pass, blocked or
+fail), exit, latency, cost and error text with the role by harness table. It
+exits 1 when a cell does not do what docs/model-gateway/harness-matrix.json
+says it should: "live": true judges against the owner's machine, otherwise the
+stub proof's expectations apply, where every harness is a stub program.
 Each command reads one JSON object, from --json or from FILE, and prints one
 JSON object. models lists every client model this machine can use now for the
 repository the caller works in, with its client, model id, family, cost class,
@@ -204,12 +211,13 @@ An error prints "status": "error" with its "code" and exits 1.
 "#;
 
 /// The subcommands the gateway has, and the command each one runs.
-const COMMANDS: [(&str, Command); 12] = [
+const COMMANDS: [(&str, Command); 13] = [
     ("batch", Command::Batch),
     ("catalog", Command::Catalog),
     ("grant list", Command::GrantList),
     ("grant reserve", Command::GrantReserve),
     ("grant write", Command::GrantWrite),
+    ("matrix", Command::Matrix),
     ("models", Command::Models),
     ("run", Command::Run),
     ("usage", Command::Usage),
@@ -221,7 +229,7 @@ const COMMANDS: [(&str, Command); 12] = [
 
 /// The subcommands, as an error names them.
 const COMMAND_NAMES: &str =
-    "models, catalog, run, batch, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean";
+    "models, catalog, run, batch, matrix, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean";
 
 /// What one run prints and how it exits.
 pub struct CliResult {
@@ -262,12 +270,12 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
         args.retain(|arg| arg != "--free");
     }
     // `models` with no arguments is `models --json '{}'`: it has no required input.
-    let given = if named.name == "models" && args.is_empty() { Some(Input::Json("{}")) } else { parse_arguments(&args) };
+    let given = if matches!(named.name, "models" | "matrix") && args.is_empty() { Some(Input::Json("{}")) } else { parse_arguments(&args) };
     let Some(input) = given else {
         return usage_failure(named.name);
     };
     match run_command(&named, input, (max_starts, free, flags), runtime) {
-        Ok(result) => CliResult { exit_code: 0, stdout: format!("{}\n", json::pretty(&result)), stderr: String::new() },
+        Ok(result) => CliResult { exit_code: i32::from(named.name == "matrix" && result.as_object().and_then(|object| object.get("status")).and_then(Value::as_str) == Some("regressed")), stdout: format!("{}\n", json::pretty(&result)), stderr: String::new() },
         Err(error) => failure(&error.code, &error.message, Some(named.name), &error.problems),
     }
 }

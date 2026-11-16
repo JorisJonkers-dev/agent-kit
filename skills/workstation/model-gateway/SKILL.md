@@ -1081,6 +1081,15 @@ model in any profile (its model is its own configuration, not the catalogue's),
 so it is refused until one is configured. `harness` needs `profile`, and cannot
 be given with `client` or `model`.
 
+`model-gateway matrix` proves every role on every harness: it runs each cell once
+on a trivial fixture and prints status (`pass`, `blocked` or `fail`), exit,
+latency, cost and error text, and exits 1 when a cell does not do what
+`docs/model-gateway/harness-matrix.json` says. The default is the headless
+stub proof (CI runs it as the `matrix-stub` scenario); `{"live": true}` runs
+the real clients on this machine. `docs/model-gateway/harness-matrix.md` holds
+the table, with the blocked cells (hermes has no model configured, agy needs
+sign-in, codex needs a repository and a grant) listed with their reasons.
+
 Only Pi enforces a tool scope. A role runs on another harness only if the
 profile names the client in `unenforced_clients`: the profile author's explicit
 statement that the client's own read-only launch (Claude Code's `--allowedTools

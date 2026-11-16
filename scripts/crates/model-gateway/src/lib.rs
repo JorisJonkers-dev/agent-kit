@@ -39,6 +39,7 @@ pub mod ledger_file;
 pub mod lock;
 pub mod locations;
 pub mod model_facts;
+pub mod matrix;
 pub mod models;
 pub mod outputs;
 pub mod pi_launch;
