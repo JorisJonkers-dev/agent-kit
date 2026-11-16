@@ -705,3 +705,18 @@ mod helpers {
         assert_eq!(short_spec("a b/c"), None);
     }
 }
+
+#[test]
+fn help_prints_the_usage_so_the_install_smoke_check_sees_it_start() {
+    // One closure for every call, so the generic function has one instantiation for coverage to count.
+    let env = |_: &str| None;
+    let cli = |args: &[&str]| {
+        let mut out = Vec::new();
+        let args: Vec<String> = args.iter().map(|arg| arg.to_string()).collect();
+        let code = run_cli(&args, &b""[..], &mut out, env);
+        (code, String::from_utf8(out).unwrap())
+    };
+    assert_eq!(cli(&["--help"]), (0, format!("{USAGE}\n")));
+    assert_eq!(cli(&["-h"]), (0, format!("{USAGE}\n")));
+    assert_eq!(cli(&[]), (0, String::new()));
+}
