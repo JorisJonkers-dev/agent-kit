@@ -4,7 +4,7 @@
     "vibe":   { "binary": "vibe", "cost_class": "subsidised",       "model_source": "live", "litellm_route": "vibe"},
     "agy":    {"binary": "agy",    "cost_class": "subsidised",       "model_source": "live", "families": ["google"]},
     "claude": {"binary": "claude", "cost_class": "subsidised",       "model_source": "declared"},
-    "hermes": {"binary": "hermes", "cost_class": "metered-personal", "model_source": "config"},
+    "hermes": {"binary": "hermes", "cost_class": "metered-personal", "model_source": "config", "providers": ["litellm-vibe", "litellm-vibe-study", "litellm-opencode-go", "litellm-local"], "provider_cost_classes": {"litellm-vibe": "subsidised", "litellm-vibe-study": "subsidised", "litellm-opencode-go": "subsidised", "litellm-local": "subsidised"}},
     "opencode": {"binary": "opencode", "cost_class": "metered-personal", "model_source": "live", "provider_cost_classes": {"opencode-go": "subsidised"}, "litellm_route": "opencode-go"},
     "codex":  {"binary": "codex",  "cost_class": "metered-employer", "model_source": "declared"},
     "pi-vibe":        {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
@@ -83,7 +83,7 @@
       "models": ["pi-vibe:ministral-8b", "pi-vibe:mistral-small", "pi-vibe:glm-5.3-flash", "pi-opencode-go:qwen3.8-flash", "pi-free:qwen3.8-flash", "pi-free:mistral-small", "pi-openrouter:qwen3.8-flash", "pi-openrouter:mistral-small", "agy:gemini-3.8-flash-low", "vibe:mistral-small-latest", "claude:claude-haiku-5-5", "codex:gpt-5.5"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 0.5,
-      "unenforced_clients": ["agy", "vibe", "claude", "codex"]
+      "unenforced_clients": ["agy", "vibe", "claude", "codex", "hermes"]
     },
     "implement": {
       "description": "Writes in a worktree, test first. A cheap writer with a ladder to a stronger model on escalation. The write run is the gateway's own worktree and check; no tool beyond the client's file edit.",
@@ -91,7 +91,7 @@
       "ladder": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 2.0,
-      "unenforced_clients": ["vibe", "agy", "claude", "codex"]
+      "unenforced_clients": ["vibe", "agy", "claude", "codex", "hermes"]
     },
     "critique": {
       "description": "Independent read-only review from two model families other than the writer's. The request names the writer's family as narrow.writer_family.",
@@ -100,7 +100,7 @@
       "exclude_writer_family": true,
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 1.0,
-      "unenforced_clients": ["vibe", "agy", "claude", "codex"]
+      "unenforced_clients": ["vibe", "agy", "claude", "codex", "hermes"]
     },
     "red-team": {
       "description": "Adversarial and read-only: tries to break the artifact, attack the spec and find the unsafe assumptions, and reports findings with the evidence for each (the input, the command or the line that shows it), never a fix or an edit. Two families other than the writer's, so the attack is not made by the author's own blind spots. The request names the writer's family as narrow.writer_family.",
@@ -109,7 +109,7 @@
       "exclude_writer_family": true,
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 1.5,
-      "unenforced_clients": ["vibe", "agy", "claude", "codex"]
+      "unenforced_clients": ["vibe", "agy", "claude", "codex", "hermes"]
     },
     "refute": {
       "description": "Read-only check of one claim or finding: tries to refute it from the evidence and answers confirmed or refuted with the reason. A family other than the one that raised the claim. The request names it as narrow.writer_family.",
@@ -118,14 +118,14 @@
       "exclude_writer_family": true,
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 0.5,
-      "unenforced_clients": ["vibe", "agy", "claude", "codex"]
+      "unenforced_clients": ["vibe", "agy", "claude", "codex", "hermes"]
     },
     "triage": {
       "description": "Read-only sorting of issues, findings or logs into labelled buckets on the cheapest models, free public routes included for material that is public.",
       "models": ["pi-vibe:ministral-8b", "pi-vibe:ministral-3b", "pi-vibe:mistral-small", "pi-free:mistral-small", "pi-openrouter:mistral-small", "pi-opencode-go:qwen3.8-flash", "vibe:mistral-small-latest", "agy:gemini-3.8-flash-low", "claude:claude-haiku-5-5", "codex:gpt-5.5"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 0.25,
-      "unenforced_clients": ["vibe", "agy", "claude", "codex"]
+      "unenforced_clients": ["vibe", "agy", "claude", "codex", "hermes"]
     }
   },
   "settings": {

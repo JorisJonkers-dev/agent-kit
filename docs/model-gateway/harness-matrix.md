@@ -16,16 +16,14 @@ prerequisite and not a bug) or `fail` (it should work and does not). Blocked cel
 <!-- matrix:start -->
 | role | pi | pi-opencode-go | claude | codex | agy | vibe | hermes |
 |---|---|---|---|---|---|---|---|
-| research | pass | pass | pass | blocked [1] | pass | pass | blocked [2] |
-| implement | pass | pass | pass | blocked [1] | pass | pass | blocked [2] |
-| critique | pass | pass | pass | blocked [1] | pass | pass | blocked [2] |
-| red-team | pass | pass | pass | blocked [1] | pass | pass | blocked [2] |
-| refute | pass | pass | pass | blocked [1] | pass | pass | blocked [2] |
-| triage | pass | pass | pass | blocked [1] | pass | pass | blocked [2] |
+| research | pass | pass | pass | blocked [1] | pass | pass | pass |
+| implement | pass | pass | pass | blocked [1] | pass | pass | pass |
+| critique | pass | pass | pass | blocked [1] | pass | pass | pass |
+| red-team | pass | pass | pass | blocked [1] | pass | pass | pass |
+| refute | pass | pass | pass | blocked [1] | pass | pass | pass |
+| triage | pass | pass | pass | blocked [1] | pass | pass | pass |
 
 [1] codex: metered-employer: needs a repo whose allowlist names openai, and a grant for the harness-matrix workflow (model-gateway grant write)
-
-[2] hermes: no model configured: hermes takes its model from its own config, so no profile lists one
 <!-- matrix:end -->
 
 The same file, `docs/model-gateway/harness-matrix.json`, is what the proof judges against; a Rust test keeps
@@ -41,7 +39,7 @@ All twelve `pi` and `pi-opencode-go` cells pass live (`model-gateway matrix --js
 | pi | all six pass | pi-vibe:ministral-8b, deepseek-v4.1-flash, glm-5.3 |
 | pi-opencode-go | all six pass | pi-opencode-go:qwen3.8-flash, kimi-k2.7-code |
 
-The `research` row for claude, agy and vibe passed earlier the same day; hermes stays blocked. The codex cells
+The `research` row for claude, agy and vibe passed earlier the same day. The codex cells
 and the non-Pi harnesses of the other roles were not re-run.
 
 ### What broke Pi (#870), and why it stays fixed
@@ -68,12 +66,15 @@ The command prints one object: `status` (`ok` or `regressed`), `cells` (each wit
 `model`, `exit`, `latency_ms`, `cost_usd` and `error`), `regressions` and the `table`. It exits 1 when a cell
 does not do what the baseline says: a cell that should pass and does not, and also a blocked cell that now
 passes (the baseline is stale, so edit `harness-matrix.json` and the table above). The stub proof expects every
-cell to pass except hermes; the live proof expects the blocked cells listed above.
+cell to pass; the live proof expects the blocked cells listed above.
 
 ## Why the blocked cells are blocked
 
-- **hermes** takes its model from its own configuration, not from the gateway's catalogue, so no profile lists
-  one. Configure a model for it and add it to the profiles to unblock the column.
+- **hermes** runs the profile's Pi-route models: `--harness hermes` takes the cheapest model the profile
+  leaves on a Pi route for any data (`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`, never the
+  public-only or free-only routes) and runs it as `hermes -m <model> --provider litellm-<route>`, the provider
+  setup writes into `~/.hermes/config.yaml`. The profile check holds the run to that Pi entry, and every role
+  names hermes in `unenforced_clients`, since the gateway cannot enforce a tool scope on it.
 - **agy** passes on a machine where it is signed in. On one where it is not, its runs fail with the sign-in
   error, which the proof reports as blocked (and, as the baseline expects a pass, as a regression to resolve by
   signing in).

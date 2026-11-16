@@ -94,6 +94,17 @@ pub const OPENROUTER_CLIENT: &str = "pi-openrouter";
 /// The clients that run models priced at zero only: a model of either that is not free is never listed and never run.
 pub const FREE_ONLY_CLIENTS: [&str; 2] = [OPENROUTER_CLIENT, "pi-free"];
 
+/// The client that runs a Pi route's models through its own LiteLLM provider of that route (`--provider litellm-<route>`).
+pub const HERMES: &str = "hermes";
+
+/// The Pi client of the route a Hermes run reaches through `provider` (`litellm-<route>` is `pi-<route>`), when Hermes
+/// may run that route: a route for any data, never a public-only or free-only one, whose rules only Pi holds runs to.
+pub fn hermes_route(config: &crate::config::GatewayConfig, provider: &str) -> Option<String> {
+    let client = format!("pi-{}", provider.strip_prefix("litellm-")?);
+    let found = config.clients.get(&client)?;
+    (!found.public_only && !FREE_ONLY_CLIENTS.contains(&client.as_str())).then_some(client)
+}
+
 /// A run with no time limit of its own gets this many seconds.
 pub const DEFAULT_TIME_LIMIT_S: f64 = 900.0;
 

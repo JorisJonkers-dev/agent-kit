@@ -5,11 +5,8 @@
   "roles": ["research", "implement", "critique", "red-team", "refute", "triage"],
   "harnesses": ["pi", "pi-opencode-go", "claude", "codex", "agy", "vibe", "hermes"],
   "expected": {
-    "stub": {
-      "hermes": {"status": "blocked", "why": "no model configured: hermes takes its model from its own config, so no profile lists one"}
-    },
+    "stub": {},
     "live": {
-      "hermes": {"status": "blocked", "why": "no model configured: hermes takes its model from its own config, so no profile lists one"},
       "codex": {"status": "blocked", "why": "metered-employer: needs a repo whose allowlist names openai, and a grant for the harness-matrix workflow (model-gateway grant write)"}
     }
   }

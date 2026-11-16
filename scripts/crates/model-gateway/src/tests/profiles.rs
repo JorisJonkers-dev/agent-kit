@@ -224,7 +224,7 @@ fn a_client_that_cannot_enforce_a_restricted_scope_is_refused_and_pi_holds_only_
     )
     .expect("profiles");
     let decision = decision(&config, &repository(&["anthropic", "mistral"]));
-    let hold = |name: &str, client: &str, model: &str, is_pi: bool, narrow: Option<&Narrowing>| hold_to_profile(&config, &decision, name, narrow, client, model, is_pi);
+    let hold = |name: &str, client: &str, model: &str, is_pi: bool, narrow: Option<&Narrowing>| hold_to_profile(&config, &decision, name, narrow, client, model, None, is_pi);
     // Deny-all on a client that is not Pi: refused, naming every restricted kind.
     let refused = hold("deny", "claude", "haiku", false, None).expect_err("claude cannot enforce");
     assert_eq!(refused.code, "profile-refused");
@@ -331,11 +331,11 @@ fn a_client_a_profile_names_as_unenforced_is_held_to_its_models_but_not_to_the_t
     .expect("role");
     let scope = repository(&["anthropic", "mistral", "zhipu"]);
     let decided = decision(&config, &scope);
-    assert!(hold_to_profile(&config, &decided, "role", None, "claude", "haiku", false).is_ok());
-    let refused = hold_to_profile(&config, &decided, "role", None, "vibe", "paid", false).expect_err("vibe is not named");
+    assert!(hold_to_profile(&config, &decided, "role", None, "claude", "haiku", None, false).is_ok());
+    let refused = hold_to_profile(&config, &decided, "role", None, "vibe", "paid", None, false).expect_err("vibe is not named");
     assert!(refused.message.contains("only Pi does"));
     // Pi still holds the empty scope, and the listing says which clients the profile leaves unenforced.
-    assert!(hold_to_profile(&config, &decided, "role", None, "pi-vibe", "small", true).is_ok());
+    assert!(hold_to_profile(&config, &decided, "role", None, "pi-vibe", "small", None, true).is_ok());
     let listed = json::compact(&list_profiles(&config, &[], "r"));
     assert!(listed.contains(r#""unenforced_clients":["claude"]"#));
 }
@@ -350,5 +350,21 @@ fn unenforced_clients_must_be_non_pi_clients_the_profiles_models_run_on() {
     ] {
         let message = refused_config(&format!(r#"{{"role": {{"description": "d", "models": ["claude:haiku", "pi-vibe:small"], "unenforced_clients": {field}}}}}"#));
         assert!(message.contains(why), "{field}: {message}");
+    }
+}
+
+#[test]
+fn hermes_reaches_only_the_pi_routes_for_any_data() {
+    let runtime = super::config::runtime(super::config::StubFiles::new(), super::config::StubGit::new(None, &[]), super::config::home_env("/home/someone"));
+    let config = crate::config_parse::load_config(&runtime).expect("the shipped defaults load");
+    let route = |provider: &str| crate::run::hermes_route(&config, provider);
+    for (provider, client) in [("litellm-vibe", "pi-vibe"), ("litellm-vibe-study", "pi-vibe-study"), ("litellm-opencode-go", "pi-opencode-go"), ("litellm-local", "pi-local")] {
+        assert_eq!(route(provider).as_deref(), Some(client), "{provider}");
+        // Every route Hermes reaches is one its machine allowlist lets a run name.
+        assert!(config.clients["hermes"].providers.as_deref().unwrap_or_default().iter().any(|allowed| allowed == provider), "{provider}");
+    }
+    // Public-only and free-only routes hold their runs to rules only Pi enforces, and a name that is no route is none.
+    for provider in ["litellm-public", "litellm-openrouter", "litellm-free", "litellm-nowhere", "openrouter", "vibe"] {
+        assert_eq!(route(provider), None, "{provider}");
     }
 }

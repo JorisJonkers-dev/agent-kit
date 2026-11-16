@@ -652,6 +652,39 @@ fn runs_hermes_with_its_provider_and_reads_the_usage_file_from_the_run_directory
     assert_eq!(flag(&process.first(), "--provider").as_deref(), Some("undefined"));
 }
 
+#[test]
+fn hermes_on_a_litellm_route_reads_the_route_key_from_the_secret_store_into_its_own_environment() {
+    let mut routed = request(RunClient::Hermes, "hermes", "glm-5.3", RunExtras::default());
+    routed.launch.provider = Some("litellm-vibe".to_string());
+    let process = Fake::answering("an answer");
+    launch(&Memory::default(), &process, &routed).expect("the launch");
+    let command = process.first();
+    assert_eq!(command.command, "/bin/sh");
+    assert_eq!(
+        command.args[..6],
+        strings(&["-c", crate::launchers::HERMES_KEYED, "hermes-keyed", "agent-kit-secret", "LITELLM_VIBE_KEY", "hermes"])[..]
+    );
+    assert_eq!(flag(&command, "--provider").as_deref(), Some("litellm-vibe"));
+    assert_eq!(crate::launchers::hermes_key("litellm-nowhere"), None);
+    assert_eq!(crate::launchers::hermes_key("deepinfra"), None);
+}
+
+#[test]
+fn the_hermes_key_wrapper_exports_the_key_and_refuses_to_run_without_one() {
+    let dir = std::env::temp_dir().join(format!("hermes-keyed-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let secret = dir.join("secret");
+    std::fs::write(&secret, "#!/bin/sh\n[ \"$2\" = K ] && echo sk-test\n").unwrap();
+    std::fs::set_permissions(&secret, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    let run = |name: &str| std::process::Command::new("sh").args(["-c", crate::launchers::HERMES_KEYED, "hermes-keyed", secret.to_str().unwrap(), name, "sh", "-c", "printf %s \"$K\""]).output().unwrap();
+    let ok = run("K");
+    assert_eq!((ok.status.code(), String::from_utf8_lossy(&ok.stdout).to_string()), (Some(0), "sk-test".to_string()));
+    let missing = run("OTHER");
+    assert_eq!(missing.status.code(), Some(70));
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("gave no key"));
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 /// The git directories a writing run names: the worktree's own, and the repository's shared ones.
 fn git_writable() -> Vec<String> {
     strings(&["/repo/.git/worktrees/run-1", "/repo/.git/objects", "/repo/.git/refs", "/repo/.git/logs"])

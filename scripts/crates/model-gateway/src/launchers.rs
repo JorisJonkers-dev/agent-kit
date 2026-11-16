@@ -388,7 +388,29 @@ fn hermes_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prom
     // The node launcher writes `String(input.provider)`, so a run that names none passes the word `undefined`.
     let provider = input.provider.as_deref().unwrap_or("undefined");
     let args = strings(&["-z", prompt, "--usage-file", &hermes_report(paths), "-m", &input.model, "--provider", provider]);
-    ProcessCommand { command: binary.to_string(), args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), timeout_ms: graced_ms(input), stdin: None }
+    let (command, args) = match hermes_key(provider) {
+        // A LiteLLM route's key is never exported: the wrapper reads it from the secret store into Hermes' own
+        // environment, under the name its provider's `key_env` reads, so it is in no argument and no file.
+        Some(key_env) => {
+            let mut wrapped = strings(&["-c", HERMES_KEYED, "hermes-keyed", SECRET_TOOL, &key_env, binary]);
+            wrapped.extend(args);
+            ("/bin/sh".to_string(), wrapped)
+        }
+        None => (binary.to_string(), args),
+    };
+    ProcessCommand { command, args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), timeout_ms: graced_ms(input), stdin: None }
+}
+
+/// The program that reads a key from the secret store: `agent-kit-secret get <NAME>`, as Pi's providers name it.
+pub(crate) const SECRET_TOOL: &str = "agent-kit-secret";
+
+/// Reads the key named by `$2` with `$1 get`, exports it under that name and runs the rest; no key, no run.
+pub(crate) const HERMES_KEYED: &str = r#"key=$("$1" get "$2") && [ -n "$key" ] || { echo "hermes: $1 get $2 gave no key" >&2; exit 70; }; export "$2=$key"; shift 2; exec "$@""#;
+
+/// The environment variable of the key a Hermes provider of a LiteLLM route reads (`litellm-<route>`), from the
+/// routes the registry mints keys for; `None` for any other provider.
+pub(crate) fn hermes_key(provider: &str) -> Option<String> {
+    crate::catalog::route_key(provider.strip_prefix("litellm-")?)
 }
 
 fn hermes_read(stdout: &str, usage: Option<&Value>) -> ClientOutput {

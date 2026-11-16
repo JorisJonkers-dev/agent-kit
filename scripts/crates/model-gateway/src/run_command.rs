@@ -527,7 +527,7 @@ impl RunCommand<'_> {
                 .collect();
             let decision = decide_policy(config, &scope, &every);
             let is_pi = crate::run::is_pi_client(&input.client);
-            hold_to_profile(config, &decision, profile, input.narrow.as_ref(), &input.client, &input.model, is_pi)?;
+            hold_to_profile(config, &decision, profile, input.narrow.as_ref(), &input.client, &input.model, input.provider.as_deref(), is_pi)?;
             // A Pi run's home holds the skills and plugins the scope lists, so one that is not in the home is refused here.
             run_scope(config, Some(profile), input.narrow.as_ref())
                 .filter(|_| is_pi)
