@@ -274,7 +274,7 @@ impl Reader<'_> {
     }
 }
 
-fn quote(text: &str, out: &mut String) {
+fn quote(text: &str, ascii: bool, out: &mut String) {
     out.push('"');
     for c in text.chars() {
         match c {
@@ -287,6 +287,7 @@ fn quote(text: &str, out: &mut String) {
             '\u{c}' => out.push_str("\\f"),
             ' '..='~' => out.push(c),
             '\u{7f}' => out.push(c),
+            c if !ascii && c >= ' ' => out.push(c),
             c => {
                 let mut units = [0u16; 2];
                 for unit in c.encode_utf16(&mut units) {
@@ -298,19 +299,19 @@ fn quote(text: &str, out: &mut String) {
     out.push('"');
 }
 
-fn write(value: &Value, depth: usize, out: &mut String) {
+fn write(value: &Value, depth: usize, ascii: bool, out: &mut String) {
     let pad = |level: usize| "  ".repeat(level);
     match value {
         Value::Null => out.push_str("null"),
         Value::Bool(flag) => out.push_str(if *flag { "true" } else { "false" }),
         Value::Num(text) => out.push_str(text),
-        Value::Str(text) => quote(text, out),
+        Value::Str(text) => quote(text, ascii, out),
         Value::Arr(items) if items.is_empty() => out.push_str("[]"),
         Value::Arr(items) => {
             out.push_str("[\n");
             for (at, item) in items.iter().enumerate() {
                 out.push_str(&pad(depth + 1));
-                write(item, depth + 1, out);
+                write(item, depth + 1, ascii, out);
                 out.push_str(if at + 1 < items.len() { ",\n" } else { "\n" });
             }
             out.push_str(&pad(depth));
@@ -321,9 +322,9 @@ fn write(value: &Value, depth: usize, out: &mut String) {
             out.push_str("{\n");
             for (at, (key, item)) in object.members.iter().enumerate() {
                 out.push_str(&pad(depth + 1));
-                quote(key, out);
+                quote(key, ascii, out);
                 out.push_str(": ");
-                write(item, depth + 1, out);
+                write(item, depth + 1, ascii, out);
                 out.push_str(if at + 1 < object.members.len() { ",\n" } else { "\n" });
             }
             out.push_str(&pad(depth));
@@ -335,7 +336,14 @@ fn write(value: &Value, depth: usize, out: &mut String) {
 /// Python's `json.dumps(value, indent=2)`.
 pub fn dumps(value: &Value) -> String {
     let mut out = String::new();
-    write(value, 0, &mut out);
+    write(value, 0, true, &mut out);
+    out
+}
+
+/// Python's `json.dumps(value, indent=2, ensure_ascii=False)`: text beyond ASCII as it is, control characters escaped.
+pub fn dumps_unicode(value: &Value) -> String {
+    let mut out = String::new();
+    write(value, 0, false, &mut out);
     out
 }
 

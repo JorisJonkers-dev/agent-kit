@@ -26,7 +26,6 @@ scripts/repo_setup.py
 # #811 port render_registry, render_agent_kit, validate_manifest and their helpers; setup becomes agent-kit setup
 scripts/delegation_profiles.py
 scripts/gold_band_instances.py
-scripts/gold_band_shape.py
 scripts/litellm_catalogue.py
 scripts/render_agent_kit.py
 scripts/render_registry.py
@@ -82,7 +81,6 @@ tests/test_gold_band_mcp_servers.py
 tests/test_gold_band_research_workflow.py
 tests/test_gold_band_run_start.py
 tests/test_gold_band_setup_step.py
-tests/test_gold_band_shape.py
 tests/test_gold_band_skill_sets.py
 tests/test_gold_band_spec_workflow.py
 tests/test_gold_band_wave3_templates.py

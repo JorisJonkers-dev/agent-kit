@@ -52,7 +52,6 @@ KIT_FILES = (
     "scripts/vibe-split-homes.py",
     "scripts/converge.py",
     "scripts/gold_band_instances.py",
-    "scripts/gold_band_shape.py",
     "scripts/crates/gold-band-registry/Cargo.toml",
     "scripts/crates/gold-band-registry/src/lib.rs",
     "scripts/install-workspace-tools.sh",

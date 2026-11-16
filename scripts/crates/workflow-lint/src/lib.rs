@@ -375,6 +375,13 @@ pub fn lint_shape(root: &Value) -> Result<Vec<String>, String> {
     Ok(shape::shape(def, nodes, edges))
 }
 
+/// The `shape` findings of one workflow definition (the `workflow` object), where a missing or non-list `nodes` or
+/// `edges` counts as empty, as Gold Band's editor reads it: what setup's template converge gates on.
+pub fn shape_of_definition(def: &Value) -> Vec<String> {
+    let list = |key: &str| def.get(key).and_then(Value::as_array).map_or(&[][..], Vec::as_slice);
+    shape::shape(def, list("nodes"), list("edges"))
+}
+
 /// The `critique` findings of a parsed workflow (#793), as
 /// `<subject>: <rule>: <message>` lines; `Err` when the file is not
 /// workflow-shaped JSON.

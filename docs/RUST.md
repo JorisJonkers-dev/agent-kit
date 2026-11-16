@@ -1271,6 +1271,8 @@ agent-kit-merge converge plugins --keep PATH [--declared-markets NAME,...] [--de
                                 [--retired-markets NAME,...] [--retired-plugins ID,...] [--check]
 agent-kit-merge converge gold-band-roles --keep PATH --registry PATH [--profiles DIR] [--critique DIR] \
                                 [--closing PATH] [--check]
+agent-kit-merge converge gold-band-workflows --keep PATH --registry PATH [--store PATH] [--workflows DIR] \
+                                [--check]
 ```
 
 `converge mcp` and `converge plugins` are the first slice of the converge port
@@ -1284,8 +1286,14 @@ sources concatenated verbatim, the fixed front matter stamp), with the same
 keep, retired and built-in rules, exit codes and running-instance guard
 (`AGENT_KIT_GOLD_BAND_RUNNING`, else the process table: `/proc`, or `ps` on
 macOS). `--registry` is required; the critique directory and closing file
-default to the kit the registry sits in. `gold-band` and `gold-band-workflows`
-are still `scripts/converge.py`.
+default to the kit the registry sits in. `converge gold-band-workflows` is the third: the personal instance's
+`context/workflows.json`, with the same add, in-place change, keep, work-agent
+skip, built-in refusal, null-insensitive comparison, atomic write with one
+`.bak`, and the same output. The editor's shape rules and the critique rules
+run in process through the `workflow-lint` library, so `scripts/gold_band_shape.py`
+and its parity test are gone, and the critique rules are always checked (the
+script skipped them with a warning when no `workflow-lint` binary was built).
+`gold-band` is still `scripts/converge.py`.
 
 Behaviour, exit codes and output lines are those of the scripts. JSON and TOML
 merges write the bytes the Python tools wrote, so a re-run over a file they

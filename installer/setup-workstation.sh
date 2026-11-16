@@ -2846,19 +2846,19 @@ gold_band_workflows() {
     log "gold band workflows: Gold Band is not installed, its workflow templates are left alone"
     return 0
   fi
-  if ! command -v uv >/dev/null 2>&1; then
-    warn "uv is not on PATH; the Gold Band workflow templates are not converged"
-    return 0
-  fi
   local band_home="${GOLD_BAND_HOME:-}"
   [[ "${band_home}" =~ ^[[:space:]]*$ ]] && band_home="${HOME}"
   local args=(--keep "${HOME}/.config/agent-kit/keep.yaml"
     --store "${band_home}/.gold-band/context/workflows.json"
     --workflows "${KIT_ROOT}/installer/gold-band/workflows")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
-  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-workflows \
+  out=$(agent_kit_merge_current converge gold-band-workflows \
     "${args[@]}" --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" = 127 ]; then
+    warn "agent-kit-merge is not available; the Gold Band workflow templates are not converged"
+    return 0
+  fi
   if [ "${rc}" = 4 ]; then
     fail "Gold Band is running: setup stopped before its remaining write groups; quit it and re-run setup"
     exit 1

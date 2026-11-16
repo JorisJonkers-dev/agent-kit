@@ -248,7 +248,7 @@ Gold Band keeps its workflow templates in one user-level file,
 entry a `workflow` with its `modelBindings`, shared by every workspace). The
 checked-in workflows under `installer/gold-band/workflows/*.json` are installed
 into that file on the Linux workstation by a setup run
-(`scripts/converge.py gold-band-workflows`), after the agent map and the roles:
+(`agent-kit-merge converge gold-band-workflows`), after the agent map and the roles:
 
 * **Personal instance only.** The file is the personal instance's. A workflow
   whose bindings (or a worker's `provider`) name an agent of the work instance
@@ -282,7 +282,7 @@ into that file on the Linux workstation by a setup run
   created (the app then adds its built-ins when it loads it).
 * **Never while the app runs.** Setup stops with `Gold Band is running` (exit 1)
   and writes nothing, as for the agent map; a machine without Gold Band gets no
-  file. `setup-workstation.sh --check` (or `converge.py gold-band-workflows
+  file. `setup-workstation.sh --check` (or `agent-kit-merge converge gold-band-workflows
   --check`) prints `would add <id>` and `would change <id>` and writes nothing;
   under `setup-workstation.sh --check` such a line is a failure, so a machine
   whose templates are missing or drifted does not pass the check.
@@ -298,7 +298,7 @@ a restart. To apply by hand with the app closed:
 ```sh
 cd ~/Projects/JorisJonkers-dev/agent-kit && ./installer/setup-workstation.sh
 # or only this step:
-uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-workflows \
+agent-kit-merge converge gold-band-workflows \
   --keep ~/.config/agent-kit/keep.yaml --store ~/.gold-band/context/workflows.json \
   --workflows installer/gold-band/workflows --registry registry/estate-tooling.yaml
 ```
@@ -369,11 +369,9 @@ and still run alongside it.
 **Where it runs.** CI's `Gold Band Workflow Shape` job builds `workflow-lint` and runs
 `scripts/check-workflow-shape.sh` over every file in `installer/gold-band/workflows/`
 (`*-work.json` as the work instance, the rest as the personal one). Setup's
-`converge.py gold-band-workflows` applies the same rules through
-`scripts/gold_band_shape.py`, a Python twin, because setup converges the templates
-before it builds the kit's cargo tools; `tests/test_gold_band_shape.py` fails when the
-twin and the crate disagree on the fixtures, the shipped templates and a set of odd
-definitions (it needs `WORKFLOW_LINT_BIN` or a built `scripts/target/debug/workflow-lint`).
+`agent-kit-merge converge gold-band-workflows` applies the same rules in process, through
+the `workflow-lint` library (`shape_of_definition`, and the base and critique rules), so
+there is one implementation and no Python twin.
 The fixtures are under `scripts/crates/workflow-lint/tests/fixtures/shape-valid` and
 `shape-refused` (one per rule, including the two owner-reported errors).
 
@@ -447,12 +445,10 @@ violator fails, a listed template that now passes fails with "remove it from
 were bound to one family (#796; before it a Mistral writer met `pi-vibe-mistral-large` and a
 Claude writer met `claude-work`). `workflow-b` and the critique templates pass both rules.
 
-`converge.py gold-band-workflows` runs the same check by calling the built
-`workflow-lint` (`AGENT_KIT_WORKFLOW_LINT`, `PATH`, or `scripts/target/{release,debug}`):
-listed templates install with `warning: <id> breaks the critique rules ... installing it
-anyway`, any other violator refuses the run before anything is written. Without a usable
-binary it installs and warns that the critique rules were not checked (migration debt:
-setup converges templates before the cargo tools are built, and there is no Python twin).
+`agent-kit-merge converge gold-band-workflows` runs the same check in process, with the
+`workflow-lint` library (its base rules and the critique rules, as `workflow-lint --critique`
+runs them): listed templates install with `warning: <id> breaks the critique rules ...
+installing it anyway`, any other violator refuses the run before anything is written.
 
 ## The generated critique block (#795)
 
@@ -537,7 +533,7 @@ own vitest file (`web/tests/workflow-entry-failure-targets.test.ts`).
   setup run rebuilds. `--check` prints the hash. After this lands, run once:
   `GOLD_BAND_FORCE=1 scripts/gold-band/build-linux.sh` (needs crates.io not
   rate-limited, #772).
-* `workflow-lint --shape` and `scripts/gold_band_shape.py` implement the patched rule.
+* `workflow-lint --shape` (and setup, through the same library) implements the patched rule.
 * Verification (needs Gold Band's source and `npm ci`, so not in CI): apply the
   patch to the pinned source, copy `scripts/gold-band/patches/templates-entry-rule.test.ts`
   to `web/tests/`, and run
@@ -549,8 +545,8 @@ own vitest file (`web/tests/workflow-entry-failure-targets.test.ts`).
 
 **Dropping it.** Upstream proposal: JorisJonkers-dev/agent-kit#787. When a Gold Band
 release carries the same rule, move the pin, delete the patch (and its test file), run
-`scripts/gold-band/build-linux.sh`, and check `gold_band_shape.py` and
-`shape.rs` against the new `deriveWorkflowEntryCandidateIds`. If the pin moves
+`scripts/gold-band/build-linux.sh`, and check `shape.rs` against the new
+`deriveWorkflowEntryCandidateIds`. If the pin moves
 without that, the build stops at the patch step: regenerate it against the new
 source (`git diff` of `deriveWorkflowEntryCandidateIds`) or drop it.
 

@@ -14,6 +14,7 @@ pub mod cli;
 pub mod converge;
 pub mod gold_band;
 pub mod gold_band_roles;
+pub mod gold_band_workflows;
 pub mod json;
 pub mod mcp_json;
 pub mod mcp_toml;
