@@ -144,7 +144,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"claude\"],\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"claude\"]}"
       ],
       "path": [
         "bin"
@@ -245,6 +245,26 @@
         "matrix",
         "--json",
         "{\"repo\":3}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache",
+        "TMPDIR": "@SANDBOX@/tmp",
+        "MISTRAL_API_KEY": "study-account-key",
+        "VIBE_HOME": "@SANDBOX@/home/.vibe-private"
+      },
+      "roots": [
+        "tmp",
+        "repo/.git/model-gateway"
+      ]
+    },
+    {
+      "argv": [
+        "matrix",
+        "--json",
+        "{\"roles\":[\"research\"],\"harnesses\":[\"codex\"]}"
       ],
       "path": [
         "bin"
