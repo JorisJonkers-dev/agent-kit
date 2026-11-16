@@ -107,7 +107,8 @@ def test_generated_setup_script_passes_the_window_on_every_uv_run_with() -> None
     data = yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text())
     script = render_registry.render_setup_script(data)
     calls = [line for line in script.splitlines() if "uv run" in line and "--with" in line]
-    assert len(calls) >= 10
+    # Fewer as setup moves to Rust (#802); a near-empty scan would mean the pattern stopped matching.
+    assert len(calls) >= 5
     assert [line for line in calls if not WINDOW_FLAG.search(line)] == []
 
 

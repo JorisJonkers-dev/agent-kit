@@ -77,6 +77,10 @@ def run_over_an_existing_config(tmp_path_factory: pytest.TempPathFactory) -> Run
                 "drawio": {"type": "local", "command": ["old-drawio"], "enabled": False},
             }},
         }))
+        # The owner's own server stays because the keep file names it; converge removes any other undeclared one.
+        keep = home / ".config" / "agent-kit" / "keep.yaml"
+        keep.parent.mkdir(parents=True, exist_ok=True)
+        keep.write_text("keep: [my-own-server]\n")
 
     return setup_run(tmp_path_factory.mktemp("opencode-existing"), "Darwin",
                      prepare_home=seed, stubs={"opencode": OPENCODE_V2})
