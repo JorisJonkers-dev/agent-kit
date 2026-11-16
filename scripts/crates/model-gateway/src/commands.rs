@@ -143,7 +143,8 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
         })
         .collect();
     let profiles = list_profiles(&config, &available, &decision.reason);
-    Ok(policy::models_result_json(&decision.reason, &permitted, &profiles, reading.warning.as_deref()))
+    let result = policy::models_result_json(&decision.reason, &permitted, &profiles, reading.warning.as_deref());
+    Ok(crate::model_facts::annotate(&config, reading.catalogue.as_ref(), result))
 }
 
 /// `models` takes the path of the repository the caller works in, when it has one.

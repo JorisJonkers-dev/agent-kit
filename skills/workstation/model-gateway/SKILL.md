@@ -99,6 +99,17 @@ catalogue does not know either is left out: it is named in `skipped` with the
 reason, so it never vanishes silently, and adding it to the catalogue in
 `defaults.json` or the machine override brings it back.
 
+Every listed model also carries `cost` and `providers`. `cost` is
+`{"class": <cost_class>, "input_per_mtok": n, "output_per_mtok": n}`: a free
+model says `0` explicitly, a model with a price in the defaults (or, for a Pi
+model, a price on the model one of its deployments serves) says it in dollars
+per million tokens, and a model nobody prices says `"unknown"` for each price,
+never a guess. `providers` lists each provider that serves the model in
+fallback order, as `{"provider", "upstream_id", "route"}`, where `route` is the
+LiteLLM route that reaches it: for a Pi model, the canonical group's
+deployments in the catalogue (empty when there is no catalogue or it does not
+list the group); for any other client, the one provider the client runs it on.
+
 A listing that fails, or a configuration that cannot be read, leaves that
 client out and names it in `missing` with the reason; the other clients are
 still listed. A Hermes configuration that names no model is such a failure. A
