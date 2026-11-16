@@ -479,11 +479,24 @@ fn a_removal_from_a_file_that_changed_under_it_is_refused() {
     // Between the read and the removal another writer emptied the file: nothing is there to remove from.
     let machine = Machine::new(&[], None);
     let mut fake = Fake::new(&machine.home);
-    for (kind, file, text) in [(super::Kind::OpenCode, ".config/opencode/opencode.json", "[]"), (super::Kind::Vibe, ".vibe/config.toml", "a = 1\n")] {
+    for (kind, file, text) in [(super::Kind::OpenCode, ".config/opencode/opencode.json", "[]"), (super::Kind::Vibe, ".vibe/config.toml", "a = 1\n"), (super::Kind::Vibe, ".vibe/config.toml", "mcp_servers = 1\n")] {
         let path = machine.home.join(file);
         fs::write(&path, text).expect("write");
         let surface = super::Surface::new("s", kind, &path);
         assert_eq!(surface.remove("x", &mut fake), Err(Failure(format!("{}: its MCP servers changed while they were converged", path.display()))));
     }
     assert_eq!((super::Kind::Plugin.name(), super::Kind::Marketplace.name()), ("plugin", "marketplace"));
+}
+
+#[test]
+fn a_vibe_home_with_an_inline_server_array_is_converged_too() {
+    let machine = Machine::new(&[], None);
+    let path = machine.home.join(".vibe/config.toml");
+    fs::write(&path, "a = 1\nmcp_servers = [{ name = \"stale\", command = \"x\" }, { name = \"memory-api\", command = \"y\" }]\n").expect("write");
+    let mut fake = Fake::new(&machine.home);
+    let (status, out, _) = machine.mcp(&mut fake, DECLARED, &[]);
+    assert_eq!(status, 0, "{out}");
+    assert!(out.contains("removed stale (vibe, undeclared)\n"), "{out}");
+    let doc: DocumentMut = fs::read_to_string(&path).expect("read").parse().expect("toml");
+    assert_eq!(super::vibe_entries(&doc), ["memory-api"]);
 }

@@ -1419,7 +1419,7 @@ converge_mcp() {
   [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ] && command -v opencode >/dev/null 2>&1 \
     && args+=(--opencode "${OPENCODE_HOME}/opencode.json")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
-  out=$(agent_kit_merge converge mcp \
+  out=$(agent_kit_merge_current converge mcp \
     "${args[@]}" \
     --declared claude=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
     --declared codex=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
@@ -1437,7 +1437,7 @@ converge_plugins() {
   local out rc=0 line
   local args=(--keep "${HOME}/.config/agent-kit/keep.yaml")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
-  out=$(agent_kit_merge converge plugins \
+  out=$(agent_kit_merge_current converge plugins \
     "${args[@]}" --declared-markets agent-kit-official,caveman,drawio,kubernetes-skill,ai-software-architect \
     --declared-plugins caveman@caveman,drawio@drawio,frontend-design@agent-kit-official,mattpocock-skills@agent-kit-official,security-guidance@agent-kit-official,kubernetes-skill@kubernetes-skill,github@agent-kit-official,ai-software-architect@ai-software-architect,typescript-lsp@agent-kit-official,pyright-lsp@agent-kit-official,kotlin-lsp@agent-kit-official,jdtls-lsp@agent-kit-official,ruby-lsp@agent-kit-official,gopls-lsp@agent-kit-official,rust-analyzer-lsp@agent-kit-official,lua-lsp@agent-kit-official,clangd-lsp@agent-kit-official,php-lsp@agent-kit-official,csharp-lsp@agent-kit-official,swift-lsp@agent-kit-official,liquid-lsp@agent-kit-official \
     --retired-markets hindsight \
@@ -1694,6 +1694,21 @@ agent_kit_merge() {
     bin="${target}/release/agent-kit-merge"
   fi
   "${bin}" "$@"
+}
+
+# The converge steps need a build at least as new as the kit: an agent-kit-merge installed by an
+# older run may lack `converge`. When cargo can build it, the kit's own build is used; a failed
+# build fails the step instead of passing for an absent tool.
+agent_kit_merge_current() {
+  local target="${CARGO_TARGET_DIR:-${KIT_ROOT}/scripts/target}"
+  if [ -z "${AGENT_KIT_MERGE:-}" ] && command -v cargo >/dev/null 2>&1; then
+    cargo build --release --locked --quiet -p agent-kit-merge \
+      --manifest-path "${KIT_ROOT}/scripts/Cargo.toml" </dev/null >&2 \
+      || { echo "agent-kit-merge did not build" >&2; return 1; }
+    AGENT_KIT_MERGE="${target}/release/agent-kit-merge" agent_kit_merge "$@"
+    return $?
+  fi
+  agent_kit_merge "$@"
 }
 
 if [ "${CLOUD}" = 1 ]; then

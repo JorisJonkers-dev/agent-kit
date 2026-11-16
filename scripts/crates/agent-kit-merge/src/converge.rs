@@ -159,10 +159,14 @@ impl Surface {
             return Ok(());
         }
         let mut doc = self.toml(&text)?;
-        let servers = doc.get_mut("mcp_servers").and_then(Item::as_array_of_tables_mut).ok_or_else(|| self.changed())?;
+        let item = doc.get_mut("mcp_servers").ok_or_else(|| self.changed())?;
+        let mut servers = servers_of(item).ok_or_else(|| self.changed())?;
         servers.retain(|server| server_name(server.get("name")) != name);
         if servers.is_empty() {
             doc.remove("mcp_servers");
+        } else {
+            // In place: an inline array is written back as `[[mcp_servers]]`, as tomlkit wrote it.
+            *item = Item::ArrayOfTables(servers);
         }
         fs::write(&self.path, doc.to_string())?;
         Ok(())
@@ -171,10 +175,15 @@ impl Surface {
 
 /// The `name` of each entry of a Vibe home's `[[mcp_servers]]`, as Python's `str()` prints it.
 fn vibe_entries(doc: &DocumentMut) -> Vec<String> {
-    match doc.get("mcp_servers") {
-        Some(Item::ArrayOfTables(servers)) => servers.iter().map(|server| server_name(server.get("name"))).collect(),
-        _ => Vec::new(),
+    match doc.get("mcp_servers").and_then(servers_of) {
+        Some(servers) => servers.iter().map(|server| server_name(server.get("name"))).collect(),
+        None => Vec::new(),
     }
+}
+
+/// A Vibe home's servers, whether written as `[[mcp_servers]]` or as an inline array of tables.
+fn servers_of(item: &Item) -> Option<toml_edit::ArrayOfTables> {
+    item.clone().into_array_of_tables().ok()
 }
 
 /// A server's `name`: its text, `None` when it has none (as Python's `str(None)`), else the value as written.

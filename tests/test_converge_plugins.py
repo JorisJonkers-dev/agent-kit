@@ -22,7 +22,7 @@ def _registry() -> dict:
 
 def test_setup_calls_the_rust_convergence() -> None:
     script = render_registry.render_setup_script(_registry())
-    assert "out=$(agent_kit_merge converge plugins " in script
+    assert "out=$(agent_kit_merge_current converge plugins " in script
     assert "converge.py\" plugins" not in script
 
 
