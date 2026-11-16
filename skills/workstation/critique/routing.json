@@ -234,14 +234,14 @@
           "role": "gap-critic",
           "lenses": ["unasked-questions"],
           "max_price_usd": 0.05,
-          "time_limit_s": 240
+          "time_limit_s": 1800
         },
         {
           "client": "pi-free-gemma",
           "role": "gap-critic",
           "lenses": ["unasked-questions", "failure-modes"],
           "max_price_usd": 0.05,
-          "time_limit_s": 240
+          "time_limit_s": 1800
         }
       ],
       "work": [
@@ -249,15 +249,15 @@
           "client": "codex-work",
           "role": "gap-critic",
           "lenses": ["unasked-questions", "failure-modes"],
-          "max_price_usd": 0.3,
-          "time_limit_s": 240
+          "max_price_usd": 0.9,
+          "time_limit_s": 360
         },
         {
           "client": "claude-work",
           "role": "gap-critic",
           "lenses": ["unasked-questions", "failure-modes"],
-          "max_price_usd": 0.3,
-          "time_limit_s": 240
+          "max_price_usd": 0.9,
+          "time_limit_s": 360
         }
       ],
       "base": [
@@ -265,15 +265,15 @@
           "client": "pi-vibe-mistral-large",
           "role": "gap-critic",
           "lenses": ["unasked-questions"],
-          "max_price_usd": 0.3,
-          "time_limit_s": 240
+          "max_price_usd": 0.9,
+          "time_limit_s": 360
         },
         {
           "client": "agy-gemini-flash-high",
           "role": "gap-critic",
           "lenses": ["unasked-questions", "failure-modes"],
-          "max_price_usd": 0.3,
-          "time_limit_s": 240
+          "max_price_usd": 0.9,
+          "time_limit_s": 360
         }
       ],
       "adr": [
@@ -281,8 +281,8 @@
           "client": "pi-vibe-deepseek-flash",
           "role": "adr-reviewer",
           "lenses": ["adr-record"],
-          "max_price_usd": 0.3,
-          "time_limit_s": 240
+          "max_price_usd": 0.9,
+          "time_limit_s": 360
         }
       ],
       "deep": [
@@ -290,8 +290,8 @@
           "client": "pi-vibe-glm",
           "role": "gap-critic",
           "lenses": ["integration"],
-          "max_price_usd": 0.3,
-          "time_limit_s": 240
+          "max_price_usd": 0.9,
+          "time_limit_s": 360
         }
       ],
       "depth_signals": {
@@ -322,14 +322,14 @@
           "role": "spec-redteam",
           "lenses": ["fidelity", "testability"],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         },
         {
           "client": "pi-free-gemma",
           "role": "spec-redteam",
           "lenses": ["failure-modes", "security"],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         }
       ],
       "work": [
@@ -337,15 +337,15 @@
           "client": "codex-work",
           "role": "spec-redteam",
           "lenses": ["fidelity", "testability", "failure-modes", "security"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "claude-work",
           "role": "spec-redteam",
           "lenses": ["fidelity", "testability", "failure-modes", "security"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "base": [
@@ -353,15 +353,15 @@
           "client": "pi-vibe-mistral-large",
           "role": "spec-redteam",
           "lenses": ["fidelity", "testability"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "agy-gemini-flash-high",
           "role": "spec-redteam",
           "lenses": ["failure-modes", "security"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "deep": [
@@ -369,15 +369,15 @@
           "client": "pi-vibe-glm",
           "role": "spec-redteam",
           "lenses": ["integration", "operability"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "pi-vibe-deepseek-flash",
           "role": "spec-redteam",
           "lenses": ["simplicity", "fidelity"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "depth_signals": {
@@ -409,7 +409,7 @@
           "role": "ticket-linter",
           "lenses": ["testability"],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         }
       ],
       "work": [
@@ -417,15 +417,15 @@
           "client": "codex-work",
           "role": "ticket-linter",
           "lenses": ["testability"],
-          "max_price_usd": 1,
-          "time_limit_s": 600
+          "max_price_usd": 3,
+          "time_limit_s": 900
         },
         {
           "client": "claude-work",
           "role": "ticket-linter",
           "lenses": ["testability"],
-          "max_price_usd": 1,
-          "time_limit_s": 600
+          "max_price_usd": 3,
+          "time_limit_s": 900
         }
       ],
       "base": [
@@ -433,8 +433,8 @@
           "client": "pi-vibe-deepseek-flash",
           "role": "ticket-linter",
           "lenses": ["testability"],
-          "max_price_usd": 1,
-          "time_limit_s": 600
+          "max_price_usd": 3,
+          "time_limit_s": 900
         }
       ],
       "deep": [
@@ -442,8 +442,8 @@
           "client": "pi-vibe-mistral-large",
           "role": "ticket-linter",
           "lenses": ["simplicity"],
-          "max_price_usd": 1,
-          "time_limit_s": 600
+          "max_price_usd": 3,
+          "time_limit_s": 900
         }
       ],
       "ticket_size": { "max_modules": 5, "max_criteria": 8 },
@@ -476,14 +476,14 @@
           "role": "diff-reviewer",
           "lenses": ["spec-conformance", "failure-modes", "security"],
           "max_price_usd": 0.05,
-          "time_limit_s": 480
+          "time_limit_s": 1800
         },
         {
           "client": "pi-free-gemma",
           "role": "diff-reviewer",
           "lenses": ["standards"],
           "max_price_usd": 0.05,
-          "time_limit_s": 480
+          "time_limit_s": 1800
         }
       ],
       "work": [
@@ -491,15 +491,15 @@
           "client": "codex-work",
           "role": "diff-reviewer",
           "lenses": ["spec-conformance", "standards", "failure-modes", "security"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 480
+          "max_price_usd": 1.5,
+          "time_limit_s": 720
         },
         {
           "client": "claude-work",
           "role": "diff-reviewer",
           "lenses": ["spec-conformance", "standards", "failure-modes", "security"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 480
+          "max_price_usd": 1.5,
+          "time_limit_s": 720
         }
       ],
       "base": [
@@ -507,15 +507,15 @@
           "client": "agy-gemini-flash-high",
           "role": "diff-reviewer",
           "lenses": ["spec-conformance", "failure-modes", "security"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 480
+          "max_price_usd": 1.5,
+          "time_limit_s": 720
         },
         {
           "client": "pi-vibe-glm",
           "role": "diff-reviewer",
           "lenses": ["standards"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 480
+          "max_price_usd": 1.5,
+          "time_limit_s": 720
         }
       ],
       "deep": [
@@ -523,8 +523,8 @@
           "client": "pi-vibe-mistral-large",
           "role": "diff-reviewer",
           "lenses": ["integration"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 480
+          "max_price_usd": 1.5,
+          "time_limit_s": 720
         }
       ],
       "depth_signals": {
@@ -540,14 +540,14 @@
           "role": "feature-reviewer",
           "lenses": ["integration"],
           "max_price_usd": 0.05,
-          "time_limit_s": 720
+          "time_limit_s": 1800
         },
         {
           "client": "pi-free-gemma",
           "role": "feature-reviewer",
           "lenses": ["failure-modes"],
           "max_price_usd": 0.05,
-          "time_limit_s": 720
+          "time_limit_s": 1800
         }
       ],
       "work": [
@@ -555,15 +555,15 @@
           "client": "codex-work",
           "role": "feature-reviewer",
           "lenses": ["integration", "failure-modes"],
-          "max_price_usd": 1,
-          "time_limit_s": 720
+          "max_price_usd": 3,
+          "time_limit_s": 1080
         },
         {
           "client": "claude-work",
           "role": "feature-reviewer",
           "lenses": ["integration", "failure-modes"],
-          "max_price_usd": 1,
-          "time_limit_s": 720
+          "max_price_usd": 3,
+          "time_limit_s": 1080
         }
       ],
       "base": [
@@ -571,15 +571,15 @@
           "client": "pi-vibe-mistral-large",
           "role": "feature-reviewer",
           "lenses": ["integration"],
-          "max_price_usd": 1,
-          "time_limit_s": 720
+          "max_price_usd": 3,
+          "time_limit_s": 1080
         },
         {
           "client": "agy-gemini-flash-high",
           "role": "feature-reviewer",
           "lenses": ["failure-modes"],
-          "max_price_usd": 1,
-          "time_limit_s": 720
+          "max_price_usd": 3,
+          "time_limit_s": 1080
         }
       ],
       "deep": [
@@ -587,15 +587,15 @@
           "client": "pi-vibe-glm",
           "role": "feature-reviewer",
           "lenses": ["operability"],
-          "max_price_usd": 1,
-          "time_limit_s": 720
+          "max_price_usd": 3,
+          "time_limit_s": 1080
         },
         {
           "client": "pi-vibe-deepseek-flash",
           "role": "feature-reviewer",
           "lenses": ["simplicity"],
-          "max_price_usd": 1,
-          "time_limit_s": 720
+          "max_price_usd": 3,
+          "time_limit_s": 1080
         }
       ],
       "depth_signals": {
@@ -610,14 +610,14 @@
           "role": "plan-critic",
           "lenses": ["incremental-safety"],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         },
         {
           "client": "pi-free-gemma",
           "role": "plan-critic",
           "lenses": ["evidence-anchoring"],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         }
       ],
       "work": [
@@ -627,8 +627,8 @@
           "lenses": [
             "incremental-safety"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "claude-work",
@@ -636,8 +636,8 @@
           "lenses": [
             "evidence-anchoring"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "base": [
@@ -647,8 +647,8 @@
           "lenses": [
             "incremental-safety"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "pi-vibe-mistral-large",
@@ -656,8 +656,8 @@
           "lenses": [
             "evidence-anchoring"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "deep": [
@@ -668,8 +668,8 @@
             "coupling",
             "test-seams"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "depth_signals": {
@@ -703,14 +703,14 @@
           "role": "architecture-critic",
           "lenses": ["dependency-direction", "coupling"],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         },
         {
           "client": "pi-free-gemma",
           "role": "architecture-critic",
           "lenses": ["domain-language", "aggregates"],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         }
       ],
       "work": [
@@ -723,8 +723,8 @@
             "domain-language",
             "aggregates"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "claude-work",
@@ -733,8 +733,8 @@
             "test-seams",
             "quality-scenarios"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "base": [
@@ -745,8 +745,8 @@
             "dependency-direction",
             "coupling"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "pi-vibe-mistral-large",
@@ -755,8 +755,8 @@
             "domain-language",
             "aggregates"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "deep": [
@@ -767,15 +767,15 @@
             "test-seams",
             "quality-scenarios"
           ],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "pi-vibe-deepseek-flash",
           "role": "decision-recoverer",
           "lenses": [],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "depth_signals": {
@@ -793,14 +793,14 @@
           "role": "decision-recoverer",
           "lenses": [],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         },
         {
           "client": "pi-free-gemma",
           "role": "decision-recoverer",
           "lenses": [],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         }
       ],
       "work": [
@@ -808,15 +808,15 @@
           "client": "codex-work",
           "role": "decision-recoverer",
           "lenses": [],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "claude-work",
           "role": "decision-recoverer",
           "lenses": [],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "base": [
@@ -824,15 +824,15 @@
           "client": "pi-vibe-deepseek-flash",
           "role": "decision-recoverer",
           "lenses": [],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "pi-vibe-mistral-large",
           "role": "decision-recoverer",
           "lenses": [],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "depth_signals": {
@@ -847,14 +847,14 @@
           "role": "adr-reviewer",
           "lenses": ["adr-record"],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         },
         {
           "client": "pi-free-gemma",
           "role": "adr-reviewer",
           "lenses": ["decision-log"],
           "max_price_usd": 0.05,
-          "time_limit_s": 600
+          "time_limit_s": 1800
         }
       ],
       "work": [
@@ -862,15 +862,15 @@
           "client": "codex-work",
           "role": "spec-redteam",
           "lenses": ["fidelity", "integration"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "claude-work",
           "role": "spec-redteam",
           "lenses": ["fidelity", "integration"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "base": [
@@ -878,15 +878,15 @@
           "client": "pi-vibe-mistral-large",
           "role": "adr-reviewer",
           "lenses": ["adr-record"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         },
         {
           "client": "agy-gemini-flash-high",
           "role": "adr-reviewer",
           "lenses": ["decision-log"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "deep": [
@@ -894,8 +894,8 @@
           "client": "pi-vibe-glm",
           "role": "adr-reviewer",
           "lenses": ["adr-record", "decision-log"],
-          "max_price_usd": 0.5,
-          "time_limit_s": 600
+          "max_price_usd": 1.5,
+          "time_limit_s": 900
         }
       ],
       "depth_signals": {

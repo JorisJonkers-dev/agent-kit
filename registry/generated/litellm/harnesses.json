@@ -10,125 +10,158 @@
       "models": [
         {
           "id": "codestral",
-          "contextWindow": 256000
+          "contextWindow": 256000,
+          "maxTokens": 32768
         },
         {
           "id": "deepseek-v4.1-flash",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5.2",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5.3",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5.3-flash",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
-          "id": "gpt-6-luna"
+          "id": "gpt-6-luna",
+          "maxTokens": 32768
         },
         {
-          "id": "hy3"
+          "id": "hy3",
+          "maxTokens": 32768
         },
         {
-          "id": "hy4-preview"
+          "id": "hy4-preview",
+          "maxTokens": 32768
         },
         {
-          "id": "kimi-k2.7-code"
+          "id": "kimi-k2.7-code",
+          "maxTokens": 32768
         },
         {
-          "id": "longcat-2.0"
+          "id": "longcat-2.0",
+          "maxTokens": 32768
         },
         {
           "id": "magistral-medium",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "magistral-small",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
-          "id": "mimo-v2.6-flash"
+          "id": "mimo-v2.6-flash",
+          "maxTokens": 32768
         },
         {
-          "id": "mimo-v2.6-pro"
+          "id": "mimo-v2.6-pro",
+          "maxTokens": 32768
         },
         {
-          "id": "minimax-m3.1-flash"
+          "id": "minimax-m3.1-flash",
+          "maxTokens": 32768
         },
         {
           "id": "ministral-14b",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "ministral-3b",
-          "contextWindow": 131072
+          "contextWindow": 131072,
+          "maxTokens": 32768
         },
         {
           "id": "ministral-8b",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-code",
-          "contextWindow": 256000
+          "contextWindow": 256000,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-code-fim",
-          "contextWindow": 256000
+          "contextWindow": 256000,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-large",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-large-4",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-large-4-0",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-medium",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-medium-3",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-medium-3.5",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-small",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-vibe-cli",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-vibe-cli-fast",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-vibe-cli-with-tools",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
-          "id": "qwen3.8-flash"
+          "id": "qwen3.8-flash",
+          "maxTokens": 32768
         },
         {
           "id": "qwen3:32b",
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -137,15 +170,18 @@
           }
         },
         {
-          "id": "step-5-preview"
+          "id": "step-5-preview",
+          "maxTokens": 32768
         },
         {
           "id": "voxtral-small",
-          "contextWindow": 32768
+          "contextWindow": 32768,
+          "maxTokens": 16384
         },
         {
           "id": "zai-glm",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         }
       ]
     },
@@ -157,125 +193,158 @@
       "models": [
         {
           "id": "codestral",
-          "contextWindow": 256000
+          "contextWindow": 256000,
+          "maxTokens": 32768
         },
         {
           "id": "deepseek-v4.1-flash",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5.2",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5.3",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5.3-flash",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
-          "id": "gpt-6-luna"
+          "id": "gpt-6-luna",
+          "maxTokens": 32768
         },
         {
-          "id": "hy3"
+          "id": "hy3",
+          "maxTokens": 32768
         },
         {
-          "id": "hy4-preview"
+          "id": "hy4-preview",
+          "maxTokens": 32768
         },
         {
-          "id": "kimi-k2.7-code"
+          "id": "kimi-k2.7-code",
+          "maxTokens": 32768
         },
         {
-          "id": "longcat-2.0"
+          "id": "longcat-2.0",
+          "maxTokens": 32768
         },
         {
           "id": "magistral-medium",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "magistral-small",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
-          "id": "mimo-v2.6-flash"
+          "id": "mimo-v2.6-flash",
+          "maxTokens": 32768
         },
         {
-          "id": "mimo-v2.6-pro"
+          "id": "mimo-v2.6-pro",
+          "maxTokens": 32768
         },
         {
-          "id": "minimax-m3.1-flash"
+          "id": "minimax-m3.1-flash",
+          "maxTokens": 32768
         },
         {
           "id": "ministral-14b",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "ministral-3b",
-          "contextWindow": 131072
+          "contextWindow": 131072,
+          "maxTokens": 32768
         },
         {
           "id": "ministral-8b",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-code",
-          "contextWindow": 256000
+          "contextWindow": 256000,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-code-fim",
-          "contextWindow": 256000
+          "contextWindow": 256000,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-large",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-large-4",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-large-4-0",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-medium",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-medium-3",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-medium-3.5",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-small",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-vibe-cli",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-vibe-cli-fast",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-vibe-cli-with-tools",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
-          "id": "qwen3.8-flash"
+          "id": "qwen3.8-flash",
+          "maxTokens": 32768
         },
         {
           "id": "qwen3:32b",
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -284,15 +353,18 @@
           }
         },
         {
-          "id": "step-5-preview"
+          "id": "step-5-preview",
+          "maxTokens": 32768
         },
         {
           "id": "voxtral-small",
-          "contextWindow": 32768
+          "contextWindow": 32768,
+          "maxTokens": 16384
         },
         {
           "id": "zai-glm",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         }
       ]
     },
@@ -304,125 +376,158 @@
       "models": [
         {
           "id": "codestral",
-          "contextWindow": 256000
+          "contextWindow": 256000,
+          "maxTokens": 32768
         },
         {
           "id": "deepseek-v4.1-flash",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5.2",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5.3",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "glm-5.3-flash",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
-          "id": "gpt-6-luna"
+          "id": "gpt-6-luna",
+          "maxTokens": 32768
         },
         {
-          "id": "hy3"
+          "id": "hy3",
+          "maxTokens": 32768
         },
         {
-          "id": "hy4-preview"
+          "id": "hy4-preview",
+          "maxTokens": 32768
         },
         {
-          "id": "kimi-k2.7-code"
+          "id": "kimi-k2.7-code",
+          "maxTokens": 32768
         },
         {
-          "id": "longcat-2.0"
+          "id": "longcat-2.0",
+          "maxTokens": 32768
         },
         {
           "id": "magistral-medium",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "magistral-small",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
-          "id": "mimo-v2.6-flash"
+          "id": "mimo-v2.6-flash",
+          "maxTokens": 32768
         },
         {
-          "id": "mimo-v2.6-pro"
+          "id": "mimo-v2.6-pro",
+          "maxTokens": 32768
         },
         {
-          "id": "minimax-m3.1-flash"
+          "id": "minimax-m3.1-flash",
+          "maxTokens": 32768
         },
         {
           "id": "ministral-14b",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "ministral-3b",
-          "contextWindow": 131072
+          "contextWindow": 131072,
+          "maxTokens": 32768
         },
         {
           "id": "ministral-8b",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-code",
-          "contextWindow": 256000
+          "contextWindow": 256000,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-code-fim",
-          "contextWindow": 256000
+          "contextWindow": 256000,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-large",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-large-4",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-large-4-0",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-medium",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-medium-3",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-medium-3.5",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-small",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-vibe-cli",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-vibe-cli-fast",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
           "id": "mistral-vibe-cli-with-tools",
-          "contextWindow": 262144
+          "contextWindow": 262144,
+          "maxTokens": 32768
         },
         {
-          "id": "qwen3.8-flash"
+          "id": "qwen3.8-flash",
+          "maxTokens": 32768
         },
         {
           "id": "qwen3:32b",
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -431,15 +536,18 @@
           }
         },
         {
-          "id": "step-5-preview"
+          "id": "step-5-preview",
+          "maxTokens": 32768
         },
         {
           "id": "voxtral-small",
-          "contextWindow": 32768
+          "contextWindow": 32768,
+          "maxTokens": 16384
         },
         {
           "id": "zai-glm",
-          "contextWindow": 1048576
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         }
       ]
     },
@@ -451,6 +559,7 @@
       "models": [
         {
           "id": "opencode-go-free/beam-1.0-501b-a23b",
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -461,6 +570,7 @@
         {
           "id": "openrouter/dots-3-note-preview",
           "contextWindow": 512000,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -471,6 +581,7 @@
         {
           "id": "openrouter/ernie-5.5-flash-preview",
           "contextWindow": 1024000,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -481,6 +592,7 @@
         {
           "id": "openrouter/flint-v1.0",
           "contextWindow": 262144,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -491,6 +603,7 @@
         {
           "id": "openrouter/free",
           "contextWindow": 200000,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -501,6 +614,7 @@
         {
           "id": "openrouter/gemma-4-26b-a4b-it",
           "contextWindow": 262144,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -511,6 +625,7 @@
         {
           "id": "openrouter/lfm-3-1.7b",
           "contextWindow": 262144,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -521,6 +636,7 @@
         {
           "id": "openrouter/ling-3.2-flash",
           "contextWindow": 1048576,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -531,6 +647,7 @@
         {
           "id": "openrouter/lyria-3-pro-preview",
           "contextWindow": 1048576,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -541,6 +658,7 @@
         {
           "id": "openrouter/nemotron-3-nano-omni-30b-a3b-reasoning",
           "contextWindow": 256000,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -551,6 +669,7 @@
         {
           "id": "openrouter/nemotron-3-ultra-550b-a55b",
           "contextWindow": 1000000,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -561,6 +680,7 @@
         {
           "id": "openrouter/nemotron-3.5-lightning",
           "contextWindow": 1000000,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -571,6 +691,7 @@
         {
           "id": "openrouter/nemotron-3.5-super-vl",
           "contextWindow": 1000000,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -581,6 +702,7 @@
         {
           "id": "openrouter/north-mini-code",
           "contextWindow": 256000,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -591,6 +713,7 @@
         {
           "id": "openrouter/particle-1",
           "contextWindow": 1048576,
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -608,6 +731,7 @@
       "models": [
         {
           "id": "qwen3:32b",
+          "maxTokens": 32768,
           "cost": {
             "input": 0,
             "output": 0,
@@ -624,40 +748,52 @@
       "data_scope": "public",
       "models": [
         {
-          "id": "public/gemini-3-flash-preview"
+          "id": "public/gemini-3-flash-preview",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemini-3.1-flash-lite"
+          "id": "public/gemini-3.1-flash-lite",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemini-3.1-flash-lite-preview"
+          "id": "public/gemini-3.1-flash-lite-preview",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemini-3.5-flash"
+          "id": "public/gemini-3.5-flash",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemini-3.5-flash-lite"
+          "id": "public/gemini-3.5-flash-lite",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemini-3.5-transcribe"
+          "id": "public/gemini-3.5-transcribe",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemini-3.6-flash"
+          "id": "public/gemini-3.6-flash",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemini-4-hydrogen"
+          "id": "public/gemini-4-hydrogen",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemini-flash-lite"
+          "id": "public/gemini-flash-lite",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemini-robotics-er-2-preview"
+          "id": "public/gemini-robotics-er-2-preview",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemma-4-26b-a4b-it"
+          "id": "public/gemma-4-26b-a4b-it",
+          "maxTokens": 32768
         },
         {
-          "id": "public/gemma-4-31b-it"
+          "id": "public/gemma-4-31b-it",
+          "maxTokens": 32768
         }
       ]
     },

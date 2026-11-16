@@ -51,7 +51,7 @@ profiles:
       - pi-vibe:mistral-small
       - pi-vibe:glm-5.3-flash
       - pi-opencode-go:qwen3.8-flash
-    max_spend_usd: 0.5
+    max_spend_usd: 1.5
 
   cross-critic:
     description: >-
@@ -65,7 +65,7 @@ profiles:
       - pi-opencode-go:qwen3.8-flash
     distinct_families: 2
     exclude_writer_family: true
-    max_spend_usd: 1.0
+    max_spend_usd: 3
 
   public-gemini:
     description: >-
@@ -75,7 +75,7 @@ profiles:
     models:
       - pi-public:public/gemini-3.5-flash-lite
       - pi-public:public/gemini-3.6-flash
-    max_spend_usd: 0.25
+    max_spend_usd: 0.75
 
   implement-cheap:
     description: >-
@@ -91,7 +91,7 @@ profiles:
       - pi-vibe:glm-5.3-flash
       - pi-vibe:mistral-large-4
       - pi-vibe:glm-5.3
-    max_spend_usd: 2.0
+    max_spend_usd: 6
 
 # The delegation roles (#855). Each is a profile, so `model-gateway run --profile
 # <role>` holds a run to the role's models, deny-all tool scope (no MCP server, no
@@ -122,8 +122,13 @@ profiles:
       - vibe:mistral-small-latest
       - claude:claude-haiku-5-5
       - codex:gpt-5.5
+      - pi-opencode-go:deepseek-v4.1-flash
+      - pi-opencode-go:glm-5.3-flash
+      - pi-opencode-go:mimo-v2.6-flash
+      - pi-opencode-go:minimax-m3.1-flash
+      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
     unenforced_clients: [agy, vibe, claude, codex, hermes]
-    max_spend_usd: 0.5
+    max_spend_usd: 1.5
 
   implement:
     description: >-
@@ -140,13 +145,16 @@ profiles:
       - agy:gemini-3.8-flash-high
       - claude:claude-sonnet-5-5
       - codex:gpt-5.5
+      - pi-opencode-go:deepseek-v4.1-flash
+      - pi-opencode-go:glm-5.3-flash
+      - pi-opencode-go:mimo-v2.6-flash
     ladder:
       - pi-vibe:deepseek-v4.1-flash
       - pi-vibe:glm-5.3-flash
       - pi-vibe:mistral-large-4
       - pi-vibe:glm-5.3
     unenforced_clients: [vibe, agy, claude, codex, hermes]
-    max_spend_usd: 2.0
+    max_spend_usd: 6
 
   critique:
     description: >-
@@ -162,10 +170,15 @@ profiles:
       - agy:gemini-3.8-flash-high
       - claude:claude-sonnet-5-5
       - codex:gpt-5.5
+      - pi-opencode-go:deepseek-v4.1-flash
+      - pi-opencode-go:glm-5.3-flash
+      - pi-opencode-go:mimo-v2.6-flash
+      - pi-opencode-go:minimax-m3.1-flash
+      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
     distinct_families: 2
     exclude_writer_family: true
     unenforced_clients: [vibe, agy, claude, codex, hermes]
-    max_spend_usd: 1.0
+    max_spend_usd: 3
 
   red-team:
     description: >-
@@ -185,10 +198,15 @@ profiles:
       - agy:gemini-3.8-flash-high
       - claude:claude-sonnet-5-5
       - codex:gpt-5.5
+      - pi-opencode-go:deepseek-v4.1-flash
+      - pi-opencode-go:glm-5.3-flash
+      - pi-opencode-go:mimo-v2.6-flash
+      - pi-opencode-go:minimax-m3.1-flash
+      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
     distinct_families: 2
     exclude_writer_family: true
     unenforced_clients: [vibe, agy, claude, codex, hermes]
-    max_spend_usd: 1.5
+    max_spend_usd: 4.5
 
   refute:
     description: >-
@@ -204,10 +222,14 @@ profiles:
       - agy:gemini-3.8-flash-medium
       - claude:claude-haiku-5-5
       - codex:gpt-5.5
+      - pi-opencode-go:deepseek-v4.1-flash
+      - pi-opencode-go:glm-5.3-flash
+      - pi-opencode-go:mimo-v2.6-flash
+      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
     distinct_families: 2
     exclude_writer_family: true
     unenforced_clients: [vibe, agy, claude, codex, hermes]
-    max_spend_usd: 0.5
+    max_spend_usd: 1.5
 
   triage:
     description: >-
@@ -224,5 +246,8 @@ profiles:
       - agy:gemini-3.8-flash-low
       - claude:claude-haiku-5-5
       - codex:gpt-5.5
+      - pi-opencode-go:mimo-v2.6-flash
+      - pi-opencode-go:minimax-m3.1-flash
+      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
     unenforced_clients: [vibe, agy, claude, codex, hermes]
-    max_spend_usd: 0.25
+    max_spend_usd: 0.75
