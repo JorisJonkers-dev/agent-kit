@@ -31,21 +31,26 @@ prerequisite and not a bug) or `fail` (it should work and does not). Blocked cel
 The same file, `docs/model-gateway/harness-matrix.json`, is what the proof judges against; a Rust test keeps
 the table above equal to it. The table is what the cells are expected to do, not a record of the last run.
 
-### Last live run (2026-11-16, the `research` row only)
+### Last live run (2026-11-16, Pi cells, every role)
 
-| harness | result | model | latency | cost |
-|---|---|---|---|---|
-| claude | pass | claude-haiku-5-5 | 11 s | $0.006 |
-| agy | pass | gemini-3.8-flash-low | 14 s | $0 |
-| vibe | pass | mistral-small-latest | 7 s | $0.001 |
-| hermes | blocked | none | 2 s | $0 |
-| pi | **fail** | pi-vibe:ministral-8b | 4 s | $0 |
-| pi-opencode-go | **fail** | pi-opencode-go:qwen3.8-flash | 4 s | $0 |
+All twelve `pi` and `pi-opencode-go` cells pass live (`model-gateway matrix --json '{"live": true,
+"harnesses": ["pi", "pi-opencode-go"]}'`), each in 4 to 9 s at $0:
 
-The two Pi cells fail on this machine today, with or without a profile: the launched Pi exits 1 with `Unknown
-provider "litellm-vibe"` (and an `EACCES` on `~/.pi/agent/settings.json.lock`), so it is not reading the per-run
-home the gateway built. That is a defect of the Pi launch, not of the matrix, and the baseline keeps expecting
-a pass so the live proof stays red until it is fixed. The other roles and the codex cells were not run live.
+| harness | roles | models used |
+|---|---|---|
+| pi | all six pass | pi-vibe:ministral-8b, deepseek-v4.1-flash, glm-5.3 |
+| pi-opencode-go | all six pass | pi-opencode-go:qwen3.8-flash, kimi-k2.7-code |
+
+The `research` row for claude, agy and vibe passed earlier the same day; hermes stays blocked. The codex cells
+and the non-Pi harnesses of the other roles were not re-run.
+
+### What broke Pi (#870), and why it stays fixed
+
+`agent-launcher confine` clears the environment down to its own short list, plus each variable the caller names
+with `--env`. The gateway set `PI_CODING_AGENT_DIR` and `TMPDIR` on the launcher process but never named them,
+so Pi did not receive them, fell back to the real `~/.pi/agent` (no `litellm-*` provider there, hence
+`Unknown provider`) and tried to take `settings.json.lock` in a directory the confinement keeps read-only
+(`EACCES`). The launch now passes `--env PI_CODING_AGENT_DIR --env TMPDIR`, and a test fails if either is missing.
 
 ## Running it
 

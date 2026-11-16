@@ -299,6 +299,27 @@ fn a_bare_pi_command_is_what_the_builder_gives_when_nothing_confines_it_and_the_
     assert_eq!(confined.env.get("PATH").map(String::as_str), Some("/b"));
 }
 
+/// Regression for #870: the launcher clears the environment to its own list, so a launch that does not name
+/// `PI_CODING_AGENT_DIR` and `TMPDIR` with `--env` runs Pi on the real `~/.pi/agent` (no per-run provider, and
+/// a lock it cannot take).
+#[test]
+fn a_confined_pi_launch_names_the_variables_that_point_it_at_its_own_agent_directory() {
+    let files = disk("literal");
+    let mut programs = Programs::new(Err("never asked".into()));
+    programs.launched = result("", "", 0, false);
+    (ClientRun { process: &programs, files: &files, env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::ReadOnly)).expect("launched");
+    let command = programs.ran.lock().expect("ran")[0].clone();
+    let before_pi: Vec<&str> = command.args.iter().map(String::as_str).take_while(|arg| *arg != "--").collect();
+    let named: Vec<&str> = before_pi.windows(2).filter(|pair| pair[0] == "--env").map(|pair| pair[1]).collect();
+    assert_eq!(named, ["PI_CODING_AGENT_DIR", "TMPDIR"]);
+    assert_eq!(command.env.get("PI_CODING_AGENT_DIR").map(String::as_str), Some("/run/export/pi-agent"));
+    assert_eq!(command.env.get("TMPDIR").map(String::as_str), Some("/run/export/pi-agent"));
+    // The per-run directory is the only Pi directory the launch may write; the real home's is never granted.
+    let writes: Vec<&str> = before_pi.windows(2).filter(|pair| pair[0] == "--write").map(|pair| pair[1]).collect();
+    assert!(writes.contains(&"/run/export/pi-agent"));
+    assert!(writes.iter().all(|dir| !dir.contains(".pi")), "{writes:?}");
+}
+
 fn a_route_without_a_provider(text: &str) -> String {
     match parse_pi_listing(text, "litellm-local", "/m.json") {
         ClientListing::Reason(reason) => reason,
