@@ -33,6 +33,15 @@ impl Object {
         }
     }
 
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
+        self.members.iter_mut().find(|(name, _)| name == key).map(|(_, value)| value)
+    }
+
+    /// Removes a member, as `dict.pop(key, None)` does.
+    pub fn remove(&mut self, key: &str) {
+        self.members.retain(|(name, _)| name != key);
+    }
+
     pub fn contains(&self, key: &str) -> bool {
         self.get(key).is_some()
     }
@@ -60,6 +69,13 @@ impl Value {
     }
 
     pub fn as_object(&self) -> Option<&Object> {
+        match self {
+            Value::Obj(object) => Some(object),
+            _ => None,
+        }
+    }
+
+    pub fn as_object_mut(&mut self) -> Option<&mut Object> {
         match self {
             Value::Obj(object) => Some(object),
             _ => None,

@@ -24,7 +24,6 @@ import render_registry  # noqa: E402
 from setup_harness import Run, setup_run  # noqa: E402
 
 PLUGIN_SKILLS = KIT_ROOT / "scripts" / "opencode-plugin-skills.py"
-CONVERGE = KIT_ROOT / "scripts" / "converge.py"
 FRAGMENT = KIT_ROOT / "registry" / "generated" / "opencode" / "opencode.json"
 OPENCODE_V2 = 'echo "opencode $*" >> "$(dirname "$0")/../calls.log"\n[ "$1" = --version ] && echo "opencode v2.2.5"'
 
@@ -78,6 +77,10 @@ def run_over_an_existing_config(tmp_path_factory: pytest.TempPathFactory) -> Run
                 "drawio": {"type": "local", "command": ["old-drawio"], "enabled": False},
             }},
         }))
+        # The owner's own server stays because the keep file names it; converge removes any other undeclared one.
+        keep = home / ".config" / "agent-kit" / "keep.yaml"
+        keep.parent.mkdir(parents=True, exist_ok=True)
+        keep.write_text("keep: [my-own-server]\n")
 
     return setup_run(tmp_path_factory.mktemp("opencode-existing"), "Darwin",
                      prepare_home=seed, stubs={"opencode": OPENCODE_V2})
@@ -363,59 +366,6 @@ def test_a_failing_claude_changes_nothing_and_says_so(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert "claude plugin list failed" in result.stderr
     assert not (tmp_path / "skills").exists()
-
-
-# ---------------------------------------------------------------------------
-# Convergence: undeclared servers leave, the keep file spares them
-# ---------------------------------------------------------------------------
-
-
-def _converge(tmp_path: Path, servers: list[str], keep: list[str], *extra: str) -> tuple[Path, str]:
-    config = tmp_path / "opencode.json"
-    config.write_text(json.dumps({"mcp": {"servers": {s: {"type": "remote", "url": "https://x"} for s in servers}}}))
-    keep_file = tmp_path / "keep.yaml"
-    keep_file.write_text(yaml.safe_dump({"keep": keep}))
-    declared = ",".join(render_registry.declared_servers(_registry(), "opencode"))
-    result = subprocess.run(
-        [sys.executable, str(CONVERGE), "mcp", "--keep", str(keep_file), "--claude-home", str(tmp_path),
-         "--opencode", str(config), "--declared", f"opencode={declared}",
-         "--retired", ",".join(render_registry.retired_servers(_registry())), "--private", "memory-private", *extra],
-        capture_output=True, text=True, check=False,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-    return config, result.stdout
-
-
-def test_converge_removes_undeclared_retired_and_private_servers(tmp_path: Path) -> None:
-    config, out = _converge(tmp_path, ["memory-api", "pycharm", "vuetify", "memory-private", "context7"], ["context7"])
-    assert set(_servers(json.loads(config.read_text()))) == {"memory-api", "context7"}
-    assert "removed pycharm (opencode, undeclared)" in out
-    assert "removed memory-private (opencode, private)" in out
-
-
-def test_converge_check_changes_nothing(tmp_path: Path) -> None:
-    config, out = _converge(tmp_path, ["memory-api", "pycharm"], [], "--check")
-    assert set(_servers(json.loads(config.read_text()))) == {"memory-api", "pycharm"}
-    assert "would remove pycharm (opencode, undeclared)" in out
-
-
-def test_a_commented_opencode_json_does_not_stop_the_other_surfaces(tmp_path: Path) -> None:
-    """The file is left as it is and reported; Vibe still loses its undeclared server."""
-    config = tmp_path / "opencode.json"
-    commented = '{\n  // mine\n  "mcp": {"servers": {"pycharm": {"type": "remote", "url": "https://x"}}}\n}\n'
-    config.write_text(commented)
-    vibe = tmp_path / "config.toml"
-    vibe.write_text('[[mcp_servers]]\nname = "pycharm"\ntransport = "stdio"\ncommand = "x"\n')
-    result = subprocess.run(
-        [sys.executable, str(CONVERGE), "mcp", "--keep", str(tmp_path / "keep.yaml"), "--claude-home", str(tmp_path),
-         "--opencode", str(config), "--vibe", str(vibe), "--declared", "opencode=memory-api",
-         "--declared", "vibe=memory-api", "--retired", "", "--private", ""],
-        capture_output=True, text=True, check=False,
-    )
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert "is not plain JSON; opencode not converged" in result.stdout
-    assert "removed pycharm (vibe, undeclared)" in result.stdout
-    assert config.read_text() == commented
 
 
 def test_opencode_declares_no_hindsight_server() -> None:

@@ -1721,6 +1721,21 @@ _AGENT_KIT_MERGE_FN = (
     "  fi",
     '  "${bin}" "$@"',
     "}",
+    "",
+    "# The converge steps need a build at least as new as the kit: an agent-kit-merge installed by an",
+    "# older run may lack `converge`. When cargo can build it, the kit's own build is used; a failed",
+    "# build fails the step instead of passing for an absent tool.",
+    "agent_kit_merge_current() {",
+    '  local target="${CARGO_TARGET_DIR:-${KIT_ROOT}/scripts/target}"',
+    '  if [ -z "${AGENT_KIT_MERGE:-}" ] && command -v cargo >/dev/null 2>&1; then',
+    '    cargo build --release --locked --quiet -p agent-kit-merge \\',
+    '      --manifest-path "${KIT_ROOT}/scripts/Cargo.toml" </dev/null >&2 \\',
+    '      || { echo "agent-kit-merge did not build" >&2; return 1; }',
+    '    AGENT_KIT_MERGE="${target}/release/agent-kit-merge" agent_kit_merge "$@"',
+    "    return $?",
+    "  fi",
+    '  agent_kit_merge "$@"',
+    "}",
 )
 
 # The no-agent-attribution rule, one marked block in each agent's global
@@ -2039,17 +2054,13 @@ def _converge_plugins(data: dict[str, Any], w: Any) -> None:
     w("  local out rc=0 line")
     w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
-    w("  if ! command -v uv >/dev/null 2>&1; then")
-    w('    warn "uv is not on PATH; plugins not converged"')
-    w("    return 0")
-    w("  fi")
-    w('  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
-        '"${KIT_ROOT}/scripts/converge.py" plugins \\')
+    w('  out=$(agent_kit_merge_current converge plugins \\')
     w(f'    "${{args[@]}}" --declared-markets {markets} \\')
     w(f"    --declared-plugins {','.join(declared_plugins(data))} \\")
     w(f"    --retired-markets {','.join(str(r['marketplace']) for r in retired)} \\")
     w(f"    --retired-plugins {','.join(str(r['ref']) for r in retired)} 2>&1) || rc=$?")
     w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  if [ "${rc}" = 127 ]; then warn "agent-kit-merge is not available; plugins not converged"; return 0; fi')
     w('  [ "${rc}" = 0 ] || fail "plugins did not converge (see above)"')
     w("}")
     w("")
@@ -2069,18 +2080,14 @@ def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w('  [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ] && command -v opencode >/dev/null 2>&1 \\')
     w('    && args+=(--opencode "${OPENCODE_HOME}/opencode.json")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
-    w("  if ! command -v uv >/dev/null 2>&1; then")
-    w('    warn "uv is not on PATH; MCP servers not converged"')
-    w("    return 0")
-    w("  fi")
-    w('  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python '
-        '"${KIT_ROOT}/scripts/converge.py" mcp \\')
+    w('  out=$(agent_kit_merge_current converge mcp \\')
     w('    "${args[@]}" \\')
     for surface in ("claude", "codex", "vibe", "vibe-private", "opencode"):
         w(f"    --declared {surface}={','.join(declared_servers(data, surface))} \\")
     private = ",".join(str(s["name"]) for s in _entries(data, "mcp_servers") if session_only(s))
     w(f'    --retired {",".join(retired_servers(data))} --private {private} 2>&1) || rc=$?')
     w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  if [ "${rc}" = 127 ]; then warn "agent-kit-merge is not available; MCP servers not converged"; return 0; fi')
     w('  [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"')
     w("}")
     w("")

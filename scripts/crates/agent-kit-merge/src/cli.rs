@@ -1,7 +1,8 @@
 //! The `agent-kit-merge` command line: one subcommand per script it replaces.
 
 use crate::proxy::{Options, Validate};
-use crate::{block, mcp_json, mcp_toml, mcp_yaml, proxy, Env, Failure, Io};
+use crate::converge::{McpArgs, PluginArgs, Runner, SystemRunner};
+use crate::{block, converge, mcp_json, mcp_toml, mcp_yaml, proxy, Env, Failure, Io};
 use std::path::PathBuf;
 
 pub const USAGE: &str = "usage: agent-kit-merge COMMAND ARGS...
@@ -14,7 +15,12 @@ commands:
   codex-add-url   CONFIG NAME URL
   instruction-block FILE NAME [--remove]            (body on stdin)
   package-proxy   FILE NAME [--remove] [--validate toml|ini] [--refuse REGEX] [--mode MODE]
-                                                    (body on stdin)";
+                                                    (body on stdin)
+  converge mcp    --keep PATH --claude-home DIR [--claude DIR ...] [--codex PATH] [--vibe PATH]
+                  [--vibe-private PATH] [--opencode PATH] [--declared SURFACE=NAME,... ...]
+                  [--retired NAME,...] [--private NAME,...] [--check]
+  converge plugins --keep PATH [--declared-markets NAME,...] [--declared-plugins ID,...]
+                  [--retired-markets NAME,...] [--retired-plugins ID,...] [--check]";
 
 struct Parsed {
     positional: Vec<String>,
@@ -69,7 +75,12 @@ fn parse(args: &[String], valued: &[&str], switches: &[&str], positionals: usize
 
 /// Runs one command line (without the program name) and returns the exit status.
 pub fn run(args: &[String], io: &mut Io, env: Env) -> i32 {
-    match dispatch(args, io, env) {
+    run_with(args, io, env, &mut SystemRunner)
+}
+
+/// [`run`] with the runner `converge` starts the agent CLIs through.
+pub fn run_with(args: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner) -> i32 {
+    match dispatch(args, io, env, runner) {
         Ok(status) => status,
         Err(Failure(message)) => {
             let _ = writeln!(io.err, "agent-kit-merge: {message}");
@@ -78,7 +89,62 @@ pub fn run(args: &[String], io: &mut Io, env: Env) -> i32 {
     }
 }
 
-fn dispatch(args: &[String], io: &mut Io, env: Env) -> Result<i32, Failure> {
+/// The value of a flag argparse marks required.
+fn required(parsed: &Parsed, flags: &[&str]) -> Result<(), Failure> {
+    let missing: Vec<&str> = flags.iter().copied().filter(|flag| parsed.last(flag).is_none()).collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(Failure(format!("the following arguments are required: {}", missing.join(", "))))
+    }
+}
+
+/// `converge mcp|plugins`.
+fn converge_command(rest: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner) -> Result<i32, Failure> {
+    let Some((surface, rest)) = rest.split_first() else {
+        return Err(Failure("converge: expected mcp or plugins".to_string()));
+    };
+    match surface.as_str() {
+        "mcp" => {
+            let valued = ["--keep", "--claude-home", "--claude", "--codex", "--vibe", "--vibe-private", "--opencode", "--declared", "--retired", "--private"];
+            let parsed = parse(rest, &valued, &["--check"], 0)?;
+            required(&parsed, &["--claude-home", "--keep"])?;
+            let path = |flag: &str| parsed.last(flag).map(PathBuf::from);
+            let args = McpArgs {
+                keep: PathBuf::from(parsed.last("--keep").unwrap_or_default()),
+                claude_home: PathBuf::from(parsed.last("--claude-home").unwrap_or_default()),
+                claude: parsed.all("--claude").into_iter().map(PathBuf::from).collect(),
+                codex: path("--codex"),
+                vibe: path("--vibe"),
+                vibe_private: path("--vibe-private"),
+                opencode: path("--opencode"),
+                declared: parsed.all("--declared"),
+                retired: parsed.last("--retired").unwrap_or_default().to_string(),
+                private: parsed.last("--private").unwrap_or_default().to_string(),
+                check: !parsed.switches.is_empty(),
+            };
+            converge::mcp(&args, runner, io, env)
+        }
+        "plugins" => {
+            let valued = ["--keep", "--declared-markets", "--declared-plugins", "--retired-markets", "--retired-plugins"];
+            let parsed = parse(rest, &valued, &["--check"], 0)?;
+            required(&parsed, &["--keep"])?;
+            let text = |flag: &str| parsed.last(flag).unwrap_or_default().to_string();
+            let args = PluginArgs {
+                keep: PathBuf::from(text("--keep")),
+                declared_markets: text("--declared-markets"),
+                declared_plugins: text("--declared-plugins"),
+                retired_markets: text("--retired-markets"),
+                retired_plugins: text("--retired-plugins"),
+                check: !parsed.switches.is_empty(),
+            };
+            converge::plugins(&args, runner, io)
+        }
+        other => Err(Failure(format!("converge: unknown surface {other:?}; expected mcp or plugins"))),
+    }
+}
+
+fn dispatch(args: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner) -> Result<i32, Failure> {
     let Some((command, rest)) = args.split_first() else {
         writeln!(io.err, "{USAGE}")?;
         return Ok(2);
@@ -133,6 +199,7 @@ fn dispatch(args: &[String], io: &mut Io, env: Env) -> Result<i32, Failure> {
             };
             proxy::package_proxy(&PathBuf::from(&parsed.positional[0]), &parsed.positional[1], &options, io)
         }
+        "converge" => converge_command(rest, io, env, runner),
         other => Err(Failure(format!("unknown command {other:?}\n{USAGE}"))),
     }
 }

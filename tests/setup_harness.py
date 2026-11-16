@@ -110,8 +110,10 @@ def setup_run(
     pin.parent.mkdir(parents=True, exist_ok=True)
     pin.write_text("")
     calls = root / "calls.log"
-    for name in ("uv", "npm", "node", "npx", "curl", "git", "claude", "codex", "vibe", "gh", "jq", "docker"):
+    for name in ("uv", "npm", "node", "npx", "curl", "git", "codex", "vibe", "gh", "jq", "docker"):
         stub(bin_dir, name, f'echo "{name} $*" >> "{calls}"')
+    # Converge reads Claude's plugin and marketplace lists as JSON: a machine with none prints an empty list.
+    stub(bin_dir, "claude", f'echo "claude $*" >> "{calls}"\ncase "$*" in *"list --json"*) echo "[]" ;; esac')
     stub(bin_dir, "uname", f"echo {platform}")
     stub(bin_dir, "security", f'echo "security $*" >> "{calls}"')
     stub(bin_dir, "agy", 'echo "agy 1.0.0"')
