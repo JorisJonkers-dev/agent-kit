@@ -119,7 +119,7 @@ fn models_command(input: &Object, runtime: &Runtime) -> Result<Value, GatewayErr
     let judges = config.clients.iter().any(|(id, client)| installed.contains(id) && (client.litellm_route.is_some() || crate::run::is_pi_client(id)));
     let reading = if judges { crate::litellm_catalogue::read_catalogue(runtime) } else { Default::default() };
     let judged = crate::litellm_catalogue::judge_listing(&config, models::list_models(&config, &installed, &listings, &unavailable), reading.catalogue.as_ref());
-    let mut listing = sources::mark_free(runtime, &config, reading.catalogue.as_ref(), judged);
+    let mut listing = sources::hold_openrouter_to_free(sources::mark_free(runtime, &config, reading.catalogue.as_ref(), judged));
     if free_only {
         listing.models.retain(|model| model.free);
     }

@@ -132,8 +132,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go), and OpenCode’s pay-per-token models are never reached\"}\n",
-      "stderr": "model-gateway run: anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go), and OpenCode’s pay-per-token models are never reached\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go), and OpenCode\u2019s pay-per-token models are never reached\"}\n",
+      "stderr": "model-gateway run: anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go), and OpenCode\u2019s pay-per-token models are never reached\n",
       "files": {
         "home/": null,
         "home/.config/": null,
@@ -146,8 +146,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"opencode/gpt-5-nano: the provider opencode is not allowed (clients.opencode.providers: opencode, opencode-go), and OpenCode’s pay-per-token models are never reached\"}\n",
-      "stderr": "model-gateway run: opencode/gpt-5-nano: the provider opencode is not allowed (clients.opencode.providers: opencode, opencode-go), and OpenCode’s pay-per-token models are never reached\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"opencode/gpt-5-nano: the provider opencode is not allowed (clients.opencode.providers: opencode, opencode-go), and OpenCode\u2019s pay-per-token models are never reached\"}\n",
+      "stderr": "model-gateway run: opencode/gpt-5-nano: the provider opencode is not allowed (clients.opencode.providers: opencode, opencode-go), and OpenCode\u2019s pay-per-token models are never reached\n",
       "files": {
         "home/": null,
         "home/.config/": null,
@@ -188,30 +188,30 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"openrouter is not allowed: the owner forbade OpenRouter\"}\n",
-      "stderr": "model-gateway run: openrouter is not allowed: the owner forbade OpenRouter\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"openrouter is not allowed on hermes: OpenRouter runs only through pi-openrouter, and only on a model priced at zero\"}\n",
+      "stderr": "model-gateway run: openrouter is not allowed on hermes: OpenRouter runs only through pi-openrouter, and only on a model priced at zero\n",
       "files": {
         "home/": null,
         "home/.config/": null,
         "home/.config/agent-kit/": null,
         "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
         "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
-        "work/": null,
-        "tmp/": null
+        "tmp/": null,
+        "work/": null
       }
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"openrouter is not allowed: the owner forbade OpenRouter\"}\n",
-      "stderr": "model-gateway run: openrouter is not allowed: the owner forbade OpenRouter\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"openrouter is not allowed on hermes: OpenRouter runs only through pi-openrouter, and only on a model priced at zero\"}\n",
+      "stderr": "model-gateway run: openrouter is not allowed on hermes: OpenRouter runs only through pi-openrouter, and only on a model priced at zero\n",
       "files": {
         "home/": null,
         "home/.config/": null,
         "home/.config/agent-kit/": null,
         "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\"],\"code\":true,\"history\":false}}}",
         "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"hermes\":{\"providers\":[\"anthropic\"]}},\"models\":[{\"client\":\"hermes\",\"model\":\"claude-sonnet-4.6\",\"family\":\"anthropic\",\"tier\":\"routine\",\"notes\":\"x\",\"prices\":{\"input\":3,\"cached_input\":0.3,\"output\":15}}]}",
-        "work/": null,
-        "tmp/": null
+        "tmp/": null,
+        "work/": null
       }
     },
     {

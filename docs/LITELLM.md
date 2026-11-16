@@ -337,7 +337,7 @@ Readers:
   free one `"free": true`, and refuses a run on a refused model (`model-not-usable`). A model the
   catalogue does not list is listed as before. See the gateway's SKILL.md.
 - **The model gateway's Pi clients** (`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`,
-  `pi-public`: one per route in `registry/generated/litellm/routes.json`, but `openrouter`; `pi-local` has no models until a `local` deployment is probed usable) list the
+  `pi-public`, `pi-openrouter`, `pi-free`: one per route in `registry/generated/litellm/routes.json`; `pi-openrouter` and `pi-free` list free models only and are never sent a repository; `pi-local` has no models until a `local` deployment is probed usable) list the
   models the home's `~/.pi/agent/models.json` gives the route's `litellm-<route>` provider, which
   setup wrote from `canonical_groups`, and judge each canonical group by its deployments in the live
   catalogue: usable when one deployment is, skipped with the provider's reason when every probed

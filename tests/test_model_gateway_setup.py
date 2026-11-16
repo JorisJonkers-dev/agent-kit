@@ -92,6 +92,8 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "pi-opencode-go": ("pi", "subsidised", "live"),
         "pi-local": ("pi", "subsidised", "live"),
         "pi-public": ("pi", "subsidised", "live"),
+        "pi-openrouter": ("pi", "subsidised", "live"),
+        "pi-free": ("pi", "subsidised", "live"),
     }
     assert clients["agy"]["families"] == ["google"]
     assert clients["opencode"]["provider_cost_classes"] == {"opencode-go": "subsidised"}
@@ -277,9 +279,7 @@ def test_the_shipped_pi_clients_are_one_per_litellm_route_and_only_the_public_on
     routes = json.loads((KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json").read_text())["routes"]
     clients = json.loads(DEFAULTS.read_text())["clients"]
     shipped = {name.removeprefix("pi-"): client for name, client in clients.items() if name.startswith("pi-")}
-    # No openrouter client: the owner forbade OpenRouter, so the gateway never runs on it.
-    # No free client yet either: it comes with the gateway's cost and provider fields (#849, #850).
-    assert set(shipped) == {route["agent"] for route in routes} - {"openrouter", "free"}
+    assert set(shipped) == {route["agent"] for route in routes}
     for route in routes:
         client = shipped.get(route["agent"])
         if client is not None:

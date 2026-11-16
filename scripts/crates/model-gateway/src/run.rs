@@ -82,9 +82,17 @@ pub fn pi_provider(client: &str) -> String {
 /// which of them may be spent on.
 pub const PROVIDER_CLIENTS: [&str; 1] = ["hermes"];
 
-/// The providers the gateway never runs on, whatever a machine file says:
-/// OpenRouter is forbidden by the owner, so no configuration can turn it on.
+/// The providers no client but `OPENROUTER_CLIENT` runs on, whatever a machine file says: the owner allows OpenRouter
+/// only for models priced at zero, through the one Pi client that holds them to that, so no configuration can open
+/// it to Hermes, OpenCode or any other client.
 pub const FORBIDDEN_PROVIDERS: [&str; 1] = ["openrouter"];
+
+/// The one client OpenRouter models run through: a Pi client on the `openrouter` LiteLLM route, public data only,
+/// and only for models priced at zero.
+pub const OPENROUTER_CLIENT: &str = "pi-openrouter";
+
+/// The clients that run models priced at zero only: a model of either that is not free is never listed and never run.
+pub const FREE_ONLY_CLIENTS: [&str; 2] = [OPENROUTER_CLIENT, "pi-free"];
 
 /// A run with no time limit of its own gets this many seconds.
 pub const DEFAULT_TIME_LIMIT_S: f64 = 900.0;

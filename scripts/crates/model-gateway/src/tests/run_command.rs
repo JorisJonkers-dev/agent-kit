@@ -545,3 +545,55 @@ fn a_free_only_run_follows_the_catalogues_free_flag_not_the_price_in_the_pi_file
     let error = run(&billed, &pi_run(r#","free_only":true"#)).expect_err("a billed model");
     assert_eq!(error.code, "free-only-refused");
 }
+
+fn openrouter_machine(models: &str) -> Machine {
+    let machine = pi_machine();
+    std::fs::write(
+        format!("{}/home/.pi/agent/models.json", machine.sandbox.text()),
+        format!(r#"{{"providers":{{"litellm-openrouter":{{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{models}]}}}}}}"#),
+    )
+    .expect("models");
+    machine
+}
+
+fn openrouter_run(model: &str, extra: &str) -> String {
+    format!(r#"{{"workflow":"w","client":"pi-openrouter","mode":"read-only","model":"{model}","prompt":"p","escalate":false{extra}}}"#)
+}
+
+const ZERO: &str = r#","cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0}"#;
+
+#[test]
+fn a_free_openrouter_model_runs_on_pi_a_billed_one_is_refused() {
+    let machine = openrouter_machine(&format!(r#"{{"id":"openrouter/gemma-4-31b-it"{ZERO}}},{{"id":"openrouter/pricey","cost":{{"input":1,"output":2}}}},{{"id":"openrouter/unpriced"}}"#));
+    assert_eq!(text(&run(&machine, &openrouter_run("openrouter/gemma-4-31b-it", "")).expect("the free run"), "status"), "ok");
+    for billed in ["openrouter/pricey", "openrouter/unpriced"] {
+        let error = run(&machine, &openrouter_run(billed, "")).expect_err("a billed model");
+        assert_eq!(error.code, "openrouter-billed", "{billed}");
+    }
+}
+
+#[test]
+fn openrouter_stays_refused_on_every_client_but_pi_openrouter() {
+    let machine = machine();
+    let other = |client: &str, model: &str, extra: &str| {
+        format!(r#"{{"workflow":"w","client":"{client}","mode":"read-only","model":"{model}","prompt":"p","escalate":false{extra}}}"#)
+    };
+    let hermes = run(&machine, &other("hermes", "m", r#","provider":"openrouter""#)).expect_err("hermes on openrouter");
+    assert_eq!(hermes.code, "provider-not-allowed");
+    assert!(hermes.message.starts_with("openrouter is not allowed on hermes: OpenRouter runs only through pi-openrouter"), "{}", hermes.message);
+    let named = run(&machine, &other("claude", "openrouter/free", "")).expect_err("a model named openrouter/");
+    assert_eq!(named.code, "provider-not-allowed");
+}
+
+#[test]
+fn the_free_client_runs_free_models_only() {
+    let machine = pi_machine();
+    std::fs::write(
+        format!("{}/home/.pi/agent/models.json", machine.sandbox.text()),
+        format!(r#"{{"providers":{{"litellm-free":{{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{{"id":"ministral-8b"{ZERO}}},{{"id":"mistral-small"}}]}}}}}}"#),
+    )
+    .expect("models");
+    let free = |model: &str| format!(r#"{{"workflow":"w","client":"pi-free","mode":"read-only","model":"{model}","prompt":"p","escalate":false}}"#);
+    assert_eq!(text(&run(&machine, &free("ministral-8b")).expect("free"), "status"), "ok");
+    assert_eq!(run(&machine, &free("mistral-small")).expect_err("billed").code, "free-only-refused");
+}

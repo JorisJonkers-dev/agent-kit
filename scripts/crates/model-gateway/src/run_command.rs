@@ -29,7 +29,7 @@ use crate::proof::read_proof_files;
 use crate::profiles::{hold_to_profile, run_scope, tools_json};
 use crate::run::{
     input_json, named_reset, price_run, read_only_proof, read_run_input, require_allowed_provider, run_failure_reason, run_id, summary_of, wrapped_prompt,
-    ClientReport, LaunchExit, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens, FORBIDDEN_PROVIDERS, NO_TOKENS, PROVIDER_CLIENTS,
+    ClientReport, LaunchExit, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens, FORBIDDEN_PROVIDERS, FREE_ONLY_CLIENTS, NO_TOKENS, OPENROUTER_CLIENT, PROVIDER_CLIENTS,
 };
 use crate::slots::SlotGuard;
 use crate::state_file::Workflows;
@@ -472,6 +472,13 @@ impl RunCommand<'_> {
         require_provider(input, &client)?;
         let entry = catalogue_entry(&config, &input.client, &input.model)?;
         crate::litellm_catalogue::require_usable(self.runtime, &config, &input.client, &input.model)?;
+        if FREE_ONLY_CLIENTS.contains(&input.client.as_str()) && !self.is_free(&config, &input.client, &input.model) {
+            let code = if input.client == OPENROUTER_CLIENT { "openrouter-billed" } else { "free-only-refused" };
+            return Err(GatewayError::new(
+                code,
+                format!("{}:{} is not priced at zero: this client runs free models only (OpenRouter only ever for those), so a billed one is never run", input.client, input.model),
+            ));
+        }
         let family = match entry.as_ref().map(|entry| entry.family.clone()).or_else(|| family_of_model_id(&input.model).map(str::to_string)) {
             Some(family) => family,
             None => crate::litellm_catalogue::place_unlisted(self.runtime, &config, &input.client, &input.model)?,
@@ -793,19 +800,25 @@ fn allowed(client: &ClientConfig) -> String {
 }
 
 /// The provider a run may use. A client that runs on a provider the caller names must name one this machine
-/// lists for it, and no configuration can turn on a provider the owner forbade.
+/// lists for it, and no configuration can open OpenRouter to a client but `pi-openrouter`, which holds it to
+/// models priced at zero.
 fn require_provider(input: &RunInput, client: &ClientConfig) -> Result<(), GatewayError> {
     let named = PROVIDER_CLIENTS.contains(&input.client.as_str());
+    let forbidden = FORBIDDEN_PROVIDERS
+        .iter()
+        .find(|forbidden| input.provider.as_deref() == Some(**forbidden) || input.model.starts_with(&format!("{forbidden}/")));
+    if let Some(forbidden) = forbidden.filter(|_| input.client != OPENROUTER_CLIENT) {
+        return Err(GatewayError::new(
+            "provider-not-allowed",
+            format!("{forbidden} is not allowed on {}: OpenRouter runs only through {OPENROUTER_CLIENT}, and only on a model priced at zero", input.client),
+        ));
+    }
     let Some(provider) = &input.provider else {
         if !named {
             return Ok(());
         }
         return Err(GatewayError::new("provider-not-allowed", format!("a {} run must name its provider: this machine allows {}", input.client, allowed(client))));
     };
-    let forbidden = FORBIDDEN_PROVIDERS.iter().find(|forbidden| *forbidden == provider || input.model.starts_with(&format!("{forbidden}/")));
-    if forbidden.is_some() {
-        return Err(GatewayError::new("provider-not-allowed", format!("{} is not allowed: the owner forbade OpenRouter", forbidden.unwrap_or(&""))));
-    }
     if !client.providers.as_deref().unwrap_or_default().contains(provider) {
         return Err(GatewayError::new(
             "provider-not-allowed",
