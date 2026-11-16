@@ -74,7 +74,7 @@ profiles:
       bills them once the free-tier quota is used, and max_spend_usd bounds that.
     models:
       - pi-public:public/gemini-3.5-flash-lite
-      - pi-public:public/gemini-3.8-flash
+      - pi-public:public/gemini-3.6-flash
     max_spend_usd: 0.25
 
   implement-cheap:

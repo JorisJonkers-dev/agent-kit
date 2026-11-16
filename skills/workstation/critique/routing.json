@@ -60,7 +60,7 @@
     "pi-public-gemini-flash": {
       "kind": "pi",
       "provider": "litellm-public",
-      "model": "public/gemini-3.8-flash",
+      "model": "public/gemini-3.6-flash",
       "family": "google",
       "data_scope": "public"
     },

@@ -490,7 +490,7 @@
       "argv": [
         "run",
         "--json",
-        "{\"workflow\":\"w\",\"client\":\"pi-public\",\"model\":\"public/gemini-3.8-flash\",\"mode\":\"read-only\",\"prompt\":\"Public route, private repository.\",\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"workflow\":\"w\",\"client\":\"pi-public\",\"model\":\"public/gemini-3.6-flash\",\"mode\":\"read-only\",\"prompt\":\"Public route, private repository.\",\"repo\":\"@SANDBOX@/repo\"}"
       ],
       "path": [
         "bin"

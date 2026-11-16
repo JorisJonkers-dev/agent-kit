@@ -133,7 +133,7 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("pi", "mimo-v2.6-flash", "xiaomi", "routine"),
         ("pi", "qwen3.8-flash", "alibaba", "routine"),
         ("pi", "minimax-m3.1-flash", "minimax", "routine"),
-        ("pi", "public/gemini-3.8-flash", "google", "routine"),
+        ("pi", "public/gemini-3.6-flash", "google", "routine"),
         ("pi", "public/gemini-3.5-flash-lite", "google", "trivial"),
     ]
     assert all(m["notes"].strip() for m in models)
