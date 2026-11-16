@@ -123,3 +123,19 @@ fn a_ledger_that_cannot_be_read_before_the_write_refuses_it() {
     assert!(result.stdout.contains("a standing grant cannot be ruled out and no grant is written: EIO: i/o error, read"), "{}", result.stdout);
     assert!(!std::path::Path::new(&format!("{}/home/.config/agent-kit/model-gateway-grants.json", sandbox.text())).exists());
 }
+
+#[test]
+fn models_with_no_arguments_is_models_with_an_empty_object_and_free_alone_filters() {
+    let sandbox = Sandbox::new();
+    let runtime = super::catalog::sandbox_runtime(&sandbox, None);
+    let bare = super::catalog::cli(&runtime, &["models"]);
+    let empty = super::catalog::cli(&runtime, &["models", "--json", "{}"]);
+    assert_eq!(bare.exit_code, 0, "{}", bare.stdout);
+    assert_eq!(bare.stdout, empty.stdout);
+    assert!(bare.stdout.contains("\"status\": \"ok\""), "{}", bare.stdout);
+    assert_eq!(super::catalog::cli(&runtime, &["models", "--free"]).exit_code, 0);
+    // Anything else that is not one of --json or --input is still refused, and says no arguments is allowed.
+    let refused = super::catalog::cli(&runtime, &["models", "extra"]);
+    assert_eq!(refused.exit_code, 1);
+    assert!(refused.stdout.contains("models takes one of --json '<object>' or --input <file>, or no arguments"), "{}", refused.stdout);
+}

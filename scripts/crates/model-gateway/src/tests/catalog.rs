@@ -231,7 +231,7 @@ fn the_table_has_a_line_per_model_then_its_deployments_clients_and_reason() {
     assert!(unknown.contains("metered-employer 1.25/10"), "{unknown}");
 }
 
-fn sandbox_runtime(sandbox: &Sandbox, catalogue: Option<&str>) -> Runtime {
+pub(super) fn sandbox_runtime(sandbox: &Sandbox, catalogue: Option<&str>) -> Runtime {
     let root = sandbox.text();
     std::fs::create_dir_all(format!("{root}/home/.cache/agent-kit")).expect("cache");
     if let Some(text) = catalogue {
@@ -255,7 +255,7 @@ fn sandbox_runtime(sandbox: &Sandbox, catalogue: Option<&str>) -> Runtime {
     }
 }
 
-fn cli(runtime: &Runtime, args: &[&str]) -> crate::cli::CliResult {
+pub(super) fn cli(runtime: &Runtime, args: &[&str]) -> crate::cli::CliResult {
     run_cli(&args.iter().map(|word| word.to_string()).collect::<Vec<_>>(), runtime)
 }
 

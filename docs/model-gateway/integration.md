@@ -25,24 +25,46 @@ the vibe critic agents keep their pinned models.
 ## The command
 
 `model-gateway <subcommand> --json '<object>'` or `model-gateway <subcommand>
---input <file.json>`. It prints exactly one JSON object on stdout and exits 0;
-on an error it prints `{"status":"error","code":"<slug>","message":"<one
-line>"}` and exits 1. #294 implements only `models`; any other subcommand is
-`unknown-command`.
+--input <file.json>`; `models` and `catalog` also run with no arguments. Every
+subcommand prints exactly one JSON object on stdout and exits 0; on an error it
+prints `{"status":"error","code":"<slug>","message":"<one line>"}` and exits 1.
+`catalog` is the one exception to the JSON rule: it prints a plain table by
+default and takes flags instead of an object (`--json` prints the object).
 
-`models` takes `{}` today (later tickets add `repo`) and returns one entry per
-client model with `client`, `model`, `family`, `cost_class`, `tier`, `notes`,
-`source`, `cost` (the class and the input and output price per million tokens,
-`0` for a free model and `"unknown"` where nobody states one) and `providers`
-(each provider serving it in fallback order, with the route that reaches it), plus a `missing` list naming each client that is not installed
-and why. Models are sorted by client, then model id.
+The subcommands, as `skills/workstation/model-gateway/SKILL.md` describes each:
+
+| Subcommand | What it does |
+| --- | --- |
+| `models` | The client models this machine can use now for a repository (`repo`), with the data policy, the profiles and a `skipped` list; `--free` or `{"free": true}` keeps only free models. |
+| `catalog` | One row per canonical model the proxy serves: modality, family, tier, context length, free flag, cost, every deployment with its route, key and probe status, and the clients and profiles that can run it. Filters `--route`, `--free`, `--status`, `--modality`. |
+| `usage` | What each client can do now and what it has spent. |
+| `run` | One delegation to one client model, read-only or writing. |
+| `batch` | A whole plan of delegations in one call. |
+| `workflow start`, `end`, `list` | The life of the piece of work a delegation belongs to. |
+| `grant write`, `reserve`, `list` | The owner's permission to spend their employer's money. |
+| `worktrees clean` | Removes the kept worktrees of writing runs. |
+
+Any other subcommand is `unknown-command`.
+
+`models` takes `repo` and `free`, both optional (`models` alone is `{}`), and
+returns one entry per permitted client model with `client`, `model`, `family`,
+`cost_class`, `tier`, `notes`, `source`, `may_send`, `inline_only`, `cost` (the
+class and the input and output price per million tokens, `0` for a free model and
+`"unknown"` where nobody states one) and `providers` (each provider serving it
+in fallback order, with the route that reaches it), plus `missing` (each client
+the gateway cannot use and why), `skipped` (each model it cannot offer and why),
+`policy` and `profiles`. Models are sorted by client, then model id.
 
 ## Choices later tickets rely on
 
-- **`source` is `live`, `config` or `declared`.** #294 produces only
-  `declared`, for Codex and Claude Code. Vibe and Antigravity listing is #310
-  and Hermes is #297; until then those clients list no models and are not
-  reported missing, so a `missing` entry never means "not built yet".
+- **`source` is `live`, `config` or `declared`.** `live` is the client's own
+  listing: Antigravity's `agy models`, OpenCode's `opencode models`, Vibe's
+  answer to a probe (ADR-0010) and, for a Pi client, the models of its
+  `litellm-<route>` provider in Pi's `models.json`. `config` is Hermes, which
+  offers the one model its configuration names as its default. `declared` is
+  the shipped catalogue, for Codex and Claude Code. A client whose listing
+  fails is named in `missing` with the reason, so a `missing` entry never means
+  "not built yet".
 - **A client is installed when its `binary` resolves on `PATH`**, through the
   process port, so tests pass a fake and nothing launches a real client.
 - **The shipped defaults are read from the folder the running bundle sits
@@ -67,8 +89,10 @@ and why. Models are sorted by client, then model id.
   `hard` or `frontier`; `model_source` is `live`, `config` or `declared`. A
   new value is a schema change, not a data change.
 - **`vibe` and `agy` model entries are catalogue entries.** Their tier and
-  notes are what #310 joins onto what those clients list; #294 lists only the
-  entries whose client's `model_source` is `declared`.
+  notes are joined onto what those clients list; a listed model the catalogue
+  does not know takes its family from its id, or from the live LiteLLM
+  catalogue (see SKILL.md, "The live LiteLLM catalogue"), and an entry the
+  client no longer lists is named in `skipped`.
 - **The defaults carry the caps and thresholds** a delegation is held to:
   `plan_warning_ratio`, `summary_max_chars`, `max_parallel_per_client`,
   `availability_window_minutes` and `metered_personal_caps`
