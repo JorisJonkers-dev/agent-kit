@@ -80,7 +80,6 @@ tests/test_gold_band_instance_guard.py
 tests/test_gold_band_instances.py
 tests/test_gold_band_mcp_servers.py
 tests/test_gold_band_research_workflow.py
-tests/test_gold_band_roles.py
 tests/test_gold_band_run_start.py
 tests/test_gold_band_setup_step.py
 tests/test_gold_band_shape.py

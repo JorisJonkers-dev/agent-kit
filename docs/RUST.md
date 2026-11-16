@@ -1269,6 +1269,8 @@ agent-kit-merge converge mcp    --keep PATH --claude-home DIR [--claude DIR ...]
                                 [--retired NAME,...] [--private NAME,...] [--check]
 agent-kit-merge converge plugins --keep PATH [--declared-markets NAME,...] [--declared-plugins ID,...] \
                                 [--retired-markets NAME,...] [--retired-plugins ID,...] [--check]
+agent-kit-merge converge gold-band-roles --keep PATH --registry PATH [--profiles DIR] [--critique DIR] \
+                                [--closing PATH] [--check]
 ```
 
 `converge mcp` and `converge plugins` are the first slice of the converge port
@@ -1276,8 +1278,14 @@ agent-kit-merge converge plugins --keep PATH [--declared-markets NAME,...] [--de
 output lines and exit codes, and run `claude` and `codex` the way the script
 did. One layout difference: removing a Vibe server keeps the remaining
 `[[mcp_servers]]` where they were, where `tomlkit` moved them to the end of the
-file. The Gold Band steps (`gold-band`, `gold-band-roles`,
-`gold-band-workflows`) are still `scripts/converge.py`.
+file. `converge gold-band-roles` is the second slice: the personal instance's
+`context/profiles`, rendered byte for byte as the script did (the critique
+sources concatenated verbatim, the fixed front matter stamp), with the same
+keep, retired and built-in rules, exit codes and running-instance guard
+(`AGENT_KIT_GOLD_BAND_RUNNING`, else the process table: `/proc`, or `ps` on
+macOS). `--registry` is required; the critique directory and closing file
+default to the kit the registry sits in. `gold-band` and `gold-band-workflows`
+are still `scripts/converge.py`.
 
 Behaviour, exit codes and output lines are those of the scripts. JSON and TOML
 merges write the bytes the Python tools wrote, so a re-run over a file they

@@ -19,12 +19,7 @@ dotted paths in settings.json and its ``mcp_servers`` become ``contextServers``
 entries. The overlay is validated by the gold-band-registry crate first and
 refused whole when it fails; it is read, never copied into the registry.
 
-``gold-band-roles``: the ``context/profiles`` directory of the same instance,
-one Markdown profile per role the registry declares, rendered from the critique
-skill's own role, prompt, schema and lens files. A profile the registry does not
-declare is removed unless the keep file names its stem; a stem or id in
-``gold_band.retired_roles`` goes even when kept, and the app's own
-``pf-builtin-*`` profiles are never touched.
+``gold-band-roles`` converges in Rust too: ``agent-kit-merge converge gold-band-roles``.
 
 ``gold-band-workflows``: the workflow templates of the personal instance's
 ``context/workflows.json`` (the app's user-level template store), one template per
@@ -53,8 +48,6 @@ Usage::
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
         --keep PATH [--settings PATH] [--instance ID] [--overlay PATH] [--registry PATH] [--kit DIR] \\
         [--skills-root DIR] [--check]
-    uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py \\
-        gold-band-roles --keep PATH [--profiles DIR] [--registry PATH] [--critique DIR] [--closing PATH] [--check]
     uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python scripts/converge.py \\
         gold-band-workflows --keep PATH [--store PATH] [--workflows DIR] [--registry PATH] [--check]
 """
@@ -151,15 +144,6 @@ GOLD_BAND_MAC_PATH = re.compile(
     r"/Applications\b|/opt/homebrew|/usr/local/Cellar|/Library/|/Users/|homebrew|\.app/", re.I
 )
 GOLD_BAND_ADAPTER_FIELDS = ("displayName", "command", "args", "env")
-# A generated profile's front matter carries a fixed stamp, so a second run
-# rewrites nothing. The app's own profiles carry this id prefix and are never
-# touched, whatever the registry or the keep file says.
-GOLD_BAND_ROLE_STAMP = "2025-01-01T00:00:00Z"
-GOLD_BAND_ROLE_BUILT_IN = "pf-builtin-"
-GOLD_BAND_ROLE_PLAIN = re.compile(r"^[A-Za-z0-9$(][^\n#]*$")
-GOLD_BAND_ROLE_FIELDS = ("file", "id", "name", "summary", "source", "lenses")
-GOLD_BAND_ROLES_CLOSING = KIT_ROOT / "scripts" / "gold-band" / "roles-closing.md"
-# The workflow templates setup installs, and the app's own built-in template ids.
 GOLD_BAND_WORKFLOWS_DIR = KIT_ROOT / "installer" / "gold-band" / "workflows"
 GOLD_BAND_WORKFLOW_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 GOLD_BAND_WORKFLOW_BUILT_INS = frozenset({"default", "default-lightweight"})
@@ -1217,240 +1201,6 @@ def _gold_band_write_settings(settings: Path, document: dict[str, Any]) -> None:
         raise
 
 
-def _gold_band_roles_registry(path: Path) -> tuple[str | None, list[dict[str, Any]], set[str]]:
-    """The roles source, the declared roles and the retired stems and ids."""
-    try:
-        data = yaml.safe_load(path.read_text())
-    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
-        raise _CannotConverge(f"{path} cannot be read: {exc}") from exc
-    if not isinstance(data, dict):
-        raise _CannotConverge(f"{path} is not a mapping")
-    section = data.get("gold_band")
-    if not isinstance(section, dict):
-        raise _CannotConverge(f"{path} has no gold_band mapping")
-    source = section.get("roles_source")
-    if source is not None and not isinstance(source, str):
-        raise _CannotConverge(f"{path}: gold_band.roles_source must be a path")
-    roles = section.get("roles")
-    if not isinstance(roles, list) or not all(isinstance(role, dict) for role in roles):
-        raise _CannotConverge(f"{path}: gold_band.roles must be a list of mappings")
-    retired = section.get("retired_roles")
-    if retired is None:
-        retired = []
-    if not isinstance(retired, list) or not all(isinstance(name, str) for name in retired):
-        raise _CannotConverge(f"{path}: gold_band.retired_roles must be a list of stems or ids")
-    return source, roles, set(retired)
-
-
-def _gold_band_role_problems(declared: list[dict[str, Any]], retired: set[str]) -> list[str]:
-    """One line per problem with the declared roles; empty when they may be written."""
-    problems: list[str] = []
-    seen_files: set[str] = set()
-    seen_ids: set[str] = set()
-    for role in declared:
-        raw_file = role.get("file")
-        stem = raw_file if isinstance(raw_file, str) else "?"
-        if not isinstance(raw_file, str) or not GOLD_BAND_ID.match(raw_file):
-            problems.append(f"{stem}: file must match {GOLD_BAND_ID.pattern}")
-        elif raw_file.startswith(GOLD_BAND_ROLE_BUILT_IN):
-            problems.append(f"{stem}: file must not name a built-in profile")
-        elif raw_file in seen_files:
-            problems.append(f"{stem}: duplicate file")
-        else:
-            seen_files.add(raw_file)
-        raw_id = role.get("id")
-        name = raw_id if isinstance(raw_id, str) else stem
-        if not isinstance(raw_id, str) or not raw_id.startswith("pf-"):
-            problems.append(f"{name}: id must start with pf-")
-        elif raw_id.startswith(GOLD_BAND_ROLE_BUILT_IN):
-            problems.append(f"{name}: id must not name a built-in profile")
-        elif raw_id in seen_ids:
-            problems.append(f"{name}: duplicate id")
-        else:
-            seen_ids.add(raw_id)
-        problems += [
-            f"{name}: {key} must be a string"
-            for key in ("name", "summary", "source")
-            if not isinstance(role.get(key), str)
-        ]
-        # name and summary go into the front matter unquoted, so each must stay one plain YAML scalar.
-        problems += [
-            f"{name}: {key} must be a plain single-line scalar"
-            for key in ("name", "summary")
-            if isinstance(role.get(key), str) and not GOLD_BAND_ROLE_PLAIN.match(role[key])
-        ]
-        lenses = role.get("lenses")
-        if not isinstance(lenses, list) or not all(isinstance(lens, str) for lens in lenses):
-            problems.append(f"{name}: lenses must be a list of names")
-        if (isinstance(raw_file, str) and raw_file in retired) or (isinstance(raw_id, str) and raw_id in retired):
-            problems.append(f"{name}: declared and retired at once")
-        problems += [f"{name}: unknown field {key}" for key in role if key not in GOLD_BAND_ROLE_FIELDS]
-    return problems
-
-
-def _gold_band_role_text(path: Path) -> str:
-    """A source file's text; a missing or undecodable one cannot be converged."""
-    try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise _CannotConverge(f"{path}: {exc}") from exc
-
-
-def _gold_band_role_read(path: Path) -> str | None:
-    """A profile's text, or None when it cannot be decoded."""
-    try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
-
-
-def _gold_band_role_section(text: str) -> str:
-    """One section: the text, a closing newline, then the blank line that separates it."""
-    return text + ("" if text.endswith("\n") else "\n") + "\n"
-
-
-def render_gold_band_role(critique: Path, role: dict[str, Any], closing: str) -> str:
-    """One profile file: the front matter, then the role, the shared prompts, the schema, its lenses and the closing.
-
-    The sources are concatenated verbatim, never templated: a brace in a role or
-    a lens is a brace in the profile.
-    """
-    header = (
-        "---\n"
-        f"id: {role['id']}\n"
-        f"name: {role['name']}\n"
-        f"summary: {role['summary']}\n"
-        f"createdAt: {GOLD_BAND_ROLE_STAMP}\n"
-        f"updatedAt: {GOLD_BAND_ROLE_STAMP}\n"
-        "dynamicTemplate: false\n"
-        "---\n"
-    )
-    schema = _gold_band_role_text(critique / "schemas" / "finding.schema.json").rstrip()
-    sections = [
-        _gold_band_role_text(critique / "roles" / role["source"]),
-        _gold_band_role_text(critique / "prompts" / "preamble.md"),
-        _gold_band_role_text(critique / "prompts" / "output-contract.md"),
-        f"```json\n{schema}\n```",
-        *(_gold_band_role_text(critique / "lenses" / f"{lens}.md") for lens in role["lenses"]),
-        closing,
-    ]
-    return header + "\n" + "".join(_gold_band_role_section(section) for section in sections)
-
-
-def _gold_band_role_id(text: str | None) -> str | None:
-    """The ``id:`` of a profile's first front matter block, or None."""
-    if text is None:
-        return None
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return None
-    for line in lines[1:]:
-        if line.strip() == "---":
-            return None
-        key, sep, value = line.partition(":")
-        if sep and key.strip() == "id":
-            return value.strip() or None
-    return None
-
-
-def _gold_band_role_write(path: Path, text: str) -> None:
-    """Written beside it and renamed, so a starting Gold Band never reads half a profile."""
-    staged = path.with_name(f".{path.name}.agent-kit-tmp")
-    try:
-        staged.write_text(text, encoding="utf-8")
-        os.replace(staged, path)
-    except OSError:
-        staged.unlink(missing_ok=True)
-        raise
-
-
-def gold_band_roles(args: argparse.Namespace) -> int:
-    profiles = args.profiles or _gold_band_settings_path().parent / "context" / "profiles"
-    try:
-        source, declared, retired = _gold_band_roles_registry(args.registry)
-        problems = _gold_band_role_problems(declared, retired)
-        if problems:
-            for problem in problems:
-                print(f"gold-band-roles: {problem}")
-            return 1
-        running = None if args.check else _gold_band_running(profiles.parent.parent)
-        if running:
-            print(
-                f"gold-band-roles: Gold Band instance {running} is running; "
-                "quit it and re-run setup (nothing was written)"
-            )
-            return GOLD_BAND_RUNNING_EXIT
-        critique = args.critique or (KIT_ROOT / source if source else None)
-        if critique is None:
-            raise _CannotConverge(f"{args.registry}: gold_band.roles_source must be a path")
-        closing = _gold_band_role_text(args.closing or GOLD_BAND_ROLES_CLOSING)
-        # Every role is rendered before anything is touched: one unreadable
-        # source leaves the directory exactly as it was.
-        rendered = {role["file"]: render_gold_band_role(critique, role, closing) for role in declared}
-    except _CannotConverge as exc:
-        print(f"gold-band-roles: cannot converge: {exc}")
-        return 3
-    keep = _keep(args.keep)
-    existing = (
-        {path.stem: path for path in sorted(profiles.glob("*.md")) if path.is_file()} if profiles.is_dir() else {}
-    )
-    for stem in rendered:
-        held = _gold_band_role_id(_gold_band_role_read(existing[stem])) if stem in existing else None
-        if held is not None and held.startswith(GOLD_BAND_ROLE_BUILT_IN):
-            print(f"gold-band-roles: {stem}: the existing profile is a built-in; nothing was written")
-            return 1
-
-    added = [stem for stem in rendered if stem not in existing]
-    changed = [
-        stem for stem, text in rendered.items() if stem in existing and _gold_band_role_read(existing[stem]) != text
-    ]
-    removed: list[tuple[str, str]] = []
-    for stem, path in existing.items():
-        if stem in rendered:
-            continue
-        role_id = _gold_band_role_id(_gold_band_role_read(path))
-        if role_id is not None and role_id.startswith(GOLD_BAND_ROLE_BUILT_IN):
-            continue
-        if stem in retired or role_id in retired:
-            removed.append((stem, "retired"))
-        elif stem in keep or f"{stem}.md" in keep:
-            continue
-        else:
-            removed.append((stem, "undeclared"))
-
-    if not (added or changed or removed):
-        print("profiles unchanged")
-        return 0
-    for stem in added:
-        print(f"added {stem}")
-    for stem in changed:
-        print(f"changed {stem}")
-    for stem, reason in removed:
-        print(f"removed {stem} ({reason})")
-    if args.check:
-        return 0
-
-    # Each profile is one write group, and the guard runs before every group.
-    groups = [(stem, True) for stem in added + changed] + [(stem, False) for stem, _ in removed]
-    written: list[str] = []
-    try:
-        for index, (stem, write) in enumerate(groups):
-            running = _gold_band_running(profiles.parent.parent)
-            if running:
-                pending = [f"{each}.md" for each, _ in groups[index:]]
-                return _gold_band_stopped("gold-band-roles", running, written, pending)
-            if write:
-                profiles.mkdir(mode=0o700, parents=True, exist_ok=True)
-                _gold_band_role_write(profiles / f"{stem}.md", rendered[stem])
-            else:
-                (profiles / f"{stem}.md").unlink()
-            written.append(f"{stem}.md")
-    except OSError as exc:
-        print(f"gold-band-roles: cannot converge: {exc}")
-        return 3
-    return 0
-
-
 def _gold_band_workflow_store_path() -> Path:
     """``${GOLD_BAND_HOME:-~}/.gold-band/context/workflows.json``: the app's user-level template store."""
     return _gold_band_settings_path().parent / "context" / "workflows.json"
@@ -1775,22 +1525,16 @@ def main(argv: list[str] | None = None) -> int:
     # directories go: beside settings.json unless the owner moves them.
     g.add_argument("--kit", type=Path, default=KIT_ROOT)
     g.add_argument("--skills-root", type=Path, default=None)
-    r = sub.add_parser("gold-band-roles")
-    r.add_argument("--profiles", type=Path, default=None)
-    r.add_argument("--registry", type=Path, default=REGISTRY_PATH)
-    r.add_argument("--critique", type=Path, default=None)
-    r.add_argument("--closing", type=Path, default=None)
     w = sub.add_parser("gold-band-workflows")
     w.add_argument("--store", type=Path, default=None)
     w.add_argument("--workflows", type=Path, default=GOLD_BAND_WORKFLOWS_DIR)
     w.add_argument("--registry", type=Path, default=REGISTRY_PATH)
-    for each in (g, r, w):
+    for each in (g, w):
         each.add_argument("--keep", type=Path, required=True)
         each.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
     surfaces: dict[str, Callable[[argparse.Namespace], int]] = {
         "gold-band": gold_band,
-        "gold-band-roles": gold_band_roles,
         "gold-band-workflows": gold_band_workflows,
     }
     return surfaces[args.surface](args)

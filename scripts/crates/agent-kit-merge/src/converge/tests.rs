@@ -456,8 +456,8 @@ fn the_command_line_refuses_what_argparse_would() {
     let machine = Machine::new(&[], None);
     let mut fake = Fake::new(&machine.home);
     let run = |args: &[&str], fake: &mut Fake| machine.run(fake, &args.iter().map(|text| text.to_string()).collect::<Vec<_>>());
-    assert_eq!(run(&["converge"], &mut fake).2, "agent-kit-merge: converge: expected mcp or plugins\n");
-    assert_eq!(run(&["converge", "gold"], &mut fake).2, "agent-kit-merge: converge: unknown surface \"gold\"; expected mcp or plugins\n");
+    assert_eq!(run(&["converge"], &mut fake).2, "agent-kit-merge: converge: expected mcp, plugins or gold-band-roles\n");
+    assert_eq!(run(&["converge", "gold"], &mut fake).2, "agent-kit-merge: converge: unknown surface \"gold\"; expected mcp, plugins or gold-band-roles\n");
     assert_eq!(run(&["converge", "mcp"], &mut fake).2, "agent-kit-merge: the following arguments are required: --claude-home, --keep\n");
     assert_eq!(run(&["converge", "plugins"], &mut fake).2, "agent-kit-merge: the following arguments are required: --keep\n");
     assert_eq!(run(&["converge", "plugins", "--keep", "/nowhere", "--bogus"], &mut fake).0, 2);

@@ -20,7 +20,9 @@ commands:
                   [--vibe-private PATH] [--opencode PATH] [--declared SURFACE=NAME,... ...]
                   [--retired NAME,...] [--private NAME,...] [--check]
   converge plugins --keep PATH [--declared-markets NAME,...] [--declared-plugins ID,...]
-                  [--retired-markets NAME,...] [--retired-plugins ID,...] [--check]";
+                  [--retired-markets NAME,...] [--retired-plugins ID,...] [--check]
+  converge gold-band-roles --keep PATH --registry PATH [--profiles DIR] [--critique DIR]
+                  [--closing PATH] [--check]";
 
 struct Parsed {
     positional: Vec<String>,
@@ -80,7 +82,12 @@ pub fn run(args: &[String], io: &mut Io, env: Env) -> i32 {
 
 /// [`run`] with the runner `converge` starts the agent CLIs through.
 pub fn run_with(args: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner) -> i32 {
-    match dispatch(args, io, env, runner) {
+    run_seeing(args, io, env, runner, &crate::gold_band::SystemProcesses)
+}
+
+/// [`run_with`] with the process table the Gold Band steps check for a running instance.
+pub fn run_seeing(args: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner, processes: &dyn crate::gold_band::Processes) -> i32 {
+    match dispatch(args, io, env, runner, processes) {
         Ok(status) => status,
         Err(Failure(message)) => {
             let _ = writeln!(io.err, "agent-kit-merge: {message}");
@@ -100,9 +107,9 @@ fn required(parsed: &Parsed, flags: &[&str]) -> Result<(), Failure> {
 }
 
 /// `converge mcp|plugins`.
-fn converge_command(rest: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner) -> Result<i32, Failure> {
+fn converge_command(rest: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner, processes: &dyn crate::gold_band::Processes) -> Result<i32, Failure> {
     let Some((surface, rest)) = rest.split_first() else {
-        return Err(Failure("converge: expected mcp or plugins".to_string()));
+        return Err(Failure("converge: expected mcp, plugins or gold-band-roles".to_string()));
     };
     match surface.as_str() {
         "mcp" => {
@@ -140,11 +147,25 @@ fn converge_command(rest: &[String], io: &mut Io, env: Env, runner: &mut dyn Run
             };
             converge::plugins(&args, runner, io)
         }
-        other => Err(Failure(format!("converge: unknown surface {other:?}; expected mcp or plugins"))),
+        "gold-band-roles" => {
+            let parsed = parse(rest, &["--keep", "--registry", "--profiles", "--critique", "--closing"], &["--check"], 0)?;
+            required(&parsed, &["--keep", "--registry"])?;
+            let path = |flag: &str| parsed.last(flag).map(PathBuf::from);
+            let args = crate::gold_band_roles::RolesArgs {
+                keep: PathBuf::from(parsed.last("--keep").unwrap_or_default()),
+                registry: PathBuf::from(parsed.last("--registry").unwrap_or_default()),
+                profiles: path("--profiles"),
+                critique: path("--critique"),
+                closing: path("--closing"),
+                check: !parsed.switches.is_empty(),
+            };
+            crate::gold_band_roles::run(&args, processes, io, env)
+        }
+        other => Err(Failure(format!("converge: unknown surface {other:?}; expected mcp, plugins or gold-band-roles"))),
     }
 }
 
-fn dispatch(args: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner) -> Result<i32, Failure> {
+fn dispatch(args: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner, processes: &dyn crate::gold_band::Processes) -> Result<i32, Failure> {
     let Some((command, rest)) = args.split_first() else {
         writeln!(io.err, "{USAGE}")?;
         return Ok(2);
@@ -199,7 +220,7 @@ fn dispatch(args: &[String], io: &mut Io, env: Env, runner: &mut dyn Runner) -> 
             };
             proxy::package_proxy(&PathBuf::from(&parsed.positional[0]), &parsed.positional[1], &options, io)
         }
-        "converge" => converge_command(rest, io, env, runner),
+        "converge" => converge_command(rest, io, env, runner, processes),
         other => Err(Failure(format!("unknown command {other:?}\n{USAGE}"))),
     }
 }

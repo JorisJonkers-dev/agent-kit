@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
@@ -19,7 +18,6 @@ sys.path.insert(0, str(KIT_ROOT / "tests"))
 
 import converge  # noqa: E402
 import test_gold_band_converge as agents  # noqa: E402
-import test_gold_band_roles as roles  # noqa: E402
 
 Process = converge._Process
 
@@ -163,42 +161,3 @@ def test_an_instance_starting_before_the_agents_write_stops_it(
     assert not machine.backup.exists()
 
 
-def test_roles_stop_between_groups_report_them_and_a_second_run_finishes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    machine = roles.Machine(tmp_path, monkeypatch)
-    declared = yaml.safe_load(machine.registry.read_text())
-    stems = [r["file"] for r in declared["gold_band"]["roles"]]
-    assert len(stems) >= 2
-    # Clear at the start and before the first group, running before the second.
-    answers = iter([None, None, "gold-band-personal (process 7)"])
-    real = converge._gold_band_running
-    monkeypatch.setattr(
-        converge, "_gold_band_running", lambda _dir, _instance=None: next(answers, "gold-band-personal (process 7)")
-    )
-    assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
-    out = capsys.readouterr().out
-    assert "started during setup" in out
-    assert f"written: {stems[0]}.md" in out
-    assert f"not yet written: {', '.join(f'{s}.md' for s in stems[1:])}" in out
-    assert machine.profile(stems[0]).exists()
-    assert not machine.profile(stems[1]).exists()
-    # The instance quits; the second run writes the rest.
-    monkeypatch.setattr(converge, "_gold_band_running", real)
-    _listing(monkeypatch)  # the instance has quit: no process is listed
-    assert machine.run() == 0
-    assert all(machine.profile(s).exists() for s in stems)
-
-
-def test_roles_removal_is_a_write_group_too(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    machine = roles.Machine(tmp_path, monkeypatch)
-    _listing(monkeypatch)
-    assert machine.run() == 0
-    stale = machine.hand_made("stale", "old\n")
-    answers = iter([None, "gold-band-personal (process 7)"])
-    monkeypatch.setattr(converge, "_gold_band_running", lambda _dir, _instance=None: next(answers))
-    assert machine.run() == converge.GOLD_BAND_RUNNING_EXIT
-    assert "not yet written: stale.md" in capsys.readouterr().out
-    assert stale.exists()

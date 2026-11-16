@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 pub mod block;
 pub mod cli;
 pub mod converge;
+pub mod gold_band;
+pub mod gold_band_roles;
 pub mod json;
 pub mod mcp_json;
 pub mod mcp_toml;
