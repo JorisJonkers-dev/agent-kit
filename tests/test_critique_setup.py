@@ -196,10 +196,10 @@ def test_setup_installs_check_tickets_beside_the_shared_skill_in_every_agent_hom
 def test_shipped_routing_defines_the_tickets_stage() -> None:
     tickets = json.loads(ROUTING.read_text())["stages"]["tickets"]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["base"]] == [
-        ("pi-vibe-deepseek-flash", "ticket-linter", ["testability"], 1, 600)
+        ("pi-vibe-deepseek-flash", "ticket-linter", ["testability"], 3, 900)
     ]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["deep"]] == [
-        ("pi-vibe-mistral-large", "ticket-linter", ["simplicity"], 1, 600)
+        ("pi-vibe-mistral-large", "ticket-linter", ["simplicity"], 3, 900)
     ]
     assert tickets["ticket_size"] == {"max_modules": 5, "max_criteria": 8}
     assert (KIT_ROOT / "skills" / "workstation" / "critique" / "roles" / "ticket-linter.md").is_file()
@@ -279,8 +279,8 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
     routing = json.loads(ROUTING.read_text())
     review = routing["stages"]["adr-review"]
     assert [(s["client"], s["max_price_usd"]) for s in review["base"]] == [
-        ("pi-vibe-mistral-large", 0.5),
-        ("agy-gemini-flash-high", 0.5),
+        ("pi-vibe-mistral-large", 1.5),
+        ("agy-gemini-flash-high", 1.5),
     ]
     assert [s["client"] for s in review["deep"]] == ["pi-vibe-glm"]
     assert review["depth_signals"]["thresholds"] == {"adrs": 10}
@@ -527,8 +527,8 @@ def test_shipped_routing_defines_the_ticket_review_stage() -> None:
     review = json.loads(ROUTING.read_text())["stages"]["ticket-review"]
     # Two axes of the code review, each its own critic from its own family (#797): Spec and Standards.
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in review["base"]] == [
-        ("agy-gemini-flash-high", "diff-reviewer", ["spec-conformance", "failure-modes", "security"], 0.5, 480),
-        ("pi-vibe-glm", "diff-reviewer", ["standards"], 0.5, 480),
+        ("agy-gemini-flash-high", "diff-reviewer", ["spec-conformance", "failure-modes", "security"], 1.5, 720),
+        ("pi-vibe-glm", "diff-reviewer", ["standards"], 1.5, 720),
     ]
     for lens in ("spec-conformance", "standards"):
         assert (KIT_ROOT / "skills" / "workstation" / "critique" / "lenses" / f"{lens}.md").is_file()
