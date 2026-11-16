@@ -2,8 +2,8 @@
   "steps": [
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"unknown-profile\",\"message\":\"no delegation profile nowhere: the defaults state cheap-research, cross-critic, implement-cheap, public-free\"}\n",
-      "stderr": "model-gateway run: no delegation profile nowhere: the defaults state cheap-research, cross-critic, implement-cheap, public-free\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"unknown-profile\",\"message\":\"no delegation profile nowhere: the defaults state cheap-research, cross-critic, implement-cheap, public-gemini\"}\n",
+      "stderr": "model-gateway run: no delegation profile nowhere: the defaults state cheap-research, cross-critic, implement-cheap, public-gemini\n",
       "files": {
         "home/": null,
         "home/.pi/": null,

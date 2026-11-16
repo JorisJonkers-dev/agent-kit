@@ -158,7 +158,10 @@ its tier and notes from the defaults entries with `"client": "pi"`, which
 describe a model once for every `pi-<route>` client; a canonical model with no
 entry is listed with `"tier": null` and is never picked. A client whose
 `models.json` is missing, is not JSON or has no such provider is named in
-`missing` with the reason.
+`missing` with the reason. Setup writes a provider only for a route that has a
+usable model (the `local` route has none until a local model is probed), so where
+it wrote the other routes, `missing` says the route has none instead of asking
+to re-run setup.
 
 The live catalogue judges a Pi model by its canonical group, not by a route:
 the group is offered when one of its deployments is usable, is named in
@@ -1008,7 +1011,9 @@ the staged diff before you commit it.
 
 A delegation profile is one named bundle that owns the models a delegation may
 use and the tool scope it runs with. The shipped profiles are `cheap-research`,
-`cross-critic` (two model families other than the writer's), `public-free` and
+`cross-critic` (two model families other than the writer's), `public-gemini`
+(Gemini models on the public route: named for what they are, not for being
+free, since the proxy bills them once the free-tier quota is used) and
 `implement-cheap` (a cheap writer with a ladder to a stronger model). They live
 in `registry/delegation-profiles.yaml` and are rendered into the `profiles`
 section of `defaults.json` by `scripts/render_registry.py`; a machine override
@@ -1036,7 +1041,7 @@ optional `narrow` object that may only take something away:
 
 The data policy always wins: it is intersected with the profile. A profile left
 with no allowed model for the repository is `profile-refused`, never a silent
-fallback to another model. `public-free` runs on the public route, which is
+fallback to another model. `public-gemini` runs on the public route, which is
 never sent a repository, so it has a model only for inline work; a nedap
 repository reaches only Claude Code and Codex, and a private repository only
 the families its entry names. A delegation that fails stays inside its profile:

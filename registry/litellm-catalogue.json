@@ -1,7 +1,7 @@
 {
   "comment": "A trimmed snapshot of the live LiteLLM catalogue (JorisJonkers-dev/litellm-model-catalog, model-catalog.json), in its own shape: every probed model per provider route with its status, reason, free mark and modality and context_length (unprobed ones left out), and the canonical groups. scripts/litellm_catalogue.py reads it when setup has fetched no live copy, and tests/test_litellm_models.py checks the gateway defaults against it. Refresh: gh api -H \"Accept: application/vnd.github.raw\" repos/JorisJonkers-dev/litellm-model-catalog/contents/model-catalog.json | jq --arg comment \"$(jq -r .comment registry/litellm-catalogue.json)\" '{comment: $comment, version, updated_at, providers: (.providers | map_values({models: [.models[] | select(.metadata.status != \"unprobed\") | {id, metadata: (.metadata | {status, reason, free, modality, context_length})}]})), groups}' > registry/litellm-catalogue.json.new && mv registry/litellm-catalogue.json.new registry/litellm-catalogue.json",
   "version": 1,
-  "updated_at": "2026-11-14T19:17:00Z",
+  "updated_at": "2026-11-15T21:17:08Z",
   "providers": {
     "vibe": {
       "models": [
@@ -2586,7 +2586,7 @@
           "metadata": {
             "status": "usable",
             "reason": "",
-            "free": false,
+            "free": true,
             "modality": "chat",
             "context_length": null
           }
@@ -2626,7 +2626,7 @@
           "metadata": {
             "status": "blocked",
             "reason": "invalid_request_error This OpenCode Go model trains on request data. Turn on \"Allow paid endpoints that train on request data\" at https://opencode.ai/console/org_01M6K4QA9F3FF8C4SK8MWV0K5F/settings/privacy#training to use it.",
-            "free": false,
+            "free": true,
             "modality": "chat",
             "context_length": null
           }
@@ -2738,8 +2738,8 @@
         {
           "id": "openrouter/google/gemma-4-26b-a4b-it:free",
           "metadata": {
-            "status": "error",
-            "reason": "Provider returned error",
+            "status": "usable",
+            "reason": "",
             "free": true,
             "modality": "chat",
             "context_length": 262144
@@ -2748,8 +2748,8 @@
         {
           "id": "openrouter/google/gemma-4-31b-it:free",
           "metadata": {
-            "status": "usable",
-            "reason": "",
+            "status": "error",
+            "reason": "Provider returned error",
             "free": true,
             "modality": "chat",
             "context_length": 262144
@@ -2873,6 +2873,20 @@
             "free": true,
             "modality": "chat",
             "context_length": 1048576
+          }
+        }
+      ]
+    },
+    "local": {
+      "models": [
+        {
+          "id": "local/qwen3:32b",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
           }
         }
       ]
@@ -3232,7 +3246,7 @@
         {
           "id": "google/gemini-3.7-flash",
           "metadata": {
-            "status": "usable",
+            "status": "error",
             "reason": "",
             "free": false,
             "modality": "chat",
@@ -3242,7 +3256,7 @@
         {
           "id": "google/gemini-3.8-flash",
           "metadata": {
-            "status": "usable",
+            "status": "error",
             "reason": "",
             "free": false,
             "modality": "chat",
@@ -3667,18 +3681,6 @@
     }
   },
   "groups": {
-    "beam-1.0-501b-a23b": {
-      "modality": "chat",
-      "public": false,
-      "deployments": [
-        {
-          "route": "opencode-go",
-          "upstream_id": "beam-free",
-          "order": 1,
-          "weight": 1
-        }
-      ]
-    },
     "claude-fable-5": {
       "modality": "chat",
       "public": false,
@@ -3689,6 +3691,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-fable-5-1": {
@@ -3701,6 +3706,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-fable-5-2": {
@@ -3713,6 +3721,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-haiku-4-5": {
@@ -3725,6 +3736,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-haiku-5-5": {
@@ -3737,6 +3751,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-opus-4-5": {
@@ -3749,6 +3766,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-opus-4-6": {
@@ -3761,6 +3781,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-opus-4-7": {
@@ -3773,6 +3796,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-opus-4-8": {
@@ -3785,6 +3811,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-opus-5": {
@@ -3797,6 +3826,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-opus-5-5": {
@@ -3809,6 +3841,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-sonnet-4-6": {
@@ -3821,6 +3856,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-sonnet-5": {
@@ -3833,6 +3871,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "claude-sonnet-5-5": {
@@ -3845,6 +3886,9 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "anthropic"
       ]
     },
     "codestral": {
@@ -4777,6 +4821,18 @@
         }
       ]
     },
+    "opencode-go-free/beam-1.0-501b-a23b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "beam-free",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
     "openrouter/dots-3-note-preview": {
       "modality": "chat",
       "public": true,
@@ -5132,6 +5188,18 @@
         {
           "route": "opencode-go",
           "upstream_id": "qwen3.8-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "qwen3:32b": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "local",
+          "upstream_id": "qwen3:32b",
           "order": 1,
           "weight": 1
         }

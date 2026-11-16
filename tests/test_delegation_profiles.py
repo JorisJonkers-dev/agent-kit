@@ -30,7 +30,7 @@ def _registry() -> dict:
 
 def test_the_registry_states_the_four_seed_profiles_against_the_catalogue():
     data = _registry()
-    assert sorted(data["profiles"]) == ["cheap-research", "cross-critic", "implement-cheap", "public-free"]
+    assert sorted(data["profiles"]) == ["cheap-research", "cross-critic", "implement-cheap", "public-gemini"]
     delegation_profiles.validate(data, _defaults())
 
 
@@ -98,7 +98,7 @@ def test_a_registry_that_is_not_a_mapping_is_refused(tmp_path):
         (lambda p: p["implement-cheap"].update(pin="pi-vibe:ministral-8b"), "pin names pi-vibe:ministral-8b"),
         (lambda p: p["implement-cheap"].update(ladder=["pi-vibe:ministral-8b"]), "ladder names pi-vibe:ministral-8b"),
         (lambda p: p["cheap-research"].update(distinct_families=9), "more than the families"),
-        (lambda p: p["public-free"].update(exclude_writer_family=True, models=["pi-public:public/gemini-3.8-flash"]),
+        (lambda p: p["public-gemini"].update(exclude_writer_family=True, models=["pi-public:public/gemini-3.8-flash"]),
          "only one"),
     ],
 )
