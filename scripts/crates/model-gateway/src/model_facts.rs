@@ -38,7 +38,7 @@ fn price(value: Option<f64>) -> Value {
 }
 
 /// One listed model's `cost` and `providers` members.
-fn facts(config: &GatewayConfig, catalogue: Option<&LiteLlmCatalogue>, client: &str, model: &str, cost_class: &str, free: bool) -> [(&'static str, Value); 2] {
+pub fn facts(config: &GatewayConfig, catalogue: Option<&LiteLlmCatalogue>, client: &str, model: &str, cost_class: &str, free: bool) -> [(&'static str, Value); 2] {
     let pi = is_pi_client(client);
     let served = if pi { deployments(catalogue, model) } else { Vec::new() };
     let known = prices(config, &served, client, model, free);

@@ -8,7 +8,7 @@ description: Holds the model gateway's runner and its shipped defaults; it is no
 This folder is what the model gateway runs on. It does nothing on its own: an
 agent calls the runner, and the `delegate` skill is what
 teaches an orchestrator to plan with it. The runner answers these questions:
-`models`, which client models this machine can use right now; `usage`, what
+`models`, which client models this machine can use right now; `catalog`, every canonical model the proxy serves with what serves it and what it costs; `usage`, what
 each client can do now and what it has spent; `run`, one delegation to one of
 them; `batch`, a whole plan of delegations in one call; `workflow`, the life of the piece of work a delegation belongs to; and
 `grant`, the owner's permission to spend their employer's money on one of
@@ -233,6 +233,42 @@ model the catalogue refuses is refused before anything is launched, code
 `model-not-usable`, with the same reason.
 
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
+
+## The `catalog` command
+
+`models` lists what a client can run; `catalog` answers "what can I run, where,
+and for how much" from the other side: one row per canonical model the proxy
+serves, whether or not any client runs it now.
+
+```sh
+model-gateway catalog [--repo PATH] [--route ROUTE] [--status STATUS] [--modality MODALITY] [--free] [--json]
+```
+
+It prints a plain table by default: a line per model with its modality, family,
+tier, context length, free flag, cost (the class, then the input and output price
+per million tokens, `unknown` where nobody states one, `0` for a free model) and
+status, then indented lines for what serves it and what runs it. `--json` prints
+one JSON object (`status`, `policy`, `updated_at`, `warnings`, `missing`,
+`models`) whose entries carry `model`, `modality`, `family`, `tier`,
+`context_length`, `free`, `cost` (as `models` gives it), `status`, `reason`,
+`deployments`, `clients` and `profiles`.
+
+A deployment is one provider that serves the model: its `order` (fallback order,
+lowest first), `provider` (Mistral, Google, Anthropic, OpenRouter, OpenCode Go or
+local), the LiteLLM `route` and the `key` (the environment variable of the
+provider key) that reach it, the `upstream_id` it serves the model under, and its
+probe `status` with the provider's own `reason`. `clients` and `profiles` are the
+clients that list the model now and the delegation profiles that allow one of
+them, under the data policy of `--repo`. A row's `status` is that of the usable
+deployment, else of the first the catalogue probed (`unprobed` when none).
+
+A model that cannot run is never dropped: an embedding or OCR model, a model every
+deployment of which is blocked, and a model a client skipped are rows with the
+reason in `reason`. A client model no catalogue group covers is a row of its own.
+`--route` keeps the models a deployment or a client of that route serves,
+`--status` the models whose row or any deployment has that status, `--modality`
+the models of that modality, and `--free` the free ones. A client the gateway
+cannot use is named at the end of the table, and in `missing`.
 
 ## The `usage` command
 

@@ -8,6 +8,7 @@ use crate::ports::Runtime;
 
 /// The usage text, exactly as the node runner prints it.
 pub const USAGE: &str = r#"usage: model-gateway models --json '{"repo": "/path/to/repo"}' [--free]
+       model-gateway catalog [--repo PATH] [--route ROUTE] [--status STATUS] [--modality MODALITY] [--free] [--json]
        model-gateway usage --json '{"days": 7, "workflow": "spec-293"}'
        model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
                                  "model": "glm-5-3", "mode": "read-only",
@@ -46,6 +47,16 @@ quota of the account, which says when it resets, or a model the account
 cannot use — is not offered: the ledger remembers it until then, and models
 names it in "skipped" with the reason. A free model carries "free": true and the
 cost class "free"; --free (or "free": true in the input) lists only those.
+
+catalog prints one row per canonical model the proxy serves, as a plain table
+(--json prints one JSON object instead): its modality, family, tier, context
+length, free flag, cost (class and input and output price per million tokens, or
+"unknown"), every deployment in fallback order with the provider, the LiteLLM
+route and key that reach it, its probe status and the provider's own reason, and
+the clients and profiles that can run it now. A model that cannot run is a row
+with its reason, never a missing one. --route keeps the models a deployment or a
+client of that route serves, --status those with that probe status, --modality
+those of that modality and --free the free ones.
 
 usage reports every client it knows: whether it is installed, whether its own
 status command says it is signed in, whether its last run in the availability
@@ -183,8 +194,9 @@ An error prints "status": "error" with its "code" and exits 1.
 "#;
 
 /// The subcommands the gateway has, and the command each one runs.
-const COMMANDS: [(&str, Command); 11] = [
+const COMMANDS: [(&str, Command); 12] = [
     ("batch", Command::Batch),
+    ("catalog", Command::Catalog),
     ("grant list", Command::GrantList),
     ("grant reserve", Command::GrantReserve),
     ("grant write", Command::GrantWrite),
@@ -199,7 +211,7 @@ const COMMANDS: [(&str, Command); 11] = [
 
 /// The subcommands, as an error names them.
 const COMMAND_NAMES: &str =
-    "models, run, batch, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean";
+    "models, catalog, run, batch, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list and worktrees clean";
 
 /// What one run prints and how it exits.
 pub struct CliResult {
@@ -217,6 +229,9 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
         let message = format!("unknown subcommand {}; the gateway has {COMMAND_NAMES}", unknown_subcommand(argv));
         return failure("unknown-command", &message, None, &[]);
     };
+    if named.name == "catalog" {
+        return catalog_cli(&named, runtime);
+    }
     // `grant write` also takes `--max-starts N`, which sets the grant's max_starts beside the JSON object, and
     // `models` takes `--free`, which sets its `free` filter.
     let split = if named.name == "grant write" { without_max_starts(named.args) } else { Some((named.args.to_vec(), None)) };
@@ -234,6 +249,40 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
         Ok(result) => CliResult { exit_code: 0, stdout: format!("{}\n", json::pretty(&result)), stderr: String::new() },
         Err(error) => failure(&error.code, &error.message, Some(named.name), &error.problems),
     }
+}
+
+/// `catalog` takes flags, not a JSON object: `--repo PATH`, `--route R`, `--status S`, `--modality M` and `--free`
+/// narrow the rows, and `--json` prints them as one JSON object instead of the plain table.
+fn catalog_cli(named: &Named<'_>, runtime: &Runtime) -> CliResult {
+    let mut input = Object::new();
+    let mut json_output = false;
+    let mut args = named.args.iter();
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--json" => json_output = true,
+            "--free" => input.set("free", Value::Bool(true)),
+            "--repo" | "--route" | "--status" | "--modality" => match args.next() {
+                Some(value) => input.set(&flag[2..], Value::str(value)),
+                None => return catalog_usage(),
+            },
+            _ => return catalog_usage(),
+        }
+    }
+    let result = if json_output {
+        commands::run(named.command, named.name, &input, runtime).map(|result| format!("{}\n", json::pretty(&result)))
+    } else {
+        crate::catalog::view(&input, runtime).map(|view| view.to_table())
+    };
+    match result {
+        Ok(stdout) => CliResult { exit_code: 0, stdout, stderr: String::new() },
+        Err(error) => failure(&error.code, &error.message, Some(named.name), &error.problems),
+    }
+}
+
+/// The error for a `catalog` flag the command does not have, or one that lacks its value.
+fn catalog_usage() -> CliResult {
+    let message = "catalog takes [--repo PATH] [--route ROUTE] [--status STATUS] [--modality MODALITY] [--free] [--json]";
+    failure("invalid-input", message, Some("catalog"), &[])
 }
 
 /// Reads the input the arguments name, parses it and runs the subcommand over it.
