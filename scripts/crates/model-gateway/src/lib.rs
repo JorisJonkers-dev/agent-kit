@@ -26,6 +26,7 @@ pub mod escalation_run;
 pub mod extras;
 pub mod git_remote;
 pub mod grants;
+pub mod harness;
 pub mod grant_guard;
 pub mod grants_file;
 pub mod home_mcp;

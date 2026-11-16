@@ -30,7 +30,18 @@ def _registry() -> dict:
 
 def test_the_registry_states_the_four_seed_profiles_against_the_catalogue():
     data = _registry()
-    assert sorted(data["profiles"]) == ["cheap-research", "cross-critic", "implement-cheap", "public-gemini"]
+    assert sorted(data["profiles"]) == [
+        "cheap-research",
+        "critique",
+        "cross-critic",
+        "implement",
+        "implement-cheap",
+        "public-gemini",
+        "red-team",
+        "refute",
+        "research",
+        "triage",
+    ]
     delegation_profiles.validate(data, _defaults())
 
 

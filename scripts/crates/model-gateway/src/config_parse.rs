@@ -552,7 +552,8 @@ fn invalid(message: impl Into<String>) -> GatewayError {
 }
 
 /// The fields a profile has; one it does not is refused, not quietly ignored.
-const PROFILE_FIELDS: [&str; 8] = ["description", "models", "pin", "ladder", "distinct_families", "exclude_writer_family", "tools", "max_spend_usd"];
+const PROFILE_FIELDS: [&str; 9] =
+    ["description", "models", "pin", "ladder", "distinct_families", "exclude_writer_family", "tools", "max_spend_usd", "unenforced_clients"];
 
 /// Reads the profiles of the shipped defaults; `known` holds the `<client>:<model>` keys of the catalogue.
 fn parse_profiles(raw: Option<&Value>, known: &BTreeSet<String>) -> Result<BTreeMap<String, DelegationProfile>, GatewayError> {
@@ -627,7 +628,22 @@ fn parse_profile(name: &str, raw: &Object, known: &BTreeSet<String>) -> Result<D
         Some(_) => return Err(invalid(format!("{where_}.max_spend_usd must be a number above 0"))),
     };
     let tools = parse_tools(raw.get("tools"), &format!("{where_}.tools"))?;
-    Ok(DelegationProfile { name: name.to_string(), description, models, pin, ladder, distinct_families, exclude_writer_family, tools, max_spend_usd })
+    let unenforced_clients = match raw.get("unenforced_clients") {
+        None => None,
+        value => {
+            let clients = profile_strings(value, &format!("{where_}.unenforced_clients"), false)?;
+            for client in &clients {
+                let named = models.iter().any(|key| key.split_once(':').is_some_and(|(owner, _)| owner == client));
+                if crate::run::is_pi_client(client) || !named {
+                    return Err(invalid(format!(
+                        "{where_}.unenforced_clients names {client}, which must be a client other than Pi that one of the profile's models runs on"
+                    )));
+                }
+            }
+            Some(clients)
+        }
+    };
+    Ok(DelegationProfile { name: name.to_string(), description, models, pin, ladder, distinct_families, exclude_writer_family, tools, max_spend_usd, unenforced_clients })
 }
 
 /// The tool scope: every kind is deny-all unless the profile lists it (or says `any`).

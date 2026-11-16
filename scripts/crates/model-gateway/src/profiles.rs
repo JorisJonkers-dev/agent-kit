@@ -352,6 +352,9 @@ pub fn hold_to_profile(
         )));
     }
     let profile = require_profile(config, name)?;
+    if !is_pi && profile.unenforced_clients.as_ref().is_some_and(|clients| clients.iter().any(|named| named == client)) {
+        return Ok(());
+    }
     match unenforceable(name, client, is_pi, &effective_tools(profile, narrow)) {
         Some(reason) => Err(refused(reason)),
         None => Ok(()),
@@ -379,6 +382,7 @@ pub fn list_profiles(config: &GatewayConfig, permitted: &[ProfileModel], policy_
                 members.extend(profile.distinct_families.map(|count| ("distinct_families", Value::Num(count))));
                 members.extend(profile.exclude_writer_family.map(|flag| ("exclude_writer_family", Value::Bool(flag))));
                 members.extend(profile.max_spend_usd.map(|cap| ("max_spend_usd", Value::Num(cap))));
+                members.extend(profile.unenforced_clients.as_deref().map(|clients| ("unenforced_clients", strings(clients))));
                 members.extend(resolution.error.as_deref().map(|error| ("error", Value::str(error))));
                 object(members)
             })

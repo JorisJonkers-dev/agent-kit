@@ -74,7 +74,8 @@
             "plugins": { "$ref": "#/$defs/toolList" }
           }
         },
-        "max_spend_usd": { "type": "number", "exclusiveMinimum": 0 }
+        "max_spend_usd": { "type": "number", "exclusiveMinimum": 0 },
+        "unenforced_clients": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9]+$" } }
       }
     },
     "client": {

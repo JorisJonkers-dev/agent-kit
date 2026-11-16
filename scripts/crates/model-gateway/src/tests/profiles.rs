@@ -68,10 +68,13 @@ fn pi_models(config: &GatewayConfig, name: &str, scope: &DataScope, narrow: Opti
 const EVERY_FAMILY: [&str; 6] = ["zhipu", "mistral", "deepseek", "moonshot", "alibaba", "google"];
 
 #[test]
-fn the_shipped_defaults_state_the_four_seed_profiles() {
+fn the_shipped_defaults_state_the_seed_profiles_and_the_roles() {
     let config = shipped();
     let names: Vec<&str> = config.profiles.keys().map(String::as_str).collect();
-    assert_eq!(names, vec!["cheap-research", "cross-critic", "implement-cheap", "public-gemini"]);
+    assert_eq!(
+        names,
+        vec!["cheap-research", "critique", "cross-critic", "implement", "implement-cheap", "public-gemini", "red-team", "refute", "research", "triage"]
+    );
     for profile in config.profiles.values() {
         assert_eq!(profile.tools, ToolScope { mcp: ToolList::Only(vec![]), plugins: ToolList::Only(vec![]), skills: ToolList::Only(vec![]) });
         assert!(profile.max_spend_usd.is_some());
@@ -204,7 +207,7 @@ fn a_profile_that_is_not_stated_is_unknown_and_the_error_says_what_is() {
     let config = shipped();
     let error = require_profile(&config, "nowhere").expect_err("unknown");
     assert_eq!(error.code, "unknown-profile");
-    assert!(error.message.ends_with("the defaults state cheap-research, cross-critic, implement-cheap, public-gemini"));
+    assert!(error.message.ends_with("the defaults state cheap-research, critique, cross-critic, implement, implement-cheap, public-gemini, red-team, refute, research, triage"));
     let none = custom("{}").expect("none");
     assert!(require_profile(&none, "x").expect_err("unknown").message.ends_with("the defaults state none"));
 }
@@ -294,4 +297,58 @@ fn the_listing_carries_every_field_a_profile_has_and_why_it_is_empty() {
     assert!(!listed.contains("\"error\""));
     let empty = crate::json::pretty(&list_profiles(&config, &[], "the policy"));
     assert!(empty.contains("\"models\": []") && empty.contains("\"error\": \"profile full has no allowed model (pinned to pi-vibe:small): none of its 1 models is both usable now and permitted by the data policy (the policy)\""));
+}
+
+#[test]
+fn every_role_is_deny_all_capped_and_names_the_harnesses_that_run_it_unenforced() {
+    let config = shipped();
+    for role in ["research", "implement", "critique", "red-team", "refute", "triage"] {
+        let profile = &config.profiles[role];
+        assert_eq!(profile.tools, ToolScope { mcp: ToolList::Only(vec![]), plugins: ToolList::Only(vec![]), skills: ToolList::Only(vec![]) }, "{role}");
+        assert!(profile.max_spend_usd.is_some(), "{role}");
+        let unenforced = profile.unenforced_clients.as_ref().expect("a role names its non-Pi harnesses");
+        assert!(unenforced.iter().all(|client| !crate::run::is_pi_client(client)), "{role}");
+        assert!(profile.models.iter().any(|key| key.starts_with("pi-vibe:")), "{role} runs on Pi");
+    }
+    for role in ["critique", "red-team", "refute"] {
+        assert_eq!(config.profiles[role].exclude_writer_family, Some(true), "{role}");
+        assert!(config.profiles[role].distinct_families.is_some(), "{role}");
+    }
+    // A repository never reaches the public routes, so the free and public models the research roles list
+    // are cut by the data policy for one.
+    let scope = repository(&["mistral", "zhipu", "deepseek", "alibaba", "google", "anthropic", "openai", "moonshot", "xiaomi"]);
+    let decided = decision(&config, &scope);
+    let left = profile_models(&config, &decided, "research", None).expect("research");
+    assert!(left.models.iter().all(|model| !model.client.starts_with("pi-free") && !model.client.starts_with("pi-openrouter")));
+    assert!(config.profiles["research"].models.iter().any(|key| key.starts_with("pi-free:")));
+}
+
+#[test]
+fn a_client_a_profile_names_as_unenforced_is_held_to_its_models_but_not_to_the_tool_scope() {
+    let config = custom(
+        r#"{"role": {"description": "d", "models": ["claude:haiku", "pi-vibe:small", "vibe:paid"], "unenforced_clients": ["claude"]}}"#,
+    )
+    .expect("role");
+    let scope = repository(&["anthropic", "mistral", "zhipu"]);
+    let decided = decision(&config, &scope);
+    assert!(hold_to_profile(&config, &decided, "role", None, "claude", "haiku", false).is_ok());
+    let refused = hold_to_profile(&config, &decided, "role", None, "vibe", "paid", false).expect_err("vibe is not named");
+    assert!(refused.message.contains("only Pi does"));
+    // Pi still holds the empty scope, and the listing says which clients the profile leaves unenforced.
+    assert!(hold_to_profile(&config, &decided, "role", None, "pi-vibe", "small", true).is_ok());
+    let listed = json::compact(&list_profiles(&config, &[], "r"));
+    assert!(listed.contains(r#""unenforced_clients":["claude"]"#));
+}
+
+#[test]
+fn unenforced_clients_must_be_non_pi_clients_the_profiles_models_run_on() {
+    for (field, why) in [
+        (r#"["pi-vibe"]"#, "pi-vibe"),
+        (r#"["codex"]"#, "codex"),
+        (r#"[]"#, "must not be empty"),
+        (r#""claude""#, "must be a list"),
+    ] {
+        let message = refused_config(&format!(r#"{{"role": {{"description": "d", "models": ["claude:haiku", "pi-vibe:small"], "unenforced_clients": {field}}}}}"#));
+        assert!(message.contains(why), "{field}: {message}");
+    }
 }

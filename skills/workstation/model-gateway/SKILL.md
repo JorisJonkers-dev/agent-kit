@@ -1014,7 +1014,8 @@ use and the tool scope it runs with. The shipped profiles are `cheap-research`,
 `cross-critic` (two model families other than the writer's), `public-gemini`
 (Gemini models on the public route: named for what they are, not for being
 free, since the proxy bills them once the free-tier quota is used) and
-`implement-cheap` (a cheap writer with a ladder to a stronger model). They live
+`implement-cheap` (a cheap writer with a ladder to a stronger model), and the
+delegation roles below. They live
 in `registry/delegation-profiles.yaml` and are rendered into the `profiles`
 section of `defaults.json` by `scripts/render_registry.py`; a machine override
 does not add or change them.
@@ -1047,6 +1048,47 @@ repository reaches only Claude Code and Codex, and a private repository only
 the families its entry names. A delegation that fails stays inside its profile:
 the retry, the climb and the fall-through use only its models.
 
+### Roles and harnesses
+
+The delegation roles are profiles too: `research` (read-only, public sources),
+`implement` (writes in a worktree, a cheap writer with a ladder), `critique`
+(independent read-only review from two families other than the writer's),
+`red-team` (adversarial and read-only: tries to break the artifact, attack the
+spec and find unsafe assumptions, and reports findings with the evidence for
+each, never a fix), `refute` (checks one claim from another family) and
+`triage` (sorts into labelled buckets). Each has a model set, a deny-all tool
+scope (no MCP server, skill or plugin), a per-run `max_spend_usd` and the data
+policy of any profile: a repository never reaches the public clients
+(`pi-public`, `pi-openrouter`, `pi-free`), which `research` and `triage` list
+only for public-data work. A free model is run only when the catalogue marks it
+free (`free-only-refused` otherwise).
+
+A role runs on Pi by default, and any harness can be chosen per run:
+
+```sh
+model-gateway run --profile red-team --harness pi --json '{"workflow": "w", "mode": "read-only", "prompt": "...", "narrow": {"writer_family": "anthropic"}}'
+model-gateway run --profile research --harness pi-opencode-go --json '{...}'
+```
+
+`--profile ROLE` and `--harness H` (or `profile` and `harness` in the input;
+the flags win) replace `client` and `model`: the gateway resolves the profile's
+models for the repository exactly as `models` lists them, keeps those on the
+harness and runs the cheapest. `pi` is every Pi route, `pi-<route>` one route
+(`pi-opencode-go` is OpenCode Go through Pi), and `claude`, `codex`, `agy` and
+`vibe` name themselves. When the profile leaves no model on the harness the run
+is `profile-refused` and the message lists what it does leave. `hermes` has no
+model in any profile (its model is its own configuration, not the catalogue's),
+so it is refused until one is configured. `harness` needs `profile`, and cannot
+be given with `client` or `model`.
+
+Only Pi enforces a tool scope. A role runs on another harness only if the
+profile names the client in `unenforced_clients`: the profile author's explicit
+statement that the client's own read-only launch (Claude Code's `--allowedTools
+Read,Grep,Glob`, Codex's read-only sandbox, Antigravity's `--mode plan`, Vibe's
+`delegate-readonly` agent) stands in for the scope, which the gateway cannot
+verify as it does Pi's home. A client the profile does not name stays refused
+with the reason.
+
 A run is also refused with `profile-refused` when:
 
 - the run's client model is not one the profile leaves for this repository;
@@ -1057,9 +1099,10 @@ A run is also refused with `profile-refused` when:
   --no-mcp` plus `--skill` and `-e` for each). Pi refuses an `mcp` entry (a
   confined launch reaches only the proxy port, so a server could not connect),
   `any`, a name that is not a plain name, and a skill or plugin that is not in
-  Pi's home. Every other client is treated as unable, so a profile that
-  restricts tools (every seed profile does, since deny-all is the default) is
-  refused for `vibe`, `claude` and the rest with the restricted kinds named.
+  Pi's home. Every other client is treated as unable unless the profile lists
+  it in `unenforced_clients`, so a profile that restricts tools (every seed
+  profile does, since deny-all is the default) is refused for `vibe`, `claude`
+  and the rest with the restricted kinds named.
   The ledger line of a profile run records its `profile` and `tool_scope`.
 
 An unknown name is `unknown-profile`. `narrow` without `profile` is
