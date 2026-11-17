@@ -89,8 +89,13 @@ the roster drops it with the reason `data-scope`, it is never kept as a fallback
 passes it over. The check lives in `scripts/crates/critique`, each
 with tests.
 
-There is no route for OpenCode Zen's free models: OpenCode's docs say they answer HTTP 403 to
-every client but OpenCode itself, so a route through the proxy would serve nothing.
+There is no route for OpenCode Zen's free models (`big-pickle`, `glm-5.3-flash-free` and the
+rest of Zen's `-free` ids): OpenCode's Zen docs say "Free-tier chat models require OpenCode; use
+paid models or Go from other clients", and its harness guide
+(https://opencode.ai/docs/console/harnesses/) says "Other harnesses receive HTTP `403` for those
+models, even with a Console API key." Only the real OpenCode client may use them, so they are
+not served through the proxy. The free ids OpenCode Go serves itself are reached through the
+`opencode-go` route (item 7 below).
 
 ### Provider priority (what the keys route to)
 
@@ -106,12 +111,15 @@ Set in the litellm repository (litellm#20); recorded here because the agent ids 
    `vibe-api/<id>`.
 3. Claude only through the `anthropic` key.
 4. Gemini: Google free tier first, only inside `google-free-public`.
-5. OpenCode Go only for models no Mistral, Google or Anthropic key serves. Its base is
-   `https://opencode.ai/inference/go/openai/v1`.
+5. OpenCode Go only for models no Mistral, Google or Anthropic key serves, through LiteLLM's
+   own `opencode_go` provider (litellm 1.109 and later): it picks the API family (Chat
+   Completions, Responses, Messages, Gemini) per model and prices each request, so the spend
+   shows under OpenCode Go in the LiteLLM UI. The proxy sets no base for it.
 6. OpenRouter free models only, `data_collection: allow` (public work only; most free endpoints
    exist only with training on), in `openrouter-free-public` alone (never in `canonical`). The
    OpenRouter account's privacy setting "Free model training" must be on.
-7. OpenCode Go's free ids (`beam-free`), whose providers may train on the prompt, only in
+7. OpenCode Go's free ids (`beam-free`, `hy4-flash-free`, `longcat-2.5-free`,
+   `iceman-contributor-free`), whose providers may train on the prompt, only in
    `opencode-go-free-public`, each alone (never in `canonical` or a paid group).
 
 Mistral's four keys: `vibe` (255 EUR) and `vibe-study` (127.50 EUR) are Vibe-scope; `vibe-api`
