@@ -224,7 +224,7 @@ fn the_policy_refuses_a_public_only_client_a_private_repository_however_its_entr
     // The refusal names the entry and says it does not record the repository as public.
     assert_eq!(
         decide_policy(&config, &explicit, &subjects(&config)).reason,
-        "github.com/acme/widgets: the entry allows anthropic, and does not record the repository as public"
+        "github.com/acme/widgets: the entry allows anthropic"
     );
 }
 
@@ -241,9 +241,7 @@ fn the_policy_refuses_a_public_only_client_a_public_repository_whose_entry_allow
     let config = public_only_config();
     assert!(!claude_permission(&config, &public_repository(&["openai", "zhipu"])).permitted);
     // The family the entry does allow is still permitted on that route, and the others are not.
-    let permitted = permitted(&public_repository(&["anthropic"]));
-    assert_eq!(permitted, vec!["claude:claude-sonnet-5-5"]);
-    assert!(permitted(&public_repository(&["openai", "zhipu"])).is_empty());
+    assert_eq!(permitted(&public_repository(&["anthropic"])), vec!["claude:claude-sonnet-5-5"]);
 }
 
 #[test]
@@ -271,7 +269,7 @@ fn a_client_that_is_not_public_only_is_unaffected_by_the_public_flag() {
 }
 
 #[test]
-fn the_listing_lists_a_public_only_clients_models_for_a_public_repository_and_skips_them_with_the_reason_otherwise() {
+fn the_listing_lists_a_public_only_clients_models_for_a_public_repository_and_leaves_them_out_otherwise() {
     let listing = || ModelListing {
         models: vec![
             listed("claude", "claude-sonnet-5-5", "anthropic", CostClass::Subsidised, Some(Tier::Hard), "general", ModelSource::Declared),
@@ -281,33 +279,23 @@ fn the_listing_lists_a_public_only_clients_models_for_a_public_repository_and_sk
         skipped: Vec::new(),
     };
     let config = public_only_config();
+    let clients = |scope: &DataScope| -> Vec<String> {
+        permitted_models(listing(), &decide_policy(&config, scope, &subjects(&config)))
+            .models
+            .iter()
+            .map(|model| model.listed.client.clone())
+            .collect()
+    };
     // A public repository: the public-only client's model is listed.
-    let public = permitted_models(listing(), &decide_policy(&config, &public_repository(&["anthropic"]), &subjects(&config)));
-    assert_eq!(public.models.iter().map(|model| model.listed.client.as_str()).collect::<Vec<_>>(), vec!["claude"]);
-    assert!(public.skipped.is_empty());
-    // A private repository: it is skipped, with the policy's reason, and the private route's model is listed.
-    let private_scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&["anthropic"], true, true)) };
-    let private = permitted_models(listing(), &decide_policy(&config, &private_scope, &subjects(&config)));
-    assert_eq!(private.models.iter().map(|model| model.listed.client.as_str()).collect::<Vec<_>>(), vec!["vibe"]);
-    assert_eq!(
-        private.skipped,
-        vec![SkippedModel {
-            client: "claude".to_string(),
-            model: "claude-sonnet-5-5".to_string(),
-            reason: "github.com/acme/widgets: the entry allows anthropic, and does not record the repository as public".to_string(),
-        }]
-    );
-    // A repository with no entry at all: it is skipped with the reason that says so.
+    assert_eq!(clients(&public_repository(&["anthropic"])), vec!["claude"]);
+    // A private repository: the public-only client's model is left out, and the private route's model is listed.
+    let private_scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&["anthropic", "zhipu"], true, true)) };
+    assert_eq!(clients(&private_scope), vec!["vibe"]);
+    // A repository with no entry at all: nothing is listed.
     let none = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: None };
-    let unrecorded = permitted_models(listing(), &decide_policy(&config, &none, &subjects(&config)));
-    assert!(unrecorded.models.is_empty());
-    assert_eq!(unrecorded.skipped.len(), 2);
-    assert!(unrecorded.skipped.iter().all(|skipped| skipped.reason == "github.com/acme/widgets has no allowlist entry, so nothing is sent"));
-    // A public repository whose entry allows another family: the public-only client's model is skipped, the other listed.
-    let other_family = permitted_models(listing(), &decide_policy(&config, &public_repository(&["zhipu"]), &subjects(&config)));
-    assert_eq!(other_family.models.iter().map(|model| model.listed.client.as_str()).collect::<Vec<_>>(), vec!["vibe"]);
-    assert_eq!(other_family.skipped.len(), 1);
-    assert_eq!(other_family.skipped[0].client, "claude");
+    assert!(clients(&none).is_empty());
+    // A public repository whose entry allows another family: only that family's model is listed.
+    assert_eq!(clients(&public_repository(&["zhipu"])), vec!["vibe"]);
 }
 
 #[test]

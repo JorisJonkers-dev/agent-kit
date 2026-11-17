@@ -132,8 +132,7 @@ fn permission(config: &GatewayConfig, subject: &PolicySubject, scope: &DataScope
     }
 }
 
-/// One line saying why the policy decided what it did, and what a client on a public-only route may do with it: such a
-/// client is refused a repository that is not recorded as public, and permitted it when it is.
+/// One line saying why the policy decided what it did.
 fn reason_for(scope: &DataScope) -> String {
     match scope {
         DataScope::Outside => "no repository: only inline content, to subsidised and metered-personal clients".to_string(),
@@ -146,33 +145,30 @@ fn reason_for(scope: &DataScope) -> String {
                 "{key}: the entry allows {}, and records the repository as public, so a public-only route may read it",
                 entry.families.join(", ")
             ),
-            Some(entry) => format!("{key}: the entry allows {}, and does not record the repository as public", entry.families.join(", ")),
+            Some(entry) => format!("{key}: the entry allows {}", entry.families.join(", ")),
         },
     }
 }
 
 /// The listed models the policy permits, each with what it may carry; the
-/// missing and skipped lists stay as they were. A listed model the policy does
-/// not permit is skipped with the policy's reason, so a client on a public-only
-/// route says why it is left out of a repository that is not recorded as public.
+/// missing and skipped lists stay as they were.
 pub fn permitted_models(listing: ModelListing, decision: &PolicyDecision) -> PolicyListing {
-    let mut skipped = listing.skipped;
-    let mut models = Vec::new();
-    for model in listing.models {
-        let permission = decision
-            .permissions
-            .iter()
-            .rev()
-            .find(|permission| permission.client == model.client && permission.model == model.model);
-        match permission {
-            Some(permission) if permission.permitted => {
-                models.push(PermittedModel { listed: model, inline_only: permission.inline_only, may_send: permission.may_send });
+    let models = listing
+        .models
+        .into_iter()
+        .filter_map(|model| {
+            let permission = decision
+                .permissions
+                .iter()
+                .rev()
+                .find(|permission| permission.client == model.client && permission.model == model.model)?;
+            if !permission.permitted {
+                return None;
             }
-            Some(_) => skipped.push(SkippedModel { client: model.client, model: model.model, reason: decision.reason.clone() }),
-            None => {}
-        }
-    }
-    PolicyListing { models, missing: listing.missing, skipped }
+            Some(PermittedModel { listed: model, inline_only: permission.inline_only, may_send: permission.may_send })
+        })
+        .collect();
+    PolicyListing { models, missing: listing.missing, skipped: listing.skipped }
 }
 
 /// What a delegation from `repo` would carry: a repository's content, or only

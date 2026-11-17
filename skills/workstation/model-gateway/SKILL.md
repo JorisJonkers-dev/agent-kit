@@ -192,8 +192,7 @@ route may read it: a read-only run and a writing run alike, carrying the code
 and the history the entry allows. A private repository, an entry without the
 flag and a repository with no entry at all are refused, as is a family the
 entry does not allow; `models` with a `repo` follows the same rule, listing the
-client's models for a public repository and naming them in `skipped` with the
-policy's reason for any other. With no `repo` it lists as before, since such a
+client's models for a public repository and leaving them out for any other. With no `repo` it lists as before, since such a
 run carries only what the caller declares.
 
 A Pi run starts through `agent-launcher confine`, never bare: Pi has no
