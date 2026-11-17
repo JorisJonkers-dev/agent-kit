@@ -100,6 +100,9 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
     assert clients["opencode"]["provider_cost_classes"] == {
         "opencode-go": "subsidised",
         "litellm-opencode-go": "subsidised",
+        "litellm-vibe": "subsidised",
+        "litellm-vibe-study": "subsidised",
+        "litellm-local": "subsidised",
     }
 
 

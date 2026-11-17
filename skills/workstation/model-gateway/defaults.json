@@ -5,7 +5,7 @@
     "agy":    {"binary": "agy",    "cost_class": "subsidised",       "model_source": "live", "families": ["google"]},
     "claude": {"binary": "claude", "cost_class": "subsidised",       "model_source": "declared"},
     "hermes": {"binary": "hermes", "cost_class": "metered-personal", "model_source": "config", "providers": ["litellm-vibe", "litellm-vibe-study", "litellm-opencode-go", "litellm-local"], "provider_cost_classes": {"litellm-vibe": "subsidised", "litellm-vibe-study": "subsidised", "litellm-opencode-go": "subsidised", "litellm-local": "subsidised"}},
-    "opencode": {"binary": "opencode", "cost_class": "metered-personal", "model_source": "live", "provider_cost_classes": {"opencode-go": "subsidised", "litellm-opencode-go": "subsidised"}, "litellm_route": "opencode-go"},
+    "opencode": {"binary": "opencode", "cost_class": "metered-personal", "model_source": "live", "provider_cost_classes": {"opencode-go": "subsidised", "litellm-opencode-go": "subsidised", "litellm-vibe": "subsidised", "litellm-vibe-study": "subsidised", "litellm-local": "subsidised"}, "litellm_route": "opencode-go"},
     "codex":  {"binary": "codex",  "cost_class": "metered-employer", "model_source": "declared"},
     "pi-vibe":        {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-vibe-study":  {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
@@ -92,52 +92,52 @@
     },
     "research": {
       "description": "Read-only research over public sources and lookups: cheap models, with the free public routes (pi-free, pi-openrouter) for work that carries no repository. No tools attached.",
-      "models": ["pi-vibe:ministral-8b", "pi-vibe:mistral-small", "pi-vibe:glm-5.3-flash", "pi-opencode-go:qwen3.8-flash", "pi-free:qwen3.8-flash", "pi-free:mistral-small", "pi-openrouter:qwen3.8-flash", "pi-openrouter:mistral-small", "agy:gemini-3.8-flash-low", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b"],
+      "models": ["pi-vibe:ministral-8b", "pi-vibe:mistral-small", "pi-vibe:glm-5.3-flash", "pi-opencode-go:qwen3.8-flash", "pi-free:qwen3.8-flash", "pi-free:mistral-small", "pi-openrouter:qwen3.8-flash", "pi-openrouter:mistral-small", "agy:gemini-3.8-flash-low", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free", "opencode-free:opencode/mimo-v2.6-flash-free", "opencode-free:opencode/hy4-flash-free"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 1.5,
-      "unenforced_clients": ["agy", "claude", "codex", "hermes"]
+      "unenforced_clients": ["agy", "claude", "codex", "hermes", "opencode", "opencode-free"]
     },
     "implement": {
       "description": "Writes in a worktree, test first. A cheap writer with a ladder to a stronger model on escalation. The write run is the gateway's own worktree and check; no tool beyond the client's file edit.",
-      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3", "pi-opencode-go:kimi-k2.7-code", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash"],
+      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3", "pi-opencode-go:kimi-k2.7-code", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free"],
       "ladder": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 6,
-      "unenforced_clients": ["agy", "claude", "codex", "hermes"]
+      "unenforced_clients": ["agy", "claude", "codex", "hermes", "opencode", "opencode-free"]
     },
     "critique": {
       "description": "Independent read-only review from two model families other than the writer's. The request names the writer's family as narrow.writer_family.",
-      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3", "pi-vibe:mistral-large-4", "pi-opencode-go:kimi-k2.7-code", "pi-opencode-go:qwen3.8-flash", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b"],
+      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3", "pi-vibe:mistral-large-4", "pi-opencode-go:kimi-k2.7-code", "pi-opencode-go:qwen3.8-flash", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free", "opencode-free:opencode/nemotron-3.5-super-vl-free"],
       "distinct_families": 2,
       "exclude_writer_family": true,
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 3,
-      "unenforced_clients": ["agy", "claude", "codex", "hermes"]
+      "unenforced_clients": ["agy", "claude", "codex", "hermes", "opencode", "opencode-free"]
     },
     "red-team": {
       "description": "Adversarial and read-only: tries to break the artifact, attack the spec and find the unsafe assumptions, and reports findings with the evidence for each (the input, the command or the line that shows it), never a fix or an edit. Two families other than the writer's, so the attack is not made by the author's own blind spots. The request names the writer's family as narrow.writer_family.",
-      "models": ["pi-vibe:glm-5.3", "pi-vibe:mistral-large-4", "pi-vibe:deepseek-v4.1-flash", "pi-opencode-go:kimi-k2.7-code", "pi-opencode-go:mimo-v2.6-pro", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b"],
+      "models": ["pi-vibe:glm-5.3", "pi-vibe:mistral-large-4", "pi-vibe:deepseek-v4.1-flash", "pi-opencode-go:kimi-k2.7-code", "pi-opencode-go:mimo-v2.6-pro", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free", "opencode-free:opencode/nemotron-3.5-super-vl-free"],
       "distinct_families": 2,
       "exclude_writer_family": true,
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 4.5,
-      "unenforced_clients": ["agy", "claude", "codex", "hermes"]
+      "unenforced_clients": ["agy", "claude", "codex", "hermes", "opencode", "opencode-free"]
     },
     "refute": {
       "description": "Read-only check of one claim or finding: tries to refute it from the evidence and answers confirmed or refuted with the reason. A family other than the one that raised the claim. The request names it as narrow.writer_family.",
-      "models": ["pi-vibe:glm-5.3", "pi-vibe:mistral-large-4", "pi-opencode-go:kimi-k2.7-code", "agy:gemini-3.8-flash-medium", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b"],
+      "models": ["pi-vibe:glm-5.3", "pi-vibe:mistral-large-4", "pi-opencode-go:kimi-k2.7-code", "agy:gemini-3.8-flash-medium", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free", "opencode-free:opencode/nemotron-3.5-super-vl-free"],
       "distinct_families": 2,
       "exclude_writer_family": true,
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 1.5,
-      "unenforced_clients": ["agy", "claude", "codex", "hermes"]
+      "unenforced_clients": ["agy", "claude", "codex", "hermes", "opencode", "opencode-free"]
     },
     "triage": {
       "description": "Read-only sorting of issues, findings or logs into labelled buckets on the cheapest models, free public routes included for material that is public.",
-      "models": ["pi-vibe:ministral-8b", "pi-vibe:ministral-3b", "pi-vibe:mistral-small", "pi-free:mistral-small", "pi-openrouter:mistral-small", "pi-opencode-go:qwen3.8-flash", "agy:gemini-3.8-flash-low", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b"],
+      "models": ["pi-vibe:ministral-8b", "pi-vibe:ministral-3b", "pi-vibe:mistral-small", "pi-free:mistral-small", "pi-openrouter:mistral-small", "pi-opencode-go:qwen3.8-flash", "agy:gemini-3.8-flash-low", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/hy4-flash-free"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 0.75,
-      "unenforced_clients": ["agy", "claude", "codex", "hermes"]
+      "unenforced_clients": ["agy", "claude", "codex", "hermes", "opencode", "opencode-free"]
     }
   },
   "settings": {

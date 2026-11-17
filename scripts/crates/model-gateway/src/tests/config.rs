@@ -567,7 +567,7 @@ fn the_shipped_defaults_parse() {
     assert_eq!(config.clients.get("agy").and_then(|client| client.families.clone()), Some(vec!["google".to_string()]));
     assert_eq!(
         config.clients.get("opencode").and_then(|client| client.provider_cost_classes.clone()),
-        Some(BTreeMap::from([("opencode-go".to_string(), CostClass::Subsidised), ("litellm-opencode-go".to_string(), CostClass::Subsidised)]))
+        Some(BTreeMap::from(["opencode-go", "litellm-opencode-go", "litellm-vibe", "litellm-vibe-study", "litellm-local"].map(|provider| (provider.to_string(), CostClass::Subsidised))))
     );
     assert_eq!(config.models.len(), 27 + 7 * 17);
     assert_eq!(config.models[0].model, "claude-opus-5-5");

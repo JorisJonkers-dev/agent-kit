@@ -355,10 +355,25 @@ static CLAUDE: ClientLauncher = ClientLauncher {
 /// in the directory it is started in: left to the background service, a run
 /// lands in whatever checkout that service was started in. It has no time
 /// limit of its own, so the outer timer is the limit.
+///
+/// A model on one of setup's `litellm-<route>` providers reads its key from `{env:LITELLM_<ROUTE>_KEY}`, which the
+/// gateway does not export: the wrapper reads it from the secret store into OpenCode's own environment, as for
+/// Hermes, so it is in no argument and no file.
 fn opencode_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let args = strings(&["run", "--standalone", "--model", &input.model, "--format", "json", prompt]);
-    ProcessCommand { command: binary.to_string(), args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), timeout_ms: limit_ms(input), stdin: None }
+    let (command, args) = match crate::models::open_code_provider(&input.model).as_deref().and_then(hermes_key) {
+        Some(key_env) => {
+            let mut wrapped = strings(&["-c", OPENCODE_KEYED, "opencode-keyed", SECRET_TOOL, &key_env, binary]);
+            wrapped.extend(args);
+            ("/bin/sh".to_string(), wrapped)
+        }
+        None => (binary.to_string(), args),
+    };
+    ProcessCommand { command, args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), timeout_ms: limit_ms(input), stdin: None }
 }
+
+/// `HERMES_KEYED` for OpenCode: reads the key named by `$2` with `$1 get`, exports it and runs the rest.
+pub(crate) const OPENCODE_KEYED: &str = r#"key=$("$1" get "$2") && [ -n "$key" ] || { echo "opencode: $1 get $2 gave no key" >&2; exit 70; }; export "$2=$key"; shift 2; exec "$@""#;
 
 fn opencode_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
     open_code_output(stdout)

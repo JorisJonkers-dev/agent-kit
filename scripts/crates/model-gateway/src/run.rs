@@ -609,7 +609,7 @@ pub fn run_failure_reason(launch: &LaunchExit, answer: Option<&str>, reported: O
 }
 
 /// The providers an OpenCode run may reach when the machine names none.
-pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 2] = ["opencode-go", "litellm-opencode-go"];
+pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 5] = ["opencode-go", "litellm-opencode-go", "litellm-vibe", "litellm-vibe-study", "litellm-local"];
 
 /// OpenCode's own pay-per-token providers (`opencode/<model>` is its Zen). The
 /// owner's rule is that a run never reaches one, so no allowlist can open it.
@@ -631,6 +631,31 @@ pub fn is_provider_allowed(provider: Option<&str>, allowed: Option<&[String]>) -
             Some(allowed) => allowed.iter().any(|name| name == provider),
             None => DEFAULT_OPENCODE_PROVIDERS.contains(&provider),
         }
+}
+
+/// The canonical LiteLLM group an `opencode` model on a LiteLLM provider names (`litellm-vibe/glm-5.3` is
+/// `glm-5.3`), or `None` for any other client or provider.
+pub fn opencode_litellm_group<'a>(client: &str, model: &'a str) -> Option<&'a str> {
+    let (provider, group) = model.split_once('/')?;
+    (client == "opencode" && provider.starts_with("litellm-") && !group.is_empty()).then_some(group)
+}
+
+/// The OpenCode model of a Pi route's model: OpenCode reaches each LiteLLM route through its own provider of the
+/// same name (`pi-vibe:glm-5.3` is `opencode:litellm-vibe/glm-5.3`), when that route is for any data, like Hermes.
+pub fn opencode_model_of(config: &crate::config::GatewayConfig, pi_client: &str, model: &str) -> Option<String> {
+    let provider = pi_provider(pi_client);
+    let allowed = config.clients.get("opencode")?.providers.as_deref();
+    (is_pi_client(pi_client) && hermes_route(config, &provider).is_some() && is_provider_allowed(Some(&provider), allowed))
+        .then(|| format!("{provider}/{model}"))
+}
+
+/// The Pi route's model an `opencode` run on a LiteLLM provider stands for (`litellm-vibe/glm-5.3` is
+/// `pi-vibe` and `glm-5.3`), when that route takes any data; `None` for anything else.
+pub fn opencode_pi_model<'a>(config: &crate::config::GatewayConfig, client: &str, model: &'a str) -> Option<(String, &'a str)> {
+    let group = opencode_litellm_group(client, model)?;
+    let provider = &model[..model.len() - group.len() - 1];
+    let pi_client = hermes_route(config, provider)?;
+    Some((pi_client, group))
 }
 
 /// Refuses an `opencode-free` model that is not one of OpenCode's own (`opencode/<id>`); every other client passes.

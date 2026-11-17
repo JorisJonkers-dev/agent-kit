@@ -1113,6 +1113,16 @@ model in any profile (its model is its own configuration, not the catalogue's),
 so it is refused until one is configured. `harness` needs `profile`, and cannot
 be given with `client` or `model`.
 
+`opencode` runs every role too. It takes the first of the profile's models that
+OpenCode can run: one of OpenCode's own free models (`opencode-free:opencode/<id>`)
+as it is, or a Pi route's model on OpenCode's own LiteLLM provider of that route
+(`pi-vibe:glm-5.3` runs as `opencode:litellm-vibe/glm-5.3`), for the routes that
+take any data. The route's key is read from the secret store into OpenCode's
+environment for the run, as for Hermes. Pi stays the default: a role's
+`opencode-free` models are listed after its Pi models, so a tie goes to Pi, and
+OpenCode is the harness when a model needs it (OpenCode's free models answer 403
+to every other client).
+
 `model-gateway matrix` proves every role on every harness: it runs each cell once
 on a trivial fixture and prints status (`pass`, `blocked` or `fail`), exit,
 latency, cost and error text, and exits 1 when a cell does not do what

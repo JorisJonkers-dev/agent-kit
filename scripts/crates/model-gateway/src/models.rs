@@ -659,9 +659,10 @@ fn compare(left: &str, right: &str) -> Ordering {
     left.cmp(right)
 }
 
-/// The providers an OpenCode run may reach when the machine names none: OpenCode Go's own provider, and
-/// `litellm-opencode-go`, the provider setup writes into OpenCode's config for the LiteLLM OpenCode Go route.
-pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 2] = crate::run::DEFAULT_OPENCODE_PROVIDERS;
+/// The providers an OpenCode run may reach when the machine names none: OpenCode Go's own provider, and the
+/// `litellm-<route>` providers setup writes into OpenCode's config for the LiteLLM routes that take any data
+/// (`opencode-go`, `vibe`, `vibe-study`, `local`). The public-only routes stay on Pi, which holds runs to them.
+pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 5] = crate::run::DEFAULT_OPENCODE_PROVIDERS;
 
 /// OpenCode's own pay-per-token providers (`opencode/<model>` is its Zen). The
 /// owner's rule is that a run never reaches one, so no allowlist can open it.

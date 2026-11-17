@@ -266,8 +266,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"profile research has no usable model on harness vibe here (hermes takes a Pi route's model, on a route for any data): the profile and the data policy leave pi-vibe:ministral-8b, pi-vibe:mistral-small, pi-opencode-go:qwen3.8-flash, claude:claude-haiku-5-5\"}\n",
-      "stderr": "model-gateway run: profile research has no usable model on harness vibe here (hermes takes a Pi route's model, on a route for any data): the profile and the data policy leave pi-vibe:ministral-8b, pi-vibe:mistral-small, pi-opencode-go:qwen3.8-flash, claude:claude-haiku-5-5\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"profile research has no usable model on harness vibe here (hermes and opencode take a Pi route's model, on a route for any data): the profile and the data policy leave pi-vibe:ministral-8b, pi-vibe:mistral-small, pi-opencode-go:qwen3.8-flash, claude:claude-haiku-5-5\"}\n",
+      "stderr": "model-gateway run: profile research has no usable model on harness vibe here (hermes and opencode take a Pi route's model, on a route for any data): the profile and the data policy leave pi-vibe:ministral-8b, pi-vibe:mistral-small, pi-opencode-go:qwen3.8-flash, claude:claude-haiku-5-5\n",
       "files": {
         "home/": null,
         "home/.pi/": null,

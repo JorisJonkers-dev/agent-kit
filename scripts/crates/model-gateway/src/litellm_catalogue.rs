@@ -243,6 +243,10 @@ fn judged(config: &GatewayConfig, catalogue: &LiteLlmCatalogue, client: &str, mo
     if crate::run::is_pi_client(client) {
         return group_probe(catalogue, catalogue.groups.get(model)?);
     }
+    if let Some(group) = crate::run::opencode_litellm_group(client, model) {
+        // OpenCode on a LiteLLM provider names the same canonical group a Pi route does.
+        return group_probe(catalogue, catalogue.groups.get(group)?);
+    }
     let route = config.clients.get(client)?.litellm_route.clone()?;
     let probe = probe_for(catalogue, &route, &names_of(config, client, model))?.clone();
     Some((route, probe))

@@ -14,14 +14,14 @@ A cell is `pass` (the run answered), `blocked` (it cannot run here for a stated 
 prerequisite and not a bug) or `fail` (it should work and does not). Blocked cells are listed, never hidden.
 
 <!-- matrix:start -->
-| role | pi | pi-opencode-go | claude | codex | agy | vibe | hermes |
-|---|---|---|---|---|---|---|---|
-| research | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
-| implement | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
-| critique | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
-| red-team | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
-| refute | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
-| triage | pass | pass | pass | blocked [1] | pass | blocked [2] | pass |
+| role | pi | pi-opencode-go | claude | codex | agy | vibe | hermes | opencode |
+|---|---|---|---|---|---|---|---|---|
+| research | pass | pass | pass | blocked [1] | pass | blocked [2] | pass | pass |
+| implement | pass | pass | pass | blocked [1] | pass | blocked [2] | pass | pass |
+| critique | pass | pass | pass | blocked [1] | pass | blocked [2] | pass | pass |
+| red-team | pass | pass | pass | blocked [1] | pass | blocked [2] | pass | pass |
+| refute | pass | pass | pass | blocked [1] | pass | blocked [2] | pass | pass |
+| triage | pass | pass | pass | blocked [1] | pass | blocked [2] | pass | pass |
 
 [1] codex: metered-employer: needs a repo whose allowlist names openai, and a grant for the harness-matrix workflow (model-gateway grant write)
 

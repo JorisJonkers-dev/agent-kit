@@ -1017,13 +1017,13 @@ fn list_models_lists_the_litellm_opencode_go_provider_setup_writes_by_default() 
 
 #[test]
 fn list_models_names_an_opencode_client_whose_every_model_its_allowlist_drops_as_missing() {
-    let listed = models_of(vec![provider_model("litellm-vibe/glm-5.3", "litellm-vibe"), provider_model("other/glm-5.3", "other")]);
+    let listed = models_of(vec![provider_model("litellm-openrouter/glm-5.3", "litellm-openrouter"), provider_model("other/glm-5.3", "other")]);
 
     let listing = list_models(&config(), &installed(&["opencode"]), &listings(vec![("opencode", listed)]), &[]);
     assert_eq!(listing.models, vec![]);
     let reasons: Vec<&str> = listing.missing.iter().filter(|entry| entry.client == "opencode").map(|entry| entry.reason.as_str()).collect();
     assert_eq!(reasons.len(), 1);
-    assert!(reasons[0].starts_with("OpenCode listed 2 models and none is on an allowed provider (opencode-go, litellm-opencode-go)"), "{}", reasons[0]);
+    assert!(reasons[0].starts_with("OpenCode listed 2 models and none is on an allowed provider (opencode-go, litellm-opencode-go, litellm-vibe, litellm-vibe-study, litellm-local)"), "{}", reasons[0]);
 }
 
 
