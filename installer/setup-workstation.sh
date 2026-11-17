@@ -838,6 +838,59 @@ PY
   done
 }
 
+# Joins permissive defaults for auto mode to each Claude profile's own: ~/Projects, gh reads and
+# read-only tools run without a prompt, and the auto mode classifier learns the owner's estate
+# (autoMode.environment, allow and soft_deny, kept after the built-in "$defaults"). Nothing is
+# removed; the deny rules still win. Tagged entries are replaced on each run.
+claude_permissive_defaults() {
+  local profile_dir
+  for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "would add the permissive default allow rules to ${profile_dir}/settings.json"
+      continue
+    fi
+    python3 - "${profile_dir}/settings.json" "${HOME}/Projects" '{"rules": ["Bash(cd ~/Projects)", "Bash(cd ~/Projects/*)", "Bash(gh pr view *)", "Bash(gh pr list *)", "Bash(gh pr status *)", "Bash(gh pr diff *)", "Bash(gh pr checks *)", "Bash(gh issue view *)", "Bash(gh issue list *)", "Bash(gh issue status *)", "Bash(gh repo view *)", "Bash(gh repo list *)", "Bash(gh run view *)", "Bash(gh run list *)", "Bash(gh run watch *)", "Bash(gh workflow view *)", "Bash(gh workflow list *)", "Bash(gh release view *)", "Bash(gh release list *)", "Bash(gh label list *)", "Bash(gh search *)", "Bash(gh auth status *)", "Bash(git status *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git show *)", "Bash(git branch *)", "Bash(git remote -v)", "Bash(git rev-parse *)", "Bash(git ls-files *)", "Bash(git blame *)", "Bash(git fetch *)", "Bash(git worktree list *)", "Bash(git stash list *)", "Bash(ls *)", "Bash(pwd)", "Bash(cat *)", "Bash(head *)", "Bash(tail *)", "Bash(wc *)", "Bash(grep *)", "Bash(rg *)", "Bash(find *)", "Bash(fd *)", "Bash(tree *)", "Bash(file *)", "Bash(stat *)", "Bash(which *)", "Bash(command -v *)", "Bash(echo *)", "Bash(jq *)", "Bash(diff *)", "Bash(sort *)", "Bash(uniq *)", "Bash(model-gateway models*)", "Bash(kubectl get *)", "Bash(kubectl describe *)", "Bash(kubectl logs *)"], "environment": ["Precedence: entries tagged [agent-kit] supersede the default entry for the same slot, including every \"None configured\" line; where they overlap, the tagged entry is the configured value", "Organization: the owner works on two estates with separate trust boundaries, and content does not cross between them in either direction. Personal: the GitHub org JorisJonkers-dev and the account ExtraToast, the owner'\''s own software development and infrastructure (Kubernetes, NixOS). Employer: Nedap, the GitHub orgs nedap and NedapISEP (reached with SSO), whose repos and data are confidential and are operated only from the work profile (claude), never from the personal profile (claude-personal)", "Source control: every repo in JorisJonkers-dev, ExtraToast, nedap and NedapISEP, and any checkout whose origin remote is under them, excluding forks of third-party repos (an upstream remote, or gh repo view --json isFork showing true). Reading, editing, branch pushes and pull requests there are the owner'\''s normal work", "Repository visibility: repos under JorisJonkers-dev and ExtraToast may be public, so treat them as public unless a visibility check shows private, the same as an unverified visibility: Out-of-Place Publication and Create Public Surface apply, and secrets, private content and sensitive data never go in. Repos under nedap and NedapISEP are private and Confidential: their source code, documents and data are fine to read, edit and move inside nedap and NedapISEP, and never go anywhere else", "Identifiers that are fine in pull request, issue and commit text for the owner'\''s repos: namespace, kubectl context and NixOS host names, *.jorisjonkers.dev and tailnet host names, and public package names. Secrets, tokens, personal data and customer data are never fine", "Trusted repo: any checkout whose origin remote is under JorisJonkers-dev, ExtraToast, nedap or NedapISEP, wherever it lives (clones are under ~/Projects/<owner>/<repo>, worktrees under ~/Projects/<owner>/worktrees/<repo>/<name>; cloud sessions use their own checkout path), excluding forks of third-party repos. A clone of any other owner, or material unpacked from an external source anywhere, is third-party and not trusted", "Cloud provider(s): none for the personal estate; self-hosted Kubernetes reached through kubectl contexts. A context whose name ends in -admin is an admin context; every other context is read-only. Treat the clusters as shared", "Org-specific CLIs: gh, kubectl, nix, nixos-rebuild, tailscale, model-gateway, agent-kit-setup, vibe-study and moves-dev-cli are the owner'\''s recognised tools. Read and diagnostic use is routine; write, deploy and expose subcommands (kubectl apply/delete, nixos-rebuild switch --target-host, tailscale serve/funnel) are still judged by the block rules", "Internal package registry: the packages proxy https://packages.jorisjonkers.dev/npm/ (set in ~/.npmrc) and GitHub Packages for the @jorisjonkers-dev scope. Installs through the configured proxy are expected, public packages arrive through it, and lockfiles resolving to registry.npmjs.org or the proxy are both expected", "Trusted internal domains: *.jorisjonkers.dev and *.tailc886fe.ts.net (the owner'\''s tailnet)", "Key internal services: GitHub Actions in the owner'\''s repos, the packages proxy, and the Hindsight memory API and model gateway on the owner'\''s personal machines (localhost or the tailnet). The gateway and Hindsight belong to the personal estate and may forward to third-party model providers: personal repo code and prompts may go to them, and they are never used on Nedap repos or content", "Protected deployment namespaces / environments: every -admin kubectl context and any namespace or host with prod or production as a name segment. Read-only inspection (get, describe, logs) through an explicit non-admin context is fine, prod-named namespaces included, Secrets excluded", "Host containment: agents run on the owner'\''s workstations and in Claude Code cloud sessions, never inside the cluster pods. Node and cluster credentials of the hosting layer are not task credentials", "Sensitive data locations & audiences: ~/.vibe, ~/.vibe-private, ~/.config/agent-kit/private, ~/.claude*/.credentials.json, kubeconfigs, git credential files, any token, and Nedap customer data. Never print, copy, upload or commit them; using a credential through its own tool (kubectl, gh, git) against its intended service is fine"], "allow": ["Pushing non-default branches (not the default branch: a bare git push, git push origin HEAD, or a push from a checkout with no visible branch switch or creation is presumed to target the default branch), opening pull requests and creating label definitions (gh label create) in JorisJonkers-dev or ExtraToast repos is allowed, and so is creating an issue when the user'\''s message asked for one. The pull request'\''s base repo must be under those owners, not a third-party fork or upstream, and a branch whose name marks a deploy or publish target (gh-pages, release/*, a branch a Flux or Argo controller watches) is not covered. This covers the destination only: content rules, closing keywords naming issues the agent did not create, ChatOps text in a body, and applying labels to existing items are still judged", "Pushing non-default branches (same default-branch presumption) and opening pull requests in nedap and NedapISEP repos is allowed under the same limits; the content stays Confidential and never goes outside those orgs", "Dispatching a workflow in a JorisJonkers-dev or ExtraToast repo is allowed only when its workflow file, and every reusable workflow and local action it calls, were seen earlier in the transcript and only build, lint or test with the dispatch inputs given; a workflow that deploys, releases, publishes or pushes images is not covered", "Merging a pull request in the nedap repo moves-dev-cli with gh pr merge (squash, merge or --auto) is allowed without an explicit request when the pull request is one the agent opened this session or the user named; other people'\''s pull requests are not covered. This clears Merge Without Review and Unrequested Commit in a Connected App for that repo only, never --admin or any bypass of required checks. Release pull requests are excluded and still need an explicit request: a head branch release-please--*, a title like chore(...): release, an autorelease: pending or autorelease: tagged label, a version tag push, gh release create, and anything that publishes a release", "Read-only kubectl (get, describe, logs, top, events) with an explicit non-admin --context is allowed, prod-named namespaces included; Secrets and any -o yaml/json of a Secret object are excluded"], "soft_deny": ["[named+specifics \u2014 must name: pushing to the default branch] Pushing directly to the default branch of a repo owned by JorisJonkers-dev or ExtraToast, nedap or NedapISEP needs an explicit request. This overrides the Git Push Destination exception and the branch-push allow entries for these owners: a bare git push, git push origin HEAD, or a push from a checkout with no visible branch switch or creation is presumed to target the default branch. Work goes through a branch and a pull request", "[named+specifics \u2014 must name: the force push and the branch] Any force push (--force, -f, --force-with-lease, --force-if-includes, a +refspec) needs an explicit request naming the branch. This overrides the own-branch carve-out in Git Destructive", "[named+specifics \u2014 must name: the tag] Pushing a tag (git push --tags, git push origin <tag>) in any repo needs an explicit request: tags start release and publish pipelines in CI", "[named+specifics \u2014 must name: the target repo] Any write (push, pull request, issue, comment, fork creation) to a repo not owned by JorisJonkers-dev or ExtraToast, nedap or NedapISEP, or to a fork of a third-party repo even under ExtraToast, needs an explicit request", "[named+specifics \u2014 must name: merging that pull request] Merging a pull request in any repo, including nedap and NedapISEP, needs an explicit request, except as the nedap/moves-dev-cli allow entry says; release pull requests, tags and releases there still need an explicit request. This holds for --auto and for merge queues", "[named+specifics \u2014 must name: the package or image and the registry] Publishing a package or image (npm publish, docker push, GitHub Packages, any registry) from any agent session, workstation or cloud, needs an explicit request: publishing runs from CI", "[named+specifics \u2014 must name: the change] Any cluster write (kubectl, helm, flux, argocd) whose effective context is an -admin context, including an unspecified context, or whose target is a prod namespace, needs an explicit request naming the change", "[named+specifics \u2014 must name: the host] nixos-rebuild switch, boot or test against a remote host (--target-host) needs an explicit request naming the host", "[named+specifics \u2014 must name: the Nedap content and the destination] Moving Nedap source code, documents or customer data into a JorisJonkers-dev or ExtraToast repo, in either direction between the two estates, needs an explicit request. Destinations outside the configured boundary (public repos, gists, pastes, third-party services) stay blocked by the hard Data Exfiltration rule, and an explicit request does not clear that"], "hard_deny": ["The model gateway (model-gateway, the delegate skill, vibe-study) and Hindsight memory must never be used on Nedap repos or with Nedap content, even when asked: they run on the owner'\''s personal machines and may forward to third-party model providers"], "legacy": ["Organization: the owner", "Source control: GitHub org JorisJonkers-dev and the personal", "Trusted repo: every clone", "Cloud provider(s): none; self-hosted", "Org-specific CLIs: gh, kubectl", "Internal package registry: npm.pkg", "Trusted internal domains: hosts on", "Key internal services: GitHub Actions", "Protected deployment namespaces / environments: the kubectl", "Sensitive data locations & audiences: ~/.vibe", "Precedence: the owner-specific"]}' <<'PY' \
+      && ok "permissive default allow rules in ${profile_dir}/settings.json" \
+      || fail "could not add the permissive default allow rules to ${profile_dir}/settings.json"
+import json, pathlib, sys
+path, projects, cfg = pathlib.Path(sys.argv[1]), sys.argv[2], json.loads(sys.argv[3])
+TAG = '[agent-kit] '
+rules = cfg['rules'] + [f'Read(/{projects}/**)', f'Edit(/{projects}/**)', f'Write(/{projects}/**)',
+                        f'Bash(cd {projects})', f'Bash(cd {projects}/*)']
+data = json.loads(path.read_text() or '{}') if path.exists() else {}
+perms = data.setdefault('permissions', {})
+allow = perms.setdefault('allow', [])
+changed = [r for r in rules if r not in allow]
+allow.extend(changed)
+dirs = perms.setdefault('additionalDirectories', [])
+if projects not in dirs:
+    dirs.append(projects)
+    changed.append(projects)
+am = data.setdefault('autoMode', {})
+legacy = tuple(cfg['legacy'])
+for section in ('environment', 'allow', 'soft_deny', 'hard_deny'):
+    cur = [e for e in am.get(section, []) if not e.startswith(TAG) and not e.startswith(legacy)]
+    if '$defaults' not in cur:
+        cur = ['$defaults'] + cur
+    want = cur + [TAG + e for e in cfg[section]]
+    if want != am.get(section):
+        am[section] = want
+        changed.append('autoMode.' + section)
+if changed:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + '\n')
+back = json.loads(path.read_text())
+bperms = back['permissions']
+lost = [r for r in rules if r not in bperms['allow']]
+lost += [] if projects in bperms['additionalDirectories'] else [projects]
+for k in ('environment', 'allow', 'soft_deny', 'hard_deny'):
+    lost += [e for e in cfg[k] if TAG + e not in back['autoMode'][k]]
+if lost:
+    raise SystemExit(f'{path}: allow rules or auto mode entries did not read back')
+PY
+  done
+}
+
 # Hindsight Coding Agents, pinned and locked to recall only (registry: coding_agents).
 hindsight_coding_agents() {
   if ! command -v npx >/dev/null 2>&1; then
@@ -1531,15 +1584,18 @@ link_profile_path() {
 # profile is a command rather than an environment variable to remember.
 # A file at that path that this script did not write is left alone.
 install_profile_launcher() {
-  local name="$1" dir="$2"
+  local name="$1" dir="$2" settings="${3:-}"
   local bin_dir="${CLAUDE_LAUNCHER_DIR:-$HOME/.local/bin}"
   local launcher="${bin_dir}/claude-${name}"
   local marker="# managed by agent-kit setup-workstation.sh"
-  local content
+  local content exec_line='exec claude "$@"'
+  if [ -n "${settings}" ]; then
+    exec_line="exec claude --settings $(printf '%q' "${settings}") \"\$@\""
+  fi
   content="$(printf '%s\n' '#!/usr/bin/env bash' "${marker}" \
     "# Claude Code with the ${name} profile config root." \
     "export CLAUDE_CONFIG_DIR=$(printf '%q' "${dir}")" \
-    'exec claude "$@"')"
+    "${exec_line}")"
   if [ -e "${launcher}" ] && ! grep -qxF "${marker}" "${launcher}"; then
     warn "profile: ${launcher} exists and was not written by setup; left alone"
     unshared_profile_paths+=("${launcher}: not a managed launcher, not replaced")
@@ -2907,7 +2963,49 @@ if [ "${DO_PROFILES}" = 1 ]; then
     link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "plugins"
     link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "settings.json"
     CLAUDE_PROFILE_DIRS+=("${profile_dir}")
-    install_profile_launcher "personal" "${profile_dir}"
+    overlay="${profile_dir}/agent-kit-profile.settings.json"
+    overlay_json='{
+  "permissions": {
+    "deny": [
+      "Read(~/Projects/nedap/**)",
+      "Edit(~/Projects/nedap/**)",
+      "Write(~/Projects/nedap/**)",
+      "Bash(cd ~/Projects/nedap)",
+      "Bash(cd ~/Projects/nedap/*)",
+      "Bash(git -C ~/Projects/nedap/*)",
+      "Bash(gh * nedap/*)",
+      "Bash(gh * --repo nedap/*)",
+      "Bash(gh * -R nedap/*)",
+      "Bash(gh api *repos/nedap/*)",
+      "Read(~/Projects/NedapISEP/**)",
+      "Edit(~/Projects/NedapISEP/**)",
+      "Write(~/Projects/NedapISEP/**)",
+      "Bash(cd ~/Projects/NedapISEP)",
+      "Bash(cd ~/Projects/NedapISEP/*)",
+      "Bash(git -C ~/Projects/NedapISEP/*)",
+      "Bash(gh * NedapISEP/*)",
+      "Bash(gh * --repo NedapISEP/*)",
+      "Bash(gh * -R NedapISEP/*)",
+      "Bash(gh api *repos/NedapISEP/*)"
+    ]
+  },
+  "autoMode": {
+    "hard_deny": [
+      "$defaults",
+      "[agent-kit] This profile must not read, edit, run, push, merge or call an API for anything under the GitHub orgs nedap or NedapISEP, or any checkout whose origin remote is under them, even when asked: those orgs are operated only from the work profile (claude)"
+    ]
+  }
+}'
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "would write ${overlay}"
+    elif [ "$(cat "${overlay}" 2>/dev/null)" = "${overlay_json}" ]; then
+      ok "profile: ${overlay}"
+    elif printf '%s\n' "${overlay_json}" > "${overlay}"; then
+      ok "profile: wrote ${overlay} (no access to the blocked orgs)"
+    else
+      fail "profile: could not write ${overlay}"
+    fi
+    install_profile_launcher "personal" "${profile_dir}" "${overlay}"
 
     if [ -s "${profile_dir}/.claude.json" ]; then
       ok "personal: ${profile_dir} is set up"
@@ -2926,6 +3024,9 @@ claude_private_denies
 
 # MCP servers the registry trusts to run every tool without a prompt.
 claude_mcp_allows
+
+# Auto mode: ~/Projects, gh reads and read-only tools need no prompt.
+claude_permissive_defaults
 
 # Claude Code credits neither itself nor its model in commits or PRs.
 claude_no_attribution

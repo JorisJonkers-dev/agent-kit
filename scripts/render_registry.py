@@ -2221,6 +2221,79 @@ def _opencode_plugin_skills_step(data: dict[str, Any], w: Any) -> None:
     w("")
 
 
+# Auto mode defaults (see claude_permissive_defaults in the rendered setup script) live in
+# registry/claude-auto-mode.yaml: allow rules that need no prompt, and the prose entries for
+# autoMode.environment / allow / soft_deny / hard_deny, tagged "[agent-kit] " when written.
+AUTO_MODE_PATH = KIT_ROOT / "registry" / "claude-auto-mode.yaml"
+_AUTO_MODE: dict[str, list[str]] = yaml.safe_load(AUTO_MODE_PATH.read_text())
+PERMISSIVE_ALLOW_RULES: list[str] = _AUTO_MODE["rules"]
+AUTO_MODE_ENVIRONMENT: list[str] = _AUTO_MODE["environment"]
+AUTO_MODE_ALLOW: list[str] = _AUTO_MODE["allow"]
+AUTO_MODE_SOFT_DENY: list[str] = _AUTO_MODE["soft_deny"]
+AUTO_MODE_HARD_DENY: list[str] = _AUTO_MODE["hard_deny"]
+# Prefixes of entries earlier versions wrote untagged; they are replaced, not duplicated.
+AUTO_MODE_LEGACY_PREFIXES: list[str] = _AUTO_MODE["legacy_prefixes"]
+
+PERMISSIVE_PAYLOAD = """import json, pathlib, sys
+path, projects, cfg = pathlib.Path(sys.argv[1]), sys.argv[2], json.loads(sys.argv[3])
+TAG = '[agent-kit] '
+rules = cfg['rules'] + [f'Read(/{projects}/**)', f'Edit(/{projects}/**)', f'Write(/{projects}/**)',
+                        f'Bash(cd {projects})', f'Bash(cd {projects}/*)']
+data = json.loads(path.read_text() or '{}') if path.exists() else {}
+perms = data.setdefault('permissions', {})
+allow = perms.setdefault('allow', [])
+changed = [r for r in rules if r not in allow]
+allow.extend(changed)
+dirs = perms.setdefault('additionalDirectories', [])
+if projects not in dirs:
+    dirs.append(projects)
+    changed.append(projects)
+am = data.setdefault('autoMode', {})
+legacy = tuple(cfg['legacy'])
+for section in ('environment', 'allow', 'soft_deny', 'hard_deny'):
+    cur = [e for e in am.get(section, []) if not e.startswith(TAG) and not e.startswith(legacy)]
+    if '$defaults' not in cur:
+        cur = ['$defaults'] + cur
+    want = cur + [TAG + e for e in cfg[section]]
+    if want != am.get(section):
+        am[section] = want
+        changed.append('autoMode.' + section)
+if changed:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + '\\n')
+back = json.loads(path.read_text())
+bperms = back['permissions']
+lost = [r for r in rules if r not in bperms['allow']]
+lost += [] if projects in bperms['additionalDirectories'] else [projects]
+for k in ('environment', 'allow', 'soft_deny', 'hard_deny'):
+    lost += [e for e in cfg[k] if TAG + e not in back['autoMode'][k]]
+if lost:
+    raise SystemExit(f'{path}: allow rules or auto mode entries did not read back')"""
+
+
+def profile_overlay(orgs: list[str]) -> dict[str, Any]:
+    """Settings a profile loads with --settings so it cannot operate the given GitHub orgs.
+
+    ``permissions.deny`` stops the path and gh forms that are matchable; the hard_deny entry
+    covers the rest for the auto mode classifier, even when the user asks.
+    """
+    deny: list[str] = []
+    for org in orgs:
+        root = f"~/Projects/{org}"
+        deny += [f"Read({root}/**)", f"Edit({root}/**)", f"Write({root}/**)",
+                 f"Bash(cd {root})", f"Bash(cd {root}/*)", f"Bash(git -C {root}/*)",
+                 f"Bash(gh * {org}/*)", f"Bash(gh * --repo {org}/*)", f"Bash(gh * -R {org}/*)",
+                 f"Bash(gh api *repos/{org}/*)"]
+    names = " or ".join(orgs)
+    return {
+        "permissions": {"deny": deny},
+        "autoMode": {"hard_deny": ["$defaults",
+            f"[agent-kit] This profile must not read, edit, run, push, merge or call an API for anything under the "
+            f"GitHub orgs {names}, or any checkout whose origin remote is under them, even when asked: those orgs are "
+            "operated only from the work profile (claude)"]},
+    }
+
+
 def claude_allow_rules(data: dict[str, Any]) -> list[str]:
     """Claude permission rules for MCP servers with ``claude_allow_tools: true``.
 
@@ -3723,6 +3796,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("}")
     w("")
     allows = json.dumps(claude_allow_rules(data))
+    permissive_cfg = {
+        "rules": PERMISSIVE_ALLOW_RULES,
+        "environment": AUTO_MODE_ENVIRONMENT,
+        "allow": AUTO_MODE_ALLOW,
+        "soft_deny": AUTO_MODE_SOFT_DENY,
+        "hard_deny": AUTO_MODE_HARD_DENY,
+        "legacy": AUTO_MODE_LEGACY_PREFIXES,
+    }
+    permissive = json.dumps(permissive_cfg).replace("'", "'\\''")
     w("# Joins the allow rules for MCP servers whose every tool runs without a")
     w("# prompt (registry: claude_allow_tools) to each Claude profile's own; nothing else changes.")
     w("claude_mcp_allows() {")
@@ -3747,6 +3829,26 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("back = json.loads(path.read_text()).get('permissions', {}).get('allow', [])")
     w("if any(r not in back for r in rules):")
     w("    raise SystemExit(f'{path}: allow rules did not read back')")
+    w("PY")
+    w("  done")
+    w("}")
+    w("")
+    w("# Joins permissive defaults for auto mode to each Claude profile's own: ~/Projects, gh reads and")
+    w("# read-only tools run without a prompt, and the auto mode classifier learns the owner's estate")
+    w("# (autoMode.environment, allow and soft_deny, kept after the built-in \"$defaults\"). Nothing is")
+    w("# removed; the deny rules still win. Tagged entries are replaced on each run.")
+    w("claude_permissive_defaults() {")
+    w('  local profile_dir')
+    w('  for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
+    w('    if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('      log "would add the permissive default allow rules to ${profile_dir}/settings.json"')
+    w("      continue")
+    w("    fi")
+    w(f"    python3 - \"${{profile_dir}}/settings.json\" \"${{HOME}}/Projects\" '{permissive}' <<'PY' \\")
+    w('      && ok "permissive default allow rules in ${profile_dir}/settings.json" \\')
+    w('      || fail "could not add the permissive default allow rules to ${profile_dir}/settings.json"')
+    for line in PERMISSIVE_PAYLOAD.splitlines():
+        w(line)
     w("PY")
     w("  done")
     w("}")
@@ -4267,15 +4369,18 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# profile is a command rather than an environment variable to remember.")
     w("# A file at that path that this script did not write is left alone.")
     w("install_profile_launcher() {")
-    w('  local name="$1" dir="$2"')
+    w('  local name="$1" dir="$2" settings="${3:-}"')
     w('  local bin_dir="${CLAUDE_LAUNCHER_DIR:-$HOME/.local/bin}"')
     w('  local launcher="${bin_dir}/claude-${name}"')
     w('  local marker="# managed by agent-kit setup-workstation.sh"')
-    w("  local content")
+    w("  local content exec_line='exec claude \"$@\"'")
+    w('  if [ -n "${settings}" ]; then')
+    w("    exec_line=\"exec claude --settings $(printf '%q' \"${settings}\") \\\"\\$@\\\"\"")
+    w("  fi")
     w("  content=\"$(printf '%s\\n' '#!/usr/bin/env bash' \"${marker}\" \\")
     w('    "# Claude Code with the ${name} profile config root." \\')
     w("    \"export CLAUDE_CONFIG_DIR=$(printf '%q' \"${dir}\")\" \\")
-    w("    'exec claude \"$@\"')\"")
+    w('    "${exec_line}")"')
     w('  if [ -e "${launcher}" ] && ! grep -qxF "${marker}" "${launcher}"; then')
     w('    warn "profile: ${launcher} exists and was not written by setup; left alone"')
     w('    unshared_profile_paths+=("${launcher}: not a managed launcher, not replaced")')
@@ -4850,7 +4955,23 @@ def render_setup_script(data: dict[str, Any]) -> str:
             for rel in profile["shared_paths"]:
                 w(f'    link_profile_path "${{CLAUDE_HOME}}" "${{profile_dir}}" "{rel}"')
             w('    CLAUDE_PROFILE_DIRS+=("${profile_dir}")')
-            w(f'    install_profile_launcher "{name}" "${{profile_dir}}"')
+            blocked = [str(o) for o in profile.get("blocked_orgs") or []]
+            if blocked:
+                overlay = json.dumps(profile_overlay(blocked), indent=2).replace("'", "'\\''")
+                w('    overlay="${profile_dir}/agent-kit-profile.settings.json"')
+                w("    overlay_json='" + overlay + "'")
+                w('    if [ "${CHECK_ONLY}" = 1 ]; then')
+                w('      log "would write ${overlay}"')
+                w('    elif [ "$(cat "${overlay}" 2>/dev/null)" = "${overlay_json}" ]; then')
+                w('      ok "profile: ${overlay}"')
+                w("    elif printf '%s\\n' \"${overlay_json}\" > \"${overlay}\"; then")
+                w('      ok "profile: wrote ${overlay} (no access to the blocked orgs)"')
+                w("    else")
+                w('      fail "profile: could not write ${overlay}"')
+                w("    fi")
+                w(f'    install_profile_launcher "{name}" "${{profile_dir}}" "${{overlay}}"')
+            else:
+                w(f'    install_profile_launcher "{name}" "${{profile_dir}}"')
             # The login is the operator's to do: it is interactive, and the
             # whole point of the second root is that it holds a DIFFERENT
             # account, which this script has no way to choose.
@@ -4874,6 +4995,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
     w("# MCP servers the registry trusts to run every tool without a prompt.")
     w("claude_mcp_allows")
+    w("")
+    w("# Auto mode: ~/Projects, gh reads and read-only tools need no prompt.")
+    w("claude_permissive_defaults")
     w("")
     w("# Claude Code credits neither itself nor its model in commits or PRs.")
     w("claude_no_attribution")

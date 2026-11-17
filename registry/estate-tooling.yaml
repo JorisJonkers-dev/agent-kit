@@ -600,6 +600,9 @@ claude_profiles:
     # an absolute path into the primary's tree, so splitting the two
     # leaves the secondary profile wired to scripts it cannot see.
     shared_paths: [skills, agents, commands, hooks, plugins, settings.json]
+    # Nedap is operated from the work profile only: the launcher loads an
+    # overlay that denies these GitHub orgs and their ~/Projects/<org> clones.
+    blocked_orgs: [nedap, NedapISEP]
     purpose: >-
       The personal-account profile. Same skills, plugins, LSPs and MCP
       fleet as work; its own login and its own conversation history.
