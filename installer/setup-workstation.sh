@@ -2951,7 +2951,7 @@ else
   log "plugin marketplaces"
   ensure_marketplace claude-plugins-official anthropics/claude-plugins-official b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6 agent-kit-official
   ensure_marketplace caveman JuliusBrussee/caveman 8b0c1d3699b8d83e87fe4605b378da20c41555e0
-  ensure_marketplace drawio jgraph/drawio-mcp 87a7a2a5f25aee057c7ebbf021e7778be2d7af03
+  ensure_marketplace drawio jgraph/drawio-mcp 9bd19b362038593bc8611d426c92cd62dc222302
   ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill 34f93c1e409156958cc7c410ab1aa88ab512f10f
   if [ "${CLOUD}" = 1 ]; then
     log "ai-software-architect: not set up in cloud mode"
@@ -3162,7 +3162,7 @@ for install in installs:
         plugin_drift+=("caveman: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio 87a7a2a5f25aee057c7ebbf021e7778be2d7af03)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio 9bd19b362038593bc8611d426c92cd62dc222302)"
     installed_commit="$(installed_plugin_commit "${manifest}" "drawio@drawio")"
     if [ -z "${expected_commit}" ]; then
       warn "drawio: its marketplace entry pins no commit, so it cannot be pinned"
