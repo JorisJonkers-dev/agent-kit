@@ -2969,7 +2969,6 @@ if [ "${DO_PROFILES}" = 1 ]; then
     "deny": [
       "Read(~/Projects/nedap/**)",
       "Edit(~/Projects/nedap/**)",
-      "Write(~/Projects/nedap/**)",
       "Bash(cd ~/Projects/nedap)",
       "Bash(cd ~/Projects/nedap/*)",
       "Bash(git -C ~/Projects/nedap/*)",
@@ -2979,7 +2978,6 @@ if [ "${DO_PROFILES}" = 1 ]; then
       "Bash(gh api *repos/nedap/*)",
       "Read(~/Projects/NedapISEP/**)",
       "Edit(~/Projects/NedapISEP/**)",
-      "Write(~/Projects/NedapISEP/**)",
       "Bash(cd ~/Projects/NedapISEP)",
       "Bash(cd ~/Projects/NedapISEP/*)",
       "Bash(git -C ~/Projects/NedapISEP/*)",
