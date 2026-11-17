@@ -2287,7 +2287,7 @@ PERMISSIVE_ALLOW_RULES: list[str] = [
 # Prose entries for autoMode.environment / allow / soft_deny, tagged "[agent-kit] " when written.
 AUTO_MODE_ENVIRONMENT: list[str] = [
     "Precedence: entries tagged [agent-kit] supersede the default entry for the same slot, including every \"None configured\" line; where they overlap, the tagged entry is the configured value",
-    "Organization: the owner works on two estates with separate trust boundaries, and content does not cross between them in either direction. Personal: the GitHub org JorisJonkers-dev and the account ExtraToast, the owner's own software development and infrastructure (Kubernetes, NixOS). Employer: Nedap, the GitHub orgs nedap and NedapISEP (reached with SSO), whose repos and data are confidential",
+    "Organization: the owner works on two estates with separate trust boundaries, and content does not cross between them in either direction. Personal: the GitHub org JorisJonkers-dev and the account ExtraToast, the owner's own software development and infrastructure (Kubernetes, NixOS). Employer: Nedap, the GitHub orgs nedap and NedapISEP (reached with SSO), whose repos and data are confidential and are operated only from the work profile (claude), never from the personal profile (claude-personal)",
     "Source control: every repo in JorisJonkers-dev, ExtraToast, nedap and NedapISEP, and any checkout whose origin remote is under them, excluding forks of third-party repos (an upstream remote, or gh repo view --json isFork showing true). Reading, editing, branch pushes and pull requests there are the owner's normal work",
     "Repository visibility: repos under JorisJonkers-dev and ExtraToast may be public, so treat them as public unless a visibility check shows private, the same as an unverified visibility: Out-of-Place Publication and Create Public Surface apply, and secrets, private content and sensitive data never go in. Repos under nedap and NedapISEP are private and Confidential: their source code, documents and data are fine to read, edit and move inside nedap and NedapISEP, and never go anywhere else",
     "Identifiers that are fine in pull request, issue and commit text for the owner's repos: namespace, kubectl context and NixOS host names, *.jorisjonkers.dev and tailnet host names, and public package names. Secrets, tokens, personal data and customer data are never fine",
@@ -2296,7 +2296,7 @@ AUTO_MODE_ENVIRONMENT: list[str] = [
     "Org-specific CLIs: gh, kubectl, nix, nixos-rebuild, tailscale, model-gateway, agent-kit-setup, vibe-study and moves-dev-cli are the owner's recognised tools. Read and diagnostic use is routine; write, deploy and expose subcommands (kubectl apply/delete, nixos-rebuild switch --target-host, tailscale serve/funnel) are still judged by the block rules",
     "Internal package registry: the packages proxy https://packages.jorisjonkers.dev/npm/ (set in ~/.npmrc) and GitHub Packages for the @jorisjonkers-dev scope. Installs through the configured proxy are expected, public packages arrive through it, and lockfiles resolving to registry.npmjs.org or the proxy are both expected",
     "Trusted internal domains: *.jorisjonkers.dev and *.tailc886fe.ts.net (the owner's tailnet)",
-    "Key internal services: GitHub Actions in the owner's repos, the packages proxy, and the Hindsight memory API and model gateway on the owner's personal machines (localhost or the tailnet). The gateway and Hindsight belong to the personal estate and may forward to third-party model providers: personal repo code and prompts may go to them, Nedap content may not",
+    "Key internal services: GitHub Actions in the owner's repos, the packages proxy, and the Hindsight memory API and model gateway on the owner's personal machines (localhost or the tailnet). The gateway and Hindsight belong to the personal estate and may forward to third-party model providers: personal repo code and prompts may go to them, and they are never used on Nedap repos or content",
     "Protected deployment namespaces / environments: every -admin kubectl context and any namespace or host with prod or production as a name segment. Read-only inspection (get, describe, logs) through an explicit non-admin context is fine, prod-named namespaces included, Secrets excluded",
     "Host containment: agents run on the owner's workstations and in Claude Code cloud sessions, never inside the cluster pods. Node and cluster credentials of the hosting layer are not task credentials",
     "Sensitive data locations & audiences: ~/.vibe, ~/.vibe-private, ~/.config/agent-kit/private, ~/.claude*/.credentials.json, kubeconfigs, git credential files, any token, and Nedap customer data. Never print, copy, upload or commit them; using a credential through its own tool (kubectl, gh, git) against its intended service is fine"
@@ -2319,7 +2319,11 @@ AUTO_MODE_SOFT_DENY: list[str] = [
     "[named+specifics — must name: the package or image and the registry] Publishing a package or image (npm publish, docker push, GitHub Packages, any registry) from any agent session, workstation or cloud, needs an explicit request: publishing runs from CI",
     "[named+specifics — must name: the change] Any cluster write (kubectl, helm, flux, argocd) whose effective context is an -admin context, including an unspecified context, or whose target is a prod namespace, needs an explicit request naming the change",
     "[named+specifics — must name: the host] nixos-rebuild switch, boot or test against a remote host (--target-host) needs an explicit request naming the host",
-    "[named+specifics — must name: the Nedap content and the destination] Moving Nedap source code, documents or customer data to a destination inside the configured trust boundary that is still wrong for it needs an explicit request: a JorisJonkers-dev or ExtraToast repo, the personal model gateway, or Hindsight memory. Destinations outside the boundary (public repos, gists, pastes, third-party services) stay blocked by the hard Data Exfiltration rule, and an explicit request does not clear that"
+    "[named+specifics — must name: the Nedap content and the destination] Moving Nedap source code, documents or customer data into a JorisJonkers-dev or ExtraToast repo, in either direction between the two estates, needs an explicit request. Destinations outside the configured boundary (public repos, gists, pastes, third-party services) stay blocked by the hard Data Exfiltration rule, and an explicit request does not clear that"
+]
+
+AUTO_MODE_HARD_DENY: list[str] = [
+    "The model gateway (model-gateway, the delegate skill, vibe-study) and Hindsight memory must never be used on Nedap repos or with Nedap content, even when asked: they run on the owner's personal machines and may forward to third-party model providers"
 ]
 
 # Prefixes of entries earlier versions wrote untagged; they are replaced, not duplicated.
@@ -2353,7 +2357,7 @@ if projects not in dirs:
     changed.append(projects)
 am = data.setdefault('autoMode', {})
 legacy = tuple(cfg['legacy'])
-for section in ('environment', 'allow', 'soft_deny'):
+for section in ('environment', 'allow', 'soft_deny', 'hard_deny'):
     cur = [e for e in am.get(section, []) if not e.startswith(TAG) and not e.startswith(legacy)]
     if '$defaults' not in cur:
         cur = ['$defaults'] + cur
@@ -2366,8 +2370,31 @@ if changed:
     path.write_text(json.dumps(data, indent=2) + '\\n')
 back = json.loads(path.read_text())
 if any(r not in back['permissions']['allow'] for r in rules) or projects not in back['permissions']['additionalDirectories'] \\
-        or any(TAG + e not in back['autoMode'][k] for k in ('environment', 'allow', 'soft_deny') for e in cfg[k]):
+        or any(TAG + e not in back['autoMode'][k] for k in ('environment', 'allow', 'soft_deny', 'hard_deny') for e in cfg[k]):
     raise SystemExit(f'{path}: allow rules or auto mode entries did not read back')"""
+
+def profile_overlay(orgs: list[str]) -> dict[str, Any]:
+    """Settings a profile loads with --settings so it cannot operate the given GitHub orgs.
+
+    ``permissions.deny`` stops the path and gh forms that are matchable; the hard_deny entry
+    covers the rest for the auto mode classifier, even when the user asks.
+    """
+    deny: list[str] = []
+    for org in orgs:
+        root = f"~/Projects/{org}"
+        deny += [f"Read({root}/**)", f"Edit({root}/**)", f"Write({root}/**)",
+                 f"Bash(cd {root})", f"Bash(cd {root}/*)", f"Bash(git -C {root}/*)",
+                 f"Bash(gh * {org}/*)", f"Bash(gh * --repo {org}/*)", f"Bash(gh * -R {org}/*)",
+                 f"Bash(gh api *repos/{org}/*)"]
+    names = " or ".join(orgs)
+    return {
+        "permissions": {"deny": deny},
+        "autoMode": {"hard_deny": ["$defaults",
+            f"[agent-kit] This profile must not read, edit, run, push, merge or call an API for anything under the "
+            f"GitHub orgs {names}, or any checkout whose origin remote is under them, even when asked: those orgs are "
+            "operated only from the work profile (claude)"]},
+    }
+
 
 def claude_allow_rules(data: dict[str, Any]) -> list[str]:
     """Claude permission rules for MCP servers with ``claude_allow_tools: true``.
@@ -3872,7 +3899,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
     allows = json.dumps(claude_allow_rules(data))
     permissive = json.dumps({'rules': PERMISSIVE_ALLOW_RULES, 'environment': AUTO_MODE_ENVIRONMENT, 'allow': AUTO_MODE_ALLOW,
-                             'soft_deny': AUTO_MODE_SOFT_DENY, 'legacy': AUTO_MODE_LEGACY_PREFIXES}).replace("'", "'\\''")
+                             'soft_deny': AUTO_MODE_SOFT_DENY, 'hard_deny': AUTO_MODE_HARD_DENY, 'legacy': AUTO_MODE_LEGACY_PREFIXES}).replace("'", "'\\''")
     w("# Joins the allow rules for MCP servers whose every tool runs without a")
     w("# prompt (registry: claude_allow_tools) to each Claude profile's own; nothing else changes.")
     w("claude_mcp_allows() {")
@@ -4437,15 +4464,18 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# profile is a command rather than an environment variable to remember.")
     w("# A file at that path that this script did not write is left alone.")
     w("install_profile_launcher() {")
-    w('  local name="$1" dir="$2"')
+    w('  local name="$1" dir="$2" settings="${3:-}"')
     w('  local bin_dir="${CLAUDE_LAUNCHER_DIR:-$HOME/.local/bin}"')
     w('  local launcher="${bin_dir}/claude-${name}"')
     w('  local marker="# managed by agent-kit setup-workstation.sh"')
-    w("  local content")
+    w("  local content exec_line='exec claude \"$@\"'")
+    w('  if [ -n "${settings}" ]; then')
+    w("    exec_line=\"exec claude --settings $(printf '%q' \"${settings}\") \\\"\\$@\\\"\"")
+    w("  fi")
     w("  content=\"$(printf '%s\\n' '#!/usr/bin/env bash' \"${marker}\" \\")
     w('    "# Claude Code with the ${name} profile config root." \\')
     w("    \"export CLAUDE_CONFIG_DIR=$(printf '%q' \"${dir}\")\" \\")
-    w("    'exec claude \"$@\"')\"")
+    w('    "${exec_line}")"')
     w('  if [ -e "${launcher}" ] && ! grep -qxF "${marker}" "${launcher}"; then')
     w('    warn "profile: ${launcher} exists and was not written by setup; left alone"')
     w('    unshared_profile_paths+=("${launcher}: not a managed launcher, not replaced")')
@@ -5020,7 +5050,23 @@ def render_setup_script(data: dict[str, Any]) -> str:
             for rel in profile["shared_paths"]:
                 w(f'    link_profile_path "${{CLAUDE_HOME}}" "${{profile_dir}}" "{rel}"')
             w('    CLAUDE_PROFILE_DIRS+=("${profile_dir}")')
-            w(f'    install_profile_launcher "{name}" "${{profile_dir}}"')
+            blocked = [str(o) for o in profile.get("blocked_orgs") or []]
+            if blocked:
+                overlay = json.dumps(profile_overlay(blocked), indent=2).replace("'", "'\\''")
+                w('    overlay="${profile_dir}/agent-kit-profile.settings.json"')
+                w("    overlay_json='" + overlay + "'")
+                w('    if [ "${CHECK_ONLY}" = 1 ]; then')
+                w('      log "would write ${overlay}"')
+                w('    elif [ "$(cat "${overlay}" 2>/dev/null)" = "${overlay_json}" ]; then')
+                w('      ok "profile: ${overlay}"')
+                w("    elif printf '%s\\n' \"${overlay_json}\" > \"${overlay}\"; then")
+                w('      ok "profile: wrote ${overlay} (no access to the blocked orgs)"')
+                w("    else")
+                w('      fail "profile: could not write ${overlay}"')
+                w("    fi")
+                w(f'    install_profile_launcher "{name}" "${{profile_dir}}" "${{overlay}}"')
+            else:
+                w(f'    install_profile_launcher "{name}" "${{profile_dir}}"')
             # The login is the operator's to do: it is interactive, and the
             # whole point of the second root is that it holds a DIFFERENT
             # account, which this script has no way to choose.

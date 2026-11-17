@@ -120,3 +120,38 @@ def test_both_profiles_get_the_entries(tmp_path: Path) -> None:
     for d in (work, personal):
         allow = json.loads((d / "settings.json").read_text())["autoMode"]["allow"]
         assert any("moves-dev-cli" in e for e in allow)
+
+
+def test_the_model_gateway_is_hard_denied_on_nedap() -> None:
+    assert any("model gateway" in e and "Nedap" in e for e in render_registry.AUTO_MODE_HARD_DENY)
+
+
+def test_the_personal_profile_overlay_blocks_the_nedap_orgs() -> None:
+    overlay = render_registry.profile_overlay(["nedap", "NedapISEP"])
+    deny = overlay["permissions"]["deny"]
+    assert "Read(~/Projects/nedap/**)" in deny and "Edit(~/Projects/NedapISEP/**)" in deny
+    assert "Bash(gh * nedap/*)" in deny and "Bash(gh * --repo NedapISEP/*)" in deny
+    hard = overlay["autoMode"]["hard_deny"]
+    assert hard[0] == "$defaults" and "nedap or NedapISEP" in hard[1]
+
+
+def test_only_the_personal_launcher_loads_the_overlay(tmp_path: Path) -> None:
+    script = render_registry.render_setup_script(
+        yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text()))
+    fn = "install_profile_launcher() {" + script.split("\ninstall_profile_launcher() {")[1].split("\n}\n")[0] + "\n}\n"
+    bin_dir = tmp_path / "bin"
+    body = (f"set -u\nCHECK_ONLY=0\nCLAUDE_LAUNCHER_DIR={bin_dir}\nunshared_profile_paths=()\nPATH=$PATH:{bin_dir}\n"
+            "log() { :; }\nok() { :; }\nwarn() { :; }\nfail() { echo fail >&2; }\n" + fn
+            + f"install_profile_launcher personal {tmp_path}/p {tmp_path}/p/overlay.json\n"
+            + f"install_profile_launcher plain {tmp_path}/q\n")
+    result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False,
+                            env={**os.environ})
+    assert result.returncode == 0 and not result.stderr, result.stderr
+    assert f"exec claude --settings {tmp_path}/p/overlay.json \"$@\"" in (bin_dir / "claude-personal").read_text()
+    assert (bin_dir / "claude-plain").read_text().splitlines()[-1] == 'exec claude "$@"'
+
+
+def test_the_registry_blocks_nedap_for_the_personal_profile_only() -> None:
+    profiles = yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text())["claude_profiles"]
+    blocked = {p["name"]: p.get("blocked_orgs") for p in profiles}
+    assert blocked["personal"] == ["nedap", "NedapISEP"] and not blocked["work"]
