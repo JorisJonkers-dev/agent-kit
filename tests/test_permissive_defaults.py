@@ -79,3 +79,31 @@ def test_a_second_run_changes_nothing(tmp_path: Path) -> None:
 def test_check_only_writes_nothing(tmp_path: Path) -> None:
     path = _run(tmp_path, {"model": "x"}, check=True)
     assert json.loads(path.read_text()) == {"model": "x"}
+
+
+def test_only_moves_dev_cli_merges_without_a_request() -> None:
+    allow = [e for e in render_registry.AUTO_MODE_ALLOW if "Merging a pull request" in e]
+    assert len(allow) == 1 and "moves-dev-cli" in allow[0] and "release" in allow[0] and "--admin" in allow[0]
+    deny = [e for e in render_registry.AUTO_MODE_SOFT_DENY if "Merging a pull request" in e]
+    assert len(deny) == 1 and "nedap/moves-dev-cli" in deny[0]
+
+
+def test_every_soft_deny_names_what_it_needs() -> None:
+    assert all(e.startswith("[named+specifics — must name:") for e in render_registry.AUTO_MODE_SOFT_DENY)
+
+
+def test_both_profiles_get_the_entries(tmp_path: Path) -> None:
+    script = render_registry.render_setup_script(
+        yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text()))
+    fn = "claude_permissive_defaults() {" + script.split("\nclaude_permissive_defaults() {")[1].split("\n}\n")[0] + "\n}\n"
+    work, personal = tmp_path / "work", tmp_path / "personal"
+    work.mkdir()
+    personal.mkdir()
+    body = (f"set -u\nCHECK_ONLY=0\nCLAUDE_PROFILE_DIRS=({work} {personal})\nlog() {{ :; }}\nok() {{ :; }}\n"
+            "fail() { echo fail >&2; }\n" + fn + "claude_permissive_defaults\n")
+    result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False,
+                            env={**os.environ, "HOME": str(tmp_path / "home")})
+    assert result.returncode == 0 and not result.stderr, result.stderr
+    for d in (work, personal):
+        allow = json.loads((d / "settings.json").read_text())["autoMode"]["allow"]
+        assert any("moves-dev-cli" in e for e in allow)
