@@ -88,6 +88,19 @@ def test_only_moves_dev_cli_merges_without_a_request() -> None:
     assert len(deny) == 1 and "nedap/moves-dev-cli" in deny[0]
 
 
+def test_branch_push_allows_exclude_the_default_branch_and_tags_need_a_request() -> None:
+    pushes = [e for e in render_registry.AUTO_MODE_ALLOW if e.startswith("Pushing")]
+    assert pushes and all("non-default" in e for e in pushes)
+    assert any("default branch" in e and "presumed" in e for e in render_registry.AUTO_MODE_SOFT_DENY)
+    assert any("Pushing a tag" in e for e in render_registry.AUTO_MODE_SOFT_DENY)
+
+
+def test_nedap_code_is_confidential_not_a_sensitive_location() -> None:
+    sensitive = next(e for e in render_registry.AUTO_MODE_ENVIRONMENT if e.startswith("Sensitive data locations"))
+    assert "customer data" in sensitive and "source code" not in sensitive and ".env" not in sensitive
+    assert any("separate trust boundaries" in e for e in render_registry.AUTO_MODE_ENVIRONMENT)
+
+
 def test_every_soft_deny_names_what_it_needs() -> None:
     assert all(e.startswith("[named+specifics — must name:") for e in render_registry.AUTO_MODE_SOFT_DENY)
 
