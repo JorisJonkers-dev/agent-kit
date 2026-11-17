@@ -186,7 +186,7 @@ fn config() -> GatewayConfig {
 fn repository_scope() -> DataScope {
     DataScope::Repository {
         key: "github.com/acme/widgets".to_string(),
-        entry: Some(AllowlistEntry { code: true, families: vec!["anthropic".to_string(), "openai".to_string()], history: true }),
+        entry: Some(AllowlistEntry { code: true, families: vec!["anthropic".to_string(), "openai".to_string()], history: true, public: false }),
     }
 }
 

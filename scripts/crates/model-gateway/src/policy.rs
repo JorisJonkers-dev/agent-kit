@@ -121,9 +121,12 @@ fn permission(config: &GatewayConfig, subject: &PolicySubject, scope: &DataScope
                 None => NOTHING,
                 Some(entry) => SendPermission { code: entry.code, history: entry.history },
             };
-            // A client on a public-only route never sees a repository, whatever the allowlist says of its family.
+            // A client on a public-only route reaches a repository only when the entry says the repository is public,
+            // and only the families that entry allows; a private or unrecorded repository never reaches it.
             let public_only = config.clients.get(&subject.client).is_some_and(|client| client.public_only);
-            let permitted = !public_only && entry.as_ref().is_some_and(|entry| entry.families.contains(&subject.family));
+            let allows_family = entry.as_ref().is_some_and(|entry| entry.families.contains(&subject.family));
+            let public_repository = entry.as_ref().is_some_and(|entry| entry.public);
+            let permitted = allows_family && (!public_only || public_repository);
             base(false, may_send, permitted)
         }
     }
@@ -138,6 +141,10 @@ fn reason_for(scope: &DataScope) -> String {
         DataScope::Repository { key, entry } => match entry {
             None => format!("{key} has no allowlist entry, so nothing is sent"),
             Some(entry) if entry.families.is_empty() => format!("{key}: the entry allows no family"),
+            Some(entry) if entry.public => format!(
+                "{key}: the entry allows {}, and records the repository as public, so a public-only route may read it",
+                entry.families.join(", ")
+            ),
             Some(entry) => format!("{key}: the entry allows {}", entry.families.join(", ")),
         },
     }
