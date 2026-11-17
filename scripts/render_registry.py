@@ -2221,6 +2221,146 @@ def _opencode_plugin_skills_step(data: dict[str, Any], w: Any) -> None:
     w("")
 
 
+# Auto mode defaults (see claude_permissive_defaults in the rendered setup script).
+# Allow rules that need no prompt: gh reads, read-only git and shell tools, kubectl reads.
+PERMISSIVE_ALLOW_RULES: list[str] = [
+    "Bash(cd ~/Projects)",
+    "Bash(cd ~/Projects/*)",
+    "Bash(gh pr view *)",
+    "Bash(gh pr list *)",
+    "Bash(gh pr status *)",
+    "Bash(gh pr diff *)",
+    "Bash(gh pr checks *)",
+    "Bash(gh issue view *)",
+    "Bash(gh issue list *)",
+    "Bash(gh issue status *)",
+    "Bash(gh repo view *)",
+    "Bash(gh repo list *)",
+    "Bash(gh run view *)",
+    "Bash(gh run list *)",
+    "Bash(gh run watch *)",
+    "Bash(gh workflow view *)",
+    "Bash(gh workflow list *)",
+    "Bash(gh release view *)",
+    "Bash(gh release list *)",
+    "Bash(gh label list *)",
+    "Bash(gh search *)",
+    "Bash(gh auth status *)",
+    "Bash(git status *)",
+    "Bash(git diff *)",
+    "Bash(git log *)",
+    "Bash(git show *)",
+    "Bash(git branch *)",
+    "Bash(git remote -v)",
+    "Bash(git rev-parse *)",
+    "Bash(git ls-files *)",
+    "Bash(git blame *)",
+    "Bash(git fetch *)",
+    "Bash(git worktree list *)",
+    "Bash(git stash list *)",
+    "Bash(ls *)",
+    "Bash(pwd)",
+    "Bash(cat *)",
+    "Bash(head *)",
+    "Bash(tail *)",
+    "Bash(wc *)",
+    "Bash(grep *)",
+    "Bash(rg *)",
+    "Bash(find *)",
+    "Bash(fd *)",
+    "Bash(tree *)",
+    "Bash(file *)",
+    "Bash(stat *)",
+    "Bash(which *)",
+    "Bash(command -v *)",
+    "Bash(echo *)",
+    "Bash(jq *)",
+    "Bash(diff *)",
+    "Bash(sort *)",
+    "Bash(uniq *)",
+    "Bash(model-gateway models*)",
+    "Bash(kubectl get *)",
+    "Bash(kubectl describe *)",
+    "Bash(kubectl logs *)"
+]
+
+# Prose entries for autoMode.environment / allow / soft_deny, tagged "[agent-kit] " when written.
+AUTO_MODE_ENVIRONMENT: list[str] = [
+    "Precedence: entries tagged [agent-kit] supersede the default entry for the same slot, including every \"None configured\" line; where they overlap, the tagged entry is the configured value",
+    "Organization: the owner's personal software development and home-lab estate. Primary use: software development, infrastructure as code, Kubernetes and NixOS operations. The GitHub org JorisJonkers-dev and the personal account ExtraToast are the owner's own",
+    "Source control: every repo in the GitHub org JorisJonkers-dev and the account ExtraToast. Branch pushes, pull requests, issues and labels there are the owner's normal work",
+    "Repository visibility: many JorisJonkers-dev and ExtraToast repos are public (agent-kit, auth-api, agents-ui, deploy-kit and others). Treat every repo there as public unless a visibility check shows it private, so secrets, private-repo content and sensitive data never go in",
+    "Trusted repo: clones under ~/Projects/JorisJonkers-dev/<repo> and ~/Projects/ExtraToast/<repo>, and their worktrees under ~/Projects/<owner>/worktrees/<repo>/<name>. Any other directory under ~/Projects is a third-party clone and is not trusted",
+    "Cloud provider(s): none. Two self-hosted Kubernetes clusters on VPS hosts: personal (single-user, the owner's only) and blueshell (ESA-Blueshell association, treat as shared). Contexts personal and blueshell are read-only; personal-admin and blueshell-admin are admin",
+    "Org-specific CLIs: gh, kubectl, nix, nixos-rebuild, tailscale, model-gateway, agent-kit-setup and vibe-study are the owner's recognised tools. Read and diagnostic use is routine; write, deploy and expose subcommands (kubectl apply/delete, nixos-rebuild switch --target-host, tailscale serve/funnel) are still judged by the block rules",
+    "Internal package registry: the packages proxy https://packages.jorisjonkers.dev/npm/ (set in ~/.npmrc) and GitHub Packages npm.pkg.github.com for the @jorisjonkers-dev scope. Installs through the configured proxy are expected, and lockfiles resolving to registry.npmjs.org or the proxy are both expected",
+    "Trusted internal domains: *.jorisjonkers.dev and *.tailc886fe.ts.net (the owner's tailnet)",
+    "Key internal services: GitHub Actions in the owner's repos, packages.jorisjonkers.dev, and the Hindsight memory API and model gateway on the owner's machines (localhost or the tailnet). Sending repo code and prompts to the model gateway is expected",
+    "Protected deployment namespaces / environments: the kubectl contexts personal-admin and blueshell-admin, and any namespace or host with prod or production as a name segment. Inspecting through the read-only contexts is fine",
+    "Host containment: agents run on the owner's NixOS workstations and in Claude Code cloud sessions, never inside the cluster pods. Node and cluster credentials of the hosting layer are not task credentials",
+    "Sensitive data locations & audiences: ~/.vibe, ~/.vibe-private, ~/.config/agent-kit/private, ~/.claude*/.credentials.json, .env files, kubeconfigs, git credential files and any token. Never print, copy, upload or commit them; using them through their own tool (kubectl, gh, git) against its intended service is fine"
+]
+
+AUTO_MODE_ALLOW: list[str] = [
+    "Dispatching non-deploy workflows (CI, lint, test, build) in JorisJonkers-dev and ExtraToast repos, and creating issues, labels and pull requests there, is allowed: they are the owner's own repos",
+    "Read-only kubectl (get, describe, logs, top, events) against the personal and blueshell contexts is allowed"
+]
+
+AUTO_MODE_SOFT_DENY: list[str] = [
+    "Pushing directly to the default branch of a JorisJonkers-dev or ExtraToast repo needs an explicit request: work goes through a branch and a pull request",
+    "Any force-push, including --force-with-lease, needs an explicit request naming the branch",
+    "Any write (push, pull request, issue, comment) to a repo, fork or upstream not owned by JorisJonkers-dev or ExtraToast needs an explicit request",
+    "Publishing a package (npm publish and equivalents) from a workstation needs an explicit request: publishing runs from CI",
+    "Any kubectl write to personal-admin, blueshell-admin or a prod namespace needs an explicit request naming the change"
+]
+
+# Prefixes of entries earlier versions wrote untagged; they are replaced, not duplicated.
+AUTO_MODE_LEGACY_PREFIXES: list[str] = [
+    "Organization: the owner",
+    "Source control: GitHub org JorisJonkers-dev and the personal",
+    "Trusted repo: every clone",
+    "Cloud provider(s): none; self-hosted",
+    "Org-specific CLIs: gh, kubectl",
+    "Internal package registry: npm.pkg",
+    "Trusted internal domains: hosts on",
+    "Key internal services: GitHub Actions",
+    "Protected deployment namespaces / environments: the kubectl",
+    "Sensitive data locations & audiences: ~/.vibe",
+    "Precedence: the owner-specific"
+]
+
+PERMISSIVE_PAYLOAD = """import json, pathlib, sys
+path, projects, cfg = pathlib.Path(sys.argv[1]), sys.argv[2], json.loads(sys.argv[3])
+TAG = '[agent-kit] '
+rules = cfg['rules'] + [f'Read(/{projects}/**)', f'Edit(/{projects}/**)', f'Write(/{projects}/**)',
+                        f'Bash(cd {projects})', f'Bash(cd {projects}/*)']
+data = json.loads(path.read_text() or '{}') if path.exists() else {}
+perms = data.setdefault('permissions', {})
+allow = perms.setdefault('allow', [])
+changed = [r for r in rules if r not in allow]
+allow.extend(changed)
+dirs = perms.setdefault('additionalDirectories', [])
+if projects not in dirs:
+    dirs.append(projects)
+    changed.append(projects)
+am = data.setdefault('autoMode', {})
+legacy = tuple(cfg['legacy'])
+for section in ('environment', 'allow', 'soft_deny'):
+    cur = [e for e in am.get(section, []) if not e.startswith(TAG) and not e.startswith(legacy)]
+    if '$defaults' not in cur:
+        cur = ['$defaults'] + cur
+    want = cur + [TAG + e for e in cfg[section]]
+    if want != am.get(section):
+        am[section] = want
+        changed.append('autoMode.' + section)
+if changed:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + '\\n')
+back = json.loads(path.read_text())
+if any(r not in back['permissions']['allow'] for r in rules) or projects not in back['permissions']['additionalDirectories'] \\
+        or any(TAG + e not in back['autoMode'][k] for k in ('environment', 'allow', 'soft_deny') for e in cfg[k]):
+    raise SystemExit(f'{path}: allow rules or auto mode entries did not read back')"""
+
 def claude_allow_rules(data: dict[str, Any]) -> list[str]:
     """Claude permission rules for MCP servers with ``claude_allow_tools: true``.
 
@@ -3723,6 +3863,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("}")
     w("")
     allows = json.dumps(claude_allow_rules(data))
+    permissive = json.dumps({'rules': PERMISSIVE_ALLOW_RULES, 'environment': AUTO_MODE_ENVIRONMENT, 'allow': AUTO_MODE_ALLOW,
+                             'soft_deny': AUTO_MODE_SOFT_DENY, 'legacy': AUTO_MODE_LEGACY_PREFIXES}).replace("'", "'\\''")
     w("# Joins the allow rules for MCP servers whose every tool runs without a")
     w("# prompt (registry: claude_allow_tools) to each Claude profile's own; nothing else changes.")
     w("claude_mcp_allows() {")
@@ -3747,6 +3889,26 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("back = json.loads(path.read_text()).get('permissions', {}).get('allow', [])")
     w("if any(r not in back for r in rules):")
     w("    raise SystemExit(f'{path}: allow rules did not read back')")
+    w("PY")
+    w("  done")
+    w("}")
+    w("")
+    w("# Joins permissive defaults for auto mode to each Claude profile's own: ~/Projects, gh reads and")
+    w("# read-only tools run without a prompt, and the auto mode classifier learns the owner's estate")
+    w("# (autoMode.environment, allow and soft_deny, kept after the built-in \"$defaults\"). Nothing is")
+    w("# removed; the deny rules still win. Tagged entries are replaced on each run.")
+    w("claude_permissive_defaults() {")
+    w('  local profile_dir')
+    w('  for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
+    w('    if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('      log "would add the permissive default allow rules to ${profile_dir}/settings.json"')
+    w("      continue")
+    w("    fi")
+    w(f"    python3 - \"${{profile_dir}}/settings.json\" \"${{HOME}}/Projects\" '{permissive}' <<'PY' \\")
+    w('      && ok "permissive default allow rules in ${profile_dir}/settings.json" \\')
+    w('      || fail "could not add the permissive default allow rules to ${profile_dir}/settings.json"')
+    for line in PERMISSIVE_PAYLOAD.splitlines():
+        w(line)
     w("PY")
     w("  done")
     w("}")
@@ -4874,6 +5036,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
     w("# MCP servers the registry trusts to run every tool without a prompt.")
     w("claude_mcp_allows")
+    w("")
+    w("# Auto mode: ~/Projects, gh reads and read-only tools need no prompt.")
+    w("claude_permissive_defaults")
     w("")
     w("# Claude Code credits neither itself nor its model in commits or PRs.")
     w("claude_no_attribution")
