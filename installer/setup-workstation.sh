@@ -880,8 +880,12 @@ if changed:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + '\n')
 back = json.loads(path.read_text())
-if any(r not in back['permissions']['allow'] for r in rules) or projects not in back['permissions']['additionalDirectories'] \
-        or any(TAG + e not in back['autoMode'][k] for k in ('environment', 'allow', 'soft_deny', 'hard_deny') for e in cfg[k]):
+bperms = back['permissions']
+lost = [r for r in rules if r not in bperms['allow']]
+lost += [] if projects in bperms['additionalDirectories'] else [projects]
+for k in ('environment', 'allow', 'soft_deny', 'hard_deny'):
+    lost += [e for e in cfg[k] if TAG + e not in back['autoMode'][k]]
+if lost:
     raise SystemExit(f'{path}: allow rules or auto mode entries did not read back')
 PY
   done
