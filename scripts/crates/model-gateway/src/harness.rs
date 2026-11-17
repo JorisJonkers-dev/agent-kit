@@ -56,6 +56,18 @@ pub fn choose(input: &Object, runtime: &Runtime) -> Result<Object, GatewayError>
     Ok(object)
 }
 
+/// The first of a profile's models OpenCode can run: an OpenCode model as it is, and a Pi route's model on
+/// OpenCode's own LiteLLM provider of that route, so every role a Pi route serves runs on OpenCode too.
+pub fn opencode_pick(config: &GatewayConfig, models: Vec<ProfileModel>) -> Option<ProfileModel> {
+    models.into_iter().find_map(|model| {
+        if model.client == "opencode" || model.client == crate::run::OPENCODE_FREE_CLIENT {
+            return Some(model);
+        }
+        let opencode_model = crate::run::opencode_model_of(config, &model.client, &model.model)?;
+        Some(ProfileModel { client: "opencode".to_string(), model: opencode_model, ..model })
+    })
+}
+
 /// The model the profile leaves on the harness, and the provider a Hermes run names.
 fn pick(
     config: &GatewayConfig,
@@ -79,6 +91,8 @@ fn pick(
                 .flatten()
                 .map(|_| (ProfileModel { client: crate::run::HERMES.to_string(), ..model }, Some(provider)))
         })
+    } else if harness == "opencode" {
+        opencode_pick(config, resolution.models).map(|model| (model, None))
     } else {
         resolution.models.into_iter().find(|model| on_harness(&model.client, harness)).map(|model| (model, None))
     };
@@ -86,7 +100,7 @@ fn pick(
         GatewayError::new(
             "profile-refused",
             format!(
-                "profile {name} has no usable model on harness {harness} here (hermes takes a Pi route's model, on a route for any data): the profile and the data policy leave {}",
+                "profile {name} has no usable model on harness {harness} here (hermes and opencode take a Pi route's model, on a route for any data): the profile and the data policy leave {}",
                 left.join(", ")
             ),
         )

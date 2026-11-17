@@ -184,6 +184,23 @@ they are sent. Every other client still refuses OpenRouter: a model named
 `openrouter/...`, or a Hermes or OpenCode run on the `openrouter` provider, is
 `provider-not-allowed`, and no machine file opens it.
 
+**OpenCode's own free models.** `opencode-free` runs OpenCode's free models
+(`opencode/glm-5.3-flash-free`, `opencode/big-pickle`, `opencode/nemotron-3.5-super-vl-free`
+and the rest) through the OpenCode CLI, the only client OpenCode serves them to
+(its harness guide: "Other harnesses receive HTTP 403 for those models, even
+with a Console API key"), so no LiteLLM route reaches them. Its models are what
+`opencode api GET /api/model` lists for OpenCode's own provider with every price
+zero, asked again before each run, so a model that stopped being free, or any
+paid `opencode/<id>`, is refused with `free-only-refused`, and a model of
+another provider with `provider-not-allowed`. It is `"data_scope": "public"`
+like the other free-only clients: several free models keep or train on what they
+are sent (Big Pickle, Iceman, Inkling, Flint, the NVIDIA trial endpoints). A free
+model whose id names no known family and that no catalogue entry names takes the
+family `opencode`. When OpenCode lists no free model, `models` names
+`opencode-free` in `missing` with what to check: OpenCode's models catalogue
+failed to load (its log says `failed to load plugin plugin.id=opencode.models.dev`),
+or `OPENCODE_DISABLE_FREE_MODELS` is set.
+
 `pi-public` has `"data_scope": "public"` (a client field, `any` by default):
 that route is for public work only, so a delegation that reads a repository is
 sent to it only when the repository's allowlist entry says `"public": true`
@@ -392,9 +409,13 @@ Everything that can refuse the run happens before anything is launched:
   with `openrouter/`, on every client but `pi-openrouter` (free models only).
   An OpenCode model is named
   `<provider>/<model>`, and only the providers `clients.opencode.providers`
-  names (default `["opencode-go"]`) are allowed; every other provider is
-  refused, and so is `opencode/<model>`, OpenCode's pay-per-token Zen, even
-  when the machine lists it: a run never reaches a pay-per-token model.
+  names (default `["opencode-go", "litellm-opencode-go"]`, the second being the
+  provider setup writes for the LiteLLM OpenCode Go route) are allowed; every
+  other provider is refused, and so is `opencode/<model>`, OpenCode's
+  pay-per-token Zen, even when the machine lists it: a run never reaches a
+  pay-per-token model. Its free models run on `opencode-free` instead. When
+  every model OpenCode lists is on a provider the list does not name, `models`
+  names `opencode` in `missing` with the reason instead of offering nothing.
 - `workflow-ended` — the run names a workflow that ended, so its caps and
   grants lapsed with it (below).
 - `no-grant` — a Codex run whose workflow no live grant covers. The message
@@ -1092,6 +1113,16 @@ model in any profile (its model is its own configuration, not the catalogue's),
 so it is refused until one is configured. `harness` needs `profile`, and cannot
 be given with `client` or `model`.
 
+`opencode` runs every role too. It takes the first of the profile's models that
+OpenCode can run: one of OpenCode's own free models (`opencode-free:opencode/<id>`)
+as it is, or a Pi route's model on OpenCode's own LiteLLM provider of that route
+(`pi-vibe:glm-5.3` runs as `opencode:litellm-vibe/glm-5.3`), for the routes that
+take any data. The route's key is read from the secret store into OpenCode's
+environment for the run, as for Hermes. Pi stays the default: a role's
+`opencode-free` models are listed after its Pi models, so a tie goes to Pi, and
+OpenCode is the harness when a model needs it (OpenCode's free models answer 403
+to every other client).
+
 `model-gateway matrix` proves every role on every harness: it runs each cell once
 on a trivial fixture and prints status (`pass`, `blocked` or `fail`), exit,
 latency, cost and error text, and exits 1 when a cell does not do what
@@ -1172,7 +1203,7 @@ and merges over the shipped defaults:
   `<provider>/<model>`). A provider it does not name takes the client's own
   cost class. `providers` is the list of providers a run may reach through the
   client, by the name its own command line takes: the ones an OpenCode model
-  may name (`provider-not-allowed` otherwise; `["opencode-go"]` by default) and
+  may name (`provider-not-allowed` otherwise; `["opencode-go", "litellm-opencode-go"]` by default) and
   the ones a Hermes run may name (`hermes --provider`; empty by default, so no
   Hermes run is allowed until the owner lists one). `openrouter` stays refused
   whatever it says; only `pi-openrouter` runs it, for free models.

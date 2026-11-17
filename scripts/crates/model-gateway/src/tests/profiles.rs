@@ -368,3 +368,53 @@ fn hermes_reaches_only_the_pi_routes_for_any_data() {
         assert_eq!(route(provider), None, "{provider}");
     }
 }
+
+fn profile_model(client: &str, model: &str) -> ProfileModel {
+    ProfileModel { client: client.to_string(), model: model.to_string(), family: "zhipu".to_string(), tier: Some(Tier::Routine), cost_class: CostClass::Subsidised }
+}
+
+#[test]
+fn opencode_runs_a_pi_routes_model_on_its_own_litellm_provider_of_that_route() {
+    let config = shipped();
+    for (client, model, want) in [
+        ("pi-vibe", "glm-5.3", Some("litellm-vibe/glm-5.3")),
+        ("pi-vibe-study", "glm-5.3", Some("litellm-vibe-study/glm-5.3")),
+        ("pi-opencode-go", "kimi-k2.7-code", Some("litellm-opencode-go/kimi-k2.7-code")),
+        ("pi-local", "qwen3:32b", Some("litellm-local/qwen3:32b")),
+        // Public-only and free-only routes stay on Pi, which holds runs to their rules.
+        ("pi-free", "mistral-small", None),
+        ("pi-openrouter", "mistral-small", None),
+        ("pi-public", "gemini-3.6-flash", None),
+        ("claude", "claude-haiku-5-5", None),
+    ] {
+        assert_eq!(crate::run::opencode_model_of(&config, client, model).as_deref(), want, "{client}:{model}");
+    }
+    assert_eq!(crate::run::opencode_pi_model(&config, "opencode", "litellm-vibe/glm-5.3"), Some(("pi-vibe".to_string(), "glm-5.3")));
+    assert_eq!(crate::run::opencode_pi_model(&config, "opencode", "litellm-free/glm-5.3"), None);
+    assert_eq!(crate::run::opencode_pi_model(&config, "opencode", "opencode-go/glm-5.3"), None);
+    assert_eq!(crate::run::opencode_pi_model(&config, "hermes", "litellm-vibe/glm-5.3"), None);
+    assert_eq!(crate::run::opencode_litellm_group("opencode", "litellm-vibe/"), None);
+    assert_eq!(crate::run::opencode_litellm_group("opencode", "glm-5.3"), None);
+}
+
+#[test]
+fn the_opencode_harness_takes_the_first_model_opencode_can_run() {
+    let config = shipped();
+    let pick = |models: Vec<ProfileModel>| crate::harness::opencode_pick(&config, models).map(|model| format!("{}:{}", model.client, model.model));
+    assert_eq!(pick(vec![profile_model("pi-free", "small"), profile_model("pi-vibe", "glm-5.3")]).as_deref(), Some("opencode:litellm-vibe/glm-5.3"));
+    assert_eq!(pick(vec![profile_model("opencode-free", "opencode/glm-5.3-flash-free")]).as_deref(), Some("opencode-free:opencode/glm-5.3-flash-free"));
+    assert_eq!(pick(vec![profile_model("opencode", "litellm-opencode-go/kimi")]).as_deref(), Some("opencode:litellm-opencode-go/kimi"));
+    assert_eq!(pick(vec![profile_model("claude", "haiku"), profile_model("pi-openrouter", "small")]), None);
+}
+
+#[test]
+fn an_opencode_run_on_a_litellm_provider_is_held_to_the_pi_routes_model_and_runs_unenforced() {
+    let config = custom(
+        r#"{"role": {"description": "d", "models": ["pi-vibe:small"], "unenforced_clients": ["opencode"]}}"#,
+    )
+    .expect("role");
+    let decided = decision(&config, &repository(&["anthropic", "mistral", "zhipu"]));
+    assert!(hold_to_profile(&config, &decided, "role", None, "opencode", "litellm-vibe/small", None, false).is_ok());
+    let refused = hold_to_profile(&config, &decided, "role", None, "opencode", "litellm-vibe/large", None, false).expect_err("not the profile's model");
+    assert!(refused.message.contains("opencode:litellm-vibe/large is not allowed by profile role"), "{}", refused.message);
+}

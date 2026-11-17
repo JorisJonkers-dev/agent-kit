@@ -293,10 +293,10 @@ build_tracker:
 model_gateway:
   files:
     - path: skills/workstation/model-gateway/defaults.json
-      sha256: a89aa45f529078ad2b14970eaa96b149e8f738a68a320cb7fd0f5232d3e755e3
+      sha256: 87433308f372446d658a6b86c38707c8ce70a392a25cb866bfd55da8a89bd75c
       mode: "0644"
     - path: skills/workstation/model-gateway/defaults.schema.json
-      sha256: 7e79dd082dd5dfed3e15df4f62add6e081198e4669ba4a228b836f2c0642e0d0
+      sha256: 1d49b85ae69b79765baec077ba9d67864e93d7a6f8e6a50ab9ebe22603ed7f30
       mode: "0644"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]

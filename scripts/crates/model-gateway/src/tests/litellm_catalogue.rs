@@ -185,3 +185,16 @@ fn a_listed_model_carries_its_cost_and_the_providers_that_serve_it_in_fallback_o
     assert_eq!(annotate(&config, None, Value::Null), Value::Null);
     assert_eq!(crate::json::compact(&annotate(&config, None, parse(r#"{"status":"ok"}"#).expect("json"))), r#"{"status":"ok"}"#);
 }
+
+#[test]
+fn an_opencode_model_on_a_litellm_provider_is_judged_by_the_group_a_pi_route_names() {
+    let config = shipped();
+    let catalogue = "{\"updated_at\":\"2026-11-03T11:17:01Z\",\"providers\":{\"opencode-go\":{\"models\":[\
+        {\"id\":\"opencode-go/beam-free\",\"metadata\":{\"status\":\"blocked\",\"reason\":\"trains on request data\",\"free\":true,\"modality\":\"chat\"}}]}},\
+        \"groups\":{\"beam\":{\"modality\":\"chat\",\"deployments\":[{\"route\":\"opencode-go\",\"upstream_id\":\"beam-free\",\"order\":1}]}}}";
+    let env = HashMap::from([("XDG_CACHE_HOME".to_string(), "/cache".to_string())]);
+    let known = runtime(StubFiles::new().with("/cache/agent-kit/litellm-catalogue.json", catalogue), StubGit::new(None, &[]), env);
+    let refused = require_usable(&known, &config, "opencode", "litellm-opencode-go/beam").expect_err("the group is blocked");
+    assert_eq!(refused.code, "model-not-usable");
+    assert!(require_usable(&known, &config, "opencode", "litellm-opencode-go/unknown-group").is_ok());
+}

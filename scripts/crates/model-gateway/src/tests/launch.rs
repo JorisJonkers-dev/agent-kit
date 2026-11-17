@@ -886,3 +886,31 @@ fn names_the_platform_the_way_node_does() {
     assert_eq!(node_platform_of("linux"), "linux");
     assert_eq!(node_platform(), node_platform_of(std::env::consts::OS));
 }
+
+#[test]
+fn runs_opencode_on_a_litellm_provider_with_the_routes_key_read_into_its_environment() {
+    let process = Fake::answering("");
+
+    launch(&Memory::default(), &process, &request(RunClient::Opencode, "opencode", "litellm-vibe/glm-5.3", RunExtras::default())).expect("the launch");
+
+    let command = process.first();
+    assert_eq!(command.command, "/bin/sh");
+    assert_eq!(
+        command.args,
+        strings(&[
+            "-c",
+            crate::launchers::OPENCODE_KEYED,
+            "opencode-keyed",
+            "agent-kit-secret",
+            "LITELLM_VIBE_KEY",
+            "opencode",
+            "run",
+            "--standalone",
+            "--model",
+            "litellm-vibe/glm-5.3",
+            "--format",
+            "json",
+            "read this",
+        ])
+    );
+}

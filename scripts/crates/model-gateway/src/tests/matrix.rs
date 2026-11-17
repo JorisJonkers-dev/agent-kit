@@ -23,7 +23,7 @@ fn result(text: &str) -> Result<Value, GatewayError> {
 fn the_shipped_baseline_is_read_and_expects_hermes_to_pass_and_codex_blocked_live() {
     let shipped = read_baseline(SHIPPED_BASELINE).expect("shipped");
     assert_eq!(shipped.roles.len(), 6);
-    assert_eq!(shipped.harnesses.len(), 7);
+    assert_eq!(shipped.harnesses.len(), 8);
     for role in &shipped.roles {
         assert_eq!(shipped.expect(false, role, "hermes").status, Status::Pass);
         assert_eq!(shipped.expect(true, role, "hermes").status, Status::Pass);

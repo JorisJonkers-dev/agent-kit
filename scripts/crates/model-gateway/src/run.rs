@@ -54,10 +54,14 @@ impl RunClient {
         }
     }
 
-    /// The launcher a client id runs through: a client's own, or Pi for `pi-<route>`; `None` when no run can launch it.
+    /// The launcher a client id runs through: a client's own, Pi for `pi-<route>`, and OpenCode for
+    /// `opencode-free`; `None` when no run can launch it.
     pub fn parse(text: &str) -> Option<RunClient> {
         if is_pi_client(text) {
             return Some(RunClient::Pi);
+        }
+        if text == OPENCODE_FREE_CLIENT {
+            return Some(RunClient::Opencode);
         }
         RunClient::ALL.into_iter().find(|client| client.as_str() == text)
     }
@@ -91,8 +95,16 @@ pub const FORBIDDEN_PROVIDERS: [&str; 1] = ["openrouter"];
 /// and only for models priced at zero.
 pub const OPENROUTER_CLIENT: &str = "pi-openrouter";
 
-/// The clients that run models priced at zero only: a model of either that is not free is never listed and never run.
-pub const FREE_ONLY_CLIENTS: [&str; 2] = [OPENROUTER_CLIENT, "pi-free"];
+/// The client that runs OpenCode's own free models (`opencode/<id>`) through the OpenCode CLI. OpenCode serves them
+/// to OpenCode alone ("Other harnesses receive HTTP 403 for those models, even with a Console API key"), so no
+/// LiteLLM route can reach them. Public work only, and models priced at zero only.
+pub const OPENCODE_FREE_CLIENT: &str = "opencode-free";
+
+/// The provider OpenCode serves its own models on; `opencode-free` runs only that provider's free models.
+pub const OPENCODE_OWN_PROVIDER: &str = "opencode";
+
+/// The clients that run models priced at zero only: a model of one that is not free is never listed and never run.
+pub const FREE_ONLY_CLIENTS: [&str; 3] = [OPENROUTER_CLIENT, "pi-free", OPENCODE_FREE_CLIENT];
 
 /// The client that runs a Pi route's models through its own LiteLLM provider of that route (`--provider litellm-<route>`).
 pub const HERMES: &str = "hermes";
@@ -597,7 +609,7 @@ pub fn run_failure_reason(launch: &LaunchExit, answer: Option<&str>, reported: O
 }
 
 /// The providers an OpenCode run may reach when the machine names none.
-pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 1] = ["opencode-go"];
+pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 5] = ["opencode-go", "litellm-opencode-go", "litellm-vibe", "litellm-vibe-study", "litellm-local"];
 
 /// OpenCode's own pay-per-token providers (`opencode/<model>` is its Zen). The
 /// owner's rule is that a run never reaches one, so no allowlist can open it.
@@ -619,6 +631,39 @@ pub fn is_provider_allowed(provider: Option<&str>, allowed: Option<&[String]>) -
             Some(allowed) => allowed.iter().any(|name| name == provider),
             None => DEFAULT_OPENCODE_PROVIDERS.contains(&provider),
         }
+}
+
+/// The canonical LiteLLM group an `opencode` model on a LiteLLM provider names (`litellm-vibe/glm-5.3` is
+/// `glm-5.3`), or `None` for any other client or provider.
+pub fn opencode_litellm_group<'a>(client: &str, model: &'a str) -> Option<&'a str> {
+    let (provider, group) = model.split_once('/')?;
+    (client == "opencode" && provider.starts_with("litellm-") && !group.is_empty()).then_some(group)
+}
+
+/// The OpenCode model of a Pi route's model: OpenCode reaches each LiteLLM route through its own provider of the
+/// same name (`pi-vibe:glm-5.3` is `opencode:litellm-vibe/glm-5.3`), when that route is for any data, like Hermes.
+pub fn opencode_model_of(config: &crate::config::GatewayConfig, pi_client: &str, model: &str) -> Option<String> {
+    let provider = pi_provider(pi_client);
+    let allowed = config.clients.get("opencode")?.providers.as_deref();
+    (is_pi_client(pi_client) && hermes_route(config, &provider).is_some() && is_provider_allowed(Some(&provider), allowed))
+        .then(|| format!("{provider}/{model}"))
+}
+
+/// The Pi route's model an `opencode` run on a LiteLLM provider stands for (`litellm-vibe/glm-5.3` is
+/// `pi-vibe` and `glm-5.3`), when that route takes any data; `None` for anything else.
+pub fn opencode_pi_model<'a>(config: &crate::config::GatewayConfig, client: &str, model: &'a str) -> Option<(String, &'a str)> {
+    let group = opencode_litellm_group(client, model)?;
+    let provider = &model[..model.len() - group.len() - 1];
+    let pi_client = hermes_route(config, provider)?;
+    Some((pi_client, group))
+}
+
+/// Refuses an `opencode-free` model that is not one of OpenCode's own (`opencode/<id>`); every other client passes.
+pub fn require_opencode_own_model(client: &str, model: &str) -> Result<(), GatewayError> {
+    if client != OPENCODE_FREE_CLIENT || open_code_provider(model) == Some(OPENCODE_OWN_PROVIDER) {
+        return Ok(());
+    }
+    Err(GatewayError::new("provider-not-allowed", format!("{model}: {client} runs only OpenCode's own free models, named opencode/<id>")))
 }
 
 /// Refuses an OpenCode model whose provider the machine's

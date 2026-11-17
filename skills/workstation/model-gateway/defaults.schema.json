@@ -23,6 +23,7 @@
         "claude": { "$ref": "#/$defs/client" },
         "hermes": { "$ref": "#/$defs/client" },
         "opencode": { "$ref": "#/$defs/client" },
+        "opencode-free": { "$ref": "#/$defs/client" },
         "codex": { "$ref": "#/$defs/client" }
       }
     },
@@ -172,7 +173,7 @@
       "additionalProperties": false,
       "properties": {
         "client": {
-          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "codex", "pi"],
+          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "opencode-free", "codex", "pi"],
           "description": "The client the model belongs to. `pi` describes the model for every client whose id starts with pi- (one per LiteLLM route), so a model is stated once however many routes serve it."
         },
         "model": {

@@ -88,6 +88,10 @@ const FAMILY_PREFIXES: [(&str, &str); 17] = [
     ("mimo", "xiaomi"),
 ];
 
+/// The family of an OpenCode free model that no catalogue entry names and whose id names no known family
+/// (`big-pickle`, `iceman-free`): the provider that serves it, which is all OpenCode says about who made it.
+pub const OPENCODE_FREE_FAMILY: &str = "opencode";
+
 /// The model family a model id names, from its prefix; `None` when the gateway
 /// cannot tell, which leaves the model out: the family allowlist decides where a
 /// delegation may go, so a model of no known family has no place to go.
@@ -135,6 +139,51 @@ pub fn parse_opencode_models(stdout: &str) -> Vec<ClientModel> {
         models.push(ClientModel { model: id.to_string(), names: Vec::new(), provider: Some(id[..slash].to_string()) });
     }
     models
+}
+
+/// OpenCode's free models, from its server's model list (`opencode api GET /api/model`): every model of OpenCode's
+/// own provider that is enabled and whose every price is zero, named `opencode/<id>`. OpenCode itself enables
+/// only the free ones when it has no key, but a signed-in OpenCode lists its paid models too, so the price decides.
+pub fn parse_opencode_free_models(stdout: &str) -> Result<Vec<ClientModel>, String> {
+    let parsed = json::parse(stdout).map_err(|error| format!("the model list is not JSON: {error}"))?;
+    let Some(Value::Arr(items)) = parsed.as_object().and_then(|object| object.get("data")) else {
+        return Err("the model list has no data array".to_string());
+    };
+    let mut models = Vec::new();
+    for item in items.iter().filter_map(Value::as_object) {
+        let text = |key: &str| item.get(key).and_then(Value::as_str);
+        if text("providerID") != Some(crate::run::OPENCODE_OWN_PROVIDER) || matches!(item.get("enabled"), Some(Value::Bool(false))) {
+            continue;
+        }
+        if text("status").is_some_and(|status| status != "active") || text("type").is_some_and(|kind| kind != "chat") {
+            continue;
+        }
+        let Some(id) = text("id").filter(|id| !id.is_empty() && !id.contains('/')) else {
+            continue;
+        };
+        if !is_zero_priced(item.get("cost")) {
+            continue;
+        }
+        let names = text("family").map(|family| vec![family.to_lowercase()]).unwrap_or_default();
+        models.push(ClientModel { model: format!("{}/{id}", crate::run::OPENCODE_OWN_PROVIDER), names, provider: Some(crate::run::OPENCODE_OWN_PROVIDER.to_string()) });
+    }
+    Ok(models)
+}
+
+/// Whether an OpenCode price list (`[{input, output, cache: {read, write}}]`) is present and zero throughout: a
+/// model with no price, or a price the gateway cannot read, is not free.
+fn is_zero_priced(cost: Option<&Value>) -> bool {
+    fn zero(value: &Value) -> bool {
+        match value {
+            Value::Num(number) => *number == 0.0,
+            Value::Obj(object) => object.entries().into_iter().all(|(_, value)| zero(value)),
+            _ => false,
+        }
+    }
+    match cost {
+        Some(Value::Arr(prices)) => !prices.is_empty() && prices.iter().all(|price| matches!(price, Value::Obj(_)) && zero(price)),
+        _ => false,
+    }
 }
 
 /// The model Hermes' own configuration names as its default, from
@@ -364,7 +413,17 @@ pub fn list_models(
                 missing.push(MissingClient { client: id.clone(), reason: reason.clone() });
                 continue;
             }
-            ClientListing::Models(listed) => listed_models(config, id, client, listed),
+            ClientListing::Models(listed) => {
+                let kept = listed_models(config, id, client, listed);
+                let opencode = id == "opencode" || id == crate::run::OPENCODE_FREE_CLIENT;
+                if opencode && !listed.is_empty() && kept.models.is_empty() && kept.skipped.is_empty() {
+                    // A listing whose every model the client's own rules drop is not an empty client: it is one
+                    // that cannot run, and the reason says which rule took them.
+                    missing.push(MissingClient { client: id.clone(), reason: dropped_reason(id, client, listed.len()) });
+                    continue;
+                }
+                kept
+            }
         };
         models.extend(listed.models);
         skipped.extend(listed.skipped);
@@ -489,12 +548,15 @@ fn listed_models(config: &GatewayConfig, id: &str, client: &ClientConfig, listed
             continue;
         }
         seen.push(model);
-        let runs_on = if id == "opencode" {
+        let runs_on = if id == "opencode" || id == crate::run::OPENCODE_FREE_CLIENT {
             client_model.provider.clone().or_else(|| open_code_provider(model))
         } else {
             client_model.provider.clone()
         };
         if id == "opencode" && !is_provider_allowed(runs_on.as_deref(), client.providers.as_deref()) {
+            continue;
+        }
+        if id == crate::run::OPENCODE_FREE_CLIENT && runs_on.as_deref() != Some(crate::run::OPENCODE_OWN_PROVIDER) {
             continue;
         }
         let known: Vec<&str> = std::iter::once(model).chain(client_model.names.iter().map(String::as_str)).collect();
@@ -506,7 +568,8 @@ fn listed_models(config: &GatewayConfig, id: &str, client: &ClientConfig, listed
         let family = match entry {
             Some((_, entry)) => Some(entry.family.clone()),
             None => known.iter().filter_map(|name| family_of(model_part(name))).next().map(str::to_string),
-        };
+        }
+        .or_else(|| (id == crate::run::OPENCODE_FREE_CLIENT).then(|| OPENCODE_FREE_FAMILY.to_string()));
         let barred = match (&family, &client.families) {
             (Some(family), Some(families)) => !families.contains(family),
             _ => false,
@@ -544,6 +607,15 @@ fn listed_models(config: &GatewayConfig, id: &str, client: &ClientConfig, listed
         });
     }
     Listed { models, skipped, matched }
+}
+
+/// Why an OpenCode client (`opencode` or `opencode-free`) that listed models offers none of them.
+fn dropped_reason(id: &str, client: &ClientConfig, count: usize) -> String {
+    if id == crate::run::OPENCODE_FREE_CLIENT {
+        return format!("OpenCode listed {count} models and none is a free model of its own provider");
+    }
+    let allowed = client.providers.as_ref().map_or_else(|| DEFAULT_OPENCODE_PROVIDERS.join(", "), |providers| providers.join(", "));
+    format!("OpenCode listed {count} models and none is on an allowed provider ({allowed}); set clients.opencode.providers to the provider names `opencode models` prints")
 }
 
 /// The `<client>:<model>` keys that name one client model: the id the ledger or a
@@ -587,8 +659,10 @@ fn compare(left: &str, right: &str) -> Ordering {
     left.cmp(right)
 }
 
-/// The providers an OpenCode run may reach when the machine names none.
-pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 1] = ["opencode-go"];
+/// The providers an OpenCode run may reach when the machine names none: OpenCode Go's own provider, and the
+/// `litellm-<route>` providers setup writes into OpenCode's config for the LiteLLM routes that take any data
+/// (`opencode-go`, `vibe`, `vibe-study`, `local`). The public-only routes stay on Pi, which holds runs to them.
+pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 5] = crate::run::DEFAULT_OPENCODE_PROVIDERS;
 
 /// OpenCode's own pay-per-token providers (`opencode/<model>` is its Zen). The
 /// owner's rule is that a run never reaches one, so no allowlist can open it.

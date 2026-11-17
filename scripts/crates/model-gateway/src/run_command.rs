@@ -469,6 +469,7 @@ impl RunCommand<'_> {
         if input.client == "opencode" {
             require_allowed_provider(&input.model, client.providers.as_deref())?;
         }
+        crate::run::require_opencode_own_model(&input.client, &input.model)?;
         require_provider(input, &client)?;
         let entry = catalogue_entry(&config, &input.client, &input.model)?;
         crate::litellm_catalogue::require_usable(self.runtime, &config, &input.client, &input.model)?;
