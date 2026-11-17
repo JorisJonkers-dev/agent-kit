@@ -97,7 +97,10 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "opencode-free": ("opencode", "subsidised", "live"),
     }
     assert clients["agy"]["families"] == ["google"]
-    assert clients["opencode"]["provider_cost_classes"] == {"opencode-go": "subsidised", "litellm-opencode-go": "subsidised"}
+    assert clients["opencode"]["provider_cost_classes"] == {
+        "opencode-go": "subsidised",
+        "litellm-opencode-go": "subsidised",
+    }
 
 
 def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None:

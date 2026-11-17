@@ -1035,3 +1035,14 @@ fn list_models_names_opencode_free_as_missing_when_none_of_its_models_is_opencod
     let reasons: Vec<&str> = listing.missing.iter().filter(|entry| entry.client == "opencode-free").map(|entry| entry.reason.as_str()).collect();
     assert_eq!(reasons, ["OpenCode listed 1 models and none is a free model of its own provider"]);
 }
+
+#[test]
+fn list_models_names_the_machines_own_opencode_providers_when_they_drop_every_model() {
+    let named = with_client(config(), "opencode", |client| client.providers = Some(vec!["zai".to_string()]));
+    let listed = models_of(vec![provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go")]);
+
+    let listing = list_models(&named, &installed(&["opencode"]), &listings(vec![("opencode", listed)]), &[]);
+    let reasons: Vec<&str> = listing.missing.iter().filter(|entry| entry.client == "opencode").map(|entry| entry.reason.as_str()).collect();
+    assert_eq!(reasons.len(), 1);
+    assert!(reasons[0].starts_with("OpenCode listed 1 models and none is on an allowed provider (zai)"), "{}", reasons[0]);
+}
