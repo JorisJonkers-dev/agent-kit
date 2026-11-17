@@ -347,10 +347,10 @@ pub fn hold_to_profile(
     }
     // A Hermes run on a route's provider runs the model the profile allows on that route's Pi client, and so does
     // an OpenCode run on its `litellm-<route>/<model>` provider.
-    let (allowed_as, allowed_model) = match (client, crate::run::opencode_pi_model(config, client, model)) {
-        (_, Some((pi_client, pi_model))) => (pi_client, pi_model),
-        (crate::run::HERMES, None) => (provider.and_then(|provider| crate::run::hermes_route(config, provider)).unwrap_or_else(|| client.to_string()), model),
-        _ => (client.to_string(), model),
+    let hermes_as = if client == crate::run::HERMES { provider.and_then(|provider| crate::run::hermes_route(config, provider)) } else { None };
+    let (allowed_as, allowed_model) = match crate::run::opencode_pi_model(config, client, model) {
+        Some((pi_client, pi_model)) => (pi_client, pi_model),
+        None => (hermes_as.unwrap_or_else(|| client.to_string()), model),
     };
     if !resolution.models.iter().any(|allowed| allowed.client == allowed_as && allowed.model == allowed_model) {
         let allowed: Vec<String> = resolution.models.iter().map(ProfileModel::key).collect();
