@@ -23,6 +23,7 @@ const CACHE: &str = "/cache/model-gateway/vibe-available.json";
 
 const AGY: &str = "agy models";
 const OPENCODE: &str = "opencode models";
+const OPENCODE_API_MODELS: &str = "opencode api GET /api/model";
 const HERMES: &str = "hermes config get model --json";
 const PROBE: &str = "vibe --model model-gateway-probe --max-turns 1 --max-tokens 1 --max-price 0 -p ping";
 const CODEX_STATUS: &str = "codex login status";
@@ -1081,4 +1082,33 @@ fn the_real_vibe_probe_keeps_its_answer_where_only_its_owner_can_read_it() {
     // The answer is kept, so the call that follows reads it instead of starting Vibe again.
     assert_eq!(list_client(&runtime, "vibe"), first);
     assert_eq!(std::fs::read_to_string(&marker).expect("the probe ran").lines().count(), 1);
+}
+
+#[test]
+fn opencode_free_lists_opencodes_own_free_models_from_its_server_list() {
+    let list = r#"{"data":[{"id":"glm-5.3-flash-free","providerID":"opencode","enabled":true,"cost":[{"input":0,"output":0}]},{"id":"claude-haiku-5-5","providerID":"opencode","enabled":true,"cost":[{"input":1,"output":5}]}]}"#;
+    let process = FakeProcess::new().answering(OPENCODE_API_MODELS, ok(list));
+    let runtime = runtime(process, FakeFiles::new(), env());
+
+    assert_eq!(
+        list_client(&runtime, "opencode-free"),
+        Some(ClientListing::Models(vec![ClientModel {
+            model: "opencode/glm-5.3-flash-free".to_string(),
+            names: Vec::new(),
+            provider: Some("opencode".to_string()),
+        }]))
+    );
+    assert!(crate::sources::opencode_model_is_free(&runtime, "opencode/glm-5.3-flash-free"));
+    assert!(!crate::sources::opencode_model_is_free(&runtime, "opencode/claude-haiku-5-5"));
+}
+
+#[test]
+fn opencode_free_without_free_models_says_what_to_check() {
+    let process = FakeProcess::new().answering(OPENCODE_API_MODELS, ok(r#"{"data":[]}"#));
+    let runtime = runtime(process, FakeFiles::new(), env());
+
+    let Some(ClientListing::Reason(reason)) = list_client(&runtime, "opencode-free") else {
+        panic!("expected a reason");
+    };
+    assert!(reason.contains("opencode.models.dev") && reason.contains("OPENCODE_DISABLE_FREE_MODELS"), "{reason}");
 }

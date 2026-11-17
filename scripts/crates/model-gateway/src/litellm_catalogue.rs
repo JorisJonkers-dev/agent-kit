@@ -461,6 +461,10 @@ fn free_flag(config: &GatewayConfig, catalogue: &LiteLlmCatalogue, client: &str,
 /// in every field, so where the catalogue cannot be read or has no word on the model, that zero price stands in; a
 /// catalogue that calls the model billed always wins over a price in the file.
 pub fn is_free(runtime: &Runtime, config: &GatewayConfig, catalogue: Option<&LiteLlmCatalogue>, client: &str, model: &str) -> bool {
+    if client == crate::run::OPENCODE_FREE_CLIENT {
+        // No LiteLLM route serves OpenCode's own free models, so OpenCode's own price list is the only answer.
+        return crate::sources::opencode_model_is_free(runtime, model);
+    }
     match catalogue.and_then(|catalogue| free_flag(config, catalogue, client, model)) {
         Some(free) => free,
         None => crate::sources::pi_model_is_free(runtime, client, model),

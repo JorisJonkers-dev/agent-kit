@@ -4,7 +4,7 @@
 use crate::config::{ClientConfig, CostClass, GatewayConfig, MeteredPersonalCaps, ModelEntry, ModelSource, Settings, Tier};
 use crate::models::{
     cost_class_for, family_of, family_of_model_id, hermes_default_model, is_provider_allowed, is_vibe_model_id, list_models,
-    model_key, model_part, open_code_provider, parse_antigravity_models, parse_opencode_models, parse_vibe_available,
+    model_key, model_part, open_code_provider, parse_antigravity_models, parse_opencode_free_models, parse_opencode_models, parse_vibe_available,
     sorted_clients, strip_ansi, vibe_models, ClientListing, ClientModel, ListedModel, SkippedModel, FAMILY_UNKNOWN,
     NOT_ACCEPTED_BY_CLIENT,
 };
@@ -942,3 +942,83 @@ fn a_listed_model_carries_the_fields_the_listing_prints() {
         [("agy", "gemini-3.8-flash-high", "google", CostClass::Subsidised, Some(Tier::Hard), "long context", ModelSource::Live)]
     );
 }
+
+/// The gateway's config with the `opencode-free` client: public work only, free models only.
+fn with_opencode_free(base: GatewayConfig) -> GatewayConfig {
+    let mut config = base;
+    config.clients.insert(
+        "opencode-free".to_string(),
+        ClientConfig { public_only: true, ..client("opencode", CostClass::Subsidised, ModelSource::Live) },
+    );
+    config
+}
+
+/// One entry of OpenCode's server model list (`opencode api GET /api/model`).
+fn api_model(provider: &str, id: &str, input: f64, extra: &str) -> String {
+    format!(
+        r#"{{"id":"{id}","providerID":"{provider}","type":"chat","family":"Glm-Flash","status":"active","enabled":true,"cost":[{{"input":{input},"output":0,"cache":{{"read":0,"write":0}}}}]{extra}}}"#
+    )
+}
+
+#[test]
+fn parse_opencode_free_models_keeps_only_the_zero_priced_models_of_opencodes_own_provider() {
+    let list = format!(
+        r#"{{"location":{{}},"data":[{},{},{},{},{},{}]}}"#,
+        api_model("opencode", "glm-5.3-flash-free", 0.0, ""),
+        api_model("opencode", "claude-haiku-5-5", 1.0, ""),
+        api_model("opencode-go", "beam-free", 0.0, ""),
+        api_model("opencode", "disabled-free", 0.0, r#","enabled":false"#),
+        r#"{"id":"no-price","providerID":"opencode","enabled":true}"#,
+        api_model("opencode", "old-free", 0.0, r#","status":"deprecated""#),
+    );
+
+    assert_eq!(
+        parse_opencode_free_models(&list),
+        Ok(vec![ClientModel {
+            model: "opencode/glm-5.3-flash-free".to_string(),
+            names: vec!["glm-flash".to_string()],
+            provider: Some("opencode".to_string()),
+        }])
+    );
+}
+
+#[test]
+fn parse_opencode_free_models_refuses_a_list_it_cannot_read() {
+    assert!(parse_opencode_free_models("not json").is_err());
+    assert!(parse_opencode_free_models(r#"{"data":{}}"#).is_err());
+    assert_eq!(parse_opencode_free_models(r#"{"data":[]}"#), Ok(vec![]));
+}
+
+#[test]
+fn list_models_offers_opencode_free_models_and_names_the_family_opencode_when_the_id_names_none() {
+    let listed = models_of(vec![
+        provider_model("opencode/glm-5.3-flash-free", "opencode"),
+        provider_model("opencode/big-pickle", "opencode"),
+        provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go"),
+    ]);
+
+    let listing = list_models(&with_opencode_free(config()), &installed(&["opencode-free"]), &listings(vec![("opencode-free", listed)]), &[]);
+    let models: Vec<(&str, &str)> = listing.models.iter().map(|entry| (entry.model.as_str(), entry.family.as_str())).collect();
+    assert_eq!(models, [("opencode/big-pickle", "opencode"), ("opencode/glm-5.3-flash-free", "zhipu")]);
+}
+
+#[test]
+fn list_models_lists_the_litellm_opencode_go_provider_setup_writes_by_default() {
+    let listed = models_of(vec![provider_model("litellm-opencode-go/kimi-k2.7-code", "litellm-opencode-go")]);
+
+    let listing = list_models(&config(), &installed(&["opencode"]), &listings(vec![("opencode", listed)]), &[]);
+    let models: Vec<&str> = listing.models.iter().map(|entry| entry.model.as_str()).collect();
+    assert_eq!(models, ["litellm-opencode-go/kimi-k2.7-code"]);
+}
+
+#[test]
+fn list_models_names_an_opencode_client_whose_every_model_its_allowlist_drops_as_missing() {
+    let listed = models_of(vec![provider_model("litellm-vibe/glm-5.3", "litellm-vibe"), provider_model("other/glm-5.3", "other")]);
+
+    let listing = list_models(&config(), &installed(&["opencode"]), &listings(vec![("opencode", listed)]), &[]);
+    assert_eq!(listing.models, vec![]);
+    let reasons: Vec<&str> = listing.missing.iter().filter(|entry| entry.client == "opencode").map(|entry| entry.reason.as_str()).collect();
+    assert_eq!(reasons.len(), 1);
+    assert!(reasons[0].starts_with("OpenCode listed 2 models and none is on an allowed provider (opencode-go, litellm-opencode-go)"), "{}", reasons[0]);
+}
+

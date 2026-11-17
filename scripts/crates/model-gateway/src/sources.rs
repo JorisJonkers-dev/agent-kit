@@ -11,7 +11,7 @@ use crate::locations::{pi_models_path, vibe_available_cache_path, vibe_config_pa
 use crate::config::{CostClass, GatewayConfig};
 use crate::litellm_catalogue::LiteLlmCatalogue;
 use crate::models::{
-    hermes_default_model, is_vibe_model_id, parse_antigravity_models, parse_opencode_models, parse_vibe_available,
+    hermes_default_model, is_vibe_model_id, parse_antigravity_models, parse_opencode_free_models, parse_opencode_models, parse_vibe_available,
     vibe_models, ClientListing, ClientModel, ListedModel, ModelListing, SkippedModel,
 };
 use crate::ports::{ProcessResult, Runtime};
@@ -21,6 +21,12 @@ const AGY_COMMAND: &str = "agy models";
 
 /// OpenCode's own listing, as its reasons name it.
 const OPENCODE_COMMAND: &str = "opencode models";
+
+/// OpenCode's server model list with prices, as its reasons name it: the source of `opencode-free`'s models.
+const OPENCODE_FREE_COMMAND: &str = "opencode api GET /api/model";
+
+/// What to check when OpenCode lists none of its own free models.
+const OPENCODE_FREE_HINT: &str = "OpenCode's models catalogue may have failed to load (look for `failed to load plugin plugin.id=opencode.models.dev` in ~/.local/share/opencode/log/opencode.log), or OPENCODE_DISABLE_FREE_MODELS is set";
 
 /// Hermes' own configuration reader, as its reasons name it.
 const HERMES_COMMAND: &str = "hermes config get model --json";
@@ -57,6 +63,7 @@ pub fn list_client(runtime: &Runtime, id: &str) -> Option<ClientListing> {
         "agy" => Some(antigravity_listing(runtime)),
         "hermes" => Some(hermes_listing(runtime)),
         "opencode" => Some(opencode_listing(runtime)),
+        crate::run::OPENCODE_FREE_CLIENT => Some(opencode_free_listing(runtime)),
         "vibe" => Some(vibe_listing(runtime)),
         client if crate::run::is_pi_client(client) => Some(pi_listing(runtime, client)),
         _ => None,
@@ -93,6 +100,32 @@ fn opencode_listing(runtime: &Runtime) -> ClientListing {
         return ClientListing::Reason(failure_reason(OPENCODE_COMMAND, &result));
     }
     ClientListing::Models(parse_opencode_models(&result.stdout))
+}
+
+/// OpenCode's own free models, from its server's model list: only models of OpenCode's own provider priced at zero.
+/// A list with none of them names what to check, since OpenCode serves free models without any sign-in.
+fn opencode_free_listing(runtime: &Runtime) -> ClientListing {
+    let result = match runtime.process.exec("opencode", &["api", "GET", "/api/model"], None) {
+        Ok(result) => result,
+        Err(message) => return ClientListing::Reason(format!("listing failed: {OPENCODE_FREE_COMMAND}: {message}")),
+    };
+    if result.exit_code != 0 {
+        return ClientListing::Reason(failure_reason(OPENCODE_FREE_COMMAND, &result));
+    }
+    match parse_opencode_free_models(&result.stdout) {
+        Ok(models) if models.is_empty() => ClientListing::Reason(format!("{OPENCODE_FREE_COMMAND} names no free OpenCode model: {OPENCODE_FREE_HINT}")),
+        Ok(models) => ClientListing::Models(models),
+        Err(reason) => ClientListing::Reason(format!("listing failed: {OPENCODE_FREE_COMMAND}: {reason}")),
+    }
+}
+
+/// Whether OpenCode lists the model as one of its own free models now. Asked at run time too, so a model that
+/// stopped being free, or a paid `opencode/<id>`, is refused before it runs.
+pub fn opencode_model_is_free(runtime: &Runtime, model: &str) -> bool {
+    match opencode_free_listing(runtime) {
+        ClientListing::Models(models) => models.iter().any(|listed| listed.model == model),
+        ClientListing::Reason(_) => false,
+    }
 }
 
 /// Pi's own configuration: setup writes one `litellm-<route>` provider per

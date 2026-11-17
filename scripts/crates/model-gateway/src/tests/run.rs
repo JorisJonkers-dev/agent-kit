@@ -529,7 +529,7 @@ fn the_pay_per_token_provider_is_never_allowed_whatever_the_machine_names() {
 fn a_model_that_names_no_provider_is_refused_with_the_form_it_needs() {
     assert_eq!(
         refused(require_allowed_provider("glm-5-3", None)).message,
-        "glm-5-3: an OpenCode model is named <provider>/<model>, and the allowed providers are opencode-go"
+        "glm-5-3: an OpenCode model is named <provider>/<model>, and the allowed providers are opencode-go, litellm-opencode-go"
     );
 }
 

@@ -54,10 +54,14 @@ impl RunClient {
         }
     }
 
-    /// The launcher a client id runs through: a client's own, or Pi for `pi-<route>`; `None` when no run can launch it.
+    /// The launcher a client id runs through: a client's own, Pi for `pi-<route>`, and OpenCode for
+    /// `opencode-free`; `None` when no run can launch it.
     pub fn parse(text: &str) -> Option<RunClient> {
         if is_pi_client(text) {
             return Some(RunClient::Pi);
+        }
+        if text == OPENCODE_FREE_CLIENT {
+            return Some(RunClient::Opencode);
         }
         RunClient::ALL.into_iter().find(|client| client.as_str() == text)
     }
@@ -91,8 +95,16 @@ pub const FORBIDDEN_PROVIDERS: [&str; 1] = ["openrouter"];
 /// and only for models priced at zero.
 pub const OPENROUTER_CLIENT: &str = "pi-openrouter";
 
-/// The clients that run models priced at zero only: a model of either that is not free is never listed and never run.
-pub const FREE_ONLY_CLIENTS: [&str; 2] = [OPENROUTER_CLIENT, "pi-free"];
+/// The client that runs OpenCode's own free models (`opencode/<id>`) through the OpenCode CLI. OpenCode serves them
+/// to OpenCode alone ("Other harnesses receive HTTP 403 for those models, even with a Console API key"), so no
+/// LiteLLM route can reach them. Public work only, and models priced at zero only.
+pub const OPENCODE_FREE_CLIENT: &str = "opencode-free";
+
+/// The provider OpenCode serves its own models on; `opencode-free` runs only that provider's free models.
+pub const OPENCODE_OWN_PROVIDER: &str = "opencode";
+
+/// The clients that run models priced at zero only: a model of one that is not free is never listed and never run.
+pub const FREE_ONLY_CLIENTS: [&str; 3] = [OPENROUTER_CLIENT, "pi-free", OPENCODE_FREE_CLIENT];
 
 /// The client that runs a Pi route's models through its own LiteLLM provider of that route (`--provider litellm-<route>`).
 pub const HERMES: &str = "hermes";
@@ -597,7 +609,7 @@ pub fn run_failure_reason(launch: &LaunchExit, answer: Option<&str>, reported: O
 }
 
 /// The providers an OpenCode run may reach when the machine names none.
-pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 1] = ["opencode-go"];
+pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 2] = ["opencode-go", "litellm-opencode-go"];
 
 /// OpenCode's own pay-per-token providers (`opencode/<model>` is its Zen). The
 /// owner's rule is that a run never reaches one, so no allowlist can open it.
