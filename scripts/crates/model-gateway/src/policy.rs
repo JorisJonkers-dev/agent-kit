@@ -121,9 +121,11 @@ fn permission(config: &GatewayConfig, subject: &PolicySubject, scope: &DataScope
                 None => NOTHING,
                 Some(entry) => SendPermission { code: entry.code, history: entry.history },
             };
-            // A client on a public-only route never sees a repository, whatever the allowlist says of its family.
+            // A client on a public-only route reaches a repository only when the entry says the repository is public,
+            // and only the families that entry allows; a private or unrecorded repository never reaches it.
             let public_only = config.clients.get(&subject.client).is_some_and(|client| client.public_only);
-            let permitted = !public_only && entry.as_ref().is_some_and(|entry| entry.families.contains(&subject.family));
+            let allows_family = entry.as_ref().is_some_and(|entry| entry.families.contains(&subject.family));
+            let permitted = allows_family && (!public_only || entry.as_ref().is_some_and(|entry| entry.public));
             base(false, may_send, permitted)
         }
     }
@@ -138,30 +140,34 @@ fn reason_for(scope: &DataScope) -> String {
         DataScope::Repository { key, entry } => match entry {
             None => format!("{key} has no allowlist entry, so nothing is sent"),
             Some(entry) if entry.families.is_empty() => format!("{key}: the entry allows no family"),
+            Some(entry) if entry.public => format!("{key}: the entry allows {}, and records the repository as public", entry.families.join(", ")),
             Some(entry) => format!("{key}: the entry allows {}", entry.families.join(", ")),
         },
     }
 }
 
 /// The listed models the policy permits, each with what it may carry; the
-/// missing and skipped lists stay as they were.
+/// missing and skipped lists stay as they were. A listed model the policy does
+/// not permit is skipped with the policy's reason, so a client on a public-only
+/// route says why it is left out of a repository that is not recorded as public.
 pub fn permitted_models(listing: ModelListing, decision: &PolicyDecision) -> PolicyListing {
-    let models = listing
-        .models
-        .into_iter()
-        .filter_map(|model| {
-            let permission = decision
-                .permissions
-                .iter()
-                .rev()
-                .find(|permission| permission.client == model.client && permission.model == model.model)?;
-            if !permission.permitted {
-                return None;
+    let mut skipped = listing.skipped;
+    let mut models = Vec::new();
+    for model in listing.models {
+        let permission = decision
+            .permissions
+            .iter()
+            .rev()
+            .find(|permission| permission.client == model.client && permission.model == model.model);
+        match permission {
+            Some(permission) if permission.permitted => {
+                models.push(PermittedModel { listed: model, inline_only: permission.inline_only, may_send: permission.may_send });
             }
-            Some(PermittedModel { listed: model, inline_only: permission.inline_only, may_send: permission.may_send })
-        })
-        .collect();
-    PolicyListing { models, missing: listing.missing, skipped: listing.skipped }
+            Some(_) => skipped.push(SkippedModel { client: model.client, model: model.model, reason: decision.reason.clone() }),
+            None => {}
+        }
+    }
+    PolicyListing { models, missing: listing.missing, skipped }
 }
 
 /// What a delegation from `repo` would carry: a repository's content, or only

@@ -250,6 +250,25 @@
       "argv": [
         "models",
         "--json",
+        "{\"repo\":\"@SANDBOX@/work/repo\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "shims": [
+        "git"
+      ],
+      "write": {
+        "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/owner/repo\":{\"families\":[\"zhipu\",\"google\"],\"code\":true,\"history\":false,\"public\":true}}}"
+      },
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    },
+    {
+      "argv": [
+        "models",
+        "--json",
         "{\"repo\":\"@SANDBOX@/work/nedap\"}"
       ],
       "path": [

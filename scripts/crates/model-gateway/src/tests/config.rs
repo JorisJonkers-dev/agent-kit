@@ -436,7 +436,23 @@ fn the_allowlist_reads_an_entry_families_code_and_history() {
     .expect("the allowlist");
     assert_eq!(
         allowlist.repositories.get("github.com/acme/widgets"),
-        Some(&AllowlistEntry { families: vec!["anthropic".to_string(), "openai".to_string()], code: true, history: false })
+        Some(&AllowlistEntry { families: vec!["anthropic".to_string(), "openai".to_string()], code: true, history: false, public: false })
+    );
+}
+
+#[test]
+fn the_allowlist_reads_an_entry_public_flag_and_reads_a_missing_one_as_private() {
+    let allowlist = parse_allowlist(&json(
+        r#"{"repositories": {"github.com/acme/open": {"families": ["anthropic"], "public": true}, "github.com/acme/closed": {"families": ["anthropic"], "public": false}}, "version": 1}"#,
+    ))
+    .expect("the allowlist");
+    assert_eq!(
+        allowlist.repositories.get("github.com/acme/open"),
+        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false, public: true })
+    );
+    assert_eq!(
+        allowlist.repositories.get("github.com/acme/closed"),
+        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false, public: false })
     );
 }
 
@@ -448,7 +464,7 @@ fn an_entry_recorded_before_a_permission_existed_allows_neither() {
     .expect("the allowlist");
     assert_eq!(
         allowlist.repositories.get("github.com/acme/widgets"),
-        Some(&AllowlistEntry { families: vec!["mistral".to_string()], code: false, history: false })
+        Some(&AllowlistEntry { families: vec!["mistral".to_string()], code: false, history: false, public: false })
     );
 }
 
@@ -459,7 +475,7 @@ fn a_file_with_no_repositories_is_an_empty_allowlist() {
 
 #[test]
 fn the_allowlist_refuses_what_it_cannot_read() {
-    let cases: [(&str, &str); 8] = [
+    let cases: [(&str, &str); 9] = [
         ("[]", "the allowlist must be a JSON object"),
         (r#"{"repositories": {}, "version": 2}"#, "version must be 1"),
         (r#"{"repositories": [], "version": 1}"#, "repositories must be an object keyed by repository"),
@@ -479,6 +495,10 @@ fn the_allowlist_refuses_what_it_cannot_read() {
         (
             r#"{"repositories": {"github.com/acme/widgets": {"families": [], "history": 1}}, "version": 1}"#,
             "repositories.github.com/acme/widgets.history must be true or false",
+        ),
+        (
+            r#"{"repositories": {"github.com/acme/widgets": {"families": [], "public": "yes"}}, "version": 1}"#,
+            "repositories.github.com/acme/widgets.public must be true or false",
         ),
     ];
     for (raw, message) in cases {
@@ -504,7 +524,7 @@ fn the_allowlist_file_is_read_from_the_machine_configuration() {
     let allowlist = load_allowlist(&runtime).expect("the allowlist");
     assert_eq!(
         allowlist.repositories.get("github.com/acme/widgets"),
-        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false })
+        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false, public: false })
     );
 }
 

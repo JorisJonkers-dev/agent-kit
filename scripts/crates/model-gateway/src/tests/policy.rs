@@ -43,7 +43,29 @@ fn config() -> GatewayConfig {
 }
 
 fn entry(families: &[&str], code: bool, history: bool) -> AllowlistEntry {
-    AllowlistEntry { families: families.iter().map(|family| family.to_string()).collect(), code, history }
+    AllowlistEntry { families: families.iter().map(|family| family.to_string()).collect(), code, history, public: false }
+}
+
+/// The same entry with `public: true`.
+fn public_entry(families: &[&str], code: bool, history: bool) -> AllowlistEntry {
+    AllowlistEntry { public: true, ..entry(families, code, history) }
+}
+
+/// The fixture with `claude` on a public-only route (`data_scope: public`).
+fn public_only_config() -> GatewayConfig {
+    let mut config = config();
+    config.clients.get_mut("claude").expect("claude").public_only = true;
+    config
+}
+
+/// The permission the policy gives `claude:claude-sonnet-5-5`.
+fn claude_permission(config: &GatewayConfig, scope: &DataScope) -> crate::policy::ModelPermission {
+    let subject = PolicySubject { client: "claude".to_string(), model: "claude-sonnet-5-5".to_string(), family: "anthropic".to_string() };
+    decide_policy(config, scope, &[subject]).permissions.into_iter().next().expect("one permission")
+}
+
+fn public_repository(families: &[&str]) -> DataScope {
+    DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(public_entry(families, true, true)) }
 }
 
 fn subjects(config: &GatewayConfig) -> Vec<PolicySubject> {
@@ -167,6 +189,94 @@ fn the_policy_permits_only_subsidised_and_metered_personal_models_outside_any_re
     assert!(decision.permissions.iter().all(|permission| permission.inline_only));
     assert!(decision.permissions.iter().all(|permission| !permission.may_send.code && !permission.may_send.history));
     assert_eq!(decision.reason, "no repository: only inline content, to subsidised and metered-personal clients");
+}
+
+#[test]
+fn the_policy_permits_a_public_only_client_a_public_repository_for_a_read_only_and_a_write_run() {
+    let config = public_only_config();
+    // A read-only run carries no code and no history; a write run carries code, and history when it asks for it.
+    for (code, history) in [(false, false), (true, true)] {
+        let scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(public_entry(&["anthropic"], code, history)) };
+        let permission = claude_permission(&config, &scope);
+        assert!(permission.permitted, "{code}/{history}");
+        assert!(!permission.inline_only);
+        assert_eq!((permission.may_send.code, permission.may_send.history), (code, history));
+    }
+    // The reason says the repository is recorded as public.
+    assert_eq!(
+        decide_policy(&config, &public_repository(&["anthropic"]), &subjects(&config)).reason,
+        "github.com/acme/widgets: the entry allows anthropic, and records the repository as public"
+    );
+}
+
+#[test]
+fn the_policy_refuses_a_public_only_client_a_private_repository_however_its_entry_reads() {
+    let config = public_only_config();
+    let permitted_families = ["anthropic"];
+    // `public: false`, and an entry recorded before the flag existed, are both private.
+    let explicit = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&permitted_families, true, true)) };
+    assert!(!claude_permission(&config, &explicit).permitted);
+    let recorded_before = DataScope::Repository {
+        key: "github.com/acme/widgets".to_string(),
+        entry: Some(AllowlistEntry { families: vec!["anthropic".to_string()], code: true, history: true, public: false }),
+    };
+    assert!(!claude_permission(&config, &recorded_before).permitted);
+}
+
+#[test]
+fn the_policy_refuses_a_public_only_client_a_repository_with_no_entry() {
+    let config = public_only_config();
+    let scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: None };
+    assert!(!claude_permission(&config, &scope).permitted);
+}
+
+#[test]
+fn the_policy_refuses_a_public_only_client_a_public_repository_whose_entry_allows_another_family() {
+    let config = public_only_config();
+    assert!(!claude_permission(&config, &public_repository(&["openai", "zhipu"])).permitted);
+    // The other families the entry allows are still permitted on that route.
+    let permitted = permitted(&public_repository(&["anthropic"]));
+    assert_eq!(permitted, vec!["claude:claude-sonnet-5-5"]);
+}
+
+#[test]
+fn a_client_that_is_not_public_only_is_unaffected_by_the_public_flag() {
+    let config = config();
+    for entry in [entry(&["anthropic"], true, true), public_entry(&["anthropic"], true, true)] {
+        let scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry) };
+        let permission = claude_permission(&config, &scope);
+        assert_eq!((permission.permitted, permission.may_send.code), (true, true));
+    }
+    assert!(!claude_permission(&config, &public_repository(&["openai"])).permitted);
+}
+
+#[test]
+fn the_listing_lists_a_public_only_clients_models_for_a_public_repository_and_skips_them_with_the_reason_otherwise() {
+    let listing = || ModelListing {
+        models: vec![
+            listed("claude", "claude-sonnet-5-5", "anthropic", CostClass::Subsidised, Some(Tier::Hard), "general", ModelSource::Declared),
+            listed("vibe", "zai-glm-5-3", "zhipu", CostClass::Subsidised, Some(Tier::Hard), "review", ModelSource::Declared),
+        ],
+        missing: Vec::new(),
+        skipped: Vec::new(),
+    };
+    let config = public_only_config();
+    // A public repository: the public-only client's model is listed.
+    let public = permitted_models(listing(), &decide_policy(&config, &public_repository(&["anthropic"]), &subjects(&config)));
+    assert_eq!(public.models.iter().map(|model| model.listed.client.as_str()).collect::<Vec<_>>(), vec!["claude"]);
+    assert!(public.skipped.is_empty());
+    // A private repository: it is skipped, with the policy's reason, and the private route's model is listed.
+    let private_scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&["anthropic"], true, true)) };
+    let private = permitted_models(listing(), &decide_policy(&config, &private_scope, &subjects(&config)));
+    assert_eq!(private.models.iter().map(|model| model.listed.client.as_str()).collect::<Vec<_>>(), vec!["vibe"]);
+    assert_eq!(
+        private.skipped,
+        vec![SkippedModel {
+            client: "claude".to_string(),
+            model: "claude-sonnet-5-5".to_string(),
+            reason: "github.com/acme/widgets: the entry allows anthropic".to_string(),
+        }]
+    );
 }
 
 #[test]

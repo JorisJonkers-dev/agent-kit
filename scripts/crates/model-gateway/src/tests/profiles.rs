@@ -53,7 +53,7 @@ fn decision(config: &GatewayConfig, scope: &DataScope) -> PolicyDecision {
 }
 
 fn repository(families: &[&str]) -> DataScope {
-    let entry = AllowlistEntry { families: families.iter().map(|family| family.to_string()).collect(), code: true, history: false };
+    let entry = AllowlistEntry { families: families.iter().map(|family| family.to_string()).collect(), code: true, history: false, public: false };
     DataScope::Repository { key: "github.com/owner/repo".to_string(), entry: Some(entry) }
 }
 

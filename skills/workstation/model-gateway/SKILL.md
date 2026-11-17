@@ -178,16 +178,21 @@ public data only, so OpenRouter runs through exactly one client, `pi-openrouter`
 with the reason, `run` refuses a billed `pi-openrouter` model with code
 `openrouter-billed` (a billed `pi-free` model with `free-only-refused`) before
 anything starts, and a delegation that names a `repo` is refused on them like
-on `pi-public`, since the models may train on what they are sent. Every other
+on `pi-public` unless the repository's allowlist entry records it as public,
+since the models may train on what they are sent. Every other
 client still refuses OpenRouter: a model named `openrouter/...`, or a Hermes or
 OpenCode run on the `openrouter` provider, is `provider-not-allowed`, and no
 machine file opens it.
 
 `pi-public` has `"data_scope": "public"` (a client field, `any` by default):
 that route is for public work only, so a delegation that reads a repository is
-never sent to it, whatever the repository's allowlist says of its family. It
-lists only for a run with no `repo`, which carries only what the caller
-declares.
+sent to it only when the repository's allowlist entry says `"public": true`
+and allows the model's family. A private repository, an entry without the flag
+and a repository with no entry at all are refused, as is a family the entry
+does not allow; `models` with a `repo` follows the same rule, listing the
+client's models for a public repository and naming them in `skipped` with the
+policy's reason for any other. With no `repo` it lists as before, since such a
+run carries only what the caller declares.
 
 A Pi run starts through `agent-launcher confine`, never bare: Pi has no
 sandbox of its own and its tools run inside its own process. The launch's own
