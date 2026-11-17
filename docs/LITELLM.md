@@ -91,7 +91,9 @@ with tests.
 
 There is no route for OpenCode Zen's free models (`big-pickle`, `glm-5.3-flash-free` and the
 rest of Zen's `-free` ids): OpenCode's Zen docs say "Free-tier chat models require OpenCode; use
-paid models or Go from other clients." Only the real OpenCode client may use them, so they are
+paid models or Go from other clients", and its harness guide
+(https://opencode.ai/docs/console/harnesses/) says "Other harnesses receive HTTP `403` for those
+models, even with a Console API key." Only the real OpenCode client may use them, so they are
 not served through the proxy. The free ids OpenCode Go serves itself are reached through the
 `opencode-go` route (item 7 below).
 
