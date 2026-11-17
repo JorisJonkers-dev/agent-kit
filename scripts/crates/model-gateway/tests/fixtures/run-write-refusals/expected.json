@@ -81,8 +81,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"claude:claude-haiku-5-5 is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\"}\n",
-      "stderr": "model-gateway run: claude:claude-haiku-5-5 is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"claude:claude-haiku-5-5 is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google, and does not record the repository as public\"}\n",
+      "stderr": "model-gateway run: claude:claude-haiku-5-5 is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google, and does not record the repository as public\n",
       "files": {
         "state/": null,
         "state/agent-kit/": null,

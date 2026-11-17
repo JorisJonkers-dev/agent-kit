@@ -202,10 +202,10 @@ fn the_policy_permits_a_public_only_client_a_public_repository_for_a_read_only_a
         assert!(!permission.inline_only);
         assert_eq!((permission.may_send.code, permission.may_send.history), (code, history));
     }
-    // The reason says the repository is recorded as public.
+    // The reason says the repository is recorded as public, so a public-only route may read it.
     assert_eq!(
         decide_policy(&config, &public_repository(&["anthropic"]), &subjects(&config)).reason,
-        "github.com/acme/widgets: the entry allows anthropic, and records the repository as public"
+        "github.com/acme/widgets: the entry allows anthropic, and records the repository as public, so a public-only route may read it"
     );
 }
 
@@ -221,6 +221,11 @@ fn the_policy_refuses_a_public_only_client_a_private_repository_however_its_entr
         entry: Some(AllowlistEntry { families: vec!["anthropic".to_string()], code: true, history: true, public: false }),
     };
     assert!(!claude_permission(&config, &recorded_before).permitted);
+    // The refusal names the entry and says it does not record the repository as public.
+    assert_eq!(
+        decide_policy(&config, &explicit, &subjects(&config)).reason,
+        "github.com/acme/widgets: the entry allows anthropic, and does not record the repository as public"
+    );
 }
 
 #[test]
@@ -228,15 +233,17 @@ fn the_policy_refuses_a_public_only_client_a_repository_with_no_entry() {
     let config = public_only_config();
     let scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: None };
     assert!(!claude_permission(&config, &scope).permitted);
+    assert_eq!(decide_policy(&config, &scope, &subjects(&config)).reason, "github.com/acme/widgets has no allowlist entry, so nothing is sent");
 }
 
 #[test]
 fn the_policy_refuses_a_public_only_client_a_public_repository_whose_entry_allows_another_family() {
     let config = public_only_config();
     assert!(!claude_permission(&config, &public_repository(&["openai", "zhipu"])).permitted);
-    // The other families the entry allows are still permitted on that route.
+    // The family the entry does allow is still permitted on that route, and the others are not.
     let permitted = permitted(&public_repository(&["anthropic"]));
     assert_eq!(permitted, vec!["claude:claude-sonnet-5-5"]);
+    assert!(permitted(&public_repository(&["openai", "zhipu"])).is_empty());
 }
 
 #[test]
@@ -248,6 +255,19 @@ fn a_client_that_is_not_public_only_is_unaffected_by_the_public_flag() {
         assert_eq!((permission.permitted, permission.may_send.code), (true, true));
     }
     assert!(!claude_permission(&config, &public_repository(&["openai"])).permitted);
+    // A public repository is read the same way, and the reason is the entry's, whatever the route.
+    assert!(claude_permission(&config, &public_repository(&["anthropic"])).permitted);
+    assert_eq!(
+        decide_policy(&config, &public_repository(&["anthropic"]), &subjects(&config)).reason,
+        "github.com/acme/widgets: the entry allows anthropic, and records the repository as public, so a public-only route may read it"
+    );
+    // A public repository whose entry allows another family is still refused, and says what it allows.
+    let other = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(public_entry(&["openai"], true, true)) };
+    assert!(!claude_permission(&config, &other).permitted);
+    assert_eq!(
+        decide_policy(&config, &other, &subjects(&config)).reason,
+        "github.com/acme/widgets: the entry allows openai, and records the repository as public, so a public-only route may read it"
+    );
 }
 
 #[test]
@@ -274,9 +294,20 @@ fn the_listing_lists_a_public_only_clients_models_for_a_public_repository_and_sk
         vec![SkippedModel {
             client: "claude".to_string(),
             model: "claude-sonnet-5-5".to_string(),
-            reason: "github.com/acme/widgets: the entry allows anthropic".to_string(),
+            reason: "github.com/acme/widgets: the entry allows anthropic, and does not record the repository as public".to_string(),
         }]
     );
+    // A repository with no entry at all: it is skipped with the reason that says so.
+    let none = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: None };
+    let unrecorded = permitted_models(listing(), &decide_policy(&config, &none, &subjects(&config)));
+    assert!(unrecorded.models.is_empty());
+    assert_eq!(unrecorded.skipped.len(), 2);
+    assert!(unrecorded.skipped.iter().all(|skipped| skipped.reason == "github.com/acme/widgets has no allowlist entry, so nothing is sent"));
+    // A public repository whose entry allows another family: the public-only client's model is skipped, the other listed.
+    let other_family = permitted_models(listing(), &decide_policy(&config, &public_repository(&["zhipu"]), &subjects(&config)));
+    assert_eq!(other_family.models.iter().map(|model| model.listed.client.as_str()).collect::<Vec<_>>(), vec!["vibe"]);
+    assert_eq!(other_family.skipped.len(), 1);
+    assert_eq!(other_family.skipped[0].client, "claude");
 }
 
 #[test]

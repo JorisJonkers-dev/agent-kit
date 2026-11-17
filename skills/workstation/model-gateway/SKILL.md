@@ -177,19 +177,21 @@ public data only, so OpenRouter runs through exactly one client, `pi-openrouter`
 `models` lists a free model and names a billed or unpriced one in `skipped`
 with the reason, `run` refuses a billed `pi-openrouter` model with code
 `openrouter-billed` (a billed `pi-free` model with `free-only-refused`) before
-anything starts, and a delegation that names a `repo` is refused on them like
-on `pi-public` unless the repository's allowlist entry records it as public,
-since the models may train on what they are sent. Every other
-client still refuses OpenRouter: a model named `openrouter/...`, or a Hermes or
-OpenCode run on the `openrouter` provider, is `provider-not-allowed`, and no
-machine file opens it.
+anything starts, and a delegation that names a `repo` follows the same rule as
+on `pi-public`: it is sent only to a repository whose allowlist entry records
+it as public and allows the model's family, since the models may train on what
+they are sent. Every other client still refuses OpenRouter: a model named
+`openrouter/...`, or a Hermes or OpenCode run on the `openrouter` provider, is
+`provider-not-allowed`, and no machine file opens it.
 
 `pi-public` has `"data_scope": "public"` (a client field, `any` by default):
 that route is for public work only, so a delegation that reads a repository is
 sent to it only when the repository's allowlist entry says `"public": true`
-and allows the model's family. A private repository, an entry without the flag
-and a repository with no entry at all are refused, as is a family the entry
-does not allow; `models` with a `repo` follows the same rule, listing the
+and allows the model's family. A public repository is already public, so the
+route may read it: a read-only run and a writing run alike, carrying the code
+and the history the entry allows. A private repository, an entry without the
+flag and a repository with no entry at all are refused, as is a family the
+entry does not allow; `models` with a `repo` follows the same rule, listing the
 client's models for a public repository and naming them in `skipped` with the
 policy's reason for any other. With no `repo` it lists as before, since such a
 run carries only what the caller declares.

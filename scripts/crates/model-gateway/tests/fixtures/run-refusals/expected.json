@@ -62,8 +62,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\"}\n",
-      "stderr": "model-gateway run: vibe:mistral-small-latest is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google, and does not record the repository as public\"}\n",
+      "stderr": "model-gateway run: vibe:mistral-small-latest is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google, and does not record the repository as public\n",
       "files": {
         "home/": null,
         "home/.config/": null,
@@ -76,8 +76,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest may not carry history: github.com/jorisjonkers-dev/demo: the entry allows mistral\"}\n",
-      "stderr": "model-gateway run: vibe:mistral-small-latest may not carry history: github.com/jorisjonkers-dev/demo: the entry allows mistral\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"vibe:mistral-small-latest may not carry history: github.com/jorisjonkers-dev/demo: the entry allows mistral, and does not record the repository as public\"}\n",
+      "stderr": "model-gateway run: vibe:mistral-small-latest may not carry history: github.com/jorisjonkers-dev/demo: the entry allows mistral, and does not record the repository as public\n",
       "files": {
         "home/": null,
         "home/.config/": null,
@@ -320,8 +320,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"pi-public:public/gemini-3.6-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\"}\n",
-      "stderr": "model-gateway run: pi-public:public/gemini-3.6-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"pi-public:public/gemini-3.6-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google, and does not record the repository as public\"}\n",
+      "stderr": "model-gateway run: pi-public:public/gemini-3.6-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google, and does not record the repository as public\n",
       "files": {
         "state/": null,
         "state/agent-kit/": null,

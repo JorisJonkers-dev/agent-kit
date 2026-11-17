@@ -125,13 +125,15 @@ fn permission(config: &GatewayConfig, subject: &PolicySubject, scope: &DataScope
             // and only the families that entry allows; a private or unrecorded repository never reaches it.
             let public_only = config.clients.get(&subject.client).is_some_and(|client| client.public_only);
             let allows_family = entry.as_ref().is_some_and(|entry| entry.families.contains(&subject.family));
-            let permitted = allows_family && (!public_only || entry.as_ref().is_some_and(|entry| entry.public));
+            let public_repository = entry.as_ref().is_some_and(|entry| entry.public);
+            let permitted = allows_family && (!public_only || public_repository);
             base(false, may_send, permitted)
         }
     }
 }
 
-/// One line saying why the policy decided what it did.
+/// One line saying why the policy decided what it did, and what a client on a public-only route may do with it: such a
+/// client is refused a repository that is not recorded as public, and permitted it when it is.
 fn reason_for(scope: &DataScope) -> String {
     match scope {
         DataScope::Outside => "no repository: only inline content, to subsidised and metered-personal clients".to_string(),
@@ -140,8 +142,11 @@ fn reason_for(scope: &DataScope) -> String {
         DataScope::Repository { key, entry } => match entry {
             None => format!("{key} has no allowlist entry, so nothing is sent"),
             Some(entry) if entry.families.is_empty() => format!("{key}: the entry allows no family"),
-            Some(entry) if entry.public => format!("{key}: the entry allows {}, and records the repository as public", entry.families.join(", ")),
-            Some(entry) => format!("{key}: the entry allows {}", entry.families.join(", ")),
+            Some(entry) if entry.public => format!(
+                "{key}: the entry allows {}, and records the repository as public, so a public-only route may read it",
+                entry.families.join(", ")
+            ),
+            Some(entry) => format!("{key}: the entry allows {}, and does not record the repository as public", entry.families.join(", ")),
         },
     }
 }
