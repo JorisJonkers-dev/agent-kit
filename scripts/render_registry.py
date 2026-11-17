@@ -2274,13 +2274,14 @@ if lost:
 def profile_overlay(orgs: list[str]) -> dict[str, Any]:
     """Settings a profile loads with --settings so it cannot operate the given GitHub orgs.
 
-    ``permissions.deny`` stops the path and gh forms that are matchable; the hard_deny entry
+    ``permissions.deny`` stops the path and gh forms that are matchable (Edit covers writes: a Write
+    deny rule never matches); the hard_deny entry
     covers the rest for the auto mode classifier, even when the user asks.
     """
     deny: list[str] = []
     for org in orgs:
         root = f"~/Projects/{org}"
-        deny += [f"Read({root}/**)", f"Edit({root}/**)", f"Write({root}/**)",
+        deny += [f"Read({root}/**)", f"Edit({root}/**)",
                  f"Bash(cd {root})", f"Bash(cd {root}/*)", f"Bash(git -C {root}/*)",
                  f"Bash(gh * {org}/*)", f"Bash(gh * --repo {org}/*)", f"Bash(gh * -R {org}/*)",
                  f"Bash(gh api *repos/{org}/*)"]

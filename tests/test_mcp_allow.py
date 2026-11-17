@@ -221,6 +221,7 @@ def test_the_personal_profile_overlay_blocks_the_nedap_orgs() -> None:
     overlay = render_registry.profile_overlay(["nedap", "NedapISEP"])
     deny = overlay["permissions"]["deny"]
     assert "Read(~/Projects/nedap/**)" in deny and "Edit(~/Projects/NedapISEP/**)" in deny
+    assert not any(rule.startswith("Write(") for rule in deny)
     assert "Bash(gh * nedap/*)" in deny and "Bash(gh * --repo NedapISEP/*)" in deny
     hard = overlay["autoMode"]["hard_deny"]
     assert hard[0] == "$defaults" and "nedap or NedapISEP" in hard[1]
