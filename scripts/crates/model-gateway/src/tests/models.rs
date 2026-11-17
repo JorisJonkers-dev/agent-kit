@@ -962,15 +962,19 @@ fn api_model(provider: &str, id: &str, input: f64, extra: &str) -> String {
 
 #[test]
 fn parse_opencode_free_models_keeps_only_the_zero_priced_models_of_opencodes_own_provider() {
-    let list = format!(
-        r#"{{"location":{{}},"data":[{},{},{},{},{},{}]}}"#,
+    let entries = [
         api_model("opencode", "glm-5.3-flash-free", 0.0, ""),
         api_model("opencode", "claude-haiku-5-5", 1.0, ""),
         api_model("opencode-go", "beam-free", 0.0, ""),
         api_model("opencode", "disabled-free", 0.0, r#","enabled":false"#),
-        r#"{"id":"no-price","providerID":"opencode","enabled":true}"#,
+        r#"{"id":"no-price","providerID":"opencode","enabled":true}"#.to_string(),
         api_model("opencode", "old-free", 0.0, r#","status":"deprecated""#),
-    );
+        api_model("opencode", "nested/free", 0.0, ""),
+        r#"{"id":"text-price-free","providerID":"opencode","cost":[{"input":"0","output":0}]}"#.to_string(),
+        r#"{"id":"empty-price-free","providerID":"opencode","cost":[]}"#.to_string(),
+        r#"{"id":"embed-free","providerID":"opencode","type":"embedding","cost":[{"input":0}]}"#.to_string(),
+    ];
+    let list = format!(r#"{{"location":{{}},"data":[{}]}}"#, entries.join(","));
 
     assert_eq!(
         parse_opencode_free_models(&list),
@@ -1022,3 +1026,12 @@ fn list_models_names_an_opencode_client_whose_every_model_its_allowlist_drops_as
     assert!(reasons[0].starts_with("OpenCode listed 2 models and none is on an allowed provider (opencode-go, litellm-opencode-go)"), "{}", reasons[0]);
 }
 
+
+#[test]
+fn list_models_names_opencode_free_as_missing_when_none_of_its_models_is_opencodes_own() {
+    let listed = models_of(vec![provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go")]);
+
+    let listing = list_models(&with_opencode_free(config()), &installed(&["opencode-free"]), &listings(vec![("opencode-free", listed)]), &[]);
+    let reasons: Vec<&str> = listing.missing.iter().filter(|entry| entry.client == "opencode-free").map(|entry| entry.reason.as_str()).collect();
+    assert_eq!(reasons, ["OpenCode listed 1 models and none is a free model of its own provider"]);
+}

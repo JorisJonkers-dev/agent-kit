@@ -1112,3 +1112,24 @@ fn opencode_free_without_free_models_says_what_to_check() {
     };
     assert!(reason.contains("opencode.models.dev") && reason.contains("OPENCODE_DISABLE_FREE_MODELS"), "{reason}");
 }
+
+#[test]
+fn opencode_free_that_cannot_run_opencode_names_why_and_calls_nothing_free() {
+    let runtime = runtime(FakeProcess::new(), FakeFiles::new(), env());
+
+    assert_eq!(
+        list_client(&runtime, "opencode-free"),
+        Some(ClientListing::Reason(format!("listing failed: {OPENCODE_API_MODELS}: cannot run opencode")))
+    );
+    assert!(!crate::sources::opencode_model_is_free(&runtime, "opencode/glm-5.3-flash-free"));
+}
+
+#[test]
+fn the_free_check_of_opencode_free_asks_opencode_and_not_the_litellm_catalogue() {
+    let list = r#"{"data":[{"id":"big-pickle","providerID":"opencode","enabled":true,"cost":[{"input":0,"output":0}]}]}"#;
+    let runtime = runtime(FakeProcess::new().answering(OPENCODE_API_MODELS, ok(list)), FakeFiles::new(), env());
+    let config = crate::config_parse::parse_defaults(&json::parse(crate::SHIPPED_DEFAULTS).expect("defaults")).expect("the shipped defaults");
+
+    assert!(crate::litellm_catalogue::is_free(&runtime, &config, None, "opencode-free", "opencode/big-pickle"));
+    assert!(!crate::litellm_catalogue::is_free(&runtime, &config, None, "opencode-free", "opencode/claude-haiku-5-5"));
+}

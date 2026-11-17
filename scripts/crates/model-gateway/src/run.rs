@@ -633,6 +633,14 @@ pub fn is_provider_allowed(provider: Option<&str>, allowed: Option<&[String]>) -
         }
 }
 
+/// Refuses an `opencode-free` model that is not one of OpenCode's own (`opencode/<id>`); every other client passes.
+pub fn require_opencode_own_model(client: &str, model: &str) -> Result<(), GatewayError> {
+    if client != OPENCODE_FREE_CLIENT || open_code_provider(model) == Some(OPENCODE_OWN_PROVIDER) {
+        return Ok(());
+    }
+    Err(GatewayError::new("provider-not-allowed", format!("{model}: {client} runs only OpenCode's own free models, named opencode/<id>")))
+}
+
 /// Refuses an OpenCode model whose provider the machine's
 /// `clients.opencode.providers` (else `opencode-go` alone) does not name, and
 /// every pay-per-token one whatever it names.

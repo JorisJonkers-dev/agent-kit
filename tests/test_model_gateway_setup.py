@@ -94,9 +94,10 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "pi-public": ("pi", "subsidised", "live"),
         "pi-openrouter": ("pi", "subsidised", "live"),
         "pi-free": ("pi", "subsidised", "live"),
+        "opencode-free": ("opencode", "subsidised", "live"),
     }
     assert clients["agy"]["families"] == ["google"]
-    assert clients["opencode"]["provider_cost_classes"] == {"opencode-go": "subsidised"}
+    assert clients["opencode"]["provider_cost_classes"] == {"opencode-go": "subsidised", "litellm-opencode-go": "subsidised"}
 
 
 def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None:
@@ -115,6 +116,16 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("agy", "gemini-3.8-flash-high", "google", "hard"),
         ("agy", "gemini-3.8-flash-medium", "google", "routine"),
         ("agy", "gemini-3.8-flash-low", "google", "trivial"),
+        ("opencode-free", "opencode/glm-5.3-flash-free", "zhipu", "routine"),
+        ("opencode-free", "opencode/deepseek-v4.1-flash-free", "deepseek", "routine"),
+        ("opencode-free", "opencode/hy4-flash-free", "tencent", "routine"),
+        ("opencode-free", "opencode/mimo-v2.6-flash-free", "xiaomi", "routine"),
+        ("opencode-free", "opencode/longcat-2.5-free", "meituan", "routine"),
+        ("opencode-free", "opencode/nemotron-3.5-super-vl-free", "nvidia", "hard"),
+        ("opencode-free", "opencode/nemotron-3.5-lightning-free", "nvidia", "routine"),
+        ("opencode-free", "opencode/big-pickle", "opencode", "routine"),
+        ("opencode-free", "opencode/beam-free", "opencode", "routine"),
+        ("opencode-free", "opencode/flint-40b-free", "opencode", "trivial"),
         ("opencode", "opencode-go/kimi-k2.7-code", "moonshot", "hard"),
         ("opencode", "opencode-go/mimo-v2.6-pro", "xiaomi", "hard"),
         ("opencode", "opencode-go/qwen3.8-flash", "alibaba", "routine"),

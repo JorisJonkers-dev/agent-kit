@@ -23,7 +23,8 @@ ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 
 # Clients whose models are not served through the LiteLLM routes: Claude (anthropic key only,
 # not probed by the catalogue yet), Codex (employer account) and agy (Google's own CLI).
-NOT_VIA_LITELLM = {"claude", "codex", "agy", "hermes"}
+# opencode-free runs OpenCode's own free models through the OpenCode CLI: no LiteLLM route serves them.
+NOT_VIA_LITELLM = {"claude", "codex", "agy", "hermes", "opencode-free"}
 
 
 _spec = importlib.util.spec_from_file_location("litellm_catalogue", KIT_ROOT / "scripts" / "litellm_catalogue.py")

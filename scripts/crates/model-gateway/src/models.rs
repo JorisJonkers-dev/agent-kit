@@ -609,16 +609,13 @@ fn listed_models(config: &GatewayConfig, id: &str, client: &ClientConfig, listed
     Listed { models, skipped, matched }
 }
 
-/// Why a client that listed models offers none of them.
+/// Why an OpenCode client (`opencode` or `opencode-free`) that listed models offers none of them.
 fn dropped_reason(id: &str, client: &ClientConfig, count: usize) -> String {
-    if id == "opencode" {
-        let allowed = client.providers.as_ref().map_or_else(|| DEFAULT_OPENCODE_PROVIDERS.join(", "), |providers| providers.join(", "));
-        return format!("OpenCode listed {count} models and none is on an allowed provider ({allowed}); set clients.opencode.providers to the provider names `opencode models` prints");
-    }
     if id == crate::run::OPENCODE_FREE_CLIENT {
         return format!("OpenCode listed {count} models and none is a free model of its own provider");
     }
-    format!("the client listed {count} models and none passed its rules")
+    let allowed = client.providers.as_ref().map_or_else(|| DEFAULT_OPENCODE_PROVIDERS.join(", "), |providers| providers.join(", "));
+    format!("OpenCode listed {count} models and none is on an allowed provider ({allowed}); set clients.opencode.providers to the provider names `opencode models` prints")
 }
 
 /// The `<client>:<model>` keys that name one client model: the id the ledger or a

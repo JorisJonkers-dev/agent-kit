@@ -469,14 +469,7 @@ impl RunCommand<'_> {
         if input.client == "opencode" {
             require_allowed_provider(&input.model, client.providers.as_deref())?;
         }
-        if input.client == crate::run::OPENCODE_FREE_CLIENT
-            && crate::models::open_code_provider(&input.model).as_deref() != Some(crate::run::OPENCODE_OWN_PROVIDER)
-        {
-            return Err(GatewayError::new(
-                "provider-not-allowed",
-                format!("{}: {} runs only OpenCode's own free models, named opencode/<id>", input.model, input.client),
-            ));
-        }
+        crate::run::require_opencode_own_model(&input.client, &input.model)?;
         require_provider(input, &client)?;
         let entry = catalogue_entry(&config, &input.client, &input.model)?;
         crate::litellm_catalogue::require_usable(self.runtime, &config, &input.client, &input.model)?;
