@@ -1,11 +1,12 @@
-//! `agent-launcher confine` under the real kernel (Landlock): the launcher
+//! `agent-launcher confine` under the real kernel (Landlock on Linux, a
+//! Seatbelt profile through `sandbox-exec` on macOS): the launcher
 //! binary is started as its own process, puts the confinement on itself and
 //! becomes a probe. File probes are `/bin/sh` with `cat` and `ls`; network
 //! probes are this test binary itself, re-run under the confinement as the
 //! `probe` helper below (so the runner needs no `nc`, `python` or `bash`).
 //! Nothing read is ever printed: a probe says only whether it got the file.
 
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::fs;
 use std::net::{TcpListener, TcpStream, UdpSocket};
@@ -14,6 +15,21 @@ use std::process::{Command, Output, Stdio};
 
 const LAUNCHER: &str = env!("CARGO_BIN_EXE_agent-launcher");
 const PROBE: &str = "AGENT_LAUNCHER_CONFINE_PROBE";
+
+/// What the operating system says to a refused file access, and the errno of a
+/// refused network call: Landlock answers EACCES, Seatbelt EPERM.
+#[cfg(target_os = "linux")]
+const REFUSED_FILE: &str = "Permission denied";
+#[cfg(target_os = "macos")]
+const REFUSED_FILE: &str = "Operation not permitted";
+#[cfg(target_os = "linux")]
+const REFUSED_EXEC: i32 = 125;
+#[cfg(target_os = "macos")]
+const REFUSED_EXEC: i32 = 71;
+#[cfg(target_os = "linux")]
+const REFUSED_NET: i32 = 13;
+#[cfg(target_os = "macos")]
+const REFUSED_NET: i32 = 1;
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("agent-launcher-confine-{name}-{}", std::process::id()));
@@ -73,7 +89,7 @@ fn a_confined_command_reads_its_grant_and_nothing_outside_it() {
     assert!(out.status.success(), "{said}");
     assert!(said.contains(&format!("ok {}", packet.join("in.txt").display())), "{said}");
     let denied = format!("denied {} (", elsewhere.join("out.txt").display());
-    assert!(said.contains(&denied) && said.contains("Permission denied"), "{said}");
+    assert!(said.contains(&denied) && said.contains(REFUSED_FILE), "{said}");
     assert!(said.contains("not listed elsewhere"), "{said}");
     if let Some(file) = ssh_file {
         assert!(said.contains(&format!("denied {} (", file.display())), "a file under ~/.ssh was readable");
@@ -84,6 +100,7 @@ fn a_confined_command_reads_its_grant_and_nothing_outside_it() {
     fs::remove_dir_all(&root).unwrap();
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn another_process_environment_and_proc_are_unreadable() {
     let mut other = Command::new("sleep").arg("30").spawn().unwrap();
@@ -163,34 +180,31 @@ fn tcp_reaches_only_the_listed_ports_and_nothing_binds() {
     let spec = format!("c{a},c{o},b");
     let said = net_probe(&["--net-connect", &a.to_string()], &spec);
     assert!(said.contains(&format!("c{a}: ok")), "{said}");
-    assert!(said.contains(&format!("c{o}: {}", libc_eacces())), "{said}");
-    assert!(said.contains(&format!("b: {}", libc_eacces())), "{said}");
+    assert!(said.contains(&format!("c{o}: {}", REFUSED_NET)), "{said}");
+    assert!(said.contains(&format!("b: {}", REFUSED_NET)), "{said}");
     // Without --net-connect the network is left alone.
     let free = net_probe(&[], &spec);
     assert!(free.contains(&format!("c{o}: ok")) && free.contains("b: ok"), "{free}");
 }
 
 /// Whether this kernel's Landlock limits UDP (ABI 10 or newer).
+#[cfg(target_os = "linux")]
 fn landlock_limits_udp() -> bool {
     // SAFETY: a null attribute with size 0 and the VERSION flag only asks the ABI.
     let abi = unsafe { libc::syscall(libc::SYS_landlock_create_ruleset, std::ptr::null::<u8>(), 0usize, 1u32) };
     abi >= 10
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn udp_reaches_only_dns_where_the_kernel_can_limit_it() {
     let spec = "u53,u5353";
     let said = net_probe(&["--net-connect", "443"], spec);
     assert!(said.contains("u53: ok"), "{said}");
-    let other = if landlock_limits_udp() { libc_eacces().to_string() } else { "ok".to_string() };
+    let other = if landlock_limits_udp() { REFUSED_NET.to_string() } else { "ok".to_string() };
     assert!(said.contains(&format!("u5353: {other}")), "{said}");
     // Without --net-connect UDP is left alone.
     assert!(net_probe(&[], spec).contains("u5353: ok"));
-}
-
-/// EACCES, the errno a Landlock denial gives.
-fn libc_eacces() -> i32 {
-    13
 }
 
 #[test]
@@ -227,8 +241,9 @@ fn run_from_grants_what_a_packaged_script_needs_and_nothing_else_does() {
     assert_eq!((granted.status.code(), String::from_utf8_lossy(&granted.stdout).as_ref()), (Some(0), "packaged"), "{}", text(&granted));
     // Without the grant the script cannot even be executed, and the launcher says so.
     let refused = confine(&[], &[script.to_str().unwrap()]);
-    assert_eq!(refused.status.code(), Some(125), "{}", text(&refused));
-    assert!(text(&refused).contains("Permission denied"), "{}", text(&refused));
+    // sandbox-exec, which is what runs the command on macOS, ends with its own EX_OSERR (71) when the exec is denied.
+    assert_eq!(refused.status.code(), Some(REFUSED_EXEC), "{}", text(&refused));
+    assert!(text(&refused).contains(REFUSED_FILE), "{}", text(&refused));
     fs::remove_dir_all(&root).unwrap();
 }
 
@@ -246,7 +261,110 @@ fn the_command_inherits_no_secret_variables_and_no_open_descriptors() {
     assert!(said.contains("secret=unset named=yes path=set locale=C"), "{said}");
     assert!(!said.contains("hunter2"), "{said}");
     // A descriptor the caller left open (7, a file here) is closed before the command starts.
-    let script = format!("exec 7</etc/hostname; exec {LAUNCHER} confine -- /bin/sh -c 'if read -r line <&7 2>/dev/null; then echo fd7=open; else echo fd7=closed; fi'");
+    let script = format!("exec 7</etc/hosts; exec {LAUNCHER} confine -- /bin/sh -c 'if read -r line <&7 2>/dev/null; then echo fd7=open; else echo fd7=closed; fi'");
     let out = Command::new("/bin/sh").args(["-c", &script]).stdin(Stdio::null()).output().unwrap();
     assert!(text(&out).contains("fd7=closed"), "{}", text(&out));
+}
+
+/// macOS has no UDP rule to carve DNS out with: name resolution goes through
+/// the mDNSResponder socket, so a direct UDP send to any port is refused.
+#[cfg(target_os = "macos")]
+#[test]
+fn udp_is_refused_on_macos_because_dns_goes_through_the_resolver_socket() {
+    let said = net_probe(&["--net-connect", "443"], "u53,u5353");
+    assert!(said.contains(&format!("u53: {REFUSED_NET}")), "{said}");
+    assert!(said.contains(&format!("u5353: {REFUSED_NET}")), "{said}");
+    assert!(net_probe(&[], "u5353").contains("u5353: ok"));
+}
+
+/// Neither the home directory nor a sibling checkout can be listed or read,
+/// and the confined process cannot reach a name it could resolve outside.
+#[test]
+fn the_home_directory_and_a_sibling_checkout_are_out_of_reach() {
+    let root = scratch("sibling");
+    let checkout = root.join("checkout");
+    let sibling = root.join("sibling-checkout");
+    fs::create_dir_all(&checkout).unwrap();
+    fs::create_dir_all(sibling.join(".git")).unwrap();
+    fs::write(sibling.join("secret.txt"), "sibling").unwrap();
+    let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+    let script = format!(
+        "{}for d in '{}' '{}'; do if ls \"$d\" >/dev/null 2>&1; then echo \"listed $d\"; else echo \"unlisted $d\"; fi; done",
+        reads(&[&sibling.join("secret.txt")]),
+        home.display(),
+        sibling.display()
+    );
+    let out = confine(&["--read", checkout.to_str().unwrap()], &["/bin/sh", "-c", &script]);
+    let said = text(&out);
+    assert!(said.contains(&format!("denied {} (", sibling.join("secret.txt").display())), "{said}");
+    assert!(said.contains(&format!("unlisted {}", home.display())), "{said}");
+    assert!(said.contains(&format!("unlisted {}", sibling.display())), "{said}");
+    fs::remove_dir_all(&root).unwrap();
+}
+
+/// `/System` is granted whole and the user's volume is mounted under it; the home directory and a sibling checkout
+/// must not be readable through that prefix either.
+#[cfg(target_os = "macos")]
+#[test]
+fn the_data_volume_prefix_does_not_reach_the_home_directory_or_a_sibling() {
+    let root = scratch("firmlink");
+    let checkout = root.join("checkout");
+    let sibling = root.join("sibling");
+    fs::create_dir_all(&checkout).unwrap();
+    fs::create_dir_all(&sibling).unwrap();
+    fs::write(sibling.join("secret.txt"), "sibling").unwrap();
+    let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+    let through = |p: &Path| PathBuf::from("/System/Volumes/Data").join(p.strip_prefix("/").unwrap());
+    let mut paths = vec![through(&sibling.join("secret.txt"))];
+    // Any regular file in the home directory (not listed or read in the output).
+    if let Some(file) = fs::read_dir(&home).unwrap().filter_map(|e| e.ok().map(|e| e.path())).find(|p| p.is_file()) {
+        paths.push(through(&file));
+    }
+    paths.push(through(Path::new("/Users/Shared")));
+    let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+    let script = format!(
+        "{}if ls '{}' >/dev/null 2>&1; then echo 'listed home'; else echo 'unlisted home'; fi",
+        reads(&refs),
+        through(&home).display()
+    );
+    let out = confine(&["--read", checkout.to_str().unwrap()], &["/bin/sh", "-c", &script]);
+    let said = text(&out);
+    for path in &paths {
+        assert!(said.contains(&format!("denied {} (", path.display())), "{said}");
+    }
+    assert!(said.contains("unlisted home"), "{said}");
+    // Unconfined, the same prefix does reach the file: the denial is the confinement's.
+    let free = Command::new("/bin/sh").arg("-c").arg(reads(&refs[..1])).output().unwrap();
+    assert!(text(&free).starts_with("ok "), "{}", text(&free));
+    fs::remove_dir_all(&root).unwrap();
+}
+
+/// A confined process on a terminal can query it (Node does) but cannot push keystrokes into it with TIOCSTI, which
+/// would run in the caller's shell after the confinement is gone.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_terminal_can_be_queried_but_not_typed_into() {
+    use std::os::fd::{FromRawFd, OwnedFd};
+    let (mut master, mut slave) = (0, 0);
+    // SAFETY: openpty fills in two descriptors; null name, termios and winsize are allowed.
+    let made = unsafe { libc::openpty(&mut master, &mut slave, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()) };
+    assert_eq!(made, 0);
+    // SAFETY: both descriptors were just opened and are owned here.
+    let (master, slave) = unsafe { (OwnedFd::from_raw_fd(master), OwnedFd::from_raw_fd(slave)) };
+    let probe = r#"my $c = "x"; my $w = pack("S4", 0, 0, 0, 0); my $t = "\0" x 72;
+print ioctl(STDIN, 0x80017472, $c) ? "sti=ok\n" : "sti=refused\n";
+print ioctl(STDIN, 0x40087468, $w) ? "winsz=ok\n" : "winsz=refused\n";
+print ioctl(STDIN, 0x40487413, $t) ? "getattr=ok\n" : "getattr=refused\n";"#;
+    let child = Command::new(LAUNCHER)
+        .args(["confine", "--", "/usr/bin/perl", "-e", probe])
+        .stdin(slave.try_clone().unwrap())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(slave);
+    let out = child.wait_with_output().unwrap();
+    drop(master);
+    let said = text(&out);
+    assert!(said.contains("sti=refused") && said.contains("winsz=ok") && said.contains("getattr=ok"), "{said}");
 }

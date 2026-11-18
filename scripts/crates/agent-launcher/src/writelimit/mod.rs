@@ -9,8 +9,8 @@
 //! for the employer roots of a personal-instance launch on the work Mac
 //! ([`Policy::read_denied`], ADR-0013). A confinement (`agent-launcher
 //! confine`, [`Policy::reads`]) restricts reads and execution to the paths it
-//! grants and can restrict TCP ([`Policy::connect_ports`]); only Landlock
-//! holds it so far. When the backend for this OS is not
+//! grants and can restrict TCP ([`Policy::connect_ports`]); Landlock holds it on Linux and a
+//! `(deny default)` Seatbelt profile on macOS (ADR-0016). When the backend for this OS is not
 //! available, or cannot hold what the policy asks, the launcher refuses to
 //! start the agent; it never runs it without the limit.
 
