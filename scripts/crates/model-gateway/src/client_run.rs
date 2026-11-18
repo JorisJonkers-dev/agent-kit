@@ -8,12 +8,13 @@ use crate::error::GatewayError;
 use crate::extras::{RunExtras, EXTRA_NAMES};
 use crate::home_mcp::home_mcp_servers;
 use crate::json::{self, Value};
-use crate::launchers::{launcher, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
+use crate::launchers::{hermes_key, launcher, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
 use crate::outputs::ClientOutput;
 use crate::pi_launch::prepare_pi;
 use crate::ports::{Files, Process, ProcessResult};
 use crate::text::join;
 use crate::run::RunClient;
+use crate::run_home::{prepare_hermes, prepare_opencode, run_home_dir, RunHome};
 use std::collections::HashMap;
 
 /// The Vibe tools that load on demand through `search_tool_functions`, which `--enabled-tools` filters out along with them.
@@ -39,6 +40,8 @@ pub struct ClientRunOutcome {
     /// Parsed `export.json`, or `None` when the client wrote none or it does not parse.
     pub exported: Option<Value>,
     pub output: ClientOutput,
+    /// What the launch could not clean up: a run home that was not removed still holds what the run needed.
+    pub warnings: Vec<String>,
 }
 
 /// Why a launch did not come to an outcome: the gateway refused it, or the
@@ -125,20 +128,25 @@ impl ClientRun<'_> {
         require_supported_extras(request.client, &request.extras)?;
         let launcher = launcher(request.client);
         let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
-        let extras = LaunchExtras { confine: confine.clone(), ..self.extras_of(request)? };
+        let home = self.home_of(request)?;
+        let extras = LaunchExtras { confine: confine.clone(), home: home.clone(), ..self.extras_of(request)? };
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
         let ran = self.process.run(&command);
-        // The agent directory holds the route's key, so it goes the moment the launch ends.
-        if let Some(confine) = &confine {
-            let _ = self.files.remove(&confine.agent_dir);
-        }
-        let result = ran.map_err(ClientRunError::Spawn)?;
+        // The agent directory holds the route's key, so it goes the moment the launch ends, and so does a run home; a
+        // directory that stays is reported, never left unsaid. `remove` does not follow a symlink.
+        let leftovers: Vec<String> = confine
+            .iter()
+            .map(|confine| confine.agent_dir.clone())
+            .chain(home.iter().map(|home| home.dir.clone()))
+            .filter_map(|dir| self.files.remove(&dir).err().map(|error| format!("the launch's directory {dir} was not removed: {}", error.message)))
+            .collect();
+        let result = ran.map_err(|message| ClientRunError::Spawn(if leftovers.is_empty() { message } else { format!("{message}; {}", leftovers.join("; ")) }))?;
         let exported = match launcher.report_path {
             Some(path) => self.read_report(&path(&request.paths))?,
             None => None,
         };
         let output = (launcher.read)(&result.stdout, exported.as_ref());
-        Ok(ClientRunOutcome { result, exported, output })
+        Ok(ClientRunOutcome { result, exported, output, warnings: leftovers })
     }
 
     /// What a Pi launch runs through, or the refusal that says why it cannot: Pi has no sandbox of its own,
@@ -149,6 +157,25 @@ impl ClientRun<'_> {
         };
         let agent_dir = join(&[&request.paths.export_dir, "pi-agent"]);
         prepare_pi(self.files, self.process, self.env, provider, &request.launch.model, &agent_dir, scope).map_err(|message| GatewayError::new("unconfined", message))
+    }
+
+    /// The run home of a client that runs in one (#903): OpenCode, and Hermes on a LiteLLM route. A launch whose
+    /// provider the owner's home does not declare is refused rather than started in the owner's own home.
+    fn home_of(&self, request: &ClientRunRequest) -> Result<Option<RunHome>, GatewayError> {
+        let dir = run_home_dir(&request.paths);
+        // A run's directory is its own (run ids are unique), so a home that is already there is not this launch's: it is never reused.
+        if matches!(request.client, RunClient::Opencode | RunClient::Hermes) && self.files.exists(&dir).unwrap_or(false) {
+            return Err(GatewayError::new("unconfined", format!("the launch's home {dir} already exists; a run home is made for one launch and never reused")));
+        }
+        let made = match request.client {
+            RunClient::Opencode => prepare_opencode(self.files, self.env, &request.launch.model, request.launch.mode, &dir),
+            RunClient::Hermes => match request.launch.provider.as_deref().filter(|provider| hermes_key(provider).is_some()) {
+                Some(provider) => prepare_hermes(self.files, self.env, provider, &dir),
+                None => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        made.map(Some).map_err(|message| GatewayError::new("unconfined", message))
     }
 
     /// The caller's extras as the launcher applies them, with the client's home servers resolved.
@@ -164,6 +191,7 @@ impl ClientRun<'_> {
             sandbox: extras.sandbox,
             schema: extras.schema.clone(),
             tools: extras.tools.clone().unwrap_or_default(),
+            home: None,
         })
     }
 

@@ -35,6 +35,7 @@ FIELD_ORDER = (
     "distinct_families",
     "exclude_writer_family",
     "tier",
+    "key_models",
     "tools",
     "max_spend_usd",
     "unenforced_clients",
@@ -96,6 +97,7 @@ def tier_profiles(groups: dict[str, Any], routes: list[dict[str, Any]]) -> dict[
             ),
             "models": [f"pi-{agent}:{name}"],
             "tier": name,
+            "key_models": list(tier["key_models"]),
         }
     return profiles
 

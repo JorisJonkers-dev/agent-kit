@@ -3,8 +3,8 @@
     "repo": "JorisJonkers-dev/litellm",
     "path": "catalog/routing.json",
     "key": "tier_groups",
-    "ref": "feat/free-groups-and-tiers",
-    "blob": "c33a1344c0de1f4ba482f264f45810d191a696b4"
+    "ref": "main",
+    "blob": "cc4c5139aaeca506d1f9831166d59d0fdde29edd"
   },
   "tier_groups": {
     "tier-free": {

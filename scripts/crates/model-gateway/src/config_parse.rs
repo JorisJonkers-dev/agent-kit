@@ -557,8 +557,8 @@ fn invalid(message: impl Into<String>) -> GatewayError {
 }
 
 /// The fields a profile has; one it does not is refused, not quietly ignored.
-const PROFILE_FIELDS: [&str; 10] =
-    ["description", "models", "pin", "ladder", "distinct_families", "exclude_writer_family", "tier", "tools", "max_spend_usd", "unenforced_clients"];
+const PROFILE_FIELDS: [&str; 11] =
+    ["description", "models", "pin", "ladder", "distinct_families", "exclude_writer_family", "tier", "key_models", "tools", "max_spend_usd", "unenforced_clients"];
 
 /// Reads the profiles of the shipped defaults; `known` holds the `<client>:<model>` keys of the catalogue.
 fn parse_profiles(raw: Option<&Value>, known: &BTreeSet<String>) -> Result<BTreeMap<String, DelegationProfile>, GatewayError> {
@@ -637,6 +637,10 @@ fn parse_profile(name: &str, raw: &Object, known: &BTreeSet<String>) -> Result<D
         Some(Value::Str(tier)) if tier == name => Some(tier.clone()),
         Some(_) => return Err(invalid(format!("{where_}.tier must be the profile's own name: a tier profile is named for the tier"))),
     };
+    let key_models = match raw.get("key_models") {
+        None => None,
+        value => Some(profile_strings(value, &format!("{where_}.key_models"), false)?),
+    };
     let tools = parse_tools(raw.get("tools"), &format!("{where_}.tools"))?;
     let unenforced_clients = match raw.get("unenforced_clients") {
         None => None,
@@ -657,7 +661,7 @@ fn parse_profile(name: &str, raw: &Object, known: &BTreeSet<String>) -> Result<D
             Some(clients)
         }
     };
-    Ok(DelegationProfile { name: name.to_string(), description, models, pin, ladder, distinct_families, exclude_writer_family, tools, max_spend_usd, unenforced_clients, tier })
+    Ok(DelegationProfile { name: name.to_string(), description, models, pin, ladder, distinct_families, exclude_writer_family, tools, max_spend_usd, unenforced_clients, tier, key_models })
 }
 
 /// The tool scope: every kind is deny-all unless the profile lists it (or says `any`).

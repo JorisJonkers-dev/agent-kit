@@ -142,8 +142,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"profile tier-strong-open has no allowed model: none of its 1 models is both usable now and permitted by the data policy (no repository: only inline content, to subsidised and metered-personal clients)\"}\n",
-      "stderr": "model-gateway run: profile tier-strong-open has no allowed model: none of its 1 models is both usable now and permitted by the data policy (no repository: only inline content, to subsidised and metered-personal clients)\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"tier-key-missing\",\"message\":\"no LiteLLM key for tier-strong-open on this machine: Pi's models.json has no litellm-tier-strong-open provider, and the tier needs a key holding tier-strong-open, vibe-tier, opencode-go-tier; a tier no workstation key calls (an escalation tier) is run only once such a key is provisioned\"}\n",
+      "stderr": "model-gateway run: no LiteLLM key for tier-strong-open on this machine: Pi's models.json has no litellm-tier-strong-open provider, and the tier needs a key holding tier-strong-open, vibe-tier, opencode-go-tier; a tier no workstation key calls (an escalation tier) is run only once such a key is provisioned\n",
       "files": {
         "home/": null,
         "home/.pi/": null,

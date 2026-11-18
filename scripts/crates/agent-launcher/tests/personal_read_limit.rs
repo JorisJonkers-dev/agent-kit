@@ -191,7 +191,7 @@ fn a_personal_instance_launch_cannot_read_the_employer_root_at_any_reach_level()
 fn a_work_instance_agent_still_reads_the_employer_root() {
     let f = fixture("work", OVERLAY);
     let probe = format!("r:{}", f.employer.join("secret.txt").display());
-    let out = run(&f, "claude-work-read", &[probe.clone()]);
+    let out = run(&f, "claude-work-read", std::slice::from_ref(&probe));
     assert!(out.status.success(), "{}", say(&out));
     assert_eq!(outcomes(&out), [format!("ok {probe}")]);
     let _ = fs::remove_dir_all(&f.base);

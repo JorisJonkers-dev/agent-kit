@@ -154,8 +154,12 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   one, `claude`, `codex`, `agy` and `vibe` themselves) and runs the cheapest. A
   harness with none (hermes has no model configured) is `profile-refused` with
   the models that are left. Only Pi enforces a scope: a profile lists in
-  `unenforced_clients` the other clients it accepts on the strength of their own
-  read-only launch, and a client it does not list is refused as before.
+  `unenforced_clients` the other clients whose launch restrictions it accepts
+  (read-only flags or agent, no MCP, a per-run home for OpenCode and Hermes), and
+  a client it does not list is refused as before. Listing a client is not OS
+  confinement: until `agent-launcher confine` wraps it (#903), a client's own
+  read-only launch does not stop it reading or writing outside its working
+  directory.
   `scripts/crates/model-gateway/src/harness.rs` holds the choice; the
   `run-roles` scenario holds the goldens.
 - **Tiers are profiles too, rendered from litellm (#905).** A LiteLLM tier
@@ -171,7 +175,7 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   key of the route that holds it (`tier-free` uses the `free` key). An unknown
   tier is `unknown-tier`, never a default, and a tier is not combined with a
   profile, harness, client or model. `tier-strong-open` is an escalation tier
-  with no workstation key, so a run on it is refused until a key is provisioned.
+  with no workstation key, so a run on it is refused with `tier-key-missing`, naming the provider and the key models it needs, until a key is provisioned.
   The `run-tier` scenario holds the goldens.
 - **Every run writes its routing (#906).** The run's one ledger line carries
   `tier` (the LiteLLM tier its profile is, else `null`), `harness` (the client's
@@ -195,7 +199,18 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
 - **`matrix` proves them (#856).** `model-gateway matrix` runs each role on each
   harness once and judges the cells against `docs/model-gateway/harness-matrix.json`;
   the stub proof is the `matrix-stub` scenario in CI, `{"live": true}` is the owner's
-  machine, and `docs/model-gateway/harness-matrix.md` is the table.
+  machine, and `docs/model-gateway/harness-matrix.md` is the table. Each harness also
+  gets an escape probe (#903, the `matrix-escape` scenario): a read-only delegate asked
+  to write a canary outside its directory, read `~` and list its MCP servers; the cell
+  fails when the canary exists or a home MCP server is reachable.
+- **Per-run homes and no MCP by default (#903).** OpenCode, and Hermes on a LiteLLM
+  route, run in `<run dir>/client-home` (`HOME`, `XDG_*`, `OPENCODE_CONFIG`,
+  `HERMES_HOME`), which holds only the provider the run needs and is removed after
+  it (OpenCode's own providers keep the owner's `XDG_DATA_HOME`, where their sign-in is); read-only OpenCode gets a config that denies shell, edit, subagent, execute and
+  external directories. Every other client is closed against MCP by a flag
+  (`--strict-mcp-config`, `--ignore-user-config`, `mcp(*)` denied, `VIBE_ENABLE_MCP`).
+  Claude Code, Codex, Antigravity and Vibe keep their own home, which holds their
+  sign-in. `scripts/crates/model-gateway/src/run_home.rs` holds the homes.
 - **A failing delegation stays inside its profile**: the retry, the climb and
   the fall-through are cut to the profile's models.
 - **Not yet:** Gold Band agent ids per profile (#784), and spend enforcement

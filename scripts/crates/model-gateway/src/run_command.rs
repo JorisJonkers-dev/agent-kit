@@ -420,7 +420,7 @@ impl RunCommand<'_> {
             self.runtime.clock.now_ms(),
             config.settings.plan_warning_ratio,
         );
-        result.warnings = warnings_of(&input.client, &windows);
+        result.warnings.extend(warnings_of(&input.client, &windows));
         let text = format!("{}\n", json::pretty(&result.to_json()));
         self.runtime.files.write_text(&join(&[&run_dir, "result.json"]), &text).map_err(GatewayError::from_fs)?;
         Ok(result)
@@ -661,7 +661,7 @@ impl RunCommand<'_> {
         files.write_text(&join(&[run.run_dir, "input.json"]), &input_text).map_err(GatewayError::from_fs)?;
         let scope = run_scope(run.config, input.profile.as_deref(), input.narrow.as_ref());
         let tiered = input.profile.as_deref().and_then(|name| run.config.profiles.get(name)).is_some_and(|profile| profile.tier.is_some());
-        let (result, output, failure, routing) = self.launch(run.binary, input, &paths, &prompt, scope.as_ref(), tiered);
+        let (result, output, failure, launch_warnings, routing) = self.launch(run.binary, input, &paths, &prompt, scope.as_ref(), tiered);
         let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: result.stderr.clone() };
         let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
         let delegate_reason = failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report)));
@@ -702,7 +702,7 @@ impl RunCommand<'_> {
             attempt: None,
             attempt_of: None,
             cleanup_warning: None,
-            warnings: Vec::new(),
+            warnings: launch_warnings,
             routing,
         })
     }
@@ -711,7 +711,7 @@ impl RunCommand<'_> {
     /// delegating on. A launch that cannot start at all is a failed run, not an error: the caller still gets a
     /// result and a ledger line. The failure is the reason the run carries. A tier run on Pi goes through the
     /// recording proxy, so the routing LiteLLM reports in its headers is known; any other run's routing is unseen.
-    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str, scope: Option<&ToolScope>, tiered: bool) -> (ProcessResult, ClientOutput, Option<String>, Routing) {
+    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str, scope: Option<&ToolScope>, tiered: bool) -> (ProcessResult, ClientOutput, Option<String>, Vec<String>, Routing) {
         let client = RunClient::parse(&input.client);
         let go = |env: &std::collections::HashMap<String, String>| {
             client.ok_or_else(|| ClientRunError::Spawn(format!("{} is not a client a run can launch", input.client))).and_then(|client| {
@@ -740,11 +740,11 @@ impl RunCommand<'_> {
             _ => (go(&self.runtime.env), Routing::unseen(&input.client)),
         };
         match launched {
-            Ok(outcome) => (outcome.result, outcome.output, None, routing),
+            Ok(outcome) => (outcome.result, outcome.output, None, outcome.warnings, routing),
             Err(error) => {
                 let (ClientRunError::Gateway(GatewayError { message, .. }) | ClientRunError::Spawn(message)) = error;
                 let output = ClientOutput { answer: None, tokens: NO_TOKENS, charged: None, failure: None, error: None };
-                (ProcessResult { stdout: String::new(), stderr: message, exit_code: 1, timed_out: false }, output, Some("launch-failed".to_string()), routing)
+                (ProcessResult { stdout: String::new(), stderr: message, exit_code: 1, timed_out: false }, output, Some("launch-failed".to_string()), Vec::new(), routing)
             }
         }
     }
@@ -817,7 +817,7 @@ fn held_to(input: &RunInput, reservation: Option<&Reservation>) -> RunInput {
 }
 
 /// The directory temporary directories go in: `TMPDIR`, else `TMP`, else `TEMP`, else `/tmp`, as Node's `os.tmpdir()`.
-fn temp_root(env: &std::collections::HashMap<String, String>) -> String {
+pub(crate) fn temp_root(env: &std::collections::HashMap<String, String>) -> String {
     for name in ["TMPDIR", "TMP", "TEMP"] {
         if let Some(dir) = env.get(name).filter(|dir| !dir.is_empty()) {
             let trimmed = dir.trim_end_matches('/');

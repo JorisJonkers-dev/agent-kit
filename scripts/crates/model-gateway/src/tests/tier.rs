@@ -21,7 +21,7 @@ fn defaults(profiles: &str) -> String {
     )
 }
 
-const TIERED: &str = r#"{"tier-free": {"description": "d", "models": ["pi-free:tier-free"], "tier": "tier-free"}, "other": {"description": "d", "models": ["pi-free:tier-free"]}}"#;
+const TIERED: &str = r#"{"tier-free": {"description": "d", "models": ["pi-free:tier-free"], "tier": "tier-free", "key_models": ["free", "tier-free"]}, "other": {"description": "d", "models": ["pi-free:tier-free"]}}"#;
 
 fn input(text: &str) -> Object {
     match parse(text).expect("JSON") {
@@ -72,4 +72,23 @@ fn a_tier_profile_is_listed_with_its_tier_and_must_be_named_for_it() {
     let wrong = r#"{"tier-free": {"description": "d", "models": ["pi-free:tier-free"], "tier": "tier-vibe"}}"#;
     let refused = parse_defaults(&parse(&defaults(wrong)).expect("JSON")).expect_err("refused");
     assert_eq!(refused.message, "profiles.tier-free.tier must be the profile's own name: a tier profile is named for the tier");
+}
+
+#[test]
+fn a_tier_whose_provider_this_machines_pi_lacks_is_refused_naming_the_key_it_needs() {
+    let machine = Machine::new(&defaults(TIERED));
+    let models = format!("{}/home/.pi/agent/models.json", machine.sandbox.text());
+    // No readable models.json says nothing: the launch reports its own refusal.
+    assert!(chosen(&machine, r#"{"tier":"tier-free"}"#).is_ok());
+    machine.write_at(&models, r#"{"providers":{"litellm-vibe":{}}}"#);
+    let refused = chosen(&machine, r#"{"tier":"tier-free"}"#).expect_err("no key");
+    assert!(refused.starts_with("tier-key-missing: no LiteLLM key for tier-free on this machine"), "{refused}");
+    assert!(refused.contains("no litellm-free provider") && refused.contains("holding free, tier-free"), "{refused}");
+    machine.write_at(&models, r#"{"providers":{"litellm-free":{}}}"#);
+    assert!(chosen(&machine, r#"{"tier":"tier-free"}"#).is_ok());
+    // A profile that states no key_models is refused without them.
+    let bare = Machine::new(&defaults(&TIERED.replace(r#", "key_models": ["free", "tier-free"]"#, "")));
+    bare.write_at(&format!("{}/home/.pi/agent/models.json", bare.sandbox.text()), r#"{"providers":{}}"#);
+    assert!(chosen(&bare, r#"{"tier":"tier-free"}"#).expect_err("no key").contains("and the tier needs a key;"));
+    assert_eq!(parse_defaults(&parse(&defaults(TIERED)).expect("JSON")).expect("config").profiles["tier-free"].key_models, Some(vec!["free".to_string(), "tier-free".to_string()]));
 }

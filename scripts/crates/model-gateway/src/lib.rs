@@ -52,6 +52,7 @@ pub mod proof;
 pub mod routing;
 pub mod run;
 pub mod run_command;
+pub mod run_home;
 pub mod sha256;
 pub mod slots;
 pub mod sources;

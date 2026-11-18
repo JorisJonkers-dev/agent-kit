@@ -64,7 +64,8 @@ def test_the_render_check_covers_the_profiles_section():
 def test_the_section_is_added_before_settings_when_the_defaults_have_none():
     without = delegation_profiles.PROFILES_BLOCK.sub("", DEFAULTS.read_text())
     assert '"profiles"' not in without
-    assert delegation_profiles.render_defaults(_registry(), without, render_registry._tier_profiles()) == DEFAULTS.read_text()
+    tiers = render_registry._tier_profiles()
+    assert delegation_profiles.render_defaults(_registry(), without, tiers) == DEFAULTS.read_text()
     with pytest.raises(delegation_profiles.ProfilesError, match="no settings section"):
         delegation_profiles.render_defaults(_registry(), "{}")
 

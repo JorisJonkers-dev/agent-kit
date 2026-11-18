@@ -12,9 +12,23 @@ enum Fake {
     Refuses,
     Fine,
     ArmFails,
+    /// Starts the command through a wrapper that does not exist, as `sandbox-exec` would.
+    Wrapped,
 }
 
 struct Armer(bool);
+
+struct Wrapper;
+
+impl Arm for Wrapper {
+    fn arm(&self) -> io::Result<()> {
+        Ok(())
+    }
+
+    fn prefix(&self) -> Vec<OsString> {
+        args(&["/nonexistent/agent-launcher-wrapper", "-p", "profile"])
+    }
+}
 
 impl Arm for Armer {
     fn arm(&self) -> io::Result<()> {
@@ -32,6 +46,7 @@ impl WriteLimit for Fake {
             Fake::Refuses => Err("no backend here".into()),
             Fake::Fine => Ok(Box::new(Armer(false))),
             Fake::ArmFails => Ok(Box::new(Armer(true))),
+            Fake::Wrapped => Ok(Box::new(Wrapper)),
         }
     }
 }
@@ -85,6 +100,8 @@ fn the_policy_adds_the_system_runtime_and_devices_that_exist() {
     assert_eq!(reads.run.last(), Some(&PathBuf::from("/r")));
     assert!(reads.read.iter().chain(&reads.run).filter(|p| !p.starts_with("/p") && !p.starts_with("/r")).all(|p| p.exists()));
     assert!(reads.read.contains(&PathBuf::from("/dev/urandom")));
+    // The macOS runtime is held where it exists, and never listed where it does not.
+    assert_eq!(reads.run.contains(&PathBuf::from("/System")), Path::new("/System").exists());
     assert!(!reads.read.iter().chain(&reads.run).any(|p| p.starts_with("/proc") || p.starts_with("/sys")));
     assert_eq!((policy.dirs, policy.files, policy.connect_ports), (vec![PathBuf::from("/w")], vec![PathBuf::from("/dev/null")], None));
 }
@@ -115,6 +132,21 @@ fn a_command_that_cannot_be_started_or_armed_is_refused() {
     // The hook closes descriptors from the one given up, so a far one keeps this process's own.
     assert_eq!(confine_from(&args(&["--", "/nonexistent/agent-launcher-cmd"]), &Fake::Fine, 1 << 20), REFUSED);
     assert_eq!(confine(&args(&["--", "/bin/sh", "-c", "exit 0"]), &Fake::ArmFails), REFUSED);
+    // A backend that starts the command through a wrapper (sandbox-exec) is refused the same way when that cannot start.
+    assert_eq!(confine_from(&args(&["--", "/bin/sh", "-c", "exit 0"]), &Fake::Wrapped, 1 << 20), REFUSED);
+}
+
+#[test]
+fn the_command_a_wrapper_gets_is_found_on_path_with_its_links_resolved() {
+    let root = scratch("resolved");
+    let real = file(&root.join("real/tool"), "#!/bin/sh\n", 0o755);
+    fs::create_dir_all(root.join("bin")).unwrap();
+    std::os::unix::fs::symlink(&real, root.join("bin/tool")).unwrap();
+    let env = env_with(&[&root.join("bin")], None);
+    assert_eq!(resolved(OsStr::new("tool"), &env), real.into_os_string());
+    // A path is resolved too, and a name that is nowhere is left for the program to report.
+    assert_eq!(resolved(root.join("bin/tool").as_os_str(), &env), root.join("real/tool").into_os_string());
+    assert_eq!(resolved(OsStr::new("no-such-tool"), &env), OsString::from("no-such-tool"));
 }
 
 fn scratch(name: &str) -> PathBuf {
@@ -252,6 +284,20 @@ fn descriptors_from_the_given_one_up_are_closed_after_the_confinement_is_on() {
     assert!(own(kept));
     // SAFETY: closes the descriptor made above.
     unsafe { libc::close(kept) };
+    // A descriptor far above any fixed bound is closed too (macOS used to stop at 65535).
+    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    // SAFETY: reads and raises this process's soft limit for descriptors to make room for a high one.
+    unsafe {
+        libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit);
+        limit.rlim_cur = limit.rlim_max.min(200_000);
+        libc::setrlimit(libc::RLIMIT_NOFILE, &limit);
+    }
+    // SAFETY: as above, to a descriptor past 65536.
+    let far = unsafe { libc::fcntl(0, libc::F_DUPFD, 70_000) };
+    if far >= 70_000 {
+        assert!(confine_hook(Box::new(Armer(false)), 900)().is_ok());
+        assert!(!own(far));
+    }
     #[cfg(target_os = "linux")]
     assert_eq!(close_range(5, 3).unwrap_err().raw_os_error(), Some(libc::EINVAL));
 }

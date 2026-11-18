@@ -74,7 +74,7 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": { "type": "string", "pattern": "^[a-z0-9]+$" },
-          "description": "Non-Pi clients the profile may run on although the gateway cannot enforce its tool scope there; the client's own read-only launch stands in for it."
+          "description": "Non-Pi clients the profile may run on although the gateway cannot enforce its tool scope there; the gateway's launch restrictions (read-only flags or agent, no MCP, a per-run home for OpenCode and Hermes) are accepted for it. It is not OS confinement."
         },
         "max_spend_usd": {
           "type": "number",

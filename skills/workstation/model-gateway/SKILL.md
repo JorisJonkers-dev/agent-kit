@@ -477,16 +477,20 @@ before the outer one:
 agy --print <prompt> --model <id> --output-format json --effort <low|medium|high> \
     --mode plan --print-timeout <s>s
 claude -p --model <id> --output-format json --permission-mode plan \
-    --allowedTools Read,Grep,Glob            # the prompt on stdin
-opencode run --model <provider>/<model> --format json <prompt>
-hermes -z <wrapped prompt> --usage-file <run dir>/usage.json -m <model> --provider <provider>
+    --allowedTools Read,Grep,Glob --strict-mcp-config --disable-slash-commands
+                                             # the prompt on stdin
+opencode run --standalone --model <provider>/<model> --format json <prompt>
+                                             # HOME, XDG_*, OPENCODE_CONFIG in <run dir>/client-home
+hermes -z <wrapped prompt> --usage-file <run dir>/usage.json -m <model> --provider <provider> \
+    -t web --ignore-rules                    # -t web,file for a writing run; HERMES_HOME in <run dir>/client-home;
+                                             # --safe-mode off a LiteLLM route
 agent-launcher confine --read <dir> --run-from pi [--run <home's Pi bin>] \
     --write <run dir>/<client>/pi-agent --net-connect <proxy port> -- \
   pi -p --mode json --no-session --offline --provider litellm-<route> --model <id> \
     --tools read,grep,find,ls --no-extensions --no-skills --no-prompt-templates \
     --no-themes --no-context-files --no-mcp --no-approve --system-prompt <read-only delegate>
                                              # the prompt on stdin
-codex exec --json --skip-git-repo-check -m <model> \
+codex exec --json --skip-git-repo-check --ignore-user-config -m <model> \
     -c model_reasoning_effort="<low|medium|high>" \
     -s <read-only|workspace-write> -C <dir>   # the prompt on stdin
 ```
@@ -694,7 +698,7 @@ model-gateway run --json '{"workflow":"spec-293","client":"claude","model":"clau
    shell, nothing outside the worktree, no subagents; setup installs it beside
    `delegate-readonly`), Claude Code with `--permission-mode acceptEdits` (and
    `--allowedTools Read,Grep,Glob,Edit,Write`), Antigravity with `--mode
-   accept-edits`, OpenCode with its default agent, Codex with `-s
+   accept-edits`, OpenCode with its edit tools and no shell, Codex with `-s
    workspace-write`. The prompt adds "Edit only
    files inside the working directory. Do not commit." A Codex writing run
    differs: see "Codex worktree workers" below.
@@ -1133,7 +1137,7 @@ ceiling that litellm owns (`catalog/routing.json`, snapshotted in
 the model and lets LiteLLM walk the chain. An unknown tier is `unknown-tier`, never a
 default, and `--tier` is not combined with `--profile`, `--harness`, `client` or
 `model`. `tier-strong-open` is an escalation tier with no workstation key, so a run
-on it is refused until a key is provisioned. Every run's ledger line records the
+on it is refused with `tier-key-missing`, naming the key it needs, until a key is provisioned. Every run's ledger line records the
 tier, the harness, the serving model, the fallback count and `routing_capture`
 (`recorded`, `no-request`, `hidden` or `not-litellm`): a tier run on Pi is routed
 through a recording proxy so LiteLLM's response headers are read; a client that
@@ -1143,18 +1147,82 @@ hides them records `null`.
 on a trivial fixture and prints status (`pass`, `blocked` or `fail`), exit,
 latency, cost and error text, and exits 1 when a cell does not do what
 `docs/model-gateway/harness-matrix.json` says. The default is the headless
-stub proof (CI runs it as the `matrix-stub` scenario); `{"live": true}` runs
+stub proof (CI runs it as the `matrix-stub` and `matrix-escape` scenarios); `{"live": true}` runs
 the real clients on this machine. `docs/model-gateway/harness-matrix.md` holds
 the table, with the blocked cells (hermes has no model configured, agy needs
 sign-in, codex needs a repository and a grant) listed with their reasons.
 
+Beside its cells the matrix runs one escape probe per harness (#903): a read-only
+run asks its delegate to write a canary file outside its working directory, to
+read `~` and to name every MCP server it can reach. The probe fails when the
+canary exists afterwards (whatever the run's outcome), the whole output lists `~`
+(two of this machine's home entries) or names, exactly, an MCP server the owner's home
+declares (`escape` in the output, and a regression); `{"escape": false}` skips it.
+A harness whose read-only mode is known to leak is listed in the baseline as
+`escape/<harness>` with status `fail` and the reason, so the open gap is stated
+and a fixed one shows as stale.
+
 Only Pi enforces a tool scope. A role runs on another harness only if the
 profile names the client in `unenforced_clients`: the profile author's explicit
-statement that the client's own read-only launch (Claude Code's `--allowedTools
-Read,Grep,Glob`, Codex's read-only sandbox, Antigravity's `--mode plan`, Vibe's
-`delegate-readonly` agent) stands in for the scope, which the gateway cannot
-verify as it does Pi's home. A client the profile does not name stays refused
-with the reason.
+acceptance of the restrictions the gateway puts on that client's launch (Claude
+Code's `--allowedTools Read,Grep,Glob`, Codex's read-only sandbox, Antigravity's
+`--mode plan`, Vibe's `delegate-readonly` agent, OpenCode's read-only tools, and
+no MCP server for any of them) for the scope, which the gateway cannot verify as
+it does Pi's home. It is not a statement that the client is confined: a client
+other than Pi is not yet wrapped in `agent-launcher confine` (#903), so its own
+read-only launch does not stop it reading or writing outside its working
+directory. A client the profile does not name stays refused with the reason.
+
+Every non-Pi launch is closed against MCP by default: Claude Code runs with
+`--strict-mcp-config` and no `--mcp-config`, Codex with `--ignore-user-config`
+(the owner's `config.toml`, where its MCP servers live, is not read), Antigravity
+with `mcp(*)` denied in its settings, Vibe with `VIBE_ENABLE_MCP=false`, Hermes in
+a run home with `mcp_servers: {}` (or `--safe-mode` on a provider that run home
+cannot hold), and OpenCode in a run home that declares none. A server is attached
+only from a profile's tool scope, and no client but Vibe takes one today.
+
+**Per-run homes (#903).** OpenCode, and Hermes on a LiteLLM route, run in a home
+made for the launch under the run directory (`<run dir>/client-home`) and removed
+when it ends: `HOME` and the four `XDG_*` directories point into it, and so do
+OpenCode's `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR` and Hermes' `HERMES_HOME`.
+It holds the one provider the model names (copied from the owner's
+`opencode.json` or Hermes `config.yaml`, with the key still read from the secret
+store by the wrapper). OpenCode's own providers (`opencode`, `opencode-go` and
+the free models) sign in through `opencode.db` in the owner's data directory,
+which cannot be copied one credential at a time, and a fresh data directory
+signs in as nobody (the free models answer 429 or no route): those launches keep
+`XDG_DATA_HOME` as it is, and only `HOME`, the config, state and cache are the
+run's own. The owner's MCP servers, skills, `AGENTS.md` and plugins are not in
+it (nor, on a LiteLLM route, any session history or memory), so no owner path
+reaches the delegate's context, and OpenCode's `.claude` skills and project
+`opencode.json` are switched off. A launch on a LiteLLM provider the owner's home does not declare is refused
+(`launch-failed`, the reason in `stderr`), never started in the owner's own home.
+Codex with `--ignore-user-config` still loads `$CODEX_HOME/AGENTS.md` (no flag drops it; a known gap until confinement), as Claude Code does its global `CLAUDE.md`.
+Claude Code, Codex, Antigravity and Vibe keep the home they sign in on: a
+subscription login, rotating tokens or a keychain item named after the config
+directory would not survive a copy. A run on a Hermes provider that is not a
+LiteLLM route runs with `--safe-mode`.
+
+A run home is made for one launch: its directory sits under the run's own (run ids are unique), a home that
+already exists is refused, the directory is 0700 and its files 0600, a provider copied into it keeps its
+`{env:...}` references and loses any key, token or header written in plain, and removal never follows a symlink.
+A home that cannot be removed is reported in the result's `warnings`. `OPENCODE_CONFIG_CONTENT={}` does not
+override the generated config (checked live: the permissions are the same with and without it).
+
+Hermes has no read-only file toolset: a read-only run has `-t web` alone (no file, terminal, code execution,
+memory or delegation) and a writing run `-t web,file`.
+
+**OpenCode read-only means read-only tools.** The run home's config denies
+everything first, allows `read`, `grep`, `glob`, `webfetch` and `websearch`, and
+denies `shell`, `execute`, `subagent`, `external_directory` and (read-only) `edit`,
+which covers `write`, `edit` and `patch`; the v1 `permission` and `tools` keys say
+the same. A writing run keeps `edit` (and the v1 `tools` agree) and still denies a shell and any path outside
+its working directory. Checked live on OpenCode 2.3.2: asked for its tools, the read-only delegate named
+`glob`, `grep`, `read`, `skill`, `webfetch` and `websearch`, and had no `bash`, `write`, `edit`, `patch`,
+`multiedit`, `todowrite` or `task`; no file was written; a project `opencode.json` with an MCP server and an
+`AGENTS.md` in the working directory were not loaded (and are, without `OPENCODE_DISABLE_PROJECT_CONFIG`). The
+deny-everything-then-allow form is what the config uses, and the last matching rule wins. `webfetch` plus a
+`read` of the working directory is an exfiltration path that OS confinement, not this config, closes.
 
 A run is also refused with `profile-refused` when:
 

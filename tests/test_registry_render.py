@@ -1282,7 +1282,8 @@ def test_every_public_only_group_is_held_by_public_keys_only() -> None:
     for route in routes:
         holds_public = bool(set(route["models"]) & set(render_registry.LITELLM_PUBLIC_GROUPS))
         assert holds_public == (route["data_scope"] == "public"), route["agent"]
-    assert sorted(r["agent"] for r in routes if r["data_scope"] == "public") == ["free", "openrouter", "public", "tier-review"]
+    public = sorted(r["agent"] for r in routes if r["data_scope"] == "public")
+    assert public == ["free", "openrouter", "public", "tier-review"]
 
 
 def test_the_free_route_key_is_minted_unexported() -> None:

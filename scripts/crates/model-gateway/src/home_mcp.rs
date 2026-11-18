@@ -35,3 +35,36 @@ fn names_of(servers: &Value) -> Vec<String> {
         single => name(single).into_iter().collect(),
     }
 }
+
+/// The names of every MCP server a client's home declares, for the matrix's escape probe: OpenCode's
+/// `opencode.json`, Hermes' `config.yaml`, Codex's `config.toml` and Vibe's `config.toml`. A file that is not
+/// there or does not parse declares none; this reads, it never refuses.
+pub fn declared_servers(files: &dyn Files, env: &HashMap<String, String>) -> Vec<String> {
+    let home = env.get("HOME").map_or("", String::as_str);
+    let read = |path: String| files.read_text(&path).ok();
+    let mut names: Vec<String> = Vec::new();
+    let config = env.get("XDG_CONFIG_HOME").filter(|dir| !dir.is_empty()).cloned().unwrap_or_else(|| join(&[home, ".config"]));
+    if let Some(Value::Obj(document)) = read(join(&[&config, "opencode", "opencode.json"])).and_then(|text| crate::json::parse(&text).ok()) {
+        if let Some(Value::Obj(mcp)) = document.get("mcp") {
+            let servers = match mcp.get("servers") {
+                Some(Value::Obj(servers)) => servers,
+                _ => mcp,
+            };
+            names.extend(servers.entries().into_iter().map(|(name, _)| name.to_string()));
+        }
+    }
+    let hermes = env.get("HERMES_HOME").filter(|dir| !dir.is_empty()).cloned().unwrap_or_else(|| join(&[home, ".hermes"]));
+    if let Some(text) = read(join(&[&hermes, "config.yaml"])) {
+        names.extend(crate::run_home::yaml_children(&text, "mcp_servers"));
+    }
+    let codex = env.get("CODEX_HOME").filter(|dir| !dir.is_empty()).cloned().unwrap_or_else(|| join(&[home, ".codex"]));
+    if let Some(Value::Obj(document)) = read(join(&[&codex, "config.toml"])).and_then(|text| read_toml(&text).ok()) {
+        if let Some(Value::Obj(servers)) = document.get("mcp_servers") {
+            names.extend(servers.entries().into_iter().map(|(name, _)| name.to_string()));
+        }
+    }
+    names.extend(home_mcp_servers(files, env).unwrap_or_default());
+    names.sort();
+    names.dedup();
+    names
+}
