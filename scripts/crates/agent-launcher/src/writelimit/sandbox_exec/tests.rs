@@ -215,7 +215,7 @@ fn a_profile_sandbox_exec_rejects_is_refused_with_its_message() {
     let _held = fake_exe::lock();
     let message = backend.prepare(&policy(&root)).err().unwrap();
     assert!(
-        message.contains("cannot apply the write limit") && message.contains("unknown operation"),
+        message.contains("cannot apply the profile") && message.contains("unknown operation"),
         "{message}"
     );
 }
@@ -307,13 +307,194 @@ fn an_employer_root_that_cannot_be_resolved_is_refused() {
     assert!(profile(&policy).unwrap_err().contains("cannot resolve"));
 }
 
-#[test]
-fn a_confinement_is_refused_until_it_is_proven_on_macos() {
-    for policy in [
-        Policy { reads: Some(crate::Reads::default()), ..Policy::default() },
-        Policy { connect_ports: Some(vec![443]), ..Policy::default() },
-    ] {
-        let message = SandboxExec::system().prepare(&policy).err().unwrap();
-        assert!(message.contains("not built for sandbox-exec"), "{message}");
+fn confined(root: &Path, ports: Option<Vec<u16>>) -> Policy {
+    for d in ["read", "run", "write"] {
+        fs::create_dir_all(root.join(d)).unwrap();
     }
+    fs::write(root.join("dev"), "").unwrap();
+    Policy {
+        dirs: vec![root.join("write")],
+        files: vec![root.join("dev")],
+        reads: Some(Reads {
+            read: vec![root.join("read")],
+            run: vec![root.join("run")],
+        }),
+        connect_ports: ports,
+        ..Policy::default()
+    }
+}
+
+/// The parameters named with `prefix`, in order.
+fn values(p: &Profile, prefix: char) -> Vec<&PathBuf> {
+    p.params.iter().filter(|(n, _)| n.starts_with(prefix)).map(|(_, v)| v).collect()
+}
+
+#[test]
+fn a_confinement_denies_everything_and_grants_reads_runs_writes_and_ports() {
+    let root = scratch("confined");
+    let p = profile(&confined(&root, Some(vec![443, 8080]))).unwrap();
+    assert!(p.text.starts_with("(version 1)\n(deny default)\n"), "{}", p.text);
+    assert!(!p.text.contains("(allow default)"), "{}", p.text);
+    // Reads and runs are separate grants: only a run grant may be executed or mapped.
+    assert!(p.text.contains("(allow file-read*\n  (subpath (param \"P0\"))\n)\n"), "{}", p.text);
+    assert!(
+        p.text.contains("(allow file-read* file-map-executable process-exec\n  (subpath (param \"Q0\"))\n)\n"),
+        "{}",
+        p.text
+    );
+    assert!(
+        p.text.contains("(allow file-read* file-write*\n  (subpath (param \"D0\"))\n  (literal (param \"F0\"))\n)\n"),
+        "{}",
+        p.text
+    );
+    assert_eq!(values(&p, 'P'), [&root.join("read")]);
+    assert_eq!(values(&p, 'Q'), [&root.join("run")]);
+    assert_eq!(values(&p, 'D'), [&root.join("write")]);
+    // The network: the listed ports to any host, the resolver socket, and nothing else.
+    assert!(p.text.contains("(allow network-outbound (remote tcp \"*:443\"))\n"), "{}", p.text);
+    assert!(p.text.contains("(allow network-outbound (remote tcp \"*:8080\"))\n"), "{}", p.text);
+    assert!(
+        p.text.contains("(allow network-outbound (remote unix-socket (path-literal \"/private/var/run/mDNSResponder\")))\n"),
+        "{}",
+        p.text
+    );
+    assert!(!p.text.contains("(allow network*)") && !p.text.contains("network-bind"), "{}", p.text);
+    // Hard links are denied, as in the write limit, and the denial comes last.
+    assert!(p.text.ends_with("(deny file-link)\n"), "{}", p.text);
+    // No path is quoted into the profile.
+    assert!(!p.text.contains(root.to_str().unwrap()));
+}
+
+#[test]
+fn without_a_port_list_the_network_is_left_alone() {
+    let root = scratch("confined-net");
+    let p = profile(&confined(&root, None)).unwrap();
+    assert!(p.text.contains("(allow network*)\n") && !p.text.contains("remote tcp"), "{}", p.text);
+}
+
+#[test]
+fn the_runtime_rules_are_the_traced_set_and_nothing_wider() {
+    for rule in [
+        "(allow file-read-data (literal \"/\"))",
+        "(allow sysctl-read)",
+        "(allow process-fork)",
+        "(allow signal (target self))",
+        "(allow mach-lookup (global-name \"com.apple.trustd.agent\"))",
+    ] {
+        assert!(RUNTIME_RULES.contains(rule), "{rule}");
+    }
+    // Reads of the home directory, a bind and a wildcard Mach lookup are never part of it.
+    for wider in ["file-read*", "network", "(allow mach-lookup)", "process-exec", "file-write"] {
+        assert!(!RUNTIME_RULES.contains(wider), "{wider}");
+    }
+}
+
+#[test]
+fn every_ancestor_of_a_grant_may_be_stat_but_not_read() {
+    let root = scratch("ancestors");
+    let p = profile(&confined(&root, None)).unwrap();
+    let ancestors = values(&p, 'A');
+    // A runtime walks each ancestor to resolve a path (Node's realpath); each is listed once.
+    assert!(ancestors.contains(&&root) && !ancestors.contains(&&root.join("read")), "{ancestors:?}");
+    let mut once = ancestors.clone();
+    once.dedup();
+    assert_eq!(once.len(), ancestors.len(), "{ancestors:?}");
+    assert!(ancestors.iter().all(|a| a.parent().is_some()), "the root is in the runtime rules, not here");
+    assert!(p.text.contains("(allow file-read-metadata\n  (literal (param \"A0\"))"), "{}", p.text);
+    // Only metadata: no ancestor is granted a read.
+    let granted_reads = p.text.split("(allow file-read*").count() - 1;
+    assert_eq!(granted_reads, 3, "{}", p.text);
+}
+
+#[test]
+fn a_grant_that_cannot_be_resolved_refuses_the_confinement() {
+    let root = scratch("confined-bad");
+    let mut policy = confined(&root, None);
+    policy.reads = Some(Reads { read: vec![root.join("nowhere")], run: vec![] });
+    assert!(profile(&policy).unwrap_err().contains("cannot resolve"));
+    policy.reads = Some(Reads { read: vec![], run: vec![root.join("nowhere")] });
+    assert!(profile(&policy).unwrap_err().contains("cannot resolve"));
+}
+
+#[test]
+fn the_standard_streams_that_are_files_may_be_stat_and_a_pipe_needs_nothing() {
+    // The test's own streams may be a pipe, a file or a terminal; whichever, every path found is absolute and listed once.
+    let paths = stdio_paths();
+    assert!(paths.iter().all(|p| p.is_absolute()), "{paths:?}");
+    let mut once = paths.clone();
+    once.dedup();
+    assert_eq!(once.len(), paths.len());
+    let root = scratch("stdio");
+    let p = profile(&confined(&root, None)).unwrap();
+    assert_eq!(values(&p, 'S'), paths.iter().collect::<Vec<_>>());
+    assert_eq!(p.text.contains("file-read-metadata file-ioctl"), !paths.is_empty());
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_standard_stream_that_is_a_file_is_found_by_its_path() {
+    use std::os::fd::AsRawFd;
+    let root = scratch("stdio-file");
+    let file = fs::File::create(root.join("out")).unwrap();
+    // SAFETY: duplicates the descriptor over stderr in a child-free test thread; restored below.
+    let saved = unsafe { libc::dup(2) };
+    assert!(unsafe { libc::dup2(file.as_raw_fd(), 2) } == 2);
+    let found = stdio_paths();
+    // SAFETY: puts stderr back.
+    unsafe { libc::dup2(saved, 2) };
+    unsafe { libc::close(saved) };
+    assert!(found.contains(&root.join("out")), "{found:?}");
+}
+
+#[test]
+fn the_probe_of_a_confinement_may_run_true_and_the_agents_profile_may_not() {
+    let root = scratch("probe");
+    let log = root.join("log");
+    let backend = fake(
+        &root,
+        "sandbox-exec",
+        &format!("#!/bin/sh\necho \"$@\" > {}\nexit 0\n", log.display()),
+    );
+    let _held = fake_exe::lock();
+    let armed = backend.prepare(&confined(&root, Some(vec![443]))).unwrap();
+    let probe = fs::read_to_string(&log).unwrap();
+    assert!(
+        probe.contains("(allow file-read* file-map-executable process-exec (literal \"/usr/bin/true\"))")
+            && probe.trim_end().ends_with("/usr/bin/true"),
+        "{probe}"
+    );
+    // The profile the agent gets is the one without that rule.
+    let prefix = armed.prefix();
+    assert!(!prefix[2].to_string_lossy().contains("/usr/bin/true"), "{:?}", prefix[2]);
+    assert!(prefix[2].to_string_lossy().contains("(deny default)"));
+}
+
+#[test]
+fn a_confinement_sandbox_exec_cannot_apply_is_refused_with_its_message() {
+    let root = scratch("confined-rejected");
+    let backend = fake(&root, "sandbox-exec", "#!/bin/sh\necho 'sandbox_apply: Operation not permitted' >&2\nexit 71\n");
+    let _held = fake_exe::lock();
+    let message = backend.prepare(&confined(&root, Some(vec![443]))).err().unwrap();
+    assert!(message.contains("cannot apply the profile") && message.contains("sandbox_apply"), "{message}");
+}
+
+#[test]
+fn a_port_limit_without_a_confinement_is_refused_not_dropped() {
+    let root = scratch("ports-only");
+    let backend = fake(&root, "sandbox-exec", "#!/bin/sh\nexit 0\n");
+    let _held = fake_exe::lock();
+    let mut policy = policy(&root);
+    policy.connect_ports = Some(vec![443]);
+    let message = backend.prepare(&policy).err().unwrap();
+    assert!(message.contains("--net-connect") && message.contains("confinement"), "{message}");
+}
+
+#[test]
+fn the_user_volume_and_the_swap_volume_are_denied_after_the_grants() {
+    let root = scratch("volumes");
+    let p = profile(&confined(&root, None)).unwrap();
+    let deny = "(deny file-read* file-map-executable process-exec\n  (subpath \"/System/Volumes/Data\")\n  (subpath \"/System/Volumes/VM\")\n)\n";
+    let at = p.text.find(deny).expect(&p.text);
+    assert!(at > p.text.find("(allow file-read* file-map-executable process-exec").unwrap());
+    assert!(at > p.text.find("(allow network*)").unwrap());
 }
