@@ -672,7 +672,7 @@ fn open_roster(runtime: &Runtime, routing: &Routing, request: &RosterRequest) ->
 /// alias in ladder order, none of the writer's family. A run that cannot have them is refused with what was passed over,
 /// and so is one whose key or confinement is not ready here: a launch that would only be turned away is never frozen.
 fn tier_roster(runtime: &Runtime, stage: &StageRouting, entry: &Entry, writer_family: &str) -> Result<Result<Roster, Value>, CritiqueError> {
-    use crate::tier_review::{cooled_models, resolve_roster, review_ladder, Request, MIN_FAMILIES, TIER};
+    use crate::tier_review::{cooled_models, passed_over, resolve_roster, review_ladder, Request, MIN_FAMILIES, TIER};
     let slots: Vec<RosterSlot> = stage.base.iter().chain(&stage.deep).cloned().collect();
     if slots.is_empty() {
         return Ok(Err(refusal("no-roster", "routing names no critics for this stage to give the tier-review reviewers their roles")));
@@ -681,7 +681,7 @@ fn tier_roster(runtime: &Runtime, stage: &StageRouting, entry: &Entry, writer_fa
     let request = Request { allowed_families: &entry.families, writer_family, public_repository: entry.public, cooled: &cooled, want: MIN_FAMILIES };
     let (roster, unplaced) = resolve_roster(&review_ladder()?, &slots, &request);
     if roster.critics.len() < MIN_FAMILIES {
-        let passed: Vec<String> = roster.dropped.iter().map(|dropped| format!("{} ({})", dropped.client, dropped.reason)).chain(unplaced.iter().map(|model| format!("{model} (no known family)"))).collect();
+        let passed = passed_over(&roster, &unplaced);
         let message = format!(
             "{TIER} resolved {} of {MIN_FAMILIES} families that are neither {writer_family} nor barred; passed over: {}",
             roster.critics.len(),
@@ -691,7 +691,7 @@ fn tier_roster(runtime: &Runtime, stage: &StageRouting, entry: &Entry, writer_fa
     }
     let ready = client_readiness(runtime, &roster.critics[0].client_config)?;
     if !ready.ready {
-        return Ok(Err(refusal("tier-not-ready", &ready.detail.unwrap_or_else(|| format!("{TIER} cannot run here")))));
+        return Ok(Err(refusal("tier-not-ready", &ready.detail.unwrap_or_default())));
     }
     Ok(Ok(roster))
 }

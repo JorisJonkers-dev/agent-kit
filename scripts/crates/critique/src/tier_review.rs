@@ -141,6 +141,13 @@ fn bar(step: &Step, family: &str, request: &Request<'_>) -> Option<(&'static str
     request.cooled.contains(&step.model).then(|| ("unavailable", Some("its last answer through the tier's key was a refusal that still stands".to_string())))
 }
 
+/// What a run that resolved too few families passed over: each dropped critic with its reason, then each step with no
+/// known family.
+pub fn passed_over(roster: &Roster, unplaced: &[String]) -> Vec<String> {
+    let dropped = roster.dropped.iter().map(|dropped| format!("{} ({})", dropped.client, dropped.reason));
+    dropped.chain(unplaced.iter().map(|model| format!("{model} (no known family)"))).collect()
+}
+
 /// The reviewers of one run: the first step of each of `request.want` families in ladder order, each with the slot (role,
 /// lenses, caps) of its place, cycling through `slots`, and the steps of other families as its fallbacks. A step with no
 /// known family is returned in the second part, since nothing says whether it may review.
