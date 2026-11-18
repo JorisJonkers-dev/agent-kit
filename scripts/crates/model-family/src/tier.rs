@@ -27,7 +27,7 @@ const PREFIX: &str = "tier-";
 /// The vendor of a step's model, by a word its id carries. The critique routing places the clients
 /// the critique pipeline runs; a tier's chain holds more models than those, so this table places
 /// the others. A model it does not place has no family, and no allowlist entry can vouch for it.
-const STEP_FAMILIES: [(&str, &str); 11] = [
+const STEP_FAMILIES: [(&str, &str); 13] = [
     ("deepseek", "deepseek"),
     ("glm", "zhipu"),
     ("mistral", "mistral"),
@@ -39,6 +39,8 @@ const STEP_FAMILIES: [(&str, &str); 11] = [
     ("minimax", "minimax"),
     ("mimo", "xiaomi"),
     ("longcat", "meituan"),
+    ("kimi", "moonshot"),
+    ("gpt-6", "openai"),
 ];
 
 /// A binding that names a tier: the tier, and what is wrong with the binding, if anything.
