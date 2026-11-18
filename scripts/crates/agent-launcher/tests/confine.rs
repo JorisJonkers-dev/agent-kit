@@ -301,3 +301,70 @@ fn the_home_directory_and_a_sibling_checkout_are_out_of_reach() {
     assert!(said.contains(&format!("unlisted {}", sibling.display())), "{said}");
     fs::remove_dir_all(&root).unwrap();
 }
+
+/// `/System` is granted whole and the user's volume is mounted under it; the home directory and a sibling checkout
+/// must not be readable through that prefix either.
+#[cfg(target_os = "macos")]
+#[test]
+fn the_data_volume_prefix_does_not_reach_the_home_directory_or_a_sibling() {
+    let root = scratch("firmlink");
+    let checkout = root.join("checkout");
+    let sibling = root.join("sibling");
+    fs::create_dir_all(&checkout).unwrap();
+    fs::create_dir_all(&sibling).unwrap();
+    fs::write(sibling.join("secret.txt"), "sibling").unwrap();
+    let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+    let through = |p: &Path| PathBuf::from("/System/Volumes/Data").join(p.strip_prefix("/").unwrap());
+    let mut paths = vec![through(&sibling.join("secret.txt"))];
+    // Any regular file in the home directory (not listed or read in the output).
+    if let Some(file) = fs::read_dir(&home).unwrap().filter_map(|e| e.ok().map(|e| e.path())).find(|p| p.is_file()) {
+        paths.push(through(&file));
+    }
+    paths.push(through(Path::new("/Users/Shared")));
+    let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+    let script = format!(
+        "{}if ls '{}' >/dev/null 2>&1; then echo 'listed home'; else echo 'unlisted home'; fi",
+        reads(&refs),
+        through(&home).display()
+    );
+    let out = confine(&["--read", checkout.to_str().unwrap()], &["/bin/sh", "-c", &script]);
+    let said = text(&out);
+    for path in &paths {
+        assert!(said.contains(&format!("denied {} (", path.display())), "{said}");
+    }
+    assert!(said.contains("unlisted home"), "{said}");
+    // Unconfined, the same prefix does reach the file: the denial is the confinement's.
+    let free = Command::new("/bin/sh").arg("-c").arg(reads(&refs[..1])).output().unwrap();
+    assert!(text(&free).starts_with("ok "), "{}", text(&free));
+    fs::remove_dir_all(&root).unwrap();
+}
+
+/// A confined process on a terminal can query it (Node does) but cannot push keystrokes into it with TIOCSTI, which
+/// would run in the caller's shell after the confinement is gone.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_terminal_can_be_queried_but_not_typed_into() {
+    use std::os::fd::{FromRawFd, OwnedFd};
+    let (mut master, mut slave) = (0, 0);
+    // SAFETY: openpty fills in two descriptors; null name, termios and winsize are allowed.
+    let made = unsafe { libc::openpty(&mut master, &mut slave, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()) };
+    assert_eq!(made, 0);
+    // SAFETY: both descriptors were just opened and are owned here.
+    let (master, slave) = unsafe { (OwnedFd::from_raw_fd(master), OwnedFd::from_raw_fd(slave)) };
+    let probe = r#"my $c = "x"; my $w = pack("S4", 0, 0, 0, 0); my $t = "\0" x 72;
+print ioctl(STDIN, 0x80017472, $c) ? "sti=ok\n" : "sti=refused\n";
+print ioctl(STDIN, 0x40087468, $w) ? "winsz=ok\n" : "winsz=refused\n";
+print ioctl(STDIN, 0x40487413, $t) ? "getattr=ok\n" : "getattr=refused\n";"#;
+    let child = Command::new(LAUNCHER)
+        .args(["confine", "--", "/usr/bin/perl", "-e", probe])
+        .stdin(slave.try_clone().unwrap())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(slave);
+    let out = child.wait_with_output().unwrap();
+    drop(master);
+    let said = text(&out);
+    assert!(said.contains("sti=refused") && said.contains("winsz=ok") && said.contains("getattr=ok"), "{said}");
+}

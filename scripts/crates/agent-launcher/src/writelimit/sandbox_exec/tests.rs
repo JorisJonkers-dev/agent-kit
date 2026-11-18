@@ -477,3 +477,24 @@ fn a_confinement_sandbox_exec_cannot_apply_is_refused_with_its_message() {
     let message = backend.prepare(&confined(&root, Some(vec![443]))).err().unwrap();
     assert!(message.contains("cannot apply the profile") && message.contains("sandbox_apply"), "{message}");
 }
+
+#[test]
+fn a_port_limit_without_a_confinement_is_refused_not_dropped() {
+    let root = scratch("ports-only");
+    let backend = fake(&root, "sandbox-exec", "#!/bin/sh\nexit 0\n");
+    let _held = fake_exe::lock();
+    let mut policy = policy(&root);
+    policy.connect_ports = Some(vec![443]);
+    let message = backend.prepare(&policy).err().unwrap();
+    assert!(message.contains("--net-connect") && message.contains("confinement"), "{message}");
+}
+
+#[test]
+fn the_user_volume_and_the_swap_volume_are_denied_after_the_grants() {
+    let root = scratch("volumes");
+    let p = profile(&confined(&root, None)).unwrap();
+    let deny = "(deny file-read* file-map-executable process-exec\n  (subpath \"/System/Volumes/Data\")\n  (subpath \"/System/Volumes/VM\")\n)\n";
+    let at = p.text.find(deny).expect(&p.text);
+    assert!(at > p.text.find("(allow file-read* file-map-executable process-exec").unwrap());
+    assert!(at > p.text.find("(allow network*)").unwrap());
+}

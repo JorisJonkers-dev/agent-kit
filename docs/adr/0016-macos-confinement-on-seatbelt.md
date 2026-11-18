@@ -41,6 +41,29 @@ keeps `KEEP_ENV`, `LC_*` and each `--env` name, and every descriptor above
 the standard three is closed before the exec (the loop in `close_range`, since
 macOS has no such syscall). `tests/confine.rs` proves both on macOS.
 
+Reviewed and checked on macOS 27:
+
+- **The Data volume prefix.** `/System` is granted whole and the user's volume
+  is mounted at `/System/Volumes/Data`. Reading `$HOME`, a sibling directory
+  or `/Users/Shared` through that prefix is refused anyway, since Seatbelt
+  resolves the firmlink before it matches (`tests/confine.rs` proves it, and
+  proves the same path reads unconfined). A denial of
+  `/System/Volumes/Data` and `/System/Volumes/VM` for read, map and exec
+  comes after the grants regardless, in case that resolution changes; every
+  traced harness (Pi, Node, curl, Claude Code) still runs with it.
+- **A port limit without a confinement.** Only a confinement's profile has
+  network rules. A policy with `--net-connect` ports and no read allowlist
+  is refused (exit 125) rather than run with the limit dropped.
+- **TIOCSTI.** The stdio paths get `file-ioctl` so Node can query a terminal.
+  Tried on this Mac with a pty: unconfined, `TIOCSTI` types into the
+  terminal; confined, it is refused (`Operation not permitted`) while
+  `TIOCGWINSZ` and `TIOCGETA` work. The test `a_terminal_can_be_queried_but_not_typed_into`
+  pins that. If a macOS release lets it through, restrict the grant with an
+  `ioctl-command` filter.
+- **Descriptors.** Closing lists the process's descriptors with
+  `proc_pidinfo(PROC_PIDLISTFDS)`, so one above 65535 is closed too; a
+  failure to list refuses the launch.
+
 ### The macOS runtime set, as traced
 
 Traced by running `curl`, `node`, Pi (`pi --version` and a full `pi -p` run

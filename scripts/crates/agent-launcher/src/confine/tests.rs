@@ -284,6 +284,20 @@ fn descriptors_from_the_given_one_up_are_closed_after_the_confinement_is_on() {
     assert!(own(kept));
     // SAFETY: closes the descriptor made above.
     unsafe { libc::close(kept) };
+    // A descriptor far above any fixed bound is closed too (macOS used to stop at 65535).
+    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    // SAFETY: reads and raises this process's soft limit for descriptors to make room for a high one.
+    unsafe {
+        libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit);
+        limit.rlim_cur = limit.rlim_max.min(200_000);
+        libc::setrlimit(libc::RLIMIT_NOFILE, &limit);
+    }
+    // SAFETY: as above, to a descriptor past 65536.
+    let far = unsafe { libc::fcntl(0, libc::F_DUPFD, 70_000) };
+    if far >= 70_000 {
+        assert!(confine_hook(Box::new(Armer(false)), 900)().is_ok());
+        assert!(!own(far));
+    }
     #[cfg(target_os = "linux")]
     assert_eq!(close_range(5, 3).unwrap_err().raw_os_error(), Some(libc::EINVAL));
 }

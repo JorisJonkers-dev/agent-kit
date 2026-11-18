@@ -222,6 +222,14 @@ fn confinement(
         }
         None => text += "(allow network*)\n",
     }
+    // `/System` is granted whole, and the user's volume is mounted beneath it
+    // (`/System/Volumes/Data`, which firmlinks `/Users`, `/Library` and
+    // `/private` to the paths the rest of the system sees). Seatbelt resolves
+    // a firmlink to its path before it matches, so reading `$HOME` through
+    // that prefix is refused already (`tests/confine.rs` proves it); this
+    // denial after the grants keeps it that way if that ever changes, and
+    // keeps the swap volume out of reach.
+    text += "(deny file-read* file-map-executable process-exec\n  (subpath \"/System/Volumes/Data\")\n  (subpath \"/System/Volumes/VM\")\n)\n";
     Ok(text)
 }
 
@@ -308,6 +316,12 @@ fn command_prefix(binary: &Path, profile: &Profile) -> Vec<OsString> {
 
 impl WriteLimit for SandboxExec {
     fn prepare(&self, policy: &Policy) -> Result<Armed, String> {
+        // A port limit is only built into a confinement's profile; a reach
+        // level's profile leaves the network alone, so a policy that asks for
+        // one without a confinement is refused instead of losing the limit.
+        if policy.connect_ports.is_some() && policy.reads.is_none() {
+            return Err("a network limit (--net-connect) is held on macOS only with a confinement; it was asked for without one".into());
+        }
         let executable = fs::metadata(&self.binary)
             .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
             .unwrap_or(false);

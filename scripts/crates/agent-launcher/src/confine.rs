@@ -177,12 +177,30 @@ fn close_range(first: libc::c_uint, last: libc::c_uint) -> std::io::Result<()> {
     }
 }
 
-/// Closes the descriptors `first` to `last` one by one (macOS has no `close_range`).
+/// Closes every open descriptor from `first` to `last` (macOS has no `close_range`): the kernel lists the ones this
+/// process holds, so a descriptor above any fixed bound is closed too. Where it cannot list them it fails, and the
+/// confinement is refused rather than started with descriptors the caller left open.
 #[cfg(not(target_os = "linux"))]
 fn close_range(first: libc::c_uint, last: libc::c_uint) -> std::io::Result<()> {
-    for fd in first..last.min(65_536) {
-        // SAFETY: closing a descriptor that is not open only fails with EBADF.
-        unsafe { libc::close(fd as libc::c_int) };
+    let size = std::mem::size_of::<libc::proc_fdinfo>() as libc::c_int;
+    // SAFETY: a null buffer of size 0 only asks for the size of the list.
+    let bytes = unsafe { libc::proc_pidinfo(libc::getpid(), libc::PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
+    if bytes <= 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // Room for a few more than were counted: the listing itself may open nothing, but never trust a count to stay.
+    let mut fds = vec![libc::proc_fdinfo { proc_fd: 0, proc_fdtype: 0 }; (bytes / size) as usize + 16];
+    // SAFETY: the buffer holds `fds.len() * size` bytes, which is what is passed.
+    let filled = unsafe { libc::proc_pidinfo(libc::getpid(), libc::PROC_PIDLISTFDS, 0, fds.as_mut_ptr().cast(), fds.len() as libc::c_int * size) };
+    if filled <= 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    for info in &fds[..(filled / size) as usize] {
+        let fd = info.proc_fd as libc::c_uint;
+        if fd >= first && fd <= last {
+            // SAFETY: closes a descriptor this process holds; the launcher keeps none it still needs.
+            unsafe { libc::close(info.proc_fd) };
+        }
     }
     Ok(())
 }
