@@ -24,6 +24,9 @@ struct Memory {
     files: HashMap<String, String>,
     exists_fails: Vec<String>,
     read_fails: Vec<String>,
+    /// What a launch wrote privately (its run home), and what it removed.
+    written: Mutex<BTreeMap<String, String>>,
+    removed: Mutex<Vec<String>>,
 }
 
 impl Memory {
@@ -56,8 +59,9 @@ impl Files for Memory {
         unreachable!("the test makes no temporary directory")
     }
 
-    fn remove(&self, _path: &str) -> Result<(), FsError> {
-        unreachable!("the test removes nothing")
+    fn remove(&self, path: &str) -> Result<(), FsError> {
+        self.removed.lock().expect("removed").push(path.to_string());
+        Ok(())
     }
 
     fn read_text(&self, path: &str) -> Result<String, FsError> {
@@ -102,7 +106,8 @@ impl Files for Memory {
         None
     }
 
-    fn write_private(&self, _path: &str, _content: &str) -> Result<(), FsError> {
+    fn write_private(&self, path: &str, content: &str) -> Result<(), FsError> {
+        self.written.lock().expect("written").insert(path.to_string(), content.to_string());
         Ok(())
     }
 }
@@ -175,6 +180,20 @@ fn launch_request(model: &str) -> LaunchRequest {
 /// The request a test sends unless it says otherwise: one Vibe launch of a critic's model.
 fn request(client: RunClient, binary: &str, model: &str, extras: RunExtras) -> ClientRunRequest {
     ClientRunRequest { launch: launch_request(model), binary: binary.to_string(), client, prompt: "read this".to_string(), paths: paths(), extras }
+}
+
+/// The owner's OpenCode config with one LiteLLM provider and an MCP server of the owner's own.
+const OWNER_OPENCODE: &str = r#"{"mcp":{"servers":{"memory-api":{"type":"remote","url":"https://example.invalid/mcp"}}},"provider":{"litellm-vibe":{"npm":"@ai-sdk/openai-compatible","options":{"apiKey":"{env:LITELLM_VIBE_KEY}","baseURL":"https://litellm.example/v1"},"models":{"glm-5.3":{"name":"glm"},"other":{}}},"litellm-free":{"options":{}}}}"#;
+
+fn opencode_home() -> Memory {
+    Memory::default().with("/home/test/.config/opencode/opencode.json", OWNER_OPENCODE)
+}
+
+/// The owner's Hermes config: a LiteLLM provider and an MCP server of the owner's own.
+const OWNER_HERMES: &str = "model:\n  default: x\nmcp_servers:\n  olcli:\n    command: olcli-mcp\nproviders:\n  litellm-vibe:\n    name: litellm-vibe\n    base_url: https://litellm.example/v1\n    key_env: LITELLM_VIBE_KEY\n    models:\n      glm-5.3: {}\n  litellm-free:\n    name: litellm-free\n";
+
+fn hermes_home() -> Memory {
+    Memory::default().with("/home/test/.hermes/config.yaml", OWNER_HERMES)
 }
 
 fn vibe(extras: RunExtras) -> ClientRunRequest {
@@ -429,7 +448,7 @@ fn runs_antigravity_without_the_sandbox_as_one_json_object_with_the_effort_its_m
         strings(&["--print", &format!("{}\n\nread this", crate::launchers::AGY_PLAN_NOTE), "--model", "gemini-3.8-flash-high", "--output-format", "json", "--effort", "high", "--mode", "plan", "--print-timeout", "900s", "--settings", crate::launchers::AGY_PLAN_SETTINGS])
     );
     assert_eq!(flag(&write.first(), "--mode").as_deref(), Some("accept-edits"));
-    assert_eq!(flag(&write.first(), "--settings"), None);
+    assert_eq!(flag(&write.first(), "--settings").as_deref(), Some(crate::launchers::AGY_MCP_DENIED));
     // A writing run may ask for its tools through accept-edits, so its prompt is the caller's alone.
     assert_eq!(flag(&write.first(), "--print").as_deref(), Some("read this"));
 }
@@ -602,7 +621,13 @@ fn runs_claude_with_the_prompt_on_stdin_and_the_run_limit_as_the_only_timer() {
     assert_eq!(outcome.output.answer.as_deref(), Some("fine"));
     let command = read.first();
     assert_eq!(command.command, "claude");
-    assert_eq!(command.args, strings(&["-p", "--model", "sonnet", "--output-format", "json", "--permission-mode", "plan", "--allowedTools", "Read,Grep,Glob"]));
+    assert_eq!(
+        command.args,
+        strings(&["-p", "--model", "sonnet", "--output-format", "json", "--permission-mode", "plan", "--allowedTools", "Read,Grep,Glob", "--strict-mcp-config", "--disable-slash-commands"])
+    );
+    // No MCP server is loaded and no memory is kept, in the owner's own home, whose login the run needs.
+    assert_eq!(command.env.get("CLAUDE_CODE_DISABLE_AUTO_MEMORY").map(String::as_str), Some("1"));
+    assert!(!command.env.contains_key("HOME"));
     assert_eq!(command.stdin.as_deref(), Some("read this"));
     assert_eq!(command.timeout_ms, Some(900_000));
 
@@ -623,7 +648,9 @@ fn runs_opencode_standalone_with_the_prompt_as_its_message() {
 
     let command = process.first();
     assert_eq!(command.args, strings(&["run", "--standalone", "--model", "opencode-go/kimi", "--format", "json", "read this"]));
-    assert_eq!(command.env, BTreeMap::from([("X".to_string(), "1".to_string())]));
+    // The caller's variable stays, and the run home's variables are set beside it.
+    assert_eq!(command.env.get("X").map(String::as_str), Some("1"));
+    assert_eq!(command.env.get("HOME").map(String::as_str), Some("/run/export/client-home"));
     assert_eq!(command.timeout_ms, Some(900_000));
     assert_eq!(command.stdin, None);
 }
@@ -640,7 +667,9 @@ fn runs_hermes_with_its_provider_and_reads_the_usage_file_from_the_run_directory
     let outcome = launch(&files, &process, &named).expect("the launch");
 
     let command = process.first();
-    assert_eq!(command.args, strings(&["-z", "read this", "--usage-file", "/run/own/usage.json", "-m", "deepseek", "--provider", "deepinfra"]));
+    // A provider the owner's home must give (its sign-in is there) runs in safe mode: no config, plugin, memory or MCP server.
+    assert_eq!(command.args, strings(&["-z", "read this", "--usage-file", "/run/own/usage.json", "-m", "deepseek", "--provider", "deepinfra", "--safe-mode"]));
+    assert!(!command.env.contains_key("HERMES_HOME"));
     assert_eq!(command.timeout_ms, Some(960_000));
     assert_eq!(outcome.exported, Some(json::parse(usage).expect("JSON")));
 
@@ -657,13 +686,19 @@ fn hermes_on_a_litellm_route_reads_the_route_key_from_the_secret_store_into_its_
     let mut routed = request(RunClient::Hermes, "hermes", "glm-5.3", RunExtras::default());
     routed.launch.provider = Some("litellm-vibe".to_string());
     let process = Fake::answering("an answer");
-    launch(&Memory::default(), &process, &routed).expect("the launch");
+    launch(&hermes_home(), &process, &routed).expect("the launch");
     let command = process.first();
     assert_eq!(command.command, "/bin/sh");
     assert_eq!(
-        command.args[..6],
-        strings(&["-c", crate::launchers::HERMES_KEYED, "hermes-keyed", "agent-kit-secret", "LITELLM_VIBE_KEY", "hermes"])[..]
+        command.args[..5],
+        strings(&["-c", crate::launchers::HERMES_KEYED, "hermes-keyed", "agent-kit-secret", "LITELLM_VIBE_KEY"])[..]
     );
+    // The key is read with the owner's own environment; the run home's variables reach Hermes after it, through `env`.
+    assert_eq!(command.args[5], "env");
+    assert!(command.args.contains(&"HERMES_HOME=/run/export/client-home/.hermes".to_string()));
+    assert!(command.args.contains(&"HOME=/run/export/client-home".to_string()));
+    assert!(!command.env.contains_key("HOME"));
+    assert_eq!(command.args.last().map(String::as_str), Some("--ignore-rules"));
     assert_eq!(flag(&command, "--provider").as_deref(), Some("litellm-vibe"));
     assert_eq!(crate::launchers::hermes_key("litellm-nowhere"), None);
     assert_eq!(crate::launchers::hermes_key("deepinfra"), None);
@@ -891,18 +926,18 @@ fn names_the_platform_the_way_node_does() {
 fn runs_opencode_on_a_litellm_provider_with_the_routes_key_read_into_its_environment() {
     let process = Fake::answering("");
 
-    launch(&Memory::default(), &process, &request(RunClient::Opencode, "opencode", "litellm-vibe/glm-5.3", RunExtras::default())).expect("the launch");
+    launch(&opencode_home(), &process, &request(RunClient::Opencode, "opencode", "litellm-vibe/glm-5.3", RunExtras::default())).expect("the launch");
 
     let command = process.first();
     assert_eq!(command.command, "/bin/sh");
+    let from_binary = command.args.iter().position(|arg| arg == "opencode").expect("the binary");
+    assert_eq!(command.args[..5], strings(&["-c", crate::launchers::OPENCODE_KEYED, "opencode-keyed", "agent-kit-secret", "LITELLM_VIBE_KEY"])[..]);
+    assert_eq!(command.args[5], "env");
+    assert!(command.args[6..from_binary].contains(&"XDG_CONFIG_HOME=/run/export/client-home/.config".to_string()));
+    assert!(!command.env.contains_key("XDG_CONFIG_HOME"));
     assert_eq!(
-        command.args,
+        command.args[from_binary..],
         strings(&[
-            "-c",
-            crate::launchers::OPENCODE_KEYED,
-            "opencode-keyed",
-            "agent-kit-secret",
-            "LITELLM_VIBE_KEY",
             "opencode",
             "run",
             "--standalone",
@@ -911,6 +946,6 @@ fn runs_opencode_on_a_litellm_provider_with_the_routes_key_read_into_its_environ
             "--format",
             "json",
             "read this",
-        ])
+        ])[..]
     );
 }

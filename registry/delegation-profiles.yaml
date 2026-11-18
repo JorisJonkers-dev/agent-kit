@@ -32,9 +32,14 @@
 #                          enforces it once #788 lands; it is validated now)
 #   unenforced_clients     optional: non-Pi clients the profile may run on although
 #                          the gateway cannot enforce its tool scope there. Naming a
-#                          client is the profile author's explicit statement that the
-#                          client's own read-only launch stands in for the scope; a
-#                          client left out stays refused with the reason.
+#                          client accepts the restrictions the gateway puts on its
+#                          launch (the read-only flags or agent, no MCP server, and for
+#                          OpenCode and Hermes a per-run home) for the scope's skills
+#                          and plugins. It does not say the client is confined: until
+#                          `agent-launcher confine` wraps it (#903), its own read-only
+#                          launch does not stop it reading or writing outside its
+#                          working directory. A client left out stays refused with the
+#                          reason.
 #
 # A client that cannot enforce a limit the profile names is refused with the
 # reason. Pi enforces skills and plugins listed by name (its per-run home holds

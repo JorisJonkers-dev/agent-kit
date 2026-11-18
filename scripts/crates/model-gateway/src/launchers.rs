@@ -8,6 +8,7 @@ use crate::json::{self, Value};
 use crate::outputs::{agy_output, claude_output, codex_output, hermes_output, open_code_output, pi_output, vibe_output, ClientOutput};
 use crate::ports::ProcessCommand;
 use crate::run::{RunClient, RunMode};
+use crate::run_home::{RunHome, HERMES_PROTECTED_ENV, OPENCODE_PROTECTED_ENV};
 use crate::text::join;
 use std::collections::BTreeMap;
 
@@ -51,6 +52,9 @@ const MCP_TOOL_TIMEOUT_S: f64 = 30.0;
 
 /// agy's own tool families, in the order its deny list names them. A read-only
 /// run denies every family the caller did not name among the tools it may use.
+/// What an Antigravity run without the read-only sandbox denies: MCP, in every mode (#903).
+pub(crate) const AGY_MCP_DENIED: &str = r#"{"permissions":{"deny":["mcp(*)"]}}"#;
+
 const AGY_TOOL_FAMILIES: [&str; 8] = ["mcp", "read_url", "execute_url", "command", "write_file", "list_dir", "grep_search", "find_by_name"];
 
 /// Where one launch reads its prompt and writes what the client exports, and
@@ -112,6 +116,8 @@ pub struct LaunchExtras {
     pub tools: Vec<String>,
     pub schema: Option<String>,
     pub env: BTreeMap<String, String>,
+    /// The launch's own home, for a client that runs in one (OpenCode, Hermes): its variables are set last.
+    pub home: Option<RunHome>,
 }
 
 /// How the gateway starts one client and reads what it printed.
@@ -278,7 +284,7 @@ pub(crate) const AGY_PLAN_NOTE: &str = "This run cannot ask for permission: a to
 
 /// What a read-only Antigravity run may do without asking: read and search files. A directory the owner never
 /// trusted (a delegation worktree) otherwise needs permission even to read, which headless mode denies.
-pub(crate) const AGY_PLAN_SETTINGS: &str = r#"{"permissions":{"allow":["read_file(*)","list_dir(*)","grep_search(*)","find_by_name(*)"]}}"#;
+pub(crate) const AGY_PLAN_SETTINGS: &str = r#"{"permissions":{"allow":["read_file(*)","list_dir(*)","grep_search(*)","find_by_name(*)"],"deny":["mcp(*)"]}}"#;
 
 fn agy_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let print_timeout = format!("{}s", json::number_text(input.time_limit_s));
@@ -292,7 +298,7 @@ fn agy_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt:
             args
         }
         _ if input.mode == Some(RunMode::Write) => {
-            strings(&["--print", prompt, "--model", &input.model, "--output-format", "json", "--effort", effort_of(&input.model), "--mode", "accept-edits", "--print-timeout", &print_timeout])
+            strings(&["--print", prompt, "--model", &input.model, "--output-format", "json", "--effort", effort_of(&input.model), "--mode", "accept-edits", "--print-timeout", &print_timeout, "--settings", AGY_MCP_DENIED])
         }
         _ => {
             // Headless plan mode denies a tool that needs permission and then ends the turn with an empty answer,
@@ -319,8 +325,11 @@ static AGY: ClientLauncher = ClientLauncher {
 
 /// Claude Code: headless print mode with the prompt on stdin, in plan mode and
 /// with the read tools alone, or for a writing run in accept-edits mode with
-/// the edit tools besides. It has no time limit of its own, so the outer
-/// timer is the limit.
+/// the edit tools besides. No MCP server is loaded (`--strict-mcp-config` with
+/// no `--mcp-config`), no skill or slash command, and no auto-memory. It keeps
+/// the owner's home: its subscription login is in the keychain and the config
+/// directory, and a run home would sign it out. It has no time limit of its
+/// own, so the outer timer is the limit.
 fn claude_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let write = input.mode == Some(RunMode::Write);
     let args = strings(&[
@@ -333,8 +342,12 @@ fn claude_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prom
         if write { "acceptEdits" } else { "plan" },
         "--allowedTools",
         if write { "Read,Grep,Glob,Edit,Write" } else { "Read,Grep,Glob" },
+        "--strict-mcp-config",
+        "--disable-slash-commands",
     ]);
-    ProcessCommand { command: binary.to_string(), args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), stdin: Some(prompt.to_string()), timeout_ms: limit_ms(input) }
+    let mut env = caller_env(extras);
+    env.insert("CLAUDE_CODE_DISABLE_AUTO_MEMORY".to_string(), "1".to_string());
+    ProcessCommand { command: binary.to_string(), args, cwd: Some(paths.work_dir.clone()), env, stdin: Some(prompt.to_string()), timeout_ms: limit_ms(input) }
 }
 
 fn claude_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
@@ -361,15 +374,32 @@ static CLAUDE: ClientLauncher = ClientLauncher {
 /// Hermes, so it is in no argument and no file.
 fn opencode_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let args = strings(&["run", "--standalone", "--model", &input.model, "--format", "json", prompt]);
-    let (command, args) = match crate::models::open_code_provider(&input.model).as_deref().and_then(hermes_key) {
+    let (command, args, env) = keyed(crate::models::open_code_provider(&input.model).as_deref().and_then(hermes_key), OPENCODE_KEYED, "opencode-keyed", binary, args, extras);
+    ProcessCommand { command, args, cwd: Some(paths.work_dir.clone()), env, timeout_ms: limit_ms(input), stdin: None }
+}
+
+/// The command and environment of a client that may read its key from the secret store, in a run home or not. A
+/// keyed client runs through a wrapper that reads the key first, with the owner's own environment, so the run
+/// home's variables reach the client as `env NAME=value` after the read and never before it.
+fn keyed(key_env: Option<String>, script: &str, name: &str, binary: &str, args: Vec<String>, extras: Option<&LaunchExtras>) -> (String, Vec<String>, BTreeMap<String, String>) {
+    let mut env = caller_env(extras);
+    let home = extras.and_then(|extras| extras.home.as_ref());
+    match key_env {
         Some(key_env) => {
-            let mut wrapped = strings(&["-c", OPENCODE_KEYED, "opencode-keyed", SECRET_TOOL, &key_env, binary]);
+            let mut wrapped = strings(&["-c", script, name, SECRET_TOOL, &key_env]);
+            if let Some(home) = home {
+                wrapped.push("env".to_string());
+                wrapped.extend(home.env.iter().map(|(name, value)| format!("{name}={value}")));
+            }
+            wrapped.push(binary.to_string());
             wrapped.extend(args);
-            ("/bin/sh".to_string(), wrapped)
+            ("/bin/sh".to_string(), wrapped, env)
         }
-        None => (binary.to_string(), args),
-    };
-    ProcessCommand { command, args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), timeout_ms: limit_ms(input), stdin: None }
+        None => {
+            env.extend(home.into_iter().flat_map(|home| home.env.clone()));
+            (binary.to_string(), args, env)
+        }
+    }
 }
 
 /// `HERMES_KEYED` for OpenCode: reads the key named by `$2` with `$1 get`, exports it and runs the rest.
@@ -382,7 +412,7 @@ fn opencode_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
 static OPENCODE: ClientLauncher = ClientLauncher {
     extras: &["env"],
     sandboxed_extras: &[],
-    protected_env: &[],
+    protected_env: &OPENCODE_PROTECTED_ENV,
     command: opencode_command,
     read: opencode_read,
     report_path: None,
@@ -395,25 +425,22 @@ fn report_dir(paths: &LaunchPaths) -> &str {
 
 /// Hermes, one-shot: the wrapped prompt as its argument, the client model and
 /// the provider this machine allows, and the usage file it writes its own
-/// tokens and dollars to. Hermes loads the working directory's rules and memory
-/// as it always does, so the run carries the mark that stops it delegating on
-/// and nothing else. It has no time limit of its own, so the outer timer is the
+/// tokens and dollars to. A run on a LiteLLM route is in its own Hermes home
+/// (`run_home`), which holds the provider and no MCP server, skill, memory or
+/// persona; a run on another provider is in safe mode. It
+/// carries the mark that stops it delegating on. It has no time limit of its own, so the outer timer is the
 /// limit.
 fn hermes_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     // The node launcher writes `String(input.provider)`, so a run that names none passes the word `undefined`.
     let provider = input.provider.as_deref().unwrap_or("undefined");
-    let args = strings(&["-z", prompt, "--usage-file", &hermes_report(paths), "-m", &input.model, "--provider", provider]);
-    let (command, args) = match hermes_key(provider) {
-        // A LiteLLM route's key is never exported: the wrapper reads it from the secret store into Hermes' own
-        // environment, under the name its provider's `key_env` reads, so it is in no argument and no file.
-        Some(key_env) => {
-            let mut wrapped = strings(&["-c", HERMES_KEYED, "hermes-keyed", SECRET_TOOL, &key_env, binary]);
-            wrapped.extend(args);
-            ("/bin/sh".to_string(), wrapped)
-        }
-        None => (binary.to_string(), args),
-    };
-    ProcessCommand { command, args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), timeout_ms: graced_ms(input), stdin: None }
+    let mut args = strings(&["-z", prompt, "--usage-file", &hermes_report(paths), "-m", &input.model, "--provider", provider]);
+    // In its own home Hermes skips the rules and memory it would inject; a provider the owner's home must give (its
+    // sign-in is there) runs in safe mode, which loads no config, plugin, memory or MCP server.
+    args.push(if extras.is_some_and(|extras| extras.home.is_some()) { "--ignore-rules" } else { "--safe-mode" }.to_string());
+    // A LiteLLM route's key is never exported: the wrapper reads it from the secret store into Hermes' own
+    // environment, under the name its provider's `key_env` reads, so it is in no argument and no file.
+    let (command, args, env) = keyed(hermes_key(provider), HERMES_KEYED, "hermes-keyed", binary, args, extras);
+    ProcessCommand { command, args, cwd: Some(paths.work_dir.clone()), env, timeout_ms: graced_ms(input), stdin: None }
 }
 
 /// The program that reads a key from the secret store: `agent-kit-secret get <NAME>`, as Pi's providers name it.
@@ -439,7 +466,7 @@ fn hermes_report(paths: &LaunchPaths) -> String {
 static HERMES: ClientLauncher = ClientLauncher {
     extras: &["env"],
     sandboxed_extras: &[],
-    protected_env: &[],
+    protected_env: &HERMES_PROTECTED_ENV,
     command: hermes_command,
     read: hermes_read,
     report_path: Some(hermes_report),
@@ -451,8 +478,10 @@ static HERMES: ClientLauncher = ClientLauncher {
 /// A writing run also gets `--add-dir` for each git directory the caller names,
 /// so its sandbox can write the worktree's git directory and the repository's
 /// shared objects and refs, which sit outside the worktree it works in.
-/// `--skip-git-repo-check` lets an inline run work in its empty directory. It
-/// has no time limit of its own, so the outer timer is the limit.
+/// `--skip-git-repo-check` lets an inline run work in its empty directory.
+/// `--ignore-user-config` leaves out the owner's `config.toml`, which holds the MCP servers, plugins and hooks;
+/// the sign-in stays in `CODEX_HOME`, because a ChatGPT login rotates its tokens in place and a copy would
+/// sign the owner out. It has no time limit of its own, so the outer timer is the limit.
 fn codex_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let write = input.mode == Some(RunMode::Write);
     let effort = format!("model_reasoning_effort=\"{}\"", effort_of(&input.model));
@@ -460,6 +489,7 @@ fn codex_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, promp
         "exec",
         "--json",
         "--skip-git-repo-check",
+        "--ignore-user-config",
         "-m",
         &input.model,
         "-c",

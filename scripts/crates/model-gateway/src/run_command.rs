@@ -782,7 +782,7 @@ fn held_to(input: &RunInput, reservation: Option<&Reservation>) -> RunInput {
 }
 
 /// The directory temporary directories go in: `TMPDIR`, else `TMP`, else `TEMP`, else `/tmp`, as Node's `os.tmpdir()`.
-fn temp_root(env: &std::collections::HashMap<String, String>) -> String {
+pub(crate) fn temp_root(env: &std::collections::HashMap<String, String>) -> String {
     for name in ["TMPDIR", "TMP", "TEMP"] {
         if let Some(dir) = env.get(name).filter(|dir| !dir.is_empty()) {
             let trimmed = dir.trim_end_matches('/');

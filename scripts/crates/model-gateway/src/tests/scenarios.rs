@@ -69,6 +69,24 @@ pub fn mask_git_boundary(text: &str) -> String {
     out
 }
 
+/// The matrix's escape probe makes one directory per harness, named `model-gateway-escape-Ab12Cd`, and writes its path
+/// into the prompt it sends. Which of two such directories is first in a snapshot is as random as their names, so they
+/// are not numbered like the run's own: every suffix reads `@ESC@`.
+pub fn mask_escape_dirs(text: &str) -> String {
+    const PREFIX: &str = "model-gateway-escape-";
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(at) = rest.find(PREFIX) {
+        let after = at + PREFIX.len();
+        let width = rest[after..].bytes().take(6).take_while(u8::is_ascii_alphanumeric).count();
+        out.push_str(&rest[..after]);
+        out.push_str(if width == 6 { "@ESC@" } else { &rest[after..after + width] });
+        rest = &rest[after + width..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Where the random parts of what a run makes sit, in text: a run id (`20261103T120000Z-ab12cd`) and a temporary directory
 /// (`model-gateway-run-Ab12Cd`, `model-gateway-worktree-Ab12Cd`). Each is the byte range of the random suffix.
 fn random_parts(text: &str, run_ids: bool) -> Vec<(usize, usize)> {
@@ -379,6 +397,8 @@ impl Replay {
         };
         env.insert("PATH".into(), path);
         env.insert("HOME".into(), sandbox.join("home").to_string_lossy().into_owned());
+        // The fake OpenCode and Hermes run in a home of their own (#903), so they log and read their scripted answers by this.
+        env.insert("STUB_HOME".into(), sandbox.join("home").to_string_lossy().into_owned());
         env.insert("XDG_STATE_HOME".into(), sandbox.join("state").to_string_lossy().into_owned());
         if let Some(Value::Obj(overrides)) = field(step, "env") {
             for (key, value) in overrides.entries() {
@@ -409,7 +429,7 @@ impl Replay {
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);
-        let normalise = |text: &str| mask_git_boundary(&mask_stamp(&mask_grant_ids(&text.replace(&self.sandbox.text(), "@SANDBOX@"))));
+        let normalise = |text: &str| mask_escape_dirs(&mask_git_boundary(&mask_stamp(&mask_grant_ids(&text.replace(&self.sandbox.text(), "@SANDBOX@")))));
         let extra: Vec<&str> = list(step, "roots").iter().filter_map(Value::as_str).collect();
         let roots: Vec<&str> = ["state", "home", "work"].into_iter().chain(extra).collect();
         let files = snapshot(&self.sandbox, &roots)
@@ -520,6 +540,14 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
     }
     let shown: Vec<&String> = mismatches.iter().take(6).collect();
     assert!(mismatches.is_empty(), "{} mismatches, first {}:\n{}", mismatches.len(), shown.len(), shown.iter().map(|m| m.as_str()).collect::<Vec<_>>().join("\n====\n"));
+}
+
+#[test]
+fn the_escape_probes_directories_read_as_one_name() {
+    assert_eq!(mask_escape_dirs("at /t/model-gateway-escape-Ab12Cd/CANARY and model-gateway-escape-Zz99Yy"), "at /t/model-gateway-escape-@ESC@/CANARY and model-gateway-escape-@ESC@");
+    // A prefix with fewer than six characters after it is left as it is.
+    assert_eq!(mask_escape_dirs("model-gateway-escape-Ab1"), "model-gateway-escape-Ab1");
+    assert_eq!(mask_escape_dirs("nothing"), "nothing");
 }
 
 #[test]
