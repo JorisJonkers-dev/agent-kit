@@ -384,7 +384,11 @@ fn a_reviewer_that_cannot_be_confined_is_no_review_and_its_routing_says_nothing_
     let root = machine.sandbox.text();
     let launch = CriticLaunch { critic: &critic, packet_dir: format!("{root}/critic/packet"), prompt_path: format!("{root}/critic/prompt.md"), critic_dir: format!("{root}/critic"), schema_path: String::new(), toolset: CriticToolset::Pi };
     let _held = EXEC_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    let report = review_with(&machine.runtime(), &launch).expect("a report");
+    // The launcher is gone from the machine, and the host's own (which setup installs in ~/.local/bin) must not be
+    // found in its place: this launch looks for it on the sandbox's PATH alone, and nothing ever starts anyway.
+    let mut runtime = machine.runtime();
+    runtime.env.insert("PATH".to_string(), format!("{}/bin", machine.sandbox.text()));
+    let report = review_with(&runtime, &launch).expect("a report");
     match report.outcome {
         crate::clients::CriticOutcome::Failed { failure, .. } => assert_eq!(failure, "unconfined"),
         other => panic!("{other:?}"),

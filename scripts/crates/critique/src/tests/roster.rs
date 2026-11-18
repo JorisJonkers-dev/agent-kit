@@ -123,7 +123,7 @@ fn a_dropped_critic_names_the_first_wrong_field() {
     assert_eq!(shape(r#"{"detail":""}"#, read_dropped_critic), "detail must be a non-empty string");
     assert_eq!(shape(r#"{"replaced_by":""}"#, read_dropped_critic), "replaced_by must be a non-empty string");
     assert_eq!(shape(r#"{"family":"mistral","reason":"quota"}"#, read_dropped_critic), "client must be a non-empty string");
-    assert_eq!(shape(r#"{"client":"a","reason":"quota"}"#, read_dropped_critic), "family must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection");
+    assert_eq!(shape(r#"{"client":"a","reason":"quota"}"#, read_dropped_critic), "family must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection, alibaba, minimax, xiaomi");
     assert_eq!(
         shape(r#"{"client":"a","family":"mistral"}"#, read_dropped_critic),
         "reason must be one of family-not-allowed, orchestrator-family, same-family, unavailable, quota, no-grant, data-scope"

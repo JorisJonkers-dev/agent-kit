@@ -43,6 +43,21 @@ the run directory and your verdicts, sends each accepted critical finding to
 a critic of another family with the `refuter` role, and writes
 `refute.json`, which record applies (README, Refute round).
 
+`tier-review` runs the spec critique on the LiteLLM tiers from one command
+(#908): it prepares a run whose reviewers come from the chain of the
+`tier-review` alias — one step model each of three model families, never the
+writer's, free first, then Vibe Flash, then Go Flash — then fans out and
+writes `<run_dir>/synthesis.md`: the reviewers with the routing of each and
+the findings by severity, for the coordinator to rule on. Each reviewer runs
+through Pi on the tier's key behind the model gateway's recording proxy, so
+what LiteLLM served it is known: each reviewer's record carries `tier`,
+`litellm_model_id`, `served_model`, `attempted_fallbacks`, `fallback_fired`
+and `routing_capture`, and one whose routing shows LiteLLM answered from
+another model is no review and is retried through a family the review does
+not have yet. When the reviewers that reviewed span fewer than three
+families the command prints `"status": "failed"` and exits 3, with each
+reviewer's routing in `synthesis.md` (README, Tier review).
+
 A refusal is a normal result with `"status": "refused"`. An error prints
 `"status": "error"` with a `code` and exits 1. `check-tickets` is the
 deterministic ticket checker; while it finds a dependency cycle it prints
