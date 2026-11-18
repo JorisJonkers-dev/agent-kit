@@ -62,7 +62,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 
-use model_family::tier::{Named, Tiers};
+use model_family::tier::Tiers;
 use serde_json::Value;
 
 mod critique;
@@ -221,13 +221,8 @@ fn node_problems<'a>(
                 .to_string(),
         ));
     }
-    if agents.contains(&Tiers::AGENT) {
-        let distinct: BTreeSet<&str> = models.iter().copied().collect();
-        for model in distinct {
-            if let Some(Named { tier, problem: Some(why) }) = Tiers::shipped().named(Tiers::AGENT, model) {
-                problems.push((id, UNKNOWN_TIER, format!("binds {model} ({tier}): {why}")));
-            }
-        }
+    for why in Tiers::shipped().problems(&agents, &models) {
+        problems.push((id, UNKNOWN_TIER, why));
     }
     if any_mentions(&agents, MEMORY_WRITE) && !ends_with_any(id, &MEMORY_SUFFIXES) {
         problems.push((

@@ -54,10 +54,6 @@ pub struct Tiers {
     pub(crate) providers: BTreeMap<String, String>,
 }
 
-fn text<'a>(value: &'a Value, key: &str) -> &'a str {
-    value.get(key).and_then(Value::as_str).unwrap_or("")
-}
-
 impl Tiers {
     /// The agent a tier binding uses: Pi sends the tier's name as the model.
     pub const AGENT: &'static str = "pi";
@@ -72,20 +68,20 @@ impl Tiers {
     pub fn load() -> Tiers {
         let root: Value = serde_json::from_str(TIERS).expect("litellm-tiers.json is JSON");
         let defaults: Value = serde_json::from_str(DEFAULTS).expect("defaults.json is JSON");
-        let mut providers = BTreeMap::new();
         let none = serde_json::Map::new();
-        for profile in defaults["profiles"].as_object().unwrap_or(&none).values() {
-            let tier = text(profile, "tier");
-            let client = profile["models"][0]
-                .as_str()
-                .unwrap_or("")
-                .split(':')
-                .next()
-                .unwrap_or("");
-            if let Some(route) = client.strip_prefix("pi-") {
-                providers.insert(tier.to_string(), format!("litellm-{route}"));
-            }
-        }
+        let providers = defaults["profiles"]
+            .as_object()
+            .unwrap_or(&none)
+            .values()
+            .filter_map(|profile| {
+                let tier = profile.get("tier")?.as_str()?;
+                let client = profile["models"][0].as_str()?.split(':').next()?;
+                Some((
+                    tier.to_string(),
+                    format!("litellm-{}", client.strip_prefix("pi-")?),
+                ))
+            })
+            .collect();
         Tiers { root, providers }
     }
 
@@ -128,6 +124,27 @@ impl Tiers {
         })
     }
 
+    /// What is wrong with each tier a node binds, one line each: `agents` and `models` are the
+    /// agent ids and model ids the node binds. Nothing is wrong with a node whose agents do not
+    /// include `pi`, or whose models name no tier.
+    pub fn problems(&self, agents: &[&str], models: &[&str]) -> Vec<String> {
+        let mut distinct: Vec<&str> = models.to_vec();
+        distinct.sort_unstable();
+        distinct.dedup();
+        let pi = agents.contains(&Self::AGENT);
+        distinct
+            .into_iter()
+            .filter(|_| pi)
+            .filter_map(|model| {
+                let named = self.named(Self::AGENT, model)?;
+                Some(format!(
+                    "binds {model} ({}): {}",
+                    named.tier, named.problem?
+                ))
+            })
+            .collect()
+    }
+
     /// The family of one step of a chain, from a word its model id carries.
     pub fn step_family(model: &str) -> Option<&'static str> {
         let id = model.to_ascii_lowercase();
@@ -149,13 +166,11 @@ impl Tiers {
             .as_array()
             .map_or(&[][..], Vec::as_slice);
         for step in steps {
-            match (
-                step.get("model").and_then(Value::as_str),
-                step.get("tier").and_then(Value::as_str),
-            ) {
-                (Some(model), _) => out.push(model.to_string()),
-                (None, Some(next)) if depth < 8 => self.walk(next, out, depth + 1),
-                _ => {}
+            if let Some(model) = step["model"].as_str() {
+                out.push(model.to_string());
+            }
+            if let Some(next) = step["tier"].as_str().filter(|_| depth < 8) {
+                self.walk(next, out, depth + 1);
             }
         }
     }

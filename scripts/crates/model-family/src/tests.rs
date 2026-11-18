@@ -120,3 +120,15 @@ fn a_step_is_placed_by_the_vendor_word_in_its_id() {
         }
     }
 }
+
+#[test]
+fn a_node_reports_each_tier_it_binds_wrongly_once() {
+    let tiers = tier::Tiers::load();
+    let wrong = ["litellm-free/tier-cheapest", "litellm-free/tier-cheapest", "litellm-free/tier-free"];
+    let found = tiers.problems(&["pi"], &wrong);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].starts_with("binds litellm-free/tier-cheapest (tier-cheapest): tier tier-cheapest is not a LiteLLM tier"));
+    // Another agent binding the same model name is no tier binding.
+    assert!(tiers.problems(&["vibe"], &wrong).is_empty());
+    assert!(tiers.problems(&["pi"], &["litellm-vibe/glm-5.3"]).is_empty());
+}

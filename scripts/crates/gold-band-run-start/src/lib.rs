@@ -474,7 +474,6 @@ fn write_ledger(opts: &Options, workflow: &Workflow) -> Result<(), String> {
         text.push_str(&format!("{line}\n"));
     }
     let dir = Path::new(&opts.report_dir);
-    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     fs::write(dir.join(LEDGER_FILE), text).map_err(|e| e.to_string())
 }
 
