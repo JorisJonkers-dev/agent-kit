@@ -569,7 +569,7 @@ fn the_shipped_defaults_parse() {
         config.clients.get("opencode").and_then(|client| client.provider_cost_classes.clone()),
         Some(BTreeMap::from(["opencode-go", "litellm-opencode-go", "litellm-vibe", "litellm-vibe-study", "litellm-local"].map(|provider| (provider.to_string(), CostClass::Subsidised))))
     );
-    assert_eq!(config.models.len(), 27 + 7 * 17);
+    assert_eq!(config.models.len(), 27 + 7 * 42);
     assert_eq!(config.models[0].model, "claude-opus-5-5");
     assert_eq!(config.models[0].tier, Tier::Frontier);
     assert_eq!(config.models[5].names, Some(vec!["zai-glm-5-3".to_string()]));
@@ -1101,7 +1101,7 @@ fn the_shipped_defaults_load_with_no_override() {
     let runtime = runtime(StubFiles::new(), StubGit::new(None, &[]), home_env("/home/me"));
     let config = load_config(&runtime).expect("the configuration");
     assert_eq!(config.clients.len(), 14);
-    assert_eq!(config.models.len(), 27 + 7 * 17);
+    assert_eq!(config.models.len(), 27 + 7 * 42);
 }
 
 #[test]
