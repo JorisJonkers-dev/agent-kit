@@ -7,6 +7,8 @@
 //!   to run code (was scripts/check_marketplace_bump.py).
 //! * `skill-sources ...` checks the estate skills' recorded sources against
 //!   GitHub (was scripts/check_skill_sources.py).
+//! * `litellm-tiers ...` snapshots and checks litellm's tier policy
+//!   (registry/litellm-tiers.json; new in #905).
 //! * `verify-release-asset ...` stamps and checks the release version token
 //!   (was scripts/verify_release_asset.py).
 
@@ -14,6 +16,7 @@ use std::io::{Read, Write};
 
 pub mod agents_md;
 pub mod json;
+pub mod litellm_tiers;
 pub mod marketplace;
 pub mod release_asset;
 pub mod skill_sources;
@@ -39,7 +42,7 @@ impl Io<'_> {
 }
 
 const USAGE: &str =
-    "usage: ci-helpers agents-md|marketplace-bump|skill-sources|verify-release-asset [ARGS]";
+    "usage: ci-helpers agents-md|litellm-tiers|marketplace-bump|skill-sources|verify-release-asset [ARGS]";
 
 /// Run one subcommand against the real streams; the exit status.
 pub fn run(args: Vec<String>) -> i32 {
@@ -60,6 +63,7 @@ pub fn dispatch(args: &[String], io: &mut Io) -> i32 {
     match args.first().map(String::as_str) {
         Some("agents-md") => agents_md::run(rest, io),
         Some("marketplace-bump") => marketplace::run(rest, io),
+        Some("litellm-tiers") => litellm_tiers::run(rest, io),
         Some("skill-sources") => skill_sources::run(rest, io),
         Some("verify-release-asset") => release_asset::run(rest, io),
         _ => {

@@ -17,7 +17,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-import litellm_tiers
 import validate_manifest
 import yaml
 
@@ -44,6 +43,9 @@ FIELD_ORDER = (
 # The block of defaults.json the render owns: from its key to the line before "settings".
 PROFILES_BLOCK = re.compile(r'(?s)  "profiles": \{\n.*?\n  \},\n(?=  "settings")')
 INSERT_BEFORE = '  "settings": {'
+
+
+TIERS_PATH = KIT_ROOT / "registry" / "litellm-tiers.json"
 
 
 class ProfilesError(RuntimeError):
@@ -78,6 +80,65 @@ def catalogue_keys(defaults: dict[str, Any]) -> set[str]:
     return keys
 
 
+def tier_groups(path: Path = TIERS_PATH) -> dict[str, Any]:
+    """litellm's ``tier_groups`` as ``registry/litellm-tiers.json`` snapshots them.
+
+    The snapshot is written and checked by ``ci-helpers litellm-tiers``; this reads it, and only refuses
+    one that has no tiers or a tier that is not shaped as the render needs.
+    """
+    try:
+        groups = json.loads(path.read_text(encoding="utf-8"))["tier_groups"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ProfilesError(f"the tier snapshot {path} cannot be read: {exc}") from exc
+    if not isinstance(groups, dict) or not groups:
+        raise ProfilesError(f"the tier snapshot {path} has no tiers")
+    for name, tier in groups.items():
+        if not (
+            isinstance(tier, dict) and isinstance(tier.get("key_models"), list) and isinstance(tier.get("steps"), list)
+        ):
+            raise ProfilesError(f"tier {name} in {path} has no key_models and steps")
+    return dict(groups)
+
+
+def flat_models(groups: dict[str, Any], name: str, seen: frozenset[str] = frozenset()) -> list[str]:
+    """The model names of a tier's chain in order, tier steps spliced in, a model once."""
+    out: list[str] = []
+    for step in groups[name]["steps"]:
+        if "tier" in step:
+            names = [] if step["tier"] in seen | {name} else flat_models(groups, step["tier"], seen | {name})
+        else:
+            names = [step["model"]]
+        out.extend(model for model in names if model not in out)
+    return out
+
+
+def route_agent(name: str, routes: list[dict[str, Any]]) -> str:
+    """The litellm route (agent id) whose key calls a tier: the one that holds the tier's name.
+
+    A tier no route holds is one no workstation key calls (an escalation key); it is still
+    named ``<tier>`` so its profile can be rendered and says why it cannot run.
+    """
+    for route in routes:
+        if isinstance(route, dict) and name in route.get("models", []):
+            return str(route["agent"])
+    return name
+
+
+def key_problems(groups: dict[str, Any], routes: list[Any]) -> list[str]:
+    """Where a route that calls a tier does not hold exactly the keys the tier's ``key_models`` list."""
+    problems = []
+    for name, tier in groups.items():
+        for route in routes:
+            if not isinstance(route, dict):
+                continue  # the registry check says a route is a mapping
+            if name in route.get("models", []) and sorted(route["models"]) != sorted(tier["key_models"]):
+                problems.append(
+                    f"litellm route {route['agent']} calls {name} but holds {sorted(route['models'])}, "
+                    f"not the tier's key_models {sorted(tier['key_models'])}"
+                )
+    return problems
+
+
 def tier_profiles(groups: dict[str, Any], routes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """One profile per LiteLLM tier, named for the tier and allowing the one model that is the tier's name.
 
@@ -88,8 +149,8 @@ def tier_profiles(groups: dict[str, Any], routes: list[dict[str, Any]]) -> dict[
     """
     profiles: dict[str, dict[str, Any]] = {}
     for name, tier in groups.items():
-        agent = litellm_tiers.route_agent(groups, name, routes)
-        chain = " -> ".join(litellm_tiers.flat_models(groups, name))
+        agent = route_agent(name, routes)
+        chain = " -> ".join(flat_models(groups, name))
         profiles[name] = {
             "description": (
                 f"The LiteLLM tier {name} (cost ceiling {tier['ceiling']}): the proxy runs {chain} in order, "

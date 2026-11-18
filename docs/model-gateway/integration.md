@@ -166,8 +166,8 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   (`tier-free`, `tier-vibe`, `tier-go-cheap`, `tier-strong-open`, `tier-review`) is
   a model name the proxy serves, with a cost ceiling and an ordered chain that
   litellm owns (`catalog/routing.json`, key `tier_groups`). agent-kit holds a
-  snapshot, `registry/litellm-tiers.json` (`python3 scripts/litellm_tiers.py
-  --write --ref REF` refreshes it, `--check --upstream REF` finds drift), and
+  snapshot, `registry/litellm-tiers.json` (`ci-helpers
+  litellm-tiers --write --ref REF` refreshes it, `--check --upstream REF` finds drift), and
   `render_registry.py` renders one profile per tier into `defaults.json`, plus
   the key list and Pi provider of each tier's route, refusing a route whose models
   differ from the tier's `key_models`. `run --tier T` (or `tier` in the input)

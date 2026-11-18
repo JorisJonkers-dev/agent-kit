@@ -27,7 +27,6 @@ from typing import Any
 import delegation_profiles
 import gold_band_instances
 import litellm_catalogue
-import litellm_tiers
 import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
@@ -6122,8 +6121,8 @@ def _validate_litellm(data: dict[str, Any]) -> None:
         raise RegistryError("litellm.routes must name at least one agent id")
     secrets_by_env = {str(e["env"]): e for e in _entries(data, "workstation_secrets") if not e.get("retired")}
     try:
-        tier_problems = litellm_tiers.key_problems(litellm_tiers.tier_groups(), routes)
-    except litellm_tiers.TiersError as exc:
+        tier_problems = delegation_profiles.key_problems(delegation_profiles.tier_groups(), routes)
+    except delegation_profiles.ProfilesError as exc:
         raise RegistryError(str(exc)) from exc
     if tier_problems:
         raise RegistryError("; ".join(tier_problems))
@@ -6314,7 +6313,7 @@ def litellm_route_models(
     known = {group for entry in catalogue.data.get("groups", {}).values() if isinstance(entry, dict)
              for group in entry.get("access_groups", [])}
     # The tiers are model names the proxy serves, and a tier's key_models name the access groups its chain needs.
-    tiers = litellm_tiers.tier_groups()
+    tiers = delegation_profiles.tier_groups()
     known |= {name for tier in tiers.values() for name in tier["key_models"]}
     # The registry being rendered, not the routes.json it renders: a group a route just gained is a gate already.
     gates = litellm_catalogue.public_groups_of((load_registry().get("litellm") or {}).get("routes") or [])
@@ -6583,7 +6582,7 @@ def _defaults_with_profiles() -> str:
 def _tier_profiles() -> dict[str, dict[str, Any]]:
     """The profile per LiteLLM tier, rendered from the tier snapshot and the registry's routes."""
     routes = (load_registry().get("litellm") or {}).get("routes") or []
-    return delegation_profiles.tier_profiles(litellm_tiers.tier_groups(), routes)
+    return delegation_profiles.tier_profiles(delegation_profiles.tier_groups(), routes)
 
 
 def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
@@ -6660,7 +6659,6 @@ def main(argv: list[str] | None = None) -> int:
     except (
         RegistryError,
         delegation_profiles.ProfilesError,
-        litellm_tiers.TiersError,
         gold_band_instances.InstanceError,
     ) as exc:
         print(f"registry invalid: {exc}", file=sys.stderr)

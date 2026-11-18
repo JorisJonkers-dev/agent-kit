@@ -20,8 +20,8 @@ import pytest
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
+import delegation_profiles  # noqa: E402
 import litellm_catalogue  # noqa: E402
-import litellm_tiers  # noqa: E402
 import render_registry  # noqa: E402
 
 SCRIPT = KIT_ROOT / "scripts" / "pi-merge-providers.py"
@@ -427,7 +427,7 @@ def test_a_route_with_nothing_usable_has_no_pi_provider(monkeypatch: pytest.Monk
 def test_the_rendered_table_lists_nothing_unusable_or_cloud_on_local_and_public() -> None:
     catalogue = _snapshot()
     usable = _usable_names(catalogue)
-    tiers = set(litellm_tiers.tier_groups())  # a tier is a name the proxy serves, not a catalogue group
+    tiers = set(delegation_profiles.tier_groups())  # a tier is a name the proxy serves, not a catalogue group
     table = json.loads(render_registry.render_pi_providers(render_registry.load_registry()))
     providers = {p["name"]: p["models"] for p in table["providers"]}
     # The local route may have no models (none probed usable): when it has, they are local deployments only.

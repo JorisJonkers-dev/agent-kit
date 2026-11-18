@@ -110,8 +110,12 @@ def test_a_registry_that_is_not_a_mapping_is_refused(tmp_path):
         (lambda p: p["implement-cheap"].update(pin="pi-vibe:ministral-8b"), "pin names pi-vibe:ministral-8b"),
         (lambda p: p["implement-cheap"].update(ladder=["pi-vibe:ministral-8b"]), "ladder names pi-vibe:ministral-8b"),
         (lambda p: p["cheap-research"].update(distinct_families=9), "more than the families"),
-        (lambda p: p["public-gemini"].update(exclude_writer_family=True, models=["pi-public:public/gemini-3.6-flash"]),
-         "only one"),
+        (
+            lambda p: p["public-gemini"].update(
+                exclude_writer_family=True, models=["pi-public:public/gemini-3.6-flash"]
+            ),
+            "only one",
+        ),
     ],
 )
 def test_the_checks_refuse_a_profile_the_catalogue_cannot_serve(change, message):
@@ -134,3 +138,111 @@ def test_every_pi_client_stands_for_its_group_entries():
 def test_the_description_is_folded_and_the_scope_written_out():
     out = delegation_profiles.rendered_profile({"description": "a\n  b", "models": ["x:y"], "tools": {"skills": "any"}})
     assert out == {"description": "a b", "models": ["x:y"], "tools": {"mcp": [], "skills": "any", "plugins": []}}
+
+
+TIERS = ["tier-free", "tier-vibe", "tier-go-cheap", "tier-strong-open", "tier-review"]
+
+
+def _routes() -> list[dict]:
+    return render_registry.load_registry()["litellm"]["routes"]
+
+
+def test_the_snapshot_states_the_five_tiers_and_splices_tier_steps():
+    groups = delegation_profiles.tier_groups()
+    assert list(groups) == TIERS
+    assert groups["tier-free"]["ceiling"] == "free"
+    assert delegation_profiles.flat_models(groups, "tier-go-cheap") == [
+        "opencode-go-tier/deepseek-v4.1-flash",
+        "opencode-go-tier/glm-5.3-flash",
+        "opencode-go-tier/mimo-v2.6-flash",
+    ]
+    # tier-vibe ends in tier-go-cheap, spliced in with a model once; a tier that names itself does not loop.
+    vibe = delegation_profiles.flat_models(groups, "tier-vibe")
+    assert vibe[-3:] == delegation_profiles.flat_models(groups, "tier-go-cheap") and len(vibe) == len(set(vibe))
+    looped = {"tier-a": {"steps": [{"tier": "tier-a"}, {"model": "m", "cost": "free"}], "key_models": ["tier-a"]}}
+    assert delegation_profiles.flat_models(looped, "tier-a") == ["m"]
+
+
+def test_a_missing_or_malformed_tier_snapshot_is_refused(tmp_path):
+    with pytest.raises(delegation_profiles.ProfilesError, match="cannot be read"):
+        delegation_profiles.tier_groups(tmp_path / "absent.json")
+    for text, message in (
+        ('{"tier_groups": {}}', "has no tiers"),
+        ('{"tier_groups": {"tier-x": 3}}', "no key_models and steps"),
+        ('{"tier_groups": {"tier-x": {"key_models": [], "steps": "x"}}}', "no key_models and steps"),
+    ):
+        path = tmp_path / "bad.json"
+        path.write_text(text)
+        with pytest.raises(delegation_profiles.ProfilesError, match=message):
+            delegation_profiles.tier_groups(path)
+
+
+def test_a_route_that_calls_a_tier_holds_exactly_its_key_models():
+    groups = delegation_profiles.tier_groups()
+    assert delegation_profiles.key_problems(groups, _routes()) == []
+    wrong = [{"agent": "x", "models": ["tier-vibe", "canonical"]}]
+    assert "calls tier-vibe but holds" in delegation_profiles.key_problems(groups, wrong)[0]
+
+
+def test_each_tier_is_a_profile_on_the_route_that_holds_it():
+    groups = delegation_profiles.tier_groups()
+    profiles = delegation_profiles.tier_profiles(groups, _routes())
+    assert {name: profile["models"] for name, profile in profiles.items()} == {
+        "tier-free": ["pi-free:tier-free"],
+        "tier-vibe": ["pi-tier-vibe:tier-vibe"],
+        "tier-go-cheap": ["pi-tier-go-cheap:tier-go-cheap"],
+        "tier-strong-open": ["pi-tier-strong-open:tier-strong-open"],
+        "tier-review": ["pi-tier-review:tier-review"],
+    }
+    assert all(profile["tier"] == name for name, profile in profiles.items())
+    # They are in the rendered defaults, deny-all on tools.
+    rendered = json.loads((KIT_ROOT / delegation_profiles.DEFAULTS_PATH).read_text())["profiles"]
+    assert rendered["tier-free"]["tier"] == "tier-free"
+    assert rendered["tier-free"]["tools"] == {"mcp": [], "skills": [], "plugins": []}
+    delegation_profiles.validate(
+        delegation_profiles.load_profiles(),
+        json.loads((KIT_ROOT / delegation_profiles.DEFAULTS_PATH).read_text()),
+        profiles,
+    )
+
+
+def test_a_declared_profile_may_not_take_a_tiers_name_or_a_model_the_catalogue_lacks():
+    defaults = json.loads((KIT_ROOT / delegation_profiles.DEFAULTS_PATH).read_text())
+    data = delegation_profiles.load_profiles()
+    profiles = delegation_profiles.tier_profiles(delegation_profiles.tier_groups(), _routes())
+    clash = copy.deepcopy(data)
+    clash["profiles"]["tier-free"] = clash["profiles"]["research"]
+    with pytest.raises(delegation_profiles.ProfilesError, match="is a LiteLLM tier"):
+        delegation_profiles.validate(clash, defaults, profiles)
+    unknown = {"tier-new": {"models": ["pi-free:tier-new"], "tier": "tier-new", "description": "d"}}
+    with pytest.raises(delegation_profiles.ProfilesError, match="no model of the catalogue"):
+        delegation_profiles.validate(data, defaults, unknown)
+
+
+def test_the_pi_providers_hold_each_tier_as_a_model_and_a_free_tier_costs_nothing():
+    providers = {
+        p["name"]: p
+        for p in json.loads(render_registry.render_pi_providers(render_registry.load_registry()))["providers"]
+    }
+    free = providers["litellm-free"]["models"]
+    assert [m["id"] for m in free] == ["tier-free"] and free[0]["cost"] == {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+    }
+    assert [m["id"] for m in providers["litellm-tier-vibe"]["models"]] == ["tier-vibe"]
+    assert "cost" not in providers["litellm-tier-vibe"]["models"][0]
+    assert "litellm-tier-strong-open" not in providers
+
+
+def test_a_route_that_calls_a_tier_with_other_keys_is_refused():
+    data = render_registry.load_registry()
+    broken = copy.deepcopy(data)
+    next(r for r in broken["litellm"]["routes"] if r["agent"] == "tier-vibe")["models"] = ["tier-vibe", "canonical"]
+    with pytest.raises(render_registry.RegistryError, match="calls tier-vibe"):
+        render_registry._validate_litellm(broken)
+
+
+def test_the_repository_renders_clean_with_the_tiers(monkeypatch):
+    assert render_registry.stale_artifacts(render_registry.load_registry()) == []
