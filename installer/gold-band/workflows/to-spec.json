@@ -33,8 +33,8 @@
         "type": "worker",
         "id": "spec-round-1",
         "executionSlotId": "slot-spec-round-1",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "You are the spec question agent for round 1 of to-spec (turn decisions into a spec) (at most 3 rounds). Read the decisions record and the owner's answers so far in the spec record, and ask the owner the questions the spec still needs answered: one decision per question, none the records already settle. Write the round's questions and the answers so far to the spec record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
         "output": {
@@ -58,8 +58,8 @@
         "type": "worker",
         "id": "spec-check-1",
         "executionSlotId": "slot-spec-check-1",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Round 1 of to-spec (turn decisions into a spec) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
         "manual_check": true
@@ -68,8 +68,8 @@
         "type": "worker",
         "id": "spec-round-2",
         "executionSlotId": "slot-spec-round-2",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "You are the spec question agent for round 2 of to-spec (turn decisions into a spec) (at most 3 rounds). Read the decisions record and the owner's answers so far in the spec record, and ask the owner the questions the spec still needs answered: one decision per question, none the records already settle. Write the round's questions and the answers so far to the spec record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
         "output": {
@@ -93,8 +93,8 @@
         "type": "worker",
         "id": "spec-check-2",
         "executionSlotId": "slot-spec-check-2",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Round 2 of to-spec (turn decisions into a spec) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
         "manual_check": true
@@ -103,8 +103,8 @@
         "type": "worker",
         "id": "spec-round-3",
         "executionSlotId": "slot-spec-round-3",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "You are the spec question agent for round 3 of to-spec (turn decisions into a spec) (at most 3 rounds). Read the decisions record and the owner's answers so far in the spec record, and ask the owner the questions the spec still needs answered: one decision per question, none the records already settle. Write the round's questions and the answers so far to the spec record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
         "output": {
@@ -128,8 +128,8 @@
         "type": "worker",
         "id": "spec-check-3",
         "executionSlotId": "slot-spec-check-3",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Round 3 of to-spec (turn decisions into a spec) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
         "manual_check": true
@@ -283,8 +283,8 @@
         "type": "worker",
         "id": "spec-needs-human",
         "executionSlotId": "slot-spec-needs-human",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Some finding of the spec review (/review-spec) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
         "manual_check": true
@@ -548,8 +548,8 @@
         "type": "worker",
         "id": "spec-needs-human-2",
         "executionSlotId": "slot-spec-needs-human-2",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Some finding of the spec review (/review-spec) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
         "manual_check": true
@@ -688,8 +688,8 @@
         "type": "worker",
         "id": "spec-escalation-check",
         "executionSlotId": "slot-spec-escalation-check",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "the spec review (/review-spec) could not be accepted in two rounds: read the escalation judge's paragraph and state it to the owner. Do not write any file; the manual check after your answer is where the owner decides, and the run ends here whatever the owner decides: no later stage runs on this artifact automatically.",
         "manual_check": true
@@ -907,33 +907,33 @@
       },
       {
         "executionSlotId": "slot-spec-round-1",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-spec-check-1",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-spec-round-2",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-spec-check-2",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-spec-round-3",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-spec-check-3",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-spec-write",
@@ -967,8 +967,8 @@
       },
       {
         "executionSlotId": "slot-spec-needs-human",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-gate-critique-spec-refute",
@@ -1027,8 +1027,8 @@
       },
       {
         "executionSlotId": "slot-spec-needs-human-2",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-gate-critique-spec-refute-2",
@@ -1062,8 +1062,8 @@
       },
       {
         "executionSlotId": "slot-spec-escalation-check",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       }
     ]
   }

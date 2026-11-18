@@ -25,6 +25,7 @@ SKILL = KIT_ROOT / "skills" / "workstation" / "research"
 SKILL_MD = SKILL / "SKILL.md"
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
 SECTIONS = [
+    "Model tier",
     "Check the repository rule",
     "Check the instance",
     "Start the run",

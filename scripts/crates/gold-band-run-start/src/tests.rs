@@ -1359,3 +1359,89 @@ fn the_critic_family_rule_compares_the_families_of_models_on_one_agent_id() {
     // Bound with its orchestrator to one family, the same Pi writer meets no critic of it.
     critic_case("critic-pi-same", ("pi", GLM), ("pi", GLM)).go().passed();
 }
+
+// ---- tiers (#914) ----------------------------------------------------------
+
+const TIER_RUN: &str = include_str!("../fixtures/tier-run.json");
+const TIER_FAMILIES: &str = "# agent id, family\nclaude\tanthropic\ngate-start\tshim\n";
+
+#[test]
+fn the_ledger_of_a_run_shows_the_tier_of_each_model_node() {
+    let mut c = case("tier-ledger", "gold-band-personal", &[OTHER]);
+    c.workflow(TIER_RUN);
+    c.families(TIER_FAMILIES);
+    c.go().passed();
+    let ledger = fs::read_to_string(c.dir.join("reports").join(LEDGER_FILE)).unwrap();
+    let lines: Vec<Value> = ledger.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    let line = |node: &str| lines.iter().find(|l| l["node"] == node).unwrap().clone();
+    // The shim's stub binding is no model node; the other three are.
+    assert_eq!(lines.len(), 3, "{ledger}");
+    assert_eq!(line("fetch")["tier"], "tier-free");
+    assert_eq!(line("fetch")["model"], "litellm-free/tier-free");
+    assert_eq!(line("questions")["tier"], "tier-vibe");
+    assert_eq!(line("accept")["tier"], Value::Null);
+    assert_eq!(line("accept")["run_id"], "run-9");
+    assert_eq!(line("accept")["workflow"], "build-feature");
+    assert_eq!(line("accept")["attempt"], 3);
+}
+
+#[test]
+fn a_refused_run_leaves_no_ledger() {
+    let mut c = case("tier-no-ledger", "gold-band-personal", &[NEDAP]);
+    c.workflow(TIER_RUN);
+    c.families(TIER_FAMILIES);
+    c.go().refused("repository-rule");
+    assert!(!c.dir.join("reports").join(LEDGER_FILE).exists());
+}
+
+#[test]
+fn an_unwritable_ledger_is_exit_2() {
+    let mut c = case("tier-ledger-unwritable", "gold-band-personal", &[OTHER]);
+    c.workflow(TIER_RUN);
+    c.families(TIER_FAMILIES);
+    c.go().passed();
+    // A directory where the ledger file goes.
+    let ledger = c.dir.join("reports").join(LEDGER_FILE);
+    fs::remove_file(&ledger).unwrap();
+    fs::create_dir(&ledger).unwrap();
+    let o = c.go();
+    assert_eq!(o.code, 2);
+    assert!(o.err.contains("cannot write the ledger"), "{}", o.err);
+}
+
+#[test]
+fn an_unknown_tier_is_refused_by_name() {
+    let mut c = case("tier-unknown", "gold-band-personal", &[OTHER]);
+    c.workflow(&TIER_RUN.replace("litellm-free/tier-free", "litellm-free/tier-cheapest"));
+    c.families(TIER_FAMILIES);
+    let o = c.go();
+    let text = o.refused("tier");
+    assert!(text.contains("node fetch: agent pi, model litellm-free/tier-cheapest: tier tier-cheapest is not a LiteLLM tier"), "{text}");
+}
+
+#[test]
+fn an_entry_must_allow_every_family_of_a_tier_and_vouch_for_each_step() {
+    let mut c = case("tier-entry", "gold-band-personal", &[OTHER]);
+    c.workflow(TIER_RUN);
+    c.families(TIER_FAMILIES);
+    c.allowlist(&allowlist_of(
+        "github.com/jorisjonkers-dev/agent-kit",
+        &entry(true, r#""anthropic","zhipu""#),
+    ));
+    let o = c.go();
+    let text = o.refused("family-allowlist");
+    // tier-free's first step has no family in the routing, so no entry can vouch for it.
+    assert!(text.contains("falls to free/hy4-flash-free, which has no family in the routing, so entry github.com/jorisjonkers-dev/agent-kit cannot vouch for it"), "{text}");
+    // tier-vibe's first step is deepseek, which the entry does not allow.
+    assert!(text.contains("family deepseek (vibe-tier/deepseek-v4-1-flash-1017 of tier tier-vibe) is not allowed by entry"), "{text}");
+}
+
+#[test]
+fn no_tier_is_allowed_on_a_nedap_repository() {
+    let mut c = case("tier-nedap", "gold-band", &[NEDAP]);
+    c.workflow(TIER_RUN);
+    c.families(TIER_FAMILIES);
+    let o = c.go();
+    let text = o.refused("family-allowlist");
+    assert!(text.contains("node fetch: agent pi, model litellm-free/tier-free is not allowed on a nedap repository"), "{text}");
+}

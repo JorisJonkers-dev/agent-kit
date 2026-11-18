@@ -33,8 +33,8 @@
         "type": "worker",
         "id": "tickets-round-1",
         "executionSlotId": "slot-tickets-round-1",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "You are the ticket question agent for round 1 of to-tickets (cut a spec into tickets) (at most 3 rounds). Read the spec and the owner's answers so far in the ticket record, and ask the owner the questions the cut still needs answered (slices, order, what each ticket covers): one question each, none the record already settles. Write the round's questions and the answers so far to the ticket record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
         "output": {
@@ -58,8 +58,8 @@
         "type": "worker",
         "id": "tickets-check-1",
         "executionSlotId": "slot-tickets-check-1",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Round 1 of to-tickets (cut a spec into tickets) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
         "manual_check": true
@@ -68,8 +68,8 @@
         "type": "worker",
         "id": "tickets-round-2",
         "executionSlotId": "slot-tickets-round-2",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "You are the ticket question agent for round 2 of to-tickets (cut a spec into tickets) (at most 3 rounds). Read the spec and the owner's answers so far in the ticket record, and ask the owner the questions the cut still needs answered (slices, order, what each ticket covers): one question each, none the record already settles. Write the round's questions and the answers so far to the ticket record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
         "output": {
@@ -93,8 +93,8 @@
         "type": "worker",
         "id": "tickets-check-2",
         "executionSlotId": "slot-tickets-check-2",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Round 2 of to-tickets (cut a spec into tickets) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
         "manual_check": true
@@ -103,8 +103,8 @@
         "type": "worker",
         "id": "tickets-round-3",
         "executionSlotId": "slot-tickets-round-3",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "You are the ticket question agent for round 3 of to-tickets (cut a spec into tickets) (at most 3 rounds). Read the spec and the owner's answers so far in the ticket record, and ask the owner the questions the cut still needs answered (slices, order, what each ticket covers): one question each, none the record already settles. Write the round's questions and the answers so far to the ticket record. Answer with one fenced json block holding open_questions: an empty list when nothing is left to settle and nothing else.",
         "output": {
@@ -128,8 +128,8 @@
         "type": "worker",
         "id": "tickets-check-3",
         "executionSlotId": "slot-tickets-check-3",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Round 3 of to-tickets (cut a spec into tickets) left questions open: read the round's open questions in the record and state them to the owner, one short paragraph per question. Do not answer any of them and do not write any file; the manual check after your answer is where the owner answers the round.",
         "manual_check": true
@@ -328,8 +328,8 @@
         "type": "worker",
         "id": "tickets-needs-human",
         "executionSlotId": "slot-tickets-needs-human",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Some finding of the ticket review (/review-tickets) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
         "manual_check": true
@@ -638,8 +638,8 @@
         "type": "worker",
         "id": "tickets-needs-human-2",
         "executionSlotId": "slot-tickets-needs-human-2",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Some finding of the ticket review (/review-tickets) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
         "manual_check": true
@@ -778,8 +778,8 @@
         "type": "worker",
         "id": "tickets-escalation-check",
         "executionSlotId": "slot-tickets-escalation-check",
-        "provider": "vibe",
-        "model": "glm-5-3",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "the ticket review (/review-tickets) could not be accepted in two rounds: read the escalation judge's paragraph and state it to the owner. Do not write any file; the manual check after your answer is where the owner decides, and the run ends here whatever the owner decides: no later stage runs on this artifact automatically.",
         "manual_check": true
@@ -1017,33 +1017,33 @@
       },
       {
         "executionSlotId": "slot-tickets-round-1",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-tickets-check-1",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-tickets-round-2",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-tickets-check-2",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-tickets-round-3",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-tickets-check-3",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-tickets-write",
@@ -1087,8 +1087,8 @@
       },
       {
         "executionSlotId": "slot-tickets-needs-human",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-gate-critique-tickets-refute",
@@ -1157,8 +1157,8 @@
       },
       {
         "executionSlotId": "slot-tickets-needs-human-2",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-gate-critique-tickets-refute-2",
@@ -1192,8 +1192,8 @@
       },
       {
         "executionSlotId": "slot-tickets-escalation-check",
-        "agentId": "vibe",
-        "modelId": "glm-5-3"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       }
     ]
   }
