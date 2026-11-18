@@ -1311,6 +1311,8 @@ def test_the_admin_token_script_makes_a_one_hour_management_key_and_no_agent_key
     assert key["user_id"] == "agent-kit-setup"
     assert key["key_type"] == "management" and key["duration"] == "1h"
     assert "key_alias" not in key and "LITELLM_MASTER_KEY}" in script
+    # Without the variable, a terminal run asks for the master key and does not echo it.
+    assert "[ -t 0 ]" in script and "read -rsp 'LiteLLM master key: ' LITELLM_MASTER_KEY" in script
 
 
 @pytest.mark.parametrize(

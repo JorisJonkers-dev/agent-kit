@@ -237,9 +237,11 @@ once for a **LiteLLM admin token**: a management key that expires in one hour, w
 makes with the proxy's master key:
 
 ```bash
-read -rs LITELLM_MASTER_KEY && export LITELLM_MASTER_KEY
 registry/generated/litellm/make-admin-token.sh
 ```
+
+On a terminal the script asks for the master key and does not show what is typed. Without a
+terminal, or to skip the question, put the key in `LITELLM_MASTER_KEY` first.
 
 The script calls `/key/generate` with `key_type: management` (management routes only, no model
 call) and `duration: 1h`, the master key in a curl config on stdin so it reaches no argv, and
