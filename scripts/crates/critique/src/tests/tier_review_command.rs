@@ -8,7 +8,7 @@ use crate::cli::{run_cli, CliResult};
 use crate::git::SystemGit;
 use crate::Runtime;
 use model_gateway::adapters::fs::SystemFiles;
-use model_gateway::json::{parse, Value};
+use model_gateway::json::{self, parse, Value};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -394,4 +394,53 @@ fn a_reviewer_that_cannot_be_confined_is_no_review_and_its_routing_says_nothing_
         other => panic!("{other:?}"),
     }
     assert_eq!(report.routing.expect("a routing").capture, "no-request");
+}
+
+#[test]
+fn a_finding_names_each_reviewers_family_and_says_its_suggestion_and_pre_verdict_when_it_has_them() {
+    use crate::tier_review_command::finding_lines;
+    let critics = vec![json::object(vec![("critic_id", Value::str("c1")), ("family", Value::str("nvidia"))])];
+    let with = json::object(vec![
+        ("id", Value::str("f1")),
+        ("severity", Value::str("major")),
+        ("location", Value::str("spec.md")),
+        ("claim", Value::str("the claim")),
+        ("raised_by", Value::Arr(vec![Value::str("c1"), Value::str("gone")])),
+        ("suggestion", Value::str("fix it")),
+        ("pre_verdict", json::object(vec![("verdict", Value::str("kept")), ("reason_code", Value::str("rc")), ("reason", Value::str("because"))])),
+    ]);
+    let lines = finding_lines(with.as_object().expect("finding"), &critics);
+    assert!(lines.contains(&"Raised by c1 (nvidia), gone (?).".to_string()), "{lines:?}");
+    assert!(lines.contains(&"Pre-verdict: kept (rc): because".to_string()), "{lines:?}");
+    assert!(lines.contains(&"Suggestion: fix it".to_string()), "{lines:?}");
+    // Without raised_by, suggestion or pre_verdict the finding still reads, with no reviewers named.
+    let bare = json::object(vec![("id", Value::str("f2")), ("claim", Value::str("bare"))]);
+    let lines = finding_lines(bare.as_object().expect("finding"), &critics);
+    assert!(lines.contains(&"Raised by .".to_string()), "{lines:?}");
+    assert!(!lines.iter().any(|line| line.starts_with("Suggestion:") || line.starts_with("Pre-verdict:")), "{lines:?}");
+}
+
+#[test]
+fn a_family_that_reviewed_twice_is_named_once_and_a_failed_reviewer_is_not_a_family_that_reviewed() {
+    use crate::tier_review_command::families_that_reviewed;
+    let critic = |family: &str, status: &str| json::object(vec![("family", Value::str(family)), ("status", Value::str(status))]);
+    let critics = vec![critic("nvidia", "ok"), critic("zhipu", "failed"), critic("nvidia", "ok"), critic("openai", "ok")];
+    assert_eq!(families_that_reviewed(&critics), ["nvidia", "openai"]);
+}
+
+#[test]
+fn a_ledger_refusal_of_another_client_does_not_cool_a_step_for_the_tier() {
+    let machine = Machine::new(&setup());
+    let other = "{\"at\":\"2026-11-03T11:00:00.000Z\",\"client\":\"pi-other\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"model\":\"free/gemma-4-31b\",\"outcome\":\"failed\",\"reason\":\"rate-limited\",\"run_id\":\"earlier\",\"workflow\":\"w\"}\n";
+    machine.put("state/agent-kit/model-gateway/ledger.jsonl", other);
+    let (result, value) = machine.tier_review("");
+    assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
+    assert!(machine.asked().contains(&"free/gemma-4-31b".to_string()), "gemma was asked although another client refused it");
+}
+
+#[test]
+fn an_orchestrator_family_the_caller_names_is_kept_and_the_review_still_runs() {
+    let machine = Machine::new(&setup());
+    let (result, value) = machine.tier_review(",\"orchestrator_family\":\"anthropic\"");
+    assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
 }

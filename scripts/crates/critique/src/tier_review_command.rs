@@ -83,7 +83,7 @@ fn list(value: Option<&Value>) -> Vec<Value> {
 }
 
 /// The distinct families of the reviewers that reviewed, in the order they ran.
-fn families_that_reviewed(critics: &[Value]) -> Vec<String> {
+pub(crate) fn families_that_reviewed(critics: &[Value]) -> Vec<String> {
     let mut families: Vec<String> = Vec::new();
     for critic in critics.iter().filter_map(Value::as_object).filter(|critic| text(critic.get("status")) == "ok") {
         let family = text(critic.get("family"));
@@ -148,7 +148,7 @@ fn shown(value: &Value) -> String {
     }
 }
 
-fn finding_lines(finding: &Object, critics: &[Value]) -> Vec<String> {
+pub(crate) fn finding_lines(finding: &Object, critics: &[Value]) -> Vec<String> {
     let family_of = |id: &str| critics.iter().filter_map(Value::as_object).find(|critic| text(critic.get("critic_id")) == id).map_or("?".to_string(), |critic| text(critic.get("family")));
     let raised: Vec<String> = list(finding.get("raised_by")).iter().filter_map(Value::as_str).map(|id| format!("{id} ({})", family_of(id))).collect();
     let mut lines = vec![String::new(), format!("### {} [{}] {}", text(finding.get("id")), text(finding.get("severity")), text(finding.get("location"))), String::new(), text(finding.get("claim"))];
