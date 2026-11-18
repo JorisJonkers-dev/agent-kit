@@ -1,7 +1,8 @@
 # Quota-aware tier choice (#907)
 
 `model-gateway run --tier T` reads how much of the plan the tier draws on is used, and drops to the next cheaper
-tier when a window is at 80%. Part of #916 (the design is in the free-inference plan, litellm#57).
+tier when a window is at 80%. Part of #916; the design is in the
+[free-inference plan](https://github.com/JorisJonkers-dev/litellm/blob/docs/free-providers-and-subscriptions/docs/free-inference.md).
 
 ## The ladder and what "next" means
 

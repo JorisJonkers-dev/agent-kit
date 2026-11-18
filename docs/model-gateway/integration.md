@@ -176,6 +176,10 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   tier is `unknown-tier`, never a default, and a tier is not combined with a
   profile, harness, client or model. `tier-strong-open` is an escalation tier
   with no workstation key, so a run on it is refused with `tier-key-missing`, naming the provider and the key models it needs, until a key is provisioned.
+  A tier is chosen by what is left of its quota: at 80% of a window of the plan it draws on, the
+  run drops to the next cheaper tier on the ladder and never to a dearer one, and the ledger line's
+  `tier_decision` says what was asked for, what was chosen, why and the signals read
+  ([quota-tiers.md](quota-tiers.md) has the ladder, the signals and the settings).
   The `run-tier` scenario holds the goldens.
 - **Every run writes its routing (#906).** The run's one ledger line carries
   `tier` (the LiteLLM tier its profile is, else `null`), `harness` (the client's

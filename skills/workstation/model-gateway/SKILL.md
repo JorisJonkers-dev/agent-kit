@@ -130,10 +130,12 @@ prices until it is removed from `defaults.json`.
 ### Pi: one client per LiteLLM route
 
 Pi is the preferred client: `pi-vibe`, `pi-vibe-study`, `pi-opencode-go`,
-`pi-local`, `pi-public`, `pi-openrouter` and `pi-free`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
+`pi-local`, `pi-public`, `pi-openrouter`, `pi-free`, `pi-tier-vibe`,
+`pi-tier-go-cheap` and `pi-tier-review`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
 all started by the one `pi` program, each on its route's key, which sits in the
 route's own team and budget. `pi-openrouter` and `pi-free` are the free-only
-clients (below). All are `subsidised`, except a model that is `free` (below).
+clients (below). A tier client sends the tier's name as the model. All are
+`subsidised`, except a model that is `free` (below).
 
 **One definition of free.** A model is `free` when the live LiteLLM catalogue
 marks it free: for a Pi model, its canonical group, free only when every
@@ -372,11 +374,26 @@ only for an inline run), `time_limit_s` (default 900), `max_price_usd` and
 fall-through below), `family_binding` (default `true`; see below),
 `max_attempts` (default 3), `headless` (a boolean that
 changes nothing else: a run marked headless is refused and launched exactly
-like any other) and `free_only` (a boolean; see below).
+like any other), `tier` (see below) and `free_only` (a boolean; see below).
 `free_only: true` refuses the run, before anything starts, with code
 `free-only-refused` unless the model is `free` (the one definition above); it also turns off the retry,
 the climb and the fall-through, so a free-only run never moves to another
 model. A non-boolean is `invalid-input`.
+
+A run may name a LiteLLM tier instead of a client and a model: `tier` (or
+`--tier T`), where `T` is one of the tiers the defaults state (`tier-free`,
+`tier-vibe`, `tier-go-cheap`, `tier-strong-open`, `tier-review`, rendered from
+`registry/litellm-tiers.json`). The tier picks the profile, the client and the
+model, so it is not combined with `profile`, `harness`, `client` or `model`
+(`invalid-input`). The run goes through the tier's Pi route and sends the
+tier's name as the model, and LiteLLM walks the tier's chain. An unknown tier
+is `unknown-tier`, never a default; a tier this machine holds no key for is
+`tier-key-missing`. The tier is chosen by what is left of its quota: at 80% of
+a window of the plan it draws on, the run drops to the next cheaper tier on the
+ladder and never to a dearer one, and a tier takes only
+`settings.quota.parallel` runs at once (`tier-busy` when none frees up within
+`slot_wait_s`). `docs/model-gateway/quota-tiers.md` has the ladder, the signals
+and the settings.
 `workflow` is required (`code: "invalid-input"`), and is a name: a letter or
 digit, then letters, digits and `. _ : / @ -` only, at most 80 characters. Every
 command that takes a workflow name holds it to that rule, because the name
@@ -566,12 +583,25 @@ random suffix.
 
 Every run also appends one JSON line to the machine-wide ledger,
 `$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl` (else
-`~/.local/state/...`): workflow, client, model, family, mode, repository key,
-tokens, dollars, outcome, duration and run id. Writes take an exclusive lock
-file beside it, so two gateway processes never interleave a line. Dollars come
-from the client's own report when it prices the run — Vibe's `export.json`, or
-Hermes' `usage.json` — else from the tokens times the catalogue's `prices` for
-the model.
+`~/.local/state/...`): workflow, client, model, family, mode, harness,
+repository key, tokens, dollars, outcome, duration and run id. Writes take an
+exclusive lock file beside it, so two gateway processes never interleave a
+line. Dollars come from the client's own report when it prices the run — Vibe's
+`export.json`, or Hermes' `usage.json` — else from the tokens times the
+catalogue's `prices` for the model.
+
+The line also carries the run's routing: `tier` (the LiteLLM tier its profile
+is, else `null`), `litellm_model_id` (the deployment that served it, from
+`x-litellm-model-id`), `served_model` (the model the response body names),
+`attempted_fallbacks` (from `x-litellm-attempted-fallbacks`), `fallback_fired`
+(`attempted_fallbacks >= 1`) and `routing_capture`, which says how much the
+gateway saw: `recorded`, `no-litellm-headers`, `no-request`, `hidden` or
+`not-litellm`. A field the gateway could not see is `null`, never a guess. A
+tier run on Pi goes through a recording proxy, so its routing is `recorded`;
+every other run is `hidden` or `not-litellm`. A `--tier` run also carries
+`tier_decision` (`requested`, `chosen`, `reason`, `signals`), and a run on a
+LiteLLM route carries `allowance_usd` and `litellm_cost_usd` when its responses
+reported them.
 
 ## When a delegation fails or cannot start
 
