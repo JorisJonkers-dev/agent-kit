@@ -1,4 +1,5 @@
 mod scenarios;
+mod confined;
 mod units;
 mod adapters;
 mod caps;

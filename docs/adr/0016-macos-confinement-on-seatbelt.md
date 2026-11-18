@@ -154,22 +154,83 @@ from Linux: a program the profile does not let run is refused by
 `sandbox-exec` itself, with its exit 71 and "Operation not permitted", not
 125.
 
-## Per-client recipes (to be wired by #903)
+## What the launcher gained for the clients (#903)
 
-Where the launcher's confinement wraps the client, the recipe is the
-arguments after `agent-launcher confine`. None of these is wired yet: #903
-does that, and `docs/model-gateway/harness-matrix.md` gets its macOS column
-then. The "traced" column says what was run under the confinement here.
+Wiring every client showed three things a recipe needs that the first cut did not have. Each is an option of
+`confine`, and none is on unless a recipe asks for it.
 
-| Client | Wrapped by `confine`? | Reads | Runs | Writes | Ports | Env | Traced here |
-| :- | :- | :- | :- | :- | :- | :- | :- |
-| Pi | yes (wired: `pi_grants`) | the work directory | `--run-from pi` (its package and `node`) | its agent directory (also `TMPDIR`) | the proxy (443) | `PI_CODING_AGENT_DIR`, `TMPDIR` | full `pi -p` run, local mock and the real proxy through `model-gateway run` (`pi-opencode-go`) |
-| OpenCode | yes | the work directory | `--run-from opencode` (the Homebrew Cellar directory) | `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` and `TMPDIR`, all under one run directory (it creates `$TMPDIR/opencode` and a `log` directory at start) | the proxy; Zen is a direct host (open point) | the five variables | `opencode --version` |
-| Hermes | yes | the work directory, its state directory `~/.hermes` (it reads `~/.hermes/.env`) | the `uv` tool directory and the whole `uv/python` directory | its state directory | the proxy | as the client needs | start and import reach `~/.hermes/.env` and stop there; `--version` not run to the end |
-| Claude Code | yes, `claude --version` and a Mach-O binary | the work directory | `--run-from claude` | its config directory | `api.anthropic.com` is a direct host (open point); the trust store goes through `trustd` | `ANTHROPIC_*`, config directory | `claude --version` |
-| Codex | **no**: it uses its own Seatbelt, which cannot nest (`sandbox_apply: Operation not permitted` was reproduced under `confine`) | | | | | | `codex --version` runs confined; the real run uses its sandbox flags and is checked, not wrapped |
-| `agy` (Antigravity) | yes, unless `agy --sandbox` is used (it may use Seatbelt too; not checked) | the work directory | `--run` the Caskroom directory that holds `antigravity` (the `agy` wrapper sits one level below it) | its state directory | direct host (open point) | as the client needs | `antigravity --version` |
-| Vibe | yes | the work directory | `--run` the `uv` tool directory and the Python it runs on (here `/Library/Frameworks/Python.framework`) | `VIBE_HOME` | the proxy or Mistral (direct host) | `VIBE_HOME`, key | `vibe --version` |
+- **`--run-from` follows a launcher script.** A uv tool (Vibe, Hermes) and the Homebrew `agy` wrapper are
+  `/bin/sh` scripts that `exec` another program (a venv's `python3` after `exec`, or `exec "<Caskroom>/antigravity"`).
+  The launcher now reads the first lines of a script for the absolute program after `exec` and grants its
+  install: the directory above its `bin` as written (a virtual environment keeps its libraries beside `bin`) and
+  as it resolves (the Python it links to), and the `python` store directory of a uv-managed Python, which also
+  holds the links to its versions. Nothing is guessed from a name: a script that names no absolute program grants
+  what it did before.
+- **`--write FILE` is a file.** A path that is a file is granted as that file alone (a `literal` rule, not a
+  subpath), so a client can rotate the tokens in one login file without the directory around it.
+- **`--keychain` and `--preferences` (macOS).** Claude Code, Antigravity, Vibe and Codex keep their sign-in in
+  the login keychain and ask it through `/usr/bin/security` or the Security framework. `--keychain` allows the
+  Mach lookup of `com.apple.SecurityServer` and reads the keychain files (`~/Library/Keychains`,
+  `/Library/Keychains`) and nothing else of `~/Library`. A keychain item is still released only to a caller its
+  access list names, so this lets the clients ask for their own item, not a delegate read the owner's others. The
+  keychain is found through `HOME` (`security list-keychains` finds none under another `HOME`), so a client that
+  uses it keeps the real `HOME`. `--preferences` allows `cfprefsd` and the managed preferences, which Codex asks
+  before it starts (`Failed to synchronize managed preferences` without it). On Linux both are accepted and do
+  nothing: a client's credentials are files there, which a `--read` or `--write` names.
+
+## Per-client recipes (wired by #903: `client_run`, `run_home`, `client_confine`)
+
+Every client but Pi starts as `agent-launcher confine <grants> -- <client> ...`. A client that cannot be
+confined (no launcher, a home that cannot be made, a login that is not there) is refused with `launch-failed` and
+the reason, never started bare. The launch passes by name every variable it sets (the launcher clears the rest),
+and a key a wrapper reads from the secret store (`LITELLM_*_KEY`) by its name. Common to all: **read** the work
+directory (or **write** it, and the git directories a writing run's client writes, for `mode: "write"`), **write**
+the run directory (which holds the client's home and a `tmp` directory named by `TMPDIR`), **run** the client's
+own install (`--run-from`) and the system runtime. What each adds, as traced and run live on macOS 27:
+
+| Client | Home it runs in | Also reads / writes | Ports | macOS services | Notes |
+| :- | :- | :- | :- | :- | :- |
+| Pi | `pi-agent` in the run directory (as before) | | the proxy | | `pi_grants`, unchanged |
+| OpenCode (LiteLLM route) | `<run>/client-home`: `HOME`, `XDG_*`, `OPENCODE_*`, one provider, tools per the mode | | not limited | | key from the secret store by the wrapper |
+| OpenCode (own providers, `opencode/...` free models) | the same, with `OPENCODE_DB` at the owner's database | **writes** the owner's `~/.local/share/opencode` directory (the database and its journal) | not limited | | the sign-in is in the database; a fresh one answers 429 |
+| Hermes (LiteLLM route) | `<run>/client-home`: `HERMES_HOME`, `HOME`, `XDG_*`, one provider | | the provider's (443) | | no literal key copied |
+| Hermes (other provider) | the same, a `config.yaml` with no MCP server and a link to the owner's `.env` | **reads** the owner's `~/.hermes/.env` (the file) | 443 | | `--safe-mode` |
+| Claude Code | `tmp` only (`CLAUDE_CODE_TMPDIR`), real `HOME` | nothing of `~/.claude`, `~/.claude.json` or `~/.claude-personal` | 443 | keychain; `USER`, `LOGNAME` kept | no global `CLAUDE.md`, skills or plugins load |
+| Codex | `CODEX_HOME=<run>/client-home` holding a link to the owner's `auth.json` | **writes** the owner's `auth.json` (the file; it rotates tokens in place) | 443 | keychain, preferences | runs with its own sandbox off, below |
+| Antigravity | `tmp` only, real `HOME` | **writes** `~/.gemini/antigravity-cli` and `~/.gemini/config` | not limited | keychain | its `--sandbox` is left out: its own Seatbelt cannot nest |
+| Vibe | `VIBE_HOME=<run>/client-home/vibe`: a copy of the owner's `config.toml` and `agents/`, real `HOME` | **reads** `~/.agents/skills` (Vibe walks it at start and fails on a directory it cannot even stat; the delegate agent enables no skill) | 443 | keychain | no session history, trusted folders or key file |
+
+**Codex.** Its own sandbox is a Seatbelt profile, and Seatbelt does not nest (`sandbox_apply: Operation not
+permitted`, reproduced under `confine`). The two choices were to use Codex's sandbox and verify it, or to turn it
+off and let ours be the sandbox. The first leaves its read-only mode reading the whole disk (Seatbelt's read-only
+profile allows every read) and is the one sandbox the gateway cannot check. The second holds the reads to the work
+directory and the writes to the worktree (a writing run) or the run directory, with the same proof every other
+client has. **Decided: a confined Codex runs `-s danger-full-access`** (and no `--add-dir`, which only its own
+workspace sandbox reads). The shell commands it runs are children of the confined process and inherit the
+profile. It stays `--ignore-user-config`, and its home is the run's own, so the owner's `AGENTS.md`, skills and
+plugins are no longer loaded.
+
+**The network.** Pi, Hermes, Claude Code, Codex and Vibe get `--net-connect 443` (or the proxy's port).
+OpenCode (`run --standalone`) and Antigravity serve themselves on a loopback port chosen at run time and
+connect to it; neither backend can name that port (a bind is never allowed, and a connect to `localhost:*`
+would open every local service), so they run with the network not limited. Their files are confined all the
+same. **A host allowlist is not built:** `443` is any host, and the allow-listing proxy of the open point above
+is still the open item for every client with web tools.
+
+## Gaps left, per client
+
+- An OpenCode run on its own providers can write the owner's OpenCode data directory. It holds the sign-in and
+  the session history in one database, which the launcher cannot split.
+- Antigravity can read the owner's `~/.gemini/config`, where its skills are, and its own state beside it.
+- Vibe can list `~/.agents/skills`.
+- Claude Code, Antigravity, Vibe and Codex ask the keychain for credentials; a prompt-injected client can still
+  use the credential it was signed in with, as it always could.
+- Codex rotates its tokens in the owner's `auth.json` through the link; a client that replaced the file by a
+  rename would leave the run's copy and not the owner's. Codex 0.170 writes it in place.
+- Linux: `--keychain` and `--preferences` do nothing, the recipes were run on macOS only, and OpenCode and
+  Antigravity have no port limit there either.
+- The matrix's escape probe passes live for Claude Code, Antigravity, OpenCode and Hermes; Codex and Vibe have
+  no profile model on this machine, so their cells are blocked and were run by hand under the same grants.
 
 ## Consequences
 

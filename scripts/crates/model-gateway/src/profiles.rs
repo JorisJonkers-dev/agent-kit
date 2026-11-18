@@ -200,16 +200,34 @@ pub fn plain_name(name: &str) -> bool {
     chars.next().is_some_and(|first| first.is_ascii_alphanumeric()) && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
 
-/// The limit the chosen client cannot enforce, as a reason, or `None` when it can hold the scope. Only Pi
-/// enforces: its per-run home is built from the scope, so it holds a list of skills and plugins (extensions) by
-/// name, and holds mcp at none. It cannot hold `any` (its home is built only from named items) or an MCP server
-/// (the confined launch reaches only the route's proxy port and starts no other program, so a server could never
-/// connect). Every other client is unable to hold a restricted scope.
+/// The clients that run confined in a per-run home that holds no MCP server, skill or plugin (#903), and whose
+/// escape probe in the harness matrix passes live: a deny-all scope holds for them, since the home has none to
+/// load and the confinement reads nothing of the owner's beyond the client's own sign-in. Antigravity is not
+/// here (its confinement grants the owner's `~/.gemini/config`, where its skills are), nor are Codex and Vibe
+/// (their probe cells cannot run on this machine's profiles).
+pub const CONFINED_CLIENTS: [&str; 4] = ["claude", "hermes", "opencode", "opencode-free"];
+
+/// The limit the chosen client cannot enforce, as a reason, or `None` when it can hold the scope. Pi enforces: its
+/// per-run home is built from the scope, so it holds a list of skills and plugins (extensions) by name, and holds
+/// mcp at none. It cannot hold `any` (its home is built only from named items) or an MCP server (the confined
+/// launch reaches only the route's proxy port and starts no other program, so a server could never connect). A
+/// client in [`CONFINED_CLIENTS`] holds a scope that grants nothing, since its home has nothing to grant. Every
+/// other client is unable to hold a restricted scope.
 pub fn unenforceable(profile: &str, client: &str, is_pi: bool, tools: &ToolScope) -> Option<String> {
     if !is_pi {
         let restricted: Vec<&str> = TOOL_KINDS.into_iter().filter(|kind| *tools.of(kind) != ToolList::Any).collect();
         if restricted.is_empty() {
             return None;
+        }
+        if CONFINED_CLIENTS.contains(&client) {
+            let granted: Vec<&str> = TOOL_KINDS.into_iter().filter(|kind| matches!(tools.of(kind), ToolList::Only(items) if !items.is_empty())).collect();
+            if granted.is_empty() {
+                return None;
+            }
+            return Some(format!(
+                "profile {profile} grants {}, and {client} cannot enforce a list: its per-run home holds no MCP server, skill or plugin, so only a scope that grants none holds; only Pi enforces a list",
+                granted.join(", ")
+            ));
         }
         return Some(format!(
             "profile {profile} restricts {} (a scope is deny-all unless the profile lists it), and {client} cannot enforce a tool scope: only Pi does",

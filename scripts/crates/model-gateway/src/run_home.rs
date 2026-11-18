@@ -1,13 +1,19 @@
 //! The per-run home of a client the gateway launches (#903): a directory under the run's own, made for one
-//! launch and removed when it ends, that holds only the provider the run needs. The client is pointed at it
-//! through `HOME`, the XDG variables and its own variables, so the owner's home never reaches the delegate:
-//! no MCP server, skill, `AGENTS.md`, memory or session history the profile did not grant, and no path of the
-//! owner's in its context. Pi has its own (`pi_launch`); this is the same design for OpenCode and Hermes.
-//! OpenCode's own providers sign in through the owner's data directory, which stays (see `prepare_opencode`).
+//! launch and removed when it ends, that holds only what the run needs. The client is pointed at it through
+//! `HOME`, the XDG variables and its own variables, so the owner's home never reaches the delegate: no MCP
+//! server, skill, `AGENTS.md`, memory or session history the profile did not grant, and no path of the owner's
+//! in its context. Pi has its own (`pi_launch`); this is the same design for every other client, as far as the
+//! client's sign-in allows:
 //!
-//! Claude Code, Codex, Antigravity and Vibe keep the home they have, because each one's sign-in lives there
-//! (a subscription login, rotating tokens, a keychain item named after the config directory). They are
-//! closed against MCP and project context by flags instead: see their launchers.
+//! - OpenCode and Hermes (on a LiteLLM route) hold the provider and a key the launch's wrapper reads from the
+//!   secret store: nothing of the owner's.
+//! - Codex's home holds a link to the one file its ChatGPT login rotates its tokens in, which the confinement
+//!   lets it write; a copy would sign the owner out.
+//! - Vibe's home holds a copy of the owner's `config.toml` and agent files; its key is asked of the keychain.
+//! - Claude Code, Antigravity and Vibe's keys are in the macOS keychain, which is found through the real
+//!   `HOME`, so those launches keep it and the home is a temporary directory only.
+//!
+//! Every home has a `tmp` directory, which `TMPDIR` names: a confined client may write nowhere else.
 
 use crate::json::{self, Value};
 use crate::launchers::LaunchPaths;
@@ -19,6 +25,9 @@ use std::collections::{BTreeMap, HashMap};
 /// The directory of a launch's own home, under the run's directory.
 pub const RUN_HOME: &str = "client-home";
 
+/// The temporary directory inside a home, which `TMPDIR` names.
+const TMP: &str = "tmp";
+
 /// What the variables of a run home point a client at.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RunHome {
@@ -26,11 +35,17 @@ pub struct RunHome {
     pub dir: String,
     /// The variables that make the client use it; the launcher sets them last, so a caller's own never win.
     pub env: BTreeMap<String, String>,
+    /// What the confinement of the launch grants for this home: paths of the owner's the client reads, paths it
+    /// writes (a database, the file a login's tokens rotate in), and the TCP ports its provider is on.
+    pub reads: Vec<String>,
+    pub writes: Vec<String>,
+    pub ports: Vec<u16>,
 }
 
 /// The variables OpenCode's launch sets itself, which a caller's `extras.env` may not name.
-pub const OPENCODE_PROTECTED_ENV: [&str; 11] = [
+pub const OPENCODE_PROTECTED_ENV: [&str; 13] = [
     "HOME",
+    "OPENCODE_DB",
     "OPENCODE_CONFIG",
     "OPENCODE_CONFIG_CONTENT",
     "OPENCODE_CONFIG_DIR",
@@ -40,11 +55,17 @@ pub const OPENCODE_PROTECTED_ENV: [&str; 11] = [
     "XDG_CACHE_HOME",
     "XDG_CONFIG_HOME",
     "XDG_DATA_HOME",
+    "TMPDIR",
     "XDG_STATE_HOME",
 ];
 
 /// The variables Hermes' launch sets itself.
-pub const HERMES_PROTECTED_ENV: [&str; 6] = ["HERMES_HOME", "HOME", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"];
+pub const HERMES_PROTECTED_ENV: [&str; 7] = ["HERMES_HOME", "HOME", "TMPDIR", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"];
+
+/// The variables Codex's, Claude Code's and Antigravity's launches set themselves.
+pub const CODEX_PROTECTED_ENV: [&str; 2] = ["CODEX_HOME", "TMPDIR"];
+pub const CLAUDE_PROTECTED_ENV: [&str; 3] = ["CLAUDE_CODE_DISABLE_AUTO_MEMORY", "CLAUDE_CODE_TMPDIR", "TMPDIR"];
+pub const AGY_PROTECTED_ENV: [&str; 1] = ["TMPDIR"];
 
 /// The directory a launch's home is made in: the run's own directory, else the launch's export directory.
 pub fn run_home_dir(paths: &LaunchPaths) -> String {
@@ -59,6 +80,7 @@ fn home_vars(dir: &str) -> BTreeMap<String, String> {
         ("XDG_CONFIG_HOME", join(&[dir, ".config"])),
         ("XDG_DATA_HOME", join(&[dir, ".local", "share"])),
         ("XDG_STATE_HOME", join(&[dir, ".local", "state"])),
+        ("TMPDIR", join(&[dir, TMP])),
     ]
     .into_iter()
     .map(|(name, value)| (name.to_string(), value))
@@ -187,9 +209,18 @@ pub fn prepare_opencode(files: &dyn Files, env: &HashMap<String, String>, model:
     };
     let config = join(&[dir, "opencode.json"]);
     files.write_private(&config, &format!("{}\n", json::pretty(&opencode_config(mode, entry)))).map_err(|error| format!("opencode: cannot write the launch's home {dir}: {}", error.message))?;
+    made_tmp(files, dir, "opencode")?;
     let mut vars = home_vars(dir);
+    let mut writes = Vec::new();
     if litellm.is_none() {
-        vars.insert("XDG_DATA_HOME".to_string(), real_dir(env, "XDG_DATA_HOME", &[".local", "share"]));
+        // The sign-in is in `opencode.db` of the owner's data directory, which a fresh one cannot hold: the run's
+        // own data directory stays its own, and the database is the owner's, so the confinement grants that one
+        // directory (OpenCode writes the database's journal beside it). Everything else it writes is the run's.
+        let owner = join(&[&real_dir(env, "XDG_DATA_HOME", &[".local", "share"]), "opencode"]);
+        if files.exists(&owner).unwrap_or(false) {
+            vars.insert("OPENCODE_DB".to_string(), join(&[&owner, "opencode.db"]));
+            writes.push(owner);
+        }
     }
     for (name, value) in [
         ("OPENCODE_CONFIG", config.as_str()),
@@ -201,7 +232,14 @@ pub fn prepare_opencode(files: &dyn Files, env: &HashMap<String, String>, model:
         vars.insert(name.to_string(), value.to_string());
     }
     vars.insert("OPENCODE_CONFIG_DIR".to_string(), join(&[dir, ".config", "opencode"]));
-    Ok(RunHome { dir: dir.to_string(), env: vars })
+    // `opencode run --standalone` serves itself on a loopback port chosen at run time and connects to it: no
+    // port list can hold that, so the network is not limited (the files are).
+    Ok(RunHome { dir: dir.to_string(), env: vars, reads: Vec::new(), writes, ports: Vec::new() })
+}
+
+/// The home's `tmp` directory, which a confined client may write and nothing else is.
+fn made_tmp(files: &dyn Files, dir: &str, client: &str) -> Result<(), String> {
+    files.mkdir_all(&join(&[dir, TMP])).map_err(|error| format!("{client}: cannot make the launch's home {dir}: {}", error.message))
 }
 
 /// The lines of the block `child:` (two spaces in) under the top-level key `parent:` of a YAML file: the key's
@@ -240,6 +278,22 @@ fn literal_secret(line: &str) -> bool {
 /// MCP server, skill, memory or persona. Hermes finds it by `HERMES_HOME`, and `HOME` and the XDG directories point inside it too.
 pub fn prepare_hermes(files: &dyn Files, env: &HashMap<String, String>, provider: &str, dir: &str) -> Result<RunHome, String> {
     let owner = env.get("HERMES_HOME").filter(|dir| !dir.is_empty()).cloned().unwrap_or_else(|| join(&[env.get("HOME").map_or("", String::as_str), ".hermes"]));
+    let mut vars = home_vars(dir);
+    vars.insert("HERMES_HOME".to_string(), join(&[dir, ".hermes"]));
+    let failed = |error: crate::ports::FsError| format!("hermes: cannot write the launch's home {dir}: {}", error.message);
+    // A provider the owner's home must give (its key is in `.env` there) runs with that one file, linked into the
+    // run's home and readable by the confinement; the rest of the owner's home is not there.
+    if crate::launchers::hermes_key(provider).is_none() {
+        let key_file = join(&[&owner, ".env"]);
+        files.write_private(&join(&[dir, ".hermes", "config.yaml"]), "mcp_servers: {}\n").map_err(failed)?;
+        let mut reads = Vec::new();
+        if files.exists(&key_file).unwrap_or(false) {
+            files.symlink(&key_file, &join(&[dir, ".hermes", ".env"])).map_err(failed)?;
+            reads.push(key_file);
+        }
+        made_tmp(files, dir, "hermes")?;
+        return Ok(RunHome { dir: dir.to_string(), env: vars, reads, writes: Vec::new(), ports: vec![443] });
+    }
     let path = join(&[&owner, "config.yaml"]);
     let text = files.read_text(&path).map_err(|_| format!("hermes: {path} cannot be read; re-run agent-kit setup so it writes the LiteLLM providers there"))?;
     let Some(block) = yaml_block(&text, "providers", provider) else {
@@ -247,11 +301,56 @@ pub fn prepare_hermes(files: &dyn Files, env: &HashMap<String, String>, provider
     };
     // A provider's key is named by `key_env` and read by the launch's wrapper; a literal one is not copied.
     let block = block.lines().filter(|line| !literal_secret(line)).collect::<Vec<_>>().join("\n");
+    // The port of the provider's `base_url`; a block that names none, or none the launcher can read, is held to 443.
+    let ports = vec![block.lines().find_map(|line| line.trim().strip_prefix("base_url:")).and_then(|url| crate::pi_launch::url_port(url.trim())).unwrap_or(443)];
     let config = format!("providers:\n{block}\nmcp_servers: {{}}\n");
-    files.write_private(&join(&[dir, ".hermes", "config.yaml"]), &config).map_err(|error| format!("hermes: cannot write the launch's home {dir}: {}", error.message))?;
-    let mut vars = home_vars(dir);
-    vars.insert("HERMES_HOME".to_string(), join(&[dir, ".hermes"]));
-    Ok(RunHome { dir: dir.to_string(), env: vars })
+    files.write_private(&join(&[dir, ".hermes", "config.yaml"]), &config).map_err(failed)?;
+    made_tmp(files, dir, "hermes")?;
+    Ok(RunHome { dir: dir.to_string(), env: vars, reads: Vec::new(), writes: Vec::new(), ports })
+}
+
+/// The launch's home for a client that keeps the real `HOME` (its keychain is found through it): a temporary
+/// directory, named by `TMPDIR` and by the client's own variable for it, and nothing else.
+pub fn prepare_tmp(files: &dyn Files, client: &str, dir: &str, own_variable: Option<&str>) -> Result<RunHome, String> {
+    made_tmp(files, dir, client)?;
+    let tmp = join(&[dir, TMP]);
+    let mut vars: BTreeMap<String, String> = BTreeMap::from([("TMPDIR".to_string(), tmp.clone())]);
+    vars.extend(own_variable.map(|name| (name.to_string(), tmp)));
+    Ok(RunHome { dir: dir.to_string(), env: vars, reads: Vec::new(), writes: Vec::new(), ports: vec![443] })
+}
+
+/// Codex's home: `auth.json` is a link to the owner's, which the confinement lets Codex write, so a token it
+/// refreshes is the owner's own; its sessions, logs and caches are the run's. The owner's `config.toml`, plugins,
+/// skills and `AGENTS.md` are not there. A login that is not there is no run.
+pub fn prepare_codex(files: &dyn Files, env: &HashMap<String, String>, dir: &str) -> Result<RunHome, String> {
+    let owner = env.get("CODEX_HOME").filter(|dir| !dir.is_empty()).cloned().unwrap_or_else(|| join(&[env.get("HOME").map_or("", String::as_str), ".codex"]));
+    let auth = join(&[&owner, "auth.json"]);
+    if !files.exists(&auth).unwrap_or(false) {
+        return Err(format!("codex: {auth} is not there; sign in with codex login"));
+    }
+    let mut home = prepare_tmp(files, "codex", dir, None)?;
+    files.symlink(&auth, &join(&[dir, "auth.json"])).map_err(|error| format!("codex: cannot make the launch's home {dir}: {}", error.message))?;
+    home.env.insert("CODEX_HOME".to_string(), dir.to_string());
+    home.writes.push(auth);
+    Ok(home)
+}
+
+/// Vibe's home: a copy of the owner's `config.toml` (the model aliases) and its agent files (the read-only and
+/// writing delegates, the critics), and nothing else of the owner's: no session history, trusted folders or key
+/// file. The key is the keychain's, which the confinement lets Vibe ask. The owner's home is `~/.vibe`, whatever
+/// `VIBE_HOME` the caller is in: a Study or private session never reaches the run.
+pub fn prepare_vibe(files: &dyn Files, env: &HashMap<String, String>, dir: &str) -> Result<RunHome, String> {
+    let owner = join(&[env.get("HOME").map_or("", String::as_str), ".vibe"]);
+    let copy = |from: &str, to: &str| files.copy_tree(from, to).map_err(|error| format!("vibe: cannot copy {from} into the launch's home {dir}: {}", error.message));
+    let mut home = prepare_tmp(files, "vibe", dir, None)?;
+    for (name, target) in [("config.toml", "config.toml"), ("agents", "agents")] {
+        let from = join(&[&owner, name]);
+        if files.exists(&from).unwrap_or(false) {
+            copy(&from, &join(&[dir, "vibe", target]))?;
+        }
+    }
+    home.env.insert("VIBE_HOME".to_string(), join(&[dir, "vibe"]));
+    Ok(home)
 }
 
 /// The names of the children (two spaces in) of a top-level key of a YAML file, for a file written in the shape setup writes.

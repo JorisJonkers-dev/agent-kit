@@ -44,6 +44,10 @@ pub trait Files: Send + Sync {
     fn copy_tree(&self, _from: &str, _to: &str) -> Result<(), FsError> {
         Err(FsError { code: "ENOSYS".into(), message: "ENOSYS: this file system cannot copy".into() })
     }
+    /// A symbolic link at `link` (made after its parent) that points at `target`.
+    fn symlink(&self, _target: &str, _link: &str) -> Result<(), FsError> {
+        Err(FsError { code: "ENOSYS".into(), message: "ENOSYS: this file system cannot link".into() })
+    }
 }
 
 /// What `stamp` reports of a file, followed through every symlink.

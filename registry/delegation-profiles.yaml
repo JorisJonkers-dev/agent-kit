@@ -33,13 +33,18 @@
 #   unenforced_clients     optional: non-Pi clients the profile may run on although
 #                          the gateway cannot enforce its tool scope there. Naming a
 #                          client accepts the restrictions the gateway puts on its
-#                          launch (the read-only flags or agent, no MCP server, and for
-#                          OpenCode and Hermes a per-run home) for the scope's skills
-#                          and plugins. It does not say the client is confined: until
-#                          `agent-launcher confine` wraps it (#903), its own read-only
-#                          launch does not stop it reading or writing outside its
-#                          working directory. A client left out stays refused with the
-#                          reason.
+#                          launch (the read-only flags or agent, no MCP server, and the
+#                          client's confinement) for the scope's skills and plugins.
+#                          Every client but Pi runs behind `agent-launcher confine`
+#                          (#903), reading only its working directory and writing only
+#                          its run directory, and a client whose per-run home holds no
+#                          MCP server, skill or plugin and whose escape probe passes
+#                          (claude, hermes, opencode, opencode-free) holds a deny-all
+#                          scope without being named here. Antigravity (its confinement
+#                          reads the owner's `~/.gemini/config`, where its skills are)
+#                          and Codex (its probe cell cannot run on these profiles)
+#                          stay named. A client left out and not confined that way
+#                          stays refused with the reason.
 #
 # A client that cannot enforce a limit the profile names is refused with the
 # reason. Pi enforces skills and plugins listed by name (its per-run home holds
@@ -143,7 +148,7 @@ profiles:
       - opencode-free:opencode/deepseek-v4.1-flash-free
       - opencode-free:opencode/mimo-v2.6-flash-free
       - opencode-free:opencode/hy4-flash-free
-    unenforced_clients: [agy, claude, codex, hermes, opencode, opencode-free]
+    unenforced_clients: [agy, codex]
     max_spend_usd: 1.5
 
   implement:
@@ -170,7 +175,7 @@ profiles:
       - pi-vibe:glm-5.3-flash
       - pi-vibe:mistral-large-4
       - pi-vibe:glm-5.3
-    unenforced_clients: [agy, claude, codex, hermes, opencode, opencode-free]
+    unenforced_clients: [agy, codex]
     max_spend_usd: 6
 
   critique:
@@ -196,7 +201,7 @@ profiles:
       - opencode-free:opencode/nemotron-3.5-super-vl-free
     distinct_families: 2
     exclude_writer_family: true
-    unenforced_clients: [agy, claude, codex, hermes, opencode, opencode-free]
+    unenforced_clients: [agy, codex]
     max_spend_usd: 3
 
   red-team:
@@ -226,7 +231,7 @@ profiles:
       - opencode-free:opencode/nemotron-3.5-super-vl-free
     distinct_families: 2
     exclude_writer_family: true
-    unenforced_clients: [agy, claude, codex, hermes, opencode, opencode-free]
+    unenforced_clients: [agy, codex]
     max_spend_usd: 4.5
 
   refute:
@@ -251,7 +256,7 @@ profiles:
       - opencode-free:opencode/nemotron-3.5-super-vl-free
     distinct_families: 2
     exclude_writer_family: true
-    unenforced_clients: [agy, claude, codex, hermes, opencode, opencode-free]
+    unenforced_clients: [agy, codex]
     max_spend_usd: 1.5
 
   triage:
@@ -273,5 +278,5 @@ profiles:
       - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
       - opencode-free:opencode/glm-5.3-flash-free
       - opencode-free:opencode/hy4-flash-free
-    unenforced_clients: [agy, claude, codex, hermes, opencode, opencode-free]
+    unenforced_clients: [agy, codex]
     max_spend_usd: 0.75

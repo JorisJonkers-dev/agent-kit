@@ -7,7 +7,7 @@ use crate::config::{CostClass, GatewayConfig, Tier, ToolList, ToolScope};
 use crate::config_parse::parse_defaults;
 use crate::json::{self, parse};
 use crate::policy::{decide_policy, DataScope, PolicyDecision, PolicySubject};
-use crate::profiles::{effective_tools, hold_to_profile, list_profiles, plain_name, profile_models, require_profile, resolve_profile, run_scope, tools_json, unenforceable, Narrowing, ProfileModel};
+use crate::profiles::{CONFINED_CLIENTS, effective_tools, hold_to_profile, list_profiles, plain_name, profile_models, require_profile, resolve_profile, run_scope, tools_json, unenforceable, Narrowing, ProfileModel};
 
 fn shipped() -> GatewayConfig {
     parse_defaults(&parse(crate::SHIPPED_DEFAULTS).expect("JSON")).expect("the shipped defaults")
@@ -226,11 +226,20 @@ fn a_client_that_cannot_enforce_a_restricted_scope_is_refused_and_pi_holds_only_
     let decision = decision(&config, &repository(&["anthropic", "mistral"]));
     let hold = |name: &str, client: &str, model: &str, is_pi: bool, narrow: Option<&Narrowing>| hold_to_profile(&config, &decision, name, narrow, client, model, None, is_pi);
     // Deny-all on a client that is not Pi: refused, naming every restricted kind.
-    let refused = hold("deny", "claude", "haiku", false, None).expect_err("claude cannot enforce");
-    assert_eq!(refused.code, "profile-refused");
+    let deny_all = ToolScope { mcp: ToolList::Only(vec![]), skills: ToolList::Only(vec![]), plugins: ToolList::Only(vec![]) };
     assert_eq!(
-        refused.message,
-        "profile deny restricts mcp, plugins, skills (a scope is deny-all unless the profile lists it), and claude cannot enforce a tool scope: only Pi does"
+        unenforceable("deny", "agy", false, &deny_all).as_deref(),
+        Some("profile deny restricts mcp, plugins, skills (a scope is deny-all unless the profile lists it), and agy cannot enforce a tool scope: only Pi does")
+    );
+    // A client confined in a home with no MCP server, skill or plugin holds the deny-all scope (#903), and no list.
+    for client in CONFINED_CLIENTS {
+        assert_eq!(unenforceable("deny", client, false, &deny_all), None, "{client}");
+    }
+    assert!(hold("deny", "claude", "haiku", false, None).is_ok());
+    let list = unenforceable("p", "claude", false, &ToolScope { mcp: ToolList::Only(vec![]), skills: ToolList::Only(vec!["a".into()]), plugins: ToolList::Any });
+    assert_eq!(
+        list.as_deref(),
+        Some("profile p grants skills, and claude cannot enforce a list: its per-run home holds no MCP server, skill or plugin, so only a scope that grants none holds; only Pi enforces a list")
     );
     // The empty scope holds on Pi.
     assert!(hold("deny", "pi-vibe", "small", true, None).is_ok());

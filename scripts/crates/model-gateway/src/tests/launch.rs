@@ -2,6 +2,7 @@
 //! and the home's MCP servers, ported from the node runner's tests of the same
 //! modules. Every client is a fake: nothing here starts a real program.
 
+use crate::tests::confined::{grant_values, unwrapped, LAUNCHER};
 use crate::client_run::{require_supported_extras, ClientRun, ClientRunError, ClientRunRequest};
 use crate::error::GatewayError;
 use crate::extras::{AttachedServer, RunExtras, SandboxProfile};
@@ -110,12 +111,24 @@ impl Files for Memory {
         self.written.lock().expect("written").insert(path.to_string(), content.to_string());
         Ok(())
     }
+
+    fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
+        self.written.lock().expect("written").insert(to.to_string(), format!("copy of {from}"));
+        Ok(())
+    }
+
+    fn symlink(&self, target: &str, link: &str) -> Result<(), FsError> {
+        self.written.lock().expect("written").insert(link.to_string(), format!("link to {target}"));
+        Ok(())
+    }
 }
 
 /// A process that records every launch and answers them from a queue, or by the program's name.
 #[derive(Default)]
 struct Fake {
     ran: Mutex<Vec<ProcessCommand>>,
+    /// The grants the launcher was given for each launch of `ran`, which holds the client's own command.
+    grants: Mutex<Vec<Vec<String>>>,
     queue: Mutex<Vec<Result<ProcessResult, String>>>,
     by_program: HashMap<String, Result<ProcessResult, String>>,
 }
@@ -153,7 +166,9 @@ impl Process for Fake {
     }
 
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let (command, grants) = unwrapped(command);
         self.ran.lock().expect("the launches").push(command.clone());
+        self.grants.lock().expect("the grants").push(grants);
         if let Some(answer) = self.by_program.get(&command.command) {
             return answer.clone();
         }
@@ -166,7 +181,7 @@ fn finished(stdout: &str, exit_code: i32) -> ProcessResult {
 }
 
 fn env() -> HashMap<String, String> {
-    HashMap::from([("HOME".to_string(), HOME.to_string())])
+    HashMap::from([("HOME".to_string(), HOME.to_string()), ("AGENT_KIT_LAUNCHER_BIN".to_string(), LAUNCHER.to_string())])
 }
 
 fn paths() -> LaunchPaths {
@@ -194,6 +209,11 @@ const OWNER_HERMES: &str = "model:\n  default: x\nmcp_servers:\n  olcli:\n    co
 
 fn hermes_home() -> Memory {
     Memory::default().with("/home/test/.hermes/config.yaml", OWNER_HERMES)
+}
+
+/// A home with the Codex login a confined Codex run links to.
+fn signed_in_codex() -> Memory {
+    Memory::default().with("/home/test/.codex/auth.json", "{}")
 }
 
 fn vibe(extras: RunExtras) -> ClientRunRequest {
@@ -263,8 +283,9 @@ fn attaches_the_servers_the_caller_names_switches_the_homes_off_and_enables_the_
 
     assert_eq!(outcome.result.exit_code, 0);
     let command = process.first();
-    assert_eq!(command.command, "env");
-    assert_eq!(command.args[..5], strings(&["-u", "MISTRAL_API_KEY", "-u", "VIBE_HOME", "vibe"])[..]);
+    // A confined launch passes only the variables it names, so there is nothing to unset: the client is the command.
+    assert_eq!(command.command, "vibe");
+    assert_eq!(command.args[..2], strings(&["--prompt-file", "/run/prompt.md"])[..]);
     assert_eq!(flag(&command, "--agent").as_deref(), Some("critic-glm"));
     assert_eq!(flags(&command, "--enabled-tools"), strings(&["read_file", "packet_grep"]));
     let servers = concat!(
@@ -276,8 +297,10 @@ fn attaches_the_servers_the_caller_names_switches_the_homes_off_and_enables_the_
         ("VIBE_ENABLE_MCP", "true"),
         ("VIBE_ENABLE_SUBAGENTS", "false"),
         ("VIBE_INCLUDE_PROJECT_CONTEXT", "false"),
+        ("VIBE_HOME", "/run/export/client-home/vibe"),
         ("VIBE_MCP_SERVERS", servers),
         ("VIBE_OUTSIDE_WORKDIR", "deny"),
+        ("TMPDIR", "/run/export/client-home/tmp"),
     ]
     .into_iter()
     .map(|(name, value)| (name.to_string(), value.to_string()))
@@ -409,7 +432,6 @@ fn runs_antigravity_in_the_read_only_sandbox_profile_a_stream_the_schema_and_the
             "--print-timeout",
             "900s",
             "--disable-slash-commands",
-            "--sandbox",
             "--json-schema",
             "/assets/finding.schema.json",
             "--settings",
@@ -457,7 +479,7 @@ fn runs_antigravity_without_the_sandbox_as_one_json_object_with_the_effort_its_m
 fn takes_the_effort_from_the_last_word_of_the_model_id_and_defaults_to_medium() {
     for (model, effort) in [("gemini-3.8-flash-low", "low"), ("gemini-3.8-flash-medium", "medium"), ("gemini-3.8-flash-high", "high"), ("gemini-3.8-flash", "medium"), ("high", "medium")] {
         let process = Fake::answering("");
-        launch(&Memory::default(), &process, &request(RunClient::Codex, "codex", model, RunExtras::default())).expect("the launch");
+        launch(&signed_in_codex(), &process, &request(RunClient::Codex, "codex", model, RunExtras::default())).expect("the launch");
         assert_eq!(flag(&process.first(), "-c"), Some(format!("model_reasoning_effort=\"{effort}\"")), "{model}");
     }
 }
@@ -669,7 +691,8 @@ fn runs_hermes_with_its_provider_and_reads_the_usage_file_from_the_run_directory
     let command = process.first();
     // A provider the owner's home must give (its sign-in is there) runs in safe mode: no config, plugin, memory or MCP server.
     assert_eq!(command.args, strings(&["-z", "read this", "--usage-file", "/run/own/usage.json", "-m", "deepseek", "--provider", "deepinfra", "-t", "web", "--safe-mode"]));
-    assert!(!command.env.contains_key("HERMES_HOME"));
+    // Its key is in the owner's `.env`, which the run's home links to; the rest of the owner's home is not there.
+    assert_eq!(command.env.get("HERMES_HOME").map(String::as_str), Some("/run/own/client-home/.hermes"));
     assert_eq!(command.timeout_ms, Some(960_000));
     assert_eq!(outcome.exported, Some(json::parse(usage).expect("JSON")));
 
@@ -736,15 +759,17 @@ fn adds_each_git_directory_right_after_the_work_directory_so_the_sandbox_can_com
     let mut writing = with_git_writable(request(RunClient::Codex, "codex", "gpt", RunExtras::default()));
     writing.launch.mode = Some(RunMode::Write);
 
-    launch(&Memory::default(), &process, &writing).expect("the launch");
+    launch(&signed_in_codex(), &process, &writing).expect("the launch");
 
+    // Codex's own sandbox cannot nest in the launcher's (ADR-0016): the launcher is the sandbox, and it is the
+    // one that is told the worktree and its git directories are writable.
     let command = process.first();
     let at = command.args.iter().position(|arg| arg == "-C").expect("-C");
     assert_eq!(command.args[at + 1], WORK);
-    let expected: Vec<String> = git_writable().iter().flat_map(|dir| ["--add-dir".to_string(), dir.clone()]).collect();
-    assert_eq!(command.args[at + 2..], expected[..]);
-    assert_eq!(flags(&command, "--add-dir"), git_writable());
-    assert_eq!(flag(&command, "-s").as_deref(), Some("workspace-write"));
+    assert_eq!(command.args.len(), at + 2, "no --add-dir: only Codex's own workspace sandbox reads it");
+    let writes = grant_values(&process.grants.lock().expect("the grants")[0], "--write");
+    assert_eq!(writes[..1 + git_writable().len()], [vec![WORK.to_string()], git_writable()].concat()[..]);
+    assert_eq!(flag(&command, "-s").as_deref(), Some("danger-full-access"));
     assert_eq!(command.stdin.as_deref(), Some("read this"));
     assert_eq!(command.timeout_ms, Some(900_000));
 }
@@ -752,16 +777,20 @@ fn adds_each_git_directory_right_after_the_work_directory_so_the_sandbox_can_com
 #[test]
 fn adds_no_git_directory_for_a_read_only_run_or_a_writing_run_that_names_none_or_another_client() {
     let process = Fake::answering("");
-    launch(&Memory::default(), &process, &with_git_writable(request(RunClient::Codex, "codex", "gpt", RunExtras::default()))).expect("the launch");
+    launch(&signed_in_codex(), &process, &with_git_writable(request(RunClient::Codex, "codex", "gpt", RunExtras::default()))).expect("the launch");
     assert_eq!(flags(&process.first(), "--add-dir"), Vec::<String>::new());
-    assert_eq!(flag(&process.first(), "-s").as_deref(), Some("read-only"));
+    assert_eq!(flag(&process.first(), "-s").as_deref(), Some("danger-full-access"));
+    // A read-only run reads its work directory and writes nothing of it.
+    let grants = process.grants.lock().expect("the grants")[0].clone();
+    assert_eq!(grant_values(&grants, "--read"), vec![WORK.to_string()]);
+    assert!(!grant_values(&grants, "--write").contains(&WORK.to_string()));
 
     let process = Fake::answering("");
     let mut writing = request(RunClient::Codex, "codex", "gpt", RunExtras::default());
     writing.launch.mode = Some(RunMode::Write);
-    launch(&Memory::default(), &process, &writing).expect("the launch");
+    launch(&signed_in_codex(), &process, &writing).expect("the launch");
     assert_eq!(flags(&process.first(), "--add-dir"), Vec::<String>::new());
-    assert_eq!(flag(&process.first(), "-s").as_deref(), Some("workspace-write"));
+    assert_eq!(grant_values(&process.grants.lock().expect("the grants")[0], "--write")[0], WORK);
 
     let process = Fake::answering(r#"{"type":"result","result":"fine"}"#);
     let mut claude = with_git_writable(request(RunClient::Claude, "claude", "sonnet", RunExtras::default()));

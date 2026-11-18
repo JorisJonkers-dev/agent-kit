@@ -108,7 +108,7 @@ fn first_line(text: &str) -> Option<String> {
 }
 
 /// The launcher that confines a launch: `AGENT_KIT_LAUNCHER_BIN`, else `agent-launcher` on `PATH`.
-fn launcher_of(files: &dyn Files, env: &HashMap<String, String>) -> Option<String> {
+pub(crate) fn launcher_of(files: &dyn Files, env: &HashMap<String, String>) -> Option<String> {
     if let Some(named) = env.get("AGENT_KIT_LAUNCHER_BIN").filter(|named| !named.is_empty()) {
         return Some(named.clone());
     }

@@ -8,9 +8,12 @@ use crate::json::{self, Value};
 use crate::launchers::{LaunchPaths, LaunchRequest, VIBE_ENV};
 use crate::ports::{Files, FsError, Process, ProcessCommand, ProcessResult};
 use crate::run::{RunClient, RunMode};
+use crate::tests::confined::{unwrapped, LAUNCHER};
 use crate::run_home::{opencode_config, prepare_hermes, prepare_opencode, run_home_dir};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
+
+mod recipes;
 
 /// Files in memory: what a test puts there, what a launch writes privately, and what it removes.
 #[derive(Default)]
@@ -81,17 +84,27 @@ impl Files for Disk {
         self.removed.lock().expect("removed").push(path.to_string());
         Ok(())
     }
+    fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
+        self.files.lock().expect("files").insert(to.to_string(), format!("copy of {from}"));
+        Ok(())
+    }
+    fn symlink(&self, target: &str, link: &str) -> Result<(), FsError> {
+        self.files.lock().expect("files").insert(link.to_string(), format!("link to {target}"));
+        Ok(())
+    }
 }
 
 /// A process that records every launch and answers with what a test says.
 struct Programs {
     launched: Result<ProcessResult, String>,
+    /// The client's own command of each launch, and the grants the launcher was given for it.
     ran: Mutex<Vec<ProcessCommand>>,
+    grants: Mutex<Vec<Vec<String>>>,
 }
 
 impl Programs {
     fn answering() -> Programs {
-        Programs { launched: Ok(ProcessResult { stdout: String::new(), stderr: String::new(), exit_code: 0, timed_out: false }), ran: Mutex::new(Vec::new()) }
+        Programs { launched: Ok(ProcessResult { stdout: String::new(), stderr: String::new(), exit_code: 0, timed_out: false }), ran: Mutex::new(Vec::new()), grants: Mutex::new(Vec::new()) }
     }
     fn first(&self) -> ProcessCommand {
         self.ran.lock().expect("ran")[0].clone()
@@ -106,13 +119,15 @@ impl Process for Programs {
         Err("a launch goes through run".into())
     }
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
-        self.ran.lock().expect("ran").push(command.clone());
+        let (command, grants) = unwrapped(command);
+        self.ran.lock().expect("ran").push(command);
+        self.grants.lock().expect("grants").push(grants);
         self.launched.clone()
     }
 }
 
 fn env() -> HashMap<String, String> {
-    HashMap::from([("HOME".to_string(), "/home/me".to_string())])
+    HashMap::from([("HOME".to_string(), "/home/me".to_string()), ("AGENT_KIT_LAUNCHER_BIN".to_string(), LAUNCHER.to_string())])
 }
 
 /// The owner's OpenCode config: an MCP server of their own, a LiteLLM provider with two models, a second provider.
@@ -123,7 +138,7 @@ const OWNER_OPENCODE: &str = r#"{"mcp":{"servers":{"memory-api":{"type":"remote"
 const OWNER_HERMES: &str = "model:\n  default: x\nmcp_servers:\n  olcli:\n    command: olcli-mcp\nproviders:\n  litellm-vibe:\n    name: litellm-vibe\n    key_env: LITELLM_VIBE_KEY\n\n    models:\n      glm-5.3: {}\n  litellm-free:\n    name: litellm-free\nother: 1\n";
 
 fn owner() -> Disk {
-    Disk::default().with("/home/me/.config/opencode/opencode.json", OWNER_OPENCODE).with("/home/me/.hermes/config.yaml", OWNER_HERMES)
+    Disk::default().with("/home/me/.config/opencode/opencode.json", OWNER_OPENCODE).with("/home/me/.hermes/config.yaml", OWNER_HERMES).with("/home/me/.codex/auth.json", "{}")
 }
 
 fn object<'a>(value: &'a Value, key: &str) -> &'a Value {
@@ -218,21 +233,25 @@ fn an_opencode_home_holds_the_one_provider_the_model_names_and_none_of_the_owner
 }
 
 #[test]
-fn an_opencode_provider_of_its_own_keeps_the_owners_data_directory_because_its_sign_in_is_there() {
-    let disk = owner();
+fn an_opencode_provider_of_its_own_uses_the_owners_database_because_its_sign_in_is_there() {
+    let disk = owner().with("/home/me/.local/share/opencode", "");
     let home = prepare_opencode(&disk, &env(), "opencode-go/kimi", Some(RunMode::Write), "/run/h").expect("a home");
-    // The sign-in is in the owner's `opencode.db`, so the data directory is the owner's; everything else is the run's.
-    assert_eq!(home.env["XDG_DATA_HOME"], "/home/me/.local/share");
-    for name in ["HOME", "XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"] {
+    // The sign-in is in the owner's `opencode.db`: the run names it, and the confinement lets the run write the one
+    // directory it is in. Everything else, the data directory included, is the run's.
+    assert_eq!(home.env["OPENCODE_DB"], "/home/me/.local/share/opencode/opencode.db");
+    assert_eq!(home.writes, ["/home/me/.local/share/opencode"]);
+    for name in ["HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "TMPDIR"] {
         assert!(home.env[name].starts_with("/run/h"), "{name}={}", home.env[name]);
     }
     // Nothing of the owner's files is copied, and the built-in provider needs no provider entry.
     assert_eq!(disk.files.lock().unwrap().keys().filter(|path| path.starts_with("/run/h")).collect::<Vec<_>>(), ["/run/h/opencode.json"]);
     assert!(json::parse(&disk.text("/run/h/opencode.json").unwrap()).unwrap().as_object().unwrap().get("provider").is_none());
-    // A LiteLLM provider's data directory is the run's own: its key comes from the secret store.
+    // A LiteLLM provider has no database of the owner's to use: its key comes from the secret store.
     let routed = prepare_opencode(&disk, &env(), "litellm-vibe/glm-5.3", None, "/run/h").expect("a home");
-    assert_eq!(routed.env["XDG_DATA_HOME"], "/run/h/.local/share");
-    prepare_opencode(&Disk::default(), &env(), "opencode/free-model", None, "/run/h").expect("a home");
+    assert!(!routed.env.contains_key("OPENCODE_DB") && routed.writes.is_empty());
+    // An owner with no data directory runs signed out, in the run's own. The network is not limited either way.
+    let anonymous = prepare_opencode(&Disk::default(), &env(), "opencode/free-model", None, "/run/h").expect("a home");
+    assert!(!anonymous.env.contains_key("OPENCODE_DB") && anonymous.writes.is_empty() && anonymous.ports.is_empty());
     prepare_opencode(&owner(), &env(), "no-slash-model", None, "/run/h").expect("a model with no provider");
 }
 
@@ -243,7 +262,9 @@ fn an_opencode_home_follows_the_xdg_variables_of_the_owner_and_keeps_a_model_the
     prepare_opencode(&disk, &xdg, "litellm-vibe/unlisted", None, "/run/h").expect("a home");
     let config = json::parse(&disk.text("/run/h/opencode.json").unwrap()).unwrap();
     assert_eq!(object(object(object(&config, "provider"), "litellm-vibe"), "models").as_object().unwrap().entries().len(), 2);
-    assert_eq!(prepare_opencode(&disk, &xdg, "opencode/free", None, "/run/h").expect("a home").env["XDG_DATA_HOME"], "/xdg/d");
+    // The owner's data directory is where `XDG_DATA_HOME` of the owner says.
+    let signed_in = disk.with("/xdg/d/opencode", "");
+    assert_eq!(prepare_opencode(&signed_in, &xdg, "opencode/free", None, "/run/h").expect("a home").writes, ["/xdg/d/opencode"]);
     // A provider whose models are not a table is kept as it is.
     prepare_opencode(&Disk::default().with("/xdg/c/opencode/opencode.json", OWNER_OPENCODE), &xdg, "litellm-list/x", None, "/run/h").expect("a home");
     let empty = HashMap::new();
@@ -287,8 +308,8 @@ fn a_hermes_home_holds_the_one_provider_the_run_names_and_no_mcp_server() {
 fn a_hermes_launch_the_owners_home_cannot_serve_is_refused() {
     let missing = prepare_hermes(&Disk::default(), &env(), "litellm-vibe", "/run/h").expect_err("none");
     assert!(missing.contains("/home/me/.hermes/config.yaml cannot be read"), "{missing}");
-    let nothing = prepare_hermes(&owner(), &env(), "litellm-nowhere", "/run/h").expect_err("none");
-    assert!(nothing.contains("has no litellm-nowhere provider"), "{nothing}");
+    let nothing = prepare_hermes(&owner(), &env(), "litellm-opencode-go", "/run/h").expect_err("none");
+    assert!(nothing.contains("has no litellm-opencode-go provider"), "{nothing}");
     let without = Disk::default().with("/home/me/.hermes/config.yaml", "model:\n  default: x\n");
     assert!(prepare_hermes(&without, &env(), "litellm-vibe", "/run/h").is_err());
     let denied = Disk { write_fails: Some("config.yaml"), ..owner() };
@@ -317,12 +338,14 @@ fn every_launch_of_a_client_with_a_run_home_points_home_and_xdg_at_it_and_the_ot
         (RunClient::Opencode, "opencode-go/kimi", None, true),
         (RunClient::Opencode, "litellm-vibe/glm-5.3", None, true),
         (RunClient::Hermes, "glm-5.3", Some("litellm-vibe"), true),
-        (RunClient::Hermes, "m", Some("deepinfra"), false),
+        (RunClient::Hermes, "m", Some("deepinfra"), true),
         (RunClient::Claude, "m", None, false),
         (RunClient::Codex, "m", None, false),
         (RunClient::Agy, "m", None, false),
         (RunClient::Vibe, "m", None, false),
     ];
+    // Every confined client has a directory of its own that goes when the launch ends; OpenCode and Hermes also
+    // run in it as `HOME`, and the others keep the real one (a keychain is found through it).
     for (client, model, provider, has_home) in cases {
         let programs = Programs::answering();
         let disk = owner();
@@ -337,7 +360,7 @@ fn every_launch_of_a_client_with_a_run_home_points_home_and_xdg_at_it_and_the_ot
             assert_eq!(disk.removed.lock().unwrap().as_slice(), ["/run/client-home"], "{client:?}");
         } else {
             assert!(home_set.is_empty(), "{client:?} {model} runs in the home it signed in on");
-            assert!(disk.removed.lock().unwrap().is_empty());
+            assert_eq!(disk.removed.lock().unwrap().as_slice(), ["/run/client-home"], "{client:?}");
         }
     }
 }

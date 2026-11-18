@@ -66,6 +66,8 @@ fn every_option_is_read_and_the_command_follows_the_dashes() {
             run_from: vec![],
             write: vec!["/w".into()],
             ports: Some(vec![443, 8443]),
+            keychain: false,
+            preferences: false,
             env: vec![],
             command: args(&["pi", "--read", "x"]),
         }
@@ -300,4 +302,72 @@ fn descriptors_from_the_given_one_up_are_closed_after_the_confinement_is_on() {
     }
     #[cfg(target_os = "linux")]
     assert_eq!(close_range(5, 3).unwrap_err().raw_os_error(), Some(libc::EINVAL));
+}
+
+#[test]
+fn a_launcher_script_is_run_with_the_program_it_hands_over_to() {
+    let root = scratch("exec");
+    // A uv tool: a `/bin/sh` script that re-runs itself under the virtual environment's Python, a link to a framework.
+    let framework = file(&root.join("Frameworks/Python/Versions/3.12/bin/python3.12"), "\x7fELF", 0o755);
+    fs::create_dir_all(root.join("tools/app with space/bin")).unwrap();
+    std::os::unix::fs::symlink(&framework, root.join("tools/app with space/bin/python3")).unwrap();
+    let sh = file(&root.join("sys/bin/sh"), "\x7fELF", 0o755);
+    let launcher = format!("#!{}\n\'\'\'exec\' \'{}\' \"$0\" \"$@\"\n\' \'\'\'\nimport sys\n", sh.display(), root.join("tools/app with space/bin/python3").display());
+    let tool = file(&root.join("tools/app with space/bin/app"), &launcher, 0o755);
+    let env = env_with(&[&root.join("sys/bin")], None);
+    let grants = program_grants(tool.as_os_str(), &env).unwrap();
+    assert_eq!(grants[0], root.join("tools/app with space/bin"));
+    assert_eq!(grants[1], root.join("sys"));
+    // The virtual environment (its libraries are beside `bin`) and the install its Python links to.
+    assert!(grants.contains(&root.join("tools/app with space")), "{grants:?}");
+    assert!(grants.contains(&root.join("Frameworks/Python/Versions/3.12")), "{grants:?}");
+    // A Python kept in a `python` store (uv) is granted with the store, which holds the links to its versions.
+    let managed = file(&root.join("store/python/cpython-3.11.14/bin/python3.11"), "\x7fELF", 0o755);
+    let wrapper = file(&root.join("w/bin/run"), &format!("#!{}\nAPP=1 exec \"{}\"  \"$@\"\n", sh.display(), managed.display()), 0o755);
+    let grants = program_grants(wrapper.as_os_str(), &env).unwrap();
+    assert!(grants.contains(&root.join("store/python")), "{grants:?}");
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn only_an_absolute_program_after_the_word_exec_is_an_exec_target() {
+    let root = scratch("exec-words");
+    let script = |name: &str, text: &str| file(&root.join(name), text, 0o755);
+    let found = |name: &str, text: &str| exec_targets(&script(name, text));
+    assert_eq!(found("a", "#!/bin/sh\nexec /opt/tool/bin/tool \"$@\"\n"), vec![PathBuf::from("/opt/tool/bin/tool")]);
+    assert_eq!(found("b", "#!/bin/sh\nexec \"/opt/two words/tool\" x\nexec /opt/tool2 y\n"), vec![PathBuf::from("/opt/two words/tool"), PathBuf::from("/opt/tool2")]);
+    // Not a program by an absolute path, not the word `exec`, a repeat, a binary or a file that cannot be read.
+    assert!(found("c", "#!/bin/sh\nexec tool\n").is_empty());
+    assert!(found("d", "#!/bin/sh\nexecute /opt/x/y\n# an executable /opt/x/y\n").is_empty());
+    assert_eq!(found("e", "#!/bin/sh\nexec /opt/x \"$@\"\nexec /opt/x\n").len(), 1);
+    assert!(found("f", "exec /opt/x\n").is_empty());
+    assert!(exec_targets(&root.join("missing")).is_empty());
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_written_file_is_granted_as_that_file_and_a_directory_whole() {
+    let root = scratch("write-file");
+    let auth = file(&root.join("codex/auth.json"), "{}", 0o600);
+    let spec = parse(&args(&["--write", auth.to_str().unwrap(), "--write", root.join("run").to_str().unwrap(), "--check"])).unwrap();
+    let policy = policy(&spec, &Env::default()).unwrap();
+    assert_eq!(policy.dirs, vec![root.join("run")]);
+    assert!(policy.files.contains(&auth) && policy.files.contains(&PathBuf::from("/dev/null")), "{:?}", policy.files);
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn the_keychain_and_the_preferences_are_asked_for_by_name() {
+    let root = scratch("keychain");
+    fs::create_dir_all(root.join("home/Library/Keychains")).unwrap();
+    let spec = parse(&args(&["--keychain", "--preferences", "--check"])).unwrap();
+    assert!(spec.keychain && spec.preferences);
+    let policy = policy(&spec, &env_with(&[], Some(&root.join("home")))).unwrap();
+    assert!(policy.keychain && policy.preferences);
+    // The keychain's files are readable, the rest of `~/Library` is not.
+    assert!(policy.reads.as_ref().unwrap().read.contains(&root.join("home/Library/Keychains")));
+    let plain = super::policy(&parse(&args(&["--check"])).unwrap(), &env_with(&[], Some(&root.join("home")))).unwrap();
+    assert!(!plain.keychain && !plain.preferences);
+    assert!(!plain.reads.as_ref().unwrap().read.contains(&root.join("home/Library/Keychains")));
+    fs::remove_dir_all(&root).unwrap();
 }

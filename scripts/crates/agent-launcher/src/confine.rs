@@ -6,16 +6,23 @@
 //!
 //! ```text
 //! agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]...
-//!                        [--write PATH]... [--net-connect PORT]... [--env NAME]... -- COMMAND [ARGS...]
+//!                        [--write PATH]... [--net-connect PORT]... [--keychain] [--preferences] [--env NAME]... -- COMMAND [ARGS...]
 //! ```
 //!
 //! * `--read`: readable (files read, directories listed), never executable.
 //! * `--run`: readable and executable (an interpreter and its program).
 //! * `--run-from`: what it takes to run PROGRAM (a path, or a name looked up
 //!   on `PATH`), readable and executable: see [`program_grants`].
-//! * `--write`: a directory that may be read, written and changed beneath.
+//! * `--write`: a directory that may be read, written and changed beneath, or a
+//!   file that may be read and written (and nothing beside it).
 //! * `--net-connect`: a TCP port a connect may reach; given once or more, no
 //!   other port can be reached and no TCP port can be bound.
+//! * `--keychain`: (macOS) the command may ask the login keychain for the items
+//!   whose access list names it; its credentials are held there, not in a file.
+//!   The keychain files are readable, nothing else of `~/Library` is. Linux
+//!   keeps credentials in files, which a `--read`/`--write` names: a no-op.
+//! * `--preferences`: (macOS) the command may read the system's and the
+//!   managed preferences (Codex asks before it starts). A no-op on Linux.
 //! * `--env`: an environment variable the command keeps, besides the few it
 //!   always gets (see [`KEEP_ENV`]); given once or more.
 //! * `--check`: build the confinement and say whether this machine can hold
@@ -113,6 +120,8 @@ pub struct Spec {
     pub run_from: Vec<OsString>,
     pub write: Vec<PathBuf>,
     pub ports: Option<Vec<u16>>,
+    pub keychain: bool,
+    pub preferences: bool,
     pub env: Vec<OsString>,
     pub command: Vec<OsString>,
 }
@@ -127,9 +136,20 @@ pub fn parse(args: &[OsString]) -> Result<Spec, String> {
             spec.command = rest.cloned().collect();
             break;
         }
-        if flag == "--check" {
-            spec.check = true;
-            continue;
+        match flag.as_ref() {
+            "--check" => {
+                spec.check = true;
+                continue;
+            }
+            "--keychain" => {
+                spec.keychain = true;
+                continue;
+            }
+            "--preferences" => {
+                spec.preferences = true;
+                continue;
+            }
+            _ => {}
         }
         let value = match flag.as_ref() {
             "--read" | "--run" | "--run-from" | "--write" | "--net-connect" | "--env" => rest.next().ok_or(format!("{flag} needs a value"))?,
@@ -253,11 +273,22 @@ pub fn policy(spec: &Spec, env: &Env) -> Result<Policy, String> {
     for program in &spec.run_from {
         run.extend(program_grants(program, env)?);
     }
+    // A `--write` path that is a file (an auth file a client rotates its tokens in) is granted as that file alone;
+    // a directory is granted whole.
+    let (written_files, written_dirs): (Vec<PathBuf>, Vec<PathBuf>) = spec.write.iter().cloned().partition(|path| path.is_file());
+    let mut files = existing(&DEVICES);
+    files.extend(written_files);
+    if spec.keychain {
+        let home = env.home.iter().map(|home| home.join("Library/Keychains"));
+        read.extend(home.chain([PathBuf::from("/Library/Keychains")]).filter(|path| path.is_dir()));
+    }
     Ok(Policy {
-        dirs: spec.write.clone(),
-        files: existing(&DEVICES),
+        dirs: written_dirs,
+        files,
         reads: Some(Reads { read, run }),
         connect_ports: spec.ports.clone(),
+        keychain: spec.keychain,
+        preferences: spec.preferences,
         ..Policy::default()
     })
 }
@@ -321,11 +352,68 @@ pub fn program_grants(program: &OsStr, env: &Env) -> Result<Vec<PathBuf>, String
     let mut grants = vec![bounded(package.unwrap_or(dir), &real, env)];
     if let Some(interpreter) = interpreter(&real, env) {
         let real_interpreter = fs::canonicalize(&interpreter).unwrap_or(interpreter);
-        let bin = real_interpreter.parent().unwrap_or(&real_interpreter);
-        let install = if bin.file_name().is_some_and(|n| n == "bin") { bin.parent().unwrap_or(bin) } else { bin };
-        grants.push(bounded(install, &real_interpreter, env));
+        grants.push(install_of(&real_interpreter, env));
+    }
+    // A launcher script that hands over to another program (`exec '/venv/bin/python3' "$0"`, `exec /opt/app/bin/app`):
+    // that program is run too, from the install it is written at (a virtual environment holds its libraries beside
+    // its `bin`) and from the install it resolves to (the Python it links to).
+    for target in exec_targets(&real) {
+        let real_target = fs::canonicalize(&target).unwrap_or_else(|_| target.clone());
+        for install in [install_of(&target, env), install_of(&real_target, env)] {
+            // A Python kept in a `python` store directory (`uv`) is reached by a link beside the one it resolves to.
+            let install = match install.parent() {
+                Some(store) if install.parent().and_then(Path::file_name).is_some_and(|n| n == "python") && !holds_home(store, env) => store.to_path_buf(),
+                _ => install,
+            };
+            if !grants.contains(&install) {
+                grants.push(install);
+            }
+        }
     }
     Ok(grants)
+}
+
+/// What running `program` needs of its install: the directory above its `bin`, else the directory it is in,
+/// narrowed to the file itself when that would hold the home directory.
+fn install_of(program: &Path, env: &Env) -> PathBuf {
+    let bin = program.parent().unwrap_or(program);
+    let install = if bin.file_name().is_some_and(|n| n == "bin") { bin.parent().unwrap_or(bin) } else { bin };
+    bounded(install, program, env)
+}
+
+/// The programs a launcher script runs by an absolute path after `exec`, from its first lines.
+fn exec_targets(script: &Path) -> Vec<PathBuf> {
+    let mut head = Vec::new();
+    if fs::File::open(script).and_then(|file| file.take(2048).read_to_end(&mut head)).is_err() {
+        return Vec::new();
+    }
+    let text = String::from_utf8_lossy(&head);
+    if !text.starts_with("#!") {
+        return Vec::new();
+    }
+    let mut found = Vec::new();
+    for line in text.lines().take(12) {
+        let mut rest = line;
+        while let Some(at) = rest.find("exec") {
+            let (before, after) = (&rest[..at], &rest[at + 4..]);
+            let word_start = before.chars().last().is_none_or(|c| c.is_whitespace() || c == '\'' || c == '"');
+            let word_end = after.chars().next().is_none_or(|c| c.is_whitespace() || c == '\'' || c == '"');
+            rest = after;
+            if !(word_start && word_end) {
+                continue;
+            }
+            // The quote that closes the word `exec`, then the operand, which may be quoted (a path with a space).
+            let operand = after.strip_prefix(['\'', '"']).unwrap_or(after).trim_start();
+            let path = match operand.chars().next() {
+                Some(quote @ ('\'' | '"')) => operand[1..].split(quote).next().unwrap_or(""),
+                _ => operand.split_whitespace().next().unwrap_or(""),
+            };
+            if path.starts_with('/') && !found.iter().any(|known: &PathBuf| known == Path::new(path)) {
+                found.push(PathBuf::from(path));
+            }
+        }
+    }
+    found
 }
 
 /// The interpreter a script's `#!` line names, as found here; none for a
@@ -356,7 +444,7 @@ fn confine_from(args: &[OsString], limit: &dyn WriteLimit, first_fd: libc::c_uin
         Ok(spec) => spec,
         Err(message) => {
             eprintln!("{NAME}: {message}");
-            eprintln!("usage: {NAME} confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... [--write PATH]... [--net-connect PORT]... [--env NAME]... -- COMMAND [ARGS...]");
+            eprintln!("usage: {NAME} confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... [--write PATH]... [--net-connect PORT]... [--keychain] [--preferences] [--env NAME]... -- COMMAND [ARGS...]");
             return 2;
         }
     };

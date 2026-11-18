@@ -73,6 +73,11 @@ pub struct Policy {
     /// The TCP ports a connect may reach; no bind is allowed. None leaves the
     /// network alone.
     pub connect_ports: Option<Vec<u16>>,
+    /// macOS only: a confinement may ask the login keychain (Security server) for the items its caller's access
+    /// list names. The keychain's own files are in [`Reads::read`]. Linux keeps credentials in files.
+    pub keychain: bool,
+    /// macOS only: a confinement may read the system's and the managed preferences (`cfprefsd`).
+    pub preferences: bool,
 }
 
 /// What a confinement may read, beyond the paths it may write.

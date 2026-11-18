@@ -214,6 +214,20 @@ impl Replay {
                 std::fs::write(target, self.substitute(content.as_str().unwrap_or_default())).expect("write file");
             }
         }
+        // Every client but Pi runs behind `agent-launcher confine` (#903). A step that makes a fake of one gets a
+        // launcher that starts what follows its `--` as it is, so the fake answers as before; a Codex also gets the
+        // login its home links to, outside the directories the goldens hold.
+        let fakes = |client: &str| matches!(field(step, "write"), Some(Value::Obj(writes)) if writes.get(&format!("bin/{client}")).is_some());
+        if ["claude", "codex", "agy", "vibe"].iter().any(|client| fakes(client)) && !sandbox.join("bin/agent-launcher").exists() {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::create_dir_all(sandbox.join("bin")).expect("bin");
+            std::fs::write(sandbox.join("bin/agent-launcher"), "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n").expect("launcher shim");
+            std::fs::set_permissions(sandbox.join("bin/agent-launcher"), std::fs::Permissions::from_mode(0o755)).expect("chmod launcher");
+        }
+        if fakes("codex") && !sandbox.join("owner/codex/auth.json").exists() {
+            std::fs::create_dir_all(sandbox.join("owner/codex")).expect("codex home");
+            std::fs::write(sandbox.join("owner/codex/auth.json"), "{}").expect("codex login");
+        }
         for path in list(step, "exec") {
             use std::os::unix::fs::PermissionsExt;
             let target = sandbox.join(path.as_str().unwrap_or_default());
@@ -240,6 +254,9 @@ impl Replay {
         };
         env.insert("PATH".into(), path);
         env.insert("HOME".into(), sandbox.join("home").to_string_lossy().into_owned());
+        if sandbox.join("owner/codex/auth.json").exists() {
+            env.insert("CODEX_HOME".into(), sandbox.join("owner/codex").to_string_lossy().into_owned());
+        }
         env.insert("XDG_STATE_HOME".into(), sandbox.join("state").to_string_lossy().into_owned());
         if let Some(Value::Obj(overrides)) = field(step, "env") {
             for (key, value) in overrides.entries() {

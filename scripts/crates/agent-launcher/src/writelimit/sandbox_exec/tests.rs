@@ -498,3 +498,16 @@ fn the_user_volume_and_the_swap_volume_are_denied_after_the_grants() {
     assert!(at > p.text.find("(allow file-read* file-map-executable process-exec").unwrap());
     assert!(at > p.text.find("(allow network*)").unwrap());
 }
+
+#[test]
+fn the_keychain_and_the_preferences_are_allowed_only_when_asked_for() {
+    let root = scratch("confined-services");
+    let plain = profile(&confined(&root, Some(vec![443]))).unwrap();
+    assert!(!plain.text.contains("SecurityServer") && !plain.text.contains("cfprefsd"), "{}", plain.text);
+    let asked = profile(&Policy { keychain: true, preferences: true, ..confined(&root, Some(vec![443])) }).unwrap();
+    assert!(asked.text.contains("(allow mach-lookup (global-name \"com.apple.SecurityServer\"))"), "{}", asked.text);
+    assert!(asked.text.contains("com.apple.cfprefsd.daemon") && asked.text.contains("(allow user-preference-read)"), "{}", asked.text);
+    // Still no bind, and the volume denial still comes after every grant.
+    assert!(!asked.text.contains("network-bind"), "{}", asked.text);
+    assert!(asked.text.find("SecurityServer").unwrap() < asked.text.find("(deny file-read* file-map-executable process-exec").unwrap());
+}

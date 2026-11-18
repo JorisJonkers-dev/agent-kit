@@ -444,6 +444,7 @@ impl Process for FlippingProcess {
         answer(CLAUDE_ANSWER)
     }
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let (command, _) = super::confined::unwrapped(command);
         let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
         self.exec(&command.command, &args, command.timeout_ms)
     }
@@ -479,6 +480,7 @@ impl Process for SlowProcess {
         answer(&self.answer)
     }
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let (command, _) = super::confined::unwrapped(command);
         let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
         self.exec(&command.command, &args, command.timeout_ms)
     }

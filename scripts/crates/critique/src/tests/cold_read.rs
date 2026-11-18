@@ -131,6 +131,12 @@ impl Files for Refusing {
     fn remove(&self, path: &str) -> Result<(), FsError> {
         self.0.remove(path)
     }
+    fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
+        self.0.copy_tree(from, to)
+    }
+    fn symlink(&self, target: &str, link: &str) -> Result<(), FsError> {
+        self.0.symlink(target, link)
+    }
 }
 
 /// A `vibe` that writes the export beside its `--output-dir` and answers with a journal.
@@ -146,6 +152,7 @@ impl Process for Answering {
     }
 
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let command = &super::vibe_client::unwrapped(command);
         let at = command.args.iter().position(|arg| arg == "--output-dir").ok_or("no output dir")?;
         let dir = &command.args[at + 1];
         std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
@@ -182,6 +189,7 @@ fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
     ]);
     runtime.files = Box::new(SystemFiles { cwd: root.clone() });
     runtime.gateway.env = runtime.env.clone();
+    runtime.gateway.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), super::vibe_client::LAUNCHER.to_string());
     runtime.gateway.files = Box::new(Refusing(SystemFiles { cwd: root.clone() }));
     runtime.gateway.process = Box::new(Answering);
     runtime.assets_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../skills/workstation/critique").to_string_lossy().into_owned();

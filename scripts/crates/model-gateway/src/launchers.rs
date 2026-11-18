@@ -3,12 +3,13 @@
 //! parser of its output. The builders are pure, so a test reads a command
 //! without starting anything.
 
+use crate::client_confine::Confinement;
 use crate::extras::{AttachedServer, SandboxProfile};
 use crate::json::{self, Value};
 use crate::outputs::{agy_output, claude_output, codex_output, hermes_output, open_code_output, pi_output, vibe_output, ClientOutput};
 use crate::ports::ProcessCommand;
 use crate::run::{RunClient, RunMode};
-use crate::run_home::{RunHome, HERMES_PROTECTED_ENV, OPENCODE_PROTECTED_ENV};
+use crate::run_home::{RunHome, AGY_PROTECTED_ENV, CLAUDE_PROTECTED_ENV, CODEX_PROTECTED_ENV, HERMES_PROTECTED_ENV, OPENCODE_PROTECTED_ENV};
 use crate::text::join;
 use std::collections::BTreeMap;
 
@@ -36,8 +37,9 @@ pub const VIBE_UNSET: [&str; 4] = ["-u", "MISTRAL_API_KEY", "-u", "VIBE_HOME"];
 /// The variables a Vibe launch sets itself: the isolation above, the servers it
 /// attaches, and the two it unsets. A caller's `extras.env` may not name any of
 /// them, so the launcher's own isolation always wins.
-pub const VIBE_PROTECTED_ENV: [&str; 7] = [
+pub const VIBE_PROTECTED_ENV: [&str; 8] = [
     "MISTRAL_API_KEY",
+    "TMPDIR",
     "VIBE_ENABLE_MCP",
     "VIBE_ENABLE_SUBAGENTS",
     "VIBE_HOME",
@@ -120,8 +122,11 @@ pub struct LaunchExtras {
     pub tools: Vec<String>,
     pub schema: Option<String>,
     pub env: BTreeMap<String, String>,
-    /// The launch's own home, for a client that runs in one (OpenCode, Hermes): its variables are set last.
+    /// The launch's own home, for a client that runs in one: its variables are set last.
     pub home: Option<RunHome>,
+    /// What every client but Pi is started through: `agent-launcher confine` with these grants. A launch without
+    /// it is not confined, which only a test builds.
+    pub confinement: Option<Confinement>,
 }
 
 /// How the gateway starts one client and reads what it printed.
@@ -171,6 +176,26 @@ fn graced_ms(input: &LaunchRequest) -> Option<u64> {
 /// The caller's own variables, or none.
 fn caller_env(extras: Option<&LaunchExtras>) -> BTreeMap<String, String> {
     extras.map(|extras| extras.env.clone()).unwrap_or_default()
+}
+
+/// The client's program and arguments, behind `agent-launcher confine` when the launch is confined. The variables
+/// the launch sets, and `key_env`, the one a wrapper reads from the secret store, are passed through by name:
+/// the launcher clears every other.
+fn behind(extras: Option<&LaunchExtras>, input: &LaunchRequest, paths: &LaunchPaths, binary: &str, args: Vec<String>, env: &BTreeMap<String, String>, key_env: Option<&str>) -> Vec<String> {
+    let mut words = Vec::new();
+    if let Some(confinement) = extras.and_then(|extras| extras.confinement.as_ref()) {
+        let names: Vec<String> = env.keys().cloned().chain(key_env.map(str::to_string)).collect();
+        words.push(confinement.launcher.clone());
+        words.extend(confinement.args(input, paths, binary, &names));
+    }
+    words.push(binary.to_string());
+    words.extend(args);
+    words
+}
+
+/// The variables a launch's own home sets.
+fn home_env(extras: Option<&LaunchExtras>) -> BTreeMap<String, String> {
+    extras.and_then(|extras| extras.home.as_ref()).map(|home| home.env.clone()).unwrap_or_default()
 }
 
 /// The MCP servers a Vibe launch configures: the caller's, in its packet, and
@@ -227,8 +252,7 @@ fn vibe_env(extras: Option<&LaunchExtras>, work_dir: &str) -> BTreeMap<String, S
 /// outside the workdir.
 fn vibe_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, _prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let agent = extras.and_then(|extras| extras.agent.as_deref());
-    let mut args = strings(&VIBE_UNSET);
-    args.extend(strings(&[binary, "--prompt-file", &paths.prompt_path]));
+    let mut args = Vec::new();
     if agent.is_none() {
         args.extend(strings(&["--model", &input.model]));
     }
@@ -242,14 +266,22 @@ fn vibe_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, _promp
         args.extend(strings(&["--max-price", &json::number_text(price)]));
     }
     args.extend(strings(&["--output-dir", &paths.export_dir]));
-    ProcessCommand {
-        command: "env".to_string(),
-        args,
-        cwd: Some(paths.work_dir.clone()),
-        env: vibe_env(extras, &paths.work_dir),
-        timeout_ms: graced_ms(input),
-        stdin: None,
-    }
+    let mut env = vibe_env(extras, &paths.work_dir);
+    env.extend(home_env(extras));
+    let mut vibe_args = strings(&["--prompt-file", &paths.prompt_path]);
+    vibe_args.extend(args);
+    let confined = extras.is_some_and(|extras| extras.confinement.is_some());
+    let words = behind(extras, input, paths, binary, vibe_args, &env, None);
+    // A confined launch passes only the variables it names, so `MISTRAL_API_KEY` and the caller's `VIBE_HOME` are
+    // already gone; one that is not unsets them, so a Study or private session's never reaches the run.
+    let (command, args) = if confined {
+        (words[0].clone(), words[1..].to_vec())
+    } else {
+        let mut unset = strings(&VIBE_UNSET);
+        unset.extend(words);
+        ("env".to_string(), unset)
+    };
+    ProcessCommand { command, args, cwd: Some(paths.work_dir.clone()), env, timeout_ms: graced_ms(input), stdin: None }
 }
 
 fn vibe_read(stdout: &str, exported: Option<&Value>) -> ClientOutput {
@@ -297,7 +329,12 @@ fn agy_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt:
     let print_timeout = format!("{}s", json::number_text(input.time_limit_s));
     let args = match extras {
         Some(extras) if extras.sandbox == Some(SandboxProfile::ReadOnly) => {
-            let mut args = strings(&["-p", prompt, "--output-format", "stream-json", "--model", &input.model, "--print-timeout", &print_timeout, "--disable-slash-commands", "--sandbox"]);
+            let mut args = strings(&["-p", prompt, "--output-format", "stream-json", "--model", &input.model, "--print-timeout", &print_timeout, "--disable-slash-commands"]);
+            // Its own sandbox is a Seatbelt profile on macOS, which cannot nest inside the launcher's: a confined
+            // launch has the launcher's confinement in its place, and the same deny list of tool families.
+            if extras.confinement.is_none() {
+                args.push("--sandbox".to_string());
+            }
             if let Some(schema) = &extras.schema {
                 args.extend(strings(&["--json-schema", schema]));
             }
@@ -314,7 +351,11 @@ fn agy_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt:
             strings(&["--print", &prompt, "--model", &input.model, "--output-format", "json", "--effort", effort_of(&input.model), "--mode", "plan", "--print-timeout", &print_timeout, "--settings", AGY_PLAN_SETTINGS])
         }
     };
-    ProcessCommand { command: binary.to_string(), args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), timeout_ms: graced_ms(input), stdin: None }
+    let mut env = caller_env(extras);
+    env.extend(home_env(extras));
+    let mut words = behind(extras, input, paths, binary, args, &env, None);
+    let command = words.remove(0);
+    ProcessCommand { command, args: words, cwd: Some(paths.work_dir.clone()), env, timeout_ms: graced_ms(input), stdin: None }
 }
 
 fn agy_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
@@ -324,7 +365,7 @@ fn agy_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
 static AGY: ClientLauncher = ClientLauncher {
     extras: &["env", "sandbox", "schema", "tools"],
     sandboxed_extras: &["schema", "tools"],
-    protected_env: &[],
+    protected_env: &AGY_PROTECTED_ENV,
     command: agy_command,
     read: agy_read,
     report_path: None,
@@ -334,8 +375,8 @@ static AGY: ClientLauncher = ClientLauncher {
 /// with the read tools alone, or for a writing run in accept-edits mode with
 /// the edit tools besides. No MCP server is loaded (`--strict-mcp-config` with
 /// no `--mcp-config`), no skill or slash command, and no auto-memory. It keeps
-/// the owner's home: its subscription login is in the keychain and the config
-/// directory, and a run home would sign it out. It has no time limit of its
+/// the owner's home: its subscription login is in the keychain, which the confinement lets it ask (a home of
+/// its own would sign it out, since the keychain is found through `HOME`). It has no time limit of its
 /// own, so the outer timer is the limit.
 fn claude_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let write = input.mode == Some(RunMode::Write);
@@ -354,7 +395,10 @@ fn claude_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prom
     ]);
     let mut env = caller_env(extras);
     env.insert("CLAUDE_CODE_DISABLE_AUTO_MEMORY".to_string(), "1".to_string());
-    ProcessCommand { command: binary.to_string(), args, cwd: Some(paths.work_dir.clone()), env, stdin: Some(prompt.to_string()), timeout_ms: limit_ms(input) }
+    env.extend(home_env(extras));
+    let mut words = behind(extras, input, paths, binary, args, &env, None);
+    let command = words.remove(0);
+    ProcessCommand { command, args: words, cwd: Some(paths.work_dir.clone()), env, stdin: Some(prompt.to_string()), timeout_ms: limit_ms(input) }
 }
 
 fn claude_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
@@ -364,7 +408,7 @@ fn claude_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
 static CLAUDE: ClientLauncher = ClientLauncher {
     extras: &["env"],
     sandboxed_extras: &[],
-    protected_env: &[],
+    protected_env: &CLAUDE_PROTECTED_ENV,
     command: claude_command,
     read: claude_read,
     report_path: None,
@@ -381,16 +425,20 @@ static CLAUDE: ClientLauncher = ClientLauncher {
 /// Hermes, so it is in no argument and no file.
 fn opencode_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let args = strings(&["run", "--standalone", "--model", &input.model, "--format", "json", prompt]);
-    let (command, args, env) = keyed(crate::models::open_code_provider(&input.model).as_deref().and_then(hermes_key), OPENCODE_KEYED, "opencode-keyed", binary, args, extras);
+    let (command, args, env) = keyed(crate::models::open_code_provider(&input.model).as_deref().and_then(hermes_key), OPENCODE_KEYED, "opencode-keyed", (input, paths, binary), args, extras);
     ProcessCommand { command, args, cwd: Some(paths.work_dir.clone()), env, timeout_ms: limit_ms(input), stdin: None }
 }
 
 /// The command and environment of a client that may read its key from the secret store, in a run home or not. A
 /// keyed client runs through a wrapper that reads the key first, with the owner's own environment, so the run
 /// home's variables reach the client as `env NAME=value` after the read and never before it.
-fn keyed(key_env: Option<String>, script: &str, name: &str, binary: &str, args: Vec<String>, extras: Option<&LaunchExtras>) -> (String, Vec<String>, BTreeMap<String, String>) {
+fn keyed(key_env: Option<String>, script: &str, name: &str, launch: (&LaunchRequest, &LaunchPaths, &str), args: Vec<String>, extras: Option<&LaunchExtras>) -> (String, Vec<String>, BTreeMap<String, String>) {
+    let (input, paths, binary) = launch;
     let mut env = caller_env(extras);
     let home = extras.and_then(|extras| extras.home.as_ref());
+    let mut all = env.clone();
+    all.extend(home_env(extras));
+    let mut words = behind(extras, input, paths, binary, args, &all, key_env.as_deref());
     match key_env {
         Some(key_env) => {
             let mut wrapped = strings(&["-c", script, name, SECRET_TOOL, &key_env]);
@@ -398,13 +446,13 @@ fn keyed(key_env: Option<String>, script: &str, name: &str, binary: &str, args: 
                 wrapped.push("env".to_string());
                 wrapped.extend(home.env.iter().map(|(name, value)| format!("{name}={value}")));
             }
-            wrapped.push(binary.to_string());
-            wrapped.extend(args);
+            wrapped.extend(words);
             ("/bin/sh".to_string(), wrapped, env)
         }
         None => {
-            env.extend(home.into_iter().flat_map(|home| home.env.clone()));
-            (binary.to_string(), args, env)
+            env = all;
+            let command = words.remove(0);
+            (command, words, env)
         }
     }
 }
@@ -426,7 +474,7 @@ static OPENCODE: ClientLauncher = ClientLauncher {
 };
 
 /// Where a client that writes a report of its own puts it: the run's directory, or the export directory when the caller names none.
-fn report_dir(paths: &LaunchPaths) -> &str {
+pub(crate) fn report_dir(paths: &LaunchPaths) -> &str {
     paths.run_dir.as_deref().unwrap_or(&paths.export_dir)
 }
 
@@ -446,10 +494,10 @@ fn hermes_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prom
     args.extend(strings(&["-t", if input.mode == Some(RunMode::Write) { HERMES_WRITE_TOOLSETS } else { HERMES_READ_TOOLSETS }]));
     // In its own home Hermes skips the rules and memory it would inject; a provider the owner's home must give (its
     // sign-in is there) runs in safe mode, which loads no config, plugin, memory or MCP server.
-    args.push(if extras.is_some_and(|extras| extras.home.is_some()) { "--ignore-rules" } else { "--safe-mode" }.to_string());
+    args.push(if hermes_key(provider).is_some() { "--ignore-rules" } else { "--safe-mode" }.to_string());
     // A LiteLLM route's key is never exported: the wrapper reads it from the secret store into Hermes' own
     // environment, under the name its provider's `key_env` reads, so it is in no argument and no file.
-    let (command, args, env) = keyed(hermes_key(provider), HERMES_KEYED, "hermes-keyed", binary, args, extras);
+    let (command, args, env) = keyed(hermes_key(provider), HERMES_KEYED, "hermes-keyed", (input, paths, binary), args, extras);
     ProcessCommand { command, args, cwd: Some(paths.work_dir.clone()), env, timeout_ms: graced_ms(input), stdin: None }
 }
 
@@ -494,6 +542,16 @@ static HERMES: ClientLauncher = ClientLauncher {
 /// sign the owner out. It has no time limit of its own, so the outer timer is the limit.
 fn codex_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let write = input.mode == Some(RunMode::Write);
+    // Codex's own sandbox is a Seatbelt profile on macOS, which cannot nest inside the launcher's (`sandbox_apply:
+    // Operation not permitted`, ADR-0016): a confined launch turns it off, and the launcher's confinement is the
+    // sandbox, holding the writes to the worktree (a writing run) or the run directory and the reads to the
+    // working directory, which Codex's own read-only mode never limited.
+    let confined = extras.is_some_and(|extras| extras.confinement.is_some());
+    let sandbox = match (confined, write) {
+        (true, _) => "danger-full-access",
+        (false, true) => "workspace-write",
+        (false, false) => "read-only",
+    };
     let effort = format!("model_reasoning_effort=\"{}\"", effort_of(&input.model));
     let mut args = strings(&[
         "exec",
@@ -505,16 +563,20 @@ fn codex_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, promp
         "-c",
         &effort,
         "-s",
-        if write { "workspace-write" } else { "read-only" },
+        sandbox,
         "-C",
         &paths.work_dir,
     ]);
-    if write {
+    if write && !confined {
         for dir in paths.git_writable.as_deref().unwrap_or_default() {
             args.extend(strings(&["--add-dir", dir]));
         }
     }
-    ProcessCommand { command: binary.to_string(), args, cwd: Some(paths.work_dir.clone()), env: caller_env(extras), stdin: Some(prompt.to_string()), timeout_ms: limit_ms(input) }
+    let mut env = caller_env(extras);
+    env.extend(home_env(extras));
+    let mut words = behind(extras, input, paths, binary, args, &env, None);
+    let command = words.remove(0);
+    ProcessCommand { command, args: words, cwd: Some(paths.work_dir.clone()), env, stdin: Some(prompt.to_string()), timeout_ms: limit_ms(input) }
 }
 
 fn codex_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
@@ -524,7 +586,7 @@ fn codex_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
 static CODEX: ClientLauncher = ClientLauncher {
     extras: &["env"],
     sandboxed_extras: &[],
-    protected_env: &[],
+    protected_env: &CODEX_PROTECTED_ENV,
     command: codex_command,
     read: codex_read,
     report_path: None,
