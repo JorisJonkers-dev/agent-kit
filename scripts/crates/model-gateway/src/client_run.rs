@@ -15,7 +15,7 @@ use crate::pi_launch::{launcher_of, prepare_pi};
 use crate::ports::{Files, Process, ProcessResult};
 use crate::text::join;
 use crate::run::RunClient;
-use crate::run_home::{prepare_codex, prepare_hermes, prepare_opencode, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
+use crate::run_home::{sync_login, prepare_codex, prepare_hermes, prepare_opencode, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
 use std::collections::HashMap;
 
 /// The Vibe tools that load on demand through `search_tool_functions`, which `--enabled-tools` filters out along with them.
@@ -141,6 +141,8 @@ impl ClientRun<'_> {
         let extras = LaunchExtras { confine: confine.clone(), home: home.clone(), confinement, ..self.extras_of(request)? };
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
         let ran = self.process.run(&command);
+        // What the launch refreshed in its copy of a login goes back to the owner's, before the home goes.
+        let unsynced: Vec<String> = home.iter().filter_map(|home| home.login.as_ref()).filter_map(|(owner, copy)| sync_login(self.files, owner, copy).err()).collect();
         // The agent directory holds the route's key, so it goes the moment the launch ends, and so does a run home; a
         // directory that stays is reported, never left unsaid. `remove` does not follow a symlink.
         let leftovers: Vec<String> = confine
@@ -148,6 +150,7 @@ impl ClientRun<'_> {
             .map(|confine| confine.agent_dir.clone())
             .chain(home.iter().map(|home| home.dir.clone()))
             .filter_map(|dir| self.files.remove(&dir).err().map(|error| format!("the launch's directory {dir} was not removed: {}", error.message)))
+            .chain(unsynced)
             .collect();
         let result = ran.map_err(|message| ClientRunError::Spawn(if leftovers.is_empty() { message } else { format!("{message}; {}", leftovers.join("; ")) }))?;
         let exported = match launcher.report_path {
@@ -204,8 +207,10 @@ impl ClientRun<'_> {
         }
         let mut writes = home.writes.clone();
         writes.extend(own);
-        let ports = if client == RunClient::Agy { Vec::new() } else { home.ports.clone() };
-        Ok(Some(Confinement { launcher, reads, run_from, writes, ports, keychain, preferences, env }))
+        // Antigravity serves itself on a loopback port chosen at run time, like OpenCode: loopback at any port, the rest
+        // of the network at 443 only.
+        let (ports, loopback) = if client == RunClient::Agy { (vec![443], true) } else { (home.ports.clone(), home.loopback) };
+        Ok(Some(Confinement { launcher, reads, run_from, writes, ports, loopback, keychain, preferences, env }))
     }
 
     /// The home of a launch of a client but Pi (#903): what the client runs in, and what the confinement grants for

@@ -112,13 +112,13 @@ refused with `launch-failed` and the reason. The grants of each recipe are in AD
 | client | confined | live result (one inline read-only run, trivial prompt) | escape cell (live `matrix`) | what stays open |
 |---|---|---|---|---|
 | pi | yes (as before) | pass | pass | |
-| opencode (LiteLLM route) | yes: run home, no port limit | `litellm-opencode-go/ministral-3b` ok | pass | network not limited (loopback server) |
+| opencode (LiteLLM route) | yes: run home, 443 and loopback | `litellm-opencode-go/ministral-3b` ok | pass | any host on 443 |
 | opencode-free (own providers) | yes: run home, owner's `~/.local/share/opencode` writable | `opencode/nemotron-3.5-lightning-free` ok | pass | the owner's OpenCode database is writable by the run |
 | hermes (LiteLLM route) | yes: run home, port 443 | `ministral-3b` ok | pass | any host on 443 |
 | claude | yes: keychain, nothing of `~/.claude` | `claude-haiku-5-5` ok | pass | any host on 443 |
-| agy | yes: keychain, `~/.gemini/antigravity-cli` and `~/.gemini/config` writable | `gemini-3.8-flash-low` ok | pass | network not limited; its skills dir is readable |
+| agy | yes: keychain, `~/.gemini/antigravity-cli` and `~/.gemini/config` writable, 443 and loopback | `gemini-3.8-flash-low` ok | pass | any host on 443; its skills dir is readable |
 | vibe | yes: keychain, run `VIBE_HOME`, `~/.agents/skills` readable | `ministral-3b-latest` ok | blocked (no profile lists a Vibe model) | any host on 443 |
-| codex | yes: its own sandbox off inside ours, run `CODEX_HOME` with a link to the owner's `auth.json` | not run through `model-gateway` (metered-employer: needs a repository whose allowlist names openai and a grant); the same grants were run by hand with `codex exec` and answered `ok` | blocked (same) | any host on 443 |
+| codex | yes: its own sandbox off inside ours, run `CODEX_HOME` with a copy of the owner's `auth.json` | not run through `model-gateway` (metered-employer: needs a repository whose allowlist names openai and a grant); the same grants were run by hand with `codex exec` and answered `ok` | blocked (same) | any host on 443 |
 
 Last live run (2026-11-18, macOS 27, the confinement built from this branch): `model-gateway matrix --json '{"live":
 true, "roles": ["triage"], "harnesses": ["claude", "agy", "hermes", "opencode", "vibe", "codex"]}'` answered `ok` with no
@@ -140,9 +140,9 @@ where its skills are; Codex's probe cell cannot run on this machine.
 | opencode (LiteLLM route) | yes: `HOME`, `XDG_*`, `TMPDIR`, `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR` in `<run dir>/client-home`, one provider, project config and `.claude` skills off | none declared; `*` denied |
 | opencode, opencode-free (OpenCode's own providers) | yes, with `OPENCODE_DB` at the owner's database: the sign-in is in `opencode.db` and a fresh one signs in as nobody (the free models answer 429 or no route), so the confinement lets the run write the owner's `opencode` data directory and nothing else | none declared; `*` denied |
 | hermes (LiteLLM route) | yes: `HERMES_HOME`, `HOME`, `XDG_*` in the run home, one provider (no literal key copied), `-t web` read-only | `mcp_servers: {}` |
-| hermes (other provider) | yes, with a link to the owner's `.env` (its key), which the confinement reads and nothing else of `~/.hermes` | `mcp_servers: {}`, `--safe-mode`, `-t web` read-only |
+| hermes (other provider) | yes, with a copy of the owner's `.env` (its key) and nothing else of `~/.hermes` | `mcp_servers: {}`, `--safe-mode`, `-t web` read-only |
 | claude | a `tmp` directory only (`CLAUDE_CODE_TMPDIR`); the real `HOME`, because the subscription login is in the keychain, which is found through it. Nothing of `~/.claude` is readable | `--strict-mcp-config`, no `--mcp-config`; `--disable-slash-commands`; auto-memory off |
-| codex | yes: `CODEX_HOME` is the run's, holding a link to the owner's `auth.json` (a ChatGPT login rotates its tokens in place, a copy would sign the owner out), so the owner's `AGENTS.md`, skills and plugins are not there | `--ignore-user-config` |
+| codex | yes: `CODEX_HOME` is the run's, holding a copy of the owner's `auth.json` (its refreshed `tokens` go back to the owner's file after the launch), so the owner's `AGENTS.md`, skills and plugins are not there | `--ignore-user-config` |
 | agy | a `tmp` directory only; the real `HOME` (keychain), and the owner's `~/.gemini/antigravity-cli` and `~/.gemini/config` writable | `mcp(*)` denied in the settings of every mode |
 | vibe | yes: `VIBE_HOME` is a copy of the owner's `config.toml` and `agents/`; the real `HOME` (keychain) | `VIBE_ENABLE_MCP=false`; servers only from `extras.mcp_servers` |
 | pi | yes, as before (`pi-agent`) | `--no-mcp` |

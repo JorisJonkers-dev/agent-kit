@@ -164,13 +164,17 @@ fn stdio_paths() -> Vec<PathBuf> {
 /// asks for the items whose access list names it. The keychain files are read grants, added by the launcher.
 const KEYCHAIN_RULES: &str = "(allow mach-lookup (global-name \"com.apple.SecurityServer\"))\n";
 
-/// What `--preferences` adds: the preferences daemon, which a native client (Codex) asks for the system's and the
-/// managed (device-management) preferences before it starts.
-const PREFERENCES_RULES: &str = "(allow user-preference-read)
-(allow mach-lookup (global-name \"com.apple.cfprefsd.daemon\") (global-name \"com.apple.cfprefsd.agent\"))
+/// What `--preferences` adds: the preferences daemon and the managed (device-management) preferences, which a
+/// native client (Codex) asks for before it starts. No `user-preference-read`: a user's defaults of other
+/// applications stay unreadable (traced: Codex only asks for `kCFPreferencesAnyApplication` and `com.apple.security`
+/// and starts without them).
+const PREFERENCES_RULES: &str = "(allow mach-lookup (global-name \"com.apple.cfprefsd.daemon\") (global-name \"com.apple.cfprefsd.agent\"))
 (allow file-read* (subpath \"/Library/Managed Preferences\"))
 (allow ipc-posix-shm-read-data (ipc-posix-name-prefix \"apple.cfprefs.\"))
 ";
+
+/// What `--net-loopback` adds: a server on any loopback port, and a connection to it.
+const LOOPBACK_RULES: &str = "(allow network-bind (local tcp \"localhost:*\"))\n(allow network-inbound (local tcp \"localhost:*\"))\n(allow network-outbound (remote tcp \"localhost:*\"))\n";
 
 /// The directory sockets name resolution talks to: the only way off the
 /// machine that is not a TCP connect, and only granted with a port.
@@ -231,6 +235,9 @@ fn confinement(
             text += &format!(
                 "(allow network-outbound (remote unix-socket (path-literal \"{DNS_SOCKET}\")))\n"
             );
+            if policy.loopback {
+                text += LOOPBACK_RULES;
+            }
         }
         None => text += "(allow network*)\n",
     }

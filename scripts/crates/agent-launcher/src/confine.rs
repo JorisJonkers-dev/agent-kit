@@ -6,7 +6,7 @@
 //!
 //! ```text
 //! agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]...
-//!                        [--write PATH]... [--net-connect PORT]... [--keychain] [--preferences] [--env NAME]... -- COMMAND [ARGS...]
+//!                        [--write PATH]... [--net-connect PORT]... [--net-loopback] [--keychain] [--preferences] [--env NAME]... -- COMMAND [ARGS...]
 //! ```
 //!
 //! * `--read`: readable (files read, directories listed), never executable.
@@ -17,6 +17,11 @@
 //!   file that may be read and written (and nothing beside it).
 //! * `--net-connect`: a TCP port a connect may reach; given once or more, no
 //!   other port can be reached and no TCP port can be bound.
+//! * `--net-loopback`: (macOS) the command may also bind, accept and connect on
+//!   loopback (`localhost`) at any port, which a client that serves itself on a
+//!   port chosen at run time needs; with `--net-connect` the rest of the network
+//!   stays limited to the listed ports. Refused on Linux, where Landlock cannot
+//!   name a port chosen at run time.
 //! * `--keychain`: (macOS) the command may ask the login keychain for the items
 //!   whose access list names it; its credentials are held there, not in a file.
 //!   The keychain files are readable, nothing else of `~/Library` is. Linux
@@ -120,6 +125,7 @@ pub struct Spec {
     pub run_from: Vec<OsString>,
     pub write: Vec<PathBuf>,
     pub ports: Option<Vec<u16>>,
+    pub loopback: bool,
     pub keychain: bool,
     pub preferences: bool,
     pub env: Vec<OsString>,
@@ -139,6 +145,10 @@ pub fn parse(args: &[OsString]) -> Result<Spec, String> {
         match flag.as_ref() {
             "--check" => {
                 spec.check = true;
+                continue;
+            }
+            "--net-loopback" => {
+                spec.loopback = true;
                 continue;
             }
             "--keychain" => {
@@ -266,31 +276,64 @@ impl Env {
 /// The policy for `spec`: its own grants and the system's, or why a
 /// `--run-from` program cannot be granted.
 pub fn policy(spec: &Spec, env: &Env) -> Result<Policy, String> {
+    // A grant is the path it resolves to, never the path it was written as, and it must exist: a link planted in a
+    // directory the command may write cannot move a grant (to `~/.ssh`, say) on a later launch.
+    let written: Vec<PathBuf> = spec.write.iter().map(|path| resolve_grant("--write", path)).collect::<Result<_, _>>()?;
+    let writable_dirs: Vec<&PathBuf> = written.iter().filter(|path| path.is_dir()).collect();
+    for path in spec.read.iter().chain(&spec.run).chain(&spec.write) {
+        refuse_a_link_in(path, &writable_dirs)?;
+    }
     let mut read = existing(&SYSTEM_READ);
-    read.extend(spec.read.iter().cloned());
+    for path in &spec.read {
+        read.push(resolve_grant("--read", path)?);
+    }
     let mut run = existing(&SYSTEM_RUN);
-    run.extend(spec.run.iter().cloned());
+    for path in &spec.run {
+        run.push(resolve_grant("--run", path)?);
+    }
     for program in &spec.run_from {
         run.extend(program_grants(program, env)?);
     }
-    // A `--write` path that is a file (an auth file a client rotates its tokens in) is granted as that file alone;
-    // a directory is granted whole.
-    let (written_files, written_dirs): (Vec<PathBuf>, Vec<PathBuf>) = spec.write.iter().cloned().partition(|path| path.is_file());
+    // A `--write` path that is a file is granted as that file alone; a directory is granted whole.
+    let (written_files, written_dirs): (Vec<PathBuf>, Vec<PathBuf>) = written.into_iter().partition(|path| path.is_file());
     let mut files = existing(&DEVICES);
     files.extend(written_files);
     if spec.keychain {
-        let home = env.home.iter().map(|home| home.join("Library/Keychains"));
-        read.extend(home.chain([PathBuf::from("/Library/Keychains")]).filter(|path| path.is_dir()));
+        // Only the login keychain's file, not the directory that holds every keychain.
+        let home = env.home.iter().map(|home| home.join("Library/Keychains/login.keychain-db"));
+        read.extend(home.chain([PathBuf::from("/Library/Keychains/System.keychain")]).filter(|path| path.is_file()));
     }
     Ok(Policy {
         dirs: written_dirs,
         files,
         reads: Some(Reads { read, run }),
         connect_ports: spec.ports.clone(),
+        loopback: spec.loopback,
         keychain: spec.keychain,
         preferences: spec.preferences,
         ..Policy::default()
     })
+}
+
+/// The path a grant names, resolved; one that is not there is refused (a missing `--write` file is never turned
+/// into a grant of a directory that may be made at that name later).
+fn resolve_grant(option: &str, path: &Path) -> Result<PathBuf, String> {
+    fs::canonicalize(path).map_err(|error| format!("{option} {}: cannot be resolved ({error}); a grant must exist", path.display()))
+}
+
+/// Refuses a grant whose path goes through a link that sits in a directory the command may write: the command
+/// could have planted it.
+fn refuse_a_link_in(path: &Path, writable: &[&PathBuf]) -> Result<(), String> {
+    let mut walked = PathBuf::new();
+    for part in path.components() {
+        walked.push(part);
+        let planted = fs::symlink_metadata(&walked).is_ok_and(|meta| meta.file_type().is_symlink())
+            && walked.parent().and_then(|parent| fs::canonicalize(parent).ok()).is_some_and(|parent| writable.iter().any(|dir| parent.starts_with(dir)));
+        if planted {
+            return Err(format!("{}: goes through the link {}, which is in a directory the command may write", path.display(), walked.display()));
+        }
+    }
+    Ok(())
 }
 
 /// The command as `sandbox-exec` is given it: a name looked up on `PATH` and every link resolved. The program
@@ -323,9 +366,20 @@ fn holds_home(dir: &Path, env: &Env) -> bool {
     dir.parent().is_none() || env.home.as_deref().is_some_and(|home| home.starts_with(dir))
 }
 
-/// `dir` when granting it whole keeps the home directory out, else `file` alone.
+/// A directory that holds many programs or whole installs: a prefix (`/usr/local`, `/opt/homebrew`), a shared `bin`
+/// of one, the home directory or `~/.local`. Never granted whole.
+fn shared(dir: &Path, env: &Env) -> bool {
+    const PREFIXES: [&str; 6] = ["/", "/usr", "/usr/local", "/opt", "/opt/homebrew", "/opt/local"];
+    let is_prefix = |d: &Path| {
+        PREFIXES.iter().any(|p| d == Path::new(p)) || env.home.as_deref().is_some_and(|home| d == home || d == home.join(".local") || d == home.join(".cargo") || d == home.join(".nvm"))
+    };
+    let bin = dir.file_name().is_some_and(|n| n == "bin" || n == "sbin");
+    holds_home(dir, env) || is_prefix(dir) || (bin && dir.parent().is_some_and(is_prefix))
+}
+
+/// `dir` when granting it whole is safe, else `file` alone.
 fn bounded(dir: &Path, file: &Path, env: &Env) -> PathBuf {
-    if holds_home(dir, env) { file.to_path_buf() } else { dir.to_path_buf() }
+    if shared(dir, env) { file.to_path_buf() } else { dir.to_path_buf() }
 }
 
 /// What running `program` reads and executes, with links resolved:
@@ -359,10 +413,15 @@ pub fn program_grants(program: &OsStr, env: &Env) -> Result<Vec<PathBuf>, String
     // its `bin`) and from the install it resolves to (the Python it links to).
     for target in exec_targets(&real) {
         let real_target = fs::canonicalize(&target).unwrap_or_else(|_| target.clone());
-        for install in [install_of(&target, env), install_of(&real_target, env)] {
+        let mut installs = vec![install_of(&real_target, env)];
+        // A virtual environment holds its libraries beside the `bin` the script names; that directory is granted
+        // as written only when it is one (it has a `pyvenv.cfg`), never a prefix such as `/opt/homebrew`.
+        let written = target.parent().and_then(Path::parent).filter(|venv| venv.join("pyvenv.cfg").is_file());
+        installs.extend(written.map(|venv| bounded(venv, &target, env)));
+        for install in installs {
             // A Python kept in a `python` store directory (`uv`) is reached by a link beside the one it resolves to.
             let install = match install.parent() {
-                Some(store) if install.parent().and_then(Path::file_name).is_some_and(|n| n == "python") && !holds_home(store, env) => store.to_path_buf(),
+                Some(store) if store.file_name().is_some_and(|n| n == "python") && !shared(store, env) => store.to_path_buf(),
                 _ => install,
             };
             if !grants.contains(&install) {
@@ -373,15 +432,17 @@ pub fn program_grants(program: &OsStr, env: &Env) -> Result<Vec<PathBuf>, String
     Ok(grants)
 }
 
-/// What running `program` needs of its install: the directory above its `bin`, else the directory it is in,
-/// narrowed to the file itself when that would hold the home directory.
+/// What running `program` needs of its install: the directory above its `bin` (a `Cellar/<pkg>/<version>`, a
+/// tool's directory), else the directory it is in, and the file itself when that directory is shared.
 fn install_of(program: &Path, env: &Env) -> PathBuf {
     let bin = program.parent().unwrap_or(program);
     let install = if bin.file_name().is_some_and(|n| n == "bin") { bin.parent().unwrap_or(bin) } else { bin };
     bounded(install, program, env)
 }
 
-/// The programs a launcher script runs by an absolute path after `exec`, from its first lines.
+/// The programs a launcher script runs by an absolute path with `exec`, from its first lines. Only a real command
+/// counts: a line that starts with `exec` (after variable assignments), or the Python launcher's
+/// `'\'\'exec' '<program>' "$0"` trick; a comment, or `exec` inside a string or another word, does not.
 fn exec_targets(script: &Path) -> Vec<PathBuf> {
     let mut head = Vec::new();
     if fs::File::open(script).and_then(|file| file.take(2048).read_to_end(&mut head)).is_err() {
@@ -392,25 +453,34 @@ fn exec_targets(script: &Path) -> Vec<PathBuf> {
         return Vec::new();
     }
     let mut found = Vec::new();
-    for line in text.lines().take(12) {
-        let mut rest = line;
-        while let Some(at) = rest.find("exec") {
-            let (before, after) = (&rest[..at], &rest[at + 4..]);
-            let word_start = before.chars().last().is_none_or(|c| c.is_whitespace() || c == '\'' || c == '"');
-            let word_end = after.chars().next().is_none_or(|c| c.is_whitespace() || c == '\'' || c == '"');
-            rest = after;
-            if !(word_start && word_end) {
-                continue;
+    for line in text.lines().take(12).skip(1) {
+        let mut rest = line.trim_start();
+        if rest.starts_with('#') {
+            continue;
+        }
+        // Leading `NAME=value` assignments.
+        while let Some((word, tail)) = rest.split_once(' ') {
+            let name = word.split_once('=').map(|(name, _)| name);
+            if name.is_some_and(|name| !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')) {
+                rest = tail.trim_start();
+            } else {
+                break;
             }
-            // The quote that closes the word `exec`, then the operand, which may be quoted (a path with a space).
-            let operand = after.strip_prefix(['\'', '"']).unwrap_or(after).trim_start();
-            let path = match operand.chars().next() {
-                Some(quote @ ('\'' | '"')) => operand[1..].split(quote).next().unwrap_or(""),
-                _ => operand.split_whitespace().next().unwrap_or(""),
-            };
-            if path.starts_with('/') && !found.iter().any(|known: &PathBuf| known == Path::new(path)) {
-                found.push(PathBuf::from(path));
-            }
+        }
+        let after = if let Some(after) = rest.strip_prefix("\'\'\'exec\'") {
+            after
+        } else if let Some(after) = rest.strip_prefix("exec").filter(|after| after.starts_with(' ')) {
+            after
+        } else {
+            continue;
+        };
+        let operand = after.trim_start();
+        let path = match operand.chars().next() {
+            Some(quote @ ('\'' | '"')) => operand[1..].split(quote).next().unwrap_or(""),
+            _ => operand.split_whitespace().next().unwrap_or(""),
+        };
+        if path.starts_with('/') && !found.iter().any(|known: &PathBuf| known == Path::new(path)) {
+            found.push(PathBuf::from(path));
         }
     }
     found
@@ -444,7 +514,7 @@ fn confine_from(args: &[OsString], limit: &dyn WriteLimit, first_fd: libc::c_uin
         Ok(spec) => spec,
         Err(message) => {
             eprintln!("{NAME}: {message}");
-            eprintln!("usage: {NAME} confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... [--write PATH]... [--net-connect PORT]... [--keychain] [--preferences] [--env NAME]... -- COMMAND [ARGS...]");
+            eprintln!("usage: {NAME} confine [--check] [--read PATH]... [--run PATH]... [--run-from PROGRAM]... [--write PATH]... [--net-connect PORT]... [--net-loopback] [--keychain] [--preferences] [--env NAME]... -- COMMAND [ARGS...]");
             return 2;
         }
     };

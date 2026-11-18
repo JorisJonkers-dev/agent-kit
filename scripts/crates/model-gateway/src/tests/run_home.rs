@@ -251,7 +251,7 @@ fn an_opencode_provider_of_its_own_uses_the_owners_database_because_its_sign_in_
     assert!(!routed.env.contains_key("OPENCODE_DB") && routed.writes.is_empty());
     // An owner with no data directory runs signed out, in the run's own. The network is not limited either way.
     let anonymous = prepare_opencode(&Disk::default(), &env(), "opencode/free-model", None, "/run/h").expect("a home");
-    assert!(!anonymous.env.contains_key("OPENCODE_DB") && anonymous.writes.is_empty() && anonymous.ports.is_empty());
+    assert!(!anonymous.env.contains_key("OPENCODE_DB") && anonymous.writes.is_empty() && anonymous.ports == [443] && anonymous.loopback);
     prepare_opencode(&owner(), &env(), "no-slash-model", None, "/run/h").expect("a model with no provider");
 }
 

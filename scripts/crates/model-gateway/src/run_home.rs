@@ -40,6 +40,11 @@ pub struct RunHome {
     pub reads: Vec<String>,
     pub writes: Vec<String>,
     pub ports: Vec<u16>,
+    /// The client serves itself on a loopback port chosen at run time: loopback is open at any port.
+    pub loopback: bool,
+    /// A login the run holds a copy of, as `(the owner's file, the copy)`: what the run refreshed in it goes back
+    /// to the owner's after the launch (`sync_login`).
+    pub login: Option<(String, String)>,
 }
 
 /// The variables OpenCode's launch sets itself, which a caller's `extras.env` may not name.
@@ -232,9 +237,9 @@ pub fn prepare_opencode(files: &dyn Files, env: &HashMap<String, String>, model:
         vars.insert(name.to_string(), value.to_string());
     }
     vars.insert("OPENCODE_CONFIG_DIR".to_string(), join(&[dir, ".config", "opencode"]));
-    // `opencode run --standalone` serves itself on a loopback port chosen at run time and connects to it: no
-    // port list can hold that, so the network is not limited (the files are).
-    Ok(RunHome { dir: dir.to_string(), env: vars, reads: Vec::new(), writes, ports: Vec::new() })
+    // `opencode run --standalone` serves itself on a loopback port chosen at run time and connects to it: loopback is
+    // open at any port, and the rest of the network only at 443.
+    Ok(RunHome { dir: dir.to_string(), env: vars, writes, ports: vec![443], loopback: true, ..RunHome::default() })
 }
 
 /// The home's `tmp` directory, which a confined client may write and nothing else is.
@@ -286,13 +291,12 @@ pub fn prepare_hermes(files: &dyn Files, env: &HashMap<String, String>, provider
     if crate::launchers::hermes_key(provider).is_none() {
         let key_file = join(&[&owner, ".env"]);
         files.write_private(&join(&[dir, ".hermes", "config.yaml"]), "mcp_servers: {}\n").map_err(failed)?;
-        let mut reads = Vec::new();
-        if files.exists(&key_file).unwrap_or(false) {
-            files.symlink(&key_file, &join(&[dir, ".hermes", ".env"])).map_err(failed)?;
-            reads.push(key_file);
+        // A copy, never a link: a link in the run's home could be moved to point anywhere a later launch grants.
+        if let Ok(keys) = files.read_text(&key_file) {
+            files.write_private(&join(&[dir, ".hermes", ".env"]), &keys).map_err(failed)?;
         }
         made_tmp(files, dir, "hermes")?;
-        return Ok(RunHome { dir: dir.to_string(), env: vars, reads, writes: Vec::new(), ports: vec![443] });
+        return Ok(RunHome { dir: dir.to_string(), env: vars, ports: vec![443], ..RunHome::default() });
     }
     let path = join(&[&owner, "config.yaml"]);
     let text = files.read_text(&path).map_err(|_| format!("hermes: {path} cannot be read; re-run agent-kit setup so it writes the LiteLLM providers there"))?;
@@ -306,7 +310,7 @@ pub fn prepare_hermes(files: &dyn Files, env: &HashMap<String, String>, provider
     let config = format!("providers:\n{block}\nmcp_servers: {{}}\n");
     files.write_private(&join(&[dir, ".hermes", "config.yaml"]), &config).map_err(failed)?;
     made_tmp(files, dir, "hermes")?;
-    Ok(RunHome { dir: dir.to_string(), env: vars, reads: Vec::new(), writes: Vec::new(), ports })
+    Ok(RunHome { dir: dir.to_string(), env: vars, ports, ..RunHome::default() })
 }
 
 /// The launch's home for a client that keeps the real `HOME` (its keychain is found through it): a temporary
@@ -316,23 +320,44 @@ pub fn prepare_tmp(files: &dyn Files, client: &str, dir: &str, own_variable: Opt
     let tmp = join(&[dir, TMP]);
     let mut vars: BTreeMap<String, String> = BTreeMap::from([("TMPDIR".to_string(), tmp.clone())]);
     vars.extend(own_variable.map(|name| (name.to_string(), tmp)));
-    Ok(RunHome { dir: dir.to_string(), env: vars, reads: Vec::new(), writes: Vec::new(), ports: vec![443] })
+    Ok(RunHome { dir: dir.to_string(), env: vars, ports: vec![443], ..RunHome::default() })
 }
 
-/// Codex's home: `auth.json` is a link to the owner's, which the confinement lets Codex write, so a token it
-/// refreshes is the owner's own; its sessions, logs and caches are the run's. The owner's `config.toml`, plugins,
-/// skills and `AGENTS.md` are not there. A login that is not there is no run.
+/// Codex's home: `auth.json` is a copy of the owner's (a link, or a write grant on the owner's file, would let a
+/// path planted in the writable home move the grant), so a token Codex refreshes is in the copy; `sync_login` puts
+/// its token fields back after the launch. Its sessions, logs and caches are the run's. The owner's `config.toml`,
+/// plugins, skills and `AGENTS.md` are not there. A login that is not there is no run.
 pub fn prepare_codex(files: &dyn Files, env: &HashMap<String, String>, dir: &str) -> Result<RunHome, String> {
     let owner = env.get("CODEX_HOME").filter(|dir| !dir.is_empty()).cloned().unwrap_or_else(|| join(&[env.get("HOME").map_or("", String::as_str), ".codex"]));
     let auth = join(&[&owner, "auth.json"]);
-    if !files.exists(&auth).unwrap_or(false) {
-        return Err(format!("codex: {auth} is not there; sign in with codex login"));
-    }
+    let login = files.read_text(&auth).map_err(|_| format!("codex: {auth} is not there; sign in with codex login"))?;
     let mut home = prepare_tmp(files, "codex", dir, None)?;
-    files.symlink(&auth, &join(&[dir, "auth.json"])).map_err(|error| format!("codex: cannot make the launch's home {dir}: {}", error.message))?;
+    let copy = join(&[dir, "auth.json"]);
+    files.write_private(&copy, &login).map_err(|error| format!("codex: cannot make the launch's home {dir}: {}", error.message))?;
     home.env.insert("CODEX_HOME".to_string(), dir.to_string());
-    home.writes.push(auth);
+    home.login = Some((auth, copy));
     Ok(home)
+}
+
+/// Puts what a launch refreshed in its copy of a login back into the owner's file: the `tokens` and `last_refresh`
+/// members, when they changed, and nothing else of the copy (the run cannot write any other field of the owner's
+/// file). A copy that is gone or does not parse changes nothing.
+pub fn sync_login(files: &dyn Files, owner: &str, copy: &str) -> Result<(), String> {
+    let parse = |path: &str| files.read_text(path).ok().and_then(|text| json::parse(&text).ok());
+    let (Some(Value::Obj(held)), Some(Value::Obj(mut kept))) = (parse(copy), parse(owner)) else {
+        return Ok(());
+    };
+    let mut changed = false;
+    for member in ["tokens", "last_refresh"] {
+        if let Some(fresh) = held.get(member).filter(|fresh| kept.get(member) != Some(*fresh)) {
+            kept.set(member, fresh.clone());
+            changed = true;
+        }
+    }
+    if !changed {
+        return Ok(());
+    }
+    files.write_private(owner, &format!("{}\n", json::pretty(&Value::Obj(kept)))).map_err(|error| format!("codex: the refreshed login could not be written back to {owner}: {}", error.message))
 }
 
 /// Vibe's home: a copy of the owner's `config.toml` (the model aliases) and its agent files (the read-only and

@@ -506,8 +506,20 @@ fn the_keychain_and_the_preferences_are_allowed_only_when_asked_for() {
     assert!(!plain.text.contains("SecurityServer") && !plain.text.contains("cfprefsd"), "{}", plain.text);
     let asked = profile(&Policy { keychain: true, preferences: true, ..confined(&root, Some(vec![443])) }).unwrap();
     assert!(asked.text.contains("(allow mach-lookup (global-name \"com.apple.SecurityServer\"))"), "{}", asked.text);
-    assert!(asked.text.contains("com.apple.cfprefsd.daemon") && asked.text.contains("(allow user-preference-read)"), "{}", asked.text);
+    assert!(asked.text.contains("com.apple.cfprefsd.daemon") && !asked.text.contains("user-preference-read"), "{}", asked.text);
     // Still no bind, and the volume denial still comes after every grant.
     assert!(!asked.text.contains("network-bind"), "{}", asked.text);
     assert!(asked.text.find("SecurityServer").unwrap() < asked.text.find("(deny file-read* file-map-executable process-exec").unwrap());
+}
+
+#[test]
+fn loopback_is_allowed_beside_the_listed_ports_and_never_the_rest_of_the_network() {
+    let root = scratch("confined-loopback");
+    let p = profile(&Policy { loopback: true, ..confined(&root, Some(vec![443])) }).unwrap();
+    for rule in ["network-bind (local tcp \"localhost:*\")", "network-inbound (local tcp \"localhost:*\")", "network-outbound (remote tcp \"localhost:*\")", "(remote tcp \"*:443\")"] {
+        assert!(p.text.contains(rule), "{rule}");
+    }
+    assert!(!p.text.contains("(allow network*)") && !p.text.contains("\"*:*\""), "{}", p.text);
+    let without = profile(&confined(&root, Some(vec![443]))).unwrap();
+    assert!(!without.text.contains("localhost"), "{}", without.text);
 }

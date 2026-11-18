@@ -1169,14 +1169,15 @@ runtime, and nothing else of the machine. A client that cannot be confined (no
 launcher, a home that cannot be made, a login that is not there) is refused with
 `launch-failed` and the reason, never started bare. The client's own sign-in is
 the narrow exception each recipe names: a keychain item for Claude Code,
-Antigravity, Vibe and Codex (`--keychain`); the owner's `auth.json` for Codex
-(linked into its run home, writable as that one file); `~/.gemini/antigravity-cli`
+Antigravity, Vibe and Codex (`--keychain`); a copy of the owner's `auth.json` for Codex
+(only its refreshed `tokens` go back after the launch); `~/.gemini/antigravity-cli`
 and `~/.gemini/config` for Antigravity; the owner's OpenCode data directory for
-OpenCode's own providers; the owner's `~/.hermes/.env` for a Hermes provider
+OpenCode's own providers; a copy of the owner's `~/.hermes/.env` for a Hermes provider
 that is not a LiteLLM route; `~/.agents/skills` (read) for Vibe. Never all of `~`.
 Network: port 443 (or the proxy's) for Pi, Hermes, Claude Code, Codex and Vibe;
-not limited for OpenCode and Antigravity, which serve themselves on a loopback
-port chosen at run time, and no host allowlist for any of them (the launcher
+443 plus loopback at any port for OpenCode and Antigravity, which serve themselves on a loopback
+port chosen at run time (Landlock cannot hold that, so they are `launch-failed` on Linux), never an
+unrestricted network, and no host allowlist for any of them (the launcher
 filters by port, not by name). Codex's own sandbox cannot nest inside the
 launcher's on macOS: a confined Codex runs `-s danger-full-access` and the
 launcher is its sandbox (the decision is recorded in ADR-0016); Antigravity's
@@ -1207,13 +1208,13 @@ it (nor, on a LiteLLM route, any session history or memory), so no owner path
 reaches the delegate's context, and OpenCode's `.claude` skills and project
 `opencode.json` are switched off. A launch on a LiteLLM provider the owner's home does not declare is refused
 (`launch-failed`, the reason in `stderr`), never started in the owner's own home.
-Codex's `CODEX_HOME` is the run's own, holding a link to the owner's `auth.json` (its tokens rotate in
-place, so a copy would sign the owner out); the owner's `AGENTS.md`, skills and plugins are not there. Claude
+Codex's `CODEX_HOME` is the run's own, holding a copy of the owner's `auth.json` (its `tokens` are written back after the launch); the owner's `AGENTS.md`, skills and plugins are not there. Claude
 Code's subscription login and Antigravity's and Vibe's keys are in the macOS keychain, which is found through
 `HOME`, so those three keep the real `HOME` and the confinement lets them ask the keychain; Claude Code reads
 nothing of `~/.claude`, so its global `CLAUDE.md`, skills and plugins do not load. Vibe's `VIBE_HOME` is a copy of
 the owner's `config.toml` and `agents/`. A run on a Hermes provider that is not a LiteLLM route runs with
-`--safe-mode`, and its home links the owner's `.env`.
+`--safe-mode`, and its home holds a copy of the owner's `.env`. Every grant is resolved and must exist, a grant through a link in a
+writable directory is refused, and `--keychain` is a documented residual risk (ADR-0016).
 
 A run home is made for one launch: its directory sits under the run's own (run ids are unique), a home that
 already exists is refused, the directory is 0700 and its files 0600, a provider copied into it keeps its

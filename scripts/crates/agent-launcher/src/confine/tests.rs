@@ -66,6 +66,7 @@ fn every_option_is_read_and_the_command_follows_the_dashes() {
             run_from: vec![],
             write: vec!["/w".into()],
             ports: Some(vec![443, 8443]),
+            loopback: false,
             keychain: false,
             preferences: false,
             env: vec![],
@@ -95,17 +96,22 @@ fn a_bad_command_line_is_refused_with_the_reason() {
 
 #[test]
 fn the_policy_adds_the_system_runtime_and_devices_that_exist() {
-    let spec = parse(&args(&["--read", "/p", "--run", "/r", "--write", "/w", "--", "x"])).unwrap();
+    let root = scratch("system");
+    for d in ["p", "r", "w"] {
+        fs::create_dir_all(root.join(d)).unwrap();
+    }
+    let spec = parse(&args(&["--read", root.join("p").to_str().unwrap(), "--run", root.join("r").to_str().unwrap(), "--write", root.join("w").to_str().unwrap(), "--", "x"])).unwrap();
     let policy = policy(&spec, &Env::default()).unwrap();
     let reads = policy.reads.as_ref().unwrap();
-    assert_eq!(reads.read.last(), Some(&PathBuf::from("/p")));
-    assert_eq!(reads.run.last(), Some(&PathBuf::from("/r")));
-    assert!(reads.read.iter().chain(&reads.run).filter(|p| !p.starts_with("/p") && !p.starts_with("/r")).all(|p| p.exists()));
+    assert_eq!(reads.read.last(), Some(&root.join("p")));
+    assert_eq!(reads.run.last(), Some(&root.join("r")));
+    assert!(reads.read.iter().chain(&reads.run).filter(|p| !p.starts_with(&root)).all(|p| p.exists()));
     assert!(reads.read.contains(&PathBuf::from("/dev/urandom")));
     // The macOS runtime is held where it exists, and never listed where it does not.
     assert_eq!(reads.run.contains(&PathBuf::from("/System")), Path::new("/System").exists());
     assert!(!reads.read.iter().chain(&reads.run).any(|p| p.starts_with("/proc") || p.starts_with("/sys")));
-    assert_eq!((policy.dirs, policy.files, policy.connect_ports), (vec![PathBuf::from("/w")], vec![PathBuf::from("/dev/null")], None));
+    assert_eq!((policy.dirs, policy.files, policy.connect_ports), (vec![root.join("w")], vec![PathBuf::from("/dev/null")], None));
+    fs::remove_dir_all(&root).unwrap();
 }
 
 #[test]
@@ -248,9 +254,15 @@ fn the_policy_runs_from_each_program_and_the_option_is_read() {
 
 #[test]
 fn the_grant_list_names_every_path_by_kind() {
-    let spec = parse(&args(&["--read", "/p", "--run", "/r", "--write", "/w", "--check"])).unwrap();
+    let root = scratch("listed");
+    for d in ["p", "r", "w"] {
+        fs::create_dir_all(root.join(d)).unwrap();
+    }
+    let spec = parse(&args(&["--read", root.join("p").to_str().unwrap(), "--run", root.join("r").to_str().unwrap(), "--write", root.join("w").to_str().unwrap(), "--check"])).unwrap();
     let listed = grants(&policy(&spec, &Env::default()).unwrap());
-    assert!(listed.contains("read /p\n") && listed.contains("run /r\n") && listed.contains("write /w\n") && listed.contains("write /dev/null\n"), "{listed}");
+    let at = |kind: &str, d: &str| format!("{kind} {}\n", root.join(d).display());
+    assert!(listed.contains(&at("read", "p")) && listed.contains(&at("run", "r")) && listed.contains(&at("write", "w")) && listed.contains("write /dev/null\n"), "{listed}");
+    fs::remove_dir_all(&root).unwrap();
     assert_eq!(grants(&Policy::default()), "");
 }
 
@@ -312,6 +324,7 @@ fn a_launcher_script_is_run_with_the_program_it_hands_over_to() {
     fs::create_dir_all(root.join("tools/app with space/bin")).unwrap();
     std::os::unix::fs::symlink(&framework, root.join("tools/app with space/bin/python3")).unwrap();
     let sh = file(&root.join("sys/bin/sh"), "\x7fELF", 0o755);
+    file(&root.join("tools/app with space/pyvenv.cfg"), "home = x\n", 0o644);
     let launcher = format!("#!{}\n\'\'\'exec\' \'{}\' \"$0\" \"$@\"\n\' \'\'\'\nimport sys\n", sh.display(), root.join("tools/app with space/bin/python3").display());
     let tool = file(&root.join("tools/app with space/bin/app"), &launcher, 0o755);
     let env = env_with(&[&root.join("sys/bin")], None);
@@ -341,6 +354,12 @@ fn only_an_absolute_program_after_the_word_exec_is_an_exec_target() {
     assert!(found("d", "#!/bin/sh\nexecute /opt/x/y\n# an executable /opt/x/y\n").is_empty());
     assert_eq!(found("e", "#!/bin/sh\nexec /opt/x \"$@\"\nexec /opt/x\n").len(), 1);
     assert!(found("f", "exec /opt/x\n").is_empty());
+    // A comment, a string, an argument or a word that only contains `exec` is no command.
+    assert!(found("g", "#!/bin/sh\n# exec /opt/commented\necho \"exec /opt/string\"\nprintf exec /opt/arg\nexecute /opt/word\n").is_empty());
+    // Variable assignments may come first, and the Python launcher's trick names a path with a space.
+    assert_eq!(found("h", "#!/bin/sh\nA=1 B=\"x\" exec \"/opt/two words/tool\"\n"), vec![PathBuf::from("/opt/two words/tool")]);
+    assert_eq!(found("i", "#!/bin/sh\n\'\'\'exec\' \'/opt/venv with space/bin/python3\' \"$0\" \"$@\"\n"), vec![PathBuf::from("/opt/venv with space/bin/python3")]);
+    assert_eq!(found("j", "#!/bin/sh\n  exec /opt/indented\n"), vec![PathBuf::from("/opt/indented")]);
     assert!(exec_targets(&root.join("missing")).is_empty());
     fs::remove_dir_all(&root).unwrap();
 }
@@ -349,6 +368,7 @@ fn only_an_absolute_program_after_the_word_exec_is_an_exec_target() {
 fn a_written_file_is_granted_as_that_file_and_a_directory_whole() {
     let root = scratch("write-file");
     let auth = file(&root.join("codex/auth.json"), "{}", 0o600);
+    fs::create_dir_all(root.join("run")).unwrap();
     let spec = parse(&args(&["--write", auth.to_str().unwrap(), "--write", root.join("run").to_str().unwrap(), "--check"])).unwrap();
     let policy = policy(&spec, &Env::default()).unwrap();
     assert_eq!(policy.dirs, vec![root.join("run")]);
@@ -360,14 +380,83 @@ fn a_written_file_is_granted_as_that_file_and_a_directory_whole() {
 fn the_keychain_and_the_preferences_are_asked_for_by_name() {
     let root = scratch("keychain");
     fs::create_dir_all(root.join("home/Library/Keychains")).unwrap();
-    let spec = parse(&args(&["--keychain", "--preferences", "--check"])).unwrap();
-    assert!(spec.keychain && spec.preferences);
+    file(&root.join("home/Library/Keychains/login.keychain-db"), "", 0o600);
+    file(&root.join("home/Library/Keychains/other.keychain-db"), "", 0o600);
+    let spec = parse(&args(&["--keychain", "--preferences", "--net-loopback", "--check"])).unwrap();
+    assert!(spec.keychain && spec.preferences && spec.loopback);
     let policy = policy(&spec, &env_with(&[], Some(&root.join("home")))).unwrap();
-    assert!(policy.keychain && policy.preferences);
-    // The keychain's files are readable, the rest of `~/Library` is not.
-    assert!(policy.reads.as_ref().unwrap().read.contains(&root.join("home/Library/Keychains")));
+    assert!(policy.keychain && policy.preferences && policy.loopback);
+    // Only the login keychain's file is readable, not the directory with every keychain, nor the rest of `~/Library`.
+    let read = &policy.reads.as_ref().unwrap().read;
+    assert!(read.contains(&root.join("home/Library/Keychains/login.keychain-db")));
+    assert!(!read.contains(&root.join("home/Library/Keychains")) && !read.contains(&root.join("home/Library/Keychains/other.keychain-db")));
     let plain = super::policy(&parse(&args(&["--check"])).unwrap(), &env_with(&[], Some(&root.join("home")))).unwrap();
-    assert!(!plain.keychain && !plain.preferences);
-    assert!(!plain.reads.as_ref().unwrap().read.contains(&root.join("home/Library/Keychains")));
+    assert!(!plain.keychain && !plain.preferences && !plain.loopback);
+    assert!(!plain.reads.as_ref().unwrap().read.contains(&root.join("home/Library/Keychains/login.keychain-db")));
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_grant_is_the_path_it_resolves_to_and_a_missing_one_is_refused() {
+    let root = scratch("resolve");
+    let real = root.join("real/dir");
+    fs::create_dir_all(&real).unwrap();
+    std::os::unix::fs::symlink(&real, root.join("alias")).unwrap();
+    let spec = parse(&args(&["--read", root.join("alias").to_str().unwrap(), "--write", root.join("alias").to_str().unwrap(), "--check"])).unwrap();
+    let policy = policy(&spec, &Env::default()).unwrap();
+    assert!(policy.reads.as_ref().unwrap().read.contains(&real));
+    assert_eq!(policy.dirs, vec![real.clone()]);
+    // A `--write` path that is not there is never a grant: not of a file, and not of a directory made there later.
+    for option in ["--write", "--read", "--run"] {
+        let spec = parse(&args(&[option, root.join("nothing").to_str().unwrap(), "--check"])).unwrap();
+        let message = super::policy(&spec, &Env::default()).unwrap_err();
+        assert!(message.contains("a grant must exist"), "{option}: {message}");
+    }
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_link_planted_in_a_writable_directory_cannot_move_a_grant() {
+    let root = scratch("planted");
+    let home = root.join("run");
+    let secret = root.join("secret");
+    fs::create_dir_all(&home).unwrap();
+    fs::create_dir_all(&secret).unwrap();
+    std::os::unix::fs::symlink(&secret, home.join("auth")).unwrap();
+    let spec = parse(&args(&["--write", home.to_str().unwrap(), "--read", home.join("auth").to_str().unwrap(), "--check"])).unwrap();
+    let message = policy(&spec, &Env::default()).unwrap_err();
+    assert!(message.contains("goes through the link") && message.contains("auth"), "{message}");
+    // The same link outside any writable directory is the caller's own and resolves.
+    let spec = parse(&args(&["--read", home.join("auth").to_str().unwrap(), "--check"])).unwrap();
+    assert!(policy(&spec, &Env::default()).unwrap().reads.unwrap().read.contains(&secret));
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_program_in_a_shared_bin_is_granted_as_itself_and_never_as_its_prefix() {
+    let root = scratch("shared");
+    let home = root.join("home");
+    let local = file(&home.join(".local/bin/tool"), "\x7fELF", 0o755);
+    let env = env_with(&[], Some(&home));
+    assert_eq!(program_grants(local.as_os_str(), &env).unwrap(), vec![local.clone()]);
+    // An install of its own (a Cellar-like `pkg/1.0/bin`) is granted whole.
+    let cellar = file(&root.join("opt/homebrew/Cellar/pkg/1.0/bin/pkg"), "\x7fELF", 0o755);
+    assert_eq!(program_grants(cellar.as_os_str(), &env).unwrap(), vec![root.join("opt/homebrew/Cellar/pkg/1.0/bin")]);
+    // A script that execs a program of a shared bin grants that program only.
+    let prefixed = file(&home.join(".local/bin/node"), "\x7fELF", 0o755);
+    let script = file(&root.join("s/run"), &format!("#!/bin/sh\nexec {} \"$@\"\n", prefixed.display()), 0o755);
+    let grants = program_grants(script.as_os_str(), &env).unwrap();
+    assert!(grants.contains(&prefixed) && !grants.contains(&home.join(".local")) && !grants.contains(&home.join(".local/bin")), "{grants:?}");
+    // A bin that is not a venv's is not promoted to the directory above it.
+    let plain = file(&root.join("w/bin/python3"), "\x7fELF", 0o755);
+    fs::create_dir_all(root.join("w2/bin")).unwrap();
+    std::os::unix::fs::symlink(&plain, root.join("w2/bin/python3")).unwrap();
+    let script = file(&root.join("s2/run"), &format!("#!/bin/sh\n\'\'\'exec\' \'{}\' \"$0\"\n", root.join("w2/bin/python3").display()), 0o755);
+    let grants = program_grants(script.as_os_str(), &env).unwrap();
+    assert!(!grants.contains(&root.join("w2")) && grants.contains(&root.join("w")), "{grants:?}");
+    for shared_dir in ["/", "/usr", "/usr/local", "/opt/homebrew", &home.to_string_lossy(), &home.join(".local").to_string_lossy()] {
+        assert!(shared(Path::new(shared_dir), &env), "{shared_dir}");
+    }
+    assert!(!shared(&root.join("opt/homebrew/Cellar/pkg/1.0"), &env));
     fs::remove_dir_all(&root).unwrap();
 }

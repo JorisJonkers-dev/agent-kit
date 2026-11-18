@@ -25,10 +25,11 @@ pub struct Confinement {
     /// Paths the client may read and write (a file, or a directory beneath which it may change anything): its
     /// own home, the one login file or directory it keeps tokens in.
     pub writes: Vec<String>,
-    /// The TCP ports it may connect to (the proxy, the provider on 443); none leaves the network alone, which a
-    /// client that serves itself on a loopback port (OpenCode, Antigravity) needs: neither backend can name a
-    /// port chosen at run time.
+    /// The TCP ports it may connect to (the proxy, the provider on 443); an empty list leaves the network alone, which
+    /// no recipe uses: every client has 443 or its proxy's port.
     pub ports: Vec<u16>,
+    /// Loopback at any port besides `ports`: a client that serves itself on a port chosen at run time.
+    pub loopback: bool,
     /// macOS: it asks the login keychain for the credential it was signed in with.
     pub keychain: bool,
     /// macOS: it reads the system's and the managed preferences before it starts.
@@ -66,6 +67,9 @@ impl Confinement {
         }
         for port in &self.ports {
             args.extend(strings(&["--net-connect", &port.to_string()]));
+        }
+        if self.loopback {
+            args.push("--net-loopback".to_string());
         }
         if self.keychain {
             args.push("--keychain".to_string());

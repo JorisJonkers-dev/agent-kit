@@ -115,13 +115,13 @@ impl Files for Plain {
 fn the_grants_of_a_launch_read_the_work_directory_or_write_it_and_write_the_run_directory() {
     let input = LaunchRequest { model: "m".into(), time_limit_s: 30.0, max_price_usd: None, mode: Some(RunMode::ReadOnly), provider: None };
     let mut paths = LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g1".into(), "/g2".into()]) };
-    let confinement = Confinement { launcher: LAUNCHER.into(), reads: vec!["/r".into()], run_from: vec!["node".into()], writes: vec!["/own".into()], ports: vec![443, 8443], keychain: true, preferences: true, env: vec!["USER".into()] };
+    let confinement = Confinement { launcher: LAUNCHER.into(), reads: vec!["/r".into()], run_from: vec!["node".into()], writes: vec!["/own".into()], ports: vec![443, 8443], loopback: true, keychain: true, preferences: true, env: vec!["USER".into()] };
     let names = ["B".to_string(), "A".to_string(), "USER".to_string()];
     // A read-only run reads the work directory, never its git directories, and writes the export directory when it has no run directory.
     assert_eq!(
         confinement.args(&input, &paths, "claude", &names),
         strings(&[
-            "confine", "--read", "/w", "--run-from", "claude", "--write", "/run/export", "--run-from", "node", "--read", "/r", "--write", "/own", "--net-connect", "443", "--net-connect", "8443", "--keychain", "--preferences", "--env", "A", "--env",
+            "confine", "--read", "/w", "--run-from", "claude", "--write", "/run/export", "--run-from", "node", "--read", "/r", "--write", "/own", "--net-connect", "443", "--net-connect", "8443", "--net-loopback", "--keychain", "--preferences", "--env", "A", "--env",
             "B", "--env", "USER", "--"
         ])
     );
@@ -147,29 +147,32 @@ fn claude_asks_the_keychain_and_reads_nothing_of_the_owners_home() {
 }
 
 #[test]
-fn codex_links_the_owners_login_into_its_own_home_and_writes_that_one_file() {
+fn codex_runs_on_a_copy_of_the_owners_login_and_writes_nothing_of_the_owners() {
     let grants = grants_of(&owner(), &request(RunClient::Codex, "gpt", None, RunMode::ReadOnly));
     assert!(grants.contains(&"--keychain".to_string()) && grants.contains(&"--preferences".to_string()));
-    assert_eq!(grant_values(&grants, "--write"), ["/run", "/home/me/.codex/auth.json"]);
+    assert_eq!(grant_values(&grants, "--write"), ["/run"]);
     assert!(has(&grants, "--env", "CODEX_HOME"));
     // `CODEX_HOME` of the owner's environment names where the login is.
     let named = HashMap::from([("CODEX_HOME".to_string(), "/codex".to_string()), ("HOME".to_string(), "/home/me".to_string())]);
     let home = prepare_codex(&Disk::default().with("/codex/auth.json", "{}"), &named, "/run/h").expect("a home");
-    assert_eq!((home.writes, home.env["CODEX_HOME"].as_str()), (vec!["/codex/auth.json".to_string()], "/run/h"));
+    assert_eq!((home.login, home.env["CODEX_HOME"].as_str()), (Some(("/codex/auth.json".to_string(), "/run/h/auth.json".to_string())), "/run/h"));
+    assert!(home.writes.is_empty());
     let missing = prepare_codex(&Disk::default(), &env(), "/run/h").expect_err("signed out");
     assert_eq!(missing, "codex: /home/me/.codex/auth.json is not there; sign in with codex login");
-    // A file system that cannot link refuses the launch.
-    let linkless = Plain(owner());
-    assert!(prepare_codex(&linkless, &env(), "/run/h").expect_err("no link").starts_with("codex: cannot make the launch's home /run/h: ENOSYS"));
+    // A home that cannot be written refuses the launch.
+    let denied = Disk { write_fails: Some("auth.json"), ..owner() };
+    assert!(prepare_codex(&denied, &env(), "/run/h").expect_err("no copy").starts_with("codex: cannot make the launch's home /run/h: EACCES"));
 }
 
 #[test]
-fn antigravity_writes_its_two_directories_and_has_no_port_limit() {
+fn antigravity_writes_its_two_directories_and_has_loopback_and_443_only() {
     let grants = grants_of(&owner(), &request(RunClient::Agy, "gemini-3.8-flash-low", None, RunMode::ReadOnly));
     assert!(grants.contains(&"--keychain".to_string()));
     assert_eq!(grant_values(&grants, "--write"), ["/run", "/home/me/.gemini/antigravity-cli", "/home/me/.gemini/config"]);
-    // It serves itself on a loopback port chosen at run time, which no port list can name.
-    assert!(grant_values(&grants, "--net-connect").is_empty());
+    // It serves itself on a loopback port chosen at run time, which no port list can name: loopback at any port, and
+    // the rest of the network at 443 only, never unrestricted.
+    assert_eq!(grant_values(&grants, "--net-connect"), ["443"]);
+    assert!(grants.contains(&"--net-loopback".to_string()));
 }
 
 #[test]
@@ -193,7 +196,7 @@ fn opencode_on_its_own_providers_writes_the_owners_data_directory_and_on_a_route
     let signed_in = owner().with("/home/me/.local/share/opencode", "");
     let own = grants_of(&signed_in, &request(RunClient::Opencode, "opencode/free", None, RunMode::ReadOnly));
     assert_eq!(grant_values(&own, "--write"), ["/run", "/home/me/.local/share/opencode"]);
-    assert!(has(&own, "--env", "OPENCODE_DB") && grant_values(&own, "--net-connect").is_empty());
+    assert!(has(&own, "--env", "OPENCODE_DB") && grant_values(&own, "--net-connect") == ["443"] && own.contains(&"--net-loopback".to_string()));
     let routed = grants_of(&owner(), &request(RunClient::Opencode, "litellm-vibe/glm-5.3", None, RunMode::ReadOnly));
     assert_eq!(grant_values(&routed, "--write"), ["/run"]);
     assert!(has(&routed, "--env", "LITELLM_VIBE_KEY") && has(&routed, "--env", "XDG_CONFIG_HOME"));
@@ -213,16 +216,16 @@ fn hermes_reaches_its_providers_port_and_a_provider_of_the_owners_reads_one_file
     // A provider whose key is in the owner's `.env`: the run's home links that one file, which the launcher reads.
     let keyed = owner().with("/home/me/.hermes/.env", "KEY=x");
     let other = grants_of(&keyed, &request(RunClient::Hermes, "m", Some("deepinfra"), RunMode::ReadOnly));
-    assert!(has(&other, "--read", "/home/me/.hermes/.env") && has(&other, "--net-connect", "443"));
-    assert_eq!(keyed.text("/run/client-home/.hermes/.env").as_deref(), Some("link to /home/me/.hermes/.env"));
+    assert!(has(&other, "--net-connect", "443") && !other.iter().any(|grant| grant.contains(".hermes/.env")));
+    assert_eq!(keyed.text("/run/client-home/.hermes/.env").as_deref(), Some("KEY=x"));
     assert_eq!(keyed.text("/run/client-home/.hermes/config.yaml").as_deref(), Some("mcp_servers: {}\n"));
-    // Without a `.env` there is nothing to link and nothing to read.
+    // Without a `.env` there is nothing to copy.
     let bare = grants_of(&owner(), &request(RunClient::Hermes, "m", Some("deepinfra"), RunMode::ReadOnly));
     assert_eq!(grant_values(&bare, "--read"), ["/run/work"]);
     let denied = Disk { write_fails: Some("config.yaml"), ..owner().with("/home/me/.hermes/.env", "KEY=x") };
     assert!(prepare_hermes(&denied, &env(), "deepinfra", "/run/h").expect_err("denied").contains("cannot write the launch's home /run/h: EACCES"));
-    let linkless = Plain(owner().with("/home/me/.hermes/.env", "KEY=x"));
-    assert!(prepare_hermes(&linkless, &env(), "deepinfra", "/run/h").expect_err("no link").contains("cannot write the launch's home /run/h: ENOSYS"));
+    let denied = Disk { write_fails: Some(".env"), ..owner().with("/home/me/.hermes/.env", "KEY=x") };
+    assert!(prepare_hermes(&denied, &env(), "deepinfra", "/run/h").expect_err("no copy").contains("EACCES"));
 }
 
 #[test]
@@ -283,4 +286,40 @@ fn the_servers_and_the_schema_a_caller_attaches_are_run_and_read_by_the_launch()
     assert!(has(&grants_of(&disk, &agy), "--read", "/assets/finding.schema.json"));
     agy.extras.schema = Some("/assets/missing.schema.json".into());
     assert!(!has(&grants_of(&disk, &agy), "--read", "/assets/missing.schema.json"));
+}
+
+#[test]
+fn what_a_launch_refreshed_in_its_login_goes_back_as_token_fields_only() {
+    use crate::run_home::sync_login;
+    let owner_text = r#"{"auth_mode":"chatgpt","tokens":{"refresh_token":"old"},"last_refresh":"1","note":"mine"}"#;
+    let copy_text = r#"{"auth_mode":"planted","tokens":{"refresh_token":"new"},"last_refresh":"2","extra":"x"}"#;
+    let disk = Disk::default().with("/o/auth.json", owner_text).with("/c/auth.json", copy_text);
+    sync_login(&disk, "/o/auth.json", "/c/auth.json").expect("synced");
+    let kept = json::parse(&disk.text("/o/auth.json").unwrap()).unwrap();
+    let kept = kept.as_object().unwrap();
+    // The tokens and their time came back; every other member is the owner's own.
+    assert_eq!(json::compact(kept.get("tokens").unwrap()), r#"{"refresh_token":"new"}"#);
+    assert_eq!((kept.get("auth_mode").and_then(Value::as_str), kept.get("note").and_then(Value::as_str), kept.get("extra")), (Some("chatgpt"), Some("mine"), None));
+    // Nothing changed, a missing copy or one that does not parse: the owner's file is left alone.
+    let same = Disk::default().with("/o/auth.json", owner_text).with("/c/auth.json", owner_text);
+    sync_login(&same, "/o/auth.json", "/c/auth.json").expect("unchanged");
+    assert_eq!(same.text("/o/auth.json").as_deref(), Some(owner_text));
+    for copy in [None, Some("not json")] {
+        let broken = copy.map_or_else(|| Disk::default().with("/o/auth.json", owner_text), |text| Disk::default().with("/o/auth.json", owner_text).with("/c/auth.json", text));
+        sync_login(&broken, "/o/auth.json", "/c/auth.json").expect("left alone");
+        assert_eq!(broken.text("/o/auth.json").as_deref(), Some(owner_text));
+    }
+    // A write that fails is said.
+    let denied = Disk { write_fails: Some("/o/"), ..Disk::default().with("/o/auth.json", owner_text).with("/c/auth.json", copy_text) };
+    assert!(sync_login(&denied, "/o/auth.json", "/c/auth.json").expect_err("denied").starts_with("codex: the refreshed login could not be written back"));
+}
+
+#[test]
+fn a_refreshed_login_is_put_back_after_the_launch_and_a_failure_is_a_warning() {
+    let disk = owner().with("/home/me/.codex/auth.json", r#"{"tokens":{"a":1}}"#);
+    let programs = Programs::answering();
+    // The fake process refreshes nothing, so the owner's file is unchanged and no warning is made.
+    let outcome = (ClientRun { process: &programs, files: &disk, env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect("launched");
+    assert!(outcome.warnings.is_empty());
+    assert_eq!(disk.text("/home/me/.codex/auth.json").as_deref(), Some(r#"{"tokens":{"a":1}}"#));
 }
