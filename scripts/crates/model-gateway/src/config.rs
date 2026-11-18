@@ -255,7 +255,8 @@ pub struct DelegationProfile {
     /// The most a run may spend, in USD; held from #788, validated now.
     pub max_spend_usd: Option<f64>,
     /// Non-Pi clients the profile may run on although the gateway cannot enforce its tool scope there: the
-    /// profile's own statement that the client's read-only launch stands in for the scope.
+    /// profile's own statement that the launch restrictions the gateway applies (read-only flags or agent, no MCP, a
+    /// per-run home for OpenCode and Hermes) are accepted for the scope. It is not a statement of OS confinement.
     pub unenforced_clients: Option<Vec<String>>,
 }
 

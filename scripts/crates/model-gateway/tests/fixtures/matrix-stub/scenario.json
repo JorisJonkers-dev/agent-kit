@@ -4,7 +4,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -27,10 +27,12 @@
         "home/canned/vibe.export": "{\"usage\":{\"input_tokens\":1000,\"output_tokens\":200,\"cached_input_tokens\":400},\"cost_usd\":0.0123}\n",
         "repo/README.md": "demo\n",
         "home/.config/agent-kit/critique-allowlist.json": "{\"version\":1,\"repositories\":{\"github.com/jorisjonkers-dev/demo\":{\"families\":[\"mistral\",\"zhipu\",\"deepseek\",\"alibaba\",\"moonshot\",\"xiaomi\",\"google\",\"anthropic\",\"openai\"],\"code\":true,\"history\":false}}}",
-        "bin/hermes": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  config) echo '\"\"'; exit 0 ;;\nesac\nn=0\n[ -f \"$D/hermes.n\" ] && read n < \"$D/hermes.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/hermes.n\"\npick() { if [ -f \"$C/hermes.$1.$n\" ]; then echo \"$C/hermes.$1.$n\"; else echo \"$C/hermes.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/hermes.txt\"\ncat > \"$D/hermes.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "bin/hermes": "#!/bin/sh\nD=\"${STUB_HOME:-$HOME}/calls\"\nC=\"${STUB_HOME:-$HOME}/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  config) echo '\"\"'; exit 0 ;;\nesac\nn=0\n[ -f \"$D/hermes.n\" ] && read n < \"$D/hermes.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/hermes.n\"\npick() { if [ -f \"$C/hermes.$1.$n\" ]; then echo \"$C/hermes.$1.$n\"; else echo \"$C/hermes.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/hermes.txt\"\ncat > \"$D/hermes.$n.stdin\"\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
         "home/canned/hermes.out": "ok\nSUMMARY: hermes is fine\n",
-        "bin/opencode": "#!/bin/sh\nD=\"$HOME/calls\"\nC=\"$HOME/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/opencode.txt\"; echo \"signed in with an api key\"; exit 0 ;;\n  models) printf 'litellm-vibe/glm-5.3\\nlitellm-vibe/ministral-8b\\nlitellm-vibe/deepseek-v4.1-flash\\n'; exit 0 ;;\n  api) echo '{\"data\":[]}'; exit 0 ;;\nesac\nn=0\n[ -f \"$D/opencode.n\" ] && read n < \"$D/opencode.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/opencode.n\"\npick() { if [ -f \"$C/opencode.$1.$n\" ]; then echo \"$C/opencode.$1.$n\"; else echo \"$C/opencode.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/opencode.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
-        "home/canned/opencode.out": "{\"type\":\"step_start\"}\n{\"type\":\"text\",\"part\":{\"text\":\"ok\\nSUMMARY: opencode is fine\"}}\n{\"type\":\"step_finish\",\"part\":{\"cost\":0,\"tokens\":{\"input\":10,\"output\":2,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}\n"
+        "bin/opencode": "#!/bin/sh\nD=\"${STUB_HOME:-$HOME}/calls\"\nC=\"${STUB_HOME:-$HOME}/canned\"\nmkdir -p \"$D\"\ncase \"$1\" in\n  login|auth) echo \"status $*\" >> \"$D/opencode.txt\"; echo \"signed in with an api key\"; exit 0 ;;\n  models) printf 'litellm-vibe/glm-5.3\\nlitellm-vibe/ministral-8b\\nlitellm-vibe/deepseek-v4.1-flash\\n'; exit 0 ;;\n  api) echo '{\"data\":[]}'; exit 0 ;;\nesac\nn=0\n[ -f \"$D/opencode.n\" ] && read n < \"$D/opencode.n\"\nn=$((n + 1))\necho \"$n\" > \"$D/opencode.n\"\npick() { if [ -f \"$C/opencode.$1.$n\" ]; then echo \"$C/opencode.$1.$n\"; else echo \"$C/opencode.$1\"; fi; }\n{\n  echo \"call $n\"\n  echo \"cwd $(pwd -P)\"\n  for a in \"$@\"; do echo \"arg $a\"; done\n  echo \"env AGENT_KIT_DELEGATION=${AGENT_KIT_DELEGATION-<unset>}\"\n  echo \"env MISTRAL_API_KEY=${MISTRAL_API_KEY-<unset>}\"\n  echo \"env VIBE_HOME=${VIBE_HOME-<unset>}\"\n  echo \"env VIBE_ENABLE_MCP=${VIBE_ENABLE_MCP-<unset>}\"\n  echo \"env VIBE_ENABLE_SUBAGENTS=${VIBE_ENABLE_SUBAGENTS-<unset>}\"\n  echo \"env VIBE_INCLUDE_PROJECT_CONTEXT=${VIBE_INCLUDE_PROJECT_CONTEXT-<unset>}\"\n  echo \"env VIBE_OUTSIDE_WORKDIR=${VIBE_OUTSIDE_WORKDIR-<unset>}\"\n  echo \"env VIBE_MCP_SERVERS=${VIBE_MCP_SERVERS-<unset>}\"\n} >> \"$D/opencode.txt\"\n\nprev=\nfor a in \"$@\"; do\n  case \"$prev\" in\n    --output-dir) outdir=$a ;;\n    --usage-file) usage=$a ;;\n  esac\n  prev=$a\ndone\nf=$(pick act)\n[ -f \"$f\" ] && . \"$f\"\nf=$(pick export)\nif [ -n \"$outdir\" ] && [ -f \"$f\" ]; then mkdir -p \"$outdir\"; cat \"$f\" > \"$outdir/export.json\"; fi\nf=$(pick usage)\nif [ -n \"$usage\" ] && [ -f \"$f\" ]; then cat \"$f\" > \"$usage\"; fi\nf=$(pick sleep)\n[ -f \"$f\" ] && exec sleep 30\nf=$(pick out)\n[ -f \"$f\" ] && cat \"$f\"\nf=$(pick err)\n[ -f \"$f\" ] && cat \"$f\" >&2\nex=0\nf=$(pick exit)\n[ -f \"$f\" ] && read ex < \"$f\"\nexit \"$ex\"\n",
+        "home/canned/opencode.out": "{\"type\":\"step_start\"}\n{\"type\":\"text\",\"part\":{\"text\":\"ok\\nSUMMARY: opencode is fine\"}}\n{\"type\":\"step_finish\",\"part\":{\"cost\":0,\"tokens\":{\"input\":10,\"output\":2,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}\n",
+        "home/.config/opencode/opencode.json": "{\"provider\":{\"litellm-vibe\":{\"npm\":\"@ai-sdk/openai-compatible\",\"name\":\"LiteLLM litellm-vibe\",\"options\":{\"baseURL\":\"https://litellm.example/v1\",\"apiKey\":\"{env:LITELLM_LITELLM_VIBE_KEY}\"},\"models\":{\"ministral-8b\":{},\"glm-5.3\":{}}},\"litellm-vibe-study\":{\"npm\":\"@ai-sdk/openai-compatible\",\"name\":\"LiteLLM litellm-vibe-study\",\"options\":{\"baseURL\":\"https://litellm.example/v1\",\"apiKey\":\"{env:LITELLM_LITELLM_VIBE_STUDY_KEY}\"},\"models\":{\"ministral-8b\":{},\"glm-5.3\":{}}},\"litellm-opencode-go\":{\"npm\":\"@ai-sdk/openai-compatible\",\"name\":\"LiteLLM litellm-opencode-go\",\"options\":{\"baseURL\":\"https://litellm.example/v1\",\"apiKey\":\"{env:LITELLM_LITELLM_OPENCODE_GO_KEY}\"},\"models\":{\"ministral-8b\":{},\"glm-5.3\":{}}},\"litellm-local\":{\"npm\":\"@ai-sdk/openai-compatible\",\"name\":\"LiteLLM litellm-local\",\"options\":{\"baseURL\":\"https://litellm.example/v1\",\"apiKey\":\"{env:LITELLM_LITELLM_LOCAL_KEY}\"},\"models\":{\"ministral-8b\":{},\"glm-5.3\":{}}}},\"mcp\":{\"servers\":{\"home-mcp\":{\"type\":\"local\",\"command\":[\"home-mcp\"]}}}}",
+        "home/.hermes/config.yaml": "model:\n  default: x\nmcp_servers:\n  home-mcp:\n    command: home-mcp\nproviders:\n  litellm-vibe:\n    name: litellm-vibe\n    base_url: https://litellm.example/v1\n    key_env: LITELLM_VIBE_KEY\n  litellm-vibe-study:\n    name: litellm-vibe-study\n    base_url: https://litellm.example/v1\n    key_env: LITELLM_VIBE_STUDY_KEY\n  litellm-opencode-go:\n    name: litellm-opencode-go\n    base_url: https://litellm.example/v1\n    key_env: LITELLM_OPENCODE_GO_KEY\n  litellm-local:\n    name: litellm-local\n    base_url: https://litellm.example/v1\n    key_env: LITELLM_LOCAL_KEY\n"
       },
       "exec": [
         "bin/pi",
@@ -110,7 +112,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"harnesses\":[\"claude\",\"codex\"],\"roles\":[\"red-team\",\"research\"],\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"harnesses\":[\"claude\",\"codex\"],\"roles\":[\"red-team\",\"research\"],\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -130,7 +132,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"hermes\",\"pi\"],\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"hermes\",\"pi\"],\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -150,7 +152,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"claude\"]}"
+        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"claude\"],\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -170,7 +172,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"roles\":[\"nowhere\"],\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"roles\":[\"nowhere\"],\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -190,7 +192,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"harnesses\":\"pi\",\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"harnesses\":\"pi\",\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -210,7 +212,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"harnesses\":[\"pi\",3],\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"harnesses\":[\"pi\",3],\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -230,7 +232,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"live\":1}"
+        "{\"live\":1,\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -250,7 +252,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"repo\":3}"
+        "{\"repo\":3,\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -270,7 +272,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"roles\":[\"research\"],\"harnesses\":[\"codex\"]}"
+        "{\"roles\":[\"research\"],\"harnesses\":[\"codex\"],\"escape\":false}"
       ],
       "path": [
         "bin"
