@@ -4,7 +4,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -112,7 +112,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"harnesses\":[\"claude\",\"codex\"],\"roles\":[\"red-team\",\"research\"],\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"harnesses\":[\"claude\",\"codex\"],\"roles\":[\"red-team\",\"research\"],\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -132,7 +132,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"hermes\",\"pi\"],\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"hermes\",\"pi\"],\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -152,7 +152,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"claude\"]}"
+        "{\"live\":true,\"roles\":[\"research\"],\"harnesses\":[\"claude\"],\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -172,7 +172,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"roles\":[\"nowhere\"],\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"roles\":[\"nowhere\"],\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -192,7 +192,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"harnesses\":\"pi\",\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"harnesses\":\"pi\",\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -212,7 +212,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"harnesses\":[\"pi\",3],\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"harnesses\":[\"pi\",3],\"repo\":\"@SANDBOX@/repo\",\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -232,7 +232,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"live\":1}"
+        "{\"live\":1,\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -252,7 +252,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"repo\":3}"
+        "{\"repo\":3,\"escape\":false}"
       ],
       "path": [
         "bin"
@@ -272,7 +272,7 @@
       "argv": [
         "matrix",
         "--json",
-        "{\"roles\":[\"research\"],\"harnesses\":[\"codex\"]}"
+        "{\"roles\":[\"research\"],\"harnesses\":[\"codex\"],\"escape\":false}"
       ],
       "path": [
         "bin"
