@@ -79,7 +79,7 @@ fn route_of(files: &dyn Files, env: &HashMap<String, String>, provider: &str, mo
 }
 
 /// The key: a literal as it is, or `!<program> get <NAME>` run without a shell; never a shell command.
-fn key_of(process: &dyn Process, provider: &str, api_key: &str) -> Result<String, String> {
+pub(crate) fn key_of(process: &dyn Process, provider: &str, api_key: &str) -> Result<String, String> {
     let Some(command) = api_key.strip_prefix('!') else {
         return Ok(api_key.to_string());
     };

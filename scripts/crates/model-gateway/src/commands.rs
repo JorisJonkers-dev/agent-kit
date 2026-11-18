@@ -54,7 +54,8 @@ pub fn run(command: Command, _name: &str, input: &Object, runtime: &Runtime) -> 
         Command::GrantReserve => crate::reserve::reserve(input, runtime),
         Command::WorktreesClean => crate::worktrees::clean(input, runtime),
         Command::Run => {
-            let chosen = crate::harness::choose(input, runtime)?;
+            let tiered = crate::tier::choose(input, runtime)?;
+            let chosen = crate::harness::choose(&tiered, runtime)?;
             crate::run_command::RunCommand { runtime }.run(&Value::Obj(chosen))
         }
         Command::Batch => {

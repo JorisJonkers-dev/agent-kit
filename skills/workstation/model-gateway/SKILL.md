@@ -1127,6 +1127,22 @@ environment for the run, as for Hermes. Pi stays the default: a role's
 OpenCode is the harness when a model needs it (OpenCode's free models answer 403
 to every other client).
 
+### Tiers
+
+A LiteLLM tier (`tier-free`, `tier-vibe`, `tier-go-cheap`, `tier-strong-open`,
+`tier-review`) is a model name the proxy serves, with an ordered chain and a cost
+ceiling that litellm owns (`catalog/routing.json`, snapshotted in
+`registry/litellm-tiers.json`). `model-gateway run --tier tier-free --json '{...}'`
+(or `"tier"` in the input) runs the tier's profile on Pi, sends the tier's name as
+the model and lets LiteLLM walk the chain. An unknown tier is `unknown-tier`, never a
+default, and `--tier` is not combined with `--profile`, `--harness`, `client` or
+`model`. `tier-strong-open` is an escalation tier with no workstation key, so a run
+on it is refused with `tier-key-missing`, naming the key it needs, until a key is provisioned. Every run's ledger line records the
+tier, the harness, the serving model, the fallback count and `routing_capture`
+(`recorded`, `no-request`, `no-litellm-headers`, `hidden` or `not-litellm`): a tier run on Pi is routed
+through a recording proxy so LiteLLM's response headers are read; a client that
+hides them records `null`.
+
 `model-gateway matrix` proves every role on every harness: it runs each cell once
 on a trivial fixture and prints status (`pass`, `blocked` or `fail`), exit,
 latency, cost and error text, and exits 1 when a cell does not do what

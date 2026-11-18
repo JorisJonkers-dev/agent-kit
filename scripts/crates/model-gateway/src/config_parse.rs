@@ -59,11 +59,16 @@ pub fn parse_defaults(raw: &Value) -> Result<GatewayConfig, GatewayError> {
     Ok(GatewayConfig { version: CONFIG_VERSION, clients, models, settings, disabled, profiles })
 }
 
+/// The prefix of the Pi clients that are a LiteLLM tier's route.
+const TIER_CLIENTS: &str = "pi-tier-";
+
 /// A defaults entry whose `client` is no client of its own but the prefix of
 /// several (`pi` for `pi-vibe`, `pi-opencode-go`, ...) describes one model for
 /// each of them, so the catalogue states a model once however many routes
 /// serve it. An entry that names a client, or a prefix that matches none, is
-/// kept as it is.
+/// kept as it is. A tier client (`pi-tier-*`) is none of those members: its route's key holds the
+/// tier's name and the groups its chain needs, not the canonical ones, so it serves only the models
+/// that name it.
 fn expand_client_groups(models: Vec<ModelEntry>, clients: &BTreeMap<String, ClientConfig>) -> Vec<ModelEntry> {
     models
         .into_iter()
@@ -72,7 +77,7 @@ fn expand_client_groups(models: Vec<ModelEntry>, clients: &BTreeMap<String, Clie
                 return vec![entry];
             }
             let prefix = format!("{}-", entry.client);
-            let members: Vec<&String> = clients.keys().filter(|id| id.starts_with(&prefix)).collect();
+            let members: Vec<&String> = clients.keys().filter(|id| id.starts_with(&prefix) && !id.starts_with(TIER_CLIENTS)).collect();
             if members.is_empty() {
                 return vec![entry];
             }
@@ -552,8 +557,8 @@ fn invalid(message: impl Into<String>) -> GatewayError {
 }
 
 /// The fields a profile has; one it does not is refused, not quietly ignored.
-const PROFILE_FIELDS: [&str; 9] =
-    ["description", "models", "pin", "ladder", "distinct_families", "exclude_writer_family", "tools", "max_spend_usd", "unenforced_clients"];
+const PROFILE_FIELDS: [&str; 11] =
+    ["description", "models", "pin", "ladder", "distinct_families", "exclude_writer_family", "tier", "key_models", "tools", "max_spend_usd", "unenforced_clients"];
 
 /// Reads the profiles of the shipped defaults; `known` holds the `<client>:<model>` keys of the catalogue.
 fn parse_profiles(raw: Option<&Value>, known: &BTreeSet<String>) -> Result<BTreeMap<String, DelegationProfile>, GatewayError> {
@@ -627,6 +632,15 @@ fn parse_profile(name: &str, raw: &Object, known: &BTreeSet<String>) -> Result<D
         Some(Value::Num(cap)) if cap.is_finite() && *cap > 0.0 => Some(*cap),
         Some(_) => return Err(invalid(format!("{where_}.max_spend_usd must be a number above 0"))),
     };
+    let tier = match raw.get("tier") {
+        None => None,
+        Some(Value::Str(tier)) if tier == name => Some(tier.clone()),
+        Some(_) => return Err(invalid(format!("{where_}.tier must be the profile's own name: a tier profile is named for the tier"))),
+    };
+    let key_models = match raw.get("key_models") {
+        None => None,
+        value => Some(profile_strings(value, &format!("{where_}.key_models"), false)?),
+    };
     let tools = parse_tools(raw.get("tools"), &format!("{where_}.tools"))?;
     let unenforced_clients = match raw.get("unenforced_clients") {
         None => None,
@@ -647,7 +661,7 @@ fn parse_profile(name: &str, raw: &Object, known: &BTreeSet<String>) -> Result<D
             Some(clients)
         }
     };
-    Ok(DelegationProfile { name: name.to_string(), description, models, pin, ladder, distinct_families, exclude_writer_family, tools, max_spend_usd, unenforced_clients })
+    Ok(DelegationProfile { name: name.to_string(), description, models, pin, ladder, distinct_families, exclude_writer_family, tools, max_spend_usd, unenforced_clients, tier, key_models })
 }
 
 /// The tool scope: every kind is deny-all unless the profile lists it (or says `any`).

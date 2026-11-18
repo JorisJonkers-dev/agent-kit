@@ -258,6 +258,10 @@ pub struct DelegationProfile {
     /// profile's own statement that the launch restrictions the gateway applies (read-only flags or agent, no MCP, a
     /// per-run home for OpenCode and Hermes) are accepted for the scope. It is not a statement of OS confinement.
     pub unenforced_clients: Option<Vec<String>>,
+    /// The LiteLLM tier the profile is, which is also the model name the proxy is sent; `run --tier` names it.
+    pub tier: Option<String>,
+    /// What a LiteLLM key must hold to call the tier, which a refusal names when this machine has no such key.
+    pub key_models: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

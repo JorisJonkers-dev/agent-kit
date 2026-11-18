@@ -389,6 +389,7 @@ pub fn list_profiles(config: &GatewayConfig, permitted: &[ProfileModel], policy_
                 members.extend(profile.ladder.as_deref().map(|ladder| ("ladder", strings(ladder))));
                 members.extend(profile.distinct_families.map(|count| ("distinct_families", Value::Num(count))));
                 members.extend(profile.exclude_writer_family.map(|flag| ("exclude_writer_family", Value::Bool(flag))));
+                members.extend(profile.tier.as_deref().map(|tier| ("tier", Value::str(tier))));
                 members.extend(profile.max_spend_usd.map(|cap| ("max_spend_usd", Value::Num(cap))));
                 members.extend(profile.unenforced_clients.as_deref().map(|clients| ("unenforced_clients", strings(clients))));
                 members.extend(resolution.error.as_deref().map(|error| ("error", Value::str(error))));

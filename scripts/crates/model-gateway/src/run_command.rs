@@ -27,6 +27,7 @@ use crate::policy::{decide_policy, resolve_scope, DataScope, ModelPermission, Po
 use crate::ports::{ProcessResult, Runtime};
 use crate::proof::read_proof_files;
 use crate::profiles::{hold_to_profile, run_scope, tools_json};
+use crate::routing::{recorded, Routing};
 use crate::run::{
     input_json, named_reset, price_run, read_only_proof, read_run_input, require_allowed_provider, run_failure_reason, run_id, summary_of, wrapped_prompt,
     ClientReport, LaunchExit, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens, FORBIDDEN_PROVIDERS, FREE_ONLY_CLIENTS, NO_TOKENS, OPENROUTER_CLIENT, PROVIDER_CLIENTS,
@@ -69,6 +70,8 @@ pub struct RunResult {
     pub cleanup_warning: Option<String>,
     /// One line per plan window of this client at or above the warning ratio.
     pub warnings: Vec<String>,
+    /// What LiteLLM's response headers said of how the run was routed; written on the ledger line, not on the result.
+    pub routing: Routing,
 }
 
 impl RunResult {
@@ -407,7 +410,7 @@ impl RunCommand<'_> {
             result.attempt_of = link.attempt_of.clone();
         }
         result.cleanup_warning = warning;
-        (LedgerStore { runtime: self.runtime }).append_run(&self.ledger_record(&result, repository.as_deref(), started_ms, cost_class, options.tag.as_ref(), (input.profile.as_deref(), run_scope(&config, input.profile.as_deref(), input.narrow.as_ref()))))?;
+        (LedgerStore { runtime: self.runtime }).append_run(&self.ledger_record(&result, repository.as_deref(), started_ms, cost_class, options.tag.as_ref(), (input.profile.as_deref(), run_scope(&config, input.profile.as_deref(), input.narrow.as_ref())), (tier_of(&config, input.profile.as_deref()), &client.binary)))?;
         caps.settle(reservation.as_ref(), result.cost_usd, self.runtime.clock.now_ms())?;
         let ledger = (LedgerStore { runtime: self.runtime }).read()?;
         let windows = plan_windows(
@@ -656,7 +659,9 @@ impl RunCommand<'_> {
         files.write_text(&paths.prompt_path, &prompt).map_err(GatewayError::from_fs)?;
         let input_text = format!("{}\n", json::pretty(&input_json(input)));
         files.write_text(&join(&[run.run_dir, "input.json"]), &input_text).map_err(GatewayError::from_fs)?;
-        let (result, output, failure, launch_warnings) = self.launch(run.binary, input, &paths, &prompt, run_scope(run.config, input.profile.as_deref(), input.narrow.as_ref()).as_ref());
+        let scope = run_scope(run.config, input.profile.as_deref(), input.narrow.as_ref());
+        let tiered = input.profile.as_deref().and_then(|name| run.config.profiles.get(name)).is_some_and(|profile| profile.tier.is_some());
+        let (result, output, failure, launch_warnings, routing) = self.launch(run.binary, input, &paths, &prompt, scope.as_ref(), tiered);
         let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: result.stderr.clone() };
         let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
         let delegate_reason = failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report)));
@@ -698,53 +703,78 @@ impl RunCommand<'_> {
             attempt_of: None,
             cleanup_warning: None,
             warnings: launch_warnings,
+            routing,
         })
     }
 
     /// The client, non-interactively, through the gateway's launch path, with the mark that stops a delegate
     /// delegating on. A launch that cannot start at all is a failed run, not an error: the caller still gets a
-    /// result and a ledger line. The failure is the reason the run carries.
-    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str, scope: Option<&ToolScope>) -> (ProcessResult, ClientOutput, Option<String>, Vec<String>) {
-        let launched = RunClient::parse(&input.client).ok_or_else(|| ClientRunError::Spawn(format!("{} is not a client a run can launch", input.client))).and_then(|client| {
-            (ClientRun { process: self.runtime.process.as_ref(), files: self.runtime.files.as_ref(), env: &self.runtime.env }).launch_scoped(&ClientRunRequest {
-                launch: LaunchRequest {
-                    model: input.model.clone(),
-                    time_limit_s: input.time_limit_s,
-                    max_price_usd: input.max_price_usd,
-                    mode: Some(input.mode),
-                    provider: if client == RunClient::Pi { Some(crate::run::pi_provider(&input.client)) } else { input.provider.clone() },
-                },
-                binary: binary.to_string(),
-                client,
-                prompt: prompt.to_string(),
-                paths: paths.clone(),
-                extras: RunExtras { env: Some(BTreeMap::from([(DELEGATION_MARK.to_string(), "1".to_string())])), ..RunExtras::default() },
-            }, scope)
-        });
+    /// result and a ledger line. The failure is the reason the run carries. A tier run on Pi goes through the
+    /// recording proxy, so the routing LiteLLM reports in its headers is known; any other run's routing is unseen.
+    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str, scope: Option<&ToolScope>, tiered: bool) -> (ProcessResult, ClientOutput, Option<String>, Vec<String>, Routing) {
+        let client = RunClient::parse(&input.client);
+        let go = |env: &std::collections::HashMap<String, String>| {
+            client.ok_or_else(|| ClientRunError::Spawn(format!("{} is not a client a run can launch", input.client))).and_then(|client| {
+                (ClientRun { process: self.runtime.process.as_ref(), files: self.runtime.files.as_ref(), env }).launch_scoped(&ClientRunRequest {
+                    launch: LaunchRequest {
+                        model: input.model.clone(),
+                        time_limit_s: input.time_limit_s,
+                        max_price_usd: input.max_price_usd,
+                        mode: Some(input.mode),
+                        provider: if client == RunClient::Pi { Some(crate::run::pi_provider(&input.client)) } else { input.provider.clone() },
+                    },
+                    binary: binary.to_string(),
+                    client,
+                    prompt: prompt.to_string(),
+                    paths: paths.clone(),
+                    extras: RunExtras { env: Some(BTreeMap::from([(DELEGATION_MARK.to_string(), "1".to_string())])), ..RunExtras::default() },
+                }, scope)
+            })
+        };
+        let (launched, routing) = match client {
+            Some(RunClient::Pi) if tiered => {
+                let mut launched = None;
+                let routing = recorded(self.runtime, "curl", &join(&[&paths.export_dir, "proxy-home"]), &crate::run::pi_provider(&input.client), &input.client, &mut |env| launched = Some(go(env)));
+                (launched.expect("the launch ran, with or without the proxy"), routing)
+            }
+            _ => (go(&self.runtime.env), Routing::unseen(&input.client)),
+        };
         match launched {
-            Ok(outcome) => (outcome.result, outcome.output, None, outcome.warnings),
+            Ok(outcome) => (outcome.result, outcome.output, None, outcome.warnings, routing),
             Err(error) => {
                 let (ClientRunError::Gateway(GatewayError { message, .. }) | ClientRunError::Spawn(message)) = error;
                 let output = ClientOutput { answer: None, tokens: NO_TOKENS, charged: None, failure: None, error: None };
-                (ProcessResult { stdout: String::new(), stderr: message, exit_code: 1, timed_out: false }, output, Some("launch-failed".to_string()), Vec::new())
+                (ProcessResult { stdout: String::new(), stderr: message, exit_code: 1, timed_out: false }, output, Some("launch-failed".to_string()), Vec::new(), routing)
             }
         }
     }
 
     /// The run's one ledger line: what it was, what it cost and how it ended.
-    fn ledger_record(&self, result: &RunResult, repository: Option<&str>, started_ms: f64, cost_class: CostClass, tag: Option<&BatchTag>, profile: (Option<&str>, Option<ToolScope>)) -> Value {
+    fn ledger_record(&self, result: &RunResult, repository: Option<&str>, started_ms: f64, cost_class: CostClass, tag: Option<&BatchTag>, profile: (Option<&str>, Option<ToolScope>), routed: (Option<&str>, &str)) -> Value {
+        // The routing record: the tier asked for (null when none), the harness, and what LiteLLM's headers said of the
+        // serving model and the fallbacks (null where the gateway could not see them; `routing_capture` says why).
+        let routing = &result.routing;
+        let (tier, harness) = routed;
+        let seen = |value: Option<Value>| value.unwrap_or(Value::Null);
         let mut members = vec![
             ("at", Value::Str(to_iso(self.runtime.clock.now_ms()))),
+            ("attempted_fallbacks", seen(routing.attempted_fallbacks.map(|count| Value::Num(count as f64)))),
             ("client", Value::str(&result.client)),
             ("cost_class", Value::str(cost_class.as_str())),
             ("cost_usd", Value::Num(result.cost_usd)),
             ("duration_s", Value::Num((self.runtime.clock.monotonic_ms() - started_ms + 0.5).floor() / 1000.0)),
+            ("fallback_fired", seen(routing.fallback_fired().map(Value::Bool))),
             ("family", Value::str(&result.family)),
+            ("harness", Value::str(harness)),
+            ("litellm_model_id", seen(routing.model_id.as_deref().map(Value::str))),
             ("mode", Value::str(result.mode.as_str())),
             ("model", Value::str(&result.model)),
             ("outcome", Value::str(if result.ok { "ok" } else { "failed" })),
             ("repository", repository.map_or(Value::Null, Value::str)),
+            ("routing_capture", Value::str(routing.capture.as_str())),
             ("run_id", Value::str(&result.run_id)),
+            ("served_model", seen(routing.served_model.as_deref().map(Value::str))),
+            ("tier", tier.map_or(Value::Null, Value::str)),
             ("tokens", tokens_json(result.tokens)),
             ("workflow", Value::str(&result.workflow)),
         ];
@@ -765,6 +795,11 @@ impl RunCommand<'_> {
         }
         json::object(members)
     }
+}
+
+/// The LiteLLM tier a run's profile is, when it is one.
+fn tier_of<'a>(config: &'a GatewayConfig, profile: Option<&str>) -> Option<&'a str> {
+    config.profiles.get(profile?)?.tier.as_deref()
 }
 
 /// The input a reserved run is launched with: its own, held to the estimate it reserved and to the time its
