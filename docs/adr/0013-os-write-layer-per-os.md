@@ -76,8 +76,11 @@ defence against those. `file-link` is denied for a launch with employer roots,
 at `full` too, so tools that hard-link (`pnpm install`, `git clone --local`)
 fail there.
 
-Neither backend limits the network, because every agent needs the network to
-reach its model. Web limits stay tool-configuration and MCP-list limits only.
+Neither backend limits the network for a reach level, because every agent needs
+the network to reach its model. Web limits stay tool-configuration and
+MCP-list limits only. `agent-launcher confine` (#737), which does limit reads
+and TCP ports, is separate: Landlock holds it on Linux and, since ADR-0016, a
+`(deny default)` Seatbelt profile holds it on macOS.
 
 ## Considered options
 

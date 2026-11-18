@@ -21,6 +21,10 @@
 //! * `--check`: build the confinement and say whether this machine can hold
 //!   it, and list every grant, starting nothing.
 //!
+//! On Linux the kernel holds it (Landlock); on macOS a Seatbelt profile built
+//! from `(deny default)` does, applied by `sandbox-exec` (ADR-0016), which is
+//! then the program the launcher becomes and which execs the command.
+//!
 //! Every confinement also holds the system runtime ([`SYSTEM_RUN`], read and
 //! run), the files name resolution and certificate checks read
 //! ([`SYSTEM_READ`]), the random devices and `/dev/null`. Nothing under
@@ -55,11 +59,13 @@ pub const REFUSED: i32 = 125;
 
 /// The system runtime, readable and executable where it exists: the Nix
 /// store (which holds no secret by design) and the usual FHS directories.
-pub const SYSTEM_RUN: [&str; 6] = ["/nix/store", "/usr", "/bin", "/sbin", "/lib", "/lib64"];
+pub const SYSTEM_RUN: [&str; 7] = ["/nix/store", "/usr", "/bin", "/sbin", "/lib", "/lib64", "/System"];
 
 /// What resolving a host name, reading the time zone and checking a TLS
 /// certificate read, where it exists; and the random devices.
-pub const SYSTEM_READ: [&str; 14] = [
+pub const SYSTEM_READ: [&str; 16] = [
+    "/private/var/db/timezone",
+    "/Library/Preferences/.GlobalPreferences.plist",
     "/etc/ssl",
     "/etc/pki",
     "/etc/ca-certificates",
@@ -171,13 +177,30 @@ fn close_range(first: libc::c_uint, last: libc::c_uint) -> std::io::Result<()> {
     }
 }
 
-/// Closes the descriptors `first` to `last` one by one (no `close_range` here); the confinement itself is held on
-/// Linux only, so this exists to keep the crate building.
+/// Closes every open descriptor from `first` to `last` (macOS has no `close_range`): the kernel lists the ones this
+/// process holds, so a descriptor above any fixed bound is closed too. Where it cannot list them it fails, and the
+/// confinement is refused rather than started with descriptors the caller left open.
 #[cfg(not(target_os = "linux"))]
 fn close_range(first: libc::c_uint, last: libc::c_uint) -> std::io::Result<()> {
-    for fd in first..last.min(65_536) {
-        // SAFETY: closing a descriptor that is not open only fails with EBADF.
-        unsafe { libc::close(fd as libc::c_int) };
+    let size = std::mem::size_of::<libc::proc_fdinfo>() as libc::c_int;
+    // SAFETY: a null buffer of size 0 only asks for the size of the list.
+    let bytes = unsafe { libc::proc_pidinfo(libc::getpid(), libc::PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
+    if bytes <= 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // Room for a few more than were counted: the listing itself may open nothing, but never trust a count to stay.
+    let mut fds = vec![libc::proc_fdinfo { proc_fd: 0, proc_fdtype: 0 }; (bytes / size) as usize + 16];
+    // SAFETY: the buffer holds `fds.len() * size` bytes, which is what is passed.
+    let filled = unsafe { libc::proc_pidinfo(libc::getpid(), libc::PROC_PIDLISTFDS, 0, fds.as_mut_ptr().cast(), fds.len() as libc::c_int * size) };
+    if filled <= 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    for info in &fds[..(filled / size) as usize] {
+        let fd = info.proc_fd as libc::c_uint;
+        if fd >= first && fd <= last {
+            // SAFETY: closes a descriptor this process holds; the launcher keeps none it still needs.
+            unsafe { libc::close(info.proc_fd) };
+        }
     }
     Ok(())
 }
@@ -237,6 +260,16 @@ pub fn policy(spec: &Spec, env: &Env) -> Result<Policy, String> {
         connect_ports: spec.ports.clone(),
         ..Policy::default()
     })
+}
+
+/// The command as `sandbox-exec` is given it: a name looked up on `PATH` and every link resolved. The program
+/// looks the name up after the profile is on, when the directories of `PATH` and a link in them can no longer be
+/// read; a name that is not found is left for it to report.
+fn resolved(program: &OsStr, env: &Env) -> OsString {
+    match which(program, env) {
+        Some(found) => fs::canonicalize(&found).unwrap_or(found).into_os_string(),
+        None => program.to_os_string(),
+    }
 }
 
 /// A file anyone may execute.
@@ -340,8 +373,21 @@ fn confine_from(args: &[OsString], limit: &dyn WriteLimit, first_fd: libc::c_uin
         print!("{}", grants(&policy));
         return 0;
     }
-    let mut command = Command::new(&spec.command[0]);
-    command.args(&spec.command[1..]);
+    // A backend that confines through another program (sandbox-exec) names it
+    // and its leading arguments; the command follows them.
+    let prefix = armed.prefix();
+    let mut command = match prefix.split_first() {
+        Some((program, leading)) => {
+            let mut command = Command::new(program);
+            command.args(leading).arg(resolved(&spec.command[0], &Env::from_process())).args(&spec.command[1..]);
+            command
+        }
+        None => {
+            let mut command = Command::new(&spec.command[0]);
+            command.args(&spec.command[1..]);
+            command
+        }
+    };
     command.env_clear().envs(kept_env(std::env::vars_os(), &spec.env));
     // SAFETY: arming only makes syscalls; the launcher is single-threaded
     // here, so the limit covers the whole process the command becomes.

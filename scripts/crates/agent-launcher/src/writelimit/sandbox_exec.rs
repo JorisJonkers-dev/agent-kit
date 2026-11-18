@@ -1,7 +1,10 @@
-//! The macOS write-limit backend: the agent is started under `sandbox-exec`
-//! with a Seatbelt profile that denies every file write except the granted
-//! paths. Apple has deprecated `sandbox-exec`, but it is still shipped and is
-//! what ADR-0013 names.
+//! The macOS backend: the agent is started under `sandbox-exec` with a Seatbelt
+//! profile. For a reach level that profile denies every file write except the
+//! granted paths; for a confinement ([`Policy::reads`], ADR-0016) it is built
+//! from `(deny default)` and grants only the reads, runs, writes and TCP ports
+//! the policy names and the macOS runtime traced in the ADR ([`confinement`]).
+//! Apple has deprecated `sandbox-exec`, but it is still shipped and is what
+//! ADR-0013 names.
 //!
 //! The profile text is built from fixed rules only. Every path reaches it as a
 //! `-D name=value` parameter and is used as `(param "name")`, so no path is
@@ -33,11 +36,14 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{Arm, Armed, Policy, WriteLimit};
+use super::{Arm, Armed, Policy, Reads, WriteLimit};
 
 /// Where macOS ships it. Not looked up on `PATH`: the agent's environment
 /// must not be able to substitute another program.
 const SYSTEM_BINARY: &str = "/usr/bin/sandbox-exec";
+
+/// The program the profile is proved with before the agent starts.
+const PROBE: &str = "/usr/bin/true";
 
 /// The macOS backend.
 pub struct SandboxExec {
@@ -114,6 +120,119 @@ fn rule(verb: &str, operation: &str, filters: &str) -> String {
     }
 }
 
+/// What every confined process needs from macOS besides files, as traced under
+/// `(deny default)` with `log stream` (ADR-0013): the symlinks at the root of
+/// the volume that path resolution looks at (`/etc` and `/var` lead into
+/// `/private`), the kernel's read-only facts (`sysctl`, which dyld and the
+/// language runtimes ask), forking and signalling itself (a shell starts
+/// children). No Mach service, no IPC, no process other than its own.
+const RUNTIME_RULES: &str = "\
+(allow file-read-data (literal \"/\"))
+(allow file-read-metadata (literal \"/\") (literal \"/etc\") (literal \"/var\") (literal \"/tmp\") (literal \"/private/etc/localtime\") (literal \"/private/var/select/sh\"))
+(allow sysctl-read)
+(allow process-fork)
+(allow signal (target self))
+(allow mach-lookup (global-name \"com.apple.trustd.agent\"))
+";
+
+/// The paths of the standard streams that are files or terminals (a pipe or a
+/// socket has none), as the kernel names them.
+#[cfg(target_os = "macos")]
+fn stdio_paths() -> Vec<PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+    let mut paths: Vec<PathBuf> = Vec::new();
+    for fd in 0..3 {
+        let mut buf = [0u8; libc::PATH_MAX as usize];
+        // SAFETY: F_GETPATH writes a NUL-terminated path of at most PATH_MAX bytes into the buffer.
+        let found = unsafe { libc::fcntl(fd, libc::F_GETPATH, buf.as_mut_ptr()) } == 0;
+        let length = buf.iter().position(|b| *b == 0).unwrap_or(0);
+        let path = PathBuf::from(std::ffi::OsStr::from_bytes(&buf[..length]));
+        if found && path.is_absolute() && !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    paths
+}
+
+/// Only macOS names a descriptor's path, and only macOS needs it.
+#[cfg(not(target_os = "macos"))]
+fn stdio_paths() -> Vec<PathBuf> {
+    Vec::new()
+}
+
+/// The directory sockets name resolution talks to: the only way off the
+/// machine that is not a TCP connect, and only granted with a port.
+const DNS_SOCKET: &str = "/private/var/run/mDNSResponder";
+
+/// The head of a confinement profile: everything denied but what `reads`, the
+/// writable paths and the network grant. `dirs` and `files` are the writable
+/// paths, already made canonical.
+fn confinement(
+    profile: &mut Profile,
+    policy: &Policy,
+    reads: &Reads,
+    dirs: &[PathBuf],
+    files: &[PathBuf],
+    writable: &str,
+) -> Result<String, String> {
+    let strict = |paths: &[PathBuf]| {
+        paths
+            .iter()
+            .map(|p| canonical(p))
+            .collect::<Result<Vec<_>, _>>()
+    };
+    let read = strict(&reads.read)?;
+    let run = strict(&reads.run)?;
+    // A runtime walks every ancestor of a path to resolve it (Node's realpath
+    // lstats each one), so each ancestor may be stat'ed (never listed or read).
+    let mut ancestors: Vec<PathBuf> = Vec::new();
+    for path in read.iter().chain(&run).chain(dirs).chain(files) {
+        for ancestor in path.ancestors().skip(1) {
+            let ancestor = ancestor.to_path_buf();
+            if ancestor.parent().is_some() && !ancestors.contains(&ancestor) {
+                ancestors.push(ancestor);
+            }
+        }
+    }
+    let mut text = format!("(version 1)\n(deny default)\n{RUNTIME_RULES}");
+    // The files the process was started with as stdin, stdout and stderr: an
+    // `fstat` on an open descriptor is checked against its path, and Node
+    // aborts at start when it cannot stat a standard stream that is a file.
+    text += &rule("allow", "file-read-metadata file-ioctl", &filters(profile, "S", "literal", &stdio_paths()));
+    text += &rule("allow", "file-read-metadata", &filters(profile, "A", "literal", &ancestors));
+    text += &rule("allow", "file-read*", &filters(profile, "P", "subpath", &read));
+    text += &rule(
+        "allow",
+        "file-read* file-map-executable process-exec",
+        &filters(profile, "Q", "subpath", &run),
+    );
+    text += &rule("allow", "file-read* file-write*", writable);
+    // A connect is allowed to the listed ports on any host (as Landlock's
+    // `ConnectTcp` does, which names no host); names are resolved through
+    // mDNSResponder, and nothing is ever bound. Without a port list the
+    // network is left alone, as on Linux.
+    match &policy.connect_ports {
+        Some(ports) => {
+            for port in ports {
+                text += &format!("(allow network-outbound (remote tcp \"*:{port}\"))\n");
+            }
+            text += &format!(
+                "(allow network-outbound (remote unix-socket (path-literal \"{DNS_SOCKET}\")))\n"
+            );
+        }
+        None => text += "(allow network*)\n",
+    }
+    // `/System` is granted whole, and the user's volume is mounted beneath it
+    // (`/System/Volumes/Data`, which firmlinks `/Users`, `/Library` and
+    // `/private` to the paths the rest of the system sees). Seatbelt resolves
+    // a firmlink to its path before it matches, so reading `$HOME` through
+    // that prefix is refused already (`tests/confine.rs` proves it); this
+    // denial after the grants keeps it that way if that ever changes, and
+    // keeps the swap volume out of reach.
+    text += "(deny file-read* file-map-executable process-exec\n  (subpath \"/System/Volumes/Data\")\n  (subpath \"/System/Volumes/VM\")\n)\n";
+    Ok(text)
+}
+
 /// Builds the profile for `policy`.
 fn profile(policy: &Policy) -> Result<Profile, String> {
     // A grant must exist to be granted.
@@ -161,6 +280,14 @@ fn profile(policy: &Policy) -> Result<Profile, String> {
     // Writes are denied there too, so a file cannot be moved out of a root and
     // read under its new name; links are denied for the same reason.
     let read_rule = rule("deny", "file-read* file-write*", &filters(&mut profile, "E", "subpath", &roots));
+    if let Some(reads) = &policy.reads {
+        let head = confinement(&mut profile, policy, reads, &dirs, &files, &allow)?;
+        profile.text = format!(
+            "{head}{}{read_rule}(deny file-link)\n",
+            rule("deny", "file-write*", &deny)
+        );
+        return Ok(profile);
+    }
     let write_rules = if policy.writes_unlimited {
         String::new()
     } else {
@@ -189,11 +316,11 @@ fn command_prefix(binary: &Path, profile: &Profile) -> Vec<OsString> {
 
 impl WriteLimit for SandboxExec {
     fn prepare(&self, policy: &Policy) -> Result<Armed, String> {
-        // The profile has no read allowlist yet: the system paths a program
-        // needs on macOS have not been traced and proven, so a confinement
-        // is refused rather than claimed.
-        if policy.reads.is_some() || policy.connect_ports.is_some() {
-            return Err("the confinement (a read allowlist and a network limit) is not built for sandbox-exec; it is held on Linux (Landlock) only".into());
+        // A port limit is only built into a confinement's profile; a reach
+        // level's profile leaves the network alone, so a policy that asks for
+        // one without a confinement is refused instead of losing the limit.
+        if policy.connect_ports.is_some() && policy.reads.is_none() {
+            return Err("a network limit (--net-connect) is held on macOS only with a confinement; it was asked for without one".into());
         }
         let executable = fs::metadata(&self.binary)
             .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
@@ -204,17 +331,25 @@ impl WriteLimit for SandboxExec {
                 self.binary.display()
             ));
         }
-        let prefix = command_prefix(&self.binary, &profile(policy)?);
+        let mut profile = profile(policy)?;
+        let prefix = command_prefix(&self.binary, &profile);
         // Prove the profile loads (and that sandbox-exec works from here, for
-        // it cannot nest) before the agent is started under it.
-        let probe = Command::new(&prefix[0])
-            .args(&prefix[1..])
-            .arg("/usr/bin/true")
+        // it cannot nest) before the agent is started under it. A confinement
+        // denies every exec, so its probe is the same profile with one more
+        // rule that lets `true` run: the probe then proves the runtime set
+        // holds, and the agent's own profile gains nothing.
+        if policy.reads.is_some() {
+            profile.text += &format!("(allow file-read* file-map-executable process-exec (literal \"{PROBE}\"))\n");
+        }
+        let probe_prefix = command_prefix(&self.binary, &profile);
+        let probe = Command::new(&probe_prefix[0])
+            .args(&probe_prefix[1..])
+            .arg(PROBE)
             .output()
             .map_err(|e| format!("cannot run sandbox-exec: {e}"))?;
         if !probe.status.success() {
             return Err(format!(
-                "sandbox-exec cannot apply the write limit: {}",
+                "sandbox-exec cannot apply the profile: {}",
                 String::from_utf8_lossy(&probe.stderr).trim()
             ));
         }
