@@ -415,7 +415,7 @@ agent-launcher confine [--check] [--read PATH]... [--run PATH]... [--run-from PR
     [--write PATH]... [--net-connect PORT]... [--env NAME]... -- COMMAND [ARGS...]
 ```
 
-The launcher puts a Landlock ruleset on itself and then becomes the command
+The launcher puts a Landlock ruleset on itself (on macOS it becomes `sandbox-exec` with the profile, which then execs the command) and then becomes the command
 (exec), so the caller's signals and timeout reach the command and nothing is
 left behind. The command inherits no more than it is given. Its environment is
 `PATH`, `HOME`, `LANG`, `LANGUAGE`, `LC_*`, `TERM`, `TZ`, `TMPDIR`, `NO_COLOR`
@@ -474,9 +474,23 @@ command's, a grant that cannot be made exits 125 without running it, and
 `--run-from` lets a packaged script read its package while, without it, the
 script cannot even be executed.
 
-On macOS `sandbox-exec` refuses a confinement: a read allowlist there needs
-the system paths node reads on macOS traced and proven on the `macos` runner,
-which has not been done, so it is refused rather than claimed. Not covered: a
+On macOS the same confinement is a Seatbelt profile built from
+`(deny default)` and applied by `sandbox-exec` (ADR-0016, #904): the same
+`--read`, `--run`, `--run-from` and `--write` grants, the system runtime as
+traced on macOS (`/System` for dyld and the shared cache, `/usr`, `/bin`,
+`/sbin`, `/private/etc/ssl`, `/private/var/db/timezone`, the resolver
+socket, and stat of each grant's ancestors, all listed in the ADR), a connect
+only to each `--net-connect` port (any host on that port, as Landlock), the
+mDNSResponder socket for names, and no bind. The environment and descriptor
+closing are the same; a program that is not granted is refused by
+`sandbox-exec` with its exit 71, not 125, and a profile that cannot be applied
+(the probe against `/usr/bin/true` fails, or the launcher is already inside a
+Seatbelt sandbox, which cannot nest) exits 125. `tests/confine.rs` runs on the
+`Rust Tests (macos)` job: the granted directory reads and the home directory,
+a sibling checkout and a file elsewhere fail with "Operation not permitted",
+only `--write` is writable, a connect to a port not listed and a bind fail with
+`EPERM` while the listed port connects, a UDP send is refused, and a secret
+variable and an open descriptor of the caller are not there. Not covered: a
 confined process keeps what it inherits (open descriptors, its environment),
 and the readable and writable grants are whole trees.
 
