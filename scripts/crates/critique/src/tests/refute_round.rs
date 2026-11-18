@@ -48,6 +48,7 @@ pub fn full_run() -> CriticRun {
         export_path: Some("/e".to_string()),
         tools: Some(vec!["view_file".to_string()]),
         search_failure: Some("why".to_string()),
+        routing: None,
     }
 }
 

@@ -1,4 +1,4 @@
-usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|check-routing|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]
+usage: critique <prepare|fan-out|refute|record|allow|tier-review|check-tickets|check-adrs|check-rewrite|check-routing|cold-read|check-plan|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]
        critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>
        critique search-server --root DIR [--max-matches N] [--max-bytes N]
 
@@ -13,6 +13,12 @@ prints its result as usual and exits 4, so a Gold Band gate node that runs the
 command fails on it; without --strict a refusal exits 0. gate and
 session-start always exit 0; input
 they cannot read is allowed, and logged.
+
+tier-review runs the spec critique on the tiers: it prepares the tier-review roster
+(three model families from the chain of the tier-review LiteLLM alias, none of the
+writer's), fans out, and writes the synthesis to <run_dir>/synthesis.md. Its result
+names each reviewer with the routing LiteLLM reported for its launch; it fails (exit 3)
+when the reviewers that reviewed span fewer than three families.
 
 hook runs one of ADR-0002's hooks on the agent's payload from stdin and
 prints only what the agent reads: a gate's deny, the session-start line, or

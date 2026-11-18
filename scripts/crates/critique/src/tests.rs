@@ -48,6 +48,8 @@ mod stats;
 mod swap;
 mod stats_corpus;
 mod tickets_corpus;
+mod tier_review;
+mod tier_review_command;
 mod tripwire;
 mod tracker;
 mod triage_domain;

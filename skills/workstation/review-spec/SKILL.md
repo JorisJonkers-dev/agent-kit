@@ -32,8 +32,40 @@ files (the spec copy, `verdicts.json`) go beside them.
 - **spec**: the issue (`167`, `#167`, an issue URL) or, with a local markdown
   tracker, the spec's path. Without one, use the spec `/to-spec` published in
   this conversation; failing that, ask the owner.
+- **tier**: run the critique on the LiteLLM tiers instead of the routed
+  critics (see "Tier review" below).
 - **base** or **deep**: the **depth**. Pass it to prepare as `"depth"` only
   when the owner named it; otherwise the runner chooses.
+
+## Tier review
+
+`/review-spec [spec] tier` replaces steps 1 and 2 with one command. Claude Code
+is the author; the reviewers are three model families from the `tier-review`
+chain, free first, then Vibe Flash, then Go Flash, none of them yours.
+
+```sh
+sh <critique dir>/critique tier-review --json '{"repo": ..., "spec": ..., "orchestrator_family": "anthropic"}'
+```
+
+It prepares the run, fans it out, and writes `<run_dir>/synthesis.md`: each
+reviewer with the model it asked for, the model LiteLLM says served it and its
+fallback count, then the findings by severity with who raised them. Its result
+carries the same routing per reviewer (`reviewers[].routing`); the gateway ledger
+holds one record per reviewer with `tier`, `litellm_model_id`, `served_model`,
+`attempted_fallbacks`, `fallback_fired` and `routing_capture`.
+
+- **Refused**: the result's `message` says why (`not-opted-in` and the other
+  prepare refusals, `too-few-families` with what was passed over, or
+  `tier-not-ready` when Pi, its key or the confinement is missing). Give the
+  line as it stands and stop. Free steps are for a repository the allowlist
+  records as `public`; a private one starts at Vibe Flash.
+- **`status: failed`**: fewer than three families reviewed (a reviewer LiteLLM
+  served from another model counts as no review, and is retried through a family
+  not yet in the review). Say so; the synthesis still lists what was found.
+- **`reviewed`**: you are the coordinator. Read `synthesis.md`, then do steps 3
+  and 5 to 9 on `run_dir`; the synthesis you write is your verdicts and the
+  `summary` record returns. GLM-5.3, Kimi K3.1 Pro and GPT-6 Luna are not in this
+  chain: they live only in `tier-strong-open`.
 
 ## Your model family
 

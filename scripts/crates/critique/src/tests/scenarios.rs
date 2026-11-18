@@ -39,7 +39,7 @@ impl Clock for FixedClock {
 }
 
 /// The folder the node runner and its shipped files (roles, prompts, routing) sit in.
-fn shipped_folder() -> String {
+pub fn shipped_folder() -> String {
     let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("..").join("skills").join("workstation").join("critique");
     std::fs::canonicalize(folder).expect("shipped folder").to_string_lossy().into_owned()
 }
@@ -134,7 +134,7 @@ fn snapshot(sandbox: &Sandbox, roots: &[&str]) -> BTreeMap<String, Option<String
 const GIT_IDENTITY: [&str; 8] = ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"];
 
 /// Runs one git command line of a step in the sandbox, with the host's git, a fixed identity and fixed instants.
-fn run_git(sandbox: &Path, line: &[String]) {
+pub fn run_git(sandbox: &Path, line: &[String]) {
     // Leading NAME=value words set that variable for the command (a committer date, say).
     let assigned = |word: &String| word.split_once('=').is_some_and(|(name, _)| !name.is_empty() && name.chars().all(|c| c.is_ascii_uppercase() || c == '_'));
     let words = line.iter().take_while(|word| assigned(word)).count();

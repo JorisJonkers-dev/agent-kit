@@ -140,6 +140,7 @@ fn report(runtime: &Runtime, client: &str, launch: &CriticLaunch<'_>, run: &Clie
         tokens: Some(CriticTokens { cached: output.tokens.cached, input: output.tokens.input, output: output.tokens.output }),
         search_failure: None,
         tool_calls: Vec::new(),
+        routing: None,
     })
 }
 

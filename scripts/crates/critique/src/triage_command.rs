@@ -296,6 +296,7 @@ fn ask(runtime: &Runtime, request: &Ask<'_>) -> Result<Decided, CritiqueError> {
         status: if failed { "failed" } else { "ok" }.to_string(),
         tokens: None,
         vibe_cost_usd: Some(report.vibe_cost_usd),
+        routing: None,
     };
     let client = LedgerClient {
         kind: "vibe".to_string(),

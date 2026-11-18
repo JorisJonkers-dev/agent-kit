@@ -103,6 +103,8 @@ pub struct CriticReport {
     pub search_failure: Option<String>,
     /// Every tool call the critic's journal records; none for a client that keeps no journal.
     pub tool_calls: Vec<ToolCall>,
+    /// What LiteLLM said of the model that served a tier reviewer; none for any other critic.
+    pub routing: Option<crate::tier_routing::TierRouting>,
 }
 
 /// Asks the client of `config`'s kind whether it can run.

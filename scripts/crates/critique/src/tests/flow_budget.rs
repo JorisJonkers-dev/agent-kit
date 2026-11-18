@@ -105,6 +105,7 @@ fn full_run() -> LedgerRun {
         role: Some("reviewer".to_string()),
         tokens: Some(CriticTokens { cached: 10.0, input: 100.0, output: 20.0 }),
         vibe_cost_usd: Some(Some(0.25)),
+        routing: None,
     }
 }
 
@@ -128,6 +129,7 @@ fn bare_run() -> LedgerRun {
         role: None,
         tokens: None,
         vibe_cost_usd: None,
+        routing: None,
     }
 }
 

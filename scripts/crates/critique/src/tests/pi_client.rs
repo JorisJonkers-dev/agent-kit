@@ -8,7 +8,7 @@ use crate::routing::PiCriticClient;
 use model_gateway::ports::ProcessResult;
 
 fn config() -> PiCriticClient {
-    PiCriticClient { binary: "pi".to_string(), provider: "litellm-vibe-study".to_string(), model: "glm-5-3".to_string(), family: "zhipu".to_string(), data_scope: "any".to_string(), free: false }
+    PiCriticClient { binary: "pi".to_string(), provider: "litellm-vibe-study".to_string(), model: "glm-5-3".to_string(), family: "zhipu".to_string(), data_scope: "any".to_string(), free: false, tier: None }
 }
 
 fn result(stdout: &str, timed_out: bool) -> ProcessResult {
@@ -378,4 +378,16 @@ fn a_searching_critic_is_launched_with_the_server_granted_to_the_confinement() {
     let launched = seen.iter().find(|line| line.starts_with("agent-launcher confine")).expect("a confined launch");
     assert!(launched.contains("--run-from pi --run-from /opt/critique --write /c/pi-agent --net-connect 443 --env PI_CODING_AGENT_DIR -- pi -p"), "{launched}");
     assert!(launched.contains("--tools read,grep,find,ls,mcp__packet__* --no-extensions -e builtin:mcp"), "{launched}");
+}
+
+#[test]
+fn a_provider_error_that_names_a_rate_limit_or_a_quota_is_a_rate_limit_and_any_other_is_not() {
+    let stopped = |message: &str| {
+        let stdout = format!(r#"{{"type":"message_end","message":{{"role":"assistant","content":[],"stopReason":"error","errorMessage":"{message}"}}}}"#);
+        failure(classify_pi_run(&result(&stdout, false), &read_pi_stream(&stdout), "/p", 600.0, &allowed_tools(&READ_ONLY_TOOLSET)))
+    };
+    assert_eq!(stopped("429 Too Many Requests").0, "rate-limited");
+    assert_eq!(stopped("Rate-Limit reached").0, "rate-limited");
+    assert_eq!(stopped("monthly quota used").1, "pi stopped on a rate limit: monthly quota used");
+    assert_eq!(stopped("upstream exploded").0, "infrastructure-failure");
 }

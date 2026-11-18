@@ -44,6 +44,9 @@ pub fn client_value(client: &CriticClient) -> Value {
             if pi.free {
                 pairs.push(("free", Value::Bool(true)));
             }
+            if let Some(tier) = &pi.tier {
+                pairs.push(("tier", Value::str(tier)));
+            }
             None
         }
     };

@@ -378,6 +378,7 @@ pub fn vibe_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &VibeCr
         tokens: tokens_of(run.exported.as_ref()),
         search_failure: search.and_then(|_| search_failure(&run.stdout)),
         tool_calls: tool_calls(&run.stdout),
+        routing: None,
     })
 }
 

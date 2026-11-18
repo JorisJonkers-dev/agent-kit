@@ -611,6 +611,33 @@ applies the same bar as the run it follows. No public-scope client leads a
 slot in the shipped routing: `pi-public-gemini-flash` is only a last fallback,
 so it runs for a public repository when everything before it could not.
 
+**Tier review (#908).** `critique tier-review` runs the spec critique on the
+LiteLLM `tier-review` chain from one command: it prepares a run with `"roster":
+"tier-review"`, fans out, and writes `<run_dir>/synthesis.md`. The reviewers are not
+three calls to the alias, since LiteLLM answers an alias with the first step that is
+available and all three could land on one family. `tier_review.rs` reads the chain
+(a compiled-in copy of `registry/litellm-tiers.json`, so it cannot drift from the
+snapshot) and takes the first step of each of three families in ladder order, free,
+then Vibe Flash, then Go Flash, skipping a step whose data scope bars it (a free step
+for a repository not recorded as public), whose family the allowlist does not name,
+is the writer's or is already taken, or whose last answer through the tier's key the
+gateway ledger holds as a refusal that still stands. Each reviewer then calls its own
+step model through the tier's key (`litellm-tier-review`, which holds the steps' access
+groups), in a per-run Pi home behind the gateway's recording proxy, so the headers
+LiteLLM answers with are seen. A reviewer counts only when those headers show the model
+it asked for answered: a fallback, another serving model or no LiteLLM header fails it
+(`routing-collapsed`, `routing-unseen`) and fan-out retries it through the first
+fallback of a family not yet in the review (every eligible step of another family is a
+fallback). Each reviewer's ledger line carries `tier`, `litellm_model_id`,
+`served_model`, `attempted_fallbacks`, `fallback_fired`, `routing_capture` and `harness`,
+as a delegation's does, under the gateway client `pi-tier-review` and with the step
+model as `model`. A rate-limited reviewer (`rate-limited`) leaves its step cooled for the
+next run. When fewer than three families reviewed the command prints `status: failed`
+and exits 3; fewer than three resolvable families is the refusal `too-few-families`.
+`GLM-5.3`, `Kimi K3.1 Pro` and `GPT-6 Luna` are in `tier-strong-open` only. The Pi
+families `openai`, `alibaba`, `minimax` and `xiaomi` join the ones a critic and an
+allowlist entry may name (the allowlist takes the last three).
+
 **Free-only roster.** A run costs nothing when its critics are free Pi models on
 a public-only LiteLLM route. Such a client carries `"free": true` (allowed only
 with `"data_scope": "public"`), and a stage's `free` slots, parallel to `work`,
