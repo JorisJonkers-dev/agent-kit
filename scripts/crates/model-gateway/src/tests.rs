@@ -29,3 +29,4 @@ mod pi;
 mod profiles;
 mod catalog;
 mod matrix;
+mod run_home;

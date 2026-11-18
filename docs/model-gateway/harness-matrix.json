@@ -25,6 +25,31 @@
       "vibe": {
         "status": "blocked",
         "why": "explicit only: no profile lists a vibe model, so a profile run never picks the Vibe CLI; a run that names client vibe still runs"
+      },
+      "escape/pi": {
+        "status": "pass"
+      },
+      "escape/pi-opencode-go": {
+        "status": "pass"
+      },
+      "escape/claude": {
+        "status": "pass"
+      },
+      "escape/codex": {
+        "status": "pass"
+      },
+      "escape/agy": {
+        "status": "pass"
+      },
+      "escape/vibe": {
+        "status": "blocked",
+        "why": "explicit only: no profile lists a vibe model, so a profile run never picks the Vibe CLI; a run that names client vibe still runs"
+      },
+      "escape/hermes": {
+        "status": "pass"
+      },
+      "escape/opencode": {
+        "status": "pass"
       }
     },
     "live": {
@@ -35,6 +60,32 @@
       "codex": {
         "status": "blocked",
         "why": "metered-employer: needs a repo whose allowlist names openai, and a grant for the harness-matrix workflow (model-gateway grant write)"
+      },
+      "escape/hermes": {
+        "status": "pass"
+      },
+      "escape/pi": {
+        "status": "pass"
+      },
+      "escape/pi-opencode-go": {
+        "status": "pass"
+      },
+      "escape/claude": {
+        "status": "pass"
+      },
+      "escape/codex": {
+        "status": "blocked",
+        "why": "metered-employer: needs a repo whose allowlist names openai, and a grant for the harness-matrix workflow (model-gateway grant write)"
+      },
+      "escape/agy": {
+        "status": "pass"
+      },
+      "escape/vibe": {
+        "status": "blocked",
+        "why": "explicit only: no profile lists a vibe model, so a profile run never picks the Vibe CLI; a run that names client vibe still runs"
+      },
+      "escape/opencode": {
+        "status": "pass"
       }
     }
   }
