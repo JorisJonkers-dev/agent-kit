@@ -785,6 +785,62 @@
           "maxTokens": 32768
         }
       ]
+    },
+    {
+      "name": "litellm-free",
+      "key_env": "LITELLM_FREE_KEY",
+      "models": [
+        {
+          "id": "tier-free",
+          "maxTokens": 32768,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "litellm-tier-vibe",
+      "key_env": "LITELLM_TIER_VIBE_KEY",
+      "models": [
+        {
+          "id": "tier-vibe",
+          "maxTokens": 32768
+        }
+      ]
+    },
+    {
+      "name": "litellm-tier-go-cheap",
+      "key_env": "LITELLM_TIER_GO_CHEAP_KEY",
+      "models": [
+        {
+          "id": "tier-go-cheap",
+          "maxTokens": 32768
+        }
+      ]
+    },
+    {
+      "name": "litellm-tier-review",
+      "key_env": "LITELLM_TIER_REVIEW_KEY",
+      "models": [
+        {
+          "id": "opencode-go-free/beam-1.0-501b-a23b",
+          "maxTokens": 32768,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "tier-review",
+          "maxTokens": 32768
+        }
+      ]
     }
   ]
 }

@@ -56,6 +56,7 @@ pub mod slots;
 pub mod sources;
 pub mod state_file;
 pub mod status;
+pub mod tier;
 pub mod text;
 pub mod timestamps;
 pub mod toml;

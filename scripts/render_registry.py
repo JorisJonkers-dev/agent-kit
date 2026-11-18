@@ -27,6 +27,7 @@ from typing import Any
 import delegation_profiles
 import gold_band_instances
 import litellm_catalogue
+import litellm_tiers
 import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
@@ -6120,6 +6121,12 @@ def _validate_litellm(data: dict[str, Any]) -> None:
     if not routes:
         raise RegistryError("litellm.routes must name at least one agent id")
     secrets_by_env = {str(e["env"]): e for e in _entries(data, "workstation_secrets") if not e.get("retired")}
+    try:
+        tier_problems = litellm_tiers.key_problems(litellm_tiers.tier_groups(), routes)
+    except litellm_tiers.TiersError as exc:
+        raise RegistryError(str(exc)) from exc
+    if tier_problems:
+        raise RegistryError("; ".join(tier_problems))
     seen_agents: set[str] = set()
     seen_envs: set[str] = set()
     for route in routes:
@@ -6306,6 +6313,9 @@ def litellm_route_models(
             raise RegistryError(f"the LiteLLM catalogue snapshot cannot be read: {'; '.join(catalogue.warnings)}")
     known = {group for entry in catalogue.data.get("groups", {}).values() if isinstance(entry, dict)
              for group in entry.get("access_groups", [])}
+    # The tiers are model names the proxy serves, and a tier's key_models name the access groups its chain needs.
+    tiers = litellm_tiers.tier_groups()
+    known |= {name for tier in tiers.values() for name in tier["key_models"]}
     # The registry being rendered, not the routes.json it renders: a group a route just gained is a gate already.
     gates = litellm_catalogue.public_groups_of((load_registry().get("litellm") or {}).get("routes") or [])
     for group in held:
@@ -6339,6 +6349,13 @@ def litellm_route_models(
         if entry.free:
             model["cost"] = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
         models.append(model)
+    # A tier a key holds is callable by name; a free tier costs nothing, whatever the models behind it.
+    for name, tier in tiers.items():
+        if name in held:
+            tier_model: dict[str, Any] = {"id": name, "maxTokens": PI_MAX_TOKENS}
+            if tier["ceiling"] == "free":
+                tier_model["cost"] = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
+            models.append(tier_model)
     return sorted(models, key=lambda model: model["id"])
 
 
@@ -6560,7 +6577,13 @@ def render_nixos_packages(data: dict[str, Any]) -> str:
 def _defaults_with_profiles() -> str:
     """The gateway's defaults.json with its profiles section rendered from registry/delegation-profiles.yaml."""
     current = (KIT_ROOT / delegation_profiles.DEFAULTS_PATH).read_text()
-    return delegation_profiles.render_defaults(delegation_profiles.load_profiles(), current)
+    return delegation_profiles.render_defaults(delegation_profiles.load_profiles(), current, _tier_profiles())
+
+
+def _tier_profiles() -> dict[str, dict[str, Any]]:
+    """The profile per LiteLLM tier, rendered from the tier snapshot and the registry's routes."""
+    routes = (load_registry().get("litellm") or {}).get("routes") or []
+    return delegation_profiles.tier_profiles(litellm_tiers.tier_groups(), routes)
 
 
 def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
@@ -6630,9 +6653,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         data = load_registry()
         profiles = delegation_profiles.load_profiles()
-        delegation_profiles.validate(profiles, json.loads((KIT_ROOT / delegation_profiles.DEFAULTS_PATH).read_text()))
+        delegation_profiles.validate(
+            profiles, json.loads((KIT_ROOT / delegation_profiles.DEFAULTS_PATH).read_text()), _tier_profiles()
+        )
         refused = gold_band_instances.validate(data, args.overlay)
-    except (RegistryError, delegation_profiles.ProfilesError, gold_band_instances.InstanceError) as exc:
+    except (
+        RegistryError,
+        delegation_profiles.ProfilesError,
+        litellm_tiers.TiersError,
+        gold_band_instances.InstanceError,
+    ) as exc:
         print(f"registry invalid: {exc}", file=sys.stderr)
         return 1
     if refused:

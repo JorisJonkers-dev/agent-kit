@@ -17,6 +17,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import litellm_tiers
 import validate_manifest
 import yaml
 
@@ -33,6 +34,7 @@ FIELD_ORDER = (
     "ladder",
     "distinct_families",
     "exclude_writer_family",
+    "tier",
     "tools",
     "max_spend_usd",
     "unenforced_clients",
@@ -65,13 +67,52 @@ def catalogue_keys(defaults: dict[str, Any]) -> set[str]:
     keys: set[str] = set()
     for entry in defaults["models"]:
         client = entry["client"]
-        members = [client] if client in clients else sorted(c for c in clients if c.startswith(f"{client}-"))
+        # A tier client's route key holds the tier's name, not the canonical groups: it serves only models that name it.
+        members = (
+            [client]
+            if client in clients
+            else sorted(c for c in clients if c.startswith(f"{client}-") and not c.startswith("pi-tier-"))
+        )
         keys.update(f"{member}:{entry['model']}" for member in members or [client])
     return keys
 
 
-def validate(data: dict[str, Any], defaults: dict[str, Any]) -> None:
+def tier_profiles(groups: dict[str, Any], routes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """One profile per LiteLLM tier, named for the tier and allowing the one model that is the tier's name.
+
+    Nothing here is policy: the tiers, their order and their cost ceilings are litellm's
+    (registry/litellm-tiers.json). The client is the Pi route whose key calls the tier
+    (``pi-<route agent>``); a tier no route calls (an escalation tier) is ``pi-<tier>``.
+    The tool scope is deny-all, as for every delegation role.
+    """
+    profiles: dict[str, dict[str, Any]] = {}
+    for name, tier in groups.items():
+        agent = litellm_tiers.route_agent(groups, name, routes)
+        chain = " -> ".join(litellm_tiers.flat_models(groups, name))
+        profiles[name] = {
+            "description": (
+                f"The LiteLLM tier {name} (cost ceiling {tier['ceiling']}): the proxy runs {chain} in order, "
+                "and falls to the next step when one fails. The request names a tier, never a model."
+            ),
+            "models": [f"pi-{agent}:{name}"],
+            "tier": name,
+        }
+    return profiles
+
+
+def validate(data: dict[str, Any], defaults: dict[str, Any], tiers: dict[str, dict[str, Any]] | None = None) -> None:
     known = catalogue_keys(defaults)
+    for name, profile in (tiers or {}).items():
+        if name in data["profiles"]:
+            raise ProfilesError(
+                f"profile {name} is a LiteLLM tier: it is rendered from the tier snapshot, not declared"
+            )
+        for key in profile["models"]:
+            if key not in known:
+                raise ProfilesError(
+                    f"tier profile {name}: {key} is no model of the catalogue "
+                    "(defaults.json needs its client and model)"
+                )
     for name, profile in data["profiles"].items():
         for kind in ("models", "ladder"):
             for key in profile.get(kind, []):
@@ -105,7 +146,7 @@ def _value(value: Any, indent: int) -> str:
     if isinstance(value, dict):
         if all(isinstance(item, list) for item in value.values()):
             return "{" + ", ".join(f"{_scalar(key)}: {_value(item, 0)}" for key, item in value.items()) + "}"
-        members = [f'{pad}  {_scalar(key)}: {_value(item, indent + 2)}' for key, item in value.items()]
+        members = [f"{pad}  {_scalar(key)}: {_value(item, indent + 2)}" for key, item in value.items()]
         return "{\n" + ",\n".join(members) + f"\n{pad}}}"
     if isinstance(value, list):
         return "[" + ", ".join(_scalar(item) for item in value) + "]"
@@ -126,14 +167,14 @@ def rendered_profile(profile: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def render_block(data: dict[str, Any]) -> str:
-    body = {name: rendered_profile(profile) for name, profile in data["profiles"].items()}
+def render_block(data: dict[str, Any], tiers: dict[str, dict[str, Any]] | None = None) -> str:
+    body = {name: rendered_profile(profile) for name, profile in {**data["profiles"], **(tiers or {})}.items()}
     return f'  "profiles": {_value(body, 2)},\n'
 
 
-def render_defaults(data: dict[str, Any], current: str) -> str:
+def render_defaults(data: dict[str, Any], current: str, tiers: dict[str, dict[str, Any]] | None = None) -> str:
     """``current`` (defaults.json) with its profiles section replaced by the rendered one."""
-    block = render_block(data)
+    block = render_block(data, tiers)
     if PROFILES_BLOCK.search(current):
         return PROFILES_BLOCK.sub(lambda _match: block, current, count=1)
     if current.count(INSERT_BEFORE) != 1:

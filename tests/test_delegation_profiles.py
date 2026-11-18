@@ -46,7 +46,7 @@ def test_the_registry_states_the_four_seed_profiles_against_the_catalogue():
 
 
 def test_the_defaults_carry_exactly_what_the_registry_renders():
-    rendered = delegation_profiles.render_defaults(_registry(), DEFAULTS.read_text())
+    rendered = delegation_profiles.render_defaults(_registry(), DEFAULTS.read_text(), render_registry._tier_profiles())
     assert rendered == DEFAULTS.read_text()
     section = json.loads(rendered)["profiles"]
     assert section["cheap-research"]["tools"] == {"mcp": [], "skills": [], "plugins": []}
@@ -64,7 +64,7 @@ def test_the_render_check_covers_the_profiles_section():
 def test_the_section_is_added_before_settings_when_the_defaults_have_none():
     without = delegation_profiles.PROFILES_BLOCK.sub("", DEFAULTS.read_text())
     assert '"profiles"' not in without
-    assert delegation_profiles.render_defaults(_registry(), without) == DEFAULTS.read_text()
+    assert delegation_profiles.render_defaults(_registry(), without, render_registry._tier_profiles()) == DEFAULTS.read_text()
     with pytest.raises(delegation_profiles.ProfilesError, match="no settings section"):
         delegation_profiles.render_defaults(_registry(), "{}")
 

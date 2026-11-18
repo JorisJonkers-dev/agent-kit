@@ -158,6 +158,21 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   read-only launch, and a client it does not list is refused as before.
   `scripts/crates/model-gateway/src/harness.rs` holds the choice; the
   `run-roles` scenario holds the goldens.
+- **Tiers are profiles too, rendered from litellm (#905).** A LiteLLM tier
+  (`tier-free`, `tier-vibe`, `tier-go-cheap`, `tier-strong-open`, `tier-review`) is
+  a model name the proxy serves, with a cost ceiling and an ordered chain that
+  litellm owns (`catalog/routing.json`, key `tier_groups`). agent-kit holds a
+  snapshot, `registry/litellm-tiers.json` (`python3 scripts/litellm_tiers.py
+  --write --ref REF` refreshes it, `--check --upstream REF` finds drift), and
+  `render_registry.py` renders one profile per tier into `defaults.json`, plus
+  the key list and Pi provider of each tier's route, refusing a route whose models
+  differ from the tier's `key_models`. `run --tier T` (or `tier` in the input)
+  is `--profile T --harness pi`: Pi sends the tier's name as the model, with the
+  key of the route that holds it (`tier-free` uses the `free` key). An unknown
+  tier is `unknown-tier`, never a default, and a tier is not combined with a
+  profile, harness, client or model. `tier-strong-open` is an escalation tier
+  with no workstation key, so a run on it is refused until a key is provisioned.
+  The `run-tier` scenario holds the goldens.
 - **`matrix` proves them (#856).** `model-gateway matrix` runs each role on each
   harness once and judges the cells against `docs/model-gateway/harness-matrix.json`;
   the stub proof is the `matrix-stub` scenario in CI, `{"live": true}` is the owner's

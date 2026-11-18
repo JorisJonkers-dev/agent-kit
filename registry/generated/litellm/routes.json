@@ -72,7 +72,44 @@
       "budget_duration": null,
       "data_scope": "public",
       "models": [
-        "free"
+        "free",
+        "tier-free"
+      ]
+    },
+    {
+      "agent": "tier-vibe",
+      "key_env": "LITELLM_TIER_VIBE_KEY",
+      "budget_eur": null,
+      "budget_duration": null,
+      "data_scope": "any",
+      "models": [
+        "tier-vibe",
+        "vibe-tier",
+        "opencode-go-tier"
+      ]
+    },
+    {
+      "agent": "tier-go-cheap",
+      "key_env": "LITELLM_TIER_GO_CHEAP_KEY",
+      "budget_eur": null,
+      "budget_duration": null,
+      "data_scope": "any",
+      "models": [
+        "tier-go-cheap",
+        "opencode-go-tier"
+      ]
+    },
+    {
+      "agent": "tier-review",
+      "key_env": "LITELLM_TIER_REVIEW_KEY",
+      "budget_eur": null,
+      "budget_duration": null,
+      "data_scope": "public",
+      "models": [
+        "free",
+        "tier-review",
+        "vibe-tier",
+        "opencode-go-tier"
       ]
     }
   ]

@@ -257,6 +257,8 @@ pub struct DelegationProfile {
     /// Non-Pi clients the profile may run on although the gateway cannot enforce its tool scope there: the
     /// profile's own statement that the client's read-only launch stands in for the scope.
     pub unenforced_clients: Option<Vec<String>>,
+    /// The LiteLLM tier the profile is, which is also the model name the proxy is sent; `run --tier` names it.
+    pub tier: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

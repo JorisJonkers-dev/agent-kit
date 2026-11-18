@@ -65,6 +65,7 @@
         "ladder": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/modelKey" } },
         "distinct_families": { "type": "integer", "minimum": 1 },
         "exclude_writer_family": { "type": "boolean" },
+        "tier": { "type": "string", "pattern": "^tier-[a-z0-9-]+$", "description": "The LiteLLM tier the profile is, which is also the model name the proxy is sent; `run --tier` names it." },
         "tools": {
           "type": "object",
           "required": ["mcp", "skills", "plugins"],
@@ -173,8 +174,8 @@
       "additionalProperties": false,
       "properties": {
         "client": {
-          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "opencode-free", "codex", "pi"],
-          "description": "The client the model belongs to. `pi` describes the model for every client whose id starts with pi- (one per LiteLLM route), so a model is stated once however many routes serve it."
+          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "opencode-free", "codex", "pi", "pi-free", "pi-tier-vibe", "pi-tier-go-cheap", "pi-tier-strong-open", "pi-tier-review"],
+          "description": "The client the model belongs to. `pi` describes the model for every client whose id starts with pi- (one per LiteLLM route) except a tier's (pi-tier-*), so a model is stated once however many routes serve it; a LiteLLM tier's model names its own route's client, as pi-free (the free key also calls tier-free) and the pi-tier-* clients do."
         },
         "model": {
           "type": "string",

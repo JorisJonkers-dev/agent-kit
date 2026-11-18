@@ -21,6 +21,8 @@ pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/
        model-gateway run --profile red-team --harness pi --json '{"workflow": "spec-293",
                                  "mode": "read-only", "prompt": "...",
                                  "narrow": {"writer_family": "anthropic"}}'
+       model-gateway run --tier tier-free --json '{"workflow": "spec-293", "mode": "read-only",
+                                 "prompt": "...", "repo": "/path/to/repo"}'
        model-gateway batch --json '{"workflow": "spec-293", "delegations": [
                                  {"id": "a", "client": "vibe", "model": "glm-5-3",
                                   "mode": "read-only", "prompt": "read this", "repo": "/path/to/repo"},
@@ -98,6 +100,13 @@ any other `models` lists) and the harness is pi (the default route of a role),
 claude, codex, agy, vibe, hermes or a Pi route such as pi-opencode-go. The
 gateway picks the cheapest model the role leaves on that harness for the
 repository, and refuses with the reason when it leaves none.
+A run may instead name a LiteLLM tier: --tier T (or "tier") where T is tier-free, tier-vibe,
+tier-go-cheap, tier-strong-open or tier-review, the tiers the defaults state (rendered from the
+tier policy in the litellm repository, registry/litellm-tiers.json). The tier is a model name the
+proxy serves, so the run goes through the Pi route whose key holds the tier and sends the tier's
+name as the model; LiteLLM walks the tier's chain. A tier the defaults do not state is refused
+with "unknown-tier", never defaulted, and a tier is not combined with a profile, harness, client
+or model.
 The workflow's life, the data policy and the client model's read-only proof are
 checked before anything is launched; a model without a passing proof (every one
 but a proven Vibe or Antigravity model) works in a throwaway worktree of the
@@ -256,10 +265,10 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
     let Some((mut args, max_starts)) = split else {
         return usage_failure(named.name);
     };
-    // `run` takes `--profile ROLE` and `--harness H`, which set its `profile` and `harness` beside the JSON object.
+    // `run` takes `--profile ROLE`, `--harness H` and `--tier T`, which set its `profile`, `harness` and `tier` beside the JSON object.
     let mut flags: Flags = Vec::new();
     if named.name == "run" {
-        let Some((rest, found)) = without_flags(&args, &["profile", "harness"]) else {
+        let Some((rest, found)) = without_flags(&args, &["profile", "harness", "tier"]) else {
             return usage_failure(named.name);
         };
         args = rest;
@@ -315,7 +324,7 @@ fn catalog_usage() -> CliResult {
 }
 
 /// Reads the input the arguments name, parses it and runs the subcommand over it.
-/// What the command line sets beside the JSON object: `--max-starts`, `--free` and `run`'s `--profile` and `--harness`.
+/// What the command line sets beside the JSON object: `--max-starts`, `--free` and `run`'s `--profile`, `--harness` and `--tier`.
 type Flags = Vec<(&'static str, String)>;
 type Extras = (Option<Value>, bool, Flags);
 
