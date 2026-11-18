@@ -1281,6 +1281,24 @@ def test_every_public_only_group_is_held_by_public_keys_only() -> None:
     assert sorted(r["agent"] for r in routes if r["data_scope"] == "public") == ["free", "openrouter", "public"]
 
 
+def test_every_free_only_route_group_is_a_public_only_group() -> None:
+    expected = {f"{route}-free-public" for route in render_registry.LITELLM_FREE_ROUTES}
+    assert expected == {
+        "groq-free-public", "cloudflare-free-public", "nvidia-free-public", "zai-free-public",
+        "kilo-free-public", "ovh-free-public", "requesty-free-public", "axforge-free-public",
+        "naga-free-public", "routeway-free-public", "inferbase-free-public",
+    }
+    assert expected <= set(render_registry.LITELLM_PUBLIC_GROUPS)
+
+
+@pytest.mark.parametrize("route", render_registry.LITELLM_FREE_ROUTES)
+def test_a_public_key_may_hold_a_new_free_route_group(route: str) -> None:
+    data = copy.deepcopy(_registry())
+    public = next(r for r in data["litellm"]["routes"] if r["agent"] == "free")
+    public["models"] = ["free", f"{route}-free-public"]
+    render_registry.validate(data)
+
+
 def test_the_free_route_key_is_minted_unexported() -> None:
     secrets = {e["env"]: e for e in _registry()["workstation_secrets"]}
     assert secrets["LITELLM_OPENROUTER_KEY"]["export"] is False
@@ -1346,6 +1364,13 @@ def test_the_admin_token_script_makes_a_one_hour_management_key_and_no_agent_key
         (
             lambda d: d["litellm"]["routes"][1].update(models=["openrouter-free-public"]),
             "only a data_scope: public key",
+        ),
+        *(
+            (
+                lambda d, group=f"{route}-free-public": d["litellm"]["routes"][0].update(models=["canonical", group]),
+                "only a data_scope: public key",
+            )
+            for route in render_registry.LITELLM_FREE_ROUTES
         ),
         (lambda d: d["litellm"]["routes"][5].update(models=["canonical"]), "must hold a public-only group"),
         (lambda d: d["litellm"]["routes"][0].update(data_scope="public"), "must hold a public-only group"),

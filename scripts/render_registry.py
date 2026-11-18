@@ -6093,11 +6093,23 @@ def _has_plugin_pins(data: dict[str, Any]) -> bool:
 
 LITELLM_ENV = re.compile(r"[A-Z][A-Z0-9_]*")
 LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "budget_duration", "data_scope", "models"}
+# The free-only routes of the litellm repository (catalog/sync.py FREE_KINDS): each serves only ids its
+# provider marks free, in its own `<route>-free-public` access group.
+LITELLM_FREE_ROUTES = (
+    "groq", "cloudflare", "nvidia", "zai", "kilo", "ovh", "requesty", "axforge", "naga", "routeway", "inferbase",
+)
 # The public-only access groups: the free-tier deployments, whose provider may train on the
-# prompts (the Google free tier, OpenRouter's free models, OpenCode Go's free ids). Only a `data_scope: public` key may
-# hold one, and a public key holds at least one; several public keys are allowed. The litellm
-# repository puts each free provider's deployments in its own group (litellm catalog/sync.py).
-LITELLM_PUBLIC_GROUPS = ("google-free-public", "openrouter-free-public", "opencode-go-free-public", "free")
+# prompts (the Google free tier, OpenRouter's free models, OpenCode Go's free ids, and each free-only
+# route). Only a `data_scope: public` key may hold one, and a public key holds at least one; several
+# public keys are allowed. The litellm repository puts each free provider's deployments in its own
+# group (litellm catalog/sync.py).
+LITELLM_PUBLIC_GROUPS = (
+    "google-free-public",
+    "openrouter-free-public",
+    "opencode-go-free-public",
+    *(f"{route}-free-public" for route in LITELLM_FREE_ROUTES),
+    "free",
+)
 LITELLM_BUDGET_DURATION = "30d"
 
 
