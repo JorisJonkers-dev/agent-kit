@@ -341,6 +341,14 @@ fn forward(stream: &mut TcpStream, request: &Request, upstream: &Upstream, seen:
     drop(config);
     let code = status_line.split(' ').nth(1).unwrap_or("502");
     let reason = status_line.splitn(3, ' ').nth(2).unwrap_or("");
+    // The headers are noted before the client is told anything of the answer, so a client that has read the answer
+    // and goes away is already in the record; the model the body names is added once more of it has been read.
+    let named = |prefix: &[u8]| seen_of(&headers, &String::from_utf8_lossy(&prefix[..prefix.len().min(BODY_PREFIX)]));
+    let at = {
+        let mut noted = seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        noted.push(named(&rest));
+        noted.len() - 1
+    };
     let mut head = format!("HTTP/1.1 {code} {reason}\r\n");
     for (key, value) in headers.iter().filter(|(key, _)| !NOT_RELAYED.contains(&key.to_ascii_lowercase().as_str())) {
         head.push_str(&format!("{key}: {value}\r\n"));
@@ -364,8 +372,7 @@ fn forward(stream: &mut TcpStream, request: &Request, upstream: &Upstream, seen:
         let _ = child.kill();
     }
     let _ = child.wait();
-    let noted = seen_of(&headers, &String::from_utf8_lossy(&prefix[..prefix.len().min(BODY_PREFIX)]));
-    seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(noted);
+    seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner)[at] = named(&prefix);
     Ok(())
 }
 
