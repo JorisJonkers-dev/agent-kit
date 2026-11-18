@@ -239,7 +239,7 @@ impl ClientRun<'_> {
         }
         let mut writes = home.writes.clone();
         // A home beside the export directory (no run directory) is writable too; one under it already is.
-        if !home.dir.starts_with(crate::launchers::report_dir(&request.paths)) {
+        if !std::path::Path::new(&home.dir).starts_with(crate::launchers::report_dir(&request.paths)) {
             writes.push(home.dir.clone());
         }
         writes.extend(own);

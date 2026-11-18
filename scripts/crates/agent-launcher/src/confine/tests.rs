@@ -458,5 +458,9 @@ fn a_program_in_a_shared_bin_is_granted_as_itself_and_never_as_its_prefix() {
         assert!(shared(Path::new(shared_dir), &env), "{shared_dir}");
     }
     assert!(!shared(&root.join("opt/homebrew/Cellar/pkg/1.0"), &env));
+    // A program that is its own script's interpreter is granted once.
+    let twice = file(&root.join("t/run"), &format!("#!{0}\nexec {0} x\n", cellar.display()), 0o755);
+    let grants = program_grants(twice.as_os_str(), &env).unwrap();
+    assert_eq!(grants.iter().filter(|grant| **grant == root.join("opt/homebrew/Cellar/pkg/1.0")).count(), 1, "{grants:?}");
     fs::remove_dir_all(&root).unwrap();
 }

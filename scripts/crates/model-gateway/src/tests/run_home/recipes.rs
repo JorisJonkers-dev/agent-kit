@@ -355,3 +355,12 @@ fn a_client_that_can_sign_in_from_a_variable_gets_the_credential_and_no_keychain
         assert!(!env_of.contains_key("CLAUDE_CODE_OAUTH_TOKEN") && !env_of.contains_key("MISTRAL_API_KEY"), "{client:?}");
     }
 }
+
+#[test]
+fn a_home_beside_the_export_directory_is_writable_because_no_run_directory_holds_it() {
+    let mut bare = request(RunClient::Claude, "claude-haiku-5-5", None, RunMode::ReadOnly);
+    bare.paths.run_dir = None;
+    let grants = grants_of(&owner(), &bare);
+    // The export directory is writable, and the home is made beside it so that removing it leaves nothing behind.
+    assert_eq!(grant_values(&grants, "--write"), ["/run/export", "/run/export.client-home"]);
+}

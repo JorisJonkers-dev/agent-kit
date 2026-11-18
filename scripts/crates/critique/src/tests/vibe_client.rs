@@ -525,10 +525,6 @@ impl Files for FakeFiles {
         Ok(())
     }
 
-    fn symlink(&self, target: &str, link: &str) -> Result<(), FsError> {
-        self.put(link, &format!("link to {target}"));
-        Ok(())
-    }
 }
 
 /// The launcher a test names with `AGENT_KIT_LAUNCHER_BIN`.

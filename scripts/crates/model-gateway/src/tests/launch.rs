@@ -117,10 +117,6 @@ impl Files for Memory {
         Ok(())
     }
 
-    fn symlink(&self, target: &str, link: &str) -> Result<(), FsError> {
-        self.written.lock().expect("written").insert(link.to_string(), format!("link to {target}"));
-        Ok(())
-    }
 }
 
 /// A process that records every launch and answers them from a queue, or by the program's name.

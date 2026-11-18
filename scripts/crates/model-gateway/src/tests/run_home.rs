@@ -88,10 +88,6 @@ impl Files for Disk {
         self.files.lock().expect("files").insert(to.to_string(), format!("copy of {from}"));
         Ok(())
     }
-    fn symlink(&self, target: &str, link: &str) -> Result<(), FsError> {
-        self.files.lock().expect("files").insert(link.to_string(), format!("link to {target}"));
-        Ok(())
-    }
 }
 
 /// A process that records every launch and answers with what a test says.

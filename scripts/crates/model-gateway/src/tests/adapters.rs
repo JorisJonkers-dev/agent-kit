@@ -871,15 +871,3 @@ fn copy_tree_names_what_it_cannot_copy_and_stops_at_a_folder_that_contains_itsel
     assert!(looped.message.contains("too deep") || looped.message.contains("cp"), "{}", looped.message);
 }
 
-#[test]
-fn symlink_makes_a_link_after_its_parent_and_names_what_it_cannot_make() {
-    let sandbox = Sandbox::new();
-    let root = sandbox.text();
-    let files = SystemFiles { cwd: root.clone() };
-    files.symlink("/target/auth.json", "home/client/auth.json").expect("a link");
-    assert_eq!(std::fs::read_link(format!("{root}/home/client/auth.json")).expect("a link"), std::path::Path::new("/target/auth.json"));
-    assert_eq!(files.symlink("/target/auth.json", "home/client/auth.json").expect_err("taken").code, "EEXIST");
-    std::fs::write(format!("{root}/plain"), "x").expect("file");
-    // A parent that is a file cannot be made a directory: macOS says it exists, Linux that it is not one.
-    assert!(["ENOTDIR", "EEXIST"].contains(&files.symlink("/target", "plain/below").expect_err("not a directory").code.as_str()));
-}

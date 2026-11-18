@@ -191,12 +191,6 @@ impl Files for SystemFiles {
     fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
         copy_into(std::path::Path::new(&resolve(&self.cwd, from)), std::path::Path::new(&resolve(&self.cwd, to)), 0).map_err(|error| fail(&error, "cp", Some(from)))
     }
-
-    fn symlink(&self, target: &str, link: &str) -> Result<(), FsError> {
-        let link = resolve(&self.cwd, link);
-        let made = std::path::Path::new(&link).parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::os::unix::fs::symlink(target, &link));
-        made.map_err(|error| fail(&error, "symlink", Some(&link)))
-    }
 }
 
 /// How deep a copied folder may go, which stops a symlink that points back at its own folder.
