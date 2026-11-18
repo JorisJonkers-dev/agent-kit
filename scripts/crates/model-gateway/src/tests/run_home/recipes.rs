@@ -323,3 +323,35 @@ fn a_refreshed_login_is_put_back_after_the_launch_and_a_failure_is_a_warning() {
     assert!(outcome.warnings.is_empty());
     assert_eq!(disk.text("/home/me/.codex/auth.json").as_deref(), Some(r#"{"tokens":{"a":1}}"#));
 }
+
+#[test]
+fn a_client_that_can_sign_in_from_a_variable_gets_the_credential_and_no_keychain() {
+    let run_with = |client, keychain: Vec<(&'static str, &'static str)>, user: bool| {
+        let programs = Programs { keychain, ..Programs::answering() };
+        let mut environment = env();
+        if user {
+            environment.insert("USER".to_string(), "owner".to_string());
+        }
+        let disk = owner();
+        (ClientRun { process: &programs, files: &disk, env: &environment }).launch(&request(client, "m", None, RunMode::ReadOnly)).expect("launched");
+        let command = programs.first();
+        let grants = programs.grants.lock().unwrap()[0].clone();
+        (command.env, grants)
+    };
+    // Claude Code: the access token of the subscription login, from the keychain's JSON.
+    let login = r#"{"claudeAiOauth":{"accessToken":"tok-1","refreshToken":"r"}}"#;
+    let (env_of, grants) = run_with(RunClient::Claude, vec![("Claude Code-credentials", login)], true);
+    assert_eq!(env_of.get("CLAUDE_CODE_OAUTH_TOKEN").map(String::as_str), Some("tok-1"));
+    assert!(!grants.contains(&"--keychain".to_string()) && has(&grants, "--env", "CLAUDE_CODE_OAUTH_TOKEN"));
+    // Vibe: its key.
+    let (env_of, grants) = run_with(RunClient::Vibe, vec![("ai.mistral.vibe", "key-1")], false);
+    assert_eq!(env_of.get("MISTRAL_API_KEY").map(String::as_str), Some("key-1"));
+    assert!(!grants.contains(&"--keychain".to_string()));
+    // No item, an item that is not the login, no user name or a client with no such variable: the keychain is granted
+    // where the client has no other way (Antigravity, Codex) or the credential could not be read.
+    for (client, keychain, user) in [(RunClient::Claude, vec![], true), (RunClient::Claude, vec![("Claude Code-credentials", "not json")], true), (RunClient::Claude, vec![("Claude Code-credentials", "{}")], true), (RunClient::Claude, vec![], false), (RunClient::Vibe, vec![], false), (RunClient::Agy, vec![], true), (RunClient::Codex, vec![], true)] {
+        let (env_of, grants) = run_with(client, keychain, user);
+        assert!(grants.contains(&"--keychain".to_string()), "{client:?}");
+        assert!(!env_of.contains_key("CLAUDE_CODE_OAUTH_TOKEN") && !env_of.contains_key("MISTRAL_API_KEY"), "{client:?}");
+    }
+}

@@ -188,13 +188,15 @@ Wiring every client showed three things a recipe needs that the first cut did no
   any item of those keychains whose access list lets the caller read it. In a throwaway keychain, an item made
   with `security add-generic-password -A` was read by a confined `security find-generic-password -w` with
   `--keychain` and not found without it; the keychain was deleted afterwards. An item whose access list names
-  other applications still prompts or fails. Which clients need it: Codex (its cloud-config bundle fails without
-  it: `Failed to load cloud config bundle`; tried), Claude Code (its subscription login is only in the keychain;
-  `CLAUDE_CODE_OAUTH_TOKEN` would need the gateway to read and pass the token), Antigravity and Vibe (their
-  keys; Vibe reads `MISTRAL_API_KEY` from the environment first, which would need the gateway to read the key).
-  None could be moved off it without the gateway handling the credential itself, so the flag stays for these
-  four and is the accepted risk of this ADR. The keychain is found through `HOME`, so these clients keep the real
-  `HOME`.
+  other applications still prompts or fails. **Owner decision: only a client that cannot sign in another way gets it.** Claude Code signs in from
+  `CLAUDE_CODE_OAUTH_TOKEN` and Vibe from `MISTRAL_API_KEY`, so the gateway reads that one item with `security`
+  outside the confinement and hands it over as a variable: they get no `--keychain`. (The gateway handles the
+  credential for those two: the access token of the subscription login, and the Mistral key. If the item cannot
+  be read, the launch falls back to `--keychain`.) Codex keeps it (its `auth.json` is a file, but its
+  cloud-config bundle fails without the keychain: `Failed to load cloud config bundle`; tried), and Antigravity
+  keeps it (no variable or file known). So the residual risk applies to Codex and Antigravity: a confined process
+  can read any item of the login keychain whose access list lets the caller read it, whatever the item is.
+  The keychain is found through `HOME`, so these clients keep the real `HOME`.
 - **`--preferences` (macOS).** Allows `cfprefsd` and the managed preferences, which Codex asks before it
   starts (`Failed to synchronize managed preferences` without it). There is no `user-preference-read`: traced,
   Codex asks only for `kCFPreferencesAnyApplication` and `com.apple.security` and starts and answers without
@@ -217,10 +219,10 @@ own install (`--run-from`) and the system runtime. What each adds, as traced and
 | OpenCode (own providers, `opencode/...` free models) | the same, with `OPENCODE_DB` at the owner's database | **writes** the owner's `~/.local/share/opencode` directory (the database and its journal) | 443 and loopback | | the sign-in is in the database; a fresh one answers 429 |
 | Hermes (LiteLLM route) | `<run>/client-home`: `HERMES_HOME`, `HOME`, `XDG_*`, one provider | | the provider's (443) | | no literal key copied |
 | Hermes (other provider) | the same, a `config.yaml` with no MCP server and a copy of the owner's `.env` | nothing of the owner's | 443 | | `--safe-mode` |
-| Claude Code | `tmp` only (`CLAUDE_CODE_TMPDIR`), real `HOME` | nothing of `~/.claude`, `~/.claude.json` or `~/.claude-personal` | 443 | keychain; `USER`, `LOGNAME` kept | no global `CLAUDE.md`, skills or plugins load |
+| Claude Code | `tmp` only (`CLAUDE_CODE_TMPDIR`), real `HOME` | nothing of `~/.claude`, `~/.claude.json` or `~/.claude-personal` | 443 | no keychain: `CLAUDE_CODE_OAUTH_TOKEN` from the gateway (keychain only if it cannot be read); `USER`, `LOGNAME` kept | no global `CLAUDE.md`, skills or plugins load |
 | Codex | `CODEX_HOME=<run>/client-home` holding a copy of the owner's `auth.json`; after the launch only the `tokens` and `last_refresh` members that changed are written back to the owner's file | nothing of the owner's | 443 | keychain, preferences | runs with its own sandbox off, below |
 | Antigravity | `tmp` only, real `HOME` | **writes** `~/.gemini/antigravity-cli` and `~/.gemini/config` | 443 and loopback | keychain | its `--sandbox` is left out: its own Seatbelt cannot nest |
-| Vibe | `VIBE_HOME=<run>/client-home/vibe`: a copy of the owner's `config.toml` and `agents/`, real `HOME` | **reads** `~/.agents/skills` (Vibe walks it at start and fails on a directory it cannot even stat; the delegate agent enables no skill) | 443 | keychain | no session history, trusted folders or key file |
+| Vibe | `VIBE_HOME=<run>/client-home/vibe`: a copy of the owner's `config.toml` and `agents/`, real `HOME` | **reads** `~/.agents/skills` (Vibe walks it at start and fails on a directory it cannot even stat; the delegate agent enables no skill) | 443 | no keychain: `MISTRAL_API_KEY` from the gateway (keychain only if it cannot be read) | no session history, trusted folders or key file |
 
 **Codex.** Its own sandbox is a Seatbelt profile, and Seatbelt does not nest (`sandbox_apply: Operation not
 permitted`, reproduced under `confine`). The two choices were to use Codex's sandbox and verify it, or to turn it
@@ -246,7 +248,7 @@ allow-listing proxy of the open point above is still the open item for every cli
   the session history in one database, which the launcher cannot split.
 - Antigravity can read the owner's `~/.gemini/config`, where its skills are, and its own state beside it.
 - Vibe can list `~/.agents/skills`.
-- Claude Code, Antigravity, Vibe and Codex ask the keychain for credentials; a prompt-injected client can still
+- Antigravity and Codex ask the keychain (Claude Code and Vibe get a variable the gateway read); a prompt-injected client can still
   use the credential it was signed in with, as it always could.
 - Codex runs on a copy of its login and only the `tokens` and `last_refresh` members are written back after the launch; a login refreshed by the run and then lost to a crash is not written back, and the owner signs in again.
 - Linux: `--keychain` and `--preferences` do nothing, the recipes were run on macOS only, and OpenCode and Antigravity are refused (`--net-loopback` is not held by Landlock).

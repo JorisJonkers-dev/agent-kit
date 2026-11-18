@@ -18,6 +18,9 @@ use crate::run::RunClient;
 use crate::run_home::{sync_login, prepare_codex, prepare_hermes, prepare_opencode, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
 use std::collections::HashMap;
 
+/// The longest a keychain read may take: it may be locked, and an unattended run must not wait on a dialog.
+const KEYCHAIN_TIMEOUT_MS: u64 = 15_000;
+
 /// The Vibe tools that load on demand through `search_tool_functions`, which `--enabled-tools` filters out along with them.
 const VIBE_ON_DEMAND_TOOLS: [&str; 2] = ["web_search", "web_fetch"];
 
@@ -130,7 +133,10 @@ impl ClientRun<'_> {
         let launcher = launcher(request.client);
         let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
         let home = self.home_of(request)?;
-        let confinement = match self.confinement_of_client(request, home.as_ref()) {
+        // A client that can sign in from an environment variable gets its credential that way and no keychain: the
+        // gateway asks the keychain, outside the confinement, for the one item the client needs.
+        let credential = self.credential_of(request);
+        let confinement = match self.confinement_of_client(request, home.as_ref(), credential.is_some()) {
             Ok(confinement) => confinement,
             Err(error) => {
                 // A home made for a launch that never starts goes at once: it may hold a link to the owner's login.
@@ -138,7 +144,8 @@ impl ClientRun<'_> {
                 return Err(error.into());
             }
         };
-        let extras = LaunchExtras { confine: confine.clone(), home: home.clone(), confinement, ..self.extras_of(request)? };
+        let mut extras = LaunchExtras { confine: confine.clone(), home: home.clone(), confinement, ..self.extras_of(request)? };
+        extras.env.extend(credential);
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
         let ran = self.process.run(&command);
         // What the launch refreshed in its copy of a login goes back to the owner's, before the home goes.
@@ -171,9 +178,33 @@ impl ClientRun<'_> {
         prepare_pi(self.files, self.process, self.env, provider, &request.launch.model, &agent_dir, scope).map_err(|message| GatewayError::new("unconfined", message))
     }
 
+    /// The credential of a client that signs in from an environment variable, read from the macOS keychain with
+    /// `security` outside the confinement: Claude Code's `CLAUDE_CODE_OAUTH_TOKEN` (the access token of its
+    /// subscription login) and Vibe's `MISTRAL_API_KEY`. `None` where the keychain has none (Linux keeps these in
+    /// files) or the client has no such variable: the launch then gets `--keychain` and the client asks for itself.
+    fn credential_of(&self, request: &ClientRunRequest) -> Option<(String, String)> {
+        let (service, account, variable) = match request.client {
+            RunClient::Claude => ("Claude Code-credentials", self.env.get("USER")?.as_str(), "CLAUDE_CODE_OAUTH_TOKEN"),
+            RunClient::Vibe => ("ai.mistral.vibe", "MISTRAL_API_KEY", "MISTRAL_API_KEY"),
+            _ => return None,
+        };
+        let read = self.process.exec("/usr/bin/security", &["find-generic-password", "-s", service, "-a", account, "-w"], Some(KEYCHAIN_TIMEOUT_MS)).ok()?;
+        let text = crate::text::js_trim(&read.stdout).to_string();
+        if read.exit_code != 0 || text.is_empty() {
+            return None;
+        }
+        let value = if request.client == RunClient::Claude {
+            let login = json::parse(&text).ok()?;
+            login.as_object()?.get("claudeAiOauth")?.as_object()?.get("accessToken")?.as_str()?.to_string()
+        } else {
+            text
+        };
+        Some((variable.to_string(), value))
+    }
+
     /// What a client but Pi is started through: the launcher and the grants of its recipe (ADR-0016), or why it
     /// cannot be confined. A client that cannot is refused, never started bare.
-    fn confinement_of_client(&self, request: &ClientRunRequest, home: Option<&RunHome>) -> Result<Option<Confinement>, GatewayError> {
+    fn confinement_of_client(&self, request: &ClientRunRequest, home: Option<&RunHome>, has_credential: bool) -> Result<Option<Confinement>, GatewayError> {
         let Some(home) = home else {
             return Ok(None);
         };
@@ -190,6 +221,7 @@ impl ClientRun<'_> {
             RunClient::Vibe => (true, false, Vec::new(), Vec::new()),
             _ => (false, false, Vec::new(), Vec::new()),
         };
+        let keychain = keychain && !has_credential;
         let mut reads = home.reads.clone();
         // What the caller hands the launch: the server programs it attaches (run from their install, and reading the
         // files they are given by path) and the schema file it names, which the client reads.

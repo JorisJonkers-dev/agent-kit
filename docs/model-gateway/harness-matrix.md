@@ -115,10 +115,10 @@ refused with `launch-failed` and the reason. The grants of each recipe are in AD
 | opencode (LiteLLM route) | yes: run home, 443 and loopback | `litellm-opencode-go/ministral-3b` ok | pass | any host on 443 |
 | opencode-free (own providers) | yes: run home, owner's `~/.local/share/opencode` writable | `opencode/nemotron-3.5-lightning-free` ok | pass | the owner's OpenCode database is writable by the run |
 | hermes (LiteLLM route) | yes: run home, port 443 | `ministral-3b` ok | pass | any host on 443 |
-| claude | yes: keychain, nothing of `~/.claude` | `claude-haiku-5-5` ok | pass | any host on 443 |
-| agy | yes: keychain, `~/.gemini/antigravity-cli` and `~/.gemini/config` writable, 443 and loopback | `gemini-3.8-flash-low` ok | pass | any host on 443; its skills dir is readable |
-| vibe | yes: keychain, run `VIBE_HOME`, `~/.agents/skills` readable | `ministral-3b-latest` ok | blocked (no profile lists a Vibe model) | any host on 443 |
-| codex | yes: its own sandbox off inside ours, run `CODEX_HOME` with a copy of the owner's `auth.json` | not run through `model-gateway` (metered-employer: needs a repository whose allowlist names openai and a grant); the same grants were run by hand with `codex exec` and answered `ok` | blocked (same) | any host on 443 |
+| claude | yes: `CLAUDE_CODE_OAUTH_TOKEN` read by the gateway, no keychain, nothing of `~/.claude` | `claude-haiku-5-5` ok | pass | any host on 443 |
+| agy | yes: keychain (residual risk: any item whose ACL allows any app is readable), `~/.gemini/antigravity-cli` and `~/.gemini/config` writable, 443 and loopback | `gemini-3.8-flash-low` ok | pass | any host on 443; its skills dir is readable |
+| vibe | yes: `MISTRAL_API_KEY` read by the gateway, no keychain, run `VIBE_HOME`, `~/.agents/skills` readable | `ministral-3b-latest` ok | blocked (no profile lists a Vibe model) | any host on 443 |
+| codex | yes: keychain (same residual risk), its own sandbox off inside ours, run `CODEX_HOME` with a copy of the owner's `auth.json` | not run through `model-gateway` (metered-employer: needs a repository whose allowlist names openai and a grant); the same grants were run by hand with `codex exec` and answered `ok` | blocked (same) | any host on 443 |
 
 Last live run (2026-11-18, macOS 27, the confinement built from this branch): `model-gateway matrix --json '{"live":
 true, "roles": ["triage"], "harnesses": ["claude", "agy", "hermes", "opencode", "vibe", "codex"]}'` answered `ok` with no

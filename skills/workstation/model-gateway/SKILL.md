@@ -1168,8 +1168,7 @@ directory (or writes it, and a writing run's git directories, for `mode:
 runtime, and nothing else of the machine. A client that cannot be confined (no
 launcher, a home that cannot be made, a login that is not there) is refused with
 `launch-failed` and the reason, never started bare. The client's own sign-in is
-the narrow exception each recipe names: a keychain item for Claude Code,
-Antigravity, Vibe and Codex (`--keychain`); a copy of the owner's `auth.json` for Codex
+the narrow exception each recipe names: the keychain for Antigravity and Codex only (`--keychain`; any item whose ACL allows any app is readable, ADR-0016), while Claude Code and Vibe get their token or key as a variable the gateway reads; a copy of the owner's `auth.json` for Codex
 (only its refreshed `tokens` go back after the launch); `~/.gemini/antigravity-cli`
 and `~/.gemini/config` for Antigravity; the owner's OpenCode data directory for
 OpenCode's own providers; a copy of the owner's `~/.hermes/.env` for a Hermes provider

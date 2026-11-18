@@ -100,11 +100,13 @@ struct Programs {
     /// The client's own command of each launch, and the grants the launcher was given for it.
     ran: Mutex<Vec<ProcessCommand>>,
     grants: Mutex<Vec<Vec<String>>>,
+    /// What the keychain holds, by service name: what `security find-generic-password` answers.
+    keychain: Vec<(&'static str, &'static str)>,
 }
 
 impl Programs {
     fn answering() -> Programs {
-        Programs { launched: Ok(ProcessResult { stdout: String::new(), stderr: String::new(), exit_code: 0, timed_out: false }), ran: Mutex::new(Vec::new()), grants: Mutex::new(Vec::new()) }
+        Programs { launched: Ok(ProcessResult { stdout: String::new(), stderr: String::new(), exit_code: 0, timed_out: false }), ran: Mutex::new(Vec::new()), grants: Mutex::new(Vec::new()), keychain: Vec::new() }
     }
     fn first(&self) -> ProcessCommand {
         self.ran.lock().expect("ran")[0].clone()
@@ -115,8 +117,13 @@ impl Process for Programs {
     fn resolve(&self, _binary: &str) -> Option<String> {
         None
     }
-    fn exec(&self, _command: &str, _args: &[&str], _timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
-        Err("a launch goes through run".into())
+    fn exec(&self, _command: &str, args: &[&str], _timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
+        let service = args.iter().position(|arg| *arg == "-s").and_then(|at| args.get(at + 1));
+        match self.keychain.iter().find(|(name, _)| Some(*name) == service.copied()) {
+            Some((_, secret)) => Ok(ProcessResult { stdout: format!("{secret}\n"), stderr: String::new(), exit_code: 0, timed_out: false }),
+            None if service.is_some() => Ok(ProcessResult { stdout: String::new(), stderr: "not found".into(), exit_code: 44, timed_out: false }),
+            None => Err("a launch goes through run".into()),
+        }
     }
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
         let (command, grants) = unwrapped(command);
