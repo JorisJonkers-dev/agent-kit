@@ -229,7 +229,7 @@ def test_missing_oras_falls_back(session: Session) -> None:
     tools.mkdir()
     for directory in os.environ["PATH"].split(os.pathsep):
         for tool in Path(directory).glob("*") if Path(directory).is_dir() else []:
-            if tool.name != "oras" and not (tools / tool.name).exists():
+            if tool.name != "oras" and not os.path.lexists(tools / tool.name):
                 (tools / tool.name).symlink_to(tool)
     result = session.run(PATH=str(tools))
     _assert_baked(session, result, "oras is not on PATH")
